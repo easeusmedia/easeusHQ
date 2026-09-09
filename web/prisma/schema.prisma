@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  core
+  employee
+}
+
+// matches the team's "Editing Queue Status Guide" — see src/lib/workflow.ts
+enum TaskStatus {
+  queued
+  editing
+  sent_for_approval
+  revision_requested
+  final_export_ready
+  delivered_and_uploaded
+}
+
+enum EngagementType {
+  subscription
+  one_off
+}
+
+enum InvoiceStatus {
+  draft
+  ready
+  sent
+  paid
+  overdue
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  role      Role     @default(core)
+  avatarUrl String?
+  createdAt DateTime @default(now())
+
+  tasksAssigned Task[]        @relation("AssignedTasks")
+  tasksReviewed Task[]        @relation("ReviewedTasks")
+  feedback      Feedback[]
+  kpiSnapshots  KpiSnapshot[]
+  activity      ActivityLog[]
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  // matches the Notion Clients Dashboard "Status" property: Current | On Hold | Previous
+  status    String   @default("current")
+  // free text — real clients span far more than doctors/podcasts (e.g. Neelkamal TMT is a steel company)
+  niche     String?
+  contact   String?
+  createdAt DateTime @default(now())
+
+  projects Project[]
+  invoices Invoice[]
+}
+
+model Project {
+  id         String         @id @default(uuid())
+  client     Client         @relation(fields: [clientId], references: [id])
+  clientId   String
+  type       String
+  engagement EngagementType @default(subscription)
+  createdAt  DateTime       @default(now())
+
+  tasks    Task[]
+  invoices Invoice[]
+}
+
+model Task {
+  id           String     @id @default(uuid())
+  project      Project    @relation(fields: [projectId], references: [id])
+  projectId    String
+  assignedTo   User?      @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  assignedToId String?
+  title        String
+  status       TaskStatus @default(queued)
+  dueDate      DateTime?
+  priority     Int        @default(0)
+
+  // matches the Notion "Editing Queue" columns:
+  rawLink      String?    // raw footage handed to the editor (input)
+  referenceLink String?   // style/inspo reference for the edit
+  assetLink    String?    // supporting assets (b-roll, graphics, etc.)
+  // free-form brief from ops when assigning/editing — instructions, context,
+  // reference links, whatever the editor needs; distinct from reviewNotes
+  // (which is specifically the "what needs to change" note on a revision)
+  editingNotes String?
+
+  // review pipeline: editor submits a Frame.io link, admin QCs it,
+  // approved work gets a Drive link once the team uploads it there (output)
+  frameioLink  String?
+  driveLink    String?
+  reviewedBy   User?      @relation("ReviewedTasks", fields: [reviewedById], references: [id])
+  reviewedById String?
+  reviewNotes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs
+
+  feedback Feedback[]
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model KpiSnapshot {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  period    String   // e.g. "2026-09" for monthly
+  metrics   Json     // { turnaroundHours, revisionCount, tasksCompleted, onTimePct }
+  createdAt DateTime @default(now())
+
+  @@unique([userId, period])
+}
+
+model Invoice {
+  id        String        @id @default(uuid())
+  client    Client        @relation(fields: [clientId], references: [id])
+  clientId  String
+  project   Project?      @relation(fields: [projectId], references: [id])
+  projectId String?
+  amount    Decimal
+  status    InvoiceStatus @default(draft)
+  pdfUrl    String?
+  dueDate   DateTime?
+  createdAt DateTime      @default(now())
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  actor     User     @relation(fields: [actorId], references: [id])
+  actorId   String
+  action    String
+  entity    String
+  entityId  String
+  createdAt DateTime @default(now())
+}
