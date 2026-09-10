@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
@@ -60,27 +60,45 @@ export function Board({
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
-  async function commitMove(to: TaskStatus, taskId: string, sortOrder: number, extra: Record<string, string> = {}) {
-    try {
-      await moveTask(taskId, to, actingUserId, actingRole, { ...extra, sortOrder });
-      router.refresh();
-    } catch (err) {
-      setError(friendlyError(err));
-    }
+  // the card moves the instant you drop it — the server round-trip (and
+  // router.refresh() reconciling with the real DB state once it lands)
+  // happens in the background instead of blocking the visual move
+  const [optimisticTasks, applyOptimistic] = useOptimistic(
+    tasks,
+    (state, update: { taskId: string; sortOrder: number; status?: TaskStatus }) =>
+      state.map((t) =>
+        t.id === update.taskId ? { ...t, sortOrder: update.sortOrder, ...(update.status ? { status: update.status } : {}) } : t
+      )
+  );
+
+  function commitMove(to: TaskStatus, taskId: string, sortOrder: number, extra: Record<string, string> = {}) {
+    startTransition(async () => {
+      applyOptimistic({ taskId, sortOrder, status: to });
+      try {
+        await moveTask(taskId, to, actingUserId, actingRole, { ...extra, sortOrder });
+        router.refresh();
+      } catch (err) {
+        setError(friendlyError(err));
+      }
+    });
   }
 
-  async function commitReorder(taskId: string, sortOrder: number) {
-    try {
-      await reorderTask(taskId, sortOrder);
-      router.refresh();
-    } catch (err) {
-      setError(friendlyError(err));
-    }
+  function commitReorder(taskId: string, sortOrder: number) {
+    startTransition(async () => {
+      applyOptimistic({ taskId, sortOrder });
+      try {
+        await reorderTask(taskId, sortOrder);
+        router.refresh();
+      } catch (err) {
+        setError(friendlyError(err));
+      }
+    });
   }
 
   function columnOf(status: TaskStatus) {
-    return tasks.filter((t) => t.status === status).sort((a, b) => a.sortOrder - b.sortOrder);
+    return optimisticTasks.filter((t) => t.status === status).sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   // same rule the status dropdown already filters its options by — dragging
@@ -98,7 +116,7 @@ export function Board({
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId) return;
-    const draggedTask = tasks.find((t) => t.id === taskId);
+    const draggedTask = optimisticTasks.find((t) => t.id === taskId);
     if (!canDropInto(draggedTask, to)) {
       setError("Only the ops team can move a task to that stage.");
       return;
@@ -127,7 +145,7 @@ export function Board({
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId || taskId === targetTask.id) return;
-    const draggedTask = tasks.find((t) => t.id === taskId);
+    const draggedTask = optimisticTasks.find((t) => t.id === taskId);
     if (!canDropInto(draggedTask, to)) {
       setError("Only the ops team can move a task to that stage.");
       return;

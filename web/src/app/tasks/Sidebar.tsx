@@ -82,11 +82,16 @@ export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean;
             key={item.segment}
             href={qs ? `${href}?${qs}` : href}
             title={wide ? undefined : item.label}
-            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${wide ? "" : "justify-center"} ${
+            className={`flex items-center gap-2 rounded-md py-2 text-sm ${
               active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
             }`}
           >
-            <item.Icon size={18} className="shrink-0" />
+            {/* fixed-size slot, same position whether collapsed or wide, so
+                the icon never jumps during the sidebar's width transition —
+                only the label fades in/out to its right */}
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+              <item.Icon size={18} />
+            </span>
             {wide && item.label}
           </Link>
         );

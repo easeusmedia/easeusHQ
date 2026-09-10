@@ -48,17 +48,17 @@ export function NotesButton({ notes }: { notes: string }) {
         ref={ref}
         // Tailwind's reset zeroes out margin, which is what the browser
         // normally uses to center a <dialog> — so we center it explicitly.
-        className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 w-[32rem] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"
       >
-        <div className="mb-2 flex items-center gap-2">
+        <div className="mb-3 flex items-center gap-2">
           <NotesGlyph />
-          <p className="text-sm font-medium">Editing notes</p>
+          <p className="text-base font-medium">Editing notes</p>
         </div>
-        <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-muted">{linkify(notes)}</p>
+        <p className="max-h-[28rem] overflow-y-auto whitespace-pre-wrap text-sm text-muted">{linkify(notes)}</p>
         <button
           type="button"
           onClick={() => ref.current?.close()}
-          className="btn-glow mt-3 w-full rounded-md px-3 py-2 text-xs font-medium"
+          className="btn-glow mt-4 w-full rounded-md px-3 py-2 text-sm font-medium"
         >
           Close
         </button>

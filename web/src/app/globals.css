@@ -66,9 +66,11 @@ body {
   -webkit-backdrop-filter: blur(10px);
 }
 .card-surface {
+  /* dropped backdrop-filter here — at 90% opacity there was barely
+     anything to blur through, but real-time backdrop sampling on every
+     task card (there can be dozens on screen) was a genuine scroll/drag
+     jank source. Same look, without paying for it every frame. */
   background: rgba(21, 24, 28, 0.9);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid var(--border);
   transition: background-color 0.12s ease;
 }
