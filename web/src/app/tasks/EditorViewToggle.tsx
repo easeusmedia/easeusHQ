@@ -50,10 +50,10 @@ export function EditorViewToggle(props: {
   const [mode, setMode] = useState<Mode>("list");
   const [celebration, setCelebration] = useState<string | null>(null);
   // per-user, in localStorage rather than a plain ref — an in-memory ref
-  // only survives while the tab stays open, so an approval that happened
+  // only survives while the tab stays open, so a delivery that happened
   // while the editor's tab was closed (or before their first-ever visit)
   // would never be "before vs after" comparable. Persisting the last-seen
-  // status per task means even a fresh page load can still catch it.
+  // state per task means even a fresh page load can still catch it.
   const seenKey = `approval-seen:${props.actingUserId}`;
 
   useEffect(() => {
@@ -65,12 +65,15 @@ export function EditorViewToggle(props: {
     }
   }, []);
 
-  // LiveRefresh polls every 5s (and this also runs on first mount) — catch
-  // ops approving one of this editor's tasks (sent_for_approval ->
-  // final_export_ready) and say so, since otherwise the only sign is the
-  // card quietly changing column
+  // The moment a task is marked delivered it drops off the live board
+  // entirely (page.tsx's ACTIVE_STATUSES filter excludes delivered_and_
+  // uploaded), so there's no in-list status change to diff — the signal
+  // is a task that WAS here, sitting in final_export_ready, and is now
+  // just gone. Storing title alongside status so we still have something
+  // to name in the toast after the task itself disappears from props.
   useEffect(() => {
-    let prev: Record<string, string> | null = null;
+    type Seen = { status: string; title: string };
+    let prev: Record<string, Seen> | null = null;
     try {
       const raw = localStorage.getItem(seenKey);
       prev = raw ? JSON.parse(raw) : null;
@@ -79,25 +82,22 @@ export function EditorViewToggle(props: {
     }
 
     if (prev) {
-      // ops has full manual override on the queue (see workflow.ts), so an
-      // approval doesn't always arrive via sent_for_approval specifically —
-      // any move INTO final_export_ready from something that wasn't already
-      // there counts
-      const approved = props.tasks.filter(
-        (t) => t.status === "final_export_ready" && prev![t.id] && prev![t.id] !== "final_export_ready"
-      );
-      if (approved.length === 1) {
-        setCelebration(`"${approved[0].title}" was approved — nice work!`);
+      const currentIds = new Set(props.tasks.map((t) => t.id));
+      const delivered = Object.entries(prev)
+        .filter(([id, entry]) => entry.status === "final_export_ready" && !currentIds.has(id))
+        .map(([, entry]) => entry.title);
+      if (delivered.length === 1) {
+        setCelebration(`"${delivered[0]}" was delivered to the client — nice work!`);
         playChime();
-      } else if (approved.length > 1) {
-        setCelebration(`${approved.length} of your tasks were approved — nice work!`);
+      } else if (delivered.length > 1) {
+        setCelebration(`${delivered.length} of your tasks were delivered to the client — nice work!`);
         playChime();
       }
     }
 
     try {
-      const next: Record<string, string> = {};
-      for (const t of props.tasks) next[t.id] = t.status;
+      const next: Record<string, Seen> = {};
+      for (const t of props.tasks) next[t.id] = { status: t.status, title: t.title };
       localStorage.setItem(seenKey, JSON.stringify(next));
     } catch {
       // ignore — worst case, a fresh localStorage means we just re-bootstrap silently

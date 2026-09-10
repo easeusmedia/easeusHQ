@@ -2,6 +2,7 @@
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ShieldAlert } from "lucide-react";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { moveTask, reorderTask } from "./actions";
@@ -186,7 +187,10 @@ export function Board({
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
-            <p className="text-sm text-red-300">{error}</p>
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-400/15">
+              <ShieldAlert size={22} className="text-red-300" />
+            </div>
+            <p className="text-sm text-foreground">{error}</p>
             <button onClick={() => setError(null)} className="btn-glow rounded-md px-4 py-2 text-sm font-medium">
               Dismiss
             </button>
