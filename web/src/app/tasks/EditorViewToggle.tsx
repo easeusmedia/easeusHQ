@@ -79,7 +79,13 @@ export function EditorViewToggle(props: {
     }
 
     if (prev) {
-      const approved = props.tasks.filter((t) => prev![t.id] === "sent_for_approval" && t.status === "final_export_ready");
+      // ops has full manual override on the queue (see workflow.ts), so an
+      // approval doesn't always arrive via sent_for_approval specifically —
+      // any move INTO final_export_ready from something that wasn't already
+      // there counts
+      const approved = props.tasks.filter(
+        (t) => t.status === "final_export_ready" && prev![t.id] && prev![t.id] !== "final_export_ready"
+      );
       if (approved.length === 1) {
         setCelebration(`"${approved[0].title}" was approved — nice work!`);
         playChime();

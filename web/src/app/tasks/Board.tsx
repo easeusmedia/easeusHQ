@@ -184,11 +184,13 @@ export function Board({
   return (
     <div>
       {error && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-300">
-          {error}
-          <button onClick={() => setError(null)} className="ml-3 text-red-300/70 hover:text-red-200">
-            Dismiss
-          </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
+          <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
+            <p className="text-sm text-red-300">{error}</p>
+            <button onClick={() => setError(null)} className="btn-glow rounded-md px-4 py-2 text-sm font-medium">
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
