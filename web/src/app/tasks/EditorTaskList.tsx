@@ -1,6 +1,6 @@
 import { canTransition, nextStatuses, type Role } from "@/lib/workflow";
 import { StatusBadge, formatDate, type TaskCardData } from "./TaskCard";
-import { NotesButton } from "./NotesButton";
+import { NotesButton, linkify } from "./NotesButton";
 import { StatusSelect } from "./StatusSelect";
 
 function Link({ href, label }: { href: string; label: string }) {
@@ -54,7 +54,7 @@ export function EditorTaskList({
 
             {task.reviewNotes && task.status === "revision_requested" && (
               <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
-                Revision notes: {task.reviewNotes}
+                Revision notes: {linkify(task.reviewNotes)}
               </p>
             )}
 

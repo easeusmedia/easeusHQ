@@ -2,6 +2,28 @@
 
 import { useRef } from "react";
 
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+
+// turn any http(s) links inside plain-text notes into clickable anchors,
+// leaving everything else as-is
+export function linkify(text: string) {
+  return text.split(URL_PATTERN).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-400 underline underline-offset-2"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 // Flat, filled note-card glyph (solid yellow, folded corner) instead of a
 // thin-line icon — matches the macOS/Google-Keep style note icon: a solid
 // shape, not an outline.
@@ -35,7 +57,7 @@ export function NotesButton({ notes }: { notes: string }) {
           <NotesGlyph />
           <p className="text-sm font-medium">Editing notes</p>
         </div>
-        <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-muted">{notes}</p>
+        <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-muted">{linkify(notes)}</p>
         <button
           type="button"
           onClick={() => ref.current?.close()}
