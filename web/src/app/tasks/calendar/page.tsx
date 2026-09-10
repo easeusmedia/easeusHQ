@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { getAllUsers } from "@/lib/users";
 import { STATUS_LABEL } from "../TaskCard";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
 
@@ -19,9 +20,6 @@ export default async function CalendarPage({
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const me = await prisma.user.findUnique({ where: { id: sessionUserId } });
-  if (me?.role === "employee") redirect("/tasks"); // admin/core only — a management view
-
   const { month: monthParam } = await searchParams;
   const now = new Date();
   const parsed = monthParam?.match(/^(\d{4})-(\d{1,2})$/);
@@ -37,15 +35,23 @@ export default async function CalendarPage({
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const rangeEnd = monthEnd < today ? monthEnd : new Date(today.getTime() + 86400000);
 
-  // A task counts on a given day if it was actually sitting in the
-  // dashboard that day: created on or before that day, and not yet
-  // delivered — the moment a task is marked delivered it drops off the
-  // live board, so it stops counting from that day on (see page.tsx's
-  // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
-  const tasks = await prisma.task.findMany({
-    where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd } },
-    include: { assignedTo: true, project: { include: { client: true } } },
-  });
+  // users + tasks run together instead of waiting on the role check first
+  // (a wasted task query for the rare employee who lands here directly is
+  // cheaper than a second sequential round trip for every real visit)
+  const [users, tasks] = await Promise.all([
+    getAllUsers(),
+    // A task counts on a given day if it was actually sitting in the
+    // dashboard that day: created on or before that day, and not yet
+    // delivered — the moment a task is marked delivered it drops off the
+    // live board, so it stops counting from that day on (see page.tsx's
+    // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
+    prisma.task.findMany({
+      where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd } },
+      include: { assignedTo: true, project: { include: { client: true } } },
+    }),
+  ]);
+  const me = users.find((u) => u.id === sessionUserId);
+  if (me?.role === "employee") redirect("/tasks"); // admin/core only — a management view
 
   const days: Record<string, DayEntry[]> = {};
   for (let d = new Date(monthStart); d < rangeEnd; d.setUTCDate(d.getUTCDate() + 1)) {

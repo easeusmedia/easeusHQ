@@ -164,7 +164,9 @@ export function TaskCard({
             <Avatar name={task.assignedTo.name} />
             {task.assignedTo.name}
           </span>
-          <span>Assigned {formatDate(task.createdAt)}</span>
+          <span className="opacity-0 transition-opacity group-hover:opacity-100">
+            Assigned {formatDate(task.createdAt)}
+          </span>
         </div>
       )}
 

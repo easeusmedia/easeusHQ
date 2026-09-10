@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { getAllUsers } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
@@ -13,10 +13,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const [users, sessionUser] = await Promise.all([
-    prisma.user.findMany({ orderBy: { name: "asc" } }).catch(() => []),
-    prisma.user.findUnique({ where: { id: sessionUserId } }),
-  ]);
+  const users = await getAllUsers().catch(() => []);
+  const sessionUser = users.find((u) => u.id === sessionUserId);
   if (!sessionUser) redirect("/login"); // stale/deleted-user cookie
 
   const isAdmin = sessionUser.role === "admin";

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { getAllUsers } from "@/lib/users";
 import { resolveActingUser } from "@/lib/actingUser";
 import type { Role, TaskStatus } from "@/lib/workflow";
 import { Board } from "./Board";
@@ -28,7 +29,7 @@ export default async function TasksPage({
   if (!sessionUserId) redirect("/login");
 
   const [users, projects, tasks] = await Promise.all([
-    prisma.user.findMany({ orderBy: { name: "asc" } }),
+    getAllUsers(),
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: true },
