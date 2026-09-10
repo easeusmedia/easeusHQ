@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { moveTask, reorderTask } from "./actions";
-import type { Role, TaskStatus } from "@/lib/workflow";
+import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 
 export type Column = { status: TaskStatus; label: string; dot: string };
 
@@ -83,17 +83,27 @@ export function Board({
     return tasks.filter((t) => t.status === status).sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
+  // same rule the status dropdown already filters its options by — dragging
+  // shouldn't offer a move the workflow wouldn't let you pick from the menu
+  function canDropInto(task: TaskCardData | undefined, to: TaskStatus): boolean {
+    if (!task) return false;
+    if (task.status === to) return true; // reordering within the same column, not a status change
+    const isAssignee = task.assignedTo?.id === actingUserId;
+    return canTransition(task.status, to, { role: actingRole, isAssignee });
+  }
+
   // dropped on empty column space (not on a specific card) — send it to
   // the end of that column
   function handleDrop(to: TaskStatus) {
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId) return;
+    const draggedTask = tasks.find((t) => t.id === taskId);
+    if (!canDropInto(draggedTask, to)) return;
 
     const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
     const sortOrder = (columnTasks.at(-1)?.sortOrder ?? 0) + 1;
 
-    const draggedTask = tasks.find((t) => t.id === taskId);
     if (draggedTask?.status === to) {
       commitReorder(taskId, sortOrder);
       return;
@@ -114,13 +124,14 @@ export function Board({
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId || taskId === targetTask.id) return;
+    const draggedTask = tasks.find((t) => t.id === taskId);
+    if (!canDropInto(draggedTask, to)) return;
 
     const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
     const idx = columnTasks.findIndex((t) => t.id === targetTask.id);
     const prevTask = columnTasks[idx - 1];
     const sortOrder = prevTask ? (prevTask.sortOrder + targetTask.sortOrder) / 2 : targetTask.sortOrder - 1;
 
-    const draggedTask = tasks.find((t) => t.id === taskId);
     if (draggedTask?.status === to) {
       commitReorder(taskId, sortOrder);
       return;

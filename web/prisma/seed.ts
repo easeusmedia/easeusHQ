@@ -14,7 +14,7 @@ async function main() {
   const ashmit = await prisma.user.upsert({
     where: { email: "ashmitshahi0918@gmail.com" },
     update: { email: "ashmit@easeus.media", passwordHash },
-    create: { name: "Ashmit Sahi", email: "ashmit@easeus.media", role: "admin", passwordHash },
+    create: { name: "Ashmit Shahi", email: "ashmit@easeus.media", role: "admin", passwordHash },
   });
 
   const [rounak, narendra, sparsh] = await Promise.all([

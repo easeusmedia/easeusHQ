@@ -68,7 +68,7 @@ export function HistoryList({ tasks, logsByTask }: { tasks: HistoryTask[]; logsB
               <tr
                 key={t.id}
                 onClick={() => open(t.id)}
-                className="cursor-pointer border-t border-border hover:bg-hover"
+                className="cursor-pointer border-t border-border hover:bg-surface-2"
               >
                 <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(t.createdAt)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(t.updatedAt)}</td>
