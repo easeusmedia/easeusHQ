@@ -30,7 +30,8 @@ export const STATUS_STYLE: Record<TaskStatus, string> = {
 // up front on every card
 export const EXTRA_FIELD: Partial<Record<TaskStatus, { field: "frameioLink" | "driveLink" | "reviewNotes"; label: string; placeholder: string }>> = {
   sent_for_approval: { field: "frameioLink", label: "Frame.io link", placeholder: "https://f.io/…" },
-  revision_requested: { field: "reviewNotes", label: "What needs to change?", placeholder: "Trim the intro…" },
+  // no extra prompt for revision_requested — the change notes already live
+  // on the Frame.io comment thread, no need to duplicate them here
   delivered_and_uploaded: { field: "driveLink", label: "Final Drive link", placeholder: "https://drive.google.com/…" },
 };
 

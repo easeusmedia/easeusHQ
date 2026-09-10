@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, Users, CalendarDays, PanelLeft, Check } from "lucide-react";
+import { LayoutDashboard, History, Users, CalendarCheck2, PanelLeft, Check } from "lucide-react";
 
 const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
@@ -72,7 +72,7 @@ export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean;
     >
       {[
         ...NAV,
-        ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarDays }] : []),
+        ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarCheck2 }] : []),
         ...(isAdmin ? [{ segment: "/users", label: "Users", Icon: Users }] : []),
       ].map((item) => {
         const href = `${base}${item.segment}`;
