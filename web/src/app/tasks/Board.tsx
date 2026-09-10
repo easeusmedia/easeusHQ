@@ -99,7 +99,10 @@ export function Board({
     setDraggingId(null);
     if (!taskId) return;
     const draggedTask = tasks.find((t) => t.id === taskId);
-    if (!canDropInto(draggedTask, to)) return;
+    if (!canDropInto(draggedTask, to)) {
+      setError("Only the ops team can move a task to that stage.");
+      return;
+    }
 
     const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
     const sortOrder = (columnTasks.at(-1)?.sortOrder ?? 0) + 1;
@@ -125,7 +128,10 @@ export function Board({
     setDraggingId(null);
     if (!taskId || taskId === targetTask.id) return;
     const draggedTask = tasks.find((t) => t.id === taskId);
-    if (!canDropInto(draggedTask, to)) return;
+    if (!canDropInto(draggedTask, to)) {
+      setError("Only the ops team can move a task to that stage.");
+      return;
+    }
 
     const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
     const idx = columnTasks.findIndex((t) => t.id === targetTask.id);

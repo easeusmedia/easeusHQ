@@ -82,7 +82,7 @@ export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean;
             key={item.segment}
             href={qs ? `${href}?${qs}` : href}
             title={wide ? undefined : item.label}
-            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${wide ? "" : "justify-center"} ${
               active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
             }`}
           >
