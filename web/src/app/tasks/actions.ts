@@ -3,10 +3,20 @@
 import { prisma } from "@/lib/prisma";
 import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
+import { destroySession, getSessionUserId } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-// NOTE: no auth wired yet (see PLAN.md) — actingUserId/actingRole are passed
-// in from the form (or call site) for now. Once login exists, derive both
-// from the session instead of trusting the caller for them.
+// NOTE: login now exists (src/app/login), and page.tsx/history/page.tsx
+// resolve actingUserId/actingRole from the verified session before ever
+// putting them in a form — but the actions below still just take whatever
+// values a form hands them, same as before. Fully closing that gap (making
+// every action re-derive the actor from the session itself) is follow-up
+// work, not done here.
+
+export async function logout() {
+  await destroySession();
+  redirect("/login");
+}
 
 export async function createTask(formData: FormData) {
   const projectId = String(formData.get("projectId"));
@@ -19,10 +29,15 @@ export async function createTask(formData: FormData) {
     throw new Error("Project, title, and an editor are all required");
   }
 
-  await prisma.task.create({
+  const task = await prisma.task.create({
     data: { projectId, title: title.trim(), dueDate: new Date(), assignedToId, rawLink, referenceLink, editingNotes },
     // status defaults to "queued"
   });
+
+  const actorId = await getSessionUserId();
+  if (actorId) {
+    await prisma.activityLog.create({ data: { actorId, action: "created", entity: "Task", entityId: task.id } });
+  }
   revalidatePath("/tasks");
 }
 
@@ -53,24 +68,15 @@ async function changeStatus(
         : {}),
     },
   });
+  // the record the calendar view reads — "this task had activity today"
+  await prisma.activityLog.create({
+    data: { actorId: actingUserId, action: `${task.status} → ${to}`, entity: "Task", entityId: taskId },
+  });
   revalidatePath("/tasks");
 }
 
-// bound to the per-status buttons on a card (needs the extra link/notes fields)
-export async function updateTaskStatus(formData: FormData) {
-  const taskId = String(formData.get("taskId"));
-  const to = String(formData.get("to")) as TaskStatus;
-  const actingRole = String(formData.get("actingRole")) as Role;
-  const actingUserId = String(formData.get("actingUserId"));
-
-  await changeStatus(taskId, to, actingUserId, actingRole, {
-    frameioLink: (formData.get("frameioLink") as string) || undefined,
-    driveLink: (formData.get("driveLink") as string) || undefined,
-    reviewNotes: (formData.get("reviewNotes") as string) || undefined,
-  });
-}
-
-// called directly (not via a form) when a card is dragged to another column
+// called directly (not via a form) — both the StatusSelect dropdown and
+// dragging a card call this exact same function, so they behave identically
 export async function moveTask(
   taskId: string,
   to: TaskStatus,
@@ -90,16 +96,19 @@ export async function updateTask(formData: FormData) {
   if (actingRole === "employee") throw new Error("Only admin/core can edit task details");
 
   const title = String(formData.get("title") ?? "").trim();
+  const projectId = String(formData.get("projectId") ?? "") || undefined;
   const assignedToId = String(formData.get("assignedToId") ?? "") || null;
   const rawLink = String(formData.get("rawLink") ?? "") || null;
-  const referenceLink = String(formData.get("referenceLink") ?? "") || null;
-  const assetLink = String(formData.get("assetLink") ?? "") || null;
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
   if (!title) throw new Error("Title is required");
 
+  // referenceLink/assetLink are intentionally not touched here — no inputs
+  // for them anymore (everything extra goes in editingNotes now), and
+  // leaving them out of this update preserves whatever old value a task
+  // might already have.
   await prisma.task.update({
     where: { id: taskId },
-    data: { title, assignedToId, rawLink, referenceLink, assetLink, editingNotes },
+    data: { title, projectId, assignedToId, rawLink, editingNotes },
   });
   revalidatePath("/tasks");
 }

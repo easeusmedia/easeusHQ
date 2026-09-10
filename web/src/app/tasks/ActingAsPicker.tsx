@@ -1,35 +1,33 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Dropdown } from "./Dropdown";
 
 type Person = { id: string; name: string; role: string };
 
-// Stand-in for real auth (see PLAN.md). Once login exists, the acting user
-// comes from the session and this picker goes away entirely.
-export function ActingAsPicker({ people }: { people: Person[] }) {
+// "View as" for admin/core (see resolveActingUser) — lets them preview
+// another person's board without actually switching accounts.
+export function ActingAsPicker({ people, sessionUserId }: { people: Person[]; sessionUserId: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const current = searchParams.get("as") ?? people[0]?.id ?? "";
+  const current = searchParams.get("as") ?? sessionUserId;
 
   return (
-    <label className="flex items-center gap-2 text-sm text-muted">
+    <div className="flex items-center gap-2 text-sm text-muted">
       Viewing as
-      <select
-        className="rounded-md border border-border bg-surface px-2 py-1 text-foreground"
-        value={current}
-        onChange={(e) => {
-          const params = new URLSearchParams(searchParams);
-          params.set("as", e.target.value);
-          router.push(`${pathname}?${params.toString()}`);
-        }}
-      >
-        {people.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name} ({p.role})
-          </option>
-        ))}
-      </select>
-    </label>
+      <div className="w-44">
+        <Dropdown
+          key={current}
+          defaultValue={current}
+          options={people.map((p) => ({ value: p.id, label: `${p.name} (${p.role})` }))}
+          onChange={(id) => {
+            const params = new URLSearchParams(searchParams);
+            params.set("as", id);
+            router.push(`${pathname}?${params.toString()}`);
+          }}
+        />
+      </div>
+    </div>
   );
 }

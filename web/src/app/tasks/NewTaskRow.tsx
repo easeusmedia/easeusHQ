@@ -1,4 +1,6 @@
 import { createTask } from "./actions";
+import { NotesGlyph } from "./NotesButton";
+import { Dropdown } from "./Dropdown";
 
 type Project = { id: string; client: { name: string } };
 type Editor = { id: string; name: string };
@@ -10,32 +12,26 @@ export function NewTaskRow({ projects, editors }: { projects: Project[]; editors
     <details className="rounded-lg border border-dashed border-border bg-surface/50 p-2 text-sm">
       <summary className="cursor-pointer font-medium text-foreground">+ New task</summary>
       <form action={createTask} className="mt-2 flex flex-col gap-2">
-        <select name="projectId" required className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs">
-          <option value="">Client…</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.client.name}</option>
-          ))}
-        </select>
+        <Dropdown name="projectId" placeholder="Client…" options={projects.map((p) => ({ value: p.id, label: p.client.name }))} />
         <input
           name="title"
           placeholder="Video / subject"
           required
           className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
         />
-        <select name="assignedToId" required className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs">
-          <option value="">Assign to…</option>
-          {editors.map((e) => (
-            <option key={e.id} value={e.id}>{e.name}</option>
-          ))}
-        </select>
+        <Dropdown name="assignedToId" placeholder="Assign to…" options={editors.map((e) => ({ value: e.id, label: e.name }))} />
         <input
           name="rawLink"
           placeholder="Raw footage (Google Drive link)"
           className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
         />
+        <div className="flex items-center gap-1.5 text-xs text-muted">
+          <NotesGlyph size={12} />
+          Editing notes
+        </div>
         <textarea
           name="editingNotes"
-          placeholder="Editing notes for the editor — instructions, references, anything they need…"
+          placeholder="Instructions, references, anything the editor needs…"
           rows={3}
           className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
         />

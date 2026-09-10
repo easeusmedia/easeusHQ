@@ -29,6 +29,15 @@ export type TaskStatus =
   | "final_export_ready"
   | "delivered_and_uploaded";
 
+export const ALL_STATUSES: TaskStatus[] = [
+  "queued",
+  "editing",
+  "sent_for_approval",
+  "revision_requested",
+  "final_export_ready",
+  "delivered_and_uploaded",
+];
+
 export type Role = "admin" | "core" | "employee";
 
 export type Actor = { role: Role; isAssignee: boolean };

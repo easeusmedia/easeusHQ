@@ -37,12 +37,13 @@ enum InvoiceStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  role      Role     @default(core)
-  avatarUrl String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  role         Role     @default(core)
+  passwordHash String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
 
   tasksAssigned Task[]        @relation("AssignedTasks")
   tasksReviewed Task[]        @relation("ReviewedTasks")

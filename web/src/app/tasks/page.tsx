@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/auth";
+import { resolveActingUser } from "@/lib/actingUser";
 import type { Role, TaskStatus } from "@/lib/workflow";
 import { Board } from "./Board";
 import { EditorViewToggle } from "./EditorViewToggle";
@@ -21,6 +24,8 @@ export default async function TasksPage({
   searchParams: Promise<{ as?: string }>;
 }) {
   const { as } = await searchParams;
+  const sessionUserId = await getSessionUserId();
+  if (!sessionUserId) redirect("/login");
 
   const [users, projects, tasks] = await Promise.all([
     prisma.user.findMany({ orderBy: { name: "asc" } }),
@@ -37,7 +42,7 @@ export default async function TasksPage({
   ]);
 
   const editors = users.filter((u) => u.role === "employee"); // assignable pool — ops (admin/core) don't edit, they manage
-  const actingUser = users.find((u) => u.id === as) ?? users[0];
+  const actingUser = resolveActingUser(users, sessionUserId, as);
 
   if (!actingUser) {
     return (

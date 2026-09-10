@@ -1,0 +1,147 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
+import { moveTask } from "./actions";
+import { STATUS_LABEL, EXTRA_FIELD } from "./TaskCard";
+import type { Role, TaskStatus } from "@/lib/workflow";
+
+// Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
+// picking a status calls the exact same moveTask() that dragging the card
+// calls, so selecting and dragging really do "work the same".
+export function StatusSelect({
+  taskId,
+  currentStatus,
+  options,
+  actingUserId,
+  actingRole,
+}: {
+  taskId: string;
+  currentStatus: TaskStatus;
+  options: TaskStatus[];
+  actingUserId: string;
+  actingRole: Role;
+}) {
+  const router = useRouter();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pendingTo, setPendingTo] = useState<TaskStatus | null>(null);
+  const [inputValue, setInputValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  async function commit(to: TaskStatus, extra: Record<string, string> = {}) {
+    try {
+      await moveTask(taskId, to, actingUserId, actingRole, extra);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't update status.");
+    }
+  }
+
+  function pick(to: TaskStatus) {
+    setOpen(false);
+    const extra = EXTRA_FIELD[to];
+    if (extra) {
+      setPendingTo(to);
+      setInputValue("");
+      dialogRef.current?.showModal();
+      return;
+    }
+    commit(to);
+  }
+
+  function confirmDialog() {
+    if (!pendingTo) return;
+    const extra = EXTRA_FIELD[pendingTo];
+    if (!extra || !inputValue.trim()) return;
+    commit(pendingTo, { [extra.field]: inputValue.trim() });
+    dialogRef.current?.close();
+    setPendingTo(null);
+  }
+
+  const extraField = pendingTo ? EXTRA_FIELD[pendingTo] : undefined;
+
+  if (options.length === 0) {
+    return (
+      <span className="block rounded-md border border-border bg-surface-2 px-3 py-2 text-center text-xs text-muted">
+        {STATUS_LABEL[currentStatus]}
+      </span>
+    );
+  }
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="btn-glow flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium"
+      >
+        {STATUS_LABEL[currentStatus]}
+        <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-surface-2 py-1 shadow-lg">
+          {options.map((to) => (
+            <button
+              key={to}
+              type="button"
+              onClick={() => pick(to)}
+              className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+            >
+              {STATUS_LABEL[to]}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p className="mt-1 text-[11px] text-red-300">{error}</p>}
+
+      <dialog
+        ref={dialogRef}
+        onClose={() => setPendingTo(null)}
+        className="glass fixed top-1/2 left-1/2 m-0 w-72 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
+      >
+        {extraField && (
+          <form
+            method="dialog"
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmDialog();
+            }}
+          >
+            <p className="text-sm font-medium">{extraField.label}</p>
+            <input
+              autoFocus
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={extraField.placeholder}
+              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
+            />
+            <div className="mt-1 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => dialogRef.current?.close()}
+                className="rounded-md px-3 py-1 text-sm text-muted hover:bg-hover"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
+                Confirm
+              </button>
+            </div>
+          </form>
+        )}
+      </dialog>
+    </div>
+  );
+}

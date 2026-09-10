@@ -112,7 +112,7 @@ export function Board({
         onClose={() => setPending(null)}
         // Tailwind's reset zeroes out margin, which is what the browser
         // normally uses to center a <dialog> — so we center it explicitly.
-        className="fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-4 text-foreground backdrop:bg-black/60"
+        className="glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         {extraField && (
           <form
@@ -132,7 +132,7 @@ export function Board({
               className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
             />
             <div className="mt-1 flex justify-end gap-2">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm text-muted hover:bg-surface-2">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm text-muted hover:bg-hover">
                 Cancel
               </button>
               <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
@@ -153,7 +153,7 @@ export function Board({
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(col.status)}
             >
-              <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
+              <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
                 <span className={`h-2 w-2 rounded-full ${col.dot}`} />
                 {col.label}
                 <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
@@ -173,6 +173,7 @@ export function Board({
                       task={task}
                       clientName={task.project.client.name}
                       editors={editors}
+                      projects={projects}
                       actingUserId={actingUserId}
                       actingRole={actingRole}
                     />

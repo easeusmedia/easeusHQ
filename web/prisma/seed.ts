@@ -1,29 +1,37 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/lib/password.ts";
 
 const prisma = new PrismaClient();
 
+// Shared password so login can actually be tested right away — everyone
+// should get their own once there's a "change password" UI.
+const TEMP_PASSWORD = "Createbetter0305*";
+const passwordHash = hashPassword(TEMP_PASSWORD);
+
 async function main() {
+  // matched by the OLD email (real gmail / @example.com placeholders) so
+  // the upsert renames the existing row instead of creating a duplicate
   const ashmit = await prisma.user.upsert({
     where: { email: "ashmitshahi0918@gmail.com" },
-    update: {},
-    create: { name: "Ashmit Sahi", email: "ashmitshahi0918@gmail.com", role: "admin" },
+    update: { email: "ashmit@easeus.media", passwordHash },
+    create: { name: "Ashmit Sahi", email: "ashmit@easeus.media", role: "admin", passwordHash },
   });
 
   const [rounak, narendra, sparsh] = await Promise.all([
     prisma.user.upsert({
       where: { email: "rounak@example.com" },
-      update: {},
-      create: { name: "Rounak Jangid", email: "rounak@example.com", role: "employee" },
+      update: { email: "rounak@easeus.media", passwordHash },
+      create: { name: "Rounak Jangid", email: "rounak@easeus.media", role: "employee", passwordHash },
     }),
     prisma.user.upsert({
       where: { email: "narendra@example.com" },
-      update: {},
-      create: { name: "Narendra Mehta", email: "narendra@example.com", role: "employee" },
+      update: { email: "narendra@easeus.media", passwordHash },
+      create: { name: "Narendra Mehta", email: "narendra@easeus.media", role: "employee", passwordHash },
     }),
     prisma.user.upsert({
       where: { email: "sparsh@example.com" },
-      update: {},
-      create: { name: "Sparsh", email: "sparsh@example.com", role: "employee" },
+      update: { email: "sparsh@easeus.media", passwordHash },
+      create: { name: "Sparsh", email: "sparsh@easeus.media", role: "employee", passwordHash },
     }),
   ]);
 
@@ -33,20 +41,18 @@ async function main() {
   const [abhishek, jyotsna, arpit] = await Promise.all([
     prisma.user.upsert({
       where: { email: "akraj618@gmail.com" },
-      update: { name: "Abhishek", role: "core" },
-      create: { name: "Abhishek", email: "akraj618@gmail.com", role: "core" },
+      update: { name: "Abhishek", email: "abhishek@easeus.media", role: "core", passwordHash },
+      create: { name: "Abhishek", email: "abhishek@easeus.media", role: "core", passwordHash },
     }),
-    // placeholder email — replace once we have the real one
     prisma.user.upsert({
       where: { email: "jyotsna@example.com" },
-      update: {},
-      create: { name: "Jyotsna", email: "jyotsna@example.com", role: "core" },
+      update: { email: "jyotsna@easeus.media", passwordHash },
+      create: { name: "Jyotsna", email: "jyotsna@easeus.media", role: "core", passwordHash },
     }),
-    // placeholder email — replace once we have the real one
     prisma.user.upsert({
       where: { email: "arpit@example.com" },
-      update: {},
-      create: { name: "Arpit", email: "arpit@example.com", role: "core" },
+      update: { email: "arpit@easeus.media", passwordHash },
+      create: { name: "Arpit", email: "arpit@easeus.media", role: "core", passwordHash },
     }),
   ]);
 

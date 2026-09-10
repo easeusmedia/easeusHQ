@@ -1,7 +1,9 @@
-import { updateTaskStatus, updateTask, deleteTask } from "./actions";
+import { deleteTask } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesButton } from "./NotesButton";
-import { canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
+import { EditTaskDialog } from "./EditTaskDialog";
+import { StatusSelect } from "./StatusSelect";
+import { ALL_STATUSES, canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { colorFor, initials } from "@/lib/avatar";
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -44,7 +46,7 @@ export function formatDate(d: Date | string) {
 
 export function StatusBadge({ status }: { status: TaskStatus }) {
   return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[status]}`}>
+    <span className={`status-pop shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[status]}`}>
       {STATUS_LABEL[status]}
     </span>
   );
@@ -52,6 +54,7 @@ export function StatusBadge({ status }: { status: TaskStatus }) {
 
 export type TaskCardData = {
   id: string;
+  projectId: string;
   title: string;
   status: TaskStatus;
   assignedTo: { id: string; name: string } | null;
@@ -91,62 +94,43 @@ export function TaskCard({
   task,
   clientName,
   editors,
+  projects,
   actingUserId,
   actingRole,
 }: {
   task: TaskCardData;
   clientName: string;
   editors: { id: string; name: string }[];
+  projects: { id: string; client: { name: string } }[];
   actingUserId: string;
   actingRole: Role;
 }) {
   const isAssignee = task.assignedTo?.id === actingUserId;
   const canManage = actingRole === "admin" || actingRole === "core";
-  const options = nextStatuses(task.status).filter((to) =>
-    canTransition(task.status, to, { role: actingRole, isAssignee })
-  );
+  // ops has full manual override (see workflow.ts), so give them every other
+  // status to jump to directly, not just the one guided "next" step
+  const options = canManage
+    ? ALL_STATUSES.filter((s) => s !== task.status)
+    : nextStatuses(task.status).filter((to) => canTransition(task.status, to, { role: actingRole, isAssignee }));
 
   return (
-    <div className="relative flex flex-col gap-2 rounded-xl border border-border bg-surface p-3 shadow-sm transition-colors hover:bg-surface-2">
+    <div className="card-surface relative flex flex-col gap-2 rounded-xl p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
         {canManage && (
           <div className="flex shrink-0 gap-2 text-xs text-muted">
-            <details>
-              <summary className="cursor-pointer list-none hover:text-foreground">Edit</summary>
-              <form
-                action={updateTask}
-                className="absolute z-10 mt-1 flex w-60 flex-col gap-1.5 rounded-lg border border-border bg-surface-2 p-2 shadow-lg"
-              >
-                <input type="hidden" name="taskId" value={task.id} />
-                <input type="hidden" name="actingRole" value={actingRole} />
-                <input name="title" defaultValue={task.title} required className="rounded-md border border-border bg-surface px-2 py-1 text-xs" />
-                <select name="assignedToId" defaultValue={task.assignedTo?.id ?? ""} className="rounded-md border border-border bg-surface px-2 py-1 text-xs">
-                  <option value="">Unassigned</option>
-                  {editors.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
-                <input name="rawLink" defaultValue={task.rawLink ?? ""} placeholder="Raw footage (Google Drive link)" className="rounded-md border border-border bg-surface px-2 py-1 text-xs" />
-                <input name="referenceLink" defaultValue={task.referenceLink ?? ""} placeholder="Reference link" className="rounded-md border border-border bg-surface px-2 py-1 text-xs" />
-                <input name="assetLink" defaultValue={task.assetLink ?? ""} placeholder="Assets link" className="rounded-md border border-border bg-surface px-2 py-1 text-xs" />
-                <textarea
-                  name="editingNotes"
-                  defaultValue={task.editingNotes ?? ""}
-                  placeholder="Editing notes for the editor — instructions, references, anything they need…"
-                  rows={3}
-                  className="rounded-md border border-border bg-surface px-2 py-1 text-xs"
-                />
-                <button className="btn-glow rounded-md px-3 py-2 text-xs font-medium">Save</button>
-              </form>
-            </details>
-            <form action={deleteTask}>
+            <EditTaskDialog task={task} editors={editors} projects={projects} actingRole={actingRole} />
+            <form id={`delete-${task.id}`} action={deleteTask}>
               <input type="hidden" name="taskId" value={task.id} />
               <input type="hidden" name="actingRole" value={actingRole} />
-              <ConfirmButton message={`Delete "${task.title}"?`} className="hover:text-red-400">
-                Delete
-              </ConfirmButton>
             </form>
+            <ConfirmButton
+              message={`Delete "${task.title}"?`}
+              className="hover:text-red-400"
+              formId={`delete-${task.id}`}
+            >
+              Delete
+            </ConfirmButton>
           </div>
         )}
       </div>
@@ -178,64 +162,23 @@ export function TaskCard({
         </p>
       )}
 
-      {options.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-          {options.map((to) => {
-            const hiddenFields = (
-              <>
-                <input type="hidden" name="taskId" value={task.id} />
-                <input type="hidden" name="from" value={task.status} />
-                <input type="hidden" name="to" value={to} />
-                <input type="hidden" name="actingUserId" value={actingUserId} />
-                <input type="hidden" name="actingRole" value={actingRole} />
-              </>
-            );
-            const extra = EXTRA_FIELD[to];
+      <StatusSelect
+        taskId={task.id}
+        currentStatus={task.status}
+        options={options}
+        actingUserId={actingUserId}
+        actingRole={actingRole}
+      />
 
-            // no extra info needed — a single button submits the move
-            if (!extra) {
-              return (
-                <form key={to} action={updateTaskStatus}>
-                  {hiddenFields}
-                  <button type="submit" className="btn-glow w-full rounded-md px-3 py-2 text-xs font-medium">
-                    → {STATUS_LABEL[to]}
-                  </button>
-                </form>
-              );
-            }
-
-            // needs a link/note first — keep it out of sight until asked for
-            return (
-              <details key={to}>
-                <summary className="btn-glow list-none cursor-pointer rounded-md px-3 py-2 text-center text-xs font-medium">
-                  → {STATUS_LABEL[to]}
-                </summary>
-                <form action={updateTaskStatus} className="mt-1.5 flex flex-col gap-1.5">
-                  {hiddenFields}
-                  <input
-                    name={extra.field}
-                    placeholder={extra.placeholder}
-                    required
-                    autoFocus
-                    className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
-                  />
-                  <button type="submit" className="btn-glow w-full rounded-md px-3 py-2 text-xs font-medium">
-                    Confirm
-                  </button>
-                </form>
-              </details>
-            );
-          })}
+      {(task.rawLink || task.referenceLink || task.assetLink || task.frameioLink || task.driveLink) && (
+        <div className="flex flex-wrap gap-2">
+          {task.rawLink && <Link href={task.rawLink} label="Raw" />}
+          {task.referenceLink && <Link href={task.referenceLink} label="Reference" />}
+          {task.assetLink && <Link href={task.assetLink} label="Assets" />}
+          {task.frameioLink && <Link href={task.frameioLink} label="Frame.io" />}
+          {task.driveLink && <Link href={task.driveLink} label="Drive" />}
         </div>
       )}
-
-      <div className="flex flex-wrap gap-2 border-t border-border pt-2">
-        {task.rawLink && <Link href={task.rawLink} label="Raw" />}
-        {task.referenceLink && <Link href={task.referenceLink} label="Reference" />}
-        {task.assetLink && <Link href={task.assetLink} label="Assets" />}
-        {task.frameioLink && <Link href={task.frameioLink} label="Frame.io" />}
-        {task.driveLink && <Link href={task.driveLink} label="Drive" />}
-      </div>
     </div>
   );
 }

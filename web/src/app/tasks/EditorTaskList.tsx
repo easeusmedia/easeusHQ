@@ -1,7 +1,7 @@
-import { updateTaskStatus } from "./actions";
 import { canTransition, nextStatuses, type Role } from "@/lib/workflow";
-import { STATUS_LABEL, StatusBadge, formatDate, type TaskCardData } from "./TaskCard";
+import { StatusBadge, formatDate, type TaskCardData } from "./TaskCard";
 import { NotesButton } from "./NotesButton";
+import { StatusSelect } from "./StatusSelect";
 
 function Link({ href, label }: { href: string; label: string }) {
   return (
@@ -35,7 +35,7 @@ export function EditorTaskList({
         );
 
         return (
-          <div key={task.id} className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors hover:bg-surface-2">
+          <div key={task.id} className="card-surface flex flex-col gap-2 rounded-xl p-4 shadow-sm">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs text-muted">{task.project.client.name}</p>
@@ -74,26 +74,14 @@ export function EditorTaskList({
             )}
 
             {options.length > 0 && (
-              <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-                {options.map((to) => (
-                  <form key={to} action={updateTaskStatus} className="flex flex-wrap items-center gap-1">
-                    <input type="hidden" name="taskId" value={task.id} />
-                    <input type="hidden" name="to" value={to} />
-                    <input type="hidden" name="actingUserId" value={actingUserId} />
-                    <input type="hidden" name="actingRole" value={actingRole} />
-                    {to === "sent_for_approval" && (
-                      <input
-                        name="frameioLink"
-                        placeholder="Frame.io link"
-                        required
-                        className="w-full rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
-                      />
-                    )}
-                    <button type="submit" className="btn-glow w-full rounded-md px-3 py-2 text-xs font-medium">
-                      → {STATUS_LABEL[to]}
-                    </button>
-                  </form>
-                ))}
+              <div className="border-t border-border pt-2">
+                <StatusSelect
+                  taskId={task.id}
+                  currentStatus={task.status}
+                  options={options}
+                  actingUserId={actingUserId}
+                  actingRole={actingRole}
+                />
               </div>
             )}
           </div>

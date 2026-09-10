@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, PanelLeft, Check } from "lucide-react";
+import { LayoutDashboard, History, Users, CalendarDays, PanelLeft, Check } from "lucide-react";
 
 const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
@@ -18,7 +18,7 @@ const MODES: { value: Mode; label: string }[] = [
   { value: "hover", label: "Expand on hover" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean; isOps?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const qs = searchParams.toString();
@@ -70,7 +70,11 @@ export function Sidebar() {
         wide ? "w-44" : "w-16"
       } ${overlay ? "absolute inset-y-0 left-0 z-50" : ""} ${overlay && hovered ? "shadow-2xl" : ""}`}
     >
-      {NAV.map((item) => {
+      {[
+        ...NAV,
+        ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarDays }] : []),
+        ...(isAdmin ? [{ segment: "/users", label: "Users", Icon: Users }] : []),
+      ].map((item) => {
         const href = `${base}${item.segment}`;
         const active = pathname === href;
         return (
@@ -79,7 +83,7 @@ export function Sidebar() {
             href={qs ? `${href}?${qs}` : href}
             title={wide ? undefined : item.label}
             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
-              active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface"
+              active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-hover"
             }`}
           >
             <item.Icon size={18} className="shrink-0" />
@@ -96,7 +100,7 @@ export function Sidebar() {
               <button
                 key={m.value}
                 onClick={() => pick(m.value)}
-                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-surface"
+                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-hover"
               >
                 {m.label}
                 {mode === m.value && <Check size={13} />}
@@ -107,7 +111,7 @@ export function Sidebar() {
         <button
           onClick={() => setMenuOpen((v) => !v)}
           title="Sidebar control"
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-surface"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-hover"
         >
           <PanelLeft size={18} className="shrink-0" />
         </button>
