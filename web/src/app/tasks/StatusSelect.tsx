@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { moveTask } from "./actions";
 import { STATUS_LABEL, EXTRA_FIELD } from "./TaskCard";
 import type { Role, TaskStatus } from "@/lib/workflow";
@@ -79,8 +79,23 @@ export function StatusSelect({
     );
   }
 
+  // Once the client has signed off, "delivered" is the one action that
+  // matters here — surface it as its own button instead of burying it in
+  // the full status list (ops can still reach every other status below).
+  const isFinalReady = currentStatus === "final_export_ready" && options.includes("delivered_and_uploaded");
+  const dropdownOptions = isFinalReady ? options.filter((o) => o !== "delivered_and_uploaded") : options;
+
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative flex flex-col gap-1.5">
+      {isFinalReady && (
+        <button
+          type="button"
+          onClick={() => pick("delivered_and_uploaded")}
+          className="status-pop flex w-full items-center justify-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-3 py-2 text-xs font-medium text-emerald-300"
+        >
+          <CheckCircle2 size={13} /> Mark delivered to client
+        </button>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -90,8 +105,8 @@ export function StatusSelect({
         <ChevronDown size={13} />
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-surface-2 py-1 shadow-lg">
-          {options.map((to) => (
+        <div className="absolute z-20 top-full mt-1 w-full rounded-md border border-border bg-surface-2 py-1 shadow-lg">
+          {dropdownOptions.map((to) => (
             <button
               key={to}
               type="button"

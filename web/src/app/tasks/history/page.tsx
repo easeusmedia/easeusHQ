@@ -26,7 +26,7 @@ export default async function HistoryPage({
     prisma.task.findMany({
       where: { status: { in: COMPLETED_STATUSES }, project: { client: { status: "current" } } },
       orderBy: { updatedAt: "desc" },
-      include: { project: { include: { client: true } } },
+      include: { assignedTo: true, project: { include: { client: true } } },
     }),
   ]);
 

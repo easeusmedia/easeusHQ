@@ -31,7 +31,7 @@ export const STATUS_STYLE: Record<TaskStatus, string> = {
 export const EXTRA_FIELD: Partial<Record<TaskStatus, { field: "frameioLink" | "driveLink" | "reviewNotes"; label: string; placeholder: string }>> = {
   sent_for_approval: { field: "frameioLink", label: "Frame.io link", placeholder: "https://f.io/…" },
   revision_requested: { field: "reviewNotes", label: "What needs to change?", placeholder: "Trim the intro…" },
-  delivered_and_uploaded: { field: "driveLink", label: "Drive link", placeholder: "https://drive.google.com/…" },
+  delivered_and_uploaded: { field: "driveLink", label: "Final Drive link", placeholder: "https://drive.google.com/…" },
 };
 
 // UTC-based (not toLocaleDateString) so server-rendered HTML always matches
