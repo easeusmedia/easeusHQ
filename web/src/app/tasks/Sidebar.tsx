@@ -83,7 +83,7 @@ export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean;
             href={qs ? `${href}?${qs}` : href}
             title={wide ? undefined : item.label}
             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
-              active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-hover"
+              active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
             }`}
           >
             <item.Icon size={18} className="shrink-0" />
@@ -111,7 +111,7 @@ export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean;
         <button
           onClick={() => setMenuOpen((v) => !v)}
           title="Sidebar control"
-          className="status-pop flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-hover"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-surface-2"
         >
           <PanelLeft size={18} className="shrink-0" />
         </button>
