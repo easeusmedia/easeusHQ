@@ -2,9 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { STATUS_LABEL } from "../TaskCard";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
 
 export const dynamic = "force-dynamic";
+
+function dateKey(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
 
 export default async function CalendarPage({
   searchParams,
@@ -25,33 +30,35 @@ export default async function CalendarPage({
   const monthIndex = month - 1; // 0-indexed for Date.UTC
 
   const monthStart = new Date(Date.UTC(year, monthIndex, 1));
-  const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 1));
+  const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 1)); // exclusive
+  // don't project counts onto days that haven't happened yet
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const rangeEnd = monthEnd < today ? monthEnd : new Date(today.getTime() + 86400000);
 
-  const logs = await prisma.activityLog.findMany({
-    where: { entity: "Task", createdAt: { gte: monthStart, lt: monthEnd } },
-    include: { actor: true },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const taskIds = [...new Set(logs.map((l) => l.entityId))];
+  // A task counts on a given day if it was actually sitting in the
+  // dashboard that day: created on or before that day, and not yet
+  // delivered — the moment a task is marked delivered it drops off the
+  // live board, so it stops counting from that day on (see page.tsx's
+  // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
   const tasks = await prisma.task.findMany({
-    where: { id: { in: taskIds } },
-    include: { project: { include: { client: true } } },
+    where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd } },
+    include: { assignedTo: true, project: { include: { client: true } } },
   });
-  const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   const days: Record<string, DayEntry[]> = {};
-  for (const log of logs) {
-    const task = taskById.get(log.entityId);
-    if (!task) continue; // task since deleted
-    const key = log.createdAt.toISOString().slice(0, 10);
-    (days[key] ??= []).push({
-      taskId: task.id,
-      title: task.title,
-      clientName: task.project.client.name,
-      action: log.action,
-      actorName: log.actor.name,
-    });
+  for (let d = new Date(monthStart); d < rangeEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+    const key = dateKey(d);
+    for (const task of tasks) {
+      if (dateKey(task.createdAt) > key) continue; // not created yet as of this day
+      if (task.status === "delivered_and_uploaded" && dateKey(task.updatedAt) <= key) continue; // already delivered by this day
+      (days[key] ??= []).push({
+        taskId: task.id,
+        title: task.title,
+        clientName: task.project.client.name,
+        action: STATUS_LABEL[task.status],
+        actorName: task.assignedTo?.name ?? "Unassigned",
+      });
+    }
   }
 
   const monthLabel = monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -65,7 +72,8 @@ export default async function CalendarPage({
         <div>
           <h1 className="text-xl font-semibold">Calendar</h1>
           <p className="mt-1 text-sm text-muted">
-            Every day a task had any activity — created, moved, whatever — shows up here, whether or not it's done.
+            How many tasks were sitting in the dashboard on a given day — a task stops counting the day it's
+            delivered to the client, not before.
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm">
