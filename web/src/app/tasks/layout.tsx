@@ -19,7 +19,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   if (!sessionUser) redirect("/login"); // stale/deleted-user cookie
 
   const isAdmin = sessionUser.role === "admin";
-  const canViewAs = isAdmin || sessionUser.role === "core";
+  const isOps = isAdmin || sessionUser.role === "core"; // Calendar access — unchanged, still every core member
+  // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
+  const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
@@ -45,7 +47,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       </header>
       {/* sidebar stays pinned to the viewport; only the content column scrolls */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar isAdmin={isAdmin} isOps={canViewAs} />
+        <Sidebar isAdmin={isAdmin} isOps={isOps} />
         <div className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</div>
       </div>
     </div>

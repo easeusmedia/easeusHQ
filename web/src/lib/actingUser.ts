@@ -1,7 +1,8 @@
 // The logged-in session user is always who you actually are. "?as=" only
-// lets admin/core preview another person's view — employees can never
-// switch, no matter what's in the URL.
-export function resolveActingUser<T extends { id: string; role: string }>(
+// lets Abhishek (the developer) or an admin preview another person's view —
+// everyone else, including other core members, can never switch, no matter
+// what's in the URL.
+export function resolveActingUser<T extends { id: string; role: string; email: string }>(
   users: T[],
   sessionUserId: string,
   as: string | undefined
@@ -9,6 +10,6 @@ export function resolveActingUser<T extends { id: string; role: string }>(
   const sessionUser = users.find((u) => u.id === sessionUserId);
   if (!sessionUser) return undefined;
   if (!as) return sessionUser;
-  const canViewAs = sessionUser.role === "admin" || sessionUser.role === "core";
+  const canViewAs = sessionUser.role === "admin" || sessionUser.email === "abhishek@easeus.media";
   return canViewAs ? (users.find((u) => u.id === as) ?? sessionUser) : sessionUser;
 }
