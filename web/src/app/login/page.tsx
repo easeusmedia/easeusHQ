@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Image from "next/image";
+import { Eye, EyeOff } from "lucide-react";
 import { login, type LoginState } from "./actions";
 
 const initialState: LoginState = {};
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
@@ -26,13 +28,23 @@ export default function LoginPage() {
             placeholder="you@easeus.media"
             className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
           />
-          <input
-            name="password"
-            type="password"
-            required
-            placeholder="Password"
-            className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
-          />
+          <div className="relative">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              placeholder="Password"
+              className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 pr-9 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              tabIndex={-1}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
           {state.error && <p className="text-xs text-red-300">{state.error}</p>}
           <button
             type="submit"
