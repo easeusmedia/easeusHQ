@@ -132,11 +132,11 @@ export function TaskCard({
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
 
   return (
-    <div className="card-surface relative flex flex-col gap-2 rounded-xl p-3 shadow-sm">
+    <div className="card-surface group relative flex flex-col gap-2 rounded-xl p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
         {canManage && (
-          <div className="flex shrink-0 gap-2 text-xs text-muted">
+          <div className="flex shrink-0 gap-2 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
             <EditTaskDialog task={task} editors={editors} projects={projects} actingRole={actingRole} />
             <form id={`delete-${task.id}`} action={deleteTask}>
               <input type="hidden" name="taskId" value={task.id} />
@@ -168,9 +168,14 @@ export function TaskCard({
         </div>
       )}
 
-      {task.status === "revision_requested" && (
+      {task.status === "revision_requested" && canManage && (
         <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
           Waiting on the editor to pick this back up.
+        </p>
+      )}
+      {task.status === "revision_requested" && actingRole === "employee" && (
+        <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
+          Revision requested — check the notes and resume editing.
         </p>
       )}
 

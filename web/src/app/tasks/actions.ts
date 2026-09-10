@@ -148,3 +148,14 @@ export async function deleteTask(formData: FormData) {
   await prisma.task.delete({ where: { id: taskId } });
   revalidatePath("/tasks");
 }
+
+// polled by ApprovalWatcher independent of whatever /tasks/* page is
+// actually showing — an editor camped on History or Calendar should still
+// get told the moment one of their tasks is delivered, not only when
+// they happen to be looking at the Board
+export async function getMyActiveTaskSnapshot(userId: string) {
+  return prisma.task.findMany({
+    where: { assignedToId: userId, status: { not: "delivered_and_uploaded" } },
+    select: { id: true, title: true, status: true },
+  });
+}

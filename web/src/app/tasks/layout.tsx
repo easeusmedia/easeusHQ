@@ -7,6 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
 import { ActingAsPicker } from "./ActingAsPicker";
 import { Avatar } from "./TaskCard";
+import { ApprovalWatcher } from "./ApprovalWatcher";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   const sessionUserId = await getSessionUserId();
@@ -50,6 +51,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         <Sidebar isAdmin={isAdmin} isOps={isOps} />
         <div className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</div>
       </div>
+      {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
   );
 }
