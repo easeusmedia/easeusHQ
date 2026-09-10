@@ -5,6 +5,19 @@ import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { normalizeUrl } from "@/lib/links";
+
+// Every link field below goes through this before it ever reaches the DB —
+// rejects anything that isn't a real http(s) URL (a bare "javascript:..."
+// or "data:..." string included) instead of silently saving it and letting
+// it become a live <a href> for the next person who opens the card. Empty
+// input is fine (clears the field); non-empty-but-invalid is not.
+function requireLinkOrNull(value: string, label: string): string | null {
+  if (!value.trim()) return null;
+  const normalized = normalizeUrl(value);
+  if (!normalized) throw new Error(`${label} doesn't look like a valid link.`);
+  return normalized;
+}
 
 // NOTE: login now exists (src/app/login), and page.tsx/history/page.tsx
 // resolve actingUserId/actingRole from the verified session before ever
@@ -18,15 +31,28 @@ export async function logout() {
   redirect("/login");
 }
 
-export async function createTask(formData: FormData) {
+// Matches useActionState's (state, formData) => state contract, so a form
+// that hits a validation error (a bad link, a missing field) shows that
+// message inline instead of throwing all the way up to the nearest
+// error.tsx — which is correct-but-jarring for something the user can
+// just fix and resubmit.
+export type TaskFormState = { error?: string; success?: boolean };
+
+export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const projectId = String(formData.get("projectId"));
   const title = String(formData.get("title"));
   const assignedToId = String(formData.get("assignedToId") ?? "");
-  const rawLink = String(formData.get("rawLink") ?? "") || null;
-  const referenceLink = String(formData.get("referenceLink") ?? "") || null;
+  let rawLink: string | null;
+  let referenceLink: string | null;
+  try {
+    rawLink = requireLinkOrNull(String(formData.get("rawLink") ?? ""), "Raw footage link");
+    referenceLink = requireLinkOrNull(String(formData.get("referenceLink") ?? ""), "Reference link");
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "That link isn't valid." };
+  }
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
   if (!projectId || !title.trim() || !assignedToId) {
-    throw new Error("Project, title, and an editor are all required");
+    return { error: "Project, title, and an editor are all required" };
   }
 
   const task = await prisma.task.create({
@@ -50,6 +76,7 @@ export async function createTask(formData: FormData) {
     await prisma.activityLog.create({ data: { actorId, action: "created", entity: "Task", entityId: task.id } });
   }
   revalidatePath("/tasks");
+  return { success: true };
 }
 
 type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number };
@@ -61,6 +88,9 @@ async function changeStatus(
   actingRole: Role,
   extras: StatusChangeExtras
 ) {
+  const frameioLink = extras.frameioLink ? requireLinkOrNull(extras.frameioLink, "Frame.io link") : null;
+  const driveLink = extras.driveLink ? requireLinkOrNull(extras.driveLink, "Drive link") : null;
+
   const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
   const isAssignee = task.assignedToId === actingUserId;
 
@@ -71,7 +101,7 @@ async function changeStatus(
   // hard rule, not just a UI nicety: a task can't be marked delivered
   // without a Drive link on record — enforced here so it holds regardless
   // of which UI path (button, dropdown, or a future API caller) triggers it
-  if (to === "delivered_and_uploaded" && !extras.driveLink && !task.driveLink) {
+  if (to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
     throw new Error("Add a Drive link before marking this delivered.");
   }
 
@@ -80,8 +110,8 @@ async function changeStatus(
     data: {
       status: to,
       ...(extras.sortOrder !== undefined ? { sortOrder: extras.sortOrder } : {}),
-      ...(extras.frameioLink ? { frameioLink: extras.frameioLink } : {}),
-      ...(extras.driveLink ? { driveLink: extras.driveLink } : {}),
+      ...(frameioLink ? { frameioLink } : {}),
+      ...(driveLink ? { driveLink } : {}),
       ...(to === "revision_requested"
         ? { reviewedById: actingUserId, reviewNotes: extras.reviewNotes ?? null }
         : {}),
@@ -117,17 +147,22 @@ export async function reorderTask(taskId: string, sortOrder: number) {
 // editing details (title/editor/links) — admin & core only, matches their
 // agreed "full rights to tweak everything" (see PLAN.md); editors only drive
 // their own task's status, not its details
-export async function updateTask(formData: FormData) {
+export async function updateTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const taskId = String(formData.get("taskId"));
   const actingRole = String(formData.get("actingRole")) as Role;
-  if (actingRole === "employee") throw new Error("Only admin/core can edit task details");
+  if (actingRole === "employee") return { error: "Only admin/core can edit task details" };
 
   const title = String(formData.get("title") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "") || undefined;
   const assignedToId = String(formData.get("assignedToId") ?? "") || null;
-  const rawLink = String(formData.get("rawLink") ?? "") || null;
+  let rawLink: string | null;
+  try {
+    rawLink = requireLinkOrNull(String(formData.get("rawLink") ?? ""), "Raw footage link");
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "That link isn't valid." };
+  }
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
-  if (!title) throw new Error("Title is required");
+  if (!title) return { error: "Title is required" };
 
   // referenceLink/assetLink are intentionally not touched here — no inputs
   // for them anymore (everything extra goes in editingNotes now), and
@@ -138,6 +173,7 @@ export async function updateTask(formData: FormData) {
     data: { title, projectId, assignedToId, rawLink, editingNotes },
   });
   revalidatePath("/tasks");
+  return { success: true };
 }
 
 export async function deleteTask(formData: FormData) {

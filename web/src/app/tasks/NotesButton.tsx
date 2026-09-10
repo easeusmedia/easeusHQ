@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { normalizeUrl } from "@/lib/links";
 
 // matches full URLs (https://…) as well as bare domains typed without a
 // protocol (pinterest.com, docs.google.com/foo) — one capture group, so
@@ -12,7 +13,8 @@ const URL_PATTERN = /((?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)
 export function linkify(text: string) {
   return text.split(URL_PATTERN).map((part, i) => {
     if (i % 2 === 0) return part; // even indices are the plain-text gaps between matches
-    const href = /^https?:\/\//.test(part) ? part : `https://${part}`;
+    const href = normalizeUrl(part);
+    if (!href) return part; // matched the pattern but isn't actually a safe http(s) link — leave as plain text
     return (
       <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline underline-offset-2">
         {part}

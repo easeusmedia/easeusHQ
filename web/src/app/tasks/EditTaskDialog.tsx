@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef } from "react";
-import { updateTask } from "./actions";
+import { useActionState, useEffect, useRef } from "react";
+import { updateTask, type TaskFormState } from "./actions";
 import { NotesGlyph } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 import type { Role } from "@/lib/workflow";
 import type { TaskCardData } from "./TaskCard";
+
+const initialState: TaskFormState = {};
 
 // Native <dialog> instead of an absolutely-positioned popup — the popup
 // version could end up visually (and click-wise) behind a neighboring
@@ -24,6 +26,13 @@ export function EditTaskDialog({
   actingRole: Role;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [state, formAction, pending] = useActionState(updateTask, initialState);
+
+  // only close on an actual successful save — a validation error (a bad
+  // link, a missing title) should leave the dialog open so it's visible
+  useEffect(() => {
+    if (state.success) ref.current?.close();
+  }, [state]);
 
   return (
     <>
@@ -34,11 +43,7 @@ export function EditTaskDialog({
         ref={ref}
         className="glass fixed top-1/2 left-1/2 m-0 w-[32rem] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"
       >
-        <form
-          action={updateTask}
-          onSubmit={() => ref.current?.close()}
-          className="flex flex-col gap-3"
-        >
+        <form action={formAction} className="flex flex-col gap-3">
           <input type="hidden" name="taskId" value={task.id} />
           <input type="hidden" name="actingRole" value={actingRole} />
           <input
@@ -74,6 +79,7 @@ export function EditTaskDialog({
             rows={6}
             className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
           />
+          {state.error && <p className="text-sm text-red-300">{state.error}</p>}
           <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
@@ -82,8 +88,8 @@ export function EditTaskDialog({
             >
               Cancel
             </button>
-            <button type="submit" className="btn-glow rounded-md px-4 py-2 text-sm font-medium">
-              Save
+            <button type="submit" disabled={pending} className="btn-glow rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
+              {pending ? "Saving…" : "Save"}
             </button>
           </div>
         </form>
