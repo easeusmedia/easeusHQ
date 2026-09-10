@@ -99,3 +99,23 @@ body {
 .status-pop:hover {
   filter: brightness(1.35);
 }
+
+/* --- The one hover rule, three cases. Don't hand-roll a fourth. ---
+   1. Solid action buttons (Save/Confirm/Add task) -> .btn-glow. Bordered,
+      filled at rest, swaps to --hover-surface on hover.
+   2. List rows / nav items (sidebar links, dropdown options, table rows) ->
+      hover:bg-surface-2 directly. Transparent at rest, same shade the
+      active/current item already uses, so hover doesn't look like a
+      different color scale than "selected".
+   3. Plain tertiary text buttons (Cancel/Close/Dismiss) -> .btn-ghost.
+      These are small and low-emphasis; the full solid fill from #1/#2
+      reads as a disproportionately loud "pop" on a one-word text button,
+      so this gets a lighter partial-opacity tint instead. */
+.btn-ghost {
+  color: var(--muted);
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.btn-ghost:hover {
+  background-color: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: var(--foreground);
+}

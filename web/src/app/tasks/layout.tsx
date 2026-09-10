@@ -6,6 +6,7 @@ import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
 import { ActingAsPicker } from "./ActingAsPicker";
+import { Avatar } from "./TaskCard";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   const sessionUserId = await getSessionUserId();
@@ -29,6 +30,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           <span className="text-sm font-semibold">Easeus HQ</span>
         </div>
         <div className="flex items-center gap-4">
+          <Avatar name={sessionUser.name} size={28} />
           {canViewAs && users.length > 0 ? (
             <ActingAsPicker people={users} sessionUserId={sessionUser.id} />
           ) : (

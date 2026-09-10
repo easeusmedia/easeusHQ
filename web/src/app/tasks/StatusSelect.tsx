@@ -146,7 +146,7 @@ export function StatusSelect({
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
-                className="rounded-md px-3 py-1 text-sm text-muted hover:bg-hover"
+                className="rounded-md px-3 py-1 text-sm btn-ghost"
               >
                 Cancel
               </button>

@@ -33,7 +33,7 @@ export function ConfirmButton({
           <button
             type="button"
             onClick={() => ref.current?.close()}
-            className="rounded-md px-3 py-1 text-xs text-muted hover:bg-hover"
+            className="rounded-md px-3 py-1 text-xs btn-ghost"
           >
             Cancel
           </button>

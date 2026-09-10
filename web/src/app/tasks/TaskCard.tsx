@@ -85,11 +85,11 @@ export type TaskCardData = {
   project: { client: { name: string } };
 };
 
-function Avatar({ name }: { name: string }) {
+export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   return (
     <span
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-black"
-      style={{ backgroundColor: colorFor(name) }}
+      className="flex shrink-0 items-center justify-center rounded-full font-semibold text-black"
+      style={{ backgroundColor: colorFor(name), width: size, height: size, fontSize: size * 0.42 }}
       title={name}
     >
       {initials(name)}

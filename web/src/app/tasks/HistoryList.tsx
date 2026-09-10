@@ -22,7 +22,6 @@ type HistoryTask = {
   createdAt: Date;
   updatedAt: Date;
   driveLink: string | null;
-  frameioLink: string | null;
   assignedTo: { name: string } | null;
   project: { client: { name: string } };
 };
@@ -59,7 +58,6 @@ export function HistoryList({ tasks, logsByTask }: { tasks: HistoryTask[]; logsB
               <th className="px-3 py-2 font-medium">Task</th>
               <th className="px-3 py-2 font-medium">Editor</th>
               <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Frame.io</th>
               <th className="px-3 py-2 font-medium">Drive</th>
             </tr>
           </thead>
@@ -76,20 +74,6 @@ export function HistoryList({ tasks, logsByTask }: { tasks: HistoryTask[]; logsB
                 <td className="px-3 py-2">{t.title}</td>
                 <td className="px-3 py-2 text-muted">{t.assignedTo?.name ?? "—"}</td>
                 <td className="px-3 py-2 text-muted">{STATUS_LABEL[t.status]}</td>
-                <td className="px-3 py-2">
-                  {t.frameioLink ? (
-                    <a
-                      href={t.frameioLink}
-                      target="_blank"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-blue-400 underline underline-offset-2"
-                    >
-                      View ↗
-                    </a>
-                  ) : (
-                    <span className="text-muted">—</span>
-                  )}
-                </td>
                 <td className="px-3 py-2">
                   {t.driveLink ? (
                     <a

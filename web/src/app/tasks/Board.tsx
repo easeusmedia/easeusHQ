@@ -193,7 +193,7 @@ export function Board({
               className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
             />
             <div className="mt-1 flex justify-end gap-2">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm text-muted hover:bg-hover">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
                 Cancel
               </button>
               <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
