@@ -35,6 +35,19 @@ export const EXTRA_FIELD: Partial<Record<TaskStatus, { field: "frameioLink" | "d
   delivered_and_uploaded: { field: "driveLink", label: "Final Drive link", placeholder: "https://drive.google.com/…" },
 };
 
+// which single link matters most on the card depends on where the task is
+// in the workflow — the raw footage while it's being cut, the Frame.io
+// thread while it's under review, the final export once it's ready to hand
+// off — showing all of them at once regardless of stage was just noise
+export const STATUS_LINK: Partial<Record<TaskStatus, { field: "rawLink" | "frameioLink" | "driveLink"; label: string }>> = {
+  queued: { field: "rawLink", label: "Raw" },
+  editing: { field: "rawLink", label: "Raw" },
+  sent_for_approval: { field: "frameioLink", label: "Frame.io" },
+  revision_requested: { field: "frameioLink", label: "Frame.io" },
+  final_export_ready: { field: "driveLink", label: "Drive" },
+  delivered_and_uploaded: { field: "driveLink", label: "Drive" },
+};
+
 // UTC-based (not toLocaleDateString) so server-rendered HTML always matches
 // what the browser hydrates with — locale/timezone differences between the
 // two otherwise cause a hydration mismatch.
@@ -114,6 +127,9 @@ export function TaskCard({
     ? ALL_STATUSES.filter((s) => s !== task.status)
     : nextStatuses(task.status).filter((to) => canTransition(task.status, to, { role: actingRole, isAssignee }));
 
+  const cardLinkSpec = STATUS_LINK[task.status];
+  const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
+
   return (
     <div className="card-surface relative flex flex-col gap-2 rounded-xl p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
@@ -171,13 +187,9 @@ export function TaskCard({
         actingRole={actingRole}
       />
 
-      {(task.rawLink || task.referenceLink || task.assetLink || task.frameioLink || task.driveLink) && (
+      {cardLinkHref && (
         <div className="flex flex-wrap gap-2">
-          {task.rawLink && <Link href={task.rawLink} label="Raw" />}
-          {task.referenceLink && <Link href={task.referenceLink} label="Reference" />}
-          {task.assetLink && <Link href={task.assetLink} label="Assets" />}
-          {task.frameioLink && <Link href={task.frameioLink} label="Frame.io" />}
-          {task.driveLink && <Link href={task.driveLink} label="Drive" />}
+          <Link href={cardLinkHref} label={cardLinkSpec!.label} />
         </div>
       )}
     </div>

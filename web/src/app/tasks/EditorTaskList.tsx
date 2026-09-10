@@ -1,5 +1,5 @@
 import { canTransition, nextStatuses, type Role } from "@/lib/workflow";
-import { StatusBadge, formatDate, type TaskCardData } from "./TaskCard";
+import { StatusBadge, STATUS_LINK, formatDate, type TaskCardData } from "./TaskCard";
 import { NotesButton, linkify } from "./NotesButton";
 import { StatusSelect } from "./StatusSelect";
 
@@ -33,6 +33,8 @@ export function EditorTaskList({
         const options = nextStatuses(task.status).filter((to) =>
           canTransition(task.status, to, { role: actingRole, isAssignee: true })
         );
+        const cardLinkSpec = STATUS_LINK[task.status];
+        const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
 
         return (
           <div key={task.id} className="card-surface flex flex-col gap-2 rounded-xl p-4 shadow-sm">
@@ -58,12 +60,9 @@ export function EditorTaskList({
               </p>
             )}
 
-            {(task.rawLink || task.referenceLink || task.assetLink || task.frameioLink) && (
+            {cardLinkHref && (
               <div className="flex flex-wrap gap-2 border-t border-border pt-2">
-                {task.rawLink && <Link href={task.rawLink} label="Raw footage" />}
-                {task.referenceLink && <Link href={task.referenceLink} label="Reference" />}
-                {task.assetLink && <Link href={task.assetLink} label="Assets" />}
-                {task.frameioLink && <Link href={task.frameioLink} label="Frame.io" />}
+                <Link href={cardLinkHref} label={cardLinkSpec!.label} />
               </div>
             )}
 

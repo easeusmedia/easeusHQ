@@ -111,7 +111,7 @@ export function Sidebar({ isAdmin = false, isOps = false }: { isAdmin?: boolean;
         <button
           onClick={() => setMenuOpen((v) => !v)}
           title="Sidebar control"
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-hover"
+          className="status-pop flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-hover"
         >
           <PanelLeft size={18} className="shrink-0" />
         </button>

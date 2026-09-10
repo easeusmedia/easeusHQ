@@ -2,26 +2,23 @@
 
 import { useRef } from "react";
 
-const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+// matches full URLs (https://…) as well as bare domains typed without a
+// protocol (pinterest.com, docs.google.com/foo) — one capture group, so
+// String.split alternates [text, url, text, url, ...text]
+const URL_PATTERN = /((?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
 
-// turn any http(s) links inside plain-text notes into clickable anchors,
-// leaving everything else as-is
+// turn any link-looking text inside plain-text notes into a clickable
+// anchor, leaving everything else as-is
 export function linkify(text: string) {
-  return text.split(URL_PATTERN).map((part, i) =>
-    /^https?:\/\//.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-400 underline underline-offset-2"
-      >
+  return text.split(URL_PATTERN).map((part, i) => {
+    if (i % 2 === 0) return part; // even indices are the plain-text gaps between matches
+    const href = /^https?:\/\//.test(part) ? part : `https://${part}`;
+    return (
+      <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline underline-offset-2">
         {part}
       </a>
-    ) : (
-      part
-    ),
-  );
+    );
+  });
 }
 
 // Flat, filled note-card glyph (solid yellow, folded corner) instead of a
