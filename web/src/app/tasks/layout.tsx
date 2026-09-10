@@ -32,7 +32,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           <span className="text-sm font-semibold">Easeus HQ</span>
         </div>
         <div className="flex items-center gap-4">
-          <Avatar name={sessionUser.name} size={28} />
+          <Avatar name={sessionUser.name} size={22} />
           {canViewAs && users.length > 0 ? (
             <ActingAsPicker people={users} sessionUserId={sessionUser.id} />
           ) : (
