@@ -29,7 +29,11 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           <span className="text-sm font-semibold">Easeus HQ</span>
         </div>
         <div className="flex items-center gap-4">
-          {canViewAs && users.length > 0 && <ActingAsPicker people={users} sessionUserId={sessionUser.id} />}
+          {canViewAs && users.length > 0 ? (
+            <ActingAsPicker people={users} sessionUserId={sessionUser.id} />
+          ) : (
+            <span className="text-sm text-muted">{sessionUser.name}</span>
+          )}
           <form action={logout}>
             <button type="submit" className="text-sm text-muted hover:text-foreground">
               Log out

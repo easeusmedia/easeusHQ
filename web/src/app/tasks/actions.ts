@@ -30,7 +30,18 @@ export async function createTask(formData: FormData) {
   }
 
   const task = await prisma.task.create({
-    data: { projectId, title: title.trim(), dueDate: new Date(), assignedToId, rawLink, referenceLink, editingNotes },
+    // sortOrder: Date.now() puts new cards after every existing one (which
+    // default to 0) without needing to query the column's current max
+    data: {
+      projectId,
+      title: title.trim(),
+      dueDate: new Date(),
+      assignedToId,
+      rawLink,
+      referenceLink,
+      editingNotes,
+      sortOrder: Date.now(),
+    },
     // status defaults to "queued"
   });
 
@@ -41,7 +52,7 @@ export async function createTask(formData: FormData) {
   revalidatePath("/tasks");
 }
 
-type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string };
+type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number };
 
 async function changeStatus(
   taskId: string,
@@ -57,10 +68,18 @@ async function changeStatus(
     throw new Error(`${actingRole} cannot move a task from ${task.status} to ${to}`);
   }
 
+  // hard rule, not just a UI nicety: a task can't be marked delivered
+  // without a Drive link on record — enforced here so it holds regardless
+  // of which UI path (button, dropdown, or a future API caller) triggers it
+  if (to === "delivered_and_uploaded" && !extras.driveLink && !task.driveLink) {
+    throw new Error("Add a Drive link before marking this delivered.");
+  }
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
       status: to,
+      ...(extras.sortOrder !== undefined ? { sortOrder: extras.sortOrder } : {}),
       ...(extras.frameioLink ? { frameioLink: extras.frameioLink } : {}),
       ...(extras.driveLink ? { driveLink: extras.driveLink } : {}),
       ...(to === "revision_requested"
@@ -85,6 +104,14 @@ export async function moveTask(
   extras: StatusChangeExtras = {}
 ) {
   await changeStatus(taskId, to, actingUserId, actingRole, extras);
+}
+
+// pure manual reordering within a column — no status change, no workflow
+// permission check, since this is just "where does this card sit" and
+// doesn't touch anything the workflow rules care about
+export async function reorderTask(taskId: string, sortOrder: number) {
+  await prisma.task.update({ where: { id: taskId }, data: { sortOrder } });
+  revalidatePath("/tasks");
 }
 
 // editing details (title/editor/links) — admin & core only, matches their

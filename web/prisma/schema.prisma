@@ -87,7 +87,10 @@ model Task {
   title        String
   status       TaskStatus @default(queued)
   dueDate      DateTime?
-  priority     Int        @default(0)
+  // manual drag-to-reorder position within a status column (lower sorts
+  // first); a float so inserting between two cards is one write (new
+  // midpoint value) instead of shifting every sibling's index
+  sortOrder    Float      @default(0)
 
   // matches the Notion "Editing Queue" columns:
   rawLink      String?    // raw footage handed to the editor (input)

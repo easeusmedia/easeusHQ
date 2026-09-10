@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
-import { moveTask } from "./actions";
+import { moveTask, reorderTask } from "./actions";
 import type { Role, TaskStatus } from "@/lib/workflow";
 
 export type Column = { status: TaskStatus; label: string; dot: string };
@@ -57,39 +57,89 @@ export function Board({
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ taskId: string; to: TaskStatus } | null>(null);
+  const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  async function commitMove(to: TaskStatus, taskId: string, extra: Record<string, string> = {}) {
+  async function commitMove(to: TaskStatus, taskId: string, sortOrder: number, extra: Record<string, string> = {}) {
     try {
-      await moveTask(taskId, to, actingUserId, actingRole, extra);
+      await moveTask(taskId, to, actingUserId, actingRole, { ...extra, sortOrder });
       router.refresh();
     } catch (err) {
       setError(friendlyError(err));
     }
   }
 
+  async function commitReorder(taskId: string, sortOrder: number) {
+    try {
+      await reorderTask(taskId, sortOrder);
+      router.refresh();
+    } catch (err) {
+      setError(friendlyError(err));
+    }
+  }
+
+  function columnOf(status: TaskStatus) {
+    return tasks.filter((t) => t.status === status).sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  // dropped on empty column space (not on a specific card) — send it to
+  // the end of that column
   function handleDrop(to: TaskStatus) {
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId) return;
 
+    const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
+    const sortOrder = (columnTasks.at(-1)?.sortOrder ?? 0) + 1;
+
+    const draggedTask = tasks.find((t) => t.id === taskId);
+    if (draggedTask?.status === to) {
+      commitReorder(taskId, sortOrder);
+      return;
+    }
     const extra = EXTRA_FIELD[to];
     if (extra) {
-      setPending({ taskId, to });
+      setPending({ taskId, to, sortOrder });
       setInputValue("");
       dialogRef.current?.showModal();
       return;
     }
-    commitMove(to, taskId);
+    commitMove(to, taskId, sortOrder);
+  }
+
+  // dropped directly on another card — insert right before it (same
+  // column: pure reorder; different column: reorder + status change)
+  function handleDropOnCard(to: TaskStatus, targetTask: TaskCardData) {
+    const taskId = draggingId;
+    setDraggingId(null);
+    if (!taskId || taskId === targetTask.id) return;
+
+    const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
+    const idx = columnTasks.findIndex((t) => t.id === targetTask.id);
+    const prevTask = columnTasks[idx - 1];
+    const sortOrder = prevTask ? (prevTask.sortOrder + targetTask.sortOrder) / 2 : targetTask.sortOrder - 1;
+
+    const draggedTask = tasks.find((t) => t.id === taskId);
+    if (draggedTask?.status === to) {
+      commitReorder(taskId, sortOrder);
+      return;
+    }
+    const extra = EXTRA_FIELD[to];
+    if (extra) {
+      setPending({ taskId, to, sortOrder });
+      setInputValue("");
+      dialogRef.current?.showModal();
+      return;
+    }
+    commitMove(to, taskId, sortOrder);
   }
 
   function confirmDialog() {
     if (!pending) return;
     const extra = EXTRA_FIELD[pending.to];
     if (!extra || !inputValue.trim()) return;
-    commitMove(pending.to, pending.taskId, { [extra.field]: inputValue.trim() });
+    commitMove(pending.to, pending.taskId, pending.sortOrder, { [extra.field]: inputValue.trim() });
     dialogRef.current?.close();
     setPending(null);
   }
@@ -145,7 +195,7 @@ export function Board({
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {columns.map((col) => {
-          const columnTasks = tasks.filter((t) => t.status === col.status);
+          const columnTasks = columnOf(col.status);
           return (
             <section
               key={col.status}
@@ -167,6 +217,15 @@ export function Board({
                     key={task.id}
                     draggable
                     onDragStart={() => setDraggingId(task.id)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDropOnCard(col.status, task);
+                    }}
                     className={draggingId === task.id ? "opacity-40" : undefined}
                   >
                     <TaskCard

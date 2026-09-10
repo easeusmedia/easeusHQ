@@ -20,7 +20,7 @@ export function ActingAsPicker({ people, sessionUserId }: { people: Person[]; se
         <Dropdown
           key={current}
           defaultValue={current}
-          options={people.map((p) => ({ value: p.id, label: `${p.name} (${p.role})` }))}
+          options={people.map((p) => ({ value: p.id, label: p.name }))}
           onChange={(id) => {
             const params = new URLSearchParams(searchParams);
             params.set("as", id);

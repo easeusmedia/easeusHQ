@@ -24,9 +24,11 @@ export default async function CalendarPage({
 
   const { month: monthParam } = await searchParams;
   const now = new Date();
-  const [year, month] = monthParam
-    ? monthParam.split("-").map(Number)
-    : [now.getUTCFullYear(), now.getUTCMonth() + 1];
+  const parsed = monthParam?.match(/^(\d{4})-(\d{1,2})$/);
+  const [year, month] =
+    parsed && Number(parsed[2]) >= 1 && Number(parsed[2]) <= 12
+      ? [Number(parsed[1]), Number(parsed[2])]
+      : [now.getUTCFullYear(), now.getUTCMonth() + 1]; // malformed/garbage ?month= falls back to the current month
   const monthIndex = month - 1; // 0-indexed for Date.UTC
 
   const monthStart = new Date(Date.UTC(year, monthIndex, 1));

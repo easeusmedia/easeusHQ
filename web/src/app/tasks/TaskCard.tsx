@@ -81,6 +81,7 @@ export type TaskCardData = {
   editingNotes: string | null;
   dueDate: Date | null;
   createdAt: Date;
+  sortOrder: number;
   project: { client: { name: string } };
 };
 
