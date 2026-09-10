@@ -78,6 +78,7 @@ export function EditorViewToggle(props: {
       prev = null;
     }
 
+    console.log("[approval debug]", { prev, current: props.tasks.map((t) => [t.id, t.status]) });
     if (prev) {
       // ops has full manual override on the queue (see workflow.ts), so an
       // approval doesn't always arrive via sent_for_approval specifically —
