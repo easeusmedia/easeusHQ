@@ -130,9 +130,44 @@ export function Board({
     return canTransition(task.status, to, { role: actingRole, isAssignee });
   }
 
-  // dropped on empty column space (not on a specific card) — send it to
-  // the end of that column
-  function handleDrop(to: TaskStatus) {
+  // Figures out where in the column the drop should land by comparing the
+  // cursor's Y position against every remaining card's own vertical
+  // midpoint — cursor above a card's midpoint means "insert before it",
+  // below means "keep looking" (falling through the loop means "insert at
+  // the end"). This runs once per drop, over every card in the column, so
+  // it doesn't depend on which specific nested element inside a card
+  // happened to be the drop's event target, or on that one card's own
+  // bounding box in isolation — both of which turned out fragile in
+  // practice (per-card top/bottom-half hit-testing kept only working for
+  // "drop near the top", never reliably for "drop at the bottom" once a
+  // column had a few cards in it).
+  function dropSortOrder(columnTasks: TaskCardData[], excludeId: string, container: HTMLElement, clientY: number): number {
+    const remaining = columnTasks.filter((t) => t.id !== excludeId);
+    const cardEls = Array.from(container.querySelectorAll<HTMLElement>("[data-task-id]"));
+    let insertIdx = remaining.length;
+    for (const el of cardEls) {
+      const id = el.dataset.taskId;
+      if (!id || id === excludeId) continue;
+      const idx = remaining.findIndex((t) => t.id === id);
+      if (idx === -1) continue;
+      const rect = el.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        insertIdx = idx;
+        break;
+      }
+    }
+    const before = remaining[insertIdx];
+    const after = remaining[insertIdx - 1];
+    if (before && after) return (before.sortOrder + after.sortOrder) / 2;
+    if (before) return before.sortOrder - 1;
+    if (after) return after.sortOrder + 1;
+    return 0;
+  }
+
+  // one drop handler per column, attached to the whole card-list container
+  // (not per card) — covers dropping on a card, between cards, or in the
+  // empty space below the last one, all the same way
+  function handleColumnDrop(to: TaskStatus, e: React.DragEvent<HTMLDivElement>) {
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId) return;
@@ -142,50 +177,7 @@ export function Board({
       return;
     }
 
-    const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
-    const sortOrder = (columnTasks.at(-1)?.sortOrder ?? 0) + 1;
-
-    if (draggedTask?.status === to) {
-      commitReorder(taskId, sortOrder);
-      return;
-    }
-    const extra = EXTRA_FIELD[to];
-    if (extra) {
-      setPending({ taskId, to, sortOrder });
-      setInputValue(existingLinkValue(draggedTask, extra.field));
-      dialogRef.current?.showModal();
-      return;
-    }
-    commitMove(to, taskId, sortOrder);
-  }
-
-  // dropped directly on another card — insert before or after it depending
-  // on which half of the card the cursor was over (see onDrop below). Only
-  // ever inserting "before" meant there was no way to drop a card into the
-  // last slot of a column short of finding empty space below the last
-  // card — which rarely exists, since a column is exactly as tall as its
-  // cards. That's what made reordering feel stuck: half the possible
-  // positions were simply unreachable.
-  function handleDropOnCard(to: TaskStatus, targetTask: TaskCardData, insertAfter: boolean) {
-    const taskId = draggingId;
-    setDraggingId(null);
-    if (!taskId || taskId === targetTask.id) return;
-    const draggedTask = optimisticTasks.find((t) => t.id === taskId);
-    if (!canDropInto(draggedTask, to)) {
-      setError("Only the ops team can move a task to that stage.");
-      return;
-    }
-
-    const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
-    const idx = columnTasks.findIndex((t) => t.id === targetTask.id);
-    let sortOrder: number;
-    if (insertAfter) {
-      const nextTask = columnTasks[idx + 1];
-      sortOrder = nextTask ? (targetTask.sortOrder + nextTask.sortOrder) / 2 : targetTask.sortOrder + 1;
-    } else {
-      const prevTask = columnTasks[idx - 1];
-      sortOrder = prevTask ? (prevTask.sortOrder + targetTask.sortOrder) / 2 : targetTask.sortOrder - 1;
-    }
+    const sortOrder = dropSortOrder(columnOf(to), taskId, e.currentTarget, e.clientY);
 
     if (draggedTask?.status === to) {
       commitReorder(taskId, sortOrder);
@@ -268,12 +260,7 @@ export function Board({
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
-            <section
-              key={col.status}
-              className="flex min-w-0 flex-col gap-3"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop(col.status)}
-            >
+            <section key={col.status} className="flex min-w-0 flex-col gap-3">
               <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
                 <span className={`h-2 w-2 rounded-full ${col.dot}`} />
                 {col.label}
@@ -282,49 +269,31 @@ export function Board({
 
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
 
-              {/* min-h guarantees empty space below the last card to drop
-                  into and append-to-end (handled by the <section>'s own
-                  onDrop above) — without it, a short column (2-3 cards) often
-                  had NO empty area below its last card at all: the <section>
-                  only gets taller than its own content via CSS grid's
-                  row-stretch, which only kicks in when some OTHER column in
-                  the same grid row happens to be taller. A row where every
-                  column is short had nowhere to drop "at the bottom" —
-                  exactly the "only stacks at the top, never the bottom"
-                  symptom reported, and it'll recur any time the columns in a
-                  row are all similarly short. This makes that space
-                  unconditional instead of incidental. */}
-              <div className="flex min-h-24 flex-1 flex-col gap-3">
+              {/* the whole drop target for this column, cards and all —
+                  min-h/flex-1 guarantee it always has real empty space below
+                  the last card (or fills the column when empty), so there's
+                  never a spot in the column a drop can't land on. */}
+              <div
+                className="flex min-h-24 flex-1 flex-col gap-3"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleColumnDrop(col.status, e);
+                }}
+              >
                 {columnTasks.map((task) => (
                   <div
                     key={task.id}
+                    data-task-id={task.id}
                     draggable
                     onDragStart={() => setDraggingId(task.id)}
                     // safety net: if the drop lands somewhere that never
-                    // calls handleDrop/handleDropOnCard (dropped outside any
-                    // dropzone, drag cancelled with Escape, dropped on the
-                    // browser chrome), draggingId was never getting cleared
-                    // — the card stayed stuck at 40% opacity, unclickable,
-                    // until the next drag. This always fires, drop or not.
+                    // calls handleColumnDrop (dropped outside any dropzone,
+                    // drag cancelled with Escape, dropped on the browser
+                    // chrome), draggingId was never getting cleared — the
+                    // card stayed stuck at 40% opacity, unclickable, until
+                    // the next drag. This always fires, drop or not.
                     onDragEnd={() => setDraggingId(null)}
-                    // just preventDefault (required to allow a drop here at
-                    // all) — no state update per event. dragover fires many
-                    // times a second while the cursor moves, and updating
-                    // Board's state on every tick re-rendered the whole
-                    // board that often, which is what "laggy/blocked" was.
-                    // The before/after decision itself still happens, just
-                    // once, in onDrop below.
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const after = e.clientY > rect.top + rect.height / 2;
-                      handleDropOnCard(col.status, task, after);
-                    }}
                     className={draggingId === task.id ? "opacity-40" : undefined}
                   >
                     <TaskCard

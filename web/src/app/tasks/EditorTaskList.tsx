@@ -45,7 +45,7 @@ export function EditorTaskList({
           <div
             key={task.id}
             onClick={() => detailsRef.current?.open()}
-            className="card-surface relative flex cursor-pointer flex-col gap-2 rounded-xl p-4 pb-6 shadow-sm"
+            className="card-surface relative flex cursor-pointer flex-col gap-2 rounded-xl p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
