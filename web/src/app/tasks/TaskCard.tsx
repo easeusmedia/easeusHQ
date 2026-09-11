@@ -1,12 +1,14 @@
+"use client";
+
+import { useRef } from "react";
 import { deleteTask } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesButton } from "./NotesButton";
-import { EditTaskDialog } from "./EditTaskDialog";
+import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
 import { ALL_STATUSES, canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { colorFor, initials } from "@/lib/avatar";
 import { RotateCcw } from "lucide-react";
-import { TaskActivityButton } from "./TaskActivityButton";
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   queued: "Queued",
@@ -50,27 +52,36 @@ export const STATUS_LINK: Partial<Record<TaskStatus, { field: "rawLink" | "frame
   delivered_and_uploaded: { field: "driveLink", label: "Drive" },
 };
 
-// UTC-based (not toLocaleDateString) so server-rendered HTML always matches
-// what the browser hydrates with — locale/timezone differences between the
-// two otherwise cause a hydration mismatch.
+// Shifted to IST (UTC+5:30, fixed — India has no DST) with fixed-offset math
+// rather than Intl/toLocaleString, so this stays deterministic regardless of
+// the server's or browser's own timezone/locale — using either of those
+// would risk a server-render vs client-hydration mismatch. Everyone on the
+// team is in India, so IST (not UTC) is what "today" and "9am" should mean;
+// showing raw UTC put dates a day behind whenever it was evening in India.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function toIST(d: Date | string): Date {
+  return new Date(new Date(d).getTime() + IST_OFFSET_MS);
+}
+
 export function formatDate(d: Date | string) {
-  const date = new Date(d);
+  const date = toIST(d);
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(date.getUTCDate()).padStart(2, "0");
   return `${mm}/${dd}/${date.getUTCFullYear()}`;
 }
 
-// same UTC-based approach as formatDate, plus time-of-day — the activity
-// trail logs every status change with a full timestamp already (ActivityLog.
-// createdAt always had the time, just nothing displayed it), which matters
-// once a task moves through several stages in the same day.
+// plus time-of-day — the activity trail logs every status change with a
+// full timestamp already (ActivityLog.createdAt always had the time, just
+// nothing displayed it), which matters once a task moves through several
+// stages in the same day.
 export function formatDateTime(d: Date | string) {
-  const date = new Date(d);
+  const date = toIST(d);
   let hours = date.getUTCHours();
   const minutes = String(date.getUTCMinutes()).padStart(2, "0");
   const ampm = hours >= 12 ? "PM" : "AM";
   hours = hours % 12 || 12;
-  return `${formatDate(date)}, ${hours}:${minutes} ${ampm} UTC`;
+  return `${formatDate(d)}, ${hours}:${minutes} ${ampm} IST`;
 }
 
 export function StatusBadge({ status }: { status: TaskStatus }) {
@@ -146,14 +157,28 @@ export function TaskCard({
 
   const cardLinkSpec = STATUS_LINK[task.status];
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
+  const detailsRef = useRef<{ open: () => void }>(null);
 
+  // every interactive element inside the card below stops the click from
+  // bubbling here — the card itself is now one big "open the details
+  // dialog" click target (replacing the old separate info icon), so
+  // anything that has its own click behavior needs to opt out or you'd
+  // get a details dialog AND, say, a notes dialog stacked on top of it.
   return (
-    <div className="card-surface group relative flex flex-col gap-2 rounded-xl p-3 pb-6 shadow-sm">
+    <div
+      onClick={() => detailsRef.current?.open()}
+      className="card-surface group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 pb-6 shadow-sm"
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
         {canManage && (
-          <div className="flex shrink-0 gap-2 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-            <EditTaskDialog task={task} editors={editors} projects={projects} actingRole={actingRole} />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex shrink-0 gap-2 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+          >
+            <button type="button" onClick={() => detailsRef.current?.open()} className="cursor-pointer hover:text-foreground">
+              Edit
+            </button>
             <form id={`delete-${task.id}`} action={deleteTask}>
               <input type="hidden" name="taskId" value={task.id} />
               <input type="hidden" name="actingRole" value={actingRole} />
@@ -171,7 +196,7 @@ export function TaskCard({
 
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-snug">{task.title}</p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2">
           {task.revisionCount > 0 && (
             <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300">
               <RotateCcw size={10} />
@@ -209,22 +234,34 @@ export function TaskCard({
         </p>
       )}
 
-      <StatusSelect
-        taskId={task.id}
-        currentStatus={task.status}
-        options={options}
-        actingUserId={actingUserId}
-        actingRole={actingRole}
-        links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <StatusSelect
+          taskId={task.id}
+          currentStatus={task.status}
+          options={options}
+          actingUserId={actingUserId}
+          actingRole={actingRole}
+          links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+        />
+      </div>
 
       {cardLinkHref && (
-        <div className="flex flex-wrap gap-2">
+        <div onClick={(e) => e.stopPropagation()} className="flex flex-wrap gap-2">
           <Link href={cardLinkHref} label={cardLinkSpec!.label} />
         </div>
       )}
 
-      <TaskActivityButton taskId={task.id} />
+      <div onClick={(e) => e.stopPropagation()}>
+        <TaskDetailsDialog
+          ref={detailsRef}
+          task={task}
+          clientName={clientName}
+          editors={editors}
+          projects={projects}
+          actingUserId={actingUserId}
+          actingRole={actingRole}
+        />
+      </div>
     </div>
   );
 }

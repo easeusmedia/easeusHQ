@@ -2,7 +2,8 @@
 // editors:
 //
 //   queued -> editing -> sent_for_approval -> revision_requested -> editing (loop)
-//                                                                 -> sent_for_approval (resubmit directly)
+//               |                                                 -> sent_for_approval (resubmit directly)
+//               -> queued (editor puts it back)
 //                                           -> final_export_ready -> delivered_and_uploaded
 //
 // Who moves what:
@@ -13,10 +14,10 @@
 //  - final_export_ready:     ops (admin/core) only, once the client has approved
 //  - delivered_and_uploaded: internal ops (admin/core), not the editor
 //
-// Editors only ever drive 4 transitions: queued->editing, editing->sent_for_
-// approval, and revision_requested->editing or ->sent_for_approval directly
-// (skip re-editing if the fix was quick). Everything past "sent for
-// approval" is an ops call, not theirs.
+// Editors only ever drive 5 transitions: queued->editing, editing->sent_for_
+// approval, editing->queued (send it back themselves), and revision_requested
+// ->editing or ->sent_for_approval directly (skip re-editing if the fix was
+// quick). Everything past "sent for approval" is an ops call, not theirs.
 //
 // Ops (admin + core — Ashmit, plus the core team: Abhishek, Jyotsna, Arpit)
 // run the queue day to day and need to fix mistakes or skip a step without
@@ -48,7 +49,13 @@ type Rule = { to: TaskStatus; roles: Role[]; requireAssigneeIfEmployee?: boolean
 
 const TRANSITIONS: Record<TaskStatus, Rule[]> = {
   queued: [{ to: "editing", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true }],
-  editing: [{ to: "sent_for_approval", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true }],
+  editing: [
+    { to: "sent_for_approval", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true },
+    // lets an editor put something back in the queue themselves — wrong
+    // assignment, not ready to start, whatever the reason — instead of
+    // having to ask ops to do it
+    { to: "queued", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true },
+  ],
   sent_for_approval: [
     { to: "revision_requested", roles: ["admin", "core"] },
     { to: "final_export_ready", roles: ["admin", "core"] },

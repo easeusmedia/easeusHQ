@@ -282,7 +282,19 @@ export function Board({
 
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
 
-              <div className="flex flex-col gap-3">
+              {/* min-h guarantees empty space below the last card to drop
+                  into and append-to-end (handled by the <section>'s own
+                  onDrop above) — without it, a short column (2-3 cards) often
+                  had NO empty area below its last card at all: the <section>
+                  only gets taller than its own content via CSS grid's
+                  row-stretch, which only kicks in when some OTHER column in
+                  the same grid row happens to be taller. A row where every
+                  column is short had nowhere to drop "at the bottom" —
+                  exactly the "only stacks at the top, never the bottom"
+                  symptom reported, and it'll recur any time the columns in a
+                  row are all similarly short. This makes that space
+                  unconditional instead of incidental. */}
+              <div className="flex min-h-24 flex-1 flex-col gap-3">
                 {columnTasks.map((task) => (
                   <div
                     key={task.id}

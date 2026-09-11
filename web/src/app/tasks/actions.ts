@@ -161,13 +161,33 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
   }
 }
 
-// editing details (title/editor/links) — admin & core only, matches their
-// agreed "full rights to tweak everything" (see PLAN.md); editors only drive
-// their own task's status, not its details
+// editing details (title/editor/links) — admin & core have full rights to
+// tweak everything (see PLAN.md). Editors get exactly one field here: their
+// own task's Frame.io link (everything else — title, assignee, raw footage,
+// editing notes — is ops' input, not theirs to change; they drive status,
+// not task details).
 export async function updateTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const taskId = String(formData.get("taskId"));
   const actingRole = String(formData.get("actingRole")) as Role;
-  if (actingRole === "employee") return { error: "Only admin/core can edit task details" };
+
+  if (actingRole === "employee") {
+    const actingUserId = String(formData.get("actingUserId") ?? "");
+    let frameioLink: string | null;
+    try {
+      frameioLink = requireLinkOrNull(String(formData.get("frameioLink") ?? ""), "Frame.io link");
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "That link isn't valid." };
+    }
+    // re-derived server-side, not trusted from the client — an editor can
+    // only touch a task actually assigned to them
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!task || task.assignedToId !== actingUserId) {
+      return { error: "You can only edit your own tasks." };
+    }
+    await prisma.task.update({ where: { id: taskId }, data: { frameioLink } });
+    revalidatePath("/tasks");
+    return { success: true };
+  }
 
   const title = String(formData.get("title") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "") || undefined;

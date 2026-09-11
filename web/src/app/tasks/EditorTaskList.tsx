@@ -1,8 +1,11 @@
+"use client";
+
+import { useRef } from "react";
 import { canTransition, nextStatuses, type Role } from "@/lib/workflow";
 import { StatusBadge, STATUS_LINK, formatDate, type TaskCardData } from "./TaskCard";
 import { NotesButton, linkify } from "./NotesButton";
 import { StatusSelect } from "./StatusSelect";
-import { TaskActivityButton } from "./TaskActivityButton";
+import { TaskDetailsDialog } from "./TaskDetailsDialog";
 
 function Link({ href, label }: { href: string; label: string }) {
   return (
@@ -36,13 +39,18 @@ export function EditorTaskList({
         );
         const cardLinkSpec = STATUS_LINK[task.status];
         const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
+        const detailsRef = { current: null as { open: () => void } | null };
 
         return (
-          <div key={task.id} className="card-surface relative flex flex-col gap-2 rounded-xl p-4 pb-6 shadow-sm">
+          <div
+            key={task.id}
+            onClick={() => detailsRef.current?.open()}
+            className="card-surface relative flex cursor-pointer flex-col gap-2 rounded-xl p-4 pb-6 shadow-sm"
+          >
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs text-muted">{task.project.client.name}</p>
-                <span className="flex items-center gap-1.5">
+                <span onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
                   <p className="font-medium leading-snug">{task.title}</p>
                   {task.editingNotes && <NotesButton notes={task.editingNotes} />}
                 </span>
@@ -59,7 +67,7 @@ export function EditorTaskList({
             )}
 
             {cardLinkHref && (
-              <div className="flex flex-wrap gap-2 border-t border-border pt-2">
+              <div onClick={(e) => e.stopPropagation()} className="flex flex-wrap gap-2 border-t border-border pt-2">
                 <Link href={cardLinkHref} label={cardLinkSpec!.label} />
               </div>
             )}
@@ -71,7 +79,7 @@ export function EditorTaskList({
             )}
 
             {options.length > 0 && (
-              <div className="border-t border-border pt-2">
+              <div onClick={(e) => e.stopPropagation()} className="border-t border-border pt-2">
                 <StatusSelect
                   taskId={task.id}
                   currentStatus={task.status}
@@ -83,7 +91,19 @@ export function EditorTaskList({
               </div>
             )}
 
-            <TaskActivityButton taskId={task.id} />
+            <div onClick={(e) => e.stopPropagation()}>
+              <TaskDetailsDialog
+                ref={(instance) => {
+                  detailsRef.current = instance;
+                }}
+                task={task}
+                clientName={task.project.client.name}
+                editors={[]}
+                projects={[]}
+                actingUserId={actingUserId}
+                actingRole={actingRole}
+              />
+            </div>
           </div>
         );
       })}
