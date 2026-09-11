@@ -4,14 +4,17 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { syncFromNotion, type NotionSyncResult } from "./actions";
 
-// Notion has no icon in lucide (it's not a brand-logo set) — this
-// approximates their actual mark (a bordered white page with a bold block
-// "N"), not just a plain letter chip, so it reads as Notion at a glance.
+// Notion has no icon in lucide (it's not a brand-logo set) — redrawn
+// against their real logo: a black-bordered white square with a bold "N"
+// that has flared, wedge-shaped serif ends top-left and bottom-right, not
+// a plain rectangular block letter.
 function NotionMark({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-      <rect x="2" y="2" width="20" height="20" rx="4" fill="white" stroke="black" strokeWidth="2" />
-      <path d="M6 18V6H8.5L15.5 16V6H18V18H15.5L8.5 8V18H6Z" fill="black" />
+      <rect x="2" y="2" width="20" height="20" rx="4" fill="white" stroke="black" strokeWidth="2.4" />
+      <path d="M6.5 18V6.3L8.4 6L16.2 16.2V6H17.8V17.7L15.9 18L8.1 7.8V18H6.5Z" fill="black" />
+      <path d="M5.3 7.7L6.6 6.2L8.9 6.7L7.1 8.4Z" fill="black" />
+      <path d="M18.7 16.3L17.4 17.8L15.1 17.3L16.9 15.6Z" fill="black" />
     </svg>
   );
 }
