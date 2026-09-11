@@ -86,11 +86,21 @@ export function ApprovalWatcher({ userId }: { userId: string }) {
       }
     }
 
-    poll();
-    const id = setInterval(poll, 5000);
+    // 15s, not 5s — same reasoning as LiveRefresh: this is a second,
+    // independent server round-trip running continuously on every editor's
+    // browser, and it doesn't need sub-15s latency to still feel live.
+    // Also skips ticks while the tab is hidden and catches up once on
+    // return, instead of polling a tab nobody's looking at.
+    function tick() {
+      if (document.visibilityState === "visible") poll();
+    }
+    tick();
+    const id = setInterval(tick, 15000);
+    document.addEventListener("visibilitychange", tick);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
     };
   }, [userId, seenKey]);
 

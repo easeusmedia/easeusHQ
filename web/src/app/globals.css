@@ -46,6 +46,17 @@ body {
   outline-offset: 1px;
 }
 
+/* A base fade for every plain button/link — nav items, dropdown option
+   rows, status-pill controls, and anything else using a bare
+   hover:bg-surface-2 utility with no class of its own for it. The
+   dedicated classes below (.btn-glow, .card-surface, .status-pop,
+   .btn-ghost) already declare their own transition and simply override
+   this by specificity, so this only fills in the plain elements that had
+   no transition at all and snapped instantly on hover. */
+a, button {
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
 /* Glassmorphism for the big static panels only — dialogs and cards — kept
    nearly opaque so text over them stays sharp; a little backdrop blur reads
    as "glass" without turning into a see-through mess.

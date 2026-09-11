@@ -116,7 +116,7 @@ export type TaskCardData = {
 export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full font-semibold text-black"
+      className="flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-black"
       style={{ backgroundColor: colorFor(name), width: size, height: size, fontSize: size * 0.42 }}
       title={name}
     >

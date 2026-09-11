@@ -67,8 +67,6 @@ export default async function TasksPage({
 
   return (
     <>
-      <h1 className="mb-6 text-xl font-semibold">{isEditor ? "My Tasks" : "Editing Queue"}</h1>
-
       {isEditor ? (
         <EditorViewToggle
           tasks={visibleTasks}

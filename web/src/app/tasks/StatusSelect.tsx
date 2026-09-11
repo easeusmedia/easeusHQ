@@ -32,6 +32,13 @@ export function StatusSelect({
   const [pendingTo, setPendingTo] = useState<TaskStatus | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // shown instead of currentStatus — flips the instant you pick something,
+  // rather than waiting on the round-trip + router.refresh() to come back.
+  // Dragging a card already felt instant via Board's useOptimistic; this
+  // dropdown was the one place status changes still had a beat of nothing
+  // happening before the whole board jumped.
+  const [optimisticStatus, setOptimisticStatus] = useState(currentStatus);
+  useEffect(() => setOptimisticStatus(currentStatus), [currentStatus]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -42,14 +49,18 @@ export function StatusSelect({
   }, []);
 
   async function commit(to: TaskStatus, extra: Record<string, string> = {}) {
+    const previous = optimisticStatus;
+    setOptimisticStatus(to);
     try {
       const result = await moveTask(taskId, to, actingUserId, actingRole, extra);
       if (result?.error) {
+        setOptimisticStatus(previous);
         setError(result.error);
         return;
       }
       router.refresh();
     } catch (err) {
+      setOptimisticStatus(previous);
       setError(err instanceof Error ? err.message : "Couldn't update status.");
     }
   }
@@ -83,7 +94,7 @@ export function StatusSelect({
   if (options.length === 0) {
     return (
       <span className="block rounded-md border border-border bg-surface-2 px-3 py-2 text-center text-xs text-muted">
-        {STATUS_LABEL[currentStatus]}
+        {STATUS_LABEL[optimisticStatus]}
       </span>
     );
   }
@@ -91,7 +102,7 @@ export function StatusSelect({
   // Once the client has signed off, "delivered" is the one action that
   // matters here — surface it as its own button instead of burying it in
   // the full status list (ops can still reach every other status below).
-  const isFinalReady = currentStatus === "final_export_ready" && options.includes("delivered_and_uploaded");
+  const isFinalReady = optimisticStatus === "final_export_ready" && options.includes("delivered_and_uploaded");
   const dropdownOptions = isFinalReady ? options.filter((o) => o !== "delivered_and_uploaded") : options;
 
   return (
@@ -110,7 +121,7 @@ export function StatusSelect({
         onClick={() => setOpen((v) => !v)}
         className="btn-glow flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium"
       >
-        {STATUS_LABEL[currentStatus]}
+        {STATUS_LABEL[optimisticStatus]}
         <ChevronDown size={13} />
       </button>
       {open && (

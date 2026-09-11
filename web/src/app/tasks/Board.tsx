@@ -256,11 +256,22 @@ export function Board({
         )}
       </dialog>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+      {/* flex row, not a wrapping grid — a wrapping grid was dropping later
+          columns onto a second line the instant the sidebar (or window)
+          took away enough width, instead of just letting columns shrink or
+          scroll. items-start also stops flex's default row-stretch from
+          forcing every column to the height of the tallest one — that was
+          the actual drag-to-bottom bug: a column with several cards was
+          often already the tallest, so it had zero spare space below its
+          own last card for a drop to land in, while a shorter column had
+          tons (borrowed from the tall one). Each column now sizes to its
+          own content, and the sentinel spacer below gives a real drop
+          target below the last card regardless. */}
+      <div className="flex items-start gap-4 overflow-x-auto pb-2">
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
-            <section key={col.status} className="flex min-w-0 flex-col gap-3">
+            <section key={col.status} className="flex min-w-60 flex-1 flex-col gap-3">
               <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
                 <span className={`h-2 w-2 rounded-full ${col.dot}`} />
                 {col.label}
@@ -269,10 +280,7 @@ export function Board({
 
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
 
-              {/* the whole drop target for this column, cards and all —
-                  min-h/flex-1 guarantee it always has real empty space below
-                  the last card (or fills the column when empty), so there's
-                  never a spot in the column a drop can't land on. */}
+              {/* the whole drop target for this column, cards and all */}
               <div
                 className="flex min-h-24 flex-1 flex-col gap-3"
                 onDragOver={(e) => e.preventDefault()}
@@ -306,6 +314,10 @@ export function Board({
                     />
                   </div>
                 ))}
+                {/* guaranteed droppable cushion below the last card — not
+                    just leftover flex space, which shrinks to nothing once
+                    this column has enough cards of its own */}
+                <div className="h-16 shrink-0" />
               </div>
             </section>
           );

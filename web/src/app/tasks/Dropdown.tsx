@@ -22,6 +22,7 @@ export function Dropdown({
 }) {
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,20 +34,34 @@ export function Dropdown({
   }, []);
 
   const current = options.find((o) => o.value === value);
+  const LIST_HEIGHT = 320; // matches max-h-80 below
+
+  function openList() {
+    // flip upward when the list wouldn't fit under the trigger (e.g. this
+    // dropdown sits near the bottom of the viewport) — otherwise it renders
+    // straight down and off-screen, forcing a page scroll to reach it
+    const rect = ref.current?.getBoundingClientRect();
+    setOpenUpward(!!rect && window.innerHeight - rect.bottom < LIST_HEIGHT && rect.top > LIST_HEIGHT);
+    setOpen(true);
+  }
 
   return (
     <div ref={ref} className="relative">
       {name && <input type="hidden" name={name} value={value} />}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? setOpen(false) : openList())}
         className="flex w-full items-center justify-between rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
       >
         <span className={current ? "text-foreground" : "text-muted"}>{current?.label ?? placeholder}</span>
         <ChevronDown size={13} className="shrink-0 text-muted" />
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg">
+        <div
+          className={`absolute z-20 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg ${
+            openUpward ? "bottom-full mb-1" : "mt-1"
+          }`}
+        >
           {options.map((o) => (
             <button
               key={o.value || "_empty"}
