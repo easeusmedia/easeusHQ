@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { resolveActingUser } from "@/lib/actingUser";
+import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 import type { TaskStatus } from "@/lib/workflow";
 import { HistoryList } from "../HistoryList";
 
@@ -43,6 +43,12 @@ export default async function HistoryPage({
   const actingUser = resolveActingUser(users, sessionUserId, as);
   if (!actingUser) return null;
 
+  // based on who's actually signed in, not the "viewing as" impersonation —
+  // Abhishek looking at the board as an editor shouldn't lose this, and an
+  // editor being previewed shouldn't gain it
+  const realUser = users.find((u) => u.id === sessionUserId);
+  const canDelete = !!realUser && isAbhishekOrAdmin(realUser);
+
   const isEditor = actingUser.role === "employee";
   // an editor sees only their own completed work; admin/core see everyone's, for KPI review
   const visible = isEditor ? tasks.filter((t) => t.assignedToId === actingUser.id) : tasks;
@@ -60,7 +66,7 @@ export default async function HistoryPage({
   return (
     <>
       <h1 className="mb-6 text-xl font-semibold">History</h1>
-      <HistoryList tasks={visible} logsByTask={logsByTask} />
+      <HistoryList tasks={visible} logsByTask={logsByTask} canDelete={canDelete} />
     </>
   );
 }

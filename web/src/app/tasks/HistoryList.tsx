@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { formatDate } from "./TaskCard";
+import { ConfirmButton } from "./ConfirmButton";
+import { deleteTaskPermanently } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -26,11 +28,21 @@ type HistoryTask = {
   project: { client: { name: string } };
 };
 
-// read-only — once a task leaves an editor's hands it's a record for KPI
-// tracking (turnaround time, revision count), not something they act on.
-// Click a row to see the full step-by-step trail for that task (see
-// history/page.tsx, which builds logsByTask from ActivityLog).
-export function HistoryList({ tasks, logsByTask }: { tasks: HistoryTask[]; logsByTask: Record<string, LogEntry[]> }) {
+// read-only for everyone except Abhishek/admin (canDelete) — once a task
+// leaves an editor's hands it's a record for KPI tracking (turnaround time,
+// revision count), not something they act on. Click a row to see the full
+// step-by-step trail for that task (see history/page.tsx, which builds
+// logsByTask from ActivityLog). canDelete permanently wipes the task and
+// its log — for clearing out dummy/test data, not real client work.
+export function HistoryList({
+  tasks,
+  logsByTask,
+  canDelete = false,
+}: {
+  tasks: HistoryTask[];
+  logsByTask: Record<string, LogEntry[]>;
+  canDelete?: boolean;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -59,6 +71,7 @@ export function HistoryList({ tasks, logsByTask }: { tasks: HistoryTask[]; logsB
               <th className="px-3 py-2 font-medium">Editor</th>
               <th className="px-3 py-2 font-medium">Status</th>
               <th className="px-3 py-2 font-medium">Drive</th>
+              {canDelete && <th className="px-3 py-2 font-medium"></th>}
             </tr>
           </thead>
           <tbody>
@@ -88,6 +101,20 @@ export function HistoryList({ tasks, logsByTask }: { tasks: HistoryTask[]; logsB
                     <span className="text-muted">—</span>
                   )}
                 </td>
+                {canDelete && (
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <form id={`delete-history-${t.id}`} action={deleteTaskPermanently}>
+                      <input type="hidden" name="taskId" value={t.id} />
+                    </form>
+                    <ConfirmButton
+                      message={`Permanently delete "${t.title}"? This removes it and its activity log from the database — it can't be undone.`}
+                      className="text-xs text-muted hover:text-red-400"
+                      formId={`delete-history-${t.id}`}
+                    >
+                      Delete
+                    </ConfirmButton>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

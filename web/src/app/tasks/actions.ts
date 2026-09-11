@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 
 // Every link field below goes through this before it ever reaches the DB —
 // rejects anything that isn't a real http(s) URL (a bare "javascript:..."
@@ -219,6 +220,30 @@ export async function deleteTask(formData: FormData) {
 
   await prisma.task.delete({ where: { id: taskId } });
   revalidatePath("/tasks");
+}
+
+// Permanently wipes a task and everything referencing it — for cleaning
+// dummy/test rows out of History, not something ops reaches for on real
+// client work (that's what deleteTask above is for, and it's reversible in
+// spirit since the task is still "real"; this one leaves nothing behind).
+// Deliberately re-checks the real signed-in session instead of trusting a
+// client-supplied role, unlike the older deleteTask above — a destructive,
+// unrecoverable action needs the stronger check even though the rest of
+// this file doesn't do that yet (see the note at the top of this file).
+export async function deleteTaskPermanently(formData: FormData) {
+  const taskId = String(formData.get("taskId"));
+  const sessionUserId = await getSessionUserId();
+  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
+  if (!user || !isAbhishekOrAdmin(user)) {
+    throw new Error("Only Abhishek or an admin can permanently delete a task.");
+  }
+
+  await prisma.$transaction([
+    prisma.feedback.deleteMany({ where: { taskId } }),
+    prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: taskId } }),
+    prisma.task.delete({ where: { id: taskId } }),
+  ]);
+  revalidatePath("/tasks/history");
 }
 
 // polled by ApprovalWatcher independent of whatever /tasks/* page is
