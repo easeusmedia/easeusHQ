@@ -192,6 +192,21 @@ export function TaskCard({
             </ConfirmButton>
           </div>
         )}
+        {!canManage && isAssignee && (
+          // editors don't get Delete, but they need *some* visible sign
+          // this card opens into something editable (their Frame.io link)
+          // — otherwise there's nothing hinting the whole card is clickable
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              detailsRef.current?.open();
+            }}
+            className="shrink-0 text-xs text-muted opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-within:opacity-100"
+          >
+            Edit
+          </button>
+        )}
       </div>
 
       <div className="flex items-start justify-between gap-2">

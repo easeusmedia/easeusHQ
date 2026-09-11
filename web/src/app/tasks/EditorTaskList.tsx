@@ -45,7 +45,7 @@ export function EditorTaskList({
           <div
             key={task.id}
             onClick={() => detailsRef.current?.open()}
-            className="card-surface relative flex cursor-pointer flex-col gap-2 rounded-xl p-4 shadow-sm"
+            className="card-surface group relative flex cursor-pointer flex-col gap-2 rounded-xl p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -55,7 +55,22 @@ export function EditorTaskList({
                   {task.editingNotes && <NotesButton notes={task.editingNotes} />}
                 </span>
               </div>
-              <StatusBadge status={task.status} />
+              <div className="flex shrink-0 items-center gap-2">
+                {/* the only visible sign this whole card opens into
+                    something editable (their Frame.io link) — without it
+                    nothing hints the card is clickable at all */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    detailsRef.current?.open();
+                  }}
+                  className="text-xs text-muted opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                >
+                  Edit
+                </button>
+                <StatusBadge status={task.status} />
+              </div>
             </div>
 
             {task.dueDate && <p className="text-xs text-muted">Due {formatDate(task.dueDate)}</p>}

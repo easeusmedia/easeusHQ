@@ -102,6 +102,26 @@ body {
   filter: brightness(1.35);
 }
 
+/* Task details dialog: growing to fit the History panel used to just snap
+   to its new width — this animates that, and the panel itself fades/slides
+   in rather than appearing instantly once there's room for it. */
+.dialog-grow {
+  transition: width 0.25s ease;
+}
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.panel-fade-in {
+  animation: panel-fade-in 0.2s ease-out;
+}
+
 /* --- The one hover rule, three cases. Don't hand-roll a fourth. ---
    1. Solid action buttons (Save/Confirm/Add task) -> .btn-glow. Bordered,
       filled at rest, swaps to --hover-surface on hover.

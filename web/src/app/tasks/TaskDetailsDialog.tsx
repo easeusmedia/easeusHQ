@@ -71,7 +71,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
       <dialog
         ref={dialogRef}
         onClose={() => setHistoryOpen(false)}
-        className={`glass fixed top-1/2 left-1/2 m-0 max-w-[94vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground ${
+        className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
           historyOpen ? "w-[54rem]" : "w-[30rem]"
         }`}
       >
@@ -226,7 +226,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           </form>
 
           {historyOpen && (
-            <div className="flex flex-col gap-2">
+            <div className="panel-fade-in flex flex-col gap-2">
               <p className="text-xs font-medium text-muted">Every stage this task has gone through</p>
               <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-left text-xs">
