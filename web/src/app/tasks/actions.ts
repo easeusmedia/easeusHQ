@@ -321,13 +321,19 @@ function matchEditor<T extends { name: string }>(personName: string, editors: T[
 // cron, no webhook): only runs when this is called from the button.
 // Remove this whole function, lib/notion.ts, the button, and the
 // notionPageId column together once Notion is retired.
-export type NotionSyncResult = { created: number; skipped: number; skippedReasons: string[]; error?: string };
+export type NotionSyncResult = {
+  created: number;
+  updated: number;
+  skipped: number;
+  skippedReasons: string[];
+  error?: string;
+};
 
 export async function syncFromNotion(): Promise<NotionSyncResult> {
   const sessionUserId = await getSessionUserId();
   const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
   if (!user || !isAbhishekOrAdmin(user)) {
-    return { created: 0, skipped: 0, skippedReasons: [], error: "Only Abhishek or an admin can sync Notion." };
+    return { created: 0, updated: 0, skipped: 0, skippedReasons: [], error: "Only Abhishek or an admin can sync Notion." };
   }
 
   try {
@@ -337,19 +343,20 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       prisma.client.findMany({ include: { projects: true } }),
     ]);
 
-    // one query for every already-imported id instead of one round-trip
-    // per row — with the sync now scoped to just today, rows is small, but
-    // no reason to make it N queries when it's this easy to make it one
-    const alreadyImported = new Set(
+    // one query for every already-imported row instead of one round-trip
+    // per row — with the sync scoped to just today, rows is small, but no
+    // reason to make it N queries when it's this easy to make it one
+    const existingByNotionId = new Map(
       (
         await prisma.task.findMany({
           where: { notionPageId: { in: rows.map((r) => r.id) } },
-          select: { notionPageId: true },
+          select: { id: true, notionPageId: true },
         })
-      ).map((t) => t.notionPageId)
+      ).map((t) => [t.notionPageId, t.id])
     );
 
     let created = 0;
+    let updated = 0;
     let skipped = 0;
     const skippedReasons: string[] = [];
 
@@ -358,11 +365,6 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       if (!title) {
         skipped++;
         skippedReasons.push("a row with no title");
-        continue;
-      }
-
-      if (alreadyImported.has(row.id)) {
-        skipped++;
         continue;
       }
 
@@ -385,18 +387,32 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
 
       const statusName = getStatusName(row.properties);
       const status = statusName ? NOTION_STATUS_MAP[statusName.toLowerCase()] : undefined;
+      const sharedData = {
+        title,
+        status: status ?? "queued",
+        assignedToId: editor.id,
+        rawLink: getUrl(row.properties, "Raw Links"),
+        referenceLink: getUrl(row.properties, "Reference "),
+        assetLink: getUrl(row.properties, "Assets"),
+        frameioLink: getUrl(row.properties, "Exported Link"),
+      };
+
+      // already imported once today — Notion is the source of truth during
+      // this testing phase, so keep the status (and links) in sync with
+      // whatever it currently shows there, rather than only ever creating
+      // once and then ignoring later changes made in Notion
+      const existingId = existingByNotionId.get(row.id);
+      if (existingId) {
+        await prisma.task.update({ where: { id: existingId }, data: sharedData });
+        updated++;
+        continue;
+      }
 
       await prisma.task.create({
         data: {
+          ...sharedData,
           projectId: project.id,
-          title,
-          status: status ?? "queued",
           dueDate: getDate(row.properties, "Editor Queu Date") ?? new Date(),
-          assignedToId: editor.id,
-          rawLink: getUrl(row.properties, "Raw Links"),
-          referenceLink: getUrl(row.properties, "Reference "),
-          assetLink: getUrl(row.properties, "Assets"),
-          frameioLink: getUrl(row.properties, "Exported Link"),
           sortOrder: Date.now(),
           notionPageId: row.id,
         },
@@ -404,10 +420,16 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       created++;
     }
 
-    if (created > 0) revalidatePath("/tasks");
-    return { created, skipped, skippedReasons: skippedReasons.slice(0, 20) };
+    if (created > 0 || updated > 0) revalidatePath("/tasks");
+    return { created, updated, skipped, skippedReasons: skippedReasons.slice(0, 20) };
   } catch (err) {
-    return { created: 0, skipped: 0, skippedReasons: [], error: err instanceof Error ? err.message : "Notion sync failed." };
+    return {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      skippedReasons: [],
+      error: err instanceof Error ? err.message : "Notion sync failed.",
+    };
   }
 }
 
