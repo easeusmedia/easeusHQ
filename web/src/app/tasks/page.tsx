@@ -2,10 +2,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { resolveActingUser } from "@/lib/actingUser";
+import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 import type { Role, TaskStatus } from "@/lib/workflow";
 import { Board } from "./Board";
 import { EditorViewToggle } from "./EditorViewToggle";
+import { NotionSyncButton } from "./NotionSyncButton";
 
 export const dynamic = "force-dynamic"; // always hits the DB, never statically cached
 
@@ -59,9 +60,15 @@ export default async function TasksPage({
   const isEditor = actingUser.role === "employee";
   const visibleTasks = isEditor ? tasks.filter((t) => t.assignedToId === actingUser.id) : tasks;
 
+  // based on who's actually signed in, not the "viewing as" impersonation —
+  // same rule as History's delete button (see history/page.tsx)
+  const realUser = users.find((u) => u.id === sessionUserId);
+  const canSyncNotion = !!realUser && isAbhishekOrAdmin(realUser);
+
   return (
     <>
       <h1 className="mb-6 text-xl font-semibold">{isEditor ? "My Tasks" : "Editing Queue"}</h1>
+      {canSyncNotion && <NotionSyncButton />}
 
       {isEditor ? (
         <EditorViewToggle

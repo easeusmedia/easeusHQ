@@ -113,6 +113,11 @@ model Task {
   // for "this one's eaten a lot of back-and-forth"
   revisionCount Int       @default(0)
 
+  // set only for tasks pulled in by the temporary Notion sync button —
+  // stops a repeat click from re-creating the same task. Null for every
+  // normal task. Drop this column when the Notion sync is removed.
+  notionPageId String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs
 

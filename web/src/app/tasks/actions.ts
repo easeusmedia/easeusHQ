@@ -7,6 +7,7 @@ import { destroySession, getSessionUserId } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
+import { findTaskDatabases, fetchDatabaseRows, getTitleText, getTextByNameGuess } from "@/lib/notion";
 
 // Every link field below goes through this before it ever reaches the DB —
 // rejects anything that isn't a real http(s) URL (a bare "javascript:..."
@@ -264,6 +265,94 @@ export async function deleteTaskPermanently(formData: FormData) {
     prisma.task.delete({ where: { id: taskId } }),
   ]);
   revalidatePath("/tasks/history");
+}
+
+// Temporary — manual, admin-triggered pull from Notion while the team is
+// still creating tasks there during the transition. Never automatic (no
+// cron, no webhook): only runs when this is called from the button.
+// Remove this whole function, lib/notion.ts, the button, and the
+// notionPageId column together once Notion is retired.
+export type NotionSyncResult = { created: number; skipped: number; skippedReasons: string[]; error?: string };
+
+export async function syncFromNotion(): Promise<NotionSyncResult> {
+  const sessionUserId = await getSessionUserId();
+  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
+  if (!user || !isAbhishekOrAdmin(user)) {
+    return { created: 0, skipped: 0, skippedReasons: [], error: "Only Abhishek or an admin can sync Notion." };
+  }
+
+  try {
+    const [databases, editors, clients] = await Promise.all([
+      findTaskDatabases(),
+      prisma.user.findMany({ where: { role: "employee" } }),
+      prisma.client.findMany({ include: { projects: true } }),
+    ]);
+
+    let created = 0;
+    let skipped = 0;
+    const skippedReasons: string[] = [];
+
+    for (const db of databases) {
+      // "Narendra's Workbook" -> "Narendra" -> match against editors' first names
+      const firstNameGuess = db.editorPageTitle.split(/[\s’']/)[0];
+      const editor = editors.find((e) => e.name.toLowerCase().startsWith(firstNameGuess.toLowerCase()));
+
+      const rows = await fetchDatabaseRows(db.databaseId);
+      for (const row of rows) {
+        const title = getTitleText(row.properties);
+        if (!title) {
+          skipped++;
+          skippedReasons.push(`${db.editorPageTitle}: a row with no title`);
+          continue;
+        }
+
+        const existing = await prisma.task.findUnique({ where: { notionPageId: row.id } });
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        if (!editor) {
+          skipped++;
+          skippedReasons.push(`"${title}": couldn't match "${db.editorPageTitle}" to an editor`);
+          continue;
+        }
+
+        const clientNameGuess = getTextByNameGuess(row.properties, /client/i);
+        const client = clientNameGuess
+          ? clients.find((c) => c.name.toLowerCase() === clientNameGuess.toLowerCase())
+          : undefined;
+        const project = client?.projects[0];
+        if (!project) {
+          skipped++;
+          skippedReasons.push(`"${title}": couldn't match a client ("${clientNameGuess ?? "none found"}")`);
+          continue;
+        }
+
+        const rawLink = getTextByNameGuess(row.properties, /raw|drive|footage/i);
+        const editingNotes = getTextByNameGuess(row.properties, /note|instruction|brief/i);
+
+        await prisma.task.create({
+          data: {
+            projectId: project.id,
+            title,
+            dueDate: new Date(),
+            assignedToId: editor.id,
+            rawLink: rawLink ?? null,
+            editingNotes: editingNotes ?? null,
+            sortOrder: Date.now(),
+            notionPageId: row.id,
+          },
+        });
+        created++;
+      }
+    }
+
+    if (created > 0) revalidatePath("/tasks");
+    return { created, skipped, skippedReasons: skippedReasons.slice(0, 20) };
+  } catch (err) {
+    return { created: 0, skipped: 0, skippedReasons: [], error: err instanceof Error ? err.message : "Notion sync failed." };
+  }
 }
 
 // polled by ApprovalWatcher independent of whatever /tasks/* page is
