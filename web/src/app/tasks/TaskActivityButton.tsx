@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { History } from "lucide-react";
+import { Info } from "lucide-react";
 import { getTaskActivity } from "./actions";
-import { formatDate } from "./TaskCard";
+import { formatDateTime } from "./TaskCard";
 
 type LogEntry = { createdAt: Date; action: string; actorName: string };
 
@@ -35,7 +35,7 @@ export function TaskActivityButton({ taskId }: { taskId: string }) {
         title="Full activity trail"
         className="absolute bottom-2 right-2 text-muted opacity-60 transition-opacity hover:text-foreground hover:opacity-100"
       >
-        <History size={14} />
+        <Info size={14} />
       </button>
       <dialog
         ref={ref}
@@ -43,10 +43,10 @@ export function TaskActivityButton({ taskId }: { taskId: string }) {
         className="glass fixed top-1/2 left-1/2 m-0 w-[28rem] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <div className="mb-3 flex items-center gap-2">
-          <History size={14} />
+          <Info size={14} />
           <p className="text-sm font-medium">Activity trail</p>
         </div>
-        <div className="max-h-80 overflow-y-auto rounded-md border border-border">
+        <div className="max-h-80 overflow-x-auto overflow-y-auto rounded-md border border-border">
           <table className="w-full text-left text-xs">
             <thead className="bg-surface text-muted">
               <tr>
@@ -71,7 +71,7 @@ export function TaskActivityButton({ taskId }: { taskId: string }) {
               ) : (
                 logs.map((log, i) => (
                   <tr key={i} className="border-t border-border">
-                    <td className="whitespace-nowrap px-2 py-1.5 text-muted">{formatDate(log.createdAt)}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-muted">{formatDateTime(log.createdAt)}</td>
                     <td className="px-2 py-1.5">{log.action}</td>
                     <td className="px-2 py-1.5 text-muted">{log.actorName}</td>
                   </tr>

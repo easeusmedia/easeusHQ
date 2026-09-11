@@ -60,6 +60,19 @@ export function formatDate(d: Date | string) {
   return `${mm}/${dd}/${date.getUTCFullYear()}`;
 }
 
+// same UTC-based approach as formatDate, plus time-of-day — the activity
+// trail logs every status change with a full timestamp already (ActivityLog.
+// createdAt always had the time, just nothing displayed it), which matters
+// once a task moves through several stages in the same day.
+export function formatDateTime(d: Date | string) {
+  const date = new Date(d);
+  let hours = date.getUTCHours();
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${formatDate(date)}, ${hours}:${minutes} ${ampm} UTC`;
+}
+
 export function StatusBadge({ status }: { status: TaskStatus }) {
   return (
     <span className={`status-pop shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[status]}`}>

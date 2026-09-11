@@ -28,8 +28,6 @@ export const BOARD_COLUMNS: Column[] = ALL_COLUMNS.filter((c) => c.status !== "d
 type Project = { id: string; client: { name: string } };
 type Editor = { id: string; name: string };
 
-// hides raw Prisma/connection-string errors (expected on the demo page,
-// which has no real database) behind one clear sentence
 // the task already has a Frame.io/Drive link on file from an earlier pass
 // (e.g. it was sent for approval once, sent back for revision, and is now
 // being resubmitted) — prefill instead of making them retype the same link
@@ -38,6 +36,9 @@ function existingLinkValue(task: TaskCardData | undefined, field: "frameioLink" 
   if (!task || field === "reviewNotes") return "";
   return task[field] ?? "";
 }
+
+// hides raw Prisma/connection-string errors (expected on the demo page,
+// which has no real database) behind one clear sentence
 
 function friendlyError(message: string): string {
   if (/database|connection string|prisma/i.test(message)) {
@@ -66,10 +67,6 @@ export function Board({
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  // which card is currently being hovered while dragging, and whether the
-  // drop would land before or after it — drives the thin insertion-line
-  // indicator so it's obvious which slot you're about to drop into
-  const [dropTarget, setDropTarget] = useState<{ taskId: string; after: boolean } | null>(null);
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +135,6 @@ export function Board({
   function handleDrop(to: TaskStatus) {
     const taskId = draggingId;
     setDraggingId(null);
-    setDropTarget(null);
     if (!taskId) return;
     const draggedTask = optimisticTasks.find((t) => t.id === taskId);
     if (!canDropInto(draggedTask, to)) {
@@ -298,35 +294,26 @@ export function Board({
                     // browser chrome), draggingId was never getting cleared
                     // — the card stayed stuck at 40% opacity, unclickable,
                     // until the next drag. This always fires, drop or not.
-                    onDragEnd={() => {
-                      setDraggingId(null);
-                      setDropTarget(null);
-                    }}
+                    onDragEnd={() => setDraggingId(null)}
+                    // just preventDefault (required to allow a drop here at
+                    // all) — no state update per event. dragover fires many
+                    // times a second while the cursor moves, and updating
+                    // Board's state on every tick re-rendered the whole
+                    // board that often, which is what "laggy/blocked" was.
+                    // The before/after decision itself still happens, just
+                    // once, in onDrop below.
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const after = e.clientY > rect.top + rect.height / 2;
-                      setDropTarget((prev) => (prev?.taskId === task.id && prev.after === after ? prev : { taskId: task.id, after }));
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       const rect = e.currentTarget.getBoundingClientRect();
                       const after = e.clientY > rect.top + rect.height / 2;
-                      setDropTarget(null);
                       handleDropOnCard(col.status, task, after);
                     }}
-                    className={[
-                      draggingId === task.id ? "opacity-40" : "",
-                      dropTarget?.taskId === task.id
-                        ? dropTarget.after
-                          ? "border-b-2 border-blue-400"
-                          : "border-t-2 border-blue-400"
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ") || undefined}
+                    className={draggingId === task.id ? "opacity-40" : undefined}
                   >
                     <TaskCard
                       task={task}

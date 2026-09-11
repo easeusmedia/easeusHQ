@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { formatDate } from "./TaskCard";
+import { formatDate, formatDateTime } from "./TaskCard";
 import { ConfirmButton } from "./ConfirmButton";
 import { deleteTaskPermanently } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
@@ -130,7 +130,7 @@ export function HistoryList({
           <>
             <p className="text-sm font-medium">{selectedTask.title}</p>
             <p className="mb-3 text-xs text-muted">{selectedTask.project.client.name}</p>
-            <div className="max-h-80 overflow-y-auto rounded-md border border-border">
+            <div className="max-h-80 overflow-x-auto overflow-y-auto rounded-md border border-border">
               <table className="w-full text-left text-xs">
                 <thead className="bg-surface text-muted">
                   <tr>
@@ -149,7 +149,7 @@ export function HistoryList({
                   ) : (
                     selectedLogs.map((log, i) => (
                       <tr key={i} className="border-t border-border">
-                        <td className="whitespace-nowrap px-2 py-1.5 text-muted">{formatDate(log.createdAt)}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 text-muted">{formatDateTime(log.createdAt)}</td>
                         <td className="px-2 py-1.5">{log.action}</td>
                         <td className="px-2 py-1.5 text-muted">{log.actorName}</td>
                       </tr>
