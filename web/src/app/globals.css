@@ -102,24 +102,12 @@ body {
   filter: brightness(1.35);
 }
 
-/* Task details dialog: growing to fit the History panel used to just snap
-   to its new width — this animates that, and the panel itself fades/slides
-   in rather than appearing instantly once there's room for it. */
+/* Task details dialog growing to fit the History panel — the panel itself
+   animates its own width (0 -> full) with the same duration/easing, in
+   TaskDetailsDialog.tsx, so the two move together as one piece instead of
+   the form column snapping to a new size the instant history opens. */
 .dialog-grow {
-  transition: width 0.25s ease;
-}
-@keyframes panel-fade-in {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-.panel-fade-in {
-  animation: panel-fade-in 0.2s ease-out;
+  transition: width 0.3s ease-in-out;
 }
 
 /* --- The one hover rule, three cases. Don't hand-roll a fourth. ---

@@ -37,10 +37,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
 
   const canManage = actingRole === "admin" || actingRole === "core";
   const isAssignee = task.assignedTo?.id === actingUserId;
-  // an editor can fix their own Frame.io link whenever they're the
-  // assignee — not gated to a particular status, since they may only
-  // notice the mistake after ops has already moved it along
-  const canEditFrameio = !canManage && isAssignee;
+  // only while it's actually under review — that's the one window an
+  // editor has anything to fix on their own submission
+  const canEditFrameio = !canManage && isAssignee && task.status === "sent_for_approval";
 
   function open() {
     dialogRef.current?.showModal();
@@ -72,7 +71,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
         ref={dialogRef}
         onClose={() => setHistoryOpen(false)}
         className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
-          historyOpen ? "w-[54rem]" : "w-[30rem]"
+          historyOpen ? "w-[51.5rem]" : "w-[27.5rem]"
         }`}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -90,8 +89,8 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           </button>
         </div>
 
-        <div className={historyOpen ? "grid grid-cols-2 gap-4" : ""}>
-          <form id={formId} action={formAction} className="flex flex-col gap-3">
+        <div className="flex gap-4">
+          <form id={formId} action={formAction} className="flex w-[25rem] shrink-0 flex-col gap-3">
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />
             <input type="hidden" name="actingUserId" value={actingUserId} />
@@ -225,8 +224,20 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             {state.error && <p className="text-sm text-red-300">{state.error}</p>}
           </form>
 
-          {historyOpen && (
-            <div className="panel-fade-in flex flex-col gap-2">
+          {/* always rendered (not conditionally mounted) so the width
+              transition below has real content to grow into/out of instead
+              of content just appearing once there's room — that mismatch
+              between "the box is still growing" and "the content already
+              popped in" was the actual jump. The dialog's own width
+              transition and this one run with the same duration, so the
+              whole thing grows as one piece instead of the form column
+              snapping to a new size the instant history opens. */}
+          <div
+            className={`shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+              historyOpen ? "w-[23rem] opacity-100" : "w-0 opacity-0"
+            }`}
+          >
+            <div className="flex w-[23rem] flex-col gap-2">
               <p className="text-xs font-medium text-muted">Every stage this task has gone through</p>
               <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-left text-xs">
@@ -263,7 +274,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 </table>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-2">

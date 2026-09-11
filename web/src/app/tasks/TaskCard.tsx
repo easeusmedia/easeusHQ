@@ -192,10 +192,10 @@ export function TaskCard({
             </ConfirmButton>
           </div>
         )}
-        {!canManage && isAssignee && (
-          // editors don't get Delete, but they need *some* visible sign
-          // this card opens into something editable (their Frame.io link)
-          // — otherwise there's nothing hinting the whole card is clickable
+        {!canManage && isAssignee && task.status === "sent_for_approval" && (
+          // only while it's under review — that's the one window an editor
+          // has anything to fix (their Frame.io link); before or after
+          // that stage there's nothing here for them to edit
           <button
             type="button"
             onClick={(e) => {

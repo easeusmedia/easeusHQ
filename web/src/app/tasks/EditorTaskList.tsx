@@ -56,19 +56,20 @@ export function EditorTaskList({
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {/* the only visible sign this whole card opens into
-                    something editable (their Frame.io link) — without it
-                    nothing hints the card is clickable at all */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    detailsRef.current?.open();
-                  }}
-                  className="text-xs text-muted opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                >
-                  Edit
-                </button>
+                {/* only while it's under review — that's the one window an
+                    editor has anything to fix (their Frame.io link) */}
+                {task.status === "sent_for_approval" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      detailsRef.current?.open();
+                    }}
+                    className="text-xs text-muted opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  >
+                    Edit
+                  </button>
+                )}
                 <StatusBadge status={task.status} />
               </div>
             </div>
