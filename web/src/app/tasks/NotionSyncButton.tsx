@@ -35,7 +35,7 @@ export function NotionSyncButton() {
   }
 
   return (
-    <div className="mb-6 flex flex-col items-center gap-2">
+    <div className="mt-8 flex flex-col items-center gap-2">
       <button
         type="button"
         onClick={sync}

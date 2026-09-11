@@ -5,7 +5,19 @@
 // actions.ts when Notion is retired for real.
 
 const NOTION_VERSION = "2022-06-28";
-const ROOT_PAGE_ID = "143b6a20-8044-8085-a32b-c73648b5f3c4"; // "Editors's Workspace"
+
+// The team's shared editing-queue database. Their original ("My assigned
+// videos", under Narendra's Workbook) turned out to be a legacy database
+// with no "data source" registered on Notion's backend — the newer API
+// genuinely cannot read it (confirmed via the database-retrieve endpoint
+// returning an empty data_sources array, not a permissions error — sharing
+// it every possible way still didn't fix that). Duplicating it produced a
+// fresh database object that Notion registers properly, and it already
+// covers every editor via its own "Editor" person property, not per-editor
+// pages. This is that duplicate's ID. If the team starts a truly new
+// database later, update this one ID and the mapping below still applies
+// as long as the property names match.
+const TASK_DATABASE_ID = "c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b";
 
 function token(): string {
   const t = process.env.NOTION_TOKEN;
@@ -28,45 +40,30 @@ async function notionFetch(path: string, init?: RequestInit) {
   return body;
 }
 
-type NotionDatabaseRef = { databaseId: string; editorPageTitle: string };
+export type NotionRow = { id: string; properties: Record<string, NotionProp> };
+type NotionProp = { type: string; [key: string]: unknown };
 
-// Walks the workspace hub page looking for every inline database nested
-// under it, tagging each with the nearest enclosing page's title (that's
-// how we infer "whose" database it is — "Narendra's Workbook" contains
-// Narendra's — rather than needing a specific Notion property for it).
-// Bounded depth/node count since this is a live tree walk, not a fixed list.
-export async function findTaskDatabases(): Promise<NotionDatabaseRef[]> {
-  const found: NotionDatabaseRef[] = [];
-  let visited = 0;
-
-  async function walk(blockId: string, nearestPageTitle: string, depth: number) {
-    if (depth > 6 || visited > 200) return;
-    const { results } = await notionFetch(`/blocks/${blockId}/children?page_size=100`);
-    for (const block of results) {
-      visited++;
-      if (block.type === "child_database") {
-        found.push({ databaseId: block.id, editorPageTitle: nearestPageTitle });
-      } else if (block.type === "child_page") {
-        await walk(block.id, block.child_page.title as string, depth + 1);
-      } else if (block.has_children) {
-        await walk(block.id, nearestPageTitle, depth + 1);
-      }
-    }
-  }
-
-  await walk(ROOT_PAGE_ID, "Editors's Workspace", 0);
-  return found;
+// India has no DST, so a fixed +5:30 offset is enough — same approach as
+// formatDate/formatDateTime elsewhere in this app, kept independent here
+// since this file has no client-side rendering to worry about matching.
+function todayInIST(): string {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-export type NotionRow = { id: string; properties: Record<string, unknown> };
-
-export async function fetchDatabaseRows(databaseId: string): Promise<NotionRow[]> {
+// Scoped to just today's "Editor Queu Date" — this is a testing-only sync
+// button clicked once in a while to check "did today's Notion tasks show
+// up here", not a backfill of the team's whole task history. Notion's own
+// query filter does this server-side, so there's no need to fetch
+// everything and filter client-side.
+export async function fetchTaskRows(): Promise<NotionRow[]> {
   const rows: NotionRow[] = [];
   let cursor: string | undefined;
+  const filter = { property: "Editor Queu Date", date: { equals: todayInIST() } };
   do {
-    const body = await notionFetch(`/databases/${databaseId}/query`, {
+    const body = await notionFetch(`/databases/${TASK_DATABASE_ID}/query`, {
       method: "POST",
-      body: JSON.stringify(cursor ? { start_cursor: cursor, page_size: 100 } : { page_size: 100 }),
+      body: JSON.stringify({ filter, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
     });
     rows.push(...body.results);
     cursor = body.has_more ? body.next_cursor : undefined;
@@ -74,34 +71,38 @@ export async function fetchDatabaseRows(databaseId: string): Promise<NotionRow[]
   return rows;
 }
 
-// Notion always marks exactly one property type: "title", regardless of
-// what it's actually called ("Name", "Task", whatever) — this is the one
-// field extraction that's reliable without knowing the exact schema.
-export function getTitleText(properties: Record<string, unknown>): string | null {
-  for (const prop of Object.values(properties) as { type: string; title?: { plain_text: string }[] }[]) {
+// Notion always marks exactly one property type: "title" — reliable
+// regardless of what it's actually called ("Video / Subject" here).
+export function getTitleText(properties: Record<string, NotionProp>): string | null {
+  for (const prop of Object.values(properties)) {
     if (prop.type === "title") {
-      return (prop.title ?? []).map((t) => t.plain_text).join("").trim() || null;
+      const rich = prop.title as { plain_text: string }[];
+      return rich.map((t) => t.plain_text).join("").trim() || null;
     }
   }
   return null;
 }
 
-// Best-effort match on a named property by substring on the property name
-// (case-insensitive) — everything below title is a guess until the actual
-// database schema is visible (blocked on Notion sharing as of writing this).
-export function getTextByNameGuess(properties: Record<string, unknown>, nameContains: RegExp): string | null {
-  for (const [name, prop] of Object.entries(properties) as [string, Record<string, unknown>][]) {
-    if (!nameContains.test(name)) continue;
-    const type = prop.type as string;
-    if (type === "rich_text") {
-      const arr = prop.rich_text as { plain_text: string }[];
-      const text = arr.map((t) => t.plain_text).join("").trim();
-      if (text) return text;
-    } else if (type === "select" && prop.select) {
-      return (prop.select as { name: string }).name;
-    } else if (type === "url" && prop.url) {
-      return prop.url as string;
-    }
-  }
-  return null;
+// The database's real property schema (verified directly, not guessed):
+//   "Video / Subject" (title), "Status" (status), "Editor" (people),
+//   "Raw Links" (url), "Exported Link" (url), "Reference " (url, note the
+//   trailing space in the actual name), "Assets" (url), "Editor Queu Date"
+// (date) — a leftover typo in their own property name, not mine.
+export function getUrl(properties: Record<string, NotionProp>, name: string): string | null {
+  return (properties[name]?.url as string | undefined) ?? null;
+}
+
+export function getStatusName(properties: Record<string, NotionProp>): string | null {
+  const status = properties["Status"]?.status as { name: string } | undefined;
+  return status?.name ?? null;
+}
+
+export function getFirstPersonName(properties: Record<string, NotionProp>, name: string): string | null {
+  const people = properties[name]?.people as { name: string }[] | undefined;
+  return people?.[0]?.name ?? null;
+}
+
+export function getDate(properties: Record<string, NotionProp>, name: string): Date | null {
+  const date = properties[name]?.date as { start: string } | undefined;
+  return date ? new Date(date.start) : null;
 }

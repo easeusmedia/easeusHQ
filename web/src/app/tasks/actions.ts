@@ -7,7 +7,7 @@ import { destroySession, getSessionUserId } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { findTaskDatabases, fetchDatabaseRows, getTitleText, getTextByNameGuess } from "@/lib/notion";
+import { fetchTaskRows, getTitleText, getStatusName, getFirstPersonName, getUrl, getDate } from "@/lib/notion";
 
 // Every link field below goes through this before it ever reaches the DB —
 // rejects anything that isn't a real http(s) URL (a bare "javascript:..."
@@ -267,6 +267,55 @@ export async function deleteTaskPermanently(formData: FormData) {
   revalidatePath("/tasks/history");
 }
 
+// Their Notion "Status" options, verified directly against the database
+// schema — nearly identical to our own TaskStatus, just Notion's own
+// display casing/spacing. "Sent for Client Approval" is a second, separate
+// option alongside "Sent for approval" in their schema (looks like a
+// leftover from a rename) — mapped to the same status here.
+const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
+  queued: "queued",
+  editing: "editing",
+  "sent for approval": "sent_for_approval",
+  "sent for client approval": "sent_for_approval",
+  "revision requested": "revision_requested",
+  "final export ready": "final_export_ready",
+  "delivered and uploaded": "delivered_and_uploaded",
+};
+
+// Client isn't its own property — it's the prefix before " - " in the
+// title ("CL - Energy - Katie." -> "CL", "Tego - Skin Business" -> "Tego").
+// "CL" is initials ("Courageous Leaders"); "Tego" is a plain substring of
+// "Dr Tego" — so try both, in that order.
+function matchClient<T extends { name: string }>(prefix: string, clients: T[]): T | undefined {
+  const p = prefix.trim().toLowerCase();
+  if (!p) return undefined;
+  const exact = clients.find((c) => c.name.toLowerCase() === p);
+  if (exact) return exact;
+  if (/^[A-Za-z]{2,4}$/.test(prefix.trim())) {
+    const initials = clients.find(
+      (c) =>
+        c.name
+          .split(/\s+/)
+          .map((w) => w[0])
+          .join("")
+          .toLowerCase() === p
+    );
+    if (initials) return initials;
+  }
+  return clients.find((c) => c.name.toLowerCase().includes(p) || p.includes(c.name.toLowerCase()));
+}
+
+// The Notion "Editor" person is tied to their own Notion account name,
+// which may be a first name only ("Sparsh") or full name ("Narendra
+// Mehta") — exact match first, first-name fallback second.
+function matchEditor<T extends { name: string }>(personName: string, editors: T[]): T | undefined {
+  const p = personName.trim().toLowerCase();
+  return (
+    editors.find((e) => e.name.toLowerCase() === p) ??
+    editors.find((e) => e.name.toLowerCase().startsWith(p) || p.startsWith(e.name.toLowerCase().split(" ")[0]))
+  );
+}
+
 // Temporary — manual, admin-triggered pull from Notion while the team is
 // still creating tasks there during the transition. Never automatic (no
 // cron, no webhook): only runs when this is called from the button.
@@ -282,70 +331,77 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
   }
 
   try {
-    const [databases, editors, clients] = await Promise.all([
-      findTaskDatabases(),
+    const [rows, editors, clients] = await Promise.all([
+      fetchTaskRows(),
       prisma.user.findMany({ where: { role: "employee" } }),
       prisma.client.findMany({ include: { projects: true } }),
     ]);
+
+    // one query for every already-imported id instead of one round-trip
+    // per row — with the sync now scoped to just today, rows is small, but
+    // no reason to make it N queries when it's this easy to make it one
+    const alreadyImported = new Set(
+      (
+        await prisma.task.findMany({
+          where: { notionPageId: { in: rows.map((r) => r.id) } },
+          select: { notionPageId: true },
+        })
+      ).map((t) => t.notionPageId)
+    );
 
     let created = 0;
     let skipped = 0;
     const skippedReasons: string[] = [];
 
-    for (const db of databases) {
-      // "Narendra's Workbook" -> "Narendra" -> match against editors' first names
-      const firstNameGuess = db.editorPageTitle.split(/[\s’']/)[0];
-      const editor = editors.find((e) => e.name.toLowerCase().startsWith(firstNameGuess.toLowerCase()));
-
-      const rows = await fetchDatabaseRows(db.databaseId);
-      for (const row of rows) {
-        const title = getTitleText(row.properties);
-        if (!title) {
-          skipped++;
-          skippedReasons.push(`${db.editorPageTitle}: a row with no title`);
-          continue;
-        }
-
-        const existing = await prisma.task.findUnique({ where: { notionPageId: row.id } });
-        if (existing) {
-          skipped++;
-          continue;
-        }
-
-        if (!editor) {
-          skipped++;
-          skippedReasons.push(`"${title}": couldn't match "${db.editorPageTitle}" to an editor`);
-          continue;
-        }
-
-        const clientNameGuess = getTextByNameGuess(row.properties, /client/i);
-        const client = clientNameGuess
-          ? clients.find((c) => c.name.toLowerCase() === clientNameGuess.toLowerCase())
-          : undefined;
-        const project = client?.projects[0];
-        if (!project) {
-          skipped++;
-          skippedReasons.push(`"${title}": couldn't match a client ("${clientNameGuess ?? "none found"}")`);
-          continue;
-        }
-
-        const rawLink = getTextByNameGuess(row.properties, /raw|drive|footage/i);
-        const editingNotes = getTextByNameGuess(row.properties, /note|instruction|brief/i);
-
-        await prisma.task.create({
-          data: {
-            projectId: project.id,
-            title,
-            dueDate: new Date(),
-            assignedToId: editor.id,
-            rawLink: rawLink ?? null,
-            editingNotes: editingNotes ?? null,
-            sortOrder: Date.now(),
-            notionPageId: row.id,
-          },
-        });
-        created++;
+    for (const row of rows) {
+      const title = getTitleText(row.properties);
+      if (!title) {
+        skipped++;
+        skippedReasons.push("a row with no title");
+        continue;
       }
+
+      if (alreadyImported.has(row.id)) {
+        skipped++;
+        continue;
+      }
+
+      const editorName = getFirstPersonName(row.properties, "Editor");
+      const editor = editorName ? matchEditor(editorName, editors) : undefined;
+      if (!editor) {
+        skipped++;
+        skippedReasons.push(`"${title}": couldn't match editor "${editorName ?? "(none)"}"`);
+        continue;
+      }
+
+      const clientPrefix = title.split(" - ")[0];
+      const client = matchClient(clientPrefix, clients);
+      const project = client?.projects[0];
+      if (!project) {
+        skipped++;
+        skippedReasons.push(`"${title}": couldn't match a client ("${clientPrefix}")`);
+        continue;
+      }
+
+      const statusName = getStatusName(row.properties);
+      const status = statusName ? NOTION_STATUS_MAP[statusName.toLowerCase()] : undefined;
+
+      await prisma.task.create({
+        data: {
+          projectId: project.id,
+          title,
+          status: status ?? "queued",
+          dueDate: getDate(row.properties, "Editor Queu Date") ?? new Date(),
+          assignedToId: editor.id,
+          rawLink: getUrl(row.properties, "Raw Links"),
+          referenceLink: getUrl(row.properties, "Reference "),
+          assetLink: getUrl(row.properties, "Assets"),
+          frameioLink: getUrl(row.properties, "Exported Link"),
+          sortOrder: Date.now(),
+          notionPageId: row.id,
+        },
+      });
+      created++;
     }
 
     if (created > 0) revalidatePath("/tasks");
