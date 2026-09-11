@@ -4,19 +4,10 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { syncFromNotion, type NotionSyncResult } from "./actions";
 
-// Notion has no icon in lucide (it's not a brand-logo set) — redrawn
-// against their real logo: a black-bordered white square with a bold "N"
-// that has flared, wedge-shaped serif ends top-left and bottom-right, not
-// a plain rectangular block letter.
+// The actual Notion logo the user provided — public/notion-logo.webp.
 function NotionMark({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-      <rect x="2" y="2" width="20" height="20" rx="4" fill="white" stroke="black" strokeWidth="2.4" />
-      <path d="M6.5 18V6.3L8.4 6L16.2 16.2V6H17.8V17.7L15.9 18L8.1 7.8V18H6.5Z" fill="black" />
-      <path d="M5.3 7.7L6.6 6.2L8.9 6.7L7.1 8.4Z" fill="black" />
-      <path d="M18.7 16.3L17.4 17.8L15.1 17.3L16.9 15.6Z" fill="black" />
-    </svg>
-  );
+  // eslint-disable-next-line @next/next/no-img-element -- a fixed 14px icon, no need for next/image's optimization pipeline
+  return <img src="/notion-logo.webp" width={size} height={size} alt="" className="shrink-0" />;
 }
 
 // Temporary — for testing only, while the team is still creating tasks in
