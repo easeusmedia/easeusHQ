@@ -2,18 +2,20 @@
 // editors:
 //
 //   queued -> editing -> sent_for_approval -> revision_requested -> editing (loop)
+//                                                                 -> sent_for_approval (resubmit directly)
 //                                           -> final_export_ready -> delivered_and_uploaded
 //
 // Who moves what:
 //  - queued:                 whoever assigns the task (admin/core)
 //  - editing:                the assigned editor (from queued or after a revision)
-//  - sent_for_approval:      the assigned editor (first cut is done)
+//  - sent_for_approval:      the assigned editor (first cut is done, or a revision resubmitted)
 //  - revision_requested:     ops (admin/core) — the team's QC gate
 //  - final_export_ready:     ops (admin/core) only, once the client has approved
 //  - delivered_and_uploaded: internal ops (admin/core), not the editor
 //
-// Editors only ever drive 3 transitions: queued->editing, editing->sent_for_
-// approval, and revision_requested->editing. Everything past "sent for
+// Editors only ever drive 4 transitions: queued->editing, editing->sent_for_
+// approval, and revision_requested->editing or ->sent_for_approval directly
+// (skip re-editing if the fix was quick). Everything past "sent for
 // approval" is an ops call, not theirs.
 //
 // Ops (admin + core — Ashmit, plus the core team: Abhishek, Jyotsna, Arpit)
@@ -51,7 +53,12 @@ const TRANSITIONS: Record<TaskStatus, Rule[]> = {
     { to: "revision_requested", roles: ["admin", "core"] },
     { to: "final_export_ready", roles: ["admin", "core"] },
   ],
-  revision_requested: [{ to: "editing", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true }],
+  revision_requested: [
+    { to: "editing", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true },
+    // lets the editor resubmit directly once the fix is done, without a
+    // detour through "Editing" just to immediately move back out of it
+    { to: "sent_for_approval", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true },
+  ],
   final_export_ready: [{ to: "delivered_and_uploaded", roles: ["admin", "core"] }],
   delivered_and_uploaded: [],
 };

@@ -13,8 +13,8 @@ export type Column = { status: TaskStatus; label: string; dot: string };
 export const ALL_COLUMNS: Column[] = [
   { status: "queued", label: "Queued", dot: "bg-neutral-400" },
   { status: "editing", label: "Editing", dot: "bg-blue-400" },
-  { status: "sent_for_approval", label: "Sent for approval", dot: "bg-purple-400" },
   { status: "revision_requested", label: "Revision requested", dot: "bg-orange-400" },
+  { status: "sent_for_approval", label: "Sent for approval", dot: "bg-purple-400" },
   { status: "final_export_ready", label: "Final export ready", dot: "bg-green-400" },
   { status: "delivered_and_uploaded", label: "Delivered and uploaded", dot: "bg-emerald-400" },
 ];
