@@ -36,7 +36,7 @@ export function NotionSyncButton() {
     // fixed to the viewport, not the document flow — otherwise it lands
     // wherever the tallest column's content happens to end, not reliably
     // near the bottom of the screen
-    <div className="glass fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2 rounded-xl px-4 py-3">
+    <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2">
       <button
         type="button"
         onClick={sync}
