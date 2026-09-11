@@ -6,6 +6,7 @@ import { StatusSelect } from "./StatusSelect";
 import { ALL_STATUSES, canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { colorFor, initials } from "@/lib/avatar";
 import { RotateCcw } from "lucide-react";
+import { TaskActivityButton } from "./TaskActivityButton";
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   queued: "Queued",
@@ -134,7 +135,7 @@ export function TaskCard({
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
 
   return (
-    <div className="card-surface group relative flex flex-col gap-2 rounded-xl p-3 shadow-sm">
+    <div className="card-surface group relative flex flex-col gap-2 rounded-xl p-3 pb-6 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
         {canManage && (
@@ -172,14 +173,9 @@ export function TaskCard({
       </div>
 
       {task.assignedTo && (
-        <div className="flex items-center justify-between text-xs text-muted">
-          <span className="flex items-center gap-2">
-            <Avatar name={task.assignedTo.name} />
-            {task.assignedTo.name}
-          </span>
-          <span className="opacity-0 transition-opacity group-hover:opacity-100">
-            Assigned {formatDate(task.createdAt)}
-          </span>
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <Avatar name={task.assignedTo.name} />
+          {task.assignedTo.name}
         </div>
       )}
 
@@ -214,6 +210,8 @@ export function TaskCard({
           <Link href={cardLinkHref} label={cardLinkSpec!.label} />
         </div>
       )}
+
+      <TaskActivityButton taskId={task.id} />
     </div>
   );
 }

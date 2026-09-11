@@ -66,6 +66,10 @@ export function Board({
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // which card is currently being hovered while dragging, and whether the
+  // drop would land before or after it — drives the thin insertion-line
+  // indicator so it's obvious which slot you're about to drop into
+  const [dropTarget, setDropTarget] = useState<{ taskId: string; after: boolean } | null>(null);
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +138,7 @@ export function Board({
   function handleDrop(to: TaskStatus) {
     const taskId = draggingId;
     setDraggingId(null);
+    setDropTarget(null);
     if (!taskId) return;
     const draggedTask = optimisticTasks.find((t) => t.id === taskId);
     if (!canDropInto(draggedTask, to)) {
@@ -158,9 +163,14 @@ export function Board({
     commitMove(to, taskId, sortOrder);
   }
 
-  // dropped directly on another card — insert right before it (same
-  // column: pure reorder; different column: reorder + status change)
-  function handleDropOnCard(to: TaskStatus, targetTask: TaskCardData) {
+  // dropped directly on another card — insert before or after it depending
+  // on which half of the card the cursor was over (see onDrop below). Only
+  // ever inserting "before" meant there was no way to drop a card into the
+  // last slot of a column short of finding empty space below the last
+  // card — which rarely exists, since a column is exactly as tall as its
+  // cards. That's what made reordering feel stuck: half the possible
+  // positions were simply unreachable.
+  function handleDropOnCard(to: TaskStatus, targetTask: TaskCardData, insertAfter: boolean) {
     const taskId = draggingId;
     setDraggingId(null);
     if (!taskId || taskId === targetTask.id) return;
@@ -172,8 +182,14 @@ export function Board({
 
     const columnTasks = columnOf(to).filter((t) => t.id !== taskId);
     const idx = columnTasks.findIndex((t) => t.id === targetTask.id);
-    const prevTask = columnTasks[idx - 1];
-    const sortOrder = prevTask ? (prevTask.sortOrder + targetTask.sortOrder) / 2 : targetTask.sortOrder - 1;
+    let sortOrder: number;
+    if (insertAfter) {
+      const nextTask = columnTasks[idx + 1];
+      sortOrder = nextTask ? (targetTask.sortOrder + nextTask.sortOrder) / 2 : targetTask.sortOrder + 1;
+    } else {
+      const prevTask = columnTasks[idx - 1];
+      sortOrder = prevTask ? (prevTask.sortOrder + targetTask.sortOrder) / 2 : targetTask.sortOrder - 1;
+    }
 
     if (draggedTask?.status === to) {
       commitReorder(taskId, sortOrder);
@@ -282,17 +298,35 @@ export function Board({
                     // browser chrome), draggingId was never getting cleared
                     // — the card stayed stuck at 40% opacity, unclickable,
                     // until the next drag. This always fires, drop or not.
-                    onDragEnd={() => setDraggingId(null)}
+                    onDragEnd={() => {
+                      setDraggingId(null);
+                      setDropTarget(null);
+                    }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const after = e.clientY > rect.top + rect.height / 2;
+                      setDropTarget((prev) => (prev?.taskId === task.id && prev.after === after ? prev : { taskId: task.id, after }));
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      handleDropOnCard(col.status, task);
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const after = e.clientY > rect.top + rect.height / 2;
+                      setDropTarget(null);
+                      handleDropOnCard(col.status, task, after);
                     }}
-                    className={draggingId === task.id ? "opacity-40" : undefined}
+                    className={[
+                      draggingId === task.id ? "opacity-40" : "",
+                      dropTarget?.taskId === task.id
+                        ? dropTarget.after
+                          ? "border-b-2 border-blue-400"
+                          : "border-t-2 border-blue-400"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined}
                   >
                     <TaskCard
                       task={task}

@@ -68,6 +68,25 @@ export function EditTaskDialog({
             placeholder="Raw footage (Google Drive link)"
             className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
           />
+          {/* only shown once the task is actually at a stage where this link
+              matters (matches STATUS_LINK) — lets ops fix a typo'd link
+              without having to re-trigger a whole status change to do it */}
+          {(task.status === "sent_for_approval" || task.status === "revision_requested") && (
+            <input
+              name="frameioLink"
+              defaultValue={task.frameioLink ?? ""}
+              placeholder="Frame.io link"
+              className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+            />
+          )}
+          {(task.status === "final_export_ready" || task.status === "delivered_and_uploaded") && (
+            <input
+              name="driveLink"
+              defaultValue={task.driveLink ?? ""}
+              placeholder="Final Drive link"
+              className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+            />
+          )}
           <div className="flex items-center gap-1.5 text-sm text-muted">
             <NotesGlyph size={14} />
             Editing notes

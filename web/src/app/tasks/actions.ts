@@ -171,9 +171,21 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const title = String(formData.get("title") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "") || undefined;
   const assignedToId = String(formData.get("assignedToId") ?? "") || null;
+  // frameioLink/driveLink inputs only exist in the form at all once the
+  // task's current status makes them relevant (see EditTaskDialog) — using
+  // .has() rather than .get() so "field wasn't shown" (leave untouched)
+  // stays distinct from "field was shown and cleared" (null it out).
   let rawLink: string | null;
+  let frameioLink: string | null | undefined;
+  let driveLink: string | null | undefined;
   try {
     rawLink = requireLinkOrNull(String(formData.get("rawLink") ?? ""), "Raw footage link");
+    frameioLink = formData.has("frameioLink")
+      ? requireLinkOrNull(String(formData.get("frameioLink") ?? ""), "Frame.io link")
+      : undefined;
+    driveLink = formData.has("driveLink")
+      ? requireLinkOrNull(String(formData.get("driveLink") ?? ""), "Drive link")
+      : undefined;
   } catch (err) {
     return { error: err instanceof Error ? err.message : "That link isn't valid." };
   }
@@ -186,7 +198,15 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   // might already have.
   await prisma.task.update({
     where: { id: taskId },
-    data: { title, projectId, assignedToId, rawLink, editingNotes },
+    data: {
+      title,
+      projectId,
+      assignedToId,
+      rawLink,
+      editingNotes,
+      ...(frameioLink !== undefined ? { frameioLink } : {}),
+      ...(driveLink !== undefined ? { driveLink } : {}),
+    },
   });
   revalidatePath("/tasks");
   return { success: true };
@@ -210,4 +230,17 @@ export async function getMyActiveTaskSnapshot(userId: string) {
     where: { assignedToId: userId, status: { not: "delivered_and_uploaded" } },
     select: { id: true, title: true, status: true },
   });
+}
+
+// on-demand, not preloaded onto every task in a board fetch — most cards'
+// trails never get opened, so fetching all of them up front would be pure
+// waste. The "created" row (always first, since logs are oldest-first) is
+// exactly "assigned on this date by this person" — no separate field needed.
+export async function getTaskActivity(taskId: string) {
+  const logs = await prisma.activityLog.findMany({
+    where: { entity: "Task", entityId: taskId },
+    include: { actor: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return logs.map((log) => ({ createdAt: log.createdAt, action: log.action, actorName: log.actor.name }));
 }

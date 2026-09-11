@@ -2,6 +2,7 @@ import { canTransition, nextStatuses, type Role } from "@/lib/workflow";
 import { StatusBadge, STATUS_LINK, formatDate, type TaskCardData } from "./TaskCard";
 import { NotesButton, linkify } from "./NotesButton";
 import { StatusSelect } from "./StatusSelect";
+import { TaskActivityButton } from "./TaskActivityButton";
 
 function Link({ href, label }: { href: string; label: string }) {
   return (
@@ -37,7 +38,7 @@ export function EditorTaskList({
         const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
 
         return (
-          <div key={task.id} className="card-surface flex flex-col gap-2 rounded-xl p-4 shadow-sm">
+          <div key={task.id} className="card-surface relative flex flex-col gap-2 rounded-xl p-4 pb-6 shadow-sm">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs text-muted">{task.project.client.name}</p>
@@ -49,10 +50,7 @@ export function EditorTaskList({
               <StatusBadge status={task.status} />
             </div>
 
-            <p className="text-xs text-muted">
-              Assigned {formatDate(task.createdAt)}
-              {task.dueDate && <> · Due {formatDate(task.dueDate)}</>}
-            </p>
+            {task.dueDate && <p className="text-xs text-muted">Due {formatDate(task.dueDate)}</p>}
 
             {task.reviewNotes && task.status === "revision_requested" && (
               <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
@@ -84,6 +82,8 @@ export function EditorTaskList({
                 />
               </div>
             )}
+
+            <TaskActivityButton taskId={task.id} />
           </div>
         );
       })}
