@@ -5,6 +5,7 @@ import { EditTaskDialog } from "./EditTaskDialog";
 import { StatusSelect } from "./StatusSelect";
 import { ALL_STATUSES, canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { colorFor, initials } from "@/lib/avatar";
+import { RotateCcw } from "lucide-react";
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   queued: "Queued",
@@ -79,6 +80,7 @@ export type TaskCardData = {
   driveLink: string | null;
   reviewNotes: string | null;
   editingNotes: string | null;
+  revisionCount: number;
   dueDate: Date | null;
   createdAt: Date;
   sortOrder: number;
@@ -155,7 +157,18 @@ export function TaskCard({
 
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-snug">{task.title}</p>
-        {task.editingNotes && <NotesButton notes={task.editingNotes} />}
+        <div className="flex shrink-0 items-center gap-2">
+          {task.revisionCount > 0 && (
+            <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300">
+              <RotateCcw size={10} />
+              {task.revisionCount}
+              <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
+                Sent back for revision {task.revisionCount} time{task.revisionCount === 1 ? "" : "s"}
+              </span>
+            </span>
+          )}
+          {task.editingNotes && <NotesButton notes={task.editingNotes} />}
+        </div>
       </div>
 
       {task.assignedTo && (
@@ -193,6 +206,7 @@ export function TaskCard({
         options={options}
         actingUserId={actingUserId}
         actingRole={actingRole}
+        links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
       />
 
       {cardLinkHref && (

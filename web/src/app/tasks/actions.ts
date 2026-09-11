@@ -120,7 +120,7 @@ async function changeStatus(
         ...(frameioLink ? { frameioLink } : {}),
         ...(driveLink ? { driveLink } : {}),
         ...(to === "revision_requested"
-          ? { reviewedById: actingUserId, reviewNotes: extras.reviewNotes ?? null }
+          ? { reviewedById: actingUserId, reviewNotes: extras.reviewNotes ?? null, revisionCount: { increment: 1 } }
           : {}),
       },
     });

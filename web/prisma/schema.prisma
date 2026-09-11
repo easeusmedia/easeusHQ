@@ -108,6 +108,10 @@ model Task {
   reviewedBy   User?      @relation("ReviewedTasks", fields: [reviewedById], references: [id])
   reviewedById String?
   reviewNotes  String?
+  // how many times ops has sent this back for revision — incremented on
+  // every transition into revision_requested, never reset; a quick signal
+  // for "this one's eaten a lot of back-and-forth"
+  revisionCount Int       @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs

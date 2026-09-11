@@ -80,6 +80,7 @@ export function EditorTaskList({
                   options={options}
                   actingUserId={actingUserId}
                   actingRole={actingRole}
+                  links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
                 />
               </div>
             )}

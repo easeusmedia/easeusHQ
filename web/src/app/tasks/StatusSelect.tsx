@@ -16,12 +16,14 @@ export function StatusSelect({
   options,
   actingUserId,
   actingRole,
+  links,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
   options: TaskStatus[];
   actingUserId: string;
   actingRole: Role;
+  links: { frameioLink: string | null; driveLink: string | null };
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -57,7 +59,10 @@ export function StatusSelect({
     const extra = EXTRA_FIELD[to];
     if (extra) {
       setPendingTo(to);
-      setInputValue("");
+      // already has this link on file (e.g. resubmitting after a revision)
+      // — prefill it instead of forcing a retype of the same link
+      const existing = extra.field === "frameioLink" || extra.field === "driveLink" ? links[extra.field] : null;
+      setInputValue(existing ?? "");
       dialogRef.current?.showModal();
       return;
     }

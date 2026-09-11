@@ -30,6 +30,15 @@ type Editor = { id: string; name: string };
 
 // hides raw Prisma/connection-string errors (expected on the demo page,
 // which has no real database) behind one clear sentence
+// the task already has a Frame.io/Drive link on file from an earlier pass
+// (e.g. it was sent for approval once, sent back for revision, and is now
+// being resubmitted) — prefill instead of making them retype the same link
+// every time it crosses this same status again.
+function existingLinkValue(task: TaskCardData | undefined, field: "frameioLink" | "driveLink" | "reviewNotes"): string {
+  if (!task || field === "reviewNotes") return "";
+  return task[field] ?? "";
+}
+
 function friendlyError(message: string): string {
   if (/database|connection string|prisma/i.test(message)) {
     return "Not connected to a real database yet — this demo page can't save changes until Supabase is set up.";
@@ -93,12 +102,14 @@ export function Board({
     startTransition(async () => {
       applyOptimistic({ taskId, sortOrder });
       try {
+        // no router.refresh() here — a pure reorder doesn't change anything
+        // any other Server Component reads, so the optimistic state is
+        // already the final answer. Refreshing after every single drag was
+        // firing a full RSC refetch per drop; chaining several reorders in
+        // a row queued up overlapping refetches that raced the optimistic
+        // state and landed as the exact "stuck/laggy" symptom reported.
         const result = await reorderTask(taskId, sortOrder);
-        if (result?.error) {
-          setError(friendlyError(result.error));
-          return;
-        }
-        router.refresh();
+        if (result?.error) setError(friendlyError(result.error));
       } catch (err) {
         setError(friendlyError(err instanceof Error ? err.message : ""));
       }
@@ -140,7 +151,7 @@ export function Board({
     const extra = EXTRA_FIELD[to];
     if (extra) {
       setPending({ taskId, to, sortOrder });
-      setInputValue("");
+      setInputValue(existingLinkValue(draggedTask, extra.field));
       dialogRef.current?.showModal();
       return;
     }
@@ -171,7 +182,7 @@ export function Board({
     const extra = EXTRA_FIELD[to];
     if (extra) {
       setPending({ taskId, to, sortOrder });
-      setInputValue("");
+      setInputValue(existingLinkValue(draggedTask, extra.field));
       dialogRef.current?.showModal();
       return;
     }
@@ -265,6 +276,13 @@ export function Board({
                     key={task.id}
                     draggable
                     onDragStart={() => setDraggingId(task.id)}
+                    // safety net: if the drop lands somewhere that never
+                    // calls handleDrop/handleDropOnCard (dropped outside any
+                    // dropzone, drag cancelled with Escape, dropped on the
+                    // browser chrome), draggingId was never getting cleared
+                    // — the card stayed stuck at 40% opacity, unclickable,
+                    // until the next drag. This always fires, drop or not.
+                    onDragEnd={() => setDraggingId(null)}
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
