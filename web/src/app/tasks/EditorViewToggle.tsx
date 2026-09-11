@@ -70,7 +70,10 @@ export function EditorViewToggle(props: {
           editors={props.editors}
           actingUserId={props.actingUserId}
           actingRole={props.actingRole}
-          canCreate={false}
+          // editors can add their own task when ops is too busy to queue it
+          // up themselves — createTask itself has no role check, this was
+          // purely a UI restriction
+          canCreate
         />
       )}
     </div>
