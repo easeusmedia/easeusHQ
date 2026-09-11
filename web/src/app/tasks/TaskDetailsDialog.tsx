@@ -275,7 +275,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               </form>
               <ConfirmButton
                 message={`Delete "${task.title}"?`}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted hover:text-red-400"
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1 text-sm text-muted hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
                 formId={`delete-${task.id}`}
               >
                 <Trash2 size={14} /> Delete
