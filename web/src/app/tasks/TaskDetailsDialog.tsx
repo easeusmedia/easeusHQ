@@ -1,8 +1,9 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useActionState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { updateTask, getTaskActivity, type TaskFormState } from "./actions";
+import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./actions";
+import { ConfirmButton } from "./ConfirmButton";
 import { NotesGlyph, linkify } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 import { Avatar, formatDateTime } from "./TaskCard";
@@ -32,19 +33,27 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const [state, formAction, pending] = useActionState(updateTask, initialState);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[] | null>(null);
+  const [editingFrameio, setEditingFrameio] = useState(false);
 
   const canManage = actingRole === "admin" || actingRole === "core";
   const isAssignee = task.assignedTo?.id === actingUserId;
-  // an editor can fix their own Frame.io link only once the task is
-  // actually at a stage where that link matters (matches STATUS_LINK)
-  const canEditFrameio =
-    !canManage && isAssignee && (task.status === "sent_for_approval" || task.status === "revision_requested");
+  // an editor can fix their own Frame.io link whenever they're the
+  // assignee — not gated to a particular status, since they may only
+  // notice the mistake after ops has already moved it along
+  const canEditFrameio = !canManage && isAssignee;
 
   function open() {
     dialogRef.current?.showModal();
-    if (logs === null) {
-      getTaskActivity(task.id).then(setLogs);
-    }
+    setEditingFrameio(false);
+    // always refetch, not just once — the trail changes every time the
+    // task's status changes elsewhere on the board, and this component
+    // instance can stay mounted (and its state cached) across many of
+    // those actions, even across days, without a full page reload. Only
+    // fetching once meant a reopen could show a stale trail — someone
+    // moving a task "now" would still see whatever the log looked like the
+    // first time this dialog was ever opened.
+    setLogs(null);
+    getTaskActivity(task.id).then(setLogs);
   }
 
   useImperativeHandle(ref, () => ({ open }));
@@ -166,20 +175,42 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <p className="whitespace-pre-wrap rounded-md border border-border bg-surface-2 px-3 py-2 text-sm">
                   {task.editingNotes ? linkify(task.editingNotes) : <span className="text-muted">None</span>}
                 </p>
-                {canEditFrameio ? (
+                {canEditFrameio && editingFrameio ? (
                   <input
                     name="frameioLink"
                     defaultValue={task.frameioLink ?? ""}
                     placeholder="Frame.io link"
+                    autoFocus
                     className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
                   />
                 ) : (
-                  task.frameioLink && (
-                    <div>
+                  (canEditFrameio || task.frameioLink) && (
+                    <div className="group/link">
                       <p className="mb-1 text-xs text-muted">Frame.io</p>
-                      <a href={task.frameioLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 underline underline-offset-2">
-                        {task.frameioLink}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        {task.frameioLink ? (
+                          <a
+                            href={task.frameioLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="min-w-0 truncate text-sm text-blue-400 underline underline-offset-2"
+                          >
+                            {task.frameioLink}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-muted">—</p>
+                        )}
+                        {canEditFrameio && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingFrameio(true)}
+                            title="Edit Frame.io link"
+                            className="shrink-0 text-muted opacity-0 transition-opacity hover:text-foreground group-hover/link:opacity-100"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )
                 )}
@@ -235,15 +266,34 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           )}
         </div>
 
-        <div className="mt-3 flex justify-end gap-2">
-          <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
-            Close
-          </button>
-          {(canManage || canEditFrameio) && (
-            <button type="submit" form={formId} disabled={pending} className="btn-glow rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
-              {pending ? "Saving…" : "Save"}
-            </button>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          {canManage ? (
+            <>
+              <form id={`delete-${task.id}`} action={deleteTask}>
+                <input type="hidden" name="taskId" value={task.id} />
+                <input type="hidden" name="actingRole" value={actingRole} />
+              </form>
+              <ConfirmButton
+                message={`Delete "${task.title}"?`}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted hover:text-red-400"
+                formId={`delete-${task.id}`}
+              >
+                <Trash2 size={14} /> Delete
+              </ConfirmButton>
+            </>
+          ) : (
+            <span />
           )}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
+              Close
+            </button>
+            {(canManage || canEditFrameio) && (
+              <button type="submit" form={formId} disabled={pending} className="btn-glow rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
+                {pending ? "Saving…" : "Save"}
+              </button>
+            )}
+          </div>
         </div>
       </dialog>
   );
