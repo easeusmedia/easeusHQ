@@ -30,8 +30,7 @@ type Editor = { id: string; name: string };
 
 // hides raw Prisma/connection-string errors (expected on the demo page,
 // which has no real database) behind one clear sentence
-function friendlyError(err: unknown): string {
-  const message = err instanceof Error ? err.message : "";
+function friendlyError(message: string): string {
   if (/database|connection string|prisma/i.test(message)) {
     return "Not connected to a real database yet — this demo page can't save changes until Supabase is set up.";
   }
@@ -78,10 +77,14 @@ export function Board({
     startTransition(async () => {
       applyOptimistic({ taskId, sortOrder, status: to });
       try {
-        await moveTask(taskId, to, actingUserId, actingRole, { ...extra, sortOrder });
+        const result = await moveTask(taskId, to, actingUserId, actingRole, { ...extra, sortOrder });
+        if (result?.error) {
+          setError(friendlyError(result.error));
+          return;
+        }
         router.refresh();
       } catch (err) {
-        setError(friendlyError(err));
+        setError(friendlyError(err instanceof Error ? err.message : ""));
       }
     });
   }
@@ -90,10 +93,14 @@ export function Board({
     startTransition(async () => {
       applyOptimistic({ taskId, sortOrder });
       try {
-        await reorderTask(taskId, sortOrder);
+        const result = await reorderTask(taskId, sortOrder);
+        if (result?.error) {
+          setError(friendlyError(result.error));
+          return;
+        }
         router.refresh();
       } catch (err) {
-        setError(friendlyError(err));
+        setError(friendlyError(err instanceof Error ? err.message : ""));
       }
     });
   }

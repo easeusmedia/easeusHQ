@@ -41,7 +41,11 @@ export function StatusSelect({
 
   async function commit(to: TaskStatus, extra: Record<string, string> = {}) {
     try {
-      await moveTask(taskId, to, actingUserId, actingRole, extra);
+      const result = await moveTask(taskId, to, actingUserId, actingRole, extra);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't update status.");

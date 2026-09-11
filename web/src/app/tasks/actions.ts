@@ -81,47 +81,58 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 
 type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number };
 
+// Returns {error} instead of throwing — moveTask/reorderTask are called
+// directly from client code (not a <form action>), and a thrown Server
+// Action error gets its message redacted to a generic "Minified React
+// error #441" digest in production (Next.js only preserves the message
+// for an error a form action returns, not one it throws). Same reason
+// createTask/updateTask were converted earlier.
 async function changeStatus(
   taskId: string,
   to: TaskStatus,
   actingUserId: string,
   actingRole: Role,
   extras: StatusChangeExtras
-) {
-  const frameioLink = extras.frameioLink ? requireLinkOrNull(extras.frameioLink, "Frame.io link") : null;
-  const driveLink = extras.driveLink ? requireLinkOrNull(extras.driveLink, "Drive link") : null;
+): Promise<TaskFormState> {
+  try {
+    const frameioLink = extras.frameioLink ? requireLinkOrNull(extras.frameioLink, "Frame.io link") : null;
+    const driveLink = extras.driveLink ? requireLinkOrNull(extras.driveLink, "Drive link") : null;
 
-  const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-  const isAssignee = task.assignedToId === actingUserId;
+    const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+    const isAssignee = task.assignedToId === actingUserId;
 
-  if (!canTransition(task.status, to, { role: actingRole, isAssignee })) {
-    throw new Error(`${actingRole} cannot move a task from ${task.status} to ${to}`);
+    if (!canTransition(task.status, to, { role: actingRole, isAssignee })) {
+      return { error: `${actingRole} cannot move a task from ${task.status} to ${to}` };
+    }
+
+    // hard rule, not just a UI nicety: a task can't be marked delivered
+    // without a Drive link on record — enforced here so it holds regardless
+    // of which UI path (button, dropdown, or a future API caller) triggers it
+    if (to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
+      return { error: "Add a Drive link before marking this delivered." };
+    }
+
+    await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        status: to,
+        ...(extras.sortOrder !== undefined ? { sortOrder: extras.sortOrder } : {}),
+        ...(frameioLink ? { frameioLink } : {}),
+        ...(driveLink ? { driveLink } : {}),
+        ...(to === "revision_requested"
+          ? { reviewedById: actingUserId, reviewNotes: extras.reviewNotes ?? null }
+          : {}),
+      },
+    });
+    // the record the calendar view reads — "this task had activity today"
+    await prisma.activityLog.create({
+      data: { actorId: actingUserId, action: `${task.status} → ${to}`, entity: "Task", entityId: taskId },
+    });
+    revalidatePath("/tasks");
+    return { success: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't update status." };
   }
-
-  // hard rule, not just a UI nicety: a task can't be marked delivered
-  // without a Drive link on record — enforced here so it holds regardless
-  // of which UI path (button, dropdown, or a future API caller) triggers it
-  if (to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
-    throw new Error("Add a Drive link before marking this delivered.");
-  }
-
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      status: to,
-      ...(extras.sortOrder !== undefined ? { sortOrder: extras.sortOrder } : {}),
-      ...(frameioLink ? { frameioLink } : {}),
-      ...(driveLink ? { driveLink } : {}),
-      ...(to === "revision_requested"
-        ? { reviewedById: actingUserId, reviewNotes: extras.reviewNotes ?? null }
-        : {}),
-    },
-  });
-  // the record the calendar view reads — "this task had activity today"
-  await prisma.activityLog.create({
-    data: { actorId: actingUserId, action: `${task.status} → ${to}`, entity: "Task", entityId: taskId },
-  });
-  revalidatePath("/tasks");
 }
 
 // called directly (not via a form) — both the StatusSelect dropdown and
@@ -132,16 +143,21 @@ export async function moveTask(
   actingUserId: string,
   actingRole: Role,
   extras: StatusChangeExtras = {}
-) {
-  await changeStatus(taskId, to, actingUserId, actingRole, extras);
+): Promise<TaskFormState> {
+  return changeStatus(taskId, to, actingUserId, actingRole, extras);
 }
 
 // pure manual reordering within a column — no status change, no workflow
 // permission check, since this is just "where does this card sit" and
 // doesn't touch anything the workflow rules care about
-export async function reorderTask(taskId: string, sortOrder: number) {
-  await prisma.task.update({ where: { id: taskId }, data: { sortOrder } });
-  revalidatePath("/tasks");
+export async function reorderTask(taskId: string, sortOrder: number): Promise<TaskFormState> {
+  try {
+    await prisma.task.update({ where: { id: taskId }, data: { sortOrder } });
+    revalidatePath("/tasks");
+    return { success: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't reorder that task." };
+  }
 }
 
 // editing details (title/editor/links) — admin & core only, matches their
