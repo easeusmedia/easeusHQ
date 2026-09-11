@@ -277,21 +277,21 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           </div>
         </div>
 
+        {canManage && (
+          <form id={`delete-${task.id}`} action={deleteTask}>
+            <input type="hidden" name="taskId" value={task.id} />
+            <input type="hidden" name="actingRole" value={actingRole} />
+          </form>
+        )}
         <div className="mt-3 flex items-center justify-between gap-2">
           {canManage ? (
-            <>
-              <form id={`delete-${task.id}`} action={deleteTask}>
-                <input type="hidden" name="taskId" value={task.id} />
-                <input type="hidden" name="actingRole" value={actingRole} />
-              </form>
-              <ConfirmButton
-                message={`Delete "${task.title}"?`}
-                className="rounded-md p-1.5 text-muted hover:text-red-400"
-                formId={`delete-${task.id}`}
-              >
-                <Trash2 size={14} />
-              </ConfirmButton>
-            </>
+            <ConfirmButton
+              message={`Delete "${task.title}"?`}
+              className="rounded-md p-1.5 text-muted hover:text-red-400"
+              formId={`delete-${task.id}`}
+            >
+              <Trash2 size={14} />
+            </ConfirmButton>
           ) : (
             <span />
           )}
