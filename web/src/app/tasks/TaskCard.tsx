@@ -64,11 +64,12 @@ function toIST(d: Date | string): Date {
   return new Date(new Date(d).getTime() + IST_OFFSET_MS);
 }
 
+// DD/MM/YYYY — the team's own convention, not the US MM/DD/YYYY one.
 export function formatDate(d: Date | string) {
   const date = toIST(d);
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(date.getUTCDate()).padStart(2, "0");
-  return `${mm}/${dd}/${date.getUTCFullYear()}`;
+  return `${dd}/${mm}/${date.getUTCFullYear()}`;
 }
 
 // plus time-of-day — the activity trail logs every status change with a
