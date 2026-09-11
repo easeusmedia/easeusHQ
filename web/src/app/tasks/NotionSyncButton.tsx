@@ -31,16 +31,9 @@ export function NotionSyncButton() {
     // wherever the tallest column's content happens to end, not reliably
     // near the bottom of the screen
     <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2">
-      <button
-        type="button"
-        onClick={sync}
-        disabled={pending}
-        className="btn-glow flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
-      >
-        <NotionMark />
-        <RefreshCw size={14} className={pending ? "animate-spin" : undefined} />
-        {pending ? "Syncing…" : "Sync with Notion"}
-      </button>
+      {/* status text first so it stacks above the button, which stays put
+          as the last (bottom-most) child regardless of how much text
+          shows above it */}
       {result && (
         <p className={`text-xs ${result.error ? "text-red-300" : "text-muted"}`}>
           {result.error
@@ -57,6 +50,16 @@ export function NotionSyncButton() {
           ))}
         </ul>
       )}
+      <button
+        type="button"
+        onClick={sync}
+        disabled={pending}
+        className="btn-glow flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
+      >
+        <NotionMark />
+        <RefreshCw size={14} className={pending ? "animate-spin" : undefined} />
+        {pending ? "Syncing…" : "Sync with Notion"}
+      </button>
     </div>
   );
 }
