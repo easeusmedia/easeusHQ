@@ -74,7 +74,7 @@ function ClientGroup({ label, clients }: { label: string; clients: ClientRow[] }
             <Link
               key={client.id}
               href={`/tasks/clients/${client.id}`}
-              className="flex items-center gap-3 px-4 py-3 hover:bg-hover"
+              className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2"
             >
               <Avatar name={client.name} size={30} />
               <div className="min-w-0 flex-1">

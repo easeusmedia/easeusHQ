@@ -142,9 +142,9 @@ export async function updateClientStatus(clientId: string, status: string): Prom
 }
 
 export type ClientInfoInput = {
+  name: string;
   niche: string;
   contact: string;
-  scopeOfWork: string;
   brandGuidelinesUrl: string;
   sopUrl: string;
   resourcesUrl: string;
@@ -157,20 +157,77 @@ export type ClientInfoInput = {
 export async function updateClientInfo(clientId: string, input: ClientInfoInput): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can edit client info." };
+  if (input.name.trim() === "") return { error: "Name can't be empty." };
 
   const empty = (s: string) => s.trim() === "";
   await prisma.client.update({
     where: { id: clientId },
     data: {
+      name: input.name.trim(),
       niche: empty(input.niche) ? null : input.niche.trim(),
       contact: empty(input.contact) ? null : input.contact.trim(),
-      scopeOfWork: empty(input.scopeOfWork) ? null : input.scopeOfWork.trim(),
       brandGuidelinesUrl: empty(input.brandGuidelinesUrl) ? null : input.brandGuidelinesUrl.trim(),
       sopUrl: empty(input.sopUrl) ? null : input.sopUrl.trim(),
       resourcesUrl: empty(input.resourcesUrl) ? null : input.resourcesUrl.trim(),
       notes: empty(input.notes) ? null : input.notes.trim(),
     },
   });
+  revalidatePath("/tasks/clients");
   revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+// Hard delete — everything under this client (projects, tasks, invoices,
+// deliverables) cascades away with it via onDelete: Cascade at the DB
+// level... actually Prisma's default is Restrict, so do it explicitly in
+// the right order instead of relying on that.
+export async function deleteClient(clientId: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can delete a client." };
+
+  const projects = await prisma.project.findMany({ where: { clientId }, select: { id: true } });
+  const projectIds = projects.map((p) => p.id);
+  await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
+  await prisma.invoice.deleteMany({ where: { clientId } });
+  await prisma.deliverable.deleteMany({ where: { clientId } });
+  await prisma.project.deleteMany({ where: { clientId } });
+  await prisma.client.delete({ where: { id: clientId } });
+  revalidatePath("/tasks/clients");
+  return {};
+}
+
+// Deliverables — the contracted scope, distinct from day-to-day Tasks.
+export async function addDeliverable(clientId: string, name: string, detail: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit deliverables." };
+  if (name.trim() === "") return { error: "Name a deliverable first." };
+
+  const last = await prisma.deliverable.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" } });
+  await prisma.deliverable.create({
+    data: { clientId, name: name.trim(), detail: detail.trim() || null, sortOrder: (last?.sortOrder ?? 0) + 1 },
+  });
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+export async function updateDeliverable(id: string, name: string, detail: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit deliverables." };
+  if (name.trim() === "") return { error: "Name a deliverable first." };
+
+  const d = await prisma.deliverable.update({
+    where: { id },
+    data: { name: name.trim(), detail: detail.trim() || null },
+  });
+  revalidatePath(`/tasks/clients/${d.clientId}`);
+  return {};
+}
+
+export async function deleteDeliverable(id: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit deliverables." };
+
+  const d = await prisma.deliverable.delete({ where: { id } });
+  revalidatePath(`/tasks/clients/${d.clientId}`);
   return {};
 }

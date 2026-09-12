@@ -48,7 +48,19 @@ export function StatusDropdown({ clientId, status, size = "sm" }: { clientId: st
   const pad = size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-3 py-1 text-xs";
 
   return (
-    <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+    // preventDefault, not just stopPropagation — this sits inside a Link
+    // in the client list, and stopPropagation alone doesn't stop the
+    // browser's own default "follow this anchor" behavior, only React's
+    // event bubbling to Link's own handler. Without preventDefault the
+    // click still silently navigated to the client page underneath.
+    <div
+      ref={ref}
+      className="relative shrink-0"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

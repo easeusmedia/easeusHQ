@@ -71,12 +71,11 @@ model Client {
 
   // The one template every client gets, regardless of how organically
   // their actual Notion page grew — verified directly against several
-  // real client pages (Courageous Leaders, Dr Tego, Robyn): a scope-of-
-  // work description, and a small set of resource links (brand
-  // guidelines, an SOP, a shared drive/resources folder). Tasks/projects
-  // are native models below, not links, since this app already owns that
-  // data live.
-  scopeOfWork        String? @db.Text
+  // real client pages (Courageous Leaders, Dr Tego, Robyn): a set of
+  // contracted deliverables (Deliverable[], below), and a small set of
+  // resource links (brand guidelines, an SOP, a shared drive/resources
+  // folder). Tasks/projects are native models below, not links, since
+  // this app already owns that data live.
   brandGuidelinesUrl String?
   sopUrl             String?
   resourcesUrl       String?
@@ -98,8 +97,26 @@ model Client {
   // reset every time a new invoice is logged for this client
   lastInvoicedAt        DateTime?
 
-  projects Project[]
-  invoices Invoice[]
+  projects     Project[]
+  invoices     Invoice[]
+  deliverables Deliverable[]
+}
+
+// The contracted scope, one line per deliverable — e.g. "Podcast episodes"
+// / "2 long-form per cycle", "Thumbnails" / "custom, for all content".
+// This is the client's overall retainer, distinct from Task: a client's
+// individual Tasks are the day-to-day work items (a specific episode's
+// edit, a specific thumbnail); a Deliverable is the recurring category
+// they roll up into. Verified against the real "Deliverables:" section on
+// several actual Notion client pages, not assumed.
+model Deliverable {
+  id        String   @id @default(uuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  name      String // e.g. "Podcast episodes", "Thumbnails"
+  detail    String? // e.g. "2 long-form per cycle (3 guest + 1 solo per batch)"
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Project {

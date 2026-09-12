@@ -1,17 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Palette, ClipboardList, FolderOpen, Pencil, ExternalLink } from "lucide-react";
-import { updateClientInfo, type ClientInfoInput } from "./actions";
+import { Palette, ClipboardList, FolderOpen, Pencil, ExternalLink, Trash2 } from "lucide-react";
+import { updateClientInfo, deleteClient, type ClientInfoInput } from "./actions";
 
 // Every client that has no SOP of their own yet still gets pointed at the
 // team's shared SOP hub in Notion (Editor's SOPs, Quality Check SOP,
 // Client Onboarding SOP, Podcast Episode Editing SOPs) rather than a dead
 // end — verified as the real fallback the team already uses.
 const SHARED_SOP_URL = "https://app.notion.com/p/31fb6a2080448024b010ff68e25e9140";
-
-type Project = { id: string; type: string; engagement: string };
 
 function ResourceLink({ icon: Icon, label, url, fallback }: { icon: typeof Palette; label: string; url: string | null; fallback?: string }) {
   const href = url ?? fallback ?? null;
@@ -38,9 +36,9 @@ function ResourceLink({ icon: Icon, label, url, fallback }: { icon: typeof Palet
 
 export function ClientOverview({
   clientId,
+  name,
   niche,
   contact,
-  scopeOfWork,
   notes,
   brandGuidelinesUrl,
   sopUrl,
@@ -48,22 +46,25 @@ export function ClientOverview({
   projects,
 }: {
   clientId: string;
+  name: string;
   niche: string | null;
   contact: string | null;
-  scopeOfWork: string | null;
   notes: string | null;
   brandGuidelinesUrl: string | null;
   sopUrl: string | null;
+  projects: { id: string; type: string; engagement: string }[];
   resourcesUrl: string | null;
-  projects: Project[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const deleteRef = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<ClientInfoInput>({
+    name,
     niche: niche ?? "",
     contact: contact ?? "",
-    scopeOfWork: scopeOfWork ?? "",
     brandGuidelinesUrl: brandGuidelinesUrl ?? "",
     sopUrl: sopUrl ?? "",
     resourcesUrl: resourcesUrl ?? "",
@@ -76,16 +77,35 @@ export function ClientOverview({
 
   async function save() {
     setSaving(true);
-    await updateClientInfo(clientId, form);
+    setError(null);
+    const res = await updateClientInfo(clientId, form);
     setSaving(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
     setEditing(false);
     router.refresh();
+  }
+
+  async function confirmDelete() {
+    setDeleting(true);
+    await deleteClient(clientId);
+    router.push("/tasks/clients");
   }
 
   if (editing) {
     return (
       <section className="card-surface flex flex-col gap-3 rounded-xl p-4 shadow-sm">
-        <h2 className="font-medium">Edit client info</h2>
+        <h2 className="font-medium">Edit client</h2>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          Name
+          <input
+            value={form.name}
+            onChange={(e) => field("name", e.target.value)}
+            className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
+          />
+        </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
           Niche
           <input
@@ -99,16 +119,6 @@ export function ClientOverview({
           <input
             value={form.contact}
             onChange={(e) => field("contact", e.target.value)}
-            className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          Scope of work
-          <textarea
-            rows={3}
-            placeholder="What's contracted for this client — e.g. 12 reels per cycle, 2 podcast episodes/month…"
-            value={form.scopeOfWork}
-            onChange={(e) => field("scopeOfWork", e.target.value)}
             className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
           />
         </label>
@@ -151,14 +161,51 @@ export function ClientOverview({
             className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
           />
         </label>
-        <div className="flex justify-end gap-2">
-          <button onClick={() => setEditing(false)} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
-            Cancel
+        {error && <p className="text-xs text-red-300">{error}</p>}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => deleteRef.current?.showModal()}
+            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+          >
+            <Trash2 size={13} /> Delete client
           </button>
-          <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
-            {saving ? "Saving…" : "Save"}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
+              Cancel
+            </button>
+            <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
         </div>
+
+        <dialog
+          ref={deleteRef}
+          className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
+        >
+          <p className="text-sm">
+            Delete <strong>{name}</strong>? This permanently removes their projects, tasks, invoices, and
+            deliverables too — it can&apos;t be undone.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => deleteRef.current?.close()}
+              className="rounded-md px-3 py-1 text-xs btn-ghost"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+        </dialog>
       </section>
     );
   }
@@ -180,11 +227,6 @@ export function ClientOverview({
         <dt className="text-muted">Projects</dt>
         <dd>{projects.length > 0 ? projects.map((p) => p.type).join(", ") : "—"}</dd>
       </dl>
-
-      <div>
-        <p className="mb-1 text-xs font-medium text-muted">Scope of work</p>
-        <p className="whitespace-pre-wrap text-sm">{scopeOfWork ?? "Not set yet."}</p>
-      </div>
 
       <div className="flex flex-wrap gap-2">
         <ResourceLink icon={Palette} label="Brand guidelines" url={brandGuidelinesUrl} />

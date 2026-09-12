@@ -8,6 +8,8 @@ import type { Role, TaskStatus } from "@/lib/workflow";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientOverview } from "../ClientOverview";
+import { ClientDeliverables } from "../ClientDeliverables";
+import { ClientTaskSummary } from "../ClientTaskSummary";
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 
@@ -35,7 +37,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   const client = await prisma.client.findUnique({
     where: { id },
-    include: { projects: true, invoices: { orderBy: { createdAt: "desc" } } },
+    include: {
+      projects: true,
+      invoices: { orderBy: { createdAt: "desc" } },
+      deliverables: { orderBy: { sortOrder: "asc" } },
+    },
   });
   if (!client) notFound();
 
@@ -70,19 +76,23 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
       <ClientTabs
         overview={
-          <ClientOverview
-            clientId={client.id}
-            niche={client.niche}
-            contact={client.contact}
-            scopeOfWork={client.scopeOfWork}
-            notes={client.notes}
-            brandGuidelinesUrl={client.brandGuidelinesUrl}
-            sopUrl={client.sopUrl}
-            resourcesUrl={client.resourcesUrl}
-            projects={client.projects}
-          />
+          <div className="flex flex-col gap-4">
+            <ClientOverview
+              clientId={client.id}
+              name={client.name}
+              niche={client.niche}
+              contact={client.contact}
+              notes={client.notes}
+              brandGuidelinesUrl={client.brandGuidelinesUrl}
+              sopUrl={client.sopUrl}
+              resourcesUrl={client.resourcesUrl}
+              projects={client.projects}
+            />
+            <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />
+            <ClientTaskSummary tasks={tasks} />
+          </div>
         }
-        deliverables={
+        tasks={
           <Board
             tasks={tasks}
             projects={client.projects.map((p) => ({ id: p.id, client: { name: client.name } }))}

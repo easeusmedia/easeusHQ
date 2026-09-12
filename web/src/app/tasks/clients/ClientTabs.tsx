@@ -4,26 +4,30 @@ import { useState, type ReactNode } from "react";
 
 // Local state, not a URL param — this page doesn't need to be deep-linkable
 // per tab, and it keeps the component trivial.
+//
+// Named "Tasks" here, not "Deliverables" — "Deliverables" is the
+// contracted scope (2 podcast episodes/cycle, custom thumbnails), which
+// now lives in the Overview tab; this tab is the day-to-day work queue.
 export function ClientTabs({
   overview,
-  deliverables,
+  tasks,
   billing,
 }: {
   overview: ReactNode;
-  deliverables: ReactNode;
+  tasks: ReactNode;
   billing: ReactNode;
 }) {
-  const [tab, setTab] = useState<"overview" | "deliverables" | "billing">("overview");
-  const tabs = [
+  const [tab, setTab] = useState<"overview" | "tasks" | "billing">("overview");
+  const tabDefs = [
     { key: "overview" as const, label: "Overview" },
-    { key: "deliverables" as const, label: "Deliverables" },
+    { key: "tasks" as const, label: "Tasks" },
     { key: "billing" as const, label: "Billing" },
   ];
 
   return (
     <div>
       <div className="mb-4 flex gap-1 border-b border-border">
-        {tabs.map((t) => (
+        {tabDefs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -39,7 +43,7 @@ export function ClientTabs({
           own client-side state (drag, dialogs) that shouldn't reset every
           time you switch tabs */}
       <div hidden={tab !== "overview"}>{overview}</div>
-      <div hidden={tab !== "deliverables"}>{deliverables}</div>
+      <div hidden={tab !== "tasks"}>{tasks}</div>
       <div hidden={tab !== "billing"}>{billing}</div>
     </div>
   );
