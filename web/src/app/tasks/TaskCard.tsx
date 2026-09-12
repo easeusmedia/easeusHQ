@@ -155,7 +155,7 @@ export function TaskCard({
   return (
     <div
       onClick={() => detailsRef.current?.open()}
-      className="card-surface group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
+      className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>

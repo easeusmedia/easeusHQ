@@ -85,7 +85,12 @@ a, button {
   border: 1px solid var(--border);
   transition: background-color 0.12s ease;
 }
-.card-surface:hover {
+/* Only cards that actually do something on click light up. A panel that
+   merely holds content — a form, a stats tile, a billing table — used to
+   pop the moment the pointer crossed it, which reads as "this is
+   clickable" when it isn't, and is plain distracting while you're typing
+   in a field inside it. */
+.card-interactive:hover {
   background-color: rgba(28, 31, 36, 0.92);
 }
 

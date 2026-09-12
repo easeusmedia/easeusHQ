@@ -55,7 +55,7 @@ export function CalendarGrid({
               key={i}
               type="button"
               onClick={() => taskCount > 0 && open(key)}
-              className={`card-surface flex h-20 flex-col items-start gap-1 rounded-lg p-2 text-left ${
+              className={`card-surface card-interactive flex h-20 flex-col items-start gap-1 rounded-lg p-2 text-left ${
                 taskCount > 0 ? "cursor-pointer" : "cursor-default"
               } ${isToday ? "border-blue-400/50" : ""}`}
             >

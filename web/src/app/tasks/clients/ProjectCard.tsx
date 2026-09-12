@@ -15,7 +15,7 @@ export type ProjectCardData = {
 export function ProjectCard({ project }: { project: ProjectCardData }) {
   const done = project.status === "completed";
   return (
-    <Link href={`/tasks/projects/${project.id}`} className="card-surface group flex flex-col overflow-hidden rounded-xl shadow-sm">
+    <Link href={`/tasks/projects/${project.id}`} className="card-surface card-interactive group flex flex-col overflow-hidden rounded-xl shadow-sm">
       <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
         {project.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
