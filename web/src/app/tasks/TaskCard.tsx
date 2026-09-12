@@ -97,7 +97,7 @@ export type TaskCardData = {
   dueDate: Date | null;
   createdAt: Date;
   sortOrder: number;
-  project: { client: { name: string } };
+  project: { name: string; type: string; client: { name: string } };
 };
 
 export function Avatar({ name, size = 24 }: { name: string; size?: number }) {

@@ -27,16 +27,16 @@ export function AddProjectCard({ clientId }: { clientId: string }) {
     return (
       <button
         onClick={() => setAdding(true)}
-        className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted hover:bg-surface-2 hover:text-foreground"
+        className="flex h-full min-h-[140px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-muted hover:bg-surface-2 hover:text-foreground"
       >
-        <Plus size={22} />
+        <Plus size={18} />
         <span className="text-xs">New project</span>
       </button>
     );
   }
 
   return (
-    <div className="flex min-h-[200px] flex-col justify-center gap-2 rounded-2xl border border-border bg-surface-2/40 p-4">
+    <div className="flex h-full min-h-[140px] flex-col justify-center gap-2 rounded-xl border border-border bg-surface-2/40 p-3">
       <input
         autoFocus
         placeholder="Episode or project name"

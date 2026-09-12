@@ -4,8 +4,8 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { ACTIVE_STATUSES, type TaskStatus } from "@/lib/workflow";
-import { STAGE } from "@/lib/stages";
+import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
+import { TaskRow } from "../../TaskRow";
 import { ProjectHeader } from "../ProjectHeader";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +27,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
-      client: true,
+      client: { include: { projects: true } },
       assets: { orderBy: { sortOrder: "asc" } },
-      tasks: { orderBy: { createdAt: "desc" }, include: { assignedTo: true } },
+      tasks: {
+        orderBy: { createdAt: "desc" },
+        include: { assignedTo: true, project: { include: { client: true } } },
+      },
     },
   });
   if (!project) notFound();
+
+  const editors = users.filter((u) => u.role === "employee");
+  const boardProjects = project.client.projects.map((p) => ({ id: p.id, client: { name: p.name || p.type } }));
 
   const groups = Object.entries(
     project.assets.reduce<Record<string, typeof project.assets>>((acc, a) => {
@@ -45,13 +51,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
 
-  const activeTasks = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
+  const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
+  const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
 
   return (
-    <>
+    <div className="mx-auto max-w-5xl">
       <Link
         href={`/tasks/clients/${project.clientId}`}
-        className="mb-5 flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
+        className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
       >
         <ArrowLeft size={14} /> {project.client.name}
       </Link>
@@ -70,37 +77,48 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         canDelete={project.tasks.length === 0}
       />
 
-      {activeTasks.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-sm font-medium">Tasks in flight</h2>
-          <ul className="flex flex-col gap-1.5">
-            {activeTasks.map((t) => (
-              <li key={t.id} className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
-                <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
-                {t.assignedTo && <span className="shrink-0 text-xs text-muted">{t.assignedTo.name}</span>}
-                <span
-                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STAGE[t.status as TaskStatus].pill}`}
-                >
-                  {STAGE[t.status as TaskStatus].label}
-                </span>
+      {project.tasks.length > 0 && (
+        <section className="mt-12">
+          <div className="mb-4 flex items-baseline justify-between">
+            <h2 className="text-sm font-medium">Tasks</h2>
+            <span className="text-xs text-muted">
+              {active.length} in flight · {done.length} delivered
+            </span>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {[...active, ...done].map((t) => (
+              <li key={t.id}>
+                <TaskRow
+                  task={t}
+                  clientName={project.client.name}
+                  subtitle={t.assignedTo?.name ?? "Unassigned"}
+                  editors={editors}
+                  projects={boardProjects}
+                  actingUserId={me.id}
+                  actingRole={me.role as Role}
+                />
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      <section className="mt-8">
-        <h2 className="mb-3 text-sm font-medium">Files</h2>
+      <section className="mt-12">
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="text-sm font-medium">Files</h2>
+          {project.assets.length > 0 && <span className="text-xs text-muted">{project.assets.length} total</span>}
+        </div>
+
         {groups.length === 0 ? (
           <p className="text-sm text-muted">No files recorded for this project yet.</p>
         ) : (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-8">
             {groups.map(([type, assets]) => (
               <div key={type}>
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-                  {type} <span className="text-muted/70">{assets.length}</span>
+                <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
+                  {type} <span className="text-muted/60">{assets.length}</span>
                 </h3>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2">
                   {assets.map((a) =>
                     a.link ? (
                       <a
@@ -108,7 +126,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                         href={a.link}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
                       >
                         <span className="min-w-0 truncate text-sm">{a.name}</span>
                         <ExternalLink size={13} className="shrink-0 text-muted" />
@@ -116,7 +134,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                     ) : (
                       <div
                         key={a.id}
-                        className="flex items-center rounded-xl border border-border bg-surface-2/40 px-4 py-3 text-sm text-muted"
+                        className="flex items-center rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 text-sm text-muted"
                       >
                         {a.name}
                       </div>
@@ -128,6 +146,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </section>
-    </>
+    </div>
   );
 }

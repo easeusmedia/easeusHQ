@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
+import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { Board } from "../../Board";
 import { AddProjectCard } from "../AddProjectCard";
 import { BillingPanel } from "../BillingPanel";
@@ -68,6 +68,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     listTags(),
   ]);
 
+  const boardProjects = client.projects.map((p) => ({ id: p.id, client: { name: p.name || p.type } }));
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
   const projectCards = client.projects.map((p) => ({
@@ -81,12 +82,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   }));
 
   return (
-    <>
-      <Link href="/tasks/clients" className="mb-5 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+    <div className="mx-auto max-w-6xl">
+      <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft size={14} /> Clients
       </Link>
 
-      <div className="mb-6 flex items-center gap-4">
+      <div className="mb-8 flex items-center gap-4">
         <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-3">
@@ -97,7 +98,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-10">
         <ClientStats
           activeTasks={tasks.length}
           inProgress={live.length}
@@ -114,26 +115,25 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             content: (
               <div className="flex flex-col gap-10">
                 <section>
-                  <h2 className="mb-3 text-sm font-medium">Ongoing work</h2>
+                  <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
                   <ClientOngoing
-                    tasks={tasks.map((t) => ({
-                      id: t.id,
-                      title: t.title,
-                      status: t.status as TaskStatus,
-                      projectName: t.project.name || t.project.type,
-                      assignee: t.assignedTo?.name ?? null,
-                    }))}
+                    tasks={tasks}
+                    clientName={client.name}
+                    editors={editors}
+                    projects={boardProjects}
+                    actingUserId={me.id}
+                    actingRole={me.role as Role}
                   />
                 </section>
 
                 <section>
-                  <div className="mb-3 flex items-baseline justify-between">
+                  <div className="mb-4 flex items-baseline justify-between">
                     <h2 className="text-sm font-medium">Projects</h2>
                     <span className="text-xs text-muted">
                       {completed.length} done · {live.length} in progress
                     </span>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
                     <AddProjectCard clientId={client.id} />
                     {projectCards.map((p) => (
                       <ProjectCard key={p.id} project={p} />
@@ -150,7 +150,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             content: (
               <Board
                 tasks={tasks}
-                projects={client.projects.map((p) => ({ id: p.id, client: { name: p.name || p.type } }))}
+                projects={boardProjects}
                 editors={editors}
                 actingUserId={me.id}
                 actingRole={me.role as Role}
@@ -198,6 +198,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           },
         ]}
       />
-    </>
+    </div>
   );
 }
