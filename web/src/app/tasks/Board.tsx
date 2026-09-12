@@ -53,6 +53,7 @@ export function Board({
   actingRole,
   canCreate = true,
   columns = BOARD_COLUMNS,
+  flow = false,
 }: {
   tasks: TaskCardData[];
   projects: Project[];
@@ -61,6 +62,12 @@ export function Board({
   actingRole: Role;
   canCreate?: boolean;
   columns?: Column[];
+  // Two ways to lay the board out. On its own page it owns the window:
+  // fixed height, each column scrolling its own cards. Embedded in a page
+  // that scrolls (a client's Task board tab) that's wrong — it crops at the
+  // bottom. In `flow` the board grows with its content, the page scrolls,
+  // and each stage header pins itself to the top on the way past.
+  flow?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -227,7 +234,7 @@ export function Board({
   const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={flow ? undefined : "flex h-full flex-col"}>
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
@@ -292,26 +299,59 @@ export function Board({
       <div
         ref={scrollRef}
         onDragOver={autoScroll}
-        className="flex min-h-0 flex-1 items-stretch gap-4 overflow-x-auto overflow-y-hidden pl-6 sm:pl-8"
+        style={flow ? { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` } : undefined}
+        className={
+          flow
+            ? // A grid of equal columns that always fit the width, and no
+              // overflow of its own. Both matter:
+              //   - a grid row is as tall as its tallest item's *content*
+              //     and stretches every column to match, so no stage is
+              //     left without a drop area further down (flex only
+              //     stretches to the container, which was that bug).
+              //   - any overflow-x here would quietly make this a vertical
+              //     scroll container too (CSS computes the other axis to
+              //     auto), and the sticky headers would then stick to this
+              //     box instead of the page — which is to say, not at all.
+              "grid gap-4 px-6 sm:px-8"
+            : "flex min-h-0 flex-1 items-stretch gap-4 overflow-x-auto overflow-y-hidden pl-6 sm:pl-8"
+        }
       >
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
-            <section key={col.status} className="flex min-h-0 min-w-64 flex-1 flex-col gap-3 pt-6 pb-6 sm:pt-8 sm:pb-8">
-              <div className={`status-pop flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
-                <span className={`h-2 w-2 rounded-full ${col.dot}`} />
-                <span className="whitespace-nowrap">{col.label}</span>
-                <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
+            <section
+              key={col.status}
+              className={`flex min-w-0 flex-col gap-3 ${flow ? "pb-8" : "min-h-0 min-w-64 flex-1 pt-6 pb-6 sm:pt-8 sm:pb-8"}`}
+            >
+              {/* in flow mode this rides up with the page and then stops at
+                  the top, carrying the page background so cards pass
+                  underneath it rather than through it */}
+              {/* the negative offset is the page's own top padding: sticky
+                  pins against the scrollport's padding box, so at top-0 the
+                  cards kept showing through the strip above the pill */}
+              <div
+                className={
+                  flow
+                    ? "sticky -top-6 z-10 -mb-3 bg-background pt-12 pb-3 sm:-top-8 sm:pt-14"
+                    : "shrink-0"
+                }
+              >
+                <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
+                  <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                  <span className="whitespace-nowrap">{col.label}</span>
+                  <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
+                </div>
               </div>
 
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
 
-              {/* this column's own scroller, and the whole drop target for it */}
+              {/* the whole drop target for this column — and, off its own
+                  page, this column's own scroller too */}
               <div
-                className="flex min-h-24 min-w-0 flex-1 flex-col gap-3 overflow-y-auto"
+                className={`flex min-h-24 min-w-0 flex-1 flex-col gap-3 ${flow ? "" : "overflow-y-auto"}`}
                 onDragOver={(e) => {
                   e.preventDefault();
-                  scrollColumn(e);
+                  if (!flow) scrollColumn(e);
                 }}
                 onDrop={(e) => {
                   e.preventDefault();

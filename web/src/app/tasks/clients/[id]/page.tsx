@@ -92,8 +92,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const column = "mx-auto w-full max-w-6xl";
 
   return (
-    <div className="flex h-full flex-col">
-      <div className={`${column} shrink-0`}>
+    <div>
+      <div className={column}>
         <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
           <ArrowLeft size={14} /> Clients
         </Link>
@@ -164,12 +164,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             count: tasks.length,
             bleed: true,
             content: (
-              // The board needs a real height to work the way it does on the
-              // main board page — each column scrolls its own cards, which
-              // can't happen inside a box that just grows with its content.
-              // The negative margin cancels the page padding so it runs edge
-              // to edge here too, instead of being cropped on both sides.
-              <div className="-mx-6 min-h-0 flex-1 sm:-mx-8">
+              // `flow`: the board grows with its cards and the page does the
+              // scrolling, so nothing is cut off at the bottom and each stage
+              // header pins itself to the top as it passes. The negative
+              // margin cancels the page padding so it runs edge to edge.
+              <div className="-mx-6 sm:-mx-8">
                 <Board
                   tasks={tasks}
                   projects={boardProjects}
@@ -177,6 +176,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   actingUserId={me.id}
                   actingRole={me.role as Role}
                   canCreate
+                  flow
                 />
               </div>
             ),
