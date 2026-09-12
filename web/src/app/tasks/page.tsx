@@ -57,12 +57,13 @@ export default async function TasksPage({
   const realUser = users.find((u) => u.id === sessionUserId);
   const canSyncNotion = !!realUser && isAbhishekOrAdmin(realUser);
 
-  // The wrapper grows past the layout's bottom padding — a negative margin
-  // alone wouldn't, since that moves what follows rather than this element's
-  // own edge — so the board's horizontal scrollbar lands on the real bottom
-  // of the window instead of floating above it.
+  // Cancels the layout's page padding on all four sides and grows to cover
+  // it (a negative margin alone moves what follows, not this element's own
+  // edges). The board then owns the full window, so its scrollbars sit on
+  // the real edges instead of floating 32px inside them, and the padding is
+  // re-applied inside the scroll area where it can't clip anything.
   return (
-    <div className="-mb-6 flex h-[calc(100%+1.5rem)] flex-col sm:-mb-8 sm:h-[calc(100%+2rem)]">
+    <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
       {isEditor ? (
         <EditorViewToggle
           tasks={visibleTasks}

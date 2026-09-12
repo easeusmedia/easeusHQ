@@ -265,14 +265,14 @@ export function Board({
           tons (borrowed from the tall one). Each column now sizes to its
           own content, and the sentinel spacer below gives a real drop
           target below the last card regardless. */}
-      <div className="flex min-h-0 flex-1 items-start gap-4 overflow-auto">
+      <div className="flex min-h-0 flex-1 items-start gap-4 overflow-auto py-6 pl-6 sm:py-8 sm:pl-8">
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
-            <section key={col.status} className="flex min-w-60 flex-1 flex-col gap-3">
+            <section key={col.status} className="flex min-w-64 flex-1 flex-col gap-3">
               <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
                 <span className={`h-2 w-2 rounded-full ${col.dot}`} />
-                {col.label}
+                <span className="whitespace-nowrap">{col.label}</span>
                 <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
               </div>
 
