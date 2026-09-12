@@ -36,6 +36,13 @@ enum InvoiceStatus {
   overdue
 }
 
+// How a client's invoicing actually gets triggered — the team runs both
+// styles side by side, not one uniform cadence for everyone.
+enum BillingCadence {
+  monthly_date // invoice on a fixed day of every month (e.g. the 30th)
+  milestone // invoice every N delivered tasks
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -61,6 +68,20 @@ model Client {
   niche     String?
   contact   String?
   createdAt DateTime @default(now())
+
+  // set only for clients pulled in by the Notion clients sync — same
+  // idempotency trick as Task.notionPageId
+  notionPageId String? @unique
+
+  // billing rule — Notion has no concept of this, so it's null until
+  // someone sets it here. Exactly one of the two fields below applies,
+  // depending on billingCadence.
+  billingCadence        BillingCadence?
+  billingDayOfMonth     Int? // monthly_date: which day of the month (1-31)
+  billingMilestoneCount Int? // milestone: delivered tasks per invoice
+  // anchor for "delivered since last invoice" on milestone clients —
+  // reset every time a new invoice is logged for this client
+  lastInvoicedAt        DateTime?
 
   projects Project[]
   invoices Invoice[]

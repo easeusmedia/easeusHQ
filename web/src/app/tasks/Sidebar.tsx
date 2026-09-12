@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, Users, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
+import { LayoutDashboard, History, Users, CalendarCheck2, Building2, PanelLeft, LogOut } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 
@@ -161,6 +161,7 @@ export function Sidebar({
 
       {[
         ...NAV,
+        ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: Building2 }] : []),
         ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarCheck2 }] : []),
         ...(isAdmin ? [{ segment: "/users", label: "Users", Icon: Users }] : []),
       ].map((item) => {

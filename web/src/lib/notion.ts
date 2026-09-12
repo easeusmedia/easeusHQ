@@ -1,8 +1,13 @@
-// Temporary — for testing only, while the team is still creating tasks in
-// Notion during the transition. Pulls tasks in from Notion on demand (via
-// the "Sync with Notion" button, admin-triggered, never automatic). Delete
-// this whole file, the notionPageId column, the button, and the action in
-// actions.ts when Notion is retired for real.
+// Two things live in this file:
+//  1. Task sync — temporary, for testing only, while the team is still
+//     creating tasks in Notion during the transition. Delete this half,
+//     the notionPageId column on Task, the button, and the action in
+//     tasks/actions.ts when Notion is retired for real.
+//  2. Client sync — not temporary. Notion's "Clients Dashboard" is the
+//     source of truth for the client roster (name + status), pulled in
+//     on demand via a sync button in the Clients section. Everything else
+//     about a client (billing, invoices, contact info) lives natively
+//     here — Notion has no concept of any of that.
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -107,4 +112,33 @@ export function getFirstPersonName(properties: Record<string, NotionProp>, name:
 export function getDate(properties: Record<string, NotionProp>, name: string): Date | null {
   const date = properties[name]?.date as { start: string } | undefined;
   return date ? new Date(date.start) : null;
+}
+
+// Notion's "select" property (used by Clients Dashboard's Status/Type) has
+// a different shape than the "status" property Task uses (getStatusName
+// above) — {"select": {"name": "..."}} vs {"status": {"name": "..."}}.
+export function getSelectName(properties: Record<string, NotionProp>, name: string): string | null {
+  const select = properties[name]?.select as { name: string } | undefined;
+  return select?.name ?? null;
+}
+
+// The team's "Clients Dashboard" — every client they've ever worked with,
+// past and present. Schema is thin (verified directly): "Team's Workbook"
+// (title, the client's name), "Status" (select: Current | On Hold |
+// Previous), "Type" (select: Subscription | Project). No contact info, no
+// billing — that's all managed natively once a client is pulled in here.
+const CLIENT_DATABASE_ID = "8f704748-5866-4f64-882a-bbf01c7a846c";
+
+export async function fetchClientRows(): Promise<NotionRow[]> {
+  const rows: NotionRow[] = [];
+  let cursor: string | undefined;
+  do {
+    const body = await notionFetch(`/databases/${CLIENT_DATABASE_ID}/query`, {
+      method: "POST",
+      body: JSON.stringify({ page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
+    });
+    rows.push(...body.results);
+    cursor = body.has_more ? body.next_cursor : undefined;
+  } while (cursor);
+  return rows;
 }
