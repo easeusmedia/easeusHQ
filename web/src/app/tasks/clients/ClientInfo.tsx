@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ClipboardCheck, ClipboardList, FolderOpen, Palette, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ClipboardCheck, ClipboardList, FolderOpen, MessagesSquare, Palette, Pencil, Trash2 } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { updateClientInfo, updateClientDoc, deleteClient, type ClientDocType, type ClientInfoInput } from "./actions";
 
@@ -14,6 +14,7 @@ const DOCS: Doc[] = [
   { key: "brandGuidelines", label: "Client information", icon: Palette, hint: "Who they are, language, fonts, brand colours" },
   { key: "sop", label: "Editing SOP", icon: ClipboardList, hint: "How their work gets edited, start to export" },
   { key: "qualityChecklist", label: "Quality checklist", icon: ClipboardCheck, hint: "Final pass before anything is uploaded" },
+  { key: "meetingNotes", label: "Meeting notes", icon: MessagesSquare, hint: "What was agreed on calls with this client" },
   { key: "resources", label: "Resources", icon: FolderOpen, hint: "Asset folders, templates, anything else" },
 ];
 
@@ -92,6 +93,9 @@ export function ClientInfo({
   name,
   niche,
   contact,
+  email,
+  whatsapp,
+  address,
   notes,
   docs,
 }: {
@@ -99,6 +103,9 @@ export function ClientInfo({
   name: string;
   niche: string | null;
   contact: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  address: string | null;
   notes: string | null;
   docs: Record<ClientDocType, string | null>;
 }) {
@@ -112,6 +119,9 @@ export function ClientInfo({
     name,
     niche: niche ?? "",
     contact: contact ?? "",
+    email: email ?? "",
+    whatsapp: whatsapp ?? "",
+    address: address ?? "",
     notes: notes ?? "",
   });
 
@@ -143,7 +153,10 @@ export function ClientInfo({
             {([
               ["name", "Name"],
               ["niche", "Niche"],
-              ["contact", "Contact"],
+              ["contact", "Contact name"],
+              ["email", "Email"],
+              ["whatsapp", "WhatsApp"],
+              ["address", "Address"],
             ] as const).map(([key, label]) => (
               <label key={key} className="flex flex-col gap-1 text-xs text-muted">
                 {label}
@@ -195,6 +208,9 @@ export function ClientInfo({
               {[
                 ["Niche", niche],
                 ["Contact", contact],
+                ["Email", email],
+                ["WhatsApp", whatsapp],
+                ["Address", address],
               ].map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 last:border-0">
                   <dt className="shrink-0 text-muted">{label}</dt>

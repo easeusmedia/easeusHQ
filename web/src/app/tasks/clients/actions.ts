@@ -5,6 +5,8 @@ import { getSessionUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
+import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
+import { importClientFromNotion } from "@/lib/notionClientImport";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 
 // The two On Hold clients ops is still actively tracking, chosen
@@ -151,6 +153,9 @@ export type ClientInfoInput = {
   name: string;
   niche: string;
   contact: string;
+  email: string;
+  whatsapp: string;
+  address: string;
   notes: string;
 };
 
@@ -171,6 +176,9 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
       name: input.name.trim(),
       niche: empty(input.niche) ? null : input.niche.trim(),
       contact: empty(input.contact) ? null : input.contact.trim(),
+      email: empty(input.email) ? null : input.email.trim(),
+      whatsapp: empty(input.whatsapp) ? null : input.whatsapp.trim(),
+      address: empty(input.address) ? null : input.address.trim(),
       notes: empty(input.notes) ? null : input.notes.trim(),
     },
   });
@@ -179,11 +187,12 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
   return {};
 }
 
-export type ClientDocType = "brandGuidelines" | "sop" | "qualityChecklist" | "resources";
+export type ClientDocType = "brandGuidelines" | "sop" | "qualityChecklist" | "meetingNotes" | "resources";
 const DOC_LABEL: Record<ClientDocType, string> = {
   brandGuidelines: "Client information",
   sop: "Editing SOP",
   qualityChecklist: "Quality checklist",
+  meetingNotes: "Meeting notes",
   resources: "Resources",
 };
 
@@ -258,6 +267,7 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
   await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
   await prisma.invoice.deleteMany({ where: { clientId } });
   await prisma.deliverable.deleteMany({ where: { clientId } });
+  await prisma.onboardingStep.deleteMany({ where: { clientId } });
   await prisma.projectAsset.deleteMany({ where: { projectId: { in: projectIds } } });
   await prisma.project.deleteMany({ where: { clientId } });
   await prisma.client.delete({ where: { id: clientId } });
@@ -317,9 +327,66 @@ export async function deleteDeliverable(id: string): Promise<{ error?: string }>
   return {};
 }
 
-// A client is created empty and filled in from its own page — name is the
-// only thing anyone actually knows at the moment they add one.
-export async function createClient(name: string): Promise<{ id?: string; error?: string }> {
+export type ClientTemplateData = {
+  brandGuidelines: string;
+  sop: string;
+  qualityChecklist: string;
+  meetingNotes: string;
+  resources: string;
+  deliverables: TemplateItem[];
+  onboarding: TemplateStep[];
+  tags: string[];
+  projectType: string;
+};
+
+// There is exactly one template row. Reading it creates it on first use,
+// seeded from templateDefaults — after that the database is the source of
+// truth and ops edits it in the app.
+export async function getClientTemplate(): Promise<ClientTemplateData> {
+  const existing = await prisma.clientTemplate.findUnique({ where: { id: "default" } });
+  const row =
+    existing ??
+    (await prisma.clientTemplate.create({
+      data: {
+        id: "default",
+        ...DEFAULT_DOCS,
+        deliverables: DEFAULT_DELIVERABLES,
+        onboarding: DEFAULT_ONBOARDING,
+        tags: DEFAULT_TAGS,
+        projectType: "Podcast",
+      },
+    }));
+
+  return {
+    brandGuidelines: row.brandGuidelines ?? "",
+    sop: row.sop ?? "",
+    qualityChecklist: row.qualityChecklist ?? "",
+    meetingNotes: row.meetingNotes ?? "",
+    resources: row.resources ?? "",
+    deliverables: (row.deliverables as TemplateItem[]) ?? [],
+    onboarding: (row.onboarding as TemplateStep[]) ?? [],
+    tags: (row.tags as string[]) ?? [],
+    projectType: row.projectType,
+  };
+}
+
+export async function updateClientTemplate(data: ClientTemplateData): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit the template." };
+
+  await prisma.clientTemplate.upsert({
+    where: { id: "default" },
+    create: { id: "default", ...data },
+    update: data,
+  });
+  revalidatePath("/tasks/clients/template");
+  return {};
+}
+
+// Every client is created the same way: the template's documents, its
+// contracted deliverables, its tags, a first project, and the onboarding
+// checklist. Nothing is left to whoever happened to set the client up.
+export async function createClient(name: string, niche = ""): Promise<{ id?: string; error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a client." };
   const trimmed = name.trim();
@@ -328,9 +395,99 @@ export async function createClient(name: string): Promise<{ id?: string; error?:
   const existing = await prisma.client.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
   if (existing) return { error: `${existing.name} is already on the roster.` };
 
-  const client = await prisma.client.create({ data: { name: trimmed, status: "current" } });
+  const template = await getClientTemplate();
+
+  const client = await prisma.client.create({
+    data: {
+      name: trimmed,
+      status: "current",
+      niche: niche.trim() || null,
+      brandGuidelines: template.brandGuidelines || null,
+      sop: template.sop || null,
+      qualityChecklist: template.qualityChecklist || null,
+      meetingNotes: template.meetingNotes || null,
+      resources: template.resources || null,
+      deliverables: {
+        create: template.deliverables.map((d, i) => ({ name: d.name, detail: d.detail || null, sortOrder: i })),
+      },
+      onboarding: {
+        create: template.onboarding.map((s, i) => ({ title: s.title, detail: s.detail || null, sortOrder: i })),
+      },
+      projects: { create: [{ name: template.projectType, type: template.projectType, status: "in_progress" }] },
+    },
+  });
+
+  // tags are shared across clients, so attach the existing rows rather than
+  // creating a second "Subscription" with a different colour
+  if (template.tags.length > 0) {
+    const tags = await prisma.tag.findMany({ where: { name: { in: template.tags } } });
+    if (tags.length > 0) {
+      await prisma.client.update({
+        where: { id: client.id },
+        data: { tags: { set: tags.map((t) => ({ id: t.id })) } },
+      });
+    }
+  }
+
   revalidatePath("/tasks/clients");
   return { id: client.id };
+}
+
+export async function toggleOnboardingStep(stepId: string, done: boolean): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can update onboarding." };
+
+  const step = await prisma.onboardingStep.update({ where: { id: stepId }, data: { done } });
+  revalidatePath(`/tasks/clients/${step.clientId}`);
+  return {};
+}
+
+// Re-applies the current template's checklist to a client that predates it
+// (or was set up before a step was added).
+export async function applyOnboardingTemplate(clientId: string): Promise<{ added: number; error?: string }> {
+  const user = await requireOps();
+  if (!user) return { added: 0, error: "Only ops team members can do that." };
+
+  const [template, existing] = await Promise.all([
+    getClientTemplate(),
+    prisma.onboardingStep.findMany({ where: { clientId }, select: { title: true } }),
+  ]);
+  const have = new Set(existing.map((s) => s.title));
+  const missing = template.onboarding.filter((s) => !have.has(s.title));
+  if (missing.length > 0) {
+    await prisma.onboardingStep.createMany({
+      data: missing.map((s, i) => ({ clientId, title: s.title, detail: s.detail || null, sortOrder: have.size + i })),
+    });
+  }
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return { added: missing.length };
+}
+
+export async function setNotionContentDb(clientId: string, dbId: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can change this." };
+
+  // accept a pasted Notion URL as well as a bare id
+  const match = dbId.trim().match(/[0-9a-f]{32}|[0-9a-f-]{36}/i);
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { notionContentDbId: match ? match[0] : null },
+  });
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+export async function importFromNotion(clientId: string) {
+  const user = await requireOps();
+  if (!user) return { projects: 0, assets: 0, docs: 0, error: "Only ops team members can import." };
+
+  try {
+    const result = await importClientFromNotion(clientId);
+    revalidatePath(`/tasks/clients/${clientId}`);
+    return result;
+  } catch (err) {
+    return { projects: 0, assets: 0, docs: 0, error: err instanceof Error ? err.message : "Import failed." };
+  }
 }
 
 // Projects are the unit of work a client is invoiced for — one podcast

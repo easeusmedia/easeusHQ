@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SlidersHorizontal } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
@@ -55,9 +57,17 @@ export default async function ClientsPage() {
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold">Clients</h1>
-        <ClientsSyncButton />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/tasks/clients/template"
+            className="btn-ghost flex items-center gap-1.5 rounded-md px-3 py-2 text-sm"
+          >
+            <SlidersHorizontal size={14} /> Template
+          </Link>
+          <ClientsSyncButton />
+        </div>
       </div>
 
       <div className="mb-8 grid grid-cols-3 gap-4">

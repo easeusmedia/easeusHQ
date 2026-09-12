@@ -10,6 +10,8 @@ import { AddProjectCard } from "../AddProjectCard";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
 import { ClientInfo } from "../ClientInfo";
+import { ClientNotionLink } from "../ClientNotionLink";
+import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
 import { ProjectCard } from "../ProjectCard";
@@ -20,6 +22,9 @@ import { ClientTags } from "../ClientTags";
 import { listTags } from "../actions";
 
 export const dynamic = "force-dynamic";
+// the Notion import runs as a server action from this page and talks to
+// Notion dozens of times — the default serverless timeout cuts it short
+export const maxDuration = 60;
 
 const shortDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -44,6 +49,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       },
       invoices: { orderBy: { createdAt: "desc" } },
       deliverables: { orderBy: { sortOrder: "asc" } },
+      onboarding: { orderBy: { sortOrder: "asc" } },
       tags: true,
     },
   });
@@ -121,6 +127,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             label: "Overview",
             content: (
               <div className="flex flex-col gap-10">
+                <ClientOnboarding clientId={client.id} steps={client.onboarding} />
+
                 <section>
                   <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
                   <ClientOngoing
@@ -189,19 +197,26 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             key: "info",
             label: "Client info",
             content: (
-              <ClientInfo
-                clientId={client.id}
-                name={client.name}
-                niche={client.niche}
-                contact={client.contact}
-                notes={client.notes}
-                docs={{
-                  brandGuidelines: client.brandGuidelines,
-                  sop: client.sop,
-                  qualityChecklist: client.qualityChecklist,
-                  resources: client.resources,
-                }}
-              />
+              <div className="flex flex-col gap-3">
+                <ClientInfo
+                  clientId={client.id}
+                  name={client.name}
+                  niche={client.niche}
+                  contact={client.contact}
+                  email={client.email}
+                  whatsapp={client.whatsapp}
+                  address={client.address}
+                  notes={client.notes}
+                  docs={{
+                    brandGuidelines: client.brandGuidelines,
+                    sop: client.sop,
+                    qualityChecklist: client.qualityChecklist,
+                    meetingNotes: client.meetingNotes,
+                    resources: client.resources,
+                  }}
+                />
+                <ClientNotionLink clientId={client.id} contentDbId={client.notionContentDbId} />
+              </div>
             ),
           },
         ]}

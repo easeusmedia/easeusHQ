@@ -85,7 +85,12 @@ model Client {
   status    String   @default("current")
   // free text — real clients span far more than doctors/podcasts (e.g. Neelkamal TMT is a steel company)
   niche     String?
-  contact   String?
+  // the four things the real Notion onboarding form collects, kept as
+  // separate fields rather than one free-text blob so they're usable
+  contact   String? // primary contact's name
+  email     String?
+  whatsapp  String?
+  address   String? @db.Text
   createdAt DateTime @default(now())
 
   // a small square image, stored as a data: URI directly in the row
@@ -103,6 +108,7 @@ model Client {
   brandGuidelines  String? @db.Text
   sop              String? @db.Text
   qualityChecklist String? @db.Text
+  meetingNotes     String? @db.Text
   resources        String? @db.Text
   // free-form relationship/context notes — how the account is going,
   // anything ops needs to remember about working with this client
@@ -124,9 +130,57 @@ model Client {
   // reset every time a new invoice is logged for this client
   lastInvoicedAt        DateTime?
 
+  // the client's own content database in Notion (one row per episode).
+  // Set it here and the Import button can pull their projects and files in
+  // — it used to mean running a script with the id hard-coded.
+  notionContentDbId String?
+
   projects     Project[]
   invoices     Invoice[]
   deliverables Deliverable[]
+  onboarding   OnboardingStep[]
+}
+
+// The one shape every client gets, held as data so ops can change it
+// without a deploy. Exactly one row (id "default") — Notion enforced this
+// same structure by habit and a written SOP; here, creating a client
+// applies it, so a client set up on a busy week isn't missing half of it.
+model ClientTemplate {
+  id String @id @default("default")
+
+  // starter text for the four client documents, copied onto every new
+  // client so nobody starts from a blank page
+  brandGuidelines  String? @db.Text
+  sop              String? @db.Text
+  qualityChecklist String? @db.Text
+  meetingNotes     String? @db.Text
+  resources        String? @db.Text
+
+  // [{ name, detail }] — the contracted scope a new client starts with
+  deliverables Json @default("[]")
+  // [{ title, detail }] — the Client Onboarding SOP's steps, as a checklist
+  onboarding   Json @default("[]")
+  // tag names applied to every new client (must already exist in Tag)
+  tags         Json @default("[]")
+  // the project a client starts with, e.g. "Podcast"
+  projectType  String @default("Podcast")
+
+  updatedAt DateTime @updatedAt
+}
+
+// One step of the onboarding SOP, copied from the template when a client is
+// created. Kept per-client (not a shared checklist) because each client
+// works through it at their own pace and ops needs to see who's stuck.
+model OnboardingStep {
+  id        String  @id @default(uuid())
+  client    Client  @relation(fields: [clientId], references: [id])
+  clientId  String
+  title     String
+  detail    String? @db.Text
+  done      Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  @@index([clientId])
 }
 
 // Freeform labels ops assigns to clients — "Podcast", "Personal brand",
