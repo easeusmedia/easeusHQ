@@ -98,18 +98,16 @@ export function Sidebar({
         open ? "w-52" : "w-16"
       }`}
     >
-      {/* ONE button, always mounted, never swapped for a different element —
-          that was the actual cause of the logo "jumping": open and
-          collapsed used to be two completely different DOM subtrees (a
-          wide header row vs. a centered button), so React unmounted one
-          and mounted the other on every click, and the incoming one
-          measured its centering against whatever width the nav happened
-          to be at that exact instant, producing a jump before the width
-          transition even caught up. Same fixed-position/fading-label
-          approach as the nav links below fixes it the same way — and
-          folding the separate "dedicated toggle button" into this one
-          control is also just what ChatGPT itself actually does (hover
-          the logo, it swaps to the panel icon, click toggles). */}
+      {/* The logo button is always mounted at the same fixed position —
+          never swapped for a different element — which is what actually
+          fixed the earlier "logo jumps on collapse" bug: open and
+          collapsed used to be two completely different DOM subtrees, so
+          React unmounted one and mounted the other on every click, and the
+          incoming one measured its centering against whatever width the
+          nav happened to be at that instant. The dedicated close button
+          uses the exact same trick as a fading nav label (max-width +
+          opacity, never conditionally rendered) instead of being swapped
+          in/out, so re-adding it here can't reintroduce that jump. */}
       <div className="mb-2 flex h-9 items-center gap-2">
         <button
           onClick={(e) => {
@@ -130,12 +128,26 @@ export function Sidebar({
           <PanelLeft size={18} className="absolute text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
         </button>
         <FadeLabel open={open}>
-          {/* text-xs, not text-sm — at the SAME pixel size, semibold
-              optically reads bigger than the regular-weight nav labels
-              next to it (heavier strokes fill more of the letterform);
-              one size down is what actually looks size-matched */}
-          <span className="text-xs font-semibold">Easeus HQ</span>
+          <span className="text-sm font-semibold">Easeus HQ</span>
         </FadeLabel>
+        {/* dedicated close button, adjacent to the logo — fades away (not
+            unmounts) once collapsed, same as a nav label does */}
+        <span
+          className={`ml-auto overflow-hidden transition-[max-width,opacity] duration-200 ease-in-out ${
+            open ? "max-w-[32px] opacity-100" : "max-w-0 opacity-0"
+          }`}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggle();
+            }}
+            title="Close sidebar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-2"
+          >
+            <PanelLeft size={16} />
+          </button>
+        </span>
       </div>
 
       {[
