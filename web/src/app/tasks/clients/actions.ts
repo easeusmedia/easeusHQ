@@ -174,22 +174,22 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
   return {};
 }
 
-export type ClientDocType = "brandGuidelines" | "sop" | "resources";
+export type ClientDocType = "brandGuidelines" | "sop" | "qualityChecklist" | "resources";
 const DOC_LABEL: Record<ClientDocType, string> = {
-  brandGuidelines: "Brand guidelines",
-  sop: "SOP",
+  brandGuidelines: "Client information",
+  sop: "Editing SOP",
+  qualityChecklist: "Quality checklist",
   resources: "Resources",
 };
 
-// Brand guidelines / SOP / Resources — real documents, native to this app,
-// not a link out to Notion. Notion is only the source for as long as the
-// team is transitioning off it.
+// The client's real documents, native to this app, not links out to Notion.
+// Notion is only the source for as long as the team is transitioning off it
+// — scripts/sync-client-notion.ts is what seeds these from there.
 export async function updateClientDoc(clientId: string, doc: ClientDocType, content: string): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: `Only ops team members can edit ${DOC_LABEL[doc]}.` };
 
   await prisma.client.update({ where: { id: clientId }, data: { [doc]: content.trim() || null } });
-  revalidatePath(`/tasks/clients/${clientId}/docs/${doc}`);
   revalidatePath(`/tasks/clients/${clientId}`);
   return {};
 }
@@ -253,6 +253,7 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
   await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
   await prisma.invoice.deleteMany({ where: { clientId } });
   await prisma.deliverable.deleteMany({ where: { clientId } });
+  await prisma.workItem.deleteMany({ where: { clientId } });
   await prisma.project.deleteMany({ where: { clientId } });
   await prisma.client.delete({ where: { id: clientId } });
   revalidatePath("/tasks/clients");

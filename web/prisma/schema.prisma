@@ -83,9 +83,13 @@ model Client {
   // reference docs (brand guidelines, an SOP, shared resources). These
   // live natively in this app now, not as links out to Notion — Notion
   // is being retired once this system fully replaces it.
-  brandGuidelines String? @db.Text
-  sop             String? @db.Text
-  resources       String? @db.Text
+  // Mirrors the three pages every client's Notion editor workbook already
+  // has (Client Information / Editing SOP / Quality Checklist) plus a
+  // catch-all for links. Stored as markdown — rendered by <Markdown>.
+  brandGuidelines  String? @db.Text
+  sop              String? @db.Text
+  qualityChecklist String? @db.Text
+  resources        String? @db.Text
   // free-form relationship/context notes — how the account is going,
   // anything ops needs to remember about working with this client
   notes           String? @db.Text
@@ -109,6 +113,29 @@ model Client {
   projects     Project[]
   invoices     Invoice[]
   deliverables Deliverable[]
+  workItems    WorkItem[]
+}
+
+// One finished piece of work — a podcast episode, a video. This is the
+// track record ("we've done 15 episodes for them"), separate from Task
+// (today's queue) and Deliverable (the contracted scope). It mirrors the
+// per-client content database each client has in Notion, which is where
+// this history actually lives.
+model WorkItem {
+  id       String @id @default(uuid())
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  title         String
+  status        String    @default("completed") // completed | in_progress
+  batch         String? // invoicing batch, e.g. "Batch 4 & 5"
+  link          String? // Drive folder with the final files
+  invoiceStatus String? // paid | unpaid | null when not tracked
+  completedAt   DateTime
+
+  notionPageId String? @unique
+
+  @@index([clientId])
 }
 
 // Freeform labels ops assigns to clients — "Podcast", "Personal brand",

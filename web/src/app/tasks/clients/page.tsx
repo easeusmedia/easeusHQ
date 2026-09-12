@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
+import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { ClientsSyncButton } from "./ClientsSyncButton";
 import { ClientsBoard } from "./ClientsBoard";
 import type { ClientCardData } from "./ClientCard";
@@ -19,8 +20,10 @@ export default async function ClientsPage() {
   const clients = await prisma.client.findMany({
     include: {
       tags: true,
-      projects: { include: { _count: { select: { tasks: true } } } },
-      _count: { select: { invoices: true } },
+      // counting only live tasks — a card claiming "12 active tasks" when
+      // they were all delivered months ago is worse than no number
+      projects: { include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } } },
+      _count: { select: { workItems: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -29,12 +32,11 @@ export default async function ClientsPage() {
     id: c.id,
     name: c.name,
     status: c.status,
-    niche: c.niche,
     avatarUrl: c.avatarUrl,
     tags: c.tags,
-    projectCount: c.projects.length,
-    taskCount: c.projects.reduce((sum, p) => sum + p._count.tasks, 0),
-    invoiceCount: c._count.invoices,
+    projects: c.projects.map((p) => ({ id: p.id, type: p.type, activeTasks: p._count.tasks })),
+    activeTasks: c.projects.reduce((sum, p) => sum + p._count.tasks, 0),
+    delivered: c._count.workItems,
   }));
 
   return (

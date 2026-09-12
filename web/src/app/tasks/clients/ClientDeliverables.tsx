@@ -109,7 +109,9 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
       </div>
 
       {deliverables.length === 0 && !adding ? (
-        <p className="text-sm text-muted">No deliverables listed yet — this is the contracted scope, e.g. "2 podcast episodes/cycle".</p>
+        <p className="text-sm text-muted">
+          No deliverables listed yet — this is the contracted scope, e.g. &ldquo;2 podcast episodes/cycle&rdquo;.
+        </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
           {deliverables.map((d) =>

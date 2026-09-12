@@ -47,6 +47,10 @@ export const ALL_STATUSES: TaskStatus[] = [
   "delivered_and_uploaded",
 ];
 
+// everything that hasn't shipped yet — the cutoff every live board uses, so
+// "active tasks" means the same number wherever it's shown
+export const ACTIVE_STATUSES: TaskStatus[] = ALL_STATUSES.filter((s) => s !== "delivered_and_uploaded");
+
 export type Role = "admin" | "core" | "employee";
 
 export type Actor = { role: Role; isAssignee: boolean };
