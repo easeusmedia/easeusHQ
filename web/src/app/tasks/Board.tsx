@@ -265,7 +265,7 @@ export function Board({
           tons (borrowed from the tall one). Each column now sizes to its
           own content, and the sentinel spacer below gives a real drop
           target below the last card regardless. */}
-      <div className="flex items-start gap-4 overflow-x-auto pb-2">
+      <div className="flex min-h-[calc(100vh-10rem)] items-start gap-4 overflow-x-auto pb-2">
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (

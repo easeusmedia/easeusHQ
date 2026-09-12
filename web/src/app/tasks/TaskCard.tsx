@@ -34,14 +34,10 @@ export const EXTRA_FIELD: Partial<Record<TaskStatus, { field: "frameioLink" | "d
 // in the workflow — the raw footage while it's being cut, the Frame.io
 // thread while it's under review, the final export once it's ready to hand
 // off — showing all of them at once regardless of stage was just noise
-export const STATUS_LINK: Partial<Record<TaskStatus, { field: "rawLink" | "frameioLink" | "driveLink"; label: string }>> = {
-  queued: { field: "rawLink", label: "Raw" },
-  editing: { field: "rawLink", label: "Raw" },
-  sent_for_approval: { field: "frameioLink", label: "Frame.io" },
-  revision_requested: { field: "frameioLink", label: "Frame.io" },
-  final_export_ready: { field: "driveLink", label: "Drive" },
-  delivered_and_uploaded: { field: "driveLink", label: "Drive" },
-};
+export const STATUS_LINK = Object.fromEntries(Object.entries(STAGE).map(([k, v]) => [k, v.link])) as Record<
+  TaskStatus,
+  { field: "rawLink" | "frameioLink" | "driveLink"; label: string }
+>;
 
 // Shifted to IST (UTC+5:30, fixed — India has no DST) with fixed-offset math
 // rather than Intl/toLocaleString, so this stays deterministic regardless of
