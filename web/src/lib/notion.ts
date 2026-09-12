@@ -51,15 +51,17 @@ function todayInIST(): string {
   return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// Scoped to just today's "Editor Queu Date" — this is a testing-only sync
-// button clicked once in a while to check "did today's Notion tasks show
-// up here", not a backfill of the team's whole task history. Notion's own
-// query filter does this server-side, so there's no need to fetch
-// everything and filter client-side.
+// Scoped to "Editor Queu Date" on or before today — this is a testing-only
+// sync button, not a backfill of the team's whole task history, but it
+// still needs to catch anything still active from an earlier day (e.g. a
+// task queued two days ago that's now sitting in "Sent for Client
+// Approval"), not just rows dated exactly today. Notion's own query filter
+// does this server-side, so there's no need to fetch everything and filter
+// client-side. Future-dated rows (not queued yet) are still excluded.
 export async function fetchTaskRows(): Promise<NotionRow[]> {
   const rows: NotionRow[] = [];
   let cursor: string | undefined;
-  const filter = { property: "Editor Queu Date", date: { equals: todayInIST() } };
+  const filter = { property: "Editor Queu Date", date: { on_or_before: todayInIST() } };
   do {
     const body = await notionFetch(`/databases/${TASK_DATABASE_ID}/query`, {
       method: "POST",
