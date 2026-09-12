@@ -163,32 +163,21 @@ export function Board({
     return 0;
   }
 
-  // The default drag image is a full-size copy of the card, which at ~260px
-  // wide covers the column you're aiming at. A small labelled chip is easier
-  // to place — and is what makes the drop target visible underneath it.
-  function setSmallDragImage(e: React.DragEvent<HTMLDivElement>, title: string) {
-    const chip = document.createElement("div");
-    chip.textContent = title;
-    chip.style.cssText =
-      "position:fixed;top:-1000px;left:-1000px;max-width:220px;overflow:hidden;text-overflow:ellipsis;" +
-      "white-space:nowrap;padding:6px 12px;border-radius:8px;font:500 12px/1.2 system-ui,sans-serif;" +
-      "background:#1c2025;color:#e8eaed;border:1px solid #363c45;box-shadow:0 6px 20px rgba(0,0,0,.45)";
-    document.body.appendChild(chip);
-    e.dataTransfer.setDragImage(chip, 12, 16);
-    // the browser snapshots it synchronously, so it can go straight back out
-    setTimeout(() => chip.remove(), 0);
-  }
-
-  // Columns can sit off-screen once the board is wider than the window, and
-  // HTML5 drag doesn't scroll a container on its own — without this you
-  // simply can't drag a card to a stage you can't already see.
+  // HTML5 drag doesn't scroll a container on its own, and the board is its
+  // own scroll container in both directions. Without this you can't drag to
+  // a stage that's off to the side, and — the one that actually bites —
+  // you can't drag the last card of a long column anywhere above the fold,
+  // because the board won't follow you up.
   function autoScroll(e: React.DragEvent<HTMLDivElement>) {
     const el = scrollRef.current;
     if (!el) return;
-    const { left, right } = el.getBoundingClientRect();
-    const edge = 90;
-    if (e.clientX < left + edge) el.scrollLeft -= 18;
-    else if (e.clientX > right - edge) el.scrollLeft += 18;
+    const { left, right, top, bottom } = el.getBoundingClientRect();
+    const edge = 100;
+    const step = 20;
+    if (e.clientX < left + edge) el.scrollLeft -= step;
+    else if (e.clientX > right - edge) el.scrollLeft += step;
+    if (e.clientY < top + edge) el.scrollTop -= step;
+    else if (e.clientY > bottom - edge) el.scrollTop += step;
   }
 
   // one drop handler per column, attached to the whole card-list container
@@ -332,10 +321,7 @@ export function Board({
                     key={task.id}
                     data-task-id={task.id}
                     draggable
-                    onDragStart={(e) => {
-                      setDraggingId(task.id);
-                      setSmallDragImage(e, task.title);
-                    }}
+                    onDragStart={() => setDraggingId(task.id)}
                     // safety net: if the drop lands somewhere that never
                     // calls handleColumnDrop (dropped outside any dropzone,
                     // drag cancelled with Escape, dropped on the browser
@@ -358,7 +344,7 @@ export function Board({
                 {/* guaranteed droppable cushion below the last card — not
                     just leftover flex space, which shrinks to nothing once
                     this column has enough cards of its own */}
-                <div className="h-16 shrink-0" />
+                <div className="h-24 shrink-0" />
               </div>
             </section>
           );
