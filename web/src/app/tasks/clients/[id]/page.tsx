@@ -81,33 +81,40 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     activeTasks: p._count.tasks,
   }));
 
-  return (
-    <div className="mx-auto max-w-6xl">
-      <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-        <ArrowLeft size={14} /> Clients
-      </Link>
+  // everything reads in a centred column except the task board, which gets
+  // the whole width (see ClientTabs' `bleed`)
+  const column = "mx-auto w-full max-w-6xl";
 
-      <div className="mb-8 flex items-center gap-4">
-        <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
-            <StatusDropdown clientId={client.id} status={client.status} size="md" />
+  return (
+    <div>
+      <div className={column}>
+        <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+          <ArrowLeft size={14} /> Clients
+        </Link>
+
+        <div className="mb-8 flex items-center gap-4">
+          <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+              <StatusDropdown clientId={client.id} status={client.status} size="md" />
+            </div>
+            <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
           </div>
-          <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
+        </div>
+
+        <div className="mb-10">
+          <ClientStats
+            activeTasks={tasks.length}
+            inProgress={live.length}
+            completed={completed.length}
+            unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
+          />
         </div>
       </div>
 
-      <div className="mb-10">
-        <ClientStats
-          activeTasks={tasks.length}
-          inProgress={live.length}
-          completed={completed.length}
-          unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
-        />
-      </div>
-
       <ClientTabs
+        width={column}
         tabs={[
           {
             key: "overview",
@@ -147,6 +154,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             key: "tasks",
             label: "Task board",
             count: tasks.length,
+            bleed: true,
             content: (
               <Board
                 tasks={tasks}

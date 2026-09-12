@@ -203,7 +203,7 @@ export function Board({
   const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
@@ -265,7 +265,7 @@ export function Board({
           tons (borrowed from the tall one). Each column now sizes to its
           own content, and the sentinel spacer below gives a real drop
           target below the last card regardless. */}
-      <div className="flex min-h-[calc(100vh-10rem)] items-start gap-4 overflow-x-auto pb-2">
+      <div className="flex min-h-0 flex-1 items-start gap-4 overflow-auto">
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (

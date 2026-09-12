@@ -57,8 +57,12 @@ export default async function TasksPage({
   const realUser = users.find((u) => u.id === sessionUserId);
   const canSyncNotion = !!realUser && isAbhishekOrAdmin(realUser);
 
+  // The wrapper grows past the layout's bottom padding — a negative margin
+  // alone wouldn't, since that moves what follows rather than this element's
+  // own edge — so the board's horizontal scrollbar lands on the real bottom
+  // of the window instead of floating above it.
   return (
-    <>
+    <div className="-mb-6 flex h-[calc(100%+1.5rem)] flex-col sm:-mb-8 sm:h-[calc(100%+2rem)]">
       {isEditor ? (
         <EditorViewToggle
           tasks={visibleTasks}
@@ -79,6 +83,6 @@ export default async function TasksPage({
       )}
 
       {canSyncNotion && <NotionSyncButton />}
-    </>
+    </div>
   );
 }

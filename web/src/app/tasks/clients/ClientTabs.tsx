@@ -2,18 +2,26 @@
 
 import { useState, type ReactNode } from "react";
 
-export type Tab = { key: string; label: string; count?: number; content: ReactNode };
+export type Tab = {
+  key: string;
+  label: string;
+  count?: number;
+  content: ReactNode;
+  // the task board needs the full page width — capping it to the reading
+  // column left the first and last columns sliced in half
+  bleed?: boolean;
+};
 
 // Local state, not a URL param — this page doesn't need to be deep-linkable
 // per tab. All panes stay mounted and are only hidden, because the Board
 // underneath has client-side state (drag, dialogs) that shouldn't reset
 // every time you switch tabs.
-export function ClientTabs({ tabs }: { tabs: Tab[] }) {
+export function ClientTabs({ tabs, width }: { tabs: Tab[]; width: string }) {
   const [active, setActive] = useState(tabs[0].key);
 
   return (
     <div>
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
+      <div className={`mb-6 flex gap-1 overflow-x-auto border-b border-border ${width}`}>
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -30,7 +38,7 @@ export function ClientTabs({ tabs }: { tabs: Tab[] }) {
         ))}
       </div>
       {tabs.map((t) => (
-        <div key={t.key} hidden={active !== t.key}>
+        <div key={t.key} hidden={active !== t.key} className={t.bleed ? undefined : width}>
           {t.content}
         </div>
       ))}
