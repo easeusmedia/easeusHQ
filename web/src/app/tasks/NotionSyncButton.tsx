@@ -41,13 +41,6 @@ export function NotionSyncButton() {
             : `${result.created} new, ${result.updated} updated${result.skipped ? `, ${result.skipped} skipped` : ""}.`}
         </p>
       )}
-      {result && result.skippedReasons.length > 0 && (
-        <ul className="max-w-md text-center text-[11px] text-muted">
-          {result.skippedReasons.map((r, i) => (
-            <li key={i}>{r}</li>
-          ))}
-        </ul>
-      )}
       <button
         type="button"
         onClick={sync}
