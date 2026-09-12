@@ -92,8 +92,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const column = "mx-auto w-full max-w-6xl";
 
   return (
-    <div>
-      <div className={column}>
+    <div className="flex h-full flex-col">
+      <div className={`${column} shrink-0`}>
         <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
           <ArrowLeft size={14} /> Clients
         </Link>
@@ -169,7 +169,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               // can't happen inside a box that just grows with its content.
               // The negative margin cancels the page padding so it runs edge
               // to edge here too, instead of being cropped on both sides.
-              <div className="-mx-6 h-[calc(100vh-17rem)] min-h-[26rem] sm:-mx-8">
+              <div className="-mx-6 min-h-0 flex-1 sm:-mx-8">
                 <Board
                   tasks={tasks}
                   projects={boardProjects}

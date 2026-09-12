@@ -8,7 +8,8 @@ export type Tab = {
   count?: number;
   content: ReactNode;
   // the task board needs the full page width — capping it to the reading
-  // column left the first and last columns sliced in half
+  // column left the first and last columns sliced in half — and it manages
+  // its own scrolling rather than growing the page
   bleed?: boolean;
 };
 
@@ -19,9 +20,13 @@ export type Tab = {
 export function ClientTabs({ tabs, width }: { tabs: Tab[]; width: string }) {
   const [active, setActive] = useState(tabs[0].key);
 
+  // The page itself doesn't scroll: this fills whatever height is left and
+  // each pane scrolls inside it. That's what keeps the board's stage
+  // headers pinned — they sit above the part that actually scrolls, so
+  // tasks move past them instead of carrying them off the top of the page.
   return (
-    <div>
-      <div className={`mb-6 flex gap-1 overflow-x-auto border-b border-border ${width}`}>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className={`mb-6 flex shrink-0 gap-1 overflow-x-auto border-b border-border ${width}`}>
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -38,7 +43,11 @@ export function ClientTabs({ tabs, width }: { tabs: Tab[]; width: string }) {
         ))}
       </div>
       {tabs.map((t) => (
-        <div key={t.key} hidden={active !== t.key} className={t.bleed ? undefined : width}>
+        <div
+          key={t.key}
+          hidden={active !== t.key}
+          className={t.bleed ? "flex min-h-0 flex-1 flex-col" : `min-h-0 flex-1 overflow-y-auto pb-2 ${width}`}
+        >
           {t.content}
         </div>
       ))}
