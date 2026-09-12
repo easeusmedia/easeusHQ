@@ -69,19 +69,28 @@ model Client {
   contact   String?
   createdAt DateTime @default(now())
 
+  // a small square image, stored as a data: URI directly in the row
+  // (downscaled client-side before upload) — no object storage wired up
+  // for this yet, and a client roster is small enough that this is fine.
+  // Null falls back to the colored-initial avatar every other person/
+  // client in this app already gets.
+  avatarUrl String? @db.Text
+
   // The one template every client gets, regardless of how organically
   // their actual Notion page grew — verified directly against several
   // real client pages (Courageous Leaders, Dr Tego, Robyn): a set of
   // contracted deliverables (Deliverable[], below), and a small set of
-  // resource links (brand guidelines, an SOP, a shared drive/resources
-  // folder). Tasks/projects are native models below, not links, since
-  // this app already owns that data live.
-  brandGuidelinesUrl String?
-  sopUrl             String?
-  resourcesUrl       String?
+  // reference docs (brand guidelines, an SOP, shared resources). These
+  // live natively in this app now, not as links out to Notion — Notion
+  // is being retired once this system fully replaces it.
+  brandGuidelines String? @db.Text
+  sop             String? @db.Text
+  resources       String? @db.Text
   // free-form relationship/context notes — how the account is going,
   // anything ops needs to remember about working with this client
-  notes              String? @db.Text
+  notes           String? @db.Text
+
+  tags Tag[]
 
   // set only for clients pulled in by the Notion clients sync — same
   // idempotency trick as Task.notionPageId
@@ -100,6 +109,20 @@ model Client {
   projects     Project[]
   invoices     Invoice[]
   deliverables Deliverable[]
+}
+
+// Freeform labels ops assigns to clients — "Podcast", "Personal brand",
+// "Leadership", and also the two the team always uses to describe how a
+// client is engaged: "Subscription" and "Project" (seeded once, fixed
+// colors, so that specific distinction can't drift into two different
+// spellings of the same tag). Anyone on ops can create a new one from the
+// client page; the pool is shared across every client, not per-client.
+model Tag {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  // a hex color, picked from a small fixed palette at creation time
+  color   String
+  clients Client[]
 }
 
 // The contracted scope, one line per deliverable — e.g. "Podcast episodes"

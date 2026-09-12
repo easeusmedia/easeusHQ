@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
+import { TAG_PALETTE } from "./tagPalette";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 
 // The two On Hold clients ops is still actively tracking, chosen
@@ -145,15 +146,14 @@ export type ClientInfoInput = {
   name: string;
   niche: string;
   contact: string;
-  brandGuidelinesUrl: string;
-  sopUrl: string;
-  resourcesUrl: string;
   notes: string;
 };
 
 // One template, one editor — every client gets exactly these fields,
 // regardless of how much (or how little) structure their actual Notion
-// page ever had.
+// page ever had. Brand guidelines / SOP / Resources live on their own
+// dedicated pages now (see updateClientDoc) — they're full documents, not
+// a one-line field that belongs in this form.
 export async function updateClientInfo(clientId: string, input: ClientInfoInput): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can edit client info." };
@@ -166,12 +166,75 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
       name: input.name.trim(),
       niche: empty(input.niche) ? null : input.niche.trim(),
       contact: empty(input.contact) ? null : input.contact.trim(),
-      brandGuidelinesUrl: empty(input.brandGuidelinesUrl) ? null : input.brandGuidelinesUrl.trim(),
-      sopUrl: empty(input.sopUrl) ? null : input.sopUrl.trim(),
-      resourcesUrl: empty(input.resourcesUrl) ? null : input.resourcesUrl.trim(),
       notes: empty(input.notes) ? null : input.notes.trim(),
     },
   });
+  revalidatePath("/tasks/clients");
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+export type ClientDocType = "brandGuidelines" | "sop" | "resources";
+const DOC_LABEL: Record<ClientDocType, string> = {
+  brandGuidelines: "Brand guidelines",
+  sop: "SOP",
+  resources: "Resources",
+};
+
+// Brand guidelines / SOP / Resources — real documents, native to this app,
+// not a link out to Notion. Notion is only the source for as long as the
+// team is transitioning off it.
+export async function updateClientDoc(clientId: string, doc: ClientDocType, content: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: `Only ops team members can edit ${DOC_LABEL[doc]}.` };
+
+  await prisma.client.update({ where: { id: clientId }, data: { [doc]: content.trim() || null } });
+  revalidatePath(`/tasks/clients/${clientId}/docs/${doc}`);
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+// A small, fixed-size image stored directly as a data: URI — see the
+// schema comment on Client.avatarUrl for why there's no object storage
+// here yet. `dataUrl: null` clears it back to the colored-initial avatar.
+export async function updateClientAvatar(clientId: string, dataUrl: string | null): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can change a client's photo." };
+  // 500KB of base64 text is already a very generous cap for a downscaled
+  // square avatar — anything bigger means the client-side resize didn't
+  // run (or was bypassed), not a legitimately large photo
+  if (dataUrl && dataUrl.length > 500_000) return { error: "That image is too large." };
+
+  await prisma.client.update({ where: { id: clientId }, data: { avatarUrl: dataUrl } });
+  revalidatePath("/tasks/clients");
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+export async function listTags() {
+  return prisma.tag.findMany({ orderBy: { name: "asc" } });
+}
+
+export async function createTag(name: string, color: string): Promise<{ error?: string; id?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can create tags." };
+  if (name.trim() === "") return { error: "Name the tag first." };
+  if (!TAG_PALETTE.includes(color)) return { error: "Pick a color from the palette." };
+
+  try {
+    const tag = await prisma.tag.create({ data: { name: name.trim(), color } });
+    revalidatePath("/tasks/clients");
+    return { id: tag.id };
+  } catch {
+    return { error: "A tag with that name already exists." };
+  }
+}
+
+export async function setClientTags(clientId: string, tagIds: string[]): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit tags." };
+
+  await prisma.client.update({ where: { id: clientId }, data: { tags: { set: tagIds.map((id) => ({ id })) } } });
   revalidatePath("/tasks/clients");
   revalidatePath(`/tasks/clients/${clientId}`);
   return {};

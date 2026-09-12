@@ -2,35 +2,31 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Palette, ClipboardList, FolderOpen, Pencil, ExternalLink, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Palette, ClipboardList, FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { updateClientInfo, deleteClient, type ClientInfoInput } from "./actions";
 
-// Every client that has no SOP of their own yet still gets pointed at the
-// team's shared SOP hub in Notion (Editor's SOPs, Quality Check SOP,
-// Client Onboarding SOP, Podcast Episode Editing SOPs) rather than a dead
-// end — verified as the real fallback the team already uses.
-const SHARED_SOP_URL = "https://app.notion.com/p/31fb6a2080448024b010ff68e25e9140";
-
-function ResourceLink({ icon: Icon, label, url, fallback }: { icon: typeof Palette; label: string; url: string | null; fallback?: string }) {
-  const href = url ?? fallback ?? null;
-  if (!href) {
-    return (
-      <span className="flex items-center gap-1.5 rounded-md border border-dashed border-border px-2.5 py-1.5 text-xs text-muted">
-        <Icon size={13} /> {label} not set
-      </span>
-    );
-  }
+function DocButton({
+  icon: Icon,
+  label,
+  href,
+  hasContent,
+}: {
+  icon: typeof Palette;
+  label: string;
+  href: string;
+  hasContent: boolean;
+}) {
   return (
-    <a
+    <Link
       href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs hover:bg-hover"
+      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${
+        hasContent ? "border-border bg-surface-2 hover:bg-hover" : "border-dashed border-border text-muted hover:text-foreground"
+      }`}
     >
       <Icon size={13} /> {label}
-      {!url && <span className="text-muted">(shared)</span>}
-      <ExternalLink size={11} className="text-muted" />
-    </a>
+      {!hasContent && <span>— add</span>}
+    </Link>
   );
 }
 
@@ -40,9 +36,9 @@ export function ClientOverview({
   niche,
   contact,
   notes,
-  brandGuidelinesUrl,
-  sopUrl,
-  resourcesUrl,
+  brandGuidelines,
+  sop,
+  resources,
   projects,
 }: {
   clientId: string;
@@ -50,10 +46,10 @@ export function ClientOverview({
   niche: string | null;
   contact: string | null;
   notes: string | null;
-  brandGuidelinesUrl: string | null;
-  sopUrl: string | null;
+  brandGuidelines: string | null;
+  sop: string | null;
+  resources: string | null;
   projects: { id: string; type: string; engagement: string }[];
-  resourcesUrl: string | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -65,9 +61,6 @@ export function ClientOverview({
     name,
     niche: niche ?? "",
     contact: contact ?? "",
-    brandGuidelinesUrl: brandGuidelinesUrl ?? "",
-    sopUrl: sopUrl ?? "",
-    resourcesUrl: resourcesUrl ?? "",
     notes: notes ?? "",
   });
 
@@ -122,35 +115,6 @@ export function ClientOverview({
             className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
           />
         </label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Brand guidelines link
-            <input
-              value={form.brandGuidelinesUrl}
-              onChange={(e) => field("brandGuidelinesUrl", e.target.value)}
-              placeholder="https://…"
-              className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            SOP link
-            <input
-              value={form.sopUrl}
-              onChange={(e) => field("sopUrl", e.target.value)}
-              placeholder="https://… (blank = shared SOPs)"
-              className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Resources / Drive link
-            <input
-              value={form.resourcesUrl}
-              onChange={(e) => field("resourcesUrl", e.target.value)}
-              placeholder="https://…"
-              className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
-            />
-          </label>
-        </div>
         <label className="flex flex-col gap-1 text-xs text-muted">
           Relationship notes
           <textarea
@@ -228,10 +192,11 @@ export function ClientOverview({
         <dd>{projects.length > 0 ? projects.map((p) => p.type).join(", ") : "—"}</dd>
       </dl>
 
+      {/* real documents living in this app now, not links out to Notion */}
       <div className="flex flex-wrap gap-2">
-        <ResourceLink icon={Palette} label="Brand guidelines" url={brandGuidelinesUrl} />
-        <ResourceLink icon={ClipboardList} label="SOP" url={sopUrl} fallback={SHARED_SOP_URL} />
-        <ResourceLink icon={FolderOpen} label="Resources" url={resourcesUrl} />
+        <DocButton icon={Palette} label="Brand guidelines" href={`/tasks/clients/${clientId}/docs/brandGuidelines`} hasContent={!!brandGuidelines} />
+        <DocButton icon={ClipboardList} label="SOP" href={`/tasks/clients/${clientId}/docs/sop`} hasContent={!!sop} />
+        <DocButton icon={FolderOpen} label="Resources" href={`/tasks/clients/${clientId}/docs/resources`} hasContent={!!resources} />
       </div>
 
       {notes && (

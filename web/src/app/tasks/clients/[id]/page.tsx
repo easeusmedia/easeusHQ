@@ -12,6 +12,9 @@ import { ClientDeliverables } from "../ClientDeliverables";
 import { ClientTaskSummary } from "../ClientTaskSummary";
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
+import { ClientAvatar } from "../ClientAvatar";
+import { ClientTags } from "../ClientTags";
+import { listTags } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +44,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       projects: true,
       invoices: { orderBy: { createdAt: "desc" } },
       deliverables: { orderBy: { sortOrder: "asc" } },
+      tags: true,
     },
   });
   if (!client) notFound();
@@ -48,7 +52,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const projectIds = client.projects.map((p) => p.id);
   const editors = users.filter((u) => u.role === "employee");
 
-  const [tasks, deliveredSinceInvoice] = await Promise.all([
+  const [tasks, deliveredSinceInvoice, allTags] = await Promise.all([
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
       orderBy: { createdAt: "desc" },
@@ -61,6 +65,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         updatedAt: { gt: client.lastInvoicedAt ?? new Date(0) },
       },
     }),
+    listTags(),
   ]);
 
   return (
@@ -69,10 +74,18 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <ArrowLeft size={14} /> Clients
       </Link>
 
-      <div className="mb-6 flex items-center gap-3">
-        <h1 className="text-xl font-semibold">{client.name}</h1>
-        <StatusDropdown clientId={client.id} status={client.status} size="md" />
+      <div className="mb-2 flex items-center gap-3">
+        <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold">{client.name}</h1>
+            <StatusDropdown clientId={client.id} status={client.status} size="md" />
+          </div>
+          <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
+        </div>
       </div>
+
+      <div className="mb-4" />
 
       <ClientTabs
         overview={
@@ -83,9 +96,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               niche={client.niche}
               contact={client.contact}
               notes={client.notes}
-              brandGuidelinesUrl={client.brandGuidelinesUrl}
-              sopUrl={client.sopUrl}
-              resourcesUrl={client.resourcesUrl}
+              brandGuidelines={client.brandGuidelines}
+              sop={client.sop}
+              resources={client.resources}
               projects={client.projects}
             />
             <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />

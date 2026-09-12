@@ -1,4 +1,11 @@
-import { STATUS_LABEL, STATUS_STYLE, Avatar } from "../TaskCard";
+"use client";
+
+// This has to be a client component: TaskCard.tsx (StatusBadge/Avatar
+// live there) is itself "use client", and importing plain data/values
+// from a client module into a server component doesn't work the way
+// importing a component does — StatusBadge's colors came through as
+// undefined every time until this file also crossed the client boundary.
+import { StatusBadge, Avatar } from "../TaskCard";
 import type { TaskStatus } from "@/lib/workflow";
 
 type Task = { id: string; title: string; status: TaskStatus; assignedTo: { name: string } | null };
@@ -19,9 +26,7 @@ export function ClientTaskSummary({ tasks }: { tasks: Task[] }) {
             <li key={t.id} className="flex items-center gap-2.5 rounded-md bg-surface-2 px-3 py-2 text-sm">
               {t.assignedTo ? <Avatar name={t.assignedTo.name} size={20} /> : <span className="h-5 w-5 shrink-0" />}
               <span className="min-w-0 flex-1 truncate">{t.title}</span>
-              <span className={`status-pop shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[t.status]}`}>
-                {STATUS_LABEL[t.status]}
-              </span>
+              <StatusBadge status={t.status} />
             </li>
           ))}
         </ul>
