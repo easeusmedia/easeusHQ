@@ -64,6 +64,7 @@ export function Board({
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
@@ -160,6 +161,34 @@ export function Board({
     if (before) return before.sortOrder - 1;
     if (after) return after.sortOrder + 1;
     return 0;
+  }
+
+  // The default drag image is a full-size copy of the card, which at ~260px
+  // wide covers the column you're aiming at. A small labelled chip is easier
+  // to place — and is what makes the drop target visible underneath it.
+  function setSmallDragImage(e: React.DragEvent<HTMLDivElement>, title: string) {
+    const chip = document.createElement("div");
+    chip.textContent = title;
+    chip.style.cssText =
+      "position:fixed;top:-1000px;left:-1000px;max-width:220px;overflow:hidden;text-overflow:ellipsis;" +
+      "white-space:nowrap;padding:6px 12px;border-radius:8px;font:500 12px/1.2 system-ui,sans-serif;" +
+      "background:#1c2025;color:#e8eaed;border:1px solid #363c45;box-shadow:0 6px 20px rgba(0,0,0,.45)";
+    document.body.appendChild(chip);
+    e.dataTransfer.setDragImage(chip, 12, 16);
+    // the browser snapshots it synchronously, so it can go straight back out
+    setTimeout(() => chip.remove(), 0);
+  }
+
+  // Columns can sit off-screen once the board is wider than the window, and
+  // HTML5 drag doesn't scroll a container on its own — without this you
+  // simply can't drag a card to a stage you can't already see.
+  function autoScroll(e: React.DragEvent<HTMLDivElement>) {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { left, right } = el.getBoundingClientRect();
+    const edge = 90;
+    if (e.clientX < left + edge) el.scrollLeft -= 18;
+    else if (e.clientX > right - edge) el.scrollLeft += 18;
   }
 
   // one drop handler per column, attached to the whole card-list container
@@ -259,21 +288,32 @@ export function Board({
           took away enough width, instead of just letting columns shrink or
           scroll. items-start also stops flex's default row-stretch from
           forcing every column to the height of the tallest one — that was
-          the actual drag-to-bottom bug: a column with several cards was
-          often already the tallest, so it had zero spare space below its
-          own last card for a drop to land in, while a shorter column had
-          tons (borrowed from the tall one). Each column now sizes to its
-          own content, and the sentinel spacer below gives a real drop
-          target below the last card regardless. */}
-      <div className="flex min-h-0 flex-1 items-start gap-4 overflow-auto py-6 pl-6 sm:py-8 sm:pl-8">
+          the drag-to-bottom bug: a column with several cards was often
+          already the tallest, so it had zero spare space below its own last
+          card for a drop to land in. The sentinel spacer at the foot of
+          every column fixes that directly, which is what lets the columns
+          stretch to equal height again — and equal height is what keeps
+          every stage's sticky header on screen, not just the tallest
+          column's. */}
+      <div
+        ref={scrollRef}
+        onDragOver={autoScroll}
+        className="flex min-h-0 flex-1 items-stretch gap-4 overflow-auto pl-6 sm:pl-8"
+      >
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
             <section key={col.status} className="flex min-w-64 flex-1 flex-col gap-3">
-              <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
-                <span className={`h-2 w-2 rounded-full ${col.dot}`} />
-                <span className="whitespace-nowrap">{col.label}</span>
-                <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
+              {/* sticks to the top of the board while its own column scrolls
+                  past, so you can always tell which stage you're looking at.
+                  It carries the page background and the top padding so the
+                  cards scroll cleanly underneath it. */}
+              <div className="sticky top-0 z-10 -mb-3 bg-background pt-6 pb-3 sm:pt-8">
+                <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
+                  <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                  <span className="whitespace-nowrap">{col.label}</span>
+                  <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
+                </div>
               </div>
 
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
@@ -292,7 +332,10 @@ export function Board({
                     key={task.id}
                     data-task-id={task.id}
                     draggable
-                    onDragStart={() => setDraggingId(task.id)}
+                    onDragStart={(e) => {
+                      setDraggingId(task.id);
+                      setSmallDragImage(e, task.title);
+                    }}
                     // safety net: if the drop lands somewhere that never
                     // calls handleColumnDrop (dropped outside any dropzone,
                     // drag cancelled with Escape, dropped on the browser

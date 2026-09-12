@@ -146,24 +146,16 @@ a, button {
   color: var(--foreground);
 }
 
-/* Thin, self-effacing scrollbars. The platform default is a heavy grey
-   slab, and where one sits directly under a row of board columns it reads
-   as a divider rule cutting the page in half rather than as a control. */
+
+/* No visible scrollbars anywhere — scrolling still works with a wheel,
+   trackpad or drag, but the bar itself was reading as a divider rule where
+   it sat under the board's column headers. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--muted) 28%, transparent);
-  border-radius: 999px;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  width: 0;
+  height: 0;
+  display: none;
 }
