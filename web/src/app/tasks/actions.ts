@@ -269,9 +269,7 @@ export async function deleteTaskPermanently(formData: FormData) {
 
 // Their Notion "Status" options, verified directly against the database
 // schema — nearly identical to our own TaskStatus, just Notion's own
-// display casing/spacing. "Sent for Client Approval" is a second, separate
-// option alongside "Sent for approval" in their schema (looks like a
-// leftover from a rename) — mapped to the same status here.
+// display casing/spacing.
 const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
   queued: "queued",
   editing: "editing",
@@ -285,6 +283,16 @@ const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
   "final export ready": "final_export_ready",
   "delivered and uploaded": "delivered_and_uploaded",
 };
+
+// Same duplicated-on-purpose IST-offset approach as notion.ts's own
+// todayInIST() — this file doesn't otherwise need to know about Notion's
+// date handling, so it isn't worth importing/exporting just for this.
+function isToday(d: Date | null): boolean {
+  if (!d) return false;
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const toISTDateString = (x: Date) => new Date(x.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+  return toISTDateString(d) === toISTDateString(new Date());
+}
 
 // Client isn't its own property — it's the prefix before " - " in the
 // title ("CL - Energy - Katie." -> "CL", "Tego - Skin Business" -> "Tego").
@@ -401,10 +409,13 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         frameioLink: getUrl(row.properties, "Exported Link"),
       };
 
-      // already imported once today — Notion is the source of truth during
-      // this testing phase, so keep the status (and links) in sync with
+      // already tracked — Notion is the source of truth during this
+      // testing phase, so keep the status (and links) in sync with
       // whatever it currently shows there, rather than only ever creating
-      // once and then ignoring later changes made in Notion
+      // once and then ignoring later changes made in Notion. This is the
+      // one thing allowed to reach back past today: an already-tracked
+      // task that's fallen behind (still shows an old status here) should
+      // still catch up regardless of which day it was originally queued.
       const existingId = existingByNotionId.get(row.id);
       if (existingId) {
         await prisma.task.update({ where: { id: existingId }, data: sharedData });
@@ -412,11 +423,25 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         continue;
       }
 
+      // not already tracked — only create it if it's actually dated today.
+      // The date filter above reaches back further than today (on_or_before)
+      // so the update path can catch up on stale-but-tracked tasks, but that
+      // meant a still-untracked older row (e.g. one already sitting at
+      // "Delivered and uploaded" from days ago) got freshly created and
+      // dropped straight into History without ever having been on the
+      // board — exactly the backfill this button was built to avoid.
+      const dueDate = getDate(row.properties, "Editor Queu Date");
+      if (!isToday(dueDate)) {
+        skipped++;
+        skippedReasons.push(`"${title}": not dated today, skipping (only today's new tasks get created)`);
+        continue;
+      }
+
       await prisma.task.create({
         data: {
           ...sharedData,
           projectId: project.id,
-          dueDate: getDate(row.properties, "Editor Queu Date") ?? new Date(),
+          dueDate: dueDate ?? new Date(),
           sortOrder: Date.now(),
           notionPageId: row.id,
         },

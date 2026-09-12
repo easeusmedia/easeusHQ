@@ -114,27 +114,36 @@ export function Sidebar({
             e.stopPropagation(); // the rail itself also opens on click — don't double-toggle
             toggle();
           }}
-          title={open ? "Close sidebar" : "Open sidebar"}
-          className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-surface-2"
+          // hover-crossfade only matters (and only shows a tooltip) while
+          // collapsed — that's the ONLY control at 64px. Once the dedicated
+          // button to the right exists, the logo goes back to being a
+          // plain, non-interactive-looking logo — two things swapping to
+          // the same "close sidebar" icon on hover was the actual complaint
+          title={open ? undefined : "Open sidebar"}
+          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${open ? "" : "group hover:bg-surface-2"}`}
         >
           <Image
             src="/logo.png"
             alt="Easeus"
             width={21}
             height={21}
-            className="h-[21px] w-[21px] object-contain transition-opacity duration-150 group-hover:opacity-0"
+            className={`h-[21px] w-[21px] object-contain transition-opacity duration-150 ${open ? "" : "group-hover:opacity-0"}`}
             priority
           />
-          <PanelLeft size={18} className="absolute text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
+          {!open && (
+            <PanelLeft size={18} className="absolute text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
+          )}
         </button>
         <FadeLabel open={open}>
           <span className="text-sm font-semibold">Easeus HQ</span>
         </FadeLabel>
         {/* dedicated close button, adjacent to the logo — fades away (not
-            unmounts) once collapsed, same as a nav label does */}
+            unmounts) once collapsed, same as a nav label does. Same h-9/18
+            sizing as every other icon on the rail — this was rendering
+            visibly smaller (h-8, size 16) before. */}
         <span
           className={`ml-auto overflow-hidden transition-[max-width,opacity] duration-200 ease-in-out ${
-            open ? "max-w-[32px] opacity-100" : "max-w-0 opacity-0"
+            open ? "max-w-9 opacity-100" : "max-w-0 opacity-0"
           }`}
         >
           <button
@@ -143,9 +152,9 @@ export function Sidebar({
               toggle();
             }}
             title="Close sidebar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-2"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-2"
           >
-            <PanelLeft size={16} />
+            <PanelLeft size={18} />
           </button>
         </span>
       </div>
