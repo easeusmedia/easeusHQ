@@ -7,6 +7,9 @@ import { getAllUsers } from "@/lib/users";
 import type { Role, TaskStatus } from "@/lib/workflow";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
+import { ClientOverview } from "../ClientOverview";
+import { StatusDropdown } from "../StatusDropdown";
+import { ClientTabs } from "../ClientTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -62,42 +65,43 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
       <div className="mb-6 flex items-center gap-3">
         <h1 className="text-xl font-semibold">{client.name}</h1>
-        {client.status === "on_hold" && (
-          <span className="rounded-full bg-orange-400/15 px-2 py-0.5 text-[11px] text-orange-300">On hold</span>
-        )}
+        <StatusDropdown clientId={client.id} status={client.status} size="md" />
       </div>
 
-      <div className="mb-6 grid gap-4" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(260px, 1fr)" }}>
-        <section className="card-surface flex flex-col gap-2 rounded-xl p-4 shadow-sm">
-          <h2 className="font-medium">Client info</h2>
-          <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
-            <dt className="text-muted">Niche</dt>
-            <dd>{client.niche ?? "—"}</dd>
-            <dt className="text-muted">Contact</dt>
-            <dd>{client.contact ?? "—"}</dd>
-            <dt className="text-muted">Projects</dt>
-            <dd>{client.projects.map((p) => p.type).join(", ") || "—"}</dd>
-          </dl>
-        </section>
-
-        <BillingPanel
-          clientId={client.id}
-          cadence={client.billingCadence}
-          dayOfMonth={client.billingDayOfMonth}
-          milestoneCount={client.billingMilestoneCount}
-          deliveredSinceInvoice={deliveredSinceInvoice}
-          invoices={client.invoices.map((inv) => ({ ...inv, amount: inv.amount.toString() }))}
-        />
-      </div>
-
-      <h2 className="mb-3 font-medium">Deliverables</h2>
-      <Board
-        tasks={tasks}
-        projects={client.projects.map((p) => ({ id: p.id, client: { name: client.name } }))}
-        editors={editors}
-        actingUserId={me.id}
-        actingRole={me.role as Role}
-        canCreate
+      <ClientTabs
+        overview={
+          <ClientOverview
+            clientId={client.id}
+            niche={client.niche}
+            contact={client.contact}
+            scopeOfWork={client.scopeOfWork}
+            notes={client.notes}
+            brandGuidelinesUrl={client.brandGuidelinesUrl}
+            sopUrl={client.sopUrl}
+            resourcesUrl={client.resourcesUrl}
+            projects={client.projects}
+          />
+        }
+        deliverables={
+          <Board
+            tasks={tasks}
+            projects={client.projects.map((p) => ({ id: p.id, client: { name: client.name } }))}
+            editors={editors}
+            actingUserId={me.id}
+            actingRole={me.role as Role}
+            canCreate
+          />
+        }
+        billing={
+          <BillingPanel
+            clientId={client.id}
+            cadence={client.billingCadence}
+            dayOfMonth={client.billingDayOfMonth}
+            milestoneCount={client.billingMilestoneCount}
+            deliveredSinceInvoice={deliveredSinceInvoice}
+            invoices={client.invoices.map((inv) => ({ ...inv, amount: inv.amount.toString() }))}
+          />
+        }
       />
     </>
   );

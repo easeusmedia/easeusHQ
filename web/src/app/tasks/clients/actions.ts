@@ -126,3 +126,51 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
   revalidatePath(`/tasks/clients/${invoice.clientId}`);
   return {};
 }
+
+// "current" | "on_hold" | "previous" — the same three Notion uses. Changing
+// it here doesn't touch Notion; it's a local override for a client that's
+// already been synced in (e.g. pausing one, or marking one wrapped up
+// without waiting for someone to update the Notion dashboard first).
+export async function updateClientStatus(clientId: string, status: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can change client status." };
+
+  await prisma.client.update({ where: { id: clientId }, data: { status } });
+  revalidatePath("/tasks/clients");
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}
+
+export type ClientInfoInput = {
+  niche: string;
+  contact: string;
+  scopeOfWork: string;
+  brandGuidelinesUrl: string;
+  sopUrl: string;
+  resourcesUrl: string;
+  notes: string;
+};
+
+// One template, one editor — every client gets exactly these fields,
+// regardless of how much (or how little) structure their actual Notion
+// page ever had.
+export async function updateClientInfo(clientId: string, input: ClientInfoInput): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit client info." };
+
+  const empty = (s: string) => s.trim() === "";
+  await prisma.client.update({
+    where: { id: clientId },
+    data: {
+      niche: empty(input.niche) ? null : input.niche.trim(),
+      contact: empty(input.contact) ? null : input.contact.trim(),
+      scopeOfWork: empty(input.scopeOfWork) ? null : input.scopeOfWork.trim(),
+      brandGuidelinesUrl: empty(input.brandGuidelinesUrl) ? null : input.brandGuidelinesUrl.trim(),
+      sopUrl: empty(input.sopUrl) ? null : input.sopUrl.trim(),
+      resourcesUrl: empty(input.resourcesUrl) ? null : input.resourcesUrl.trim(),
+      notes: empty(input.notes) ? null : input.notes.trim(),
+    },
+  });
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return {};
+}

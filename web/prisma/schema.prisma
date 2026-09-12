@@ -69,6 +69,21 @@ model Client {
   contact   String?
   createdAt DateTime @default(now())
 
+  // The one template every client gets, regardless of how organically
+  // their actual Notion page grew — verified directly against several
+  // real client pages (Courageous Leaders, Dr Tego, Robyn): a scope-of-
+  // work description, and a small set of resource links (brand
+  // guidelines, an SOP, a shared drive/resources folder). Tasks/projects
+  // are native models below, not links, since this app already owns that
+  // data live.
+  scopeOfWork        String? @db.Text
+  brandGuidelinesUrl String?
+  sopUrl             String?
+  resourcesUrl       String?
+  // free-form relationship/context notes — how the account is going,
+  // anything ops needs to remember about working with this client
+  notes              String? @db.Text
+
   // set only for clients pulled in by the Notion clients sync — same
   // idempotency trick as Task.notionPageId
   notionPageId String? @unique

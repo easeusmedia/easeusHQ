@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
+import { Avatar } from "../TaskCard";
 import { ClientsSyncButton } from "./ClientsSyncButton";
+import { StatusDropdown } from "./StatusDropdown";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +24,11 @@ export default async function ClientsPage() {
       projects: { include: { _count: { select: { tasks: true } } } },
       _count: { select: { invoices: true } },
     },
-    orderBy: [{ status: "asc" }, { name: "asc" }], // current before on_hold, alphabetical within each
+    orderBy: { name: "asc" },
   });
+
+  const current = clients.filter((c) => c.status === "current");
+  const onHold = clients.filter((c) => c.status === "on_hold");
 
   return (
     <>
@@ -36,34 +42,55 @@ export default async function ClientsPage() {
           No clients yet — click &quot;Sync clients&quot; to pull the current roster in from Notion.
         </p>
       ) : (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-          {clients.map((client) => {
-            const taskCount = client.projects.reduce((sum, p) => sum + p._count.tasks, 0);
-            return (
-              <Link
-                key={client.id}
-                href={`/tasks/clients/${client.id}`}
-                className="card-surface flex flex-col gap-2 rounded-xl p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="font-medium">{client.name}</h2>
-                  {client.status === "on_hold" && (
-                    <span className="shrink-0 rounded-full bg-orange-400/15 px-2 py-0.5 text-[11px] text-orange-300">
-                      On hold
-                    </span>
-                  )}
-                </div>
-                {client.niche && <p className="text-xs text-muted">{client.niche}</p>}
-                <p className="mt-auto text-xs text-muted">
-                  {client.projects.length} project{client.projects.length === 1 ? "" : "s"} · {taskCount} task
-                  {taskCount === 1 ? "" : "s"} · {client._count.invoices} invoice
-                  {client._count.invoices === 1 ? "" : "s"}
-                </p>
-              </Link>
-            );
-          })}
+        <div className="flex flex-col gap-6">
+          <ClientGroup label="Current" clients={current} />
+          <ClientGroup label="On hold" clients={onHold} />
         </div>
       )}
     </>
+  );
+}
+
+type ClientRow = {
+  id: string;
+  name: string;
+  status: string;
+  niche: string | null;
+  projects: { _count: { tasks: number } }[];
+  _count: { invoices: number };
+};
+
+function ClientGroup({ label, clients }: { label: string; clients: ClientRow[] }) {
+  if (clients.length === 0) return null;
+  return (
+    <section>
+      <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+        {label} <span className="text-muted/70">({clients.length})</span>
+      </h2>
+      <div className="card-surface flex flex-col divide-y divide-border overflow-hidden rounded-xl shadow-sm">
+        {clients.map((client) => {
+          const taskCount = client.projects.reduce((sum, p) => sum + p._count.tasks, 0);
+          return (
+            <Link
+              key={client.id}
+              href={`/tasks/clients/${client.id}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-hover"
+            >
+              <Avatar name={client.name} size={30} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{client.name}</p>
+                {client.niche && <p className="truncate text-xs text-muted">{client.niche}</p>}
+              </div>
+              <p className="hidden shrink-0 text-xs text-muted sm:block">
+                {client.projects.length} project{client.projects.length === 1 ? "" : "s"} · {taskCount} task
+                {taskCount === 1 ? "" : "s"} · {client._count.invoices} invoice{client._count.invoices === 1 ? "" : "s"}
+              </p>
+              <StatusDropdown clientId={client.id} status={client.status} />
+              <ChevronRight size={16} className="shrink-0 text-muted" />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
