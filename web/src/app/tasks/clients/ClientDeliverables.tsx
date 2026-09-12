@@ -5,23 +5,28 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, X } from "lucide-react";
 import { addDeliverable, updateDeliverable, deleteDeliverable } from "./actions";
 
-export type Deliverable = { id: string; name: string; detail: string | null };
+export type Deliverable = { id: string; name: string; detail: string | null; deliveredCount: number };
 
 // The contracted scope — "2 podcast episodes/cycle", "custom thumbnails" —
 // distinct from the day-to-day Tasks tab. One deliverable can (eventually)
 // cover many individual tasks; this is the retainer-level summary, the
 // thing ops actually sold the client, not the daily work queue.
+// deliveredCount is the running total to date (e.g. "14 delivered") — a
+// plain number ops keeps current, not something auto-computed, since the
+// real historical volume lives in Notion's task history.
 export function ClientDeliverables({ clientId, deliverables }: { clientId: string; deliverables: Deliverable[] }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [detail, setDetail] = useState("");
+  const [deliveredCount, setDeliveredCount] = useState(0);
   const [saving, setSaving] = useState(false);
 
   function startAdd() {
     setName("");
     setDetail("");
+    setDeliveredCount(0);
     setEditingId(null);
     setAdding(true);
   }
@@ -29,6 +34,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
   function startEdit(d: Deliverable) {
     setName(d.name);
     setDetail(d.detail ?? "");
+    setDeliveredCount(d.deliveredCount);
     setAdding(false);
     setEditingId(d.id);
   }
@@ -40,7 +46,9 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
 
   async function save() {
     setSaving(true);
-    const res = editingId ? await updateDeliverable(editingId, name, detail) : await addDeliverable(clientId, name, detail);
+    const res = editingId
+      ? await updateDeliverable(editingId, name, detail, deliveredCount)
+      : await addDeliverable(clientId, name, detail, deliveredCount);
     setSaving(false);
     if (!res.error) {
       cancel();
@@ -68,6 +76,16 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
         onChange={(e) => setDetail(e.target.value)}
         className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
       />
+      <label className="flex items-center gap-2 text-xs text-muted">
+        Delivered so far
+        <input
+          type="number"
+          min={0}
+          value={deliveredCount}
+          onChange={(e) => setDeliveredCount(Number(e.target.value))}
+          className="w-20 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+        />
+      </label>
       <div className="flex justify-end gap-2">
         <button onClick={cancel} className="btn-ghost rounded-md px-3 py-1 text-xs">
           Cancel
@@ -103,13 +121,18 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
                   <span className="font-medium">{d.name}</span>
                   {d.detail && <span className="text-muted"> — {d.detail}</span>}
                 </div>
-                <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100">
-                  <button onClick={() => startEdit(d)} className="btn-ghost flex h-6 w-6 items-center justify-center rounded-md">
-                    <Pencil size={12} />
-                  </button>
-                  <button onClick={() => remove(d.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-red-300 hover:bg-red-500/10">
-                    <X size={13} />
-                  </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  {d.deliveredCount > 0 && (
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted">{d.deliveredCount} delivered</span>
+                  )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                    <button onClick={() => startEdit(d)} className="btn-ghost flex h-6 w-6 items-center justify-center rounded-md">
+                      <Pencil size={12} />
+                    </button>
+                    <button onClick={() => remove(d.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-red-300 hover:bg-red-500/10">
+                      <X size={13} />
+                    </button>
+                  </div>
                 </div>
               </li>
             )

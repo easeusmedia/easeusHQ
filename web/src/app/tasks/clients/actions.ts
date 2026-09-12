@@ -260,27 +260,43 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
 }
 
 // Deliverables — the contracted scope, distinct from day-to-day Tasks.
-export async function addDeliverable(clientId: string, name: string, detail: string): Promise<{ error?: string }> {
+export async function addDeliverable(
+  clientId: string,
+  name: string,
+  detail: string,
+  deliveredCount: number
+): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can edit deliverables." };
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
   const last = await prisma.deliverable.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" } });
   await prisma.deliverable.create({
-    data: { clientId, name: name.trim(), detail: detail.trim() || null, sortOrder: (last?.sortOrder ?? 0) + 1 },
+    data: {
+      clientId,
+      name: name.trim(),
+      detail: detail.trim() || null,
+      deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0),
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+    },
   });
   revalidatePath(`/tasks/clients/${clientId}`);
   return {};
 }
 
-export async function updateDeliverable(id: string, name: string, detail: string): Promise<{ error?: string }> {
+export async function updateDeliverable(
+  id: string,
+  name: string,
+  detail: string,
+  deliveredCount: number
+): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can edit deliverables." };
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
   const d = await prisma.deliverable.update({
     where: { id },
-    data: { name: name.trim(), detail: detail.trim() || null },
+    data: { name: name.trim(), detail: detail.trim() || null, deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0) },
   });
   revalidatePath(`/tasks/clients/${d.clientId}`);
   return {};

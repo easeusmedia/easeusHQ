@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Avatar } from "../TaskCard";
+import { TagPill } from "./TagPill";
 
 export type ClientCardData = {
   id: string;
@@ -13,6 +14,10 @@ export type ClientCardData = {
   invoiceCount: number;
 };
 
+// Deliberately minimal — name, tags, and the two numbers that answer
+// "is anything actually happening here right now": active projects,
+// active tasks. Everything else (niche, invoices, billing, deliverable
+// history) lives one click away on the client's own page.
 export function ClientCard({ client }: { client: ClientCardData }) {
   return (
     <Link
@@ -27,29 +32,20 @@ export function ClientCard({ client }: { client: ClientCardData }) {
         ) : (
           <Avatar name={client.name} size={36} />
         )}
-        <div className="min-w-0">
-          <p className="truncate font-medium">{client.name}</p>
-          {client.niche && <p className="truncate text-xs text-muted">{client.niche}</p>}
-        </div>
+        <p className="min-w-0 truncate font-medium">{client.name}</p>
       </div>
 
       {client.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {client.tags.map((t) => (
-            <span
-              key={t.id}
-              className="rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
-              style={{ backgroundColor: `${t.color}26`, borderColor: `${t.color}4d`, color: t.color }}
-            >
-              {t.name}
-            </span>
+            <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
           ))}
         </div>
       )}
 
       <p className="text-xs text-muted">
-        {client.projectCount} project{client.projectCount === 1 ? "" : "s"} · {client.taskCount} task
-        {client.taskCount === 1 ? "" : "s"} · {client.invoiceCount} invoice{client.invoiceCount === 1 ? "" : "s"}
+        {client.projectCount} active project{client.projectCount === 1 ? "" : "s"} · {client.taskCount} active task
+        {client.taskCount === 1 ? "" : "s"}
       </p>
     </Link>
   );

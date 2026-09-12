@@ -3,30 +3,30 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Palette, ClipboardList, FolderOpen, Pencil, Trash2 } from "lucide-react";
+import { Info, User, Folder, ListChecks, Palette, ClipboardList, FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { updateClientInfo, deleteClient, type ClientInfoInput } from "./actions";
 
-function DocButton({
-  icon: Icon,
-  label,
-  href,
-  hasContent,
-}: {
-  icon: typeof Palette;
-  label: string;
-  href: string;
-  hasContent: boolean;
-}) {
+// One row per property, icon + label on the left, value on the right —
+// the same scannable "properties panel" shape as the reference (Status /
+// Due date / Assignee / Tags, one line each) instead of a dense grid.
+function Row({ icon: Icon, label, children }: { icon: typeof Info; label: string; children: React.ReactNode }) {
   return (
-    <Link
-      href={href}
-      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${
-        hasContent ? "border-border bg-surface-2 hover:bg-hover" : "border-dashed border-border text-muted hover:text-foreground"
-      }`}
-    >
-      <Icon size={13} /> {label}
-      {!hasContent && <span>— add</span>}
-    </Link>
+    <div className="flex items-center justify-between gap-3 border-b border-border/50 py-2.5 text-sm last:border-0">
+      <span className="flex shrink-0 items-center gap-2 text-muted">
+        <Icon size={15} /> {label}
+      </span>
+      <span className="min-w-0 truncate text-right">{children}</span>
+    </div>
+  );
+}
+
+function DocRow({ icon, label, href, hasContent }: { icon: typeof Info; label: string; href: string; hasContent: boolean }) {
+  return (
+    <Row icon={icon} label={label}>
+      <Link href={href} className={hasContent ? "text-foreground hover:underline" : "text-muted hover:text-foreground"}>
+        {hasContent ? "View" : "Add"}
+      </Link>
+    </Row>
   );
 }
 
@@ -40,6 +40,7 @@ export function ClientOverview({
   sop,
   resources,
   projects,
+  activeTaskCount,
 }: {
   clientId: string;
   name: string;
@@ -50,6 +51,7 @@ export function ClientOverview({
   sop: string | null;
   resources: string | null;
   projects: { id: string; type: string; engagement: string }[];
+  activeTaskCount: number;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -175,32 +177,32 @@ export function ClientOverview({
   }
 
   return (
-    <section className="card-surface flex flex-col gap-3 rounded-xl p-4 shadow-sm">
-      <div className="flex items-center justify-between">
+    <section className="card-surface flex flex-col rounded-xl px-4 py-1 shadow-sm">
+      <div className="flex items-center justify-between border-b border-border/50 py-2.5">
         <h2 className="font-medium">Overview</h2>
         <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
           <Pencil size={12} /> Edit
         </button>
       </div>
 
-      <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1.5 text-sm">
-        <dt className="text-muted">Niche</dt>
-        <dd>{niche ?? "—"}</dd>
-        <dt className="text-muted">Contact</dt>
-        <dd>{contact ?? "—"}</dd>
-        <dt className="text-muted">Projects</dt>
-        <dd>{projects.length > 0 ? projects.map((p) => p.type).join(", ") : "—"}</dd>
-      </dl>
-
-      {/* real documents living in this app now, not links out to Notion */}
-      <div className="flex flex-wrap gap-2">
-        <DocButton icon={Palette} label="Brand guidelines" href={`/tasks/clients/${clientId}/docs/brandGuidelines`} hasContent={!!brandGuidelines} />
-        <DocButton icon={ClipboardList} label="SOP" href={`/tasks/clients/${clientId}/docs/sop`} hasContent={!!sop} />
-        <DocButton icon={FolderOpen} label="Resources" href={`/tasks/clients/${clientId}/docs/resources`} hasContent={!!resources} />
-      </div>
+      <Row icon={Info} label="Niche">
+        {niche ?? "—"}
+      </Row>
+      <Row icon={User} label="Contact">
+        {contact ?? "—"}
+      </Row>
+      <Row icon={Folder} label="Projects">
+        {projects.length > 0 ? projects.map((p) => p.type).join(", ") : "—"}
+      </Row>
+      <Row icon={ListChecks} label="Active tasks">
+        {activeTaskCount}
+      </Row>
+      <DocRow icon={Palette} label="Brand guidelines" href={`/tasks/clients/${clientId}/docs/brandGuidelines`} hasContent={!!brandGuidelines} />
+      <DocRow icon={ClipboardList} label="SOP" href={`/tasks/clients/${clientId}/docs/sop`} hasContent={!!sop} />
+      <DocRow icon={FolderOpen} label="Resources" href={`/tasks/clients/${clientId}/docs/resources`} hasContent={!!resources} />
 
       {notes && (
-        <div>
+        <div className="border-t border-border/50 py-2.5">
           <p className="mb-1 text-xs font-medium text-muted">Notes</p>
           <p className="whitespace-pre-wrap text-sm text-muted">{notes}</p>
         </div>

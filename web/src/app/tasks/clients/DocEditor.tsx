@@ -24,11 +24,11 @@ export function DocEditor({ clientId, doc, label, content }: { clientId: string;
       <div className="flex flex-col gap-3">
         <textarea
           autoFocus
-          rows={20}
+          rows={18}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={`Write ${label.toLowerCase()} for this client…`}
-          className="rounded-lg border border-border bg-surface-2 p-3 font-mono text-sm leading-relaxed"
+          className="rounded-xl border border-border bg-surface-2 p-4 text-sm leading-relaxed"
         />
         <div className="flex justify-end gap-2">
           {content && (
@@ -45,13 +45,13 @@ export function DocEditor({ clientId, doc, label, content }: { clientId: string;
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
+    <div className="card-surface rounded-xl p-5 shadow-sm">
+      <div className="mb-3 flex justify-end">
         <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
           <Pencil size={12} /> Edit
         </button>
       </div>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
+      <p className="whitespace-pre-wrap text-sm leading-7">{content}</p>
     </div>
   );
 }

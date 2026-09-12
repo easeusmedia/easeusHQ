@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, X, Check } from "lucide-react";
 import { createTag, setClientTags } from "./actions";
 import { TAG_PALETTE } from "./tagPalette";
+import { TagPill } from "./TagPill";
 
 export type Tag = { id: string; name: string; color: string };
 
@@ -60,13 +61,7 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
   return (
     <div ref={ref} className="relative flex flex-wrap items-center gap-1.5">
       {clientTags.map((t) => (
-        <span
-          key={t.id}
-          className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
-          style={{ backgroundColor: `${t.color}26`, borderColor: `${t.color}4d`, color: t.color }}
-        >
-          {t.name}
-        </span>
+        <TagPill key={t.id} name={t.name} color={t.color} />
       ))}
       <button
         type="button"

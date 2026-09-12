@@ -138,8 +138,14 @@ model Deliverable {
   clientId  String
   name      String // e.g. "Podcast episodes", "Thumbnails"
   detail    String? // e.g. "2 long-form per cycle (3 guest + 1 solo per batch)"
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  // running total delivered to date — the real historical volume (e.g.
+  // "14 podcast episodes so far") lives in Notion's task history, which
+  // this app doesn't have a clean structured way to recompute per
+  // deliverable type, so it's a plain number ops keeps up to date rather
+  // than something auto-derived
+  deliveredCount Int      @default(0)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
 }
 
 model Project {

@@ -9,7 +9,6 @@ import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientOverview } from "../ClientOverview";
 import { ClientDeliverables } from "../ClientDeliverables";
-import { ClientTaskSummary } from "../ClientTaskSummary";
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
@@ -100,9 +99,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               sop={client.sop}
               resources={client.resources}
               projects={client.projects}
+              activeTaskCount={tasks.length}
             />
             <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />
-            <ClientTaskSummary tasks={tasks} />
           </div>
         }
         tasks={
