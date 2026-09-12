@@ -164,14 +164,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             count: tasks.length,
             bleed: true,
             content: (
-              <Board
-                tasks={tasks}
-                projects={boardProjects}
-                editors={editors}
-                actingUserId={me.id}
-                actingRole={me.role as Role}
-                canCreate
-              />
+              // The board needs a real height to work the way it does on the
+              // main board page — each column scrolls its own cards, which
+              // can't happen inside a box that just grows with its content.
+              // The negative margin cancels the page padding so it runs edge
+              // to edge here too, instead of being cropped on both sides.
+              <div className="-mx-6 h-[calc(100vh-17rem)] min-h-[26rem] sm:-mx-8">
+                <Board
+                  tasks={tasks}
+                  projects={boardProjects}
+                  editors={editors}
+                  actingUserId={me.id}
+                  actingRole={me.role as Role}
+                  canCreate
+                />
+              </div>
             ),
           },
           {
