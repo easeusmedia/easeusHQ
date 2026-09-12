@@ -193,10 +193,8 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const title = String(formData.get("title") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "") || undefined;
   const assignedToId = String(formData.get("assignedToId") ?? "") || null;
-  // frameioLink/driveLink inputs only exist in the form at all once the
-  // task's current status makes them relevant (see EditTaskDialog) — using
-  // .has() rather than .get() so "field wasn't shown" (leave untouched)
-  // stays distinct from "field was shown and cleared" (null it out).
+  // .has() rather than .get() so "field wasn't in the form" (leave it
+  // untouched) stays distinct from "field was shown and cleared" (null it).
   let rawLink: string | null;
   let frameioLink: string | null | undefined;
   let driveLink: string | null | undefined;
@@ -214,10 +212,22 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
   if (!title) return { error: "Title is required" };
 
-  // referenceLink/assetLink are intentionally not touched here — no inputs
-  // for them anymore (everything extra goes in editingNotes now), and
-  // leaving them out of this update preserves whatever old value a task
-  // might already have.
+  // reference/asset links only get an input when the task already has one
+  // (they arrive from Notion), so the same has()-not-get() rule applies:
+  // absent means "leave it alone", present-but-empty means "clear it".
+  let referenceLink: string | null | undefined;
+  let assetLink: string | null | undefined;
+  try {
+    referenceLink = formData.has("referenceLink")
+      ? requireLinkOrNull(String(formData.get("referenceLink") ?? ""), "Reference link")
+      : undefined;
+    assetLink = formData.has("assetLink")
+      ? requireLinkOrNull(String(formData.get("assetLink") ?? ""), "Assets link")
+      : undefined;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "That link isn't valid." };
+  }
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -228,6 +238,8 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       editingNotes,
       ...(frameioLink !== undefined ? { frameioLink } : {}),
       ...(driveLink !== undefined ? { driveLink } : {}),
+      ...(referenceLink !== undefined ? { referenceLink } : {}),
+      ...(assetLink !== undefined ? { assetLink } : {}),
     },
   });
   revalidatePath("/tasks");

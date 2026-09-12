@@ -12,6 +12,19 @@ import type { TaskCardData } from "./TaskCard";
 
 const initialState: TaskFormState = {};
 
+const inputCls = "w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm";
+
+// a labelled row — the fields were bare boxes, so a URL sitting in one gave
+// no clue which link it was
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-muted">
+      {label}
+      {children}
+    </label>
+  );
+}
+
 type LogEntry = { createdAt: Date; action: string; actorName: string };
 
 // Everything about one task, in one place: the full picture on the left
@@ -97,44 +110,53 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
 
             {canManage ? (
               <>
-                <input
-                  name="title"
-                  defaultValue={task.title}
-                  required
-                  className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
-                />
-                <Dropdown
-                  name="projectId"
-                  defaultValue={task.projectId}
-                  options={projects.map((p) => ({ value: p.id, label: p.client.name }))}
-                />
-                <Dropdown
-                  name="assignedToId"
-                  defaultValue={task.assignedTo?.id ?? ""}
-                  options={[{ value: "", label: "Unassigned" }, ...editors.map((e) => ({ value: e.id, label: e.name }))]}
-                />
-                <input
-                  name="rawLink"
-                  defaultValue={task.rawLink ?? ""}
-                  placeholder="Raw footage (Google Drive link)"
-                  className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
-                />
-                {(task.status === "sent_for_approval" || task.status === "revision_requested") && (
-                  <input
-                    name="frameioLink"
-                    defaultValue={task.frameioLink ?? ""}
-                    placeholder="Frame.io link"
-                    className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+                <Field label="Title">
+                  <input name="title" defaultValue={task.title} required className={inputCls} />
+                </Field>
+                <Field label="Project">
+                  <Dropdown
+                    name="projectId"
+                    defaultValue={task.projectId}
+                    options={projects.map((p) => ({ value: p.id, label: p.client.name }))}
                   />
-                )}
-                {(task.status === "final_export_ready" || task.status === "delivered_and_uploaded") && (
-                  <input
-                    name="driveLink"
-                    defaultValue={task.driveLink ?? ""}
-                    placeholder="Final Drive link"
-                    className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+                </Field>
+                <Field label="Assigned to">
+                  <Dropdown
+                    name="assignedToId"
+                    defaultValue={task.assignedTo?.id ?? ""}
+                    options={[{ value: "", label: "Unassigned" }, ...editors.map((e) => ({ value: e.id, label: e.name }))]}
                   />
+                </Field>
+
+                {/* Every link, at every stage. These used to appear only
+                    while the task sat at the status each one belonged to,
+                    which meant a Frame.io link you could see on the card was
+                    not editable — or even visible — from here the moment the
+                    task moved on. Ops can edit anything anyway, and a
+                    per-status list is one more thing to forget when a stage
+                    is added, which is exactly what happened. */}
+                <Field label="Raw footage">
+                  <input name="rawLink" defaultValue={task.rawLink ?? ""} placeholder="Google Drive link" className={inputCls} />
+                </Field>
+                <Field label="Frame.io">
+                  <input name="frameioLink" defaultValue={task.frameioLink ?? ""} placeholder="https://f.io/…" className={inputCls} />
+                </Field>
+                <Field label="Final Drive">
+                  <input name="driveLink" defaultValue={task.driveLink ?? ""} placeholder="Google Drive link" className={inputCls} />
+                </Field>
+                {/* only for tasks that actually carry them — these come in
+                    from Notion and would otherwise be invisible here */}
+                {task.referenceLink !== null && (
+                  <Field label="Reference">
+                    <input name="referenceLink" defaultValue={task.referenceLink} className={inputCls} />
+                  </Field>
                 )}
+                {task.assetLink !== null && (
+                  <Field label="Assets">
+                    <input name="assetLink" defaultValue={task.assetLink} className={inputCls} />
+                  </Field>
+                )}
+
                 <div className="flex items-center gap-1.5 text-sm text-muted">
                   <NotesGlyph size={14} />
                   Editing notes
@@ -144,7 +166,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   defaultValue={task.editingNotes ?? ""}
                   placeholder="Instructions, references, anything the editor needs…"
                   rows={6}
-                  className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+                  className={inputCls}
                 />
               </>
             ) : (
