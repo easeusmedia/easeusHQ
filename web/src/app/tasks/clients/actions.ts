@@ -68,7 +68,12 @@ export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
       // bootstrap one placeholder project so the client has somewhere for
       // tasks/invoices to attach right away — rename/add more later
       await prisma.project.create({
-        data: { clientId: client.id, type: "General", engagement: notionType === "Project" ? "one_off" : "subscription" },
+        data: {
+          clientId: client.id,
+          name: "General",
+          type: "General",
+          engagement: notionType === "Project" ? "one_off" : "subscription",
+        },
       });
       created++;
     }
@@ -253,7 +258,7 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
   await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
   await prisma.invoice.deleteMany({ where: { clientId } });
   await prisma.deliverable.deleteMany({ where: { clientId } });
-  await prisma.workItem.deleteMany({ where: { clientId } });
+  await prisma.projectAsset.deleteMany({ where: { projectId: { in: projectIds } } });
   await prisma.project.deleteMany({ where: { clientId } });
   await prisma.client.delete({ where: { id: clientId } });
   revalidatePath("/tasks/clients");
@@ -309,5 +314,86 @@ export async function deleteDeliverable(id: string): Promise<{ error?: string }>
 
   const d = await prisma.deliverable.delete({ where: { id } });
   revalidatePath(`/tasks/clients/${d.clientId}`);
+  return {};
+}
+
+// A client is created empty and filled in from its own page — name is the
+// only thing anyone actually knows at the moment they add one.
+export async function createClient(name: string): Promise<{ id?: string; error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can add a client." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the client a name." };
+
+  const existing = await prisma.client.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
+  if (existing) return { error: `${existing.name} is already on the roster.` };
+
+  const client = await prisma.client.create({ data: { name: trimmed, status: "current" } });
+  revalidatePath("/tasks/clients");
+  return { id: client.id };
+}
+
+// Projects are the unit of work a client is invoiced for — one podcast
+// episode, one video. Tasks hang off them.
+export async function createProject(clientId: string, name: string): Promise<{ id?: string; error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can add a project." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the project a name." };
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: { projects: { take: 1, orderBy: { createdAt: "asc" } } },
+  });
+  if (!client) return { error: "Client not found." };
+
+  const project = await prisma.project.create({
+    data: {
+      clientId,
+      name: trimmed,
+      // inherit whatever this client's work is already filed as, so a new
+      // project doesn't invent a second spelling of "podcast"
+      type: client.projects[0]?.type ?? "project",
+      status: "in_progress",
+    },
+  });
+  revalidatePath(`/tasks/clients/${clientId}`);
+  return { id: project.id };
+}
+
+export async function updateProject(
+  projectId: string,
+  data: { name: string; status: string; driveLink: string }
+): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit a project." };
+  if (!data.name.trim()) return { error: "Give the project a name." };
+
+  const project = await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      name: data.name.trim(),
+      status: data.status,
+      driveLink: data.driveLink.trim() || null,
+      completedAt: data.status === "completed" ? new Date() : null,
+    },
+  });
+  revalidatePath(`/tasks/clients/${project.clientId}`);
+  revalidatePath(`/tasks/projects/${projectId}`);
+  return {};
+}
+
+export async function deleteProject(projectId: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can delete a project." };
+
+  const project = await prisma.project.findUnique({ where: { id: projectId }, include: { _count: { select: { tasks: true } } } });
+  if (!project) return { error: "Project not found." };
+  if (project._count.tasks > 0) return { error: "Move or delete this project's tasks first." };
+
+  await prisma.projectAsset.deleteMany({ where: { projectId } });
+  await prisma.invoice.deleteMany({ where: { projectId } });
+  await prisma.project.delete({ where: { id: projectId } });
+  revalidatePath(`/tasks/clients/${project.clientId}`);
   return {};
 }

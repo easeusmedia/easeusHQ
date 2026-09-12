@@ -6,18 +6,16 @@ import { ShieldAlert } from "lucide-react";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { moveTask, reorderTask } from "./actions";
-import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
+import { STAGE } from "@/lib/stages";
+import { ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 
 export type Column = { status: TaskStatus; label: string; dot: string };
 
-export const ALL_COLUMNS: Column[] = [
-  { status: "queued", label: "Queued", dot: "bg-neutral-400" },
-  { status: "editing", label: "Editing", dot: "bg-blue-400" },
-  { status: "revision_requested", label: "Revision requested", dot: "bg-orange-400" },
-  { status: "sent_for_approval", label: "Sent for approval", dot: "bg-purple-400" },
-  { status: "final_export_ready", label: "Final export ready", dot: "bg-green-400" },
-  { status: "delivered_and_uploaded", label: "Delivered and uploaded", dot: "bg-emerald-400" },
-];
+export const ALL_COLUMNS: Column[] = ALL_STATUSES.map((status) => ({
+  status,
+  label: STAGE[status].label,
+  dot: STAGE[status].dot,
+}));
 
 // the live board for everyone — admin, core, and editors alike. Editors just
 // can't act past "Final export ready" (only ops moves it to Delivered), and

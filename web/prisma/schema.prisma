@@ -18,9 +18,28 @@ enum TaskStatus {
   queued
   editing
   sent_for_approval
+  sent_for_client_approval
   revision_requested
   final_export_ready
   delivered_and_uploaded
+}
+
+// What a project actually produced — the long-form cut, each reel, the
+// thumbnails, the YT copy — each with the link to the file. These come out
+// of the "Content" database nested inside every episode page in Notion.
+// Not Tasks: nobody works a queue on these, they're the finished artifacts.
+model ProjectAsset {
+  id          String  @id @default(uuid())
+  project     Project @relation(fields: [projectId], references: [id])
+  projectId   String
+  name        String
+  contentType String // "Reel", "YouTube Long-Form", "Thumbnails", "Misc." …
+  link        String?
+  sortOrder   Int     @default(0)
+
+  notionPageId String? @unique
+
+  @@index([projectId])
 }
 
 enum EngagementType {
@@ -76,23 +95,18 @@ model Client {
   // client in this app already gets.
   avatarUrl String? @db.Text
 
-  // The one template every client gets, regardless of how organically
-  // their actual Notion page grew — verified directly against several
-  // real client pages (Courageous Leaders, Dr Tego, Robyn): a set of
-  // contracted deliverables (Deliverable[], below), and a small set of
-  // reference docs (brand guidelines, an SOP, shared resources). These
-  // live natively in this app now, not as links out to Notion — Notion
-  // is being retired once this system fully replaces it.
-  // Mirrors the three pages every client's Notion editor workbook already
-  // has (Client Information / Editing SOP / Quality Checklist) plus a
-  // catch-all for links. Stored as markdown — rendered by <Markdown>.
+  // The one template every client gets: the three pages every client's
+  // Notion editor workbook already has (Client Information / Editing SOP /
+  // Quality Checklist) plus a catch-all for links. Markdown, rendered by
+  // <Markdown> — real documents native to this app, not links out to
+  // Notion, which is being retired once this system replaces it.
   brandGuidelines  String? @db.Text
   sop              String? @db.Text
   qualityChecklist String? @db.Text
   resources        String? @db.Text
   // free-form relationship/context notes — how the account is going,
   // anything ops needs to remember about working with this client
-  notes           String? @db.Text
+  notes            String? @db.Text
 
   tags Tag[]
 
@@ -113,29 +127,6 @@ model Client {
   projects     Project[]
   invoices     Invoice[]
   deliverables Deliverable[]
-  workItems    WorkItem[]
-}
-
-// One finished piece of work — a podcast episode, a video. This is the
-// track record ("we've done 15 episodes for them"), separate from Task
-// (today's queue) and Deliverable (the contracted scope). It mirrors the
-// per-client content database each client has in Notion, which is where
-// this history actually lives.
-model WorkItem {
-  id       String @id @default(uuid())
-  client   Client @relation(fields: [clientId], references: [id])
-  clientId String
-
-  title         String
-  status        String    @default("completed") // completed | in_progress
-  batch         String? // invoicing batch, e.g. "Batch 4 & 5"
-  link          String? // Drive folder with the final files
-  invoiceStatus String? // paid | unpaid | null when not tracked
-  completedAt   DateTime
-
-  notionPageId String? @unique
-
-  @@index([clientId])
 }
 
 // Freeform labels ops assigns to clients — "Podcast", "Personal brand",
@@ -160,11 +151,11 @@ model Tag {
 // they roll up into. Verified against the real "Deliverables:" section on
 // several actual Notion client pages, not assumed.
 model Deliverable {
-  id        String   @id @default(uuid())
-  client    Client   @relation(fields: [clientId], references: [id])
-  clientId  String
-  name      String // e.g. "Podcast episodes", "Thumbnails"
-  detail    String? // e.g. "2 long-form per cycle (3 guest + 1 solo per batch)"
+  id             String   @id @default(uuid())
+  client         Client   @relation(fields: [clientId], references: [id])
+  clientId       String
+  name           String // e.g. "Podcast episodes", "Thumbnails"
+  detail         String? // e.g. "2 long-form per cycle (3 guest + 1 solo per batch)"
   // running total delivered to date — the real historical volume (e.g.
   // "14 podcast episodes so far") lives in Notion's task history, which
   // this app doesn't have a clean structured way to recompute per
@@ -175,16 +166,33 @@ model Deliverable {
   createdAt      DateTime @default(now())
 }
 
+// One piece of work for a client — for a podcast client that's one episode
+// ("Military Leaders"), the unit they're actually invoiced for. A client
+// runs ~4 a month; each one gathers the Tasks the team works through and
+// the ProjectAssets that come out the other end (the long-form cut, the
+// reels, thumbnails, YT copy). Mirrors the per-episode pages in each
+// client's own Notion database, covers included.
 model Project {
-  id         String         @id @default(uuid())
-  client     Client         @relation(fields: [clientId], references: [id])
-  clientId   String
-  type       String
-  engagement EngagementType @default(subscription)
-  createdAt  DateTime       @default(now())
+  id            String         @id @default(uuid())
+  client        Client         @relation(fields: [clientId], references: [id])
+  clientId      String
+  name          String         @default("")
+  type          String
+  engagement    EngagementType @default(subscription)
+  status        String         @default("in_progress") // in_progress | completed
+  // a downscaled copy of the Notion page cover, served from public/covers —
+  // Notion's own file URLs are signed and expire within the hour, so they
+  // can't be stored and re-served
+  coverUrl      String?
+  driveLink     String?
+  invoiceStatus String? // paid | unpaid | null when not tracked
+  completedAt   DateTime?
+  notionPageId  String?        @unique
+  createdAt     DateTime       @default(now())
 
   tasks    Task[]
   invoices Invoice[]
+  assets   ProjectAsset[]
 }
 
 model Task {
@@ -202,25 +210,25 @@ model Task {
   sortOrder    Float      @default(0)
 
   // matches the Notion "Editing Queue" columns:
-  rawLink      String?    // raw footage handed to the editor (input)
-  referenceLink String?   // style/inspo reference for the edit
-  assetLink    String?    // supporting assets (b-roll, graphics, etc.)
+  rawLink       String? // raw footage handed to the editor (input)
+  referenceLink String? // style/inspo reference for the edit
+  assetLink     String? // supporting assets (b-roll, graphics, etc.)
   // free-form brief from ops when assigning/editing — instructions, context,
   // reference links, whatever the editor needs; distinct from reviewNotes
   // (which is specifically the "what needs to change" note on a revision)
-  editingNotes String?
+  editingNotes  String?
 
   // review pipeline: editor submits a Frame.io link, admin QCs it,
   // approved work gets a Drive link once the team uploads it there (output)
-  frameioLink  String?
-  driveLink    String?
-  reviewedBy   User?      @relation("ReviewedTasks", fields: [reviewedById], references: [id])
-  reviewedById String?
-  reviewNotes  String?
+  frameioLink   String?
+  driveLink     String?
+  reviewedBy    User?   @relation("ReviewedTasks", fields: [reviewedById], references: [id])
+  reviewedById  String?
+  reviewNotes   String?
   // how many times ops has sent this back for revision — incremented on
   // every transition into revision_requested, never reset; a quick signal
   // for "this one's eaten a lot of back-and-forth"
-  revisionCount Int       @default(0)
+  revisionCount Int     @default(0)
 
   // set only for tasks pulled in by the temporary Notion sync button —
   // stops a repeat click from re-creating the same task. Null for every
@@ -247,8 +255,8 @@ model KpiSnapshot {
   id        String   @id @default(uuid())
   user      User     @relation(fields: [userId], references: [id])
   userId    String
-  period    String   // e.g. "2026-09" for monthly
-  metrics   Json     // { turnaroundHours, revisionCount, tasksCompleted, onTimePct }
+  period    String // e.g. "2026-09" for monthly
+  metrics   Json // { turnaroundHours, revisionCount, tasksCompleted, onTimePct }
   createdAt DateTime @default(now())
 
   @@unique([userId, period])

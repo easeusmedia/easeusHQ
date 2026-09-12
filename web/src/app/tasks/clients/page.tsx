@@ -20,10 +20,12 @@ export default async function ClientsPage() {
   const clients = await prisma.client.findMany({
     include: {
       tags: true,
-      // counting only live tasks — a card claiming "12 active tasks" when
-      // they were all delivered months ago is worse than no number
-      projects: { include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } } },
-      _count: { select: { workItems: true } },
+      // counting only what's live — a card claiming "12 active projects"
+      // when they all wrapped months ago is worse than no number
+      projects: {
+        where: { status: { not: "completed" } },
+        include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -34,9 +36,8 @@ export default async function ClientsPage() {
     status: c.status,
     avatarUrl: c.avatarUrl,
     tags: c.tags,
-    projects: c.projects.map((p) => ({ id: p.id, type: p.type, activeTasks: p._count.tasks })),
+    activeProjects: c.projects.length,
     activeTasks: c.projects.reduce((sum, p) => sum + p._count.tasks, 0),
-    delivered: c._count.workItems,
   }));
 
   return (
@@ -46,13 +47,7 @@ export default async function ClientsPage() {
         <ClientsSyncButton />
       </div>
 
-      {cards.length === 0 ? (
-        <p className="text-sm text-muted">
-          No clients yet — click &quot;Sync clients&quot; to pull the current roster in from Notion.
-        </p>
-      ) : (
-        <ClientsBoard clients={cards} />
-      )}
+      <ClientsBoard clients={cards} />
     </>
   );
 }

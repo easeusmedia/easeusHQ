@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { LayoutGrid, List } from "lucide-react";
 import { updateClientStatus } from "./actions";
+import { AddClientCard } from "./AddClientCard";
 import { ClientCard, ClientRow, type ClientCardData } from "./ClientCard";
 
 const GROUPS: { status: string; label: string }[] = [
@@ -18,7 +19,6 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
   const [, startTransition] = useTransition();
   const [view, setView] = useState<"grid" | "list">("grid");
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [optimisticStatuses, applyStatus] = useOptimistic(
     new Map(clients.map((c) => [c.id, c.status])),
     (state, update: { id: string; status: string }) => new Map(state).set(update.id, update.status)
@@ -66,41 +66,35 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
               {group.label} <span className="text-muted/70">({groupClients.length})</span>
             </h2>
 
-            {groupClients.length === 0 ? (
-              <p className="text-xs text-muted">Drag a client here</p>
-            ) : (
-              <div
-                className={
-                  view === "grid"
-                    ? "grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] items-start gap-3"
-                    : "flex flex-col gap-2"
-                }
-              >
-                {groupClients.map((client) => {
-                  const props = {
-                    client,
-                    expanded: expandedId === client.id,
-                    onToggle: () => setExpandedId((id) => (id === client.id ? null : client.id)),
-                  };
-                  return (
-                    <div
-                      key={client.id}
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggingId(client.id);
-                        // without this Firefox won't fire onDrop for a drag
-                        // that never touches a text field
-                        e.dataTransfer.setData("text/plain", client.id);
-                      }}
-                      onDragEnd={() => setDraggingId(null)}
-                      className={draggingId === client.id ? "opacity-40" : ""}
-                    >
-                      {view === "grid" ? <ClientCard {...props} /> : <ClientRow {...props} />}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <div
+              className={
+                view === "grid"
+                  ? "grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3"
+                  : "flex flex-col gap-2"
+              }
+            >
+              {groupClients.map((client) => (
+                <div
+                  key={client.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggingId(client.id);
+                    // without this Firefox won't fire onDrop for a drag
+                    // that never touches a text field
+                    e.dataTransfer.setData("text/plain", client.id);
+                  }}
+                  onDragEnd={() => setDraggingId(null)}
+                  className={draggingId === client.id ? "opacity-40" : ""}
+                >
+                  {view === "grid" ? <ClientCard client={client} /> : <ClientRow client={client} />}
+                </div>
+              ))}
+              {/* adding a client only makes sense into the live group */}
+              {group.status === "current" && <AddClientCard variant={view === "grid" ? "card" : "row"} />}
+              {groupClients.length === 0 && group.status !== "current" && (
+                <p className="text-xs text-muted">Drag a client here</p>
+              )}
+            </div>
           </section>
         );
       })}

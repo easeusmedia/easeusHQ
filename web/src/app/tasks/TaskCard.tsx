@@ -7,27 +7,18 @@ import { NotesButton } from "./NotesButton";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
 import { ALL_STATUSES, canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
+import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
 import { RotateCcw } from "lucide-react";
 
-export const STATUS_LABEL: Record<TaskStatus, string> = {
-  queued: "Queued",
-  editing: "Editing",
-  sent_for_approval: "Sent for approval",
-  revision_requested: "Revision requested",
-  final_export_ready: "Final export ready",
-  delivered_and_uploaded: "Delivered and uploaded",
-};
-
-// Notion-style colored status tags — same hues as the board's column dots.
-export const STATUS_STYLE: Record<TaskStatus, string> = {
-  queued: "bg-surface text-muted border-border",
-  editing: "bg-blue-400/15 text-blue-300 border-blue-400/30",
-  sent_for_approval: "bg-purple-400/15 text-purple-300 border-purple-400/30",
-  revision_requested: "bg-orange-400/15 text-orange-300 border-orange-400/30",
-  final_export_ready: "bg-green-400/15 text-green-300 border-green-400/30",
-  delivered_and_uploaded: "bg-emerald-400/15 text-emerald-300 border-emerald-400/30",
-};
+// kept as re-exports so the existing call sites don't all have to change —
+// STAGE in @/lib/stages is the single definition
+export const STATUS_LABEL = Object.fromEntries(
+  Object.entries(STAGE).map(([k, v]) => [k, v.label])
+) as Record<TaskStatus, string>;
+export const STATUS_STYLE = Object.fromEntries(
+  Object.entries(STAGE).map(([k, v]) => [k, v.pill])
+) as Record<TaskStatus, string>;
 
 // columns/actions that need one extra piece of info before landing there —
 // collected inline (button click reveals the field) rather than shown

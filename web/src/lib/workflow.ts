@@ -1,11 +1,12 @@
 // Matches the team's "Editing Queue Status Guide" as the *guided* path for
 // editors:
 //
-//   queued -> editing -> sent_for_approval -> revision_requested -> editing (loop)
-//               |               |                                 -> sent_for_approval (resubmit directly)
+//   queued -> editing -> sent_for_approval -> sent_for_client_approval
+//               |               |               -> revision_requested -> editing (loop)
+//               |               |                                     -> sent_for_approval (resubmit directly)
 //               |               -> editing (editor pulls their own submission back)
 //               -> queued (editor puts it back)
-//                                           -> final_export_ready -> delivered_and_uploaded
+//                                               -> final_export_ready -> delivered_and_uploaded
 //
 // Who moves what:
 //  - queued:                 whoever assigns the task (admin/core)
@@ -14,6 +15,8 @@
 //  - revision_requested:     ops (admin/core) ONLY — it's ops' QC verdict,
 //                             not something an editor can put on their own
 //                             work even to "send it back to themselves"
+//  - sent_for_client_approval: ops (admin/core) only — our own review passed
+//                             and it's now sitting with the client
 //  - final_export_ready:     ops (admin/core) only, once the client has approved
 //  - delivered_and_uploaded: internal ops (admin/core), not the editor
 //
@@ -34,6 +37,7 @@ export type TaskStatus =
   | "queued"
   | "editing"
   | "sent_for_approval"
+  | "sent_for_client_approval"
   | "revision_requested"
   | "final_export_ready"
   | "delivered_and_uploaded";
@@ -42,6 +46,7 @@ export const ALL_STATUSES: TaskStatus[] = [
   "queued",
   "editing",
   "sent_for_approval",
+  "sent_for_client_approval",
   "revision_requested",
   "final_export_ready",
   "delivered_and_uploaded",
@@ -73,6 +78,13 @@ const TRANSITIONS: Record<TaskStatus, Rule[]> = {
     // but pulling their own submission back to keep working on it (not a
     // formal "sent back", just "I spotted a mistake") is still theirs to do
     { to: "editing", roles: ["admin", "core", "employee"], requireAssigneeIfEmployee: true },
+    // our review passed — it goes out to the client for sign-off
+    { to: "sent_for_client_approval", roles: ["admin", "core"] },
+  ],
+  // waiting on the client. They either come back with changes or approve,
+  // and only ops can record either verdict.
+  sent_for_client_approval: [
+    { to: "revision_requested", roles: ["admin", "core"] },
     { to: "final_export_ready", roles: ["admin", "core"] },
   ],
   revision_requested: [

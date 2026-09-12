@@ -274,11 +274,10 @@ const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
   queued: "queued",
   editing: "editing",
   "sent for approval": "sent_for_approval",
-  // "Sent for Client Approval" means it already passed our own review and
-  // is sitting with the client for sign-off — that's further along than
-  // "Sent for approval" (ops hasn't even reviewed it yet), so it belongs
-  // in Final export ready, not the same column.
-  "sent for client approval": "final_export_ready",
+  // "Sent for Client Approval" is its own stage: past our internal review,
+  // now waiting on the client. It used to be folded into Final export ready
+  // for want of a column — it has one of its own now.
+  "sent for client approval": "sent_for_client_approval",
   "revision requested": "revision_requested",
   "final export ready": "final_export_ready",
   "delivered and uploaded": "delivered_and_uploaded",

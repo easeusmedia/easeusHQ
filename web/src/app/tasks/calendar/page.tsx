@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { STATUS_LABEL } from "../TaskCard";
+import { STAGE } from "@/lib/stages";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +63,7 @@ export default async function CalendarPage({
         taskId: task.id,
         title: task.title,
         clientName: task.project.client.name,
-        action: STATUS_LABEL[task.status],
+        action: STAGE[task.status].label,
         actorName: task.assignedTo?.name ?? "Unassigned",
       });
     }
@@ -80,7 +80,7 @@ export default async function CalendarPage({
         <div>
           <h1 className="text-xl font-semibold">Calendar</h1>
           <p className="mt-1 text-sm text-muted">
-            How many tasks were sitting in the dashboard on a given day — a task stops counting the day it's
+            How many tasks were sitting in the dashboard on a given day — a task stops counting the day it&apos;s
             delivered to the client, not before.
           </p>
         </div>

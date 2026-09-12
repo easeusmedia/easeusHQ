@@ -5,15 +5,9 @@ import { formatDate, formatDateTime } from "./TaskCard";
 import { ConfirmButton } from "./ConfirmButton";
 import { deleteTaskPermanently } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
+import { STAGE } from "@/lib/stages";
 
-const STATUS_LABEL: Record<TaskStatus, string> = {
-  queued: "Queued",
-  editing: "Editing",
-  sent_for_approval: "Sent for approval",
-  revision_requested: "Revision requested",
-  final_export_ready: "Final export ready",
-  delivered_and_uploaded: "Delivered and uploaded",
-};
+const STATUS_LABEL = Object.fromEntries(Object.entries(STAGE).map(([k, v]) => [k, v.label])) as Record<TaskStatus, string>;
 
 type LogEntry = { createdAt: Date; action: string; actorName: string };
 

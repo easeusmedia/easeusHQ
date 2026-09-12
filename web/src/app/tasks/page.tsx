@@ -3,22 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
-import type { Role, TaskStatus } from "@/lib/workflow";
+// one shared definition of "not delivered yet" — this page used to keep
+// its own copy, which silently dropped a new status from the board
+import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { Board } from "./Board";
 import { EditorViewToggle } from "./EditorViewToggle";
 import { NotionSyncButton } from "./NotionSyncButton";
 
 export const dynamic = "force-dynamic"; // always hits the DB, never statically cached
-
-// once a task is delivered it's done — it drops off everyone's live board
-// and into History (see history/page.tsx)
-const ACTIVE_STATUSES: TaskStatus[] = [
-  "queued",
-  "editing",
-  "sent_for_approval",
-  "revision_requested",
-  "final_export_ready",
-];
 
 export default async function TasksPage({
   searchParams,

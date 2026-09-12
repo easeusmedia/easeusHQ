@@ -6,12 +6,13 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
 import { Board } from "../../Board";
+import { AddProjectCard } from "../AddProjectCard";
 import { BillingPanel } from "../BillingPanel";
-import { ClientActiveTasks } from "../ClientActiveTasks";
 import { ClientDeliverables } from "../ClientDeliverables";
 import { ClientInfo } from "../ClientInfo";
+import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
-import { ClientWork } from "../ClientWork";
+import { ProjectCard } from "../ProjectCard";
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
@@ -19,6 +20,8 @@ import { ClientTags } from "../ClientTags";
 import { listTags } from "../actions";
 
 export const dynamic = "force-dynamic";
+
+const shortDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,10 +36,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
-      projects: true,
+      projects: {
+        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+        include: {
+          _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
+        },
+      },
       invoices: { orderBy: { createdAt: "desc" } },
       deliverables: { orderBy: { sortOrder: "asc" } },
-      workItems: { orderBy: { completedAt: "desc" } },
       tags: true,
     },
   });
@@ -61,31 +68,41 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     listTags(),
   ]);
 
-  const unpaid = client.workItems.filter((w) => w.invoiceStatus === "unpaid").length;
+  const completed = client.projects.filter((p) => p.status === "completed");
+  const live = client.projects.filter((p) => p.status !== "completed");
+  const projectCards = client.projects.map((p) => ({
+    id: p.id,
+    name: p.name || p.type,
+    status: p.status,
+    coverUrl: p.coverUrl,
+    completedAt: p.completedAt ? shortDate(p.completedAt) : null,
+    assetCount: p._count.assets,
+    activeTasks: p._count.tasks,
+  }));
 
   return (
     <>
-      <Link href="/tasks/clients" className="mb-4 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+      <Link href="/tasks/clients" className="mb-5 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft size={14} /> Clients
       </Link>
 
-      <div className="mb-5 flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-4">
         <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold">{client.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
             <StatusDropdown clientId={client.id} status={client.status} size="md" />
           </div>
           <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
         </div>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-6">
         <ClientStats
           activeTasks={tasks.length}
-          delivered={client.workItems.filter((w) => w.status === "completed").length}
-          projects={client.projects.length}
-          unpaid={unpaid}
+          inProgress={live.length}
+          completed={completed.length}
+          unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
         />
       </div>
 
@@ -95,20 +112,34 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             key: "overview",
             label: "Overview",
             content: (
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-10">
                 <section>
-                  <h2 className="mb-2.5 text-sm font-medium">Active tasks</h2>
-                  <ClientActiveTasks
+                  <h2 className="mb-3 text-sm font-medium">Ongoing work</h2>
+                  <ClientOngoing
                     tasks={tasks.map((t) => ({
                       id: t.id,
                       title: t.title,
                       status: t.status as TaskStatus,
-                      projectType: t.project.type,
+                      projectName: t.project.name || t.project.type,
                       assignee: t.assignedTo?.name ?? null,
                     }))}
                   />
                 </section>
-                <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />
+
+                <section>
+                  <div className="mb-3 flex items-baseline justify-between">
+                    <h2 className="text-sm font-medium">Projects</h2>
+                    <span className="text-xs text-muted">
+                      {completed.length} done · {live.length} in progress
+                    </span>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <AddProjectCard clientId={client.id} />
+                    {projectCards.map((p) => (
+                      <ProjectCard key={p.id} project={p} />
+                    ))}
+                  </div>
+                </section>
               </div>
             ),
           },
@@ -119,7 +150,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             content: (
               <Board
                 tasks={tasks}
-                projects={client.projects.map((p) => ({ id: p.id, client: { name: client.name } }))}
+                projects={client.projects.map((p) => ({ id: p.id, client: { name: p.name || p.type } }))}
                 editors={editors}
                 actingUserId={me.id}
                 actingRole={me.role as Role}
@@ -128,24 +159,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             ),
           },
           {
-            key: "work",
-            label: "Work delivered",
-            count: client.workItems.length,
-            content: (
-              <ClientWork
-                items={client.workItems.map((w) => ({
-                  id: w.id,
-                  title: w.title.trim(),
-                  status: w.status,
-                  batch: w.batch,
-                  link: w.link,
-                  invoiceStatus: w.invoiceStatus,
-                  // formatted here so the server and client agree — a raw
-                  // Date through toLocaleDateString() hydrates differently
-                  completedAt: w.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-                }))}
-              />
-            ),
+            key: "deliverables",
+            label: "Deliverables",
+            content: <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />,
           },
           {
             key: "billing",
