@@ -171,13 +171,19 @@ export function Board({
   function autoScroll(e: React.DragEvent<HTMLDivElement>) {
     const el = scrollRef.current;
     if (!el) return;
-    const { left, right, top, bottom } = el.getBoundingClientRect();
+    const { left, right } = el.getBoundingClientRect();
     const edge = 100;
-    const step = 20;
-    if (e.clientX < left + edge) el.scrollLeft -= step;
-    else if (e.clientX > right - edge) el.scrollLeft += step;
-    if (e.clientY < top + edge) el.scrollTop -= step;
-    else if (e.clientY > bottom - edge) el.scrollTop += step;
+    if (e.clientX < left + edge) el.scrollLeft -= 20;
+    else if (e.clientX > right - edge) el.scrollLeft += 20;
+  }
+
+  // and vertically inside whichever column the cursor is currently over
+  function scrollColumn(e: React.DragEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const { top, bottom } = el.getBoundingClientRect();
+    const edge = 70;
+    if (e.clientY < top + edge) el.scrollTop -= 16;
+    else if (e.clientY > bottom - edge) el.scrollTop += 16;
   }
 
   // one drop handler per column, attached to the whole card-list container
@@ -272,45 +278,41 @@ export function Board({
         )}
       </dialog>
 
-      {/* flex row, not a wrapping grid — a wrapping grid was dropping later
-          columns onto a second line the instant the sidebar (or window)
-          took away enough width, instead of just letting columns shrink or
-          scroll. items-start also stops flex's default row-stretch from
-          forcing every column to the height of the tallest one — that was
-          the drag-to-bottom bug: a column with several cards was often
-          already the tallest, so it had zero spare space below its own last
-          card for a drop to land in. The sentinel spacer at the foot of
-          every column fixes that directly, which is what lets the columns
-          stretch to equal height again — and equal height is what keeps
-          every stage's sticky header on screen, not just the tallest
-          column's. */}
+      {/* Every column is exactly one screen tall and scrolls its own cards.
+          The board itself only scrolls sideways.
+
+          This is what makes a drag across columns work from anywhere. When
+          the board scrolled as one tall surface, a long column made that
+          surface tall but the short columns still only stretched to one
+          screen — so once you scrolled past that, the other stages had no
+          drop area under your cursor at all and you had to drag all the way
+          back up to hit one. Equal, fixed-height columns can't have that
+          mismatch. It also puts the stage headers outside the scrolling
+          area, so they simply never move. */}
       <div
         ref={scrollRef}
         onDragOver={autoScroll}
-        className="flex min-h-0 flex-1 items-stretch gap-4 overflow-auto pl-6 sm:pl-8"
+        className="flex min-h-0 flex-1 items-stretch gap-4 overflow-x-auto overflow-y-hidden pl-6 sm:pl-8"
       >
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
-            <section key={col.status} className="flex min-w-64 flex-1 flex-col gap-3">
-              {/* sticks to the top of the board while its own column scrolls
-                  past, so you can always tell which stage you're looking at.
-                  It carries the page background and the top padding so the
-                  cards scroll cleanly underneath it. */}
-              <div className="sticky top-0 z-10 -mb-3 bg-background pt-6 pb-3 sm:pt-8">
-                <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
-                  <span className={`h-2 w-2 rounded-full ${col.dot}`} />
-                  <span className="whitespace-nowrap">{col.label}</span>
-                  <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
-                </div>
+            <section key={col.status} className="flex min-h-0 min-w-64 flex-1 flex-col gap-3 pt-6 pb-6 sm:pt-8 sm:pb-8">
+              <div className={`status-pop flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
+                <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                <span className="whitespace-nowrap">{col.label}</span>
+                <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
               </div>
 
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
 
-              {/* the whole drop target for this column, cards and all */}
+              {/* this column's own scroller, and the whole drop target for it */}
               <div
-                className="flex min-h-24 flex-1 flex-col gap-3"
-                onDragOver={(e) => e.preventDefault()}
+                className="flex min-h-24 min-w-0 flex-1 flex-col gap-3 overflow-y-auto"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  scrollColumn(e);
+                }}
                 onDrop={(e) => {
                   e.preventDefault();
                   handleColumnDrop(col.status, e);
