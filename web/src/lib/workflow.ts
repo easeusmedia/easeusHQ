@@ -42,12 +42,16 @@ export type TaskStatus =
   | "final_export_ready"
   | "delivered_and_uploaded";
 
+// Board column order, and the order stages are listed everywhere else.
+// Revision requested sits between our own review and the client's: work
+// comes back from "Sent for approval" into revision, and only once it's
+// through goes out to the client.
 export const ALL_STATUSES: TaskStatus[] = [
   "queued",
   "editing",
   "sent_for_approval",
-  "sent_for_client_approval",
   "revision_requested",
+  "sent_for_client_approval",
   "final_export_ready",
   "delivered_and_uploaded",
 ];
