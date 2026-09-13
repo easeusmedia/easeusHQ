@@ -321,7 +321,7 @@ export function Board({
           return (
             <section
               key={col.status}
-              className={`flex min-w-0 flex-col gap-3 ${flow ? "pb-8" : "min-h-0 min-w-64 flex-1 pt-6 pb-6 sm:pt-8 sm:pb-8"}`}
+              className={`flex min-w-0 flex-col gap-3 ${flow ? "pb-8" : "min-h-0 min-w-64 flex-1 pt-6 sm:pt-8"}`}
             >
               {/* in flow mode this rides up with the page and then stops at
                   the top, carrying the page background so cards pass
