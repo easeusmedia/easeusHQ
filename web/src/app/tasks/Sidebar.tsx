@@ -4,9 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, Users, UserRoundGroup, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
+import { LayoutDashboard, History, Users, Users2, CalendarCheck2, PanelLeft, LogOut, MessageCircle } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
+import { TeamPanel } from "./team/TeamPanel";
 
 const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
@@ -15,7 +16,7 @@ const NAV = [
 
 const COOKIE_NAME = "tasks-sidebar-open";
 
-type Person = { id: string; name: string; role: string };
+type Person = { id: string; name: string; role: string; avatarUrl: string | null; lastSeenAt: Date | null };
 
 // always mounted, never conditionally rendered — fading opacity/max-width
 // in sync with the nav's own width transition is what makes open/collapse
@@ -40,6 +41,7 @@ export function Sidebar({
   canViewAs,
   people,
   sessionUserId,
+  unreadBySender,
   logout,
   initialOpen,
 }: {
@@ -49,6 +51,7 @@ export function Sidebar({
   canViewAs: boolean;
   people: Person[];
   sessionUserId: string;
+  unreadBySender: Record<string, number>;
   logout: () => Promise<void>;
   // read server-side from a cookie (see layout.tsx) — the very first paint
   // already matches the saved preference, so there's nothing to correct
@@ -62,7 +65,9 @@ export function Sidebar({
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -87,14 +92,25 @@ export function Sidebar({
   const current = searchParams.get("as") ?? sessionUserId;
 
   return (
-    // sticky, not just a flex sibling — stays put if anything ever makes the
-    // page itself taller than the viewport, instead of scrolling away
+    <>
+    {/* sticky, not just a flex sibling — stays put if anything ever makes the
+        page itself taller than the viewport, instead of scrolling away */}
     <nav
       // collapsed: clicking anywhere on the rail opens it, not just the
       // logo — the button below stops its own click from bubbling here so
       // it doesn't get toggled twice
       onClick={() => !open && toggle()}
-      className={`sticky top-0 flex h-screen shrink-0 flex-col gap-1 border-r border-border bg-background p-3 transition-[width] duration-200 ease-in-out ${
+      // items-start: a flex column's children default to *stretching* to
+      // the container's full cross-axis width. Every row below has its own
+      // explicit w-full while open, so this didn't matter then — but while
+      // collapsed, nothing set a width, so each row silently stretched to
+      // the rail's own inner width (~35px) anyway. The icon slot inside is
+      // a fixed 36px box, left-aligned in that wider row, so the leftover
+      // few px of stretched width landed entirely on the right of the
+      // icon — the actual source of the icons reading as off-center; not
+      // the icon glyphs themselves, which were already centered in their
+      // own slot the whole time.
+      className={`sticky top-0 flex h-screen shrink-0 flex-col items-start gap-1 border-r border-border bg-background p-3 transition-[width] duration-200 ease-in-out ${
         open ? "w-52" : "w-16"
       }`}
     >
@@ -108,7 +124,10 @@ export function Sidebar({
           uses the exact same trick as a fading nav label (max-width +
           opacity, never conditionally rendered) instead of being swapped
           in/out, so re-adding it here can't reintroduce that jump. */}
-      <div className="mb-2 flex h-9 items-center gap-2">
+      {/* w-full: nav no longer stretches its children by default (see the
+          items-start comment above), and this row's ml-auto close button
+          needs real width to push against */}
+      <div className="mb-2 flex h-9 w-full items-center gap-2">
         <button
           onClick={(e) => {
             e.stopPropagation(); // the rail itself also opens on click — don't double-toggle
@@ -161,7 +180,7 @@ export function Sidebar({
 
       {[
         ...NAV,
-        ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: UserRoundGroup }] : []),
+        ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: Users2 }] : []),
         ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarCheck2 }] : []),
         ...(isAdmin ? [{ segment: "/users", label: "Users", Icon: Users }] : []),
       ].map((item) => {
@@ -173,13 +192,12 @@ export function Sidebar({
             href={qs ? `${href}?${qs}` : href}
             title={open ? undefined : item.label}
             onClick={(e) => e.stopPropagation()} // don't also open the rail — this click already has its own job
-            // always full width, always flex-start, always the same gap —
-            // nothing about this row's own layout, or the icon's position
-            // within it, ever changes with `open`. Only the label (below)
-            // fades — the icon itself doesn't move a single pixel, so
-            // there's nothing to jump and nothing for its padding to
-            // visibly differ between the two states
-            className={`flex items-center gap-2 rounded-md text-sm ${
+            // w-full/gap-2 only while open — collapsed, this row has no
+            // width class at all, so it sizes to exactly its own content
+            // (the 36px icon slot; the label is 0-width) now that nav
+            // itself no longer stretches it wider than that (see nav's
+            // items-start above)
+            className={`flex items-center rounded-md text-sm ${open ? "w-full gap-2" : ""} ${
               active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
             }`}
           >
@@ -192,8 +210,30 @@ export function Sidebar({
         );
       })}
 
-      {/* profile — pinned at the very bottom, ChatGPT-style */}
-      <div ref={profileRef} className="relative mt-auto">
+      {/* Team + profile, grouped and pinned at the very bottom, ChatGPT-
+          style. Bottom-left of the screen, deliberately not the header
+          (too much of a fixed-height tax on every page for something
+          used occasionally) and not bottom-right (reserved for
+          notifications). */}
+      <div className="mt-auto flex w-full flex-col items-start gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setTeamOpen(true);
+          }}
+          title={open ? undefined : "Team"}
+          className={`flex items-center rounded-md text-sm text-muted hover:bg-surface-2 hover:text-foreground ${open ? "w-full gap-2" : ""}`}
+        >
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+            <MessageCircle size={18} />
+            {unreadCount > 0 && (
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
+            )}
+          </span>
+          <FadeLabel open={open}>Team</FadeLabel>
+        </button>
+
+        <div ref={profileRef} className="relative w-full">
         {profileOpen && (
           <div
             onClick={(e) => e.stopPropagation()} // includes the nested Viewing-as dropdown — none of this should reach the rail's own click-to-open handler
@@ -232,7 +272,7 @@ export function Sidebar({
           }}
           title={open ? undefined : name}
           // same fixed layout as the nav links above — the avatar never moves
-          className="flex w-full items-center gap-2 rounded-md text-left hover:bg-surface-2"
+          className={`flex items-center rounded-md text-left hover:bg-surface-2 ${open ? "w-full gap-2" : ""}`}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
             <Avatar name={name} size={26} />
@@ -241,7 +281,18 @@ export function Sidebar({
             <span className="text-sm">{name}</span>
           </FadeLabel>
         </button>
+        </div>
       </div>
     </nav>
+
+    {teamOpen && (
+      <TeamPanel
+        people={people}
+        meId={sessionUserId}
+        unreadBySender={unreadBySender}
+        onClose={() => setTeamOpen(false)}
+      />
+    )}
+    </>
   );
 }

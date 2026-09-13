@@ -18,7 +18,6 @@ import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
 import { ClientTags } from "../ClientTags";
-import { SetHeaderTitle } from "../../HeaderTitle";
 import { listTags } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +92,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div>
-      <SetHeaderTitle title={client.name} />
       <div className={column}>
         <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
           <ArrowLeft size={14} /> Clients

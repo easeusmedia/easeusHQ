@@ -6,8 +6,6 @@ import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
 import { ApprovalWatcher } from "./ApprovalWatcher";
-import { Header } from "./Header";
-import { HeaderTitleProvider } from "./HeaderTitle";
 import { PresenceHeartbeat } from "./team/PresenceHeartbeat";
 import { getUnreadBySender } from "./team/actions";
 
@@ -42,15 +40,11 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         canViewAs={canViewAs && users.length > 0}
         people={users}
         sessionUserId={sessionUser.id}
+        unreadBySender={unreadBySender}
         logout={logout}
         initialOpen={sidebarOpen}
       />
-      <HeaderTitleProvider>
-        <div className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
-          <Header people={users} meId={sessionUser.id} unreadBySender={unreadBySender} />
-          {children}
-        </div>
-      </HeaderTitleProvider>
+      <div className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</div>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
   );
