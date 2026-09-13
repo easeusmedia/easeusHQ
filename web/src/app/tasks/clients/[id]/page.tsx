@@ -93,17 +93,36 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   return (
     <div>
       <div className={column}>
-        <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-          <ArrowLeft size={14} /> Clients
-        </Link>
+        {/* a banner purely for presence — the avatar overlaps its bottom
+            edge (negative margin on the row below, not on the banner),
+            same "hero strip + floating profile" shape as the reference */}
+        <div className="relative mb-2 h-24 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-500 to-cyan-400 sm:h-32">
+          <Link
+            href="/tasks/clients"
+            className="absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-black/25 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-black/40"
+          >
+            <ArrowLeft size={13} /> Clients
+          </Link>
+        </div>
 
-        <div className="mb-8 flex items-center gap-4">
-          <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
-          <div className="flex min-w-0 flex-col gap-2">
+        {/* relative + z-10: a `position: relative` sibling (the banner,
+            for its own absolutely-positioned back button) always paints
+            above a plain static one that overlaps it, regardless of DOM
+            order — without this the avatar/name row rendered underneath
+            the banner instead of on top of it.
+            Only the avatar carries the negative margin (items-start, not
+            items-end) — it pokes up into the banner while the name block
+            stays put right underneath, rather than both floating up. */}
+        <div className="relative z-10 mb-8 flex flex-wrap items-start gap-4 px-2">
+          <div className="-mt-10 shrink-0 rounded-full ring-4 ring-background sm:-mt-12">
+            <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
               <StatusDropdown clientId={client.id} status={client.status} size="md" />
             </div>
+            {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
             <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
           </div>
         </div>
