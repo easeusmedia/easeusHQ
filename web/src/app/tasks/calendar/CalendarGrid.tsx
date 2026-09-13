@@ -73,6 +73,9 @@ export function CalendarGrid({
       <dialog
         ref={dialogRef}
         onClose={() => setSelected(null)}
+        onClick={(e) => {
+          if (e.target === dialogRef.current) dialogRef.current?.close();
+        }}
         className="glass fixed top-1/2 left-1/2 m-0 w-96 max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="mb-3 text-sm font-medium">

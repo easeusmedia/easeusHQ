@@ -12,6 +12,10 @@ export type ProjectCardData = {
   status: string;
   coverUrl: string | null;
   completedAt: string | null;
+  // ISO yyyy-mm-dd (completedAt if it has one, else createdAt) — sortable
+  // and directly comparable to a date-input's own value, unlike
+  // completedAt above which is already formatted for display
+  date: string;
   assetCount: number;
   activeTasks: number;
 };

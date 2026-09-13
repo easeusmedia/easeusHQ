@@ -90,6 +90,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     status: p.status,
     coverUrl: p.coverUrl,
     completedAt: p.completedAt ? shortDate(p.completedAt) : null,
+    date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10),
     assetCount: p._count.assets,
     activeTasks: p._count.tasks,
   }));

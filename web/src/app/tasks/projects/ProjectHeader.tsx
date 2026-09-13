@@ -148,6 +148,9 @@ export function ProjectHeader({
 
       <dialog
         ref={deleteRef}
+        onClick={(e) => {
+          if (e.target === deleteRef.current) deleteRef.current?.close();
+        }}
         className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="text-sm">

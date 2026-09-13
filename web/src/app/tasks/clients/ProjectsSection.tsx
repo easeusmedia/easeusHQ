@@ -3,37 +3,53 @@
 import { useState } from "react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, type ProjectCardData } from "./ProjectCard";
-import { Dropdown } from "../Dropdown";
 
-const RANGE_OPTIONS = [
-  { value: "4", label: "Recent 4" },
-  { value: "8", label: "Recent 8" },
-  { value: "12", label: "Recent 12" },
-  { value: "all", label: "All" },
-];
+const RECENT_CAP = 4;
 
 // Projects already come in most-recent-first. Default view is just the
 // last few — a client with a year of episodes shouldn't dump all of them
-// on the page at once — with a range picker to pull in more, or all of
-// them, right from the section header.
+// on the page at once — with "More" pulling in the rest, or a date range
+// to jump straight to a specific stretch of episodes.
 export function ProjectsSection({ clientId, projects }: { clientId: string; projects: ProjectCardData[] }) {
-  const [range, setRange] = useState("4");
+  const [showAll, setShowAll] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const dateFilterActive = !!(from || to);
 
-  const done = projects.filter((p) => p.status === "completed").length;
-  const inProgress = projects.length - done;
-  const visible = range === "all" ? projects : projects.slice(0, Number(range));
+  // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
+  // the <input type="date"> values (same format) is a correct date compare
+  const dateFiltered = projects.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
+  const visible = dateFilterActive ? dateFiltered : showAll ? projects : projects.slice(0, RECENT_CAP);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-medium">Projects</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted">
-            {done} done · {inProgress} in progress
-          </span>
-          <div className="w-28">
-            <Dropdown defaultValue={range} onChange={setRange} options={RANGE_OPTIONS} />
-          </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground"
+          />
+          <span className="text-xs text-muted">to</span>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground"
+          />
+          {dateFilterActive && (
+            <button
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+              className="text-xs text-muted hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -42,7 +58,16 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
         {visible.map((p) => (
           <ProjectCard key={p.id} project={p} />
         ))}
+        {dateFilterActive && visible.length === 0 && (
+          <p className="col-span-full text-sm text-muted">No projects in that range.</p>
+        )}
       </div>
+
+      {!dateFilterActive && projects.length > RECENT_CAP && (
+        <button onClick={() => setShowAll((v) => !v)} className="w-fit text-xs text-muted hover:text-foreground">
+          {showAll ? "Show less" : `More (${projects.length - RECENT_CAP} more)`}
+        </button>
+      )}
     </div>
   );
 }

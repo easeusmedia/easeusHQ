@@ -48,6 +48,9 @@ export function NotesButton({ notes }: { notes: string }) {
       </button>
       <dialog
         ref={ref}
+        onClick={(e) => {
+          if (e.target === ref.current) ref.current?.close();
+        }}
         // Tailwind's reset zeroes out margin, which is what the browser
         // normally uses to center a <dialog> — so we center it explicitly.
         className="glass fixed top-1/2 left-1/2 m-0 w-[32rem] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"

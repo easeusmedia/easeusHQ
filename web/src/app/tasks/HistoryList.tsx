@@ -118,6 +118,9 @@ export function HistoryList({
       <dialog
         ref={dialogRef}
         onClose={() => setSelectedId(null)}
+        onClick={(e) => {
+          if (e.target === dialogRef.current) dialogRef.current?.close();
+        }}
         className="glass fixed top-1/2 left-1/2 m-0 w-[36rem] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         {selectedTask && (

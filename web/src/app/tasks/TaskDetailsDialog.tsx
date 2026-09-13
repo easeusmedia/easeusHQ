@@ -98,6 +98,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
       <dialog
         ref={dialogRef}
         onClose={() => setHistoryOpen(false)}
+        onClick={(e) => {
+          if (e.target === dialogRef.current) dialogRef.current?.close();
+        }}
         className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[85vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
           historyOpen ? "w-[51.5rem]" : "w-[27.5rem]"
         }`}

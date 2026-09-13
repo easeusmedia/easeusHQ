@@ -252,6 +252,11 @@ export function Board({
       <dialog
         ref={dialogRef}
         onClose={() => setPending(null)}
+        onClick={(e) => {
+          // clicking the backdrop (the dialog element itself, outside the
+          // inner panel) dismisses it, same as every other dialog
+          if (e.target === dialogRef.current) dialogRef.current?.close();
+        }}
         // Tailwind's reset zeroes out margin, which is what the browser
         // normally uses to center a <dialog> — so we center it explicitly.
         className="glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"

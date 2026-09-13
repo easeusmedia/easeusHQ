@@ -26,6 +26,9 @@ export function ConfirmButton({
       </button>
       <dialog
         ref={ref}
+        onClick={(e) => {
+          if (e.target === ref.current) ref.current?.close();
+        }}
         className="glass fixed top-1/2 left-1/2 m-0 w-72 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="text-sm">{message}</p>

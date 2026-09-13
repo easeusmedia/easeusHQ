@@ -205,7 +205,11 @@ export function TaskCard({
             <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300">
               <RotateCcw size={10} />
               {task.revisionCount}
-              <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
+              {/* below the badge, not above (top-full, not bottom-full) —
+                  a card near the top of its scrolling column had nowhere
+                  for an upward tooltip to go, so the column's own overflow
+                  clipped it instead of letting it show */}
+              <span className="pointer-events-none absolute top-full right-0 z-10 mt-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
                 Sent back for revision {task.revisionCount} time{task.revisionCount === 1 ? "" : "s"}
               </span>
             </span>
