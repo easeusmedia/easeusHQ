@@ -44,8 +44,13 @@ export function Header({ people, meId, unreadCount }: { people: Person[]; meId: 
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+      {/* mb-4/text-xl, not the mb-6/text-2xl a one-off page heading could
+          afford — this now sits above every page's own content (the Board
+          included, which used to start right at the container's top
+          padding with nothing above it), so its footprint had to shrink
+          to match, not add a second heading's worth of height on top */}
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
 
         {roster.length > 0 && (
           <button onClick={() => setPanelOpen(true)} className="group relative flex items-center" title="Team">

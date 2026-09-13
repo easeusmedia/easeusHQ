@@ -7,7 +7,6 @@ import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // its own copy, which silently dropped a new status from the board
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { Board } from "./Board";
-import { EditorViewToggle } from "./EditorViewToggle";
 import { NotionSyncButton } from "./NotionSyncButton";
 
 export const dynamic = "force-dynamic"; // always hits the DB, never statically cached
@@ -71,24 +70,18 @@ export default async function TasksPage({
   // re-applied inside the scroll area where it can't clip anything.
   return (
     <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
-      {isEditor ? (
-        <EditorViewToggle
-          tasks={visibleTasks}
-          projects={projects}
-          editors={editors}
-          actingUserId={actingUser.id}
-          actingRole={actingUser.role as Role}
-        />
-      ) : (
-        <Board
-          tasks={visibleTasks}
-          projects={projects}
-          editors={editors}
-          actingUserId={actingUser.id}
-          actingRole={actingUser.role as Role}
-          canCreate
-        />
-      )}
+      {/* the same board for everyone — editors used to get a separate
+          List/Board toggle onto a simplified view; now it's exactly what
+          ops sees, just pre-filtered to their own tasks (see visibleTasks
+          above) rather than a different dashboard */}
+      <Board
+        tasks={visibleTasks}
+        projects={projects}
+        editors={editors}
+        actingUserId={actingUser.id}
+        actingRole={actingUser.role as Role}
+        canCreate
+      />
 
       {canSyncNotion && <NotionSyncButton />}
     </div>
