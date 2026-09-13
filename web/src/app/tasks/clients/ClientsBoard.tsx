@@ -22,7 +22,6 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [activeGroup, setActiveGroup] = useState("current");
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
   const [optimisticStatuses, applyStatus] = useOptimistic(
     new Map(clients.map((c) => [c.id, c.status])),
     (state, update: { id: string; status: string }) => new Map(state).set(update.id, update.status)
@@ -48,24 +47,24 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
             <button
               key={g.status}
               onClick={() => setActiveGroup(g.status)}
-              // a card dragged over a tab that isn't the active one can drop
-              // right onto it — the only way to move a client to a status
-              // whose list isn't the one currently on screen
+              // dragging a card over a tab that isn't open switches to it
+              // immediately, same as a Kanban auto-tab-switch — dropping
+              // used to require landing exactly on this small button with
+              // its destination list never shown; now you see the section
+              // you're dropping into and can release anywhere in it
               onDragOver={(e) => {
                 e.preventDefault();
-                setDragOverGroup(g.status);
+                if (draggingId) setActiveGroup(g.status);
               }}
-              onDragLeave={() => setDragOverGroup((cur) => (cur === g.status ? null : cur))}
               onDrop={(e) => {
                 e.preventDefault();
-                setDragOverGroup(null);
                 const id = draggingId;
                 setDraggingId(null);
                 if (id) commitStatus(id, g.status);
               }}
               className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium ${
                 activeGroup === g.status ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
-              } ${dragOverGroup === g.status && activeGroup !== g.status ? "ring-2 ring-blue-400/50" : ""}`}
+              }`}
             >
               {g.label} <span className="text-muted/70">({counts[g.status]})</span>
             </button>
@@ -89,6 +88,16 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
       </div>
 
       <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const id = draggingId;
+          setDraggingId(null);
+          // the tab hover above already switched activeGroup to wherever
+          // this card is hovering, so dropping anywhere in the now-open
+          // section — not just back on the tab button — lands it there
+          if (id) commitStatus(id, activeGroup);
+        }}
         className={
           view === "grid"
             ? "grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] items-stretch gap-4"
@@ -118,7 +127,7 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
         {/* adding a client only makes sense into the live group */}
         {activeGroup === "current" && <AddClientCard variant={view === "grid" ? "card" : "row"} />}
         {visible.length === 0 && activeGroup !== "current" && (
-          <p className="text-xs text-muted">Drag a client here, or drop one on this tab.</p>
+          <p className="text-xs text-muted">Drag a client onto this tab to move it here.</p>
         )}
       </div>
     </div>

@@ -39,23 +39,33 @@ function Stat({ n, label }: { n: number; label: string }) {
 
 export function ClientCard({ client, onStatusChange }: { client: ClientCardData; onStatusChange?: (id: string, next: string) => void }) {
   return (
+    // draggable=false: an <a> is natively draggable on its own, and the
+    // browser picks the innermost draggable node under the cursor for the
+    // drag image — without this, dragging the card (the outer div in
+    // ClientsBoard actually holds the draggable=true) showed a "you're
+    // dragging a link" ghost instead of the card itself.
     <Link
       href={`/tasks/clients/${client.id}`}
+      draggable={false}
       className="card-surface card-interactive flex min-w-0 flex-col gap-3 rounded-2xl p-5 shadow-sm"
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <Face client={client} size={42} />
+        {/* full width to itself — the status dropdown used to sit in this
+            row and ate into it, truncating names that didn't need to be */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold leading-6">{client.name}</p>
           {client.niche && <p className="truncate text-xs leading-5 text-muted">{client.niche}</p>}
         </div>
-        <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
       </div>
 
-      <div className="flex min-h-[22px] flex-wrap gap-1">
-        {client.tags.slice(0, 3).map((t) => (
-          <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
-        ))}
+      <div className="flex min-h-[22px] items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1">
+          {client.tags.slice(0, 3).map((t) => (
+            <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
+          ))}
+        </div>
+        <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
       </div>
 
       <div className="mt-auto flex items-center gap-6 border-t border-border/60 pt-3">
@@ -70,6 +80,7 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
   return (
     <Link
       href={`/tasks/clients/${client.id}`}
+      draggable={false}
       className="flex items-center gap-4 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
     >
       <Face client={client} size={32} />
