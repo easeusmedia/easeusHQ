@@ -5,14 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
+import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { TaskRow } from "../../TaskRow";
 import { ProjectHeader } from "../ProjectHeader";
 
 export const dynamic = "force-dynamic";
-
-// The order the team actually thinks about a podcast episode in: the cut
-// first, then the trailer, then the clips, then everything around them.
-const TYPE_ORDER = ["YouTube Long-Form", "Reel Trailer", "Reel", "Bonus Reel", "Thumbnails", "Misc."];
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

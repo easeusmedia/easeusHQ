@@ -258,6 +258,11 @@ model Task {
   title        String
   status       TaskStatus @default(queued)
   dueDate      DateTime?
+  // null = visible immediately. Set = hidden from the assigned editor's
+  // board/list until this date; ops/admin always see it regardless, so
+  // work can be queued up ahead of time without cluttering an editor's
+  // queue early. No cron needed — it's just a date compared on every load.
+  scheduledFor DateTime?
   // manual drag-to-reorder position within a status column (lower sorts
   // first); a float so inserting between two cards is one write (new
   // midpoint value) instead of shifting every sibling's index

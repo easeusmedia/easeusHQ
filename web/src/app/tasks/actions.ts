@@ -56,6 +56,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (!projectId || !title.trim() || !assignedToId) {
     return { error: "Project, title, and an editor are all required" };
   }
+  const dueDateInput = String(formData.get("dueDate") ?? "").trim();
+  const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
 
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
@@ -63,7 +65,10 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     data: {
       projectId,
       title: title.trim(),
-      dueDate: new Date(),
+      // when it needs to reach the client for approval by, not when it was created
+      dueDate: dueDateInput ? new Date(dueDateInput) : null,
+      // hidden from the assigned editor until this date — see the schema comment
+      scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
       assignedToId,
       rawLink,
       referenceLink,

@@ -492,11 +492,17 @@ export async function importFromNotion(clientId: string) {
 
 // Projects are the unit of work a client is invoiced for — one podcast
 // episode, one video. Tasks hang off them.
-export async function createProject(clientId: string, name: string): Promise<{ id?: string; error?: string }> {
+export async function createProject(
+  clientId: string,
+  name: string,
+  coverUrl: string | null = null,
+  deliverableTypes: string[] = []
+): Promise<{ id?: string; error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a project." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the project a name." };
+  if (coverUrl && coverUrl.length > 500_000) return { error: "That cover image is too large." };
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
@@ -512,6 +518,11 @@ export async function createProject(clientId: string, name: string): Promise<{ i
       // project doesn't invent a second spelling of "podcast"
       type: client.projects[0]?.type ?? "project",
       status: "in_progress",
+      coverUrl,
+      // one empty placeholder per selected deliverable type — the same
+      // structure (see lib/deliverableTypes) on every project, filled in
+      // with a real link later from the project page
+      assets: { create: deliverableTypes.map((t, i) => ({ name: t, contentType: t, sortOrder: i })) },
     },
   });
   revalidatePath(`/tasks/clients/${clientId}`);

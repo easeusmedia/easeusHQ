@@ -95,6 +95,7 @@ export type TaskCardData = {
   editingNotes: string | null;
   revisionCount: number;
   dueDate: Date | null;
+  scheduledFor: Date | null;
   createdAt: Date;
   sortOrder: number;
   project: { name: string; type: string; client: { name: string } };
@@ -218,6 +219,14 @@ export function TaskCard({
           <Avatar name={task.assignedTo.name} />
           {task.assignedTo.name}
         </div>
+      )}
+
+      {/* only ops sees this — the assigned editor doesn't get the task at
+          all until this date (filtered out server-side in tasks/page.tsx) */}
+      {canManage && task.scheduledFor && task.scheduledFor > new Date() && (
+        <p className="rounded-md bg-surface-2 px-2 py-1 text-xs text-muted">
+          Scheduled for {formatDate(task.scheduledFor)} — hidden from {task.assignedTo?.name ?? "the editor"} until then
+        </p>
       )}
 
       {task.status === "revision_requested" && canManage && (

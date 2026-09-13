@@ -71,6 +71,18 @@ export function NewTaskRow({ projects, editors }: { projects: Project[]; editors
             <input name="rawLink" placeholder="Google Drive link" className={field} />
           </label>
 
+          <div className="flex gap-3">
+            <label className="flex flex-1 flex-col gap-1.5 text-xs text-muted">
+              Due date <span className="font-normal normal-case">— for client approval</span>
+              <input type="date" name="dueDate" className={field} />
+            </label>
+
+            <label className="flex flex-1 flex-col gap-1.5 text-xs text-muted">
+              Schedule for <span className="font-normal normal-case">— optional</span>
+              <input type="date" name="scheduledFor" className={field} />
+            </label>
+          </div>
+
           <label className="flex flex-col gap-1.5 text-xs text-muted">
             <span className="flex items-center gap-1.5">
               <NotesGlyph size={12} /> Editing notes

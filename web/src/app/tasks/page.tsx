@@ -50,7 +50,11 @@ export default async function TasksPage({
   }
 
   const isEditor = actingUser.role === "employee";
-  const visibleTasks = isEditor ? tasks.filter((t) => t.assignedToId === actingUser.id) : tasks;
+  // a scheduled-for-the-future task stays off the assigned editor's board
+  // until that date — ops/admin (the `else` below) always sees everything
+  const visibleTasks = isEditor
+    ? tasks.filter((t) => t.assignedToId === actingUser.id && (!t.scheduledFor || t.scheduledFor <= new Date()))
+    : tasks;
 
   // based on who's actually signed in, not the "viewing as" impersonation —
   // same rule as History's delete button (see history/page.tsx)

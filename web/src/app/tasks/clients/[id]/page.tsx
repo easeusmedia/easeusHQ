@@ -6,7 +6,6 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { Board } from "../../Board";
-import { AddProjectCard } from "../AddProjectCard";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
 import { ClientInfo } from "../ClientInfo";
@@ -14,7 +13,7 @@ import { ClientNotionLink } from "../ClientNotionLink";
 import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
-import { ProjectCard } from "../ProjectCard";
+import { ProjectsSection } from "../ProjectsSection";
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
@@ -148,12 +147,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                       {completed.length} done · {live.length} in progress
                     </span>
                   </div>
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-                    <AddProjectCard clientId={client.id} />
-                    {projectCards.map((p) => (
-                      <ProjectCard key={p.id} project={p} />
-                    ))}
-                  </div>
+                  <ProjectsSection clientId={client.id} projects={projectCards} />
                 </section>
               </div>
             ),

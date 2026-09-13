@@ -12,7 +12,7 @@ const GROUPS: { status: string; label: string }[] = [
   { status: "previous", label: "Previous" },
 ];
 
-// Three status zones stacked vertically, each its own panel and its own drop
+// Three status zones side by side, each its own panel and its own drop
 // target — drag a client between them to change status. Grid or list is a
 // view preference over the same three zones, not a different page.
 export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
@@ -50,6 +50,7 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
       {GROUPS.map((group) => {
         const groupClients = clients.filter((c) => (optimisticStatuses.get(c.id) ?? c.status) === group.status);
         return (
@@ -100,6 +101,7 @@ export function ClientsBoard({ clients }: { clients: ClientCardData[] }) {
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

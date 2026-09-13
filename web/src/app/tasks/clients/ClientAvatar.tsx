@@ -5,35 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, X } from "lucide-react";
 import { Avatar } from "../TaskCard";
 import { updateClientAvatar } from "./actions";
-
-// Downscales to a small square JPEG before it ever leaves the browser —
-// there's no object storage wired up (see the schema comment on
-// Client.avatarUrl), so this goes straight into the DB as a data: URI, and
-// staying small is what keeps that reasonable.
-function resizeToSquareJpeg(file: File, size = 160): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      img.onerror = () => reject(new Error("Couldn't read that image."));
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("Canvas not supported."));
-        // center-crop to a square before scaling down, so a non-square
-        // photo doesn't come out squished
-        const side = Math.min(img.width, img.height);
-        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
+import { resizeToJpeg } from "@/lib/imageResize";
 
 export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; name: string; avatarUrl: string | null }) {
   const router = useRouter();
@@ -48,7 +20,7 @@ export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; 
     setPending(true);
     setError(null);
     try {
-      const dataUrl = await resizeToSquareJpeg(file);
+      const dataUrl = await resizeToJpeg(file, 160, 160);
       const res = await updateClientAvatar(clientId, dataUrl);
       if (res.error) setError(res.error);
       else router.refresh();
