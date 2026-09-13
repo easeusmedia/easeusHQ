@@ -62,7 +62,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
       >
         <h2 className="text-base font-semibold">New client</h2>
         <p className="mt-1 mb-5 text-xs text-muted">
-          They&apos;ll be set up from the client template — deliverables, documents and the onboarding checklist.
+          They&apos;ll be set up from the client template: deliverables, documents and the onboarding checklist.
         </p>
 
         <div className="flex flex-col gap-3">
@@ -79,7 +79,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Niche <span className="font-normal normal-case">— optional</span>
+            Niche <span className="font-normal normal-case">(optional)</span>
             <input
               value={form.niche}
               onChange={(e) => setForm((f) => ({ ...f, niche: e.target.value }))}

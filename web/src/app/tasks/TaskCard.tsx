@@ -132,7 +132,7 @@ export function TaskCard({
   task: TaskCardData;
   clientName: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { name: string } }[];
   actingUserId: string;
   actingRole: Role;
 }) {
@@ -225,7 +225,7 @@ export function TaskCard({
           all until this date (filtered out server-side in tasks/page.tsx) */}
       {canManage && task.scheduledFor && task.scheduledFor > new Date() && (
         <p className="rounded-md bg-surface-2 px-2 py-1 text-xs text-muted">
-          Scheduled for {formatDate(task.scheduledFor)} — hidden from {task.assignedTo?.name ?? "the editor"} until then
+          Scheduled for {formatDate(task.scheduledFor)}, hidden from {task.assignedTo?.name ?? "the editor"} until then
         </p>
       )}
 
@@ -236,13 +236,13 @@ export function TaskCard({
       )}
       {task.status === "revision_requested" && actingRole === "employee" && (
         <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
-          Revision requested — check the notes and resume editing.
+          Revision requested. Check the notes and resume editing.
         </p>
       )}
 
       {task.status === "sent_for_approval" && actingRole === "employee" && (
         <p className="rounded-md bg-purple-400/10 px-2 py-1 text-xs text-purple-300">
-          Sent — waiting on ops to review it.
+          Sent. Waiting on ops to review it.
         </p>
       )}
 

@@ -21,7 +21,7 @@ export default async function TasksPage({
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const [users, projects, tasks] = await Promise.all([
+  const [users, rawProjects, tasks] = await Promise.all([
     getAllUsers(),
     prisma.project.findMany({
       where: { client: { status: "current" } },
@@ -34,6 +34,9 @@ export default async function TasksPage({
       include: { assignedTo: true, project: { include: { client: true } } },
     }),
   ]);
+  // a project set up before names were required can still have "" — fall
+  // back to its type so the new/reassign-task dropdown never shows a blank
+  const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
 
   const editors = users.filter((u) => u.role === "employee"); // assignable pool — ops (admin/core) don't edit, they manage
   const actingUser = resolveActingUser(users, sessionUserId, as);

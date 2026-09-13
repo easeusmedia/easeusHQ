@@ -80,7 +80,7 @@ export default async function CalendarPage({
         <div>
           <h1 className="text-xl font-semibold">Calendar</h1>
           <p className="mt-1 text-sm text-muted">
-            How many tasks were sitting in the dashboard on a given day — a task stops counting the day it&apos;s
+            How many tasks were sitting in the dashboard on a given day. A task stops counting the day it&apos;s
             delivered to the client, not before.
           </p>
         </div>

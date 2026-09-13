@@ -24,22 +24,26 @@ export function ClientsSyncButton() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        onClick={sync}
-        disabled={pending}
-        className="btn-glow flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-      >
-        <NotionMark />
-        <RefreshCw size={13} className={pending ? "animate-spin" : undefined} />
-        {pending ? "Syncing…" : "Sync clients"}
-      </button>
+    // fixed to the viewport, bottom-center — same spot and same reasoning
+    // as the task board's "Sync with Notion" button: a safety net to tally
+    // against Notion (still the real source of truth for now), not a
+    // primary action that deserves top-bar real estate
+    <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2">
       {result && (
         <p className={`text-xs ${result.error ? "text-red-300" : "text-muted"}`}>
           {result.error ? result.error : `${result.created} new, ${result.updated} updated.`}
         </p>
       )}
+      <button
+        type="button"
+        onClick={sync}
+        disabled={pending}
+        className="btn-glow flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
+      >
+        <NotionMark />
+        <RefreshCw size={14} className={pending ? "animate-spin" : undefined} />
+        {pending ? "Syncing…" : "Sync clients"}
+      </button>
     </div>
   );
 }

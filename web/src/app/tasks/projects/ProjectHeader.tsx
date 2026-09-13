@@ -9,6 +9,7 @@ import { updateProject, deleteProject } from "../clients/actions";
 // column in place rather than opening a dialog — it's three fields.
 export function ProjectHeader({
   projectId,
+  clientId,
   name,
   status,
   coverUrl,
@@ -17,6 +18,7 @@ export function ProjectHeader({
   canDelete,
 }: {
   projectId: string;
+  clientId: string;
   name: string;
   status: string;
   coverUrl: string | null;
@@ -48,7 +50,10 @@ export function ProjectHeader({
       deleteRef.current?.close();
       return;
     }
-    router.push("/tasks/clients");
+    // back to this client's own dashboard, not the top-level roster —
+    // deleting one of a client's projects shouldn't bounce you away from
+    // the client you were just looking at
+    router.push(`/tasks/clients/${clientId}`);
   }
 
   const done = status === "completed";
@@ -146,7 +151,7 @@ export function ProjectHeader({
         className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="text-sm">
-          Delete <strong>{name}</strong>? Its file links go with it — this can&apos;t be undone.
+          Delete <strong>{name}</strong>? Its file links go with it. This can&apos;t be undone.
         </p>
         <div className="mt-3 flex justify-end gap-2">
           <button onClick={() => deleteRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">

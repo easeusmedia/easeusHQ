@@ -106,7 +106,7 @@ export function AddProjectCard({ clientId }: { clientId: string }) {
           </label>
 
           <div className="flex flex-col gap-1.5 text-xs text-muted">
-            Deliverables <span className="font-normal normal-case">— what this project will produce</span>
+            Deliverables <span className="font-normal normal-case">(what this project will produce)</span>
             <div className="flex flex-wrap gap-1.5">
               {DELIVERABLE_TYPES.map((t) => (
                 <button

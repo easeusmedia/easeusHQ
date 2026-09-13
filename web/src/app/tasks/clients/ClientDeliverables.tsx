@@ -65,13 +65,13 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2 p-2.5">
       <input
         autoFocus
-        placeholder="Deliverable — e.g. Podcast episodes"
+        placeholder="Deliverable (e.g. Podcast episodes)"
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
       />
       <input
-        placeholder="Detail — e.g. 2 long-form per cycle"
+        placeholder="Detail (e.g. 2 long-form per cycle)"
         value={detail}
         onChange={(e) => setDetail(e.target.value)}
         className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
@@ -110,7 +110,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
 
       {deliverables.length === 0 && !adding ? (
         <p className="text-sm text-muted">
-          No deliverables listed yet — this is the contracted scope, e.g. &ldquo;2 podcast episodes/cycle&rdquo;.
+          No deliverables listed yet. This is the contracted scope, e.g. &ldquo;2 podcast episodes/cycle&rdquo;.
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
@@ -121,7 +121,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
               <li key={d.id} className="group flex items-center justify-between gap-2 rounded-md bg-surface-2 px-3 py-2 text-sm">
                 <div className="min-w-0">
                   <span className="font-medium">{d.name}</span>
-                  {d.detail && <span className="text-muted"> — {d.detail}</span>}
+                  {d.detail && <span className="text-muted"> · {d.detail}</span>}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {d.deliveredCount > 0 && (

@@ -73,7 +73,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     listTags(),
   ]);
 
-  const boardProjects = client.projects.map((p) => ({ id: p.id, client: { name: p.name || p.type } }));
+  const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: client.name } }));
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
   const projectCards = client.projects.map((p) => ({
@@ -93,31 +93,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   return (
     <div>
       <div className={column}>
-        {/* a banner purely for presence — the avatar overlaps its bottom
-            edge (negative margin on the row below, not on the banner),
-            same "hero strip + floating profile" shape as the reference */}
-        <div className="relative mb-2 h-24 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-500 to-cyan-400 sm:h-32">
-          <Link
-            href="/tasks/clients"
-            className="absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-black/25 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm hover:bg-black/40"
-          >
-            <ArrowLeft size={13} /> Clients
-          </Link>
-        </div>
+        <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+          <ArrowLeft size={14} /> Clients
+        </Link>
 
-        {/* relative + z-10: a `position: relative` sibling (the banner,
-            for its own absolutely-positioned back button) always paints
-            above a plain static one that overlaps it, regardless of DOM
-            order — without this the avatar/name row rendered underneath
-            the banner instead of on top of it.
-            Only the avatar carries the negative margin (items-start, not
-            items-end) — it pokes up into the banner while the name block
-            stays put right underneath, rather than both floating up. */}
-        <div className="relative z-10 mb-8 flex flex-wrap items-start gap-4 px-2">
-          <div className="-mt-10 shrink-0 rounded-full ring-4 ring-background sm:-mt-12">
-            <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
+        <div className="mb-8 flex items-center gap-4">
+          <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
+          <div className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
               <StatusDropdown clientId={client.id} status={client.status} size="md" />
@@ -159,15 +141,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   />
                 </section>
 
-                <section>
-                  <div className="mb-4 flex items-baseline justify-between">
-                    <h2 className="text-sm font-medium">Projects</h2>
-                    <span className="text-xs text-muted">
-                      {completed.length} done · {live.length} in progress
-                    </span>
-                  </div>
-                  <ProjectsSection clientId={client.id} projects={projectCards} />
-                </section>
+                <ProjectsSection clientId={client.id} projects={projectCards} />
               </div>
             ),
           },

@@ -214,7 +214,7 @@ export function ClientInfo({
               ].map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 last:border-0">
                   <dt className="shrink-0 text-muted">{label}</dt>
-                  <dd className="min-w-0 truncate text-right">{value || "—"}</dd>
+                  <dd className="min-w-0 truncate text-right">{value || "Not set"}</dd>
                 </div>
               ))}
             </dl>
@@ -228,7 +228,7 @@ export function ClientInfo({
         >
           <p className="text-sm">
             Delete <strong>{name}</strong>? This permanently removes their projects, tasks, invoices, deliverables
-            and delivered work too — it can&apos;t be undone.
+            and delivered work too. This can&apos;t be undone.
           </p>
           <div className="mt-3 flex justify-end gap-2">
             <button type="button" onClick={() => deleteRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">

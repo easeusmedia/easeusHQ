@@ -38,7 +38,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   task: TaskCardData;
   clientName: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { name: string } }[];
   actingUserId: string;
   actingRole: Role;
 }>(function TaskDetailsDialog({ task, clientName, editors, projects, actingUserId, actingRole }, ref) {
@@ -117,7 +117,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   <Dropdown
                     name="projectId"
                     defaultValue={task.projectId}
-                    options={projects.map((p) => ({ value: p.id, label: p.client.name }))}
+                    options={projects.map((p) => ({ value: p.id, label: `${p.client.name} · ${p.name}` }))}
                   />
                 </Field>
                 <Field label="Assigned to">
@@ -186,7 +186,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                       {task.rawLink}
                     </a>
                   ) : (
-                    <p className="text-sm text-muted">—</p>
+                    <p className="text-sm text-muted">None</p>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-muted">
@@ -219,7 +219,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                             {task.frameioLink}
                           </a>
                         ) : (
-                          <p className="text-sm text-muted">—</p>
+                          <p className="text-sm text-muted">None</p>
                         )}
                         {canEditFrameio && (
                           <button
@@ -259,9 +259,14 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               historyOpen ? "w-[23rem] opacity-100" : "w-0 opacity-0"
             }`}
           >
-            <div className="flex w-[23rem] flex-col gap-2">
+            {/* h-full: the row above (`flex gap-4`) stretches this whole
+                column to match the form's height by default, but nothing
+                inside it claimed that height — the table sat in a fixed,
+                much-shorter box, leaving real dead space below it and
+                cropping mid-row well before the panel's actual bottom. */}
+            <div className="flex h-full w-[23rem] flex-col gap-2">
               <p className="text-xs font-medium text-muted">Every stage this task has gone through</p>
-              <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-md border border-border">
+              <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-surface text-muted">
                     <tr>

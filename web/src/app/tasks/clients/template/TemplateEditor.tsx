@@ -121,7 +121,7 @@ export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
               <input
                 value={d.detail}
                 onChange={(e) => updateRow("deliverables", i, { detail: e.target.value })}
-                placeholder="Detail — e.g. 2 per month"
+                placeholder="Detail (e.g. 2 per month)"
                 className={`${field} flex-1`}
               />
               <button onClick={() => removeRow("deliverables", i)} className="shrink-0 rounded-md p-1.5 text-red-300 hover:bg-red-500/10">
@@ -181,7 +181,7 @@ export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
 
       <div className="sticky bottom-0 flex items-center justify-end gap-3 rounded-2xl border border-border bg-surface/90 px-5 py-3 backdrop-blur">
         {error && <p className="mr-auto text-xs text-red-300">{error}</p>}
-        {saved && !error && <p className="mr-auto text-xs text-muted">Saved — new clients will use this.</p>}
+        {saved && !error && <p className="mr-auto text-xs text-muted">Saved. New clients will use this.</p>}
         <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
           {saving ? "Saving…" : "Save template"}
         </button>

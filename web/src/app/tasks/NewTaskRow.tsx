@@ -6,7 +6,7 @@ import { createTask, type TaskFormState } from "./actions";
 import { NotesGlyph } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 
-type Project = { id: string; client: { name: string } };
+type Project = { id: string; name: string; client: { name: string } };
 type Editor = { id: string; name: string };
 
 const initialState: TaskFormState = {};
@@ -14,7 +14,17 @@ const initialState: TaskFormState = {};
 // A centred modal rather than the old inline <details> drawer: the form has
 // six fields, and unfolding it inside a board column squeezed the column
 // and pushed every card down the page.
-export function NewTaskRow({ projects, editors }: { projects: Project[]; editors: Editor[] }) {
+export function NewTaskRow({
+  projects,
+  editors,
+  defaultProjectId,
+}: {
+  projects: Project[];
+  editors: Editor[];
+  // pre-picks the project when this is embedded on that project's own page,
+  // so adding a task there doesn't mean hunting it back out of the list
+  defaultProjectId?: string;
+}) {
   const [state, formAction, pending] = useActionState(createTask, initialState);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -52,8 +62,13 @@ export function NewTaskRow({ projects, editors }: { projects: Project[]; editors
         <h2 className="mb-4 text-base font-semibold">New task</h2>
         <form ref={formRef} action={formAction} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Client
-            <Dropdown name="projectId" placeholder="Client…" options={projects.map((p) => ({ value: p.id, label: p.client.name }))} />
+            Project
+            <Dropdown
+              name="projectId"
+              defaultValue={defaultProjectId}
+              placeholder="Project…"
+              options={projects.map((p) => ({ value: p.id, label: `${p.client.name} · ${p.name}` }))}
+            />
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
@@ -73,12 +88,12 @@ export function NewTaskRow({ projects, editors }: { projects: Project[]; editors
 
           <div className="flex gap-3">
             <label className="flex flex-1 flex-col gap-1.5 text-xs text-muted">
-              Due date <span className="font-normal normal-case">— for client approval</span>
+              Due date <span className="font-normal normal-case">(for client approval)</span>
               <input type="date" name="dueDate" className={field} />
             </label>
 
             <label className="flex flex-1 flex-col gap-1.5 text-xs text-muted">
-              Schedule for <span className="font-normal normal-case">— optional</span>
+              Schedule for <span className="font-normal normal-case">(optional)</span>
               <input type="date" name="scheduledFor" className={field} />
             </label>
           </div>

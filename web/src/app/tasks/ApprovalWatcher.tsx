@@ -69,10 +69,10 @@ export function ApprovalWatcher({ userId }: { userId: string }) {
           .filter(([id, entry]) => entry.status === "final_export_ready" && !currentIds.has(id))
           .map(([, entry]) => entry.title);
         if (delivered.length === 1) {
-          setCelebration(`"${delivered[0]}" was delivered to the client — nice work!`);
+          setCelebration(`"${delivered[0]}" was delivered to the client. Nice work!`);
           playChime();
         } else if (delivered.length > 1) {
-          setCelebration(`${delivered.length} of your tasks were delivered to the client — nice work!`);
+          setCelebration(`${delivered.length} of your tasks were delivered to the client. Nice work!`);
           playChime();
         }
       }

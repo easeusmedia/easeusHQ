@@ -46,7 +46,7 @@ export function ClientNotionLink({ clientId, contentDbId }: { clientId: string; 
         <h3 className="text-sm font-medium">Import from Notion</h3>
       </div>
       <p className="mb-3 text-xs text-muted">
-        Paste this client&apos;s content database link — the one with a row per episode. Importing pulls their
+        Paste this client&apos;s content database link (the one with a row per episode). Importing pulls their
         projects, the files inside each, and their editor-workbook documents.
       </p>
 

@@ -23,7 +23,7 @@ export const ALL_COLUMNS: Column[] = ALL_STATUSES.map((status) => ({
 // actually delivered it's done, so it drops off the board into History.
 export const BOARD_COLUMNS: Column[] = ALL_COLUMNS.filter((c) => c.status !== "delivered_and_uploaded");
 
-type Project = { id: string; client: { name: string } };
+type Project = { id: string; name: string; client: { name: string } };
 type Editor = { id: string; name: string };
 
 // the task already has a Frame.io/Drive link on file from an earlier pass
@@ -40,7 +40,7 @@ function existingLinkValue(task: TaskCardData | undefined, field: "frameioLink" 
 
 function friendlyError(message: string): string {
   if (/database|connection string|prisma/i.test(message)) {
-    return "Not connected to a real database yet — this demo page can't save changes until Supabase is set up.";
+    return "Not connected to a real database yet. This demo page can't save changes until Supabase is set up.";
   }
   return message || "Couldn't move that task.";
 }

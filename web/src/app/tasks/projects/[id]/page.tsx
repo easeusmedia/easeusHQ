@@ -7,6 +7,7 @@ import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { TaskRow } from "../../TaskRow";
+import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (!project) notFound();
 
   const editors = users.filter((u) => u.role === "employee");
-  const boardProjects = project.client.projects.map((p) => ({ id: p.id, client: { name: p.name || p.type } }));
+  const boardProjects = project.client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: project.client.name } }));
 
   const groups = Object.entries(
     project.assets.reduce<Record<string, typeof project.assets>>((acc, a) => {
@@ -62,6 +63,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <ProjectHeader
         projectId={project.id}
+        clientId={project.clientId}
         name={project.name || project.type}
         status={project.status}
         coverUrl={project.coverUrl}
@@ -74,31 +76,36 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         canDelete={project.tasks.length === 0}
       />
 
-      {project.tasks.length > 0 && (
-        <section className="mt-12">
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="text-sm font-medium">Tasks</h2>
+      <section className="mt-12">
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="text-sm font-medium">Tasks</h2>
+          {project.tasks.length > 0 && (
             <span className="text-xs text-muted">
               {active.length} in flight · {done.length} delivered
             </span>
-          </div>
-          <ul className="flex flex-col gap-2">
-            {[...active, ...done].map((t) => (
-              <li key={t.id}>
-                <TaskRow
-                  task={t}
-                  clientName={project.client.name}
-                  subtitle={t.assignedTo?.name ?? "Unassigned"}
-                  editors={editors}
-                  projects={boardProjects}
-                  actingUserId={me.id}
-                  actingRole={me.role as Role}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          )}
+        </div>
+        <ul className="flex flex-col gap-2">
+          {[...active, ...done].map((t) => (
+            <li key={t.id}>
+              <TaskRow
+                task={t}
+                clientName={project.client.name}
+                subtitle={t.assignedTo?.name ?? "Unassigned"}
+                editors={editors}
+                projects={boardProjects}
+                actingUserId={me.id}
+                actingRole={me.role as Role}
+              />
+            </li>
+          ))}
+          {/* every task made here is pre-scoped to this project — no
+              hunting it back out of a list of every project on the board */}
+          <li>
+            <NewTaskRow projects={boardProjects} editors={editors} defaultProjectId={project.id} />
+          </li>
+        </ul>
+      </section>
 
       <section className="mt-12">
         <div className="mb-4 flex items-baseline justify-between">

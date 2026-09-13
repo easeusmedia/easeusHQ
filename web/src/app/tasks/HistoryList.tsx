@@ -79,7 +79,7 @@ export function HistoryList({
                 <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(t.updatedAt)}</td>
                 <td className="px-3 py-2 text-muted">{t.project.client.name}</td>
                 <td className="px-3 py-2">{t.title}</td>
-                <td className="px-3 py-2 text-muted">{t.assignedTo?.name ?? "—"}</td>
+                <td className="px-3 py-2 text-muted">{t.assignedTo?.name ?? "Unassigned"}</td>
                 <td className="px-3 py-2 text-muted">{STATUS_LABEL[t.status]}</td>
                 <td className="px-3 py-2">
                   {t.driveLink ? (
@@ -92,7 +92,7 @@ export function HistoryList({
                       View ↗
                     </a>
                   ) : (
-                    <span className="text-muted">—</span>
+                    <span className="text-muted">None</span>
                   )}
                 </td>
                 {canDelete && (
@@ -101,7 +101,7 @@ export function HistoryList({
                       <input type="hidden" name="taskId" value={t.id} />
                     </form>
                     <ConfirmButton
-                      message={`Permanently delete "${t.title}"? This removes it and its activity log from the database — it can't be undone.`}
+                      message={`Permanently delete "${t.title}"? This removes it and its activity log from the database. It can't be undone.`}
                       className="text-xs text-muted hover:text-red-400"
                       formId={`delete-history-${t.id}`}
                     >

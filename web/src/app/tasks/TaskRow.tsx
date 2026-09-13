@@ -23,7 +23,7 @@ export function TaskRow({
   clientName: string;
   subtitle: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { name: string } }[];
   actingUserId: string;
   actingRole: Role;
 }) {

@@ -76,13 +76,13 @@ export function CalendarGrid({
         className="glass fixed top-1/2 left-1/2 m-0 w-96 max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="mb-3 text-sm font-medium">
-          {selected} — {selectedTaskCount} task{selectedTaskCount === 1 ? "" : "s"}
+          {selected} · {selectedTaskCount} task{selectedTaskCount === 1 ? "" : "s"}
         </p>
         <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
           {selectedEntries.map((e, i) => (
             <div key={i} className="rounded-md border border-border bg-surface-2 p-2 text-xs">
               <p className="font-medium text-foreground">
-                {e.clientName} — {e.title}
+                {e.clientName} · {e.title}
               </p>
               <p className="mt-0.5 text-muted">
                 {e.action} · {e.actorName}

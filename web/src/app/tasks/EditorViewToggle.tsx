@@ -17,7 +17,7 @@ const STORAGE_KEY = "editor-view-mode";
 // working even when the editor isn't looking at this component at all.
 export function EditorViewToggle(props: {
   tasks: TaskCardData[];
-  projects: { id: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { name: string } }[];
   editors: { id: string; name: string }[];
   actingUserId: string;
   actingRole: Role;

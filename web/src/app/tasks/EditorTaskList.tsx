@@ -90,7 +90,7 @@ export function EditorTaskList({
 
             {task.status === "sent_for_approval" && (
               <p className="rounded-md bg-purple-400/10 px-2 py-1 text-xs text-purple-300">
-                Sent — waiting on ops to review it.
+                Sent. Waiting on ops to review it.
               </p>
             )}
 
