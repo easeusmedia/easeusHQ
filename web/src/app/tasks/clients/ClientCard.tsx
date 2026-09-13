@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Avatar } from "../TaskCard";
 import { TagPill } from "./TagPill";
+import { StatusDropdown } from "./StatusDropdown";
 
 export type ClientCardData = {
   id: string;
@@ -36,18 +37,19 @@ function Stat({ n, label }: { n: number; label: string }) {
   );
 }
 
-export function ClientCard({ client }: { client: ClientCardData }) {
+export function ClientCard({ client, onStatusChange }: { client: ClientCardData; onStatusChange?: (id: string, next: string) => void }) {
   return (
     <Link
       href={`/tasks/clients/${client.id}`}
       className="card-surface card-interactive flex min-w-0 flex-col gap-3 rounded-2xl p-5 shadow-sm"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <Face client={client} size={42} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold leading-6">{client.name}</p>
           {client.niche && <p className="truncate text-xs leading-5 text-muted">{client.niche}</p>}
         </div>
+        <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
       </div>
 
       <div className="flex min-h-[22px] flex-wrap gap-1">
@@ -64,7 +66,7 @@ export function ClientCard({ client }: { client: ClientCardData }) {
   );
 }
 
-export function ClientRow({ client }: { client: ClientCardData }) {
+export function ClientRow({ client, onStatusChange }: { client: ClientCardData; onStatusChange?: (id: string, next: string) => void }) {
   return (
     <Link
       href={`/tasks/clients/${client.id}`}
@@ -88,6 +90,7 @@ export function ClientRow({ client }: { client: ClientCardData }) {
         <span className={client.activeTasks > 0 ? "text-foreground" : ""}>{client.activeTasks}</span> active
         {client.activeTasks === 1 ? " task" : " tasks"}
       </span>
+      <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
     </Link>
   );
 }

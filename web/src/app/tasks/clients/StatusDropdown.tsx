@@ -22,7 +22,21 @@ const OPTIONS = ["current", "on_hold", "previous"];
 // One dropdown, used both in the client list (change status without
 // opening the client) and on the client's own page — same component,
 // same behavior, so status always changes the same way everywhere.
-export function StatusDropdown({ clientId, status, size = "sm" }: { clientId: string; status: string; size?: "sm" | "md" }) {
+export function StatusDropdown({
+  clientId,
+  status,
+  size = "sm",
+  onChange,
+}: {
+  clientId: string;
+  status: string;
+  size?: "sm" | "md";
+  // the client list already has its own optimistic state (shared with
+  // drag-and-drop) — when given, this drives that instead of calling
+  // updateClientStatus/router.refresh() itself, so a pick from the
+  // dropdown and a drag land the same way.
+  onChange?: (id: string, next: string) => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -39,6 +53,7 @@ export function StatusDropdown({ clientId, status, size = "sm" }: { clientId: st
   async function pick(next: string) {
     setOpen(false);
     if (next === status) return;
+    if (onChange) return onChange(clientId, next);
     setPending(true);
     await updateClientStatus(clientId, next);
     setPending(false);
