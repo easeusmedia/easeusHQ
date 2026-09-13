@@ -77,9 +77,9 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
           dialogRef.current?.showModal();
         }}
         title="Delete project"
-        className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity hover:bg-red-500/70 group-hover:opacity-100"
+        className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md text-muted opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
       >
-        <Trash2 size={12} />
+        <Trash2 size={13} />
       </button>
 
       <dialog

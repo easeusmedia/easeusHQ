@@ -18,6 +18,7 @@ import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
 import { ClientTags } from "../ClientTags";
+import { ClientSwitcher } from "../ClientSwitcher";
 import { listTags } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const projectIds = client.projects.map((p) => p.id);
   const editors = users.filter((u) => u.role === "employee");
 
-  const [tasks, deliveredSinceInvoice, allTags] = await Promise.all([
+  const [tasks, deliveredSinceInvoice, allTags, allClients] = await Promise.all([
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
       orderBy: { createdAt: "desc" },
@@ -71,6 +72,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       },
     }),
     listTags(),
+    // the left-side switcher — just enough to render a roster, not a
+    // second full clients-page query
+    prisma.client.findMany({
+      where: { status: "current" },
+      select: { id: true, name: true, avatarUrl: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: client.name } }));
@@ -86,13 +94,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     activeTasks: p._count.tasks,
   }));
 
-  // everything reads in a centred column except the task board, which gets
-  // the whole width (see ClientTabs' `bleed`)
-  const column = "mx-auto w-full max-w-6xl";
-
   return (
-    <div>
-      <div className={column}>
+    <div className="flex gap-6">
+      <ClientSwitcher clients={allClients} currentId={client.id} />
+
+      <div className="min-w-0 flex-1">
         <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
           <ArrowLeft size={14} /> Clients
         </Link>
@@ -117,11 +123,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
           />
         </div>
-      </div>
 
-      <ClientTabs
-        width={column}
-        tabs={[
+        <ClientTabs
+          width=""
+          tabs={[
           {
             key: "overview",
             label: "Overview",
@@ -150,22 +155,22 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             label: "Task board",
             count: tasks.length,
             bleed: true,
+            // `flow`: the board grows with its cards and the page does the
+            // scrolling, so nothing is cut off at the bottom and each stage
+            // header pins itself to the top as it passes. No full-bleed
+            // negative margin here — the switcher rail alongside it is
+            // real content, not padding, so there's no page edge to cancel
+            // out to anymore.
             content: (
-              // `flow`: the board grows with its cards and the page does the
-              // scrolling, so nothing is cut off at the bottom and each stage
-              // header pins itself to the top as it passes. The negative
-              // margin cancels the page padding so it runs edge to edge.
-              <div className="-mx-6 sm:-mx-8">
-                <Board
-                  tasks={tasks}
-                  projects={boardProjects}
-                  editors={editors}
-                  actingUserId={me.id}
-                  actingRole={me.role as Role}
-                  canCreate
-                  flow
-                />
-              </div>
+              <Board
+                tasks={tasks}
+                projects={boardProjects}
+                editors={editors}
+                actingUserId={me.id}
+                actingRole={me.role as Role}
+                canCreate
+                flow
+              />
             ),
           },
           {
@@ -214,7 +219,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             ),
           },
         ]}
-      />
+        />
+      </div>
     </div>
   );
 }

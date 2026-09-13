@@ -60,7 +60,7 @@ export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; 
             type="button"
             onClick={remove}
             title="Remove photo"
-            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-muted hover:text-red-300"
+            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-2 text-muted opacity-0 transition-opacity hover:text-red-300 group-hover:opacity-100"
           >
             <X size={11} />
           </button>

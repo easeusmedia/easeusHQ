@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, Users, Users2, CalendarCheck2, PanelLeft, LogOut, MessageCircle } from "lucide-react";
+import { LayoutDashboard, History, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { TeamPanel } from "./team/TeamPanel";
@@ -68,6 +68,9 @@ export function Sidebar({
   const [teamOpen, setTeamOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
+  // a couple of faces on the trigger itself — this opens the team roster,
+  // not a chat inbox, so it should look like one at a glance
+  const teamPreview = people.filter((p) => p.id !== sessionUserId).slice(0, 2);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -224,10 +227,22 @@ export function Sidebar({
           title={open ? undefined : "Team"}
           className={`flex items-center rounded-md text-sm text-muted hover:bg-surface-2 hover:text-foreground ${open ? "w-full gap-2" : ""}`}
         >
+          {/* the team roster itself, stacked — not a generic chat icon */}
           <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-            <MessageCircle size={18} />
+            <span className="flex -space-x-2">
+              {teamPreview.map((p) =>
+                p.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
+                  <img key={p.id} src={p.avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover ring-2 ring-background" />
+                ) : (
+                  <span key={p.id} className="ring-2 ring-background rounded-full">
+                    <Avatar name={p.name} size={16} />
+                  </span>
+                )
+              )}
+            </span>
             {unreadCount > 0 && (
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
+              <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
             )}
           </span>
           <FadeLabel open={open}>Team</FadeLabel>

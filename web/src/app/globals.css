@@ -26,9 +26,22 @@
 
 /* Supabase-density pass: one lever shrinks every rem-based Tailwind text
    AND spacing utility together, so the whole app gets proportionally more
-   compact instead of hand-tuning every className. */
+   compact instead of hand-tuning every className. Taken a step further
+   here (87.5% -> 81%) — still not tight enough to fight for space, just
+   smaller and calmer, closer to the minimal reference the team wants to
+   match. */
 html {
-  font-size: 87.5%; /* 14px */
+  font-size: 81%; /* ~13px */
+}
+
+/* Icons across the whole app were drawn at lucide's default 2px stroke,
+   which reads as heavy/blunt at this smaller scale — every icon everywhere
+   drops to 1.5px in one place instead of passing strokeWidth to each of
+   the ~40 call sites individually. SVG presentation attributes (lucide
+   sets stroke-width="2" inline) sit below any stylesheet rule in the
+   cascade, so a plain selector here overrides it with no !important. */
+.lucide {
+  stroke-width: 1.5px;
 }
 
 body {
