@@ -52,12 +52,29 @@ export function TeamPanel({
   onClose: () => void;
 }) {
   const [openWith, setOpenWith] = useState<Person | null>(null);
+  // starts closed and flips true a frame after mount, so the transition
+  // below actually has a state change to animate from rather than
+  // painting already-open on the very first frame
+  const [visible, setVisible] = useState(false);
   // mirrored into local state so opening a thread can clear that person's
   // badge immediately — the prop itself only refreshes on the next
   // server render (LiveRefresh's 15s tick, or a navigation), which would
   // otherwise leave a just-read badge sitting there for up to that long
   const [unread, setUnread] = useState(unreadBySender);
   const roster = people.filter((p) => p.id !== meId);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // slides back out first, then actually unmounts (via the parent's
+  // onClose) once that transition has had time to finish — closing
+  // instantly looked like nothing but a hard cut
+  function close() {
+    setVisible(false);
+    setTimeout(onClose, 300);
+  }
 
   function open(p: Person) {
     setOpenWith(p);
@@ -73,15 +90,26 @@ export function TeamPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="flex-1 bg-black/40" onClick={onClose} />
-      <div className="flex h-full w-[22rem] max-w-[90vw] flex-col border-l border-border bg-surface">
+      <div
+        className={`flex-1 bg-black/40 transition-opacity duration-300 ease-out ${visible ? "opacity-100" : "opacity-0"}`}
+        onClick={close}
+      />
+      {/* glassmorphism: translucent + backdrop-blur, unlike .card-surface's
+          deliberately opaque background — that one skips backdrop-filter
+          because dozens of task cards repaint it every scroll frame; a
+          single panel like this can afford it */}
+      <div
+        className={`flex h-full w-[22rem] max-w-[90vw] flex-col border-l border-white/10 bg-[rgba(21,24,28,0.72)] shadow-2xl backdrop-blur-xl transition-transform duration-300 ease-out ${
+          visible ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         {openWith ? (
-          <Thread person={openWith} meId={meId} onBack={() => setOpenWith(null)} onClose={onClose} />
+          <Thread person={openWith} meId={meId} onBack={() => setOpenWith(null)} onClose={close} />
         ) : (
           <>
-            <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3.5">
               <h2 className="text-sm font-semibold">Team</h2>
-              <button onClick={onClose} className="btn-ghost rounded-md p-1.5">
+              <button onClick={close} className="btn-ghost rounded-md p-1.5">
                 <X size={16} />
               </button>
             </div>
@@ -163,7 +191,7 @@ function Thread({ person, meId, onBack, onClose }: { person: Person; meId: strin
 
   return (
     <>
-      <div className="flex items-center gap-2.5 border-b border-border px-3 py-3">
+      <div className="flex items-center gap-2.5 border-b border-white/10 px-3 py-3">
         <button onClick={onBack} className="btn-ghost shrink-0 rounded-md p-1.5">
           <ArrowLeft size={16} />
         </button>
@@ -198,13 +226,13 @@ function Thread({ person, meId, onBack, onClose }: { person: Person; meId: strin
         )}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-border p-2.5">
+      <div className="flex items-center gap-2 border-t border-white/10 p-2.5">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder={`Message ${person.name.split(" ")[0]}…`}
-          className="flex-1 rounded-full border border-border bg-surface-2 px-3.5 py-2 text-sm text-foreground"
+          className="flex-1 rounded-full border border-white/10 bg-surface-2/60 px-3.5 py-2 text-sm text-foreground"
         />
         <button
           onClick={send}

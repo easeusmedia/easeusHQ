@@ -217,8 +217,11 @@ export function Sidebar({
           style. Bottom-left of the screen, deliberately not the header
           (too much of a fixed-height tax on every page for something
           used occasionally) and not bottom-right (reserved for
-          notifications). */}
-      <div className="mt-auto flex w-full flex-col items-start gap-1">
+          notifications). gap-3, not gap-1 like the nav links above — at
+          gap-1 the Team row's own stacked avatars sat close enough to the
+          profile avatar right below it to read as one connected cluster
+          of circles instead of two separate rows. */}
+      <div className="mt-auto flex w-full flex-col items-start gap-3">
         <button
           onClick={(e) => {
             e.stopPropagation();
