@@ -313,7 +313,7 @@ export function Board({
               //     auto), and the sticky headers would then stick to this
               //     box instead of the page — which is to say, not at all.
               "grid gap-4 px-6 sm:px-8"
-            : "flex min-h-0 flex-1 items-stretch gap-4 overflow-x-auto overflow-y-hidden pl-6 sm:pl-8"
+            : "flex min-h-0 flex-1 items-stretch gap-4 overflow-x-auto overflow-y-hidden px-6 sm:px-8"
         }
       >
         {columns.map((col) => {
