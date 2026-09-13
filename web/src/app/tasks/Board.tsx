@@ -332,7 +332,7 @@ export function Board({
               <div
                 className={
                   flow
-                    ? "sticky -top-6 z-10 -mb-3 bg-background pt-12 pb-3 sm:-top-8 sm:pt-14"
+                    ? "sticky -top-6 z-10 -mb-3 bg-background pt-6 pb-3 sm:-top-8 sm:pt-8"
                     : "shrink-0"
                 }
               >
@@ -386,7 +386,7 @@ export function Board({
                 {/* guaranteed droppable cushion below the last card — not
                     just leftover flex space, which shrinks to nothing once
                     this column has enough cards of its own */}
-                <div className="h-24 shrink-0" />
+                <div className="h-6 shrink-0" />
               </div>
             </section>
           );
