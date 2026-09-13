@@ -9,7 +9,7 @@ import { ApprovalWatcher } from "./ApprovalWatcher";
 import { Header } from "./Header";
 import { HeaderTitleProvider } from "./HeaderTitle";
 import { PresenceHeartbeat } from "./team/PresenceHeartbeat";
-import { getUnreadCount } from "./team/actions";
+import { getUnreadBySender } from "./team/actions";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   const sessionUserId = await getSessionUserId();
@@ -29,7 +29,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const isOps = isAdmin || sessionUser.role === "core"; // Calendar access — unchanged, still every core member
   // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
   const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
-  const unreadCount = await getUnreadCount().catch(() => 0);
+  const unreadBySender = await getUnreadBySender().catch(() => ({}));
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -47,7 +47,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       />
       <HeaderTitleProvider>
         <div className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
-          <Header people={users} meId={sessionUser.id} unreadCount={unreadCount} />
+          <Header people={users} meId={sessionUser.id} unreadBySender={unreadBySender} />
           {children}
         </div>
       </HeaderTitleProvider>

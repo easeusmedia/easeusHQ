@@ -29,11 +29,20 @@ function isActive(p: Person) {
   return !!p.lastSeenAt && Date.now() - new Date(p.lastSeenAt).getTime() < ACTIVE_WINDOW_MS;
 }
 
-export function Header({ people, meId, unreadCount }: { people: Person[]; meId: string; unreadCount: number }) {
+export function Header({
+  people,
+  meId,
+  unreadBySender,
+}: {
+  people: Person[];
+  meId: string;
+  unreadBySender: Record<string, number>;
+}) {
   const pathname = usePathname();
   const announced = useHeaderTitle();
   const title = announced ?? titleFromPath(pathname);
   const [panelOpen, setPanelOpen] = useState(false);
+  const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
 
   const roster = people.filter((p) => p.id !== meId);
   const active = roster.filter(isActive);
@@ -80,7 +89,9 @@ export function Header({ people, meId, unreadCount }: { people: Person[]; meId: 
         )}
       </div>
 
-      {panelOpen && <TeamPanel people={roster} meId={meId} onClose={() => setPanelOpen(false)} />}
+      {panelOpen && (
+        <TeamPanel people={roster} meId={meId} unreadBySender={unreadBySender} onClose={() => setPanelOpen(false)} />
+      )}
     </>
   );
 }

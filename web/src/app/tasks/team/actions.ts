@@ -53,11 +53,17 @@ export async function sendMessage(toUserId: string, body: string): Promise<{ err
   return {};
 }
 
-// Drives the small dot on the stacked-avatars header trigger — unread
-// count across every sender, not per-thread, since the trigger itself
-// doesn't know which thread(s) to look at until it's opened.
-export async function getUnreadCount(): Promise<number> {
+// Unread count per sender — drives both the header's aggregate badge (sum
+// of these) and, more usefully, which specific person's row gets a badge
+// in the team roster itself: seeing "1 unread" on the stack doesn't tell
+// you who it's from without opening the panel and guessing.
+export async function getUnreadBySender(): Promise<Record<string, number>> {
   const userId = await getSessionUserId();
-  if (!userId) return 0;
-  return prisma.message.count({ where: { toId: userId, readAt: null } });
+  if (!userId) return {};
+  const rows = await prisma.message.groupBy({
+    by: ["fromId"],
+    where: { toId: userId, readAt: null },
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.fromId, r._count._all]));
 }

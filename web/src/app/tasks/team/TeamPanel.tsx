@@ -40,9 +40,36 @@ function timeLabel(d: Date) {
 // with whoever you pick. Polls its own thread every few seconds while
 // open — same "cheap stand-in for real-time" approach as LiveRefresh, just
 // scoped to this one panel instead of the whole page.
-export function TeamPanel({ people, meId, onClose }: { people: Person[]; meId: string; onClose: () => void }) {
+export function TeamPanel({
+  people,
+  meId,
+  unreadBySender,
+  onClose,
+}: {
+  people: Person[];
+  meId: string;
+  unreadBySender: Record<string, number>;
+  onClose: () => void;
+}) {
   const [openWith, setOpenWith] = useState<Person | null>(null);
+  // mirrored into local state so opening a thread can clear that person's
+  // badge immediately — the prop itself only refreshes on the next
+  // server render (LiveRefresh's 15s tick, or a navigation), which would
+  // otherwise leave a just-read badge sitting there for up to that long
+  const [unread, setUnread] = useState(unreadBySender);
   const roster = people.filter((p) => p.id !== meId);
+
+  function open(p: Person) {
+    setOpenWith(p);
+    // getThreadMessages marks these read as a side effect of loading —
+    // this just makes the roster's own badge match that immediately
+    setUnread((u) => {
+      if (!u[p.id]) return u;
+      const next = { ...u };
+      delete next[p.id];
+      return next;
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -61,10 +88,11 @@ export function TeamPanel({ people, meId, onClose }: { people: Person[]; meId: s
             <div className="flex-1 overflow-y-auto p-2">
               {roster.map((p) => {
                 const active = isActive(p);
+                const unreadCount = unread[p.id] ?? 0;
                 return (
                   <button
                     key={p.id}
-                    onClick={() => setOpenWith(p)}
+                    onClick={() => open(p)}
                     className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left hover:bg-surface-2"
                   >
                     <span className="relative shrink-0">
@@ -72,9 +100,22 @@ export function TeamPanel({ people, meId, onClose }: { people: Person[]; meId: s
                       <StatusDot active={active} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{p.name}</span>
-                      <span className="block text-xs text-muted">{active ? "Active now" : "Away"}</span>
+                      <span className={`block truncate text-sm ${unreadCount > 0 ? "font-semibold" : "font-medium"}`}>
+                        {p.name}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        {unreadCount > 0
+                          ? `${unreadCount} new message${unreadCount === 1 ? "" : "s"}`
+                          : active
+                            ? "Active now"
+                            : "Away"}
+                      </span>
                     </span>
+                    {unreadCount > 0 && (
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}
