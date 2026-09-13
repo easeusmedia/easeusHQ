@@ -138,6 +138,13 @@ a, button {
 .dialog-grow {
   transition: width 0.3s ease-in-out;
 }
+/* flex layout only while actually open — see the long comment in
+   TaskDetailsDialog.tsx on why this can't just be a `flex` Tailwind class
+   on the element itself. */
+.dialog-grow[open] {
+  display: flex;
+  flex-direction: column;
+}
 
 /* --- The one hover rule, three cases. Don't hand-roll a fourth. ---
    1. Solid action buttons (Save/Confirm/Add task) -> .btn-glow. Bordered,

@@ -230,9 +230,11 @@ export function Sidebar({
           title={open ? undefined : "Team"}
           className={`flex items-center rounded-md text-sm text-muted hover:bg-surface-2 hover:text-foreground ${open ? "w-full gap-2" : ""}`}
         >
-          {/* the team roster itself, stacked — not a generic chat icon */}
+          {/* the team roster itself, stacked vertically — not a generic
+              chat icon, and not the horizontal overlap a normal avatar
+              stack uses elsewhere, per feedback */}
           <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-            <span className="flex -space-x-2">
+            <span className="flex flex-col -space-y-2">
               {teamPreview.map((p) =>
                 p.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset

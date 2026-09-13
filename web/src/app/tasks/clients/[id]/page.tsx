@@ -95,7 +95,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   }));
 
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-4">
       <ClientSwitcher clients={allClients} currentId={client.id} />
 
       <div className="min-w-0 flex-1">

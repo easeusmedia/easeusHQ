@@ -79,15 +79,30 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const created = logs?.[0];
   const formId = `task-details-form-${task.id}`;
 
+  // max-h: nothing capped the dialog's height before, so a task with a
+  // long enough form (or a long enough history table) just grew past the
+  // viewport — dialog positions via top-1/2 + -translate-y-1/2, not "fit
+  // inside the screen", so the excess top and bottom both silently
+  // vanished into overflow-hidden instead of scrolling. Each column below
+  // scrolls internally now within that capped height.
+  //
+  // display:flex is NOT a Tailwind class here (see .dialog-grow[open] in
+  // globals.css instead) — a native <dialog> without the `open` attribute
+  // is hidden via the UA stylesheet's `dialog:not([open]) { display: none
+  // }`, but that's the lowest-priority origin in the cascade: ANY author
+  // CSS wins regardless of specificity, so a plain `flex` class here would
+  // force every one of these dialogs to render at once, stacked, whether
+  // or not it was ever actually opened. This bit us for real — every
+  // task's own (closed) dialog was rendering on top of each other.
   return (
       <dialog
         ref={dialogRef}
         onClose={() => setHistoryOpen(false)}
-        className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
+        className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[85vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
           historyOpen ? "w-[51.5rem]" : "w-[27.5rem]"
         }`}
       >
-        <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{task.title}</p>
             <p className="text-xs text-muted">{clientName}</p>
@@ -102,8 +117,8 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           </button>
         </div>
 
-        <div className="flex gap-4">
-          <form id={formId} action={formAction} className="flex w-[25rem] shrink-0 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 gap-4">
+          <form id={formId} action={formAction} className="flex w-[25rem] shrink-0 flex-col gap-3 overflow-y-auto pr-1">
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />
             <input type="hidden" name="actingUserId" value={actingUserId} />

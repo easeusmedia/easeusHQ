@@ -8,7 +8,7 @@ export type SwitcherClient = { id: string; name: string; avatarUrl: string | nul
 // just to open a different one.
 export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient[]; currentId: string }) {
   return (
-    <aside className="hidden w-48 shrink-0 flex-col gap-0.5 overflow-y-auto lg:flex">
+    <aside className="hidden w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border pr-4 lg:flex">
       {clients.map((c) => {
         const active = c.id === currentId;
         return (
