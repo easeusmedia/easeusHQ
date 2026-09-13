@@ -63,19 +63,42 @@ enum BillingCadence {
 }
 
 model User {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   name         String
-  email        String   @unique
-  role         Role     @default(core)
+  email        String    @unique
+  role         Role      @default(core)
   passwordHash String?
   avatarUrl    String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  // bumped by a heartbeat while a tab is open (see PresenceHeartbeat) —
+  // "active" in the team panel just means "seen in the last few minutes",
+  // not a real online/offline socket connection
+  lastSeenAt   DateTime?
 
-  tasksAssigned Task[]        @relation("AssignedTasks")
-  tasksReviewed Task[]        @relation("ReviewedTasks")
-  feedback      Feedback[]
-  kpiSnapshots  KpiSnapshot[]
-  activity      ActivityLog[]
+  tasksAssigned    Task[]        @relation("AssignedTasks")
+  tasksReviewed    Task[]        @relation("ReviewedTasks")
+  feedback         Feedback[]
+  kpiSnapshots     KpiSnapshot[]
+  activity         ActivityLog[]
+  messagesSent     Message[]     @relation("MessagesSent")
+  messagesReceived Message[]     @relation("MessagesReceived")
+}
+
+// Plain 1:1 direct messages between team members — no group threads, no
+// separate Conversation row; a thread is just every Message between two
+// user ids, queried both directions and sorted by time.
+model Message {
+  id         String    @id @default(uuid())
+  from       User      @relation("MessagesSent", fields: [fromId], references: [id])
+  fromId     String
+  to         User      @relation("MessagesReceived", fields: [toId], references: [id])
+  toId       String
+  body       String    @db.Text
+  createdAt  DateTime  @default(now())
+  readAt     DateTime?
+
+  @@index([fromId, toId])
+  @@index([toId, fromId])
 }
 
 model Client {

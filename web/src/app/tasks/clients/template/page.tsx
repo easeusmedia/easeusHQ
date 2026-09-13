@@ -24,8 +24,7 @@ export default async function ClientTemplatePage() {
         <ArrowLeft size={14} /> Clients
       </Link>
 
-      <h1 className="text-2xl font-semibold tracking-tight">Client template</h1>
-      <p className="mt-1 mb-8 text-sm text-muted">
+      <p className="mb-8 text-sm text-muted">
         The structure every new client is created with: their deliverables, the onboarding steps ops works through,
         and the starting text for each of their documents. Changing it here changes what the next client gets;
         clients already on the roster keep what they have.

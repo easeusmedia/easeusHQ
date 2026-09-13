@@ -18,7 +18,6 @@ export default async function UsersPage() {
 
   return (
     <>
-      <h1 className="mb-1 text-xl font-semibold">Users</h1>
       <p className="mb-6 text-sm text-muted">
         Everyone at Easeus HQ, and what they can do. Admin runs the whole thing; core (ops) assigns tasks, reviews
         work, and has full control over the queue; employees (editors) only work their own assigned tasks through

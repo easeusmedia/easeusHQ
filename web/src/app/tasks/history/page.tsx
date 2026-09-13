@@ -65,7 +65,6 @@ export default async function HistoryPage({
 
   return (
     <>
-      <h1 className="mb-6 text-xl font-semibold">History</h1>
       <HistoryList tasks={visible} logsByTask={logsByTask} canDelete={canDelete} />
     </>
   );

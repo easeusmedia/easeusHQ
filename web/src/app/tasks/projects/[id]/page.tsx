@@ -9,6 +9,7 @@ import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { TaskRow } from "../../TaskRow";
 import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
+import { SetHeaderTitle } from "../../HeaderTitle";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-5xl">
+      <SetHeaderTitle title={project.name || project.type} />
       <Link
         href={`/tasks/clients/${project.clientId}`}
         className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
