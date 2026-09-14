@@ -4,10 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, ListTodo, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
+import { LayoutDashboard, History, ListTodo, MessageCircle, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
-import { TeamPanel } from "./team/TeamPanel";
 
 const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
@@ -15,6 +14,9 @@ const NAV = [
   // below which stay ops-only
   { segment: "/my", label: "My Tasks", Icon: ListTodo },
   { segment: "/history", label: "History", Icon: History },
+  // the team's own chat — a real page now, not the avatar stack that used
+  // to float over the bottom-right corner of every other page
+  { segment: "/chat", label: "Chat", Icon: MessageCircle },
 ];
 
 const COOKIE_NAME = "tasks-sidebar-open";
@@ -68,12 +70,8 @@ export function Sidebar({
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [teamOpen, setTeamOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
-  // a couple of faces on the trigger itself — this opens the team roster,
-  // not a chat inbox, so it should look like one at a glance
-  const teamPreview = people.filter((p) => p.id !== sessionUserId).slice(0, 2);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -218,10 +216,20 @@ export function Sidebar({
             }`}
           >
             {/* fixed-size slot, same position whether collapsed or open */}
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
               <item.Icon size={18} />
+              {/* unread count rides the Chat icon itself, so it's visible
+                  collapsed (where there's no label to put it beside) too */}
+              {item.segment === "/chat" && unreadCount > 0 && (
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
+              )}
             </span>
             <FadeLabel open={open}>{item.label}</FadeLabel>
+            {item.segment === "/chat" && unreadCount > 0 && open && (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -284,53 +292,6 @@ export function Sidebar({
       </div>
     </nav>
 
-    {/* Floating, fixed to the viewport rather than this rail — "on top of
-        everything" per feedback, above the Team panel's own backdrop
-        (z-50) too so it stays reachable while the panel is open. Shifts
-        left when the panel opens so it sits adjacent to it instead of
-        disappearing behind it (22rem panel width + 1rem gap = 23rem). */}
-    <div
-      className={`fixed bottom-4 z-[60] flex items-center gap-2 transition-[right] duration-300 ease-out ${
-        teamOpen ? "right-[23rem]" : "right-4"
-      }`}
-    >
-      {/* the notification, adjacent to the icons on their left — not
-          overlapping them — per feedback */}
-      {unreadCount > 0 && (
-        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white ring-2 ring-background">
-          {unreadCount > 9 ? "9+" : unreadCount}
-        </span>
-      )}
-      <button
-        onClick={() => setTeamOpen(true)}
-        title="Team"
-        className="flex shrink-0 items-center rounded-full hover:brightness-110"
-      >
-        {/* stacked vertically, each face the same size as the profile
-            avatar (26px) — was 16px and read as too small, per feedback */}
-        <span className="flex flex-col -space-y-3">
-          {teamPreview.map((p) =>
-            p.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-              <img key={p.id} src={p.avatarUrl} alt="" className="h-[26px] w-[26px] rounded-full object-cover ring-2 ring-background" />
-            ) : (
-              <span key={p.id} className="ring-2 ring-background rounded-full">
-                <Avatar name={p.name} size={26} />
-              </span>
-            )
-          )}
-        </span>
-      </button>
-    </div>
-
-    {teamOpen && (
-      <TeamPanel
-        people={people}
-        meId={sessionUserId}
-        unreadBySender={unreadBySender}
-        onClose={() => setTeamOpen(false)}
-      />
-    )}
     </>
   );
 }

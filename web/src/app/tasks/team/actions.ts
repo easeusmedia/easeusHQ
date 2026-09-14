@@ -67,3 +67,47 @@ export async function getUnreadBySender(): Promise<Record<string, number>> {
   });
   return Object.fromEntries(rows.map((r) => [r.fromId, r._count._all]));
 }
+
+export type Conversation = {
+  userId: string;
+  lastBody: string;
+  lastAt: Date;
+  lastFromMe: boolean;
+  unread: number;
+};
+
+// One row per person you've actually exchanged messages with, newest
+// first — the left column of the chat dashboard. Done as a single query
+// over every message either direction and folded in memory rather than N
+// queries (one per teammate): the whole team is under a dozen people and
+// this table is small, so the simple version is also the fast one.
+export async function listConversations(): Promise<Conversation[]> {
+  const userId = await getSessionUserId();
+  if (!userId) return [];
+
+  const messages = await prisma.message.findMany({
+    where: { OR: [{ fromId: userId }, { toId: userId }] },
+    orderBy: { createdAt: "desc" },
+    select: { fromId: true, toId: true, body: true, createdAt: true, readAt: true },
+  });
+
+  const byPerson = new Map<string, Conversation>();
+  for (const m of messages) {
+    const other = m.fromId === userId ? m.toId : m.fromId;
+    // messages come newest-first, so the first one seen per person is the
+    // latest; everything after only contributes to the unread count
+    const existing = byPerson.get(other);
+    if (!existing) {
+      byPerson.set(other, {
+        userId: other,
+        lastBody: m.body,
+        lastAt: m.createdAt,
+        lastFromMe: m.fromId === userId,
+        unread: m.toId === userId && !m.readAt ? 1 : 0,
+      });
+    } else if (m.toId === userId && !m.readAt) {
+      existing.unread += 1;
+    }
+  }
+  return [...byPerson.values()];
+}
