@@ -58,7 +58,7 @@ export function Dropdown({
       </button>
       {open && (
         <div
-          className={`absolute z-20 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg ${
+          className={`pop-in absolute z-20 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg ${
             openUpward ? "bottom-full mb-1" : "mt-1"
           }`}
         >

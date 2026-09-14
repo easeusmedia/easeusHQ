@@ -67,7 +67,7 @@ export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; 
         )}
       </div>
       <input ref={inputRef} type="file" accept="image/*" onChange={onPick} className="hidden" />
-      {error && <p className="max-w-24 text-center text-[10px] text-red-300">{error}</p>}
+      {error && <p className="max-w-24 text-center text-xs text-red-300">{error}</p>}
     </div>
   );
 }

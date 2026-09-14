@@ -74,7 +74,7 @@ export function formatDateTime(d: Date | string) {
 
 export function StatusBadge({ status }: { status: TaskStatus }) {
   return (
-    <span className={`status-pop shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[status]}`}>
+    <span className={`status-pop shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}>
       {STATUS_LABEL[status]}
     </span>
   );
@@ -202,14 +202,14 @@ export function TaskCard({
         <p className="font-medium leading-snug">{task.title}</p>
         <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2">
           {task.revisionCount > 0 && (
-            <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300">
+            <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-xs font-medium text-orange-300">
               <RotateCcw size={10} />
               {task.revisionCount}
               {/* below the badge, not above (top-full, not bottom-full) —
                   a card near the top of its scrolling column had nowhere
                   for an upward tooltip to go, so the column's own overflow
                   clipped it instead of letting it show */}
-              <span className="pointer-events-none absolute top-full right-0 z-10 mt-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
+              <span className="pointer-events-none absolute top-full right-0 z-10 mt-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-xs font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
                 Sent back for revision {task.revisionCount} time{task.revisionCount === 1 ? "" : "s"}
               </span>
             </span>

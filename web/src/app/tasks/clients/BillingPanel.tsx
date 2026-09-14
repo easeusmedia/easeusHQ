@@ -158,7 +158,7 @@ export function BillingPanel({
             {deliveredSinceInvoice} of {milestoneCount} delivered since last invoice
           </span>
           {ready && (
-            <span className="flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-300">
+            <span className="flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs text-emerald-300">
               <Check size={11} /> Ready to invoice
             </span>
           )}
@@ -220,7 +220,7 @@ export function BillingPanel({
                 <select
                   value={inv.status}
                   onChange={(e) => pickStatus(inv.id, e.target.value as InvoiceStatus)}
-                  className={`rounded-full border px-2 py-0.5 text-[11px] ${STATUS_STYLE[inv.status]}`}
+                  className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_STYLE[inv.status]}`}
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s} className="bg-surface-2 text-foreground">

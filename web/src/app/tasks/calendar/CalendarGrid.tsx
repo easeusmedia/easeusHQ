@@ -61,7 +61,7 @@ export function CalendarGrid({
             >
               <span className={`text-xs ${isToday ? "font-semibold text-blue-300" : "text-muted"}`}>{day}</span>
               {taskCount > 0 && (
-                <span className="status-pop rounded-full border border-blue-400/30 bg-blue-400/15 px-2 py-0.5 text-[11px] font-medium text-blue-300">
+                <span className="status-pop rounded-full border border-blue-400/30 bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-300">
                   {taskCount} task{taskCount === 1 ? "" : "s"}
                 </span>
               )}

@@ -119,7 +119,7 @@ export default async function MyTasksPage({
                 <span className="min-w-0 truncate">
                   <span className="text-muted">{t.project.client.name}</span> · {t.title}
                 </span>
-                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STAGE[t.status].pill}`}>
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STAGE[t.status].pill}`}>
                   {STAGE[t.status].label}
                 </span>
               </a>

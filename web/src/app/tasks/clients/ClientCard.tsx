@@ -32,7 +32,7 @@ function Stat({ n, label }: { n: number; label: string }) {
   return (
     <span className="flex flex-col">
       <span className={`text-lg font-semibold leading-6 tabular-nums ${n > 0 ? "" : "text-muted"}`}>{n}</span>
-      <span className="text-[11px] leading-4 text-muted">{label}</span>
+      <span className="text-xs leading-4 text-muted">{label}</span>
     </span>
   );
 }

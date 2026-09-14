@@ -125,7 +125,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {d.deliveredCount > 0 && (
-                    <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted">{d.deliveredCount} delivered</span>
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{d.deliveredCount} delivered</span>
                   )}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                     <button onClick={() => startEdit(d)} className="btn-ghost flex h-6 w-6 items-center justify-center rounded-md">

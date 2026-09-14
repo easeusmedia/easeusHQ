@@ -65,8 +65,8 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
           {open && (
             // w-[21.5rem]: wide enough to hold the date pickers' own
             // calendar popovers (20rem) without them spilling off the edge
-            <div className="absolute right-0 z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
-              <p className="mb-1.5 text-[11px] font-medium text-muted">Show</p>
+            <div className="pop-in absolute right-0 z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
+              <p className="mb-1.5 text-xs font-medium text-muted">Show</p>
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map((p) => (
                   <button
@@ -93,7 +93,7 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
                 </button>
               </div>
 
-              <p className="mb-1.5 mt-3 text-[11px] font-medium text-muted">Date range</p>
+              <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
               <div className="flex flex-col gap-2">
                 <DatePicker value={from} onChange={setFrom} placeholder="From…" />
                 <DatePicker value={to} onChange={setTo} placeholder="To…" />
@@ -104,7 +104,7 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
                     setFrom("");
                     setTo("");
                   }}
-                  className="mt-2 text-[11px] text-muted hover:text-foreground"
+                  className="mt-2 text-xs text-muted hover:text-foreground"
                 >
                   Clear dates
                 </button>

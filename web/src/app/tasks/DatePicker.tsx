@@ -169,7 +169,7 @@ export function DatePicker({
 
       {open && (
         <div
-          className={`absolute left-0 z-30 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-3 shadow-2xl ${
+          className={`pop-in absolute left-0 z-30 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-3 shadow-2xl ${
             openUpward ? "bottom-full mb-2" : "mt-2"
           }`}
         >

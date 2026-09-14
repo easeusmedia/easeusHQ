@@ -66,7 +66,7 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="btn-ghost flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+        className="btn-ghost flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
       >
         <Plus size={11} /> Tag
       </button>
@@ -119,7 +119,7 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
                   </button>
                 ))}
               </div>
-              {error && <p className="text-[11px] text-red-300">{error}</p>}
+              {error && <p className="text-xs text-red-300">{error}</p>}
               <div className="flex justify-end gap-2">
                 <button onClick={() => setCreating(false)} className="btn-ghost rounded-md px-2 py-1 text-xs">
                   <X size={12} />

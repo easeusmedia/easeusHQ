@@ -60,7 +60,7 @@ export function StatusDropdown({
     router.refresh();
   }
 
-  const pad = size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-3 py-1 text-xs";
+  const pad = size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-xs";
 
   return (
     // preventDefault, not just stopPropagation — this sits inside a Link

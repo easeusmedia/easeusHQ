@@ -226,7 +226,7 @@ export function Sidebar({
             </span>
             <FadeLabel open={open}>{item.label}</FadeLabel>
             {item.segment === "/chat" && unreadCount > 0 && open && (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-medium text-white">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -246,7 +246,7 @@ export function Sidebar({
           >
             {canViewAs && (
               <div className="px-2 py-1.5">
-                <p className="mb-1 text-[11px] font-medium text-muted">Viewing as</p>
+                <p className="mb-1 text-xs font-medium text-muted">Viewing as</p>
                 <Dropdown
                   key={current}
                   defaultValue={current}

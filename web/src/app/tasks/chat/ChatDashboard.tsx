@@ -147,14 +147,14 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className={`truncate text-sm ${p.unread > 0 ? "font-semibold" : "font-medium"}`}>{p.name}</span>
-                    {p.lastAt && <span className="shrink-0 text-[11px] text-muted">{ago(p.lastAt)}</span>}
+                    {p.lastAt && <span className="shrink-0 text-xs text-muted">{ago(p.lastAt)}</span>}
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span className={`truncate text-xs ${p.unread > 0 ? "text-foreground" : "text-muted"}`}>
                       {p.lastBody ? `${p.lastFromMe ? "You: " : ""}${p.lastBody}` : isActive(p) ? "Active now" : "No messages yet"}
                     </span>
                     {p.unread > 0 && (
-                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-medium text-white">
                         {p.unread > 9 ? "9+" : p.unread}
                       </span>
                     )}
@@ -198,7 +198,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                       {showDay && (
                         <div className="my-2 flex items-center gap-3">
                           <span className="h-px flex-1 bg-border" />
-                          <span className="text-[11px] text-muted">{dayLabel(m.createdAt)}</span>
+                          <span className="text-xs text-muted">{dayLabel(m.createdAt)}</span>
                           <span className="h-px flex-1 bg-border" />
                         </div>
                       )}
@@ -210,7 +210,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                         >
                           {m.body}
                         </div>
-                        <span className="mt-1 px-1 text-[10px] text-muted">{timeLabel(m.createdAt)}</span>
+                        <span className="mt-1 px-1 text-xs text-muted">{timeLabel(m.createdAt)}</span>
                       </div>
                     </div>
                   );

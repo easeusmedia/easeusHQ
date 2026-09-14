@@ -138,7 +138,7 @@ export function StatusSelect({
           ))}
         </div>
       )}
-      {error && <p className="mt-1 text-[11px] text-red-300">{error}</p>}
+      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
 
       <dialog
         ref={dialogRef}

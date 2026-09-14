@@ -33,7 +33,7 @@ export function ClientTabs({ tabs, width }: { tabs: Tab[]; width: string }) {
           >
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[11px] tabular-nums text-muted">{t.count}</span>
+              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-xs tabular-nums text-muted">{t.count}</span>
             )}
           </button>
         ))}

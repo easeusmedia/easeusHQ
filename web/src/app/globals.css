@@ -36,12 +36,29 @@
 
 /* Supabase-density pass: one lever shrinks every rem-based Tailwind text
    AND spacing utility together, so the whole app gets proportionally more
-   compact instead of hand-tuning every className. Taken a step further
-   here (87.5% -> 81%) — still not tight enough to fight for space, just
-   smaller and calmer, closer to the minimal reference the team wants to
-   match. */
+   compact instead of hand-tuning every className.
+   Back up to 87.5% (~14px) from 81% (~13px): 81% left the most common
+   body size (text-sm) rendering at 11.3px and meta text (text-xs) at
+   9.7px, which is past "calm and compact" and into genuinely hard to
+   read. The type scale below then lifts the small end specifically,
+   because that's where the problem actually was — this root value alone
+   would have scaled the spacing up with it. */
 html {
-  font-size: 81%; /* ~13px */
+  font-size: 87.5%; /* ~14px */
+}
+
+/* Readability without losing the density: the *type* scale moves, the
+   spacing scale doesn't. Tailwind keeps them in separate theme namespaces
+   (--text-* vs --spacing), so raising these lifts every text size in the
+   app while every padding, gap and margin stays exactly where it was —
+   the negative space is untouched, the words in it are just legible.
+   Rendered at the 87.5% root above: xs 11.4px, sm 13.1px, base 14px,
+   lg 15.8px, xl 17.5px, 2xl 21px. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
 }
 
 /* Icons across the whole app were drawn at lucide's default 2px stroke,
@@ -102,6 +119,72 @@ a, button {
   border: 1px solid var(--border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
+/* Every <dialog> in the app eases in and out instead of appearing and
+   vanishing in a single frame. Two things make this work on a native
+   dialog, which is otherwise display:none the instant it closes:
+     - transition-behavior: allow-discrete on display/overlay, so the
+       browser holds both long enough for the fade to actually play;
+     - @starting-style, which gives the element a "before it was shown"
+       state to animate *from* (without it the open state is simply the
+       first style it ever has, so there's nothing to transition).
+   Deliberately animating `scale`/`opacity` and never `transform`: our
+   dialogs centre themselves with Tailwind's translate utilities, and
+   animating transform here would fight them and slide every modal out of
+   position mid-animation. Note this sets no `display` of its own — that
+   would permanently defeat the UA's own dialog:not([open]) rule and leave
+   every closed dialog on screen. */
+dialog {
+  opacity: 0;
+  scale: 0.97;
+  transition:
+    opacity 0.18s ease,
+    scale 0.18s ease,
+    overlay 0.18s ease allow-discrete,
+    display 0.18s ease allow-discrete;
+}
+dialog[open] {
+  opacity: 1;
+  scale: 1;
+}
+@starting-style {
+  dialog[open] {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+dialog::backdrop {
+  opacity: 0;
+  transition:
+    opacity 0.18s ease,
+    overlay 0.18s ease allow-discrete,
+    display 0.18s ease allow-discrete;
+}
+dialog[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* Same easing-in for the popovers that aren't dialogs — dropdown menus,
+   the projects filter, the date picker. They mount on open rather than
+   toggling an attribute, so @starting-style is doing all the work. */
+.pop-in {
+  animation: pop-in 0.14s ease-out;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .glass::backdrop {
   background: rgba(4, 4, 6, 0.6);
   backdrop-filter: blur(10px);
