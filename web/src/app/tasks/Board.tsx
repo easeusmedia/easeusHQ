@@ -23,7 +23,9 @@ export const ALL_COLUMNS: Column[] = ALL_STATUSES.map((status) => ({
 // actually delivered it's done, so it drops off the board into History.
 export const BOARD_COLUMNS: Column[] = ALL_COLUMNS.filter((c) => c.status !== "delivered_and_uploaded");
 
-type Project = { id: string; name: string; client: { name: string } };
+// client.id (not just its name) so NewTaskRow can offer a client-first
+// picker instead of one flat "every project from every client" list
+type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
 
 // the task already has a Frame.io/Drive link on file from an earlier pass

@@ -36,7 +36,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (!project) notFound();
 
   const editors = users.filter((u) => u.role === "employee");
-  const boardProjects = project.client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: project.client.name } }));
+  const boardProjects = project.client.projects.map((p) => ({
+    id: p.id,
+    name: p.name || p.type,
+    client: { id: project.client.id, name: project.client.name },
+  }));
 
   const groups = Object.entries(
     project.assets.reduce<Record<string, typeof project.assets>>((acc, a) => {

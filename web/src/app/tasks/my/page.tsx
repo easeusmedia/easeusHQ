@@ -89,16 +89,16 @@ export default async function MyTasksPage({
           )}
         </div>
         {isAdmin && (
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1 text-xs">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1 text-sm">
             <a
               href="/tasks/my"
-              className={`rounded-md px-2.5 py-1 ${!showEveryone ? "bg-surface text-foreground" : "text-muted hover:text-foreground"}`}
+              className={`rounded-md px-3 py-1.5 ${!showEveryone ? "bg-surface text-foreground" : "text-muted hover:text-foreground"}`}
             >
               {actingUser.name}
             </a>
             <a
               href="/tasks/my?view=all"
-              className={`rounded-md px-2.5 py-1 ${showEveryone ? "bg-surface text-foreground" : "text-muted hover:text-foreground"}`}
+              className={`rounded-md px-3 py-1.5 ${showEveryone ? "bg-surface text-foreground" : "text-muted hover:text-foreground"}`}
             >
               Everyone
             </a>

@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
 import { NotesGlyph } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 
-type Project = { id: string; name: string; client: { name: string } };
+type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
 
 const initialState: TaskFormState = {};
@@ -29,13 +29,30 @@ export function NewTaskRow({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // close once the task actually lands, and clear the form so the next open
-  // starts blank instead of showing the last thing that was added
+  // client-first, not one flat list of every project from every client —
+  // that list only reads fine for a client with one or two episodes; a
+  // client with a year of them buried the other 40-odd clients under it
+  const defaultProject = projects.find((p) => p.id === defaultProjectId);
+  const [clientId, setClientId] = useState(defaultProject?.client.id ?? "");
+  const clients = useMemo(() => {
+    const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [projects]);
+  const projectsForClient = projects.filter((p) => p.client.id === clientId);
+
+  // close once the task actually lands, and clear the form (and the client
+  // filter, so a re-open starts fully blank) so the next open doesn't show
+  // the last thing that was added
   useEffect(() => {
     if (state.success) {
       formRef.current?.reset();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting the client filter is part of the same "clear the form after a successful submit" reaction as formRef.reset() just above, not a render-loop
+      setClientId(defaultProject?.client.id ?? "");
       dialogRef.current?.close();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultProject is derived from props that don't change while this dialog is open
   }, [state.success]);
 
   const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
@@ -62,12 +79,26 @@ export function NewTaskRow({
         <h2 className="mb-4 text-base font-semibold">New task</h2>
         <form ref={formRef} action={formAction} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Project
+            Client
             <Dropdown
+              defaultValue={clientId}
+              placeholder="Client…"
+              onChange={setClientId}
+              options={clients.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-xs text-muted">
+            Project
+            {/* key={clientId}: a fresh Dropdown instance per client, so
+                switching clients can't leave the previous client's project
+                still selected underneath a now-different options list */}
+            <Dropdown
+              key={clientId}
               name="projectId"
-              defaultValue={defaultProjectId}
-              placeholder="Project…"
-              options={projects.map((p) => ({ value: p.id, label: `${p.client.name} · ${p.name}` }))}
+              defaultValue={clientId === defaultProject?.client.id ? defaultProjectId : undefined}
+              placeholder={clientId ? "Project…" : "Pick a client first…"}
+              options={projectsForClient.map((p) => ({ value: p.id, label: p.name }))}
             />
           </label>
 

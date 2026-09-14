@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { Link2, Paperclip } from "lucide-react";
+import { CalendarClock, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
 import { Avatar } from "../TaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
@@ -46,15 +46,16 @@ export function WorkTaskCard({
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
   const overdue = !!task.dueDate && task.status !== "done" && task.dueDate < new Date().toISOString().slice(0, 10);
+  const hasFooter = task.dueDate || task.links.length > 0 || task.attachments.length > 0 || showAssignee;
 
   return (
     <>
       <button
         onClick={() => dialogRef.current?.open()}
-        className="card-surface card-interactive flex flex-col gap-2 rounded-xl p-3 text-left shadow-sm"
+        className="card-surface card-interactive flex w-full flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
         {task.category && (
-          <span className="w-fit rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted">
+          <span className="w-fit rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">
             {task.category}
           </span>
         )}
@@ -65,24 +66,28 @@ export function WorkTaskCard({
           </p>
         )}
 
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[11px] text-muted">
-            {task.links.length > 0 && (
-              <span className="flex items-center gap-1">
-                <Link2 size={11} /> {task.links.length}
-              </span>
-            )}
-            {task.attachments.length > 0 && (
-              <span className="flex items-center gap-1">
-                <Paperclip size={11} /> {task.attachments.length}
-              </span>
-            )}
-            {task.dueDate && (
-              <span className={overdue ? "font-medium text-red-300" : ""}>{shortDate(task.dueDate)}</span>
-            )}
+        {hasFooter && (
+          <div className="mt-1 flex items-center justify-between gap-2 border-t border-border pt-2.5">
+            <div className="flex min-w-0 items-center gap-3 text-xs text-muted">
+              {task.dueDate && (
+                <span className={`flex items-center gap-1 ${overdue ? "font-medium text-red-300" : ""}`}>
+                  <CalendarClock size={13} /> {shortDate(task.dueDate)}
+                </span>
+              )}
+              {task.links.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <Link2 size={13} /> {task.links.length}
+                </span>
+              )}
+              {task.attachments.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <Paperclip size={13} /> {task.attachments.length}
+                </span>
+              )}
+            </div>
+            {showAssignee && <Avatar name={task.assignedTo.name} size={24} />}
           </div>
-          {showAssignee && <Avatar name={task.assignedTo.name} size={20} />}
-        </div>
+        )}
       </button>
 
       <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} />

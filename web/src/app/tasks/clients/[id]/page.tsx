@@ -81,7 +81,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     }),
   ]);
 
-  const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: client.name } }));
+  const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }));
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
   const projectCards = client.projects.map((p) => ({
