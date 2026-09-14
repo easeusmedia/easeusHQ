@@ -4,33 +4,19 @@ import { Avatar } from "../TaskCard";
 export type SwitcherClient = { id: string; name: string; avatarUrl: string | null };
 
 // The roster down the left of a client's own page — jump straight to
-// another client instead of backing out to the full Clients dashboard
-// just to open a different one.
+// another client instead of backing out to the full Clients dashboard just
+// to open a different one. Lives in the shared /tasks layout (see
+// ClientSwitcherSlot), as a true sibling of the app's own sidebar rather
+// than inside any one page's scrolling content — sticky positioning needs
+// nothing padded/scrolling between it and the real viewport to reliably
+// pin for an entire scroll range, and a plain top-0 (no offset math, no
+// height padding to compensate for one) is what that buys: this used to
+// need both, tuned against the page's own edge padding, and still let go
+// right at the bottom of a short client's page once that tuning ran out of
+// room to work with.
 export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient[]; currentId: string }) {
   return (
-    // sticky + h-screen: the page content this sits beside scrolls inside
-    // its own container (the layout's overflow-y-auto wrapper), and this
-    // was a plain flow child of that same container — so it scrolled away
-    // with the content instead of staying put like the app's own sidebar
-    // does. Same fix as that sidebar: pin it to the viewport and let its
-    // own overflow-y-auto handle a roster too long to fit.
-    // The parent row already cancels the shared layout's own padding for
-    // this whole row (see [id]/page.tsx), which is what gets this flush
-    // against the app sidebar — but that cancellation doesn't reach a
-    // *sticky* descendant's own stuck-position math: a sticky element's
-    // threshold is measured from the nearest scrolling ancestor's real
-    // padding edge no matter what an in-between negative margin does
-    // visually, so without this it sits stuck 25.9px/2rem too low the
-    // instant scrolling engages it. -top-6 (sm:-top-8) cancels that
-    // padding for the threshold itself; h-[calc...] grows the box back
-    // out by the same amount so its bottom still reaches the viewport
-    // edge instead of falling short by it.
-    // p-3 on every side (not pl-6/pr-2 as before, which put 4x more space
-    // on the left than the right and made the active/hover pill look
-    // lopsided and short of the border) — matches the app sidebar's own
-    // p-3 exactly, so the two rails line up and each row's highlight sits
-    // evenly inset from both edges instead of hugging one of them.
-    <aside className="sticky -top-6 hidden h-[calc(100vh+2rem)] w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 p-3 sm:-top-8 lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 p-3 lg:flex">
       {clients.map((c) => {
         const active = c.id === currentId;
         return (
@@ -42,8 +28,17 @@ export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient
             // the plain initials circle) rendered rows at very slightly
             // different heights before, which showed up as the hover/
             // active rectangle looking a different size client to client.
+            //
+            // The active row: square instead of rounded on the right, and
+            // bled out by exactly the padding + border it would otherwise
+            // sit inside of, so its own background paints over that border
+            // pixel for its own height — the open client's row reads as
+            // fused onto the content pane next to it, not separated from
+            // it by the same dividing line every other row still has.
             className={`flex h-9 shrink-0 items-center gap-2 rounded-md px-2 text-sm ${
-              active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground"
+              active
+                ? "-mr-[calc(0.75rem+1px)] rounded-r-none bg-surface-2 text-foreground"
+                : "text-muted hover:bg-surface-2 hover:text-foreground"
             }`}
           >
             {c.avatarUrl ? (

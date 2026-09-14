@@ -18,7 +18,6 @@ import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
 import { ClientTags } from "../ClientTags";
-import { ClientSwitcher } from "../ClientSwitcher";
 import { listTags } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +57,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const projectIds = client.projects.map((p) => p.id);
   const editors = users.filter((u) => u.role === "employee");
 
-  const [tasks, deliveredSinceInvoice, allTags, allClients] = await Promise.all([
+  const [tasks, deliveredSinceInvoice, allTags] = await Promise.all([
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
       orderBy: { createdAt: "desc" },
@@ -72,13 +71,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       },
     }),
     listTags(),
-    // the left-side switcher — just enough to render a roster, not a
-    // second full clients-page query
-    prisma.client.findMany({
-      where: { status: "current" },
-      select: { id: true, name: true, avatarUrl: true },
-      orderBy: { name: "asc" },
-    }),
   ]);
 
   const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }));
@@ -96,45 +88,38 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   }));
 
   return (
-    // -m-6/sm:-m-8 cancel the shared layout's own p-6/sm:p-8 on every side
-    // for this row only, so the switcher can sit flush against the app
-    // sidebar with nothing to fight — its sticky positioning needs a
-    // plain `top-0`, not an offset tuned to cancel a parent's padding
-    // (that tuning came apart under scroll; see ClientSwitcher). The
-    // padding comes back below, just scoped to where each side still
-    // wants it.
-    <div className="-m-6 flex gap-4 sm:-m-8">
-      <ClientSwitcher clients={allClients} currentId={client.id} />
+    // the left-side switcher (ClientSwitcherSlot) lives in the shared
+    // layout now, as a sibling of this whole page rather than something
+    // rendered from inside it — see ClientSwitcher's own comment for why
+    <div>
+      <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+        <ArrowLeft size={14} /> Clients
+      </Link>
 
-      <div className="min-w-0 flex-1 pt-6 pr-6 pb-6 sm:pt-8 sm:pr-8 sm:pb-8">
-        <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-          <ArrowLeft size={14} /> Clients
-        </Link>
-
-        <div className="mb-8 flex items-center gap-4">
-          <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
-              <StatusDropdown clientId={client.id} status={client.status} size="md" />
-            </div>
-            {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
-            <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
+      <div className="mb-8 flex items-center gap-4">
+        <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+            <StatusDropdown clientId={client.id} status={client.status} size="md" />
           </div>
+          {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
+          <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
         </div>
+      </div>
 
-        <div className="mb-10">
-          <ClientStats
-            activeTasks={tasks.length}
-            inProgress={live.length}
-            completed={completed.length}
-            unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
-          />
-        </div>
+      <div className="mb-10">
+        <ClientStats
+          activeTasks={tasks.length}
+          inProgress={live.length}
+          completed={completed.length}
+          unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
+        />
+      </div>
 
-        <ClientTabs
-          width=""
-          tabs={[
+      <ClientTabs
+        width=""
+        tabs={[
           {
             key: "overview",
             label: "Overview",
@@ -165,10 +150,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             bleed: true,
             // `flow`: the board grows with its cards and the page does the
             // scrolling, so nothing is cut off at the bottom and each stage
-            // header pins itself to the top as it passes. No full-bleed
-            // negative margin here — the switcher rail alongside it is
-            // real content, not padding, so there's no page edge to cancel
-            // out to anymore.
+            // header pins itself to the top as it passes.
             content: (
               <Board
                 tasks={tasks}
@@ -227,8 +209,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             ),
           },
         ]}
-        />
-      </div>
+      />
     </div>
   );
 }
