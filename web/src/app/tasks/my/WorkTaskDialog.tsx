@@ -4,6 +4,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Link2, Paperclip, Trash2 } from "lucide-react";
 import { Dropdown } from "../Dropdown";
+import { DatePicker } from "../DatePicker";
 import { resizeToJpegMaxDim } from "@/lib/imageResize";
 import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type WorkTaskAttachment } from "./actions";
 import type { WorkTaskCardData } from "./WorkTaskCard";
@@ -144,10 +145,10 @@ export const WorkTaskDialog = forwardRef<
             />
           </label>
 
-          <label className={label}>
+          <div className={label}>
             Due date
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={field} />
-          </label>
+            <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
+          </div>
 
           <label className={label}>
             Related project <span className="font-normal normal-case text-muted/70">(optional)</span>

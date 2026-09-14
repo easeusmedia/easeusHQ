@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
 import { NotesGlyph } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
+import { DatePicker } from "./DatePicker";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
@@ -34,6 +35,10 @@ export function NewTaskRow({
   // client with a year of them buried the other 40-odd clients under it
   const defaultProject = projects.find((p) => p.id === defaultProjectId);
   const [clientId, setClientId] = useState(defaultProject?.client.id ?? "");
+  // the form posts as FormData, and DatePicker isn't a form control — it
+  // keeps its value in state and writes it to a hidden input below
+  const [dueDate, setDueDate] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
   const clients = useMemo(() => {
     const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
     return [...byId.entries()]
@@ -50,6 +55,8 @@ export function NewTaskRow({
       formRef.current?.reset();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting the client filter is part of the same "clear the form after a successful submit" reaction as formRef.reset() just above, not a render-loop
       setClientId(defaultProject?.client.id ?? "");
+      setDueDate("");
+      setScheduledFor("");
       dialogRef.current?.close();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultProject is derived from props that don't change while this dialog is open
@@ -117,16 +124,18 @@ export function NewTaskRow({
             <input name="rawLink" placeholder="Google Drive link" className={field} />
           </label>
 
-          <div className="flex gap-3">
-            <label className="flex flex-1 flex-col gap-1.5 text-xs text-muted">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5 text-xs text-muted">
               Due date <span className="font-normal normal-case">(for client approval)</span>
-              <input type="date" name="dueDate" className={field} />
-            </label>
+              <input type="hidden" name="dueDate" value={dueDate} />
+              <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
+            </div>
 
-            <label className="flex flex-1 flex-col gap-1.5 text-xs text-muted">
-              Schedule for <span className="font-normal normal-case">(optional)</span>
-              <input type="date" name="scheduledFor" className={field} />
-            </label>
+            <div className="flex flex-col gap-1.5 text-xs text-muted">
+              Schedule for <span className="font-normal normal-case">(hidden from the editor until then)</span>
+              <input type="hidden" name="scheduledFor" value={scheduledFor} />
+              <DatePicker value={scheduledFor} onChange={setScheduledFor} placeholder="Visible immediately" />
+            </div>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">

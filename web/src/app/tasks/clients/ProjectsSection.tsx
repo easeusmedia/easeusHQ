@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, type ProjectCardData } from "./ProjectCard";
+import { DatePicker } from "../DatePicker";
 
 const PRESETS = [4, 8, 12] as const;
 const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
@@ -30,7 +31,7 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
 
   const dateFilterActive = !!(from || to);
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
-  // the <input type="date"> values (same format) is a correct date compare
+  // the picker's own yyyy-mm-dd values is already a correct date compare
   const dateFiltered = projects.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
   const visible = dateFilterActive ? dateFiltered : preset === "all" ? projects : projects.slice(0, preset);
   const hiddenCount = projects.length - visible.length;
@@ -62,7 +63,9 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
           </button>
 
           {open && (
-            <div className="absolute right-0 z-20 mt-1 w-60 rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
+            // w-[21.5rem]: wide enough to hold the date pickers' own
+            // calendar popovers (20rem) without them spilling off the edge
+            <div className="absolute right-0 z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
               <p className="mb-1.5 text-[11px] font-medium text-muted">Show</p>
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map((p) => (
@@ -91,20 +94,9 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
               </div>
 
               <p className="mb-1.5 mt-3 text-[11px] font-medium text-muted">Date range</p>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => setFrom(e.target.value)}
-                  className="w-0 flex-1 rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-foreground"
-                />
-                <span className="text-[11px] text-muted">to</span>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  className="w-0 flex-1 rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-foreground"
-                />
+              <div className="flex flex-col gap-2">
+                <DatePicker value={from} onChange={setFrom} placeholder="From…" />
+                <DatePicker value={to} onChange={setTo} placeholder="To…" />
               </div>
               {dateFilterActive && (
                 <button
