@@ -202,15 +202,18 @@ export function Sidebar({
             // class at all, so it sizes to exactly its own content (the
             // 36px icon slot; the label is 0-width) now that nav itself no
             // longer stretches it wider than that (see nav's items-start
-            // above). gap-2/gap-0 (not gap-2/no-gap-class) plus its own
-            // transition: those are two different *values* of the same
-            // property, which the browser can animate — a class that's
-            // simply absent isn't a value, so the gap used to just vanish
-            // the instant the row collapsed, while the label next to it
-            // was still shrinking over the next 200ms. The label visibly
-            // snapping left onto the icon and then fading, instead of
-            // shrinking away in one motion, was that mismatch.
-            className={`flex items-center rounded-md text-sm transition-[gap] duration-200 ease-in-out ${open ? "w-full gap-2" : "gap-0"} ${
+            // above). gap-2/gap-0 (not gap-2/no-gap-class) are two real
+            // *values* of the same property, which the browser can animate
+            // — a class that's simply absent isn't a value, so the gap
+            // used to just vanish the instant the row collapsed, while the
+            // label next to it was still shrinking over the next 200ms.
+            // The label visibly snapping left onto the icon and then
+            // fading, instead of shrinking away in one motion, was that
+            // mismatch. The transition that actually animates it lives in
+            // globals.css's shared `a, button` rule, not a utility class
+            // here — see that rule's own comment for why a Tailwind
+            // transition utility on gap silently never worked.
+            className={`flex items-center rounded-md text-sm ${open ? "w-full gap-2" : "gap-0"} ${
               active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
             }`}
           >
@@ -265,11 +268,10 @@ export function Sidebar({
             setProfileOpen((v) => !v);
           }}
           title={open ? undefined : name}
-          // same fixed layout (and the same animated gap-2/gap-0, not
-          // gap-2/nothing — see the nav links' own comment above) as the
-          // nav rows: the avatar never moves, and now neither does the
-          // name label mid-collapse
-          className={`flex items-center rounded-md text-left transition-[gap] duration-200 ease-in-out hover:bg-surface-2 ${open ? "w-full gap-2" : "gap-0"}`}
+          // same fixed layout (and the same animated gap-2/gap-0 — see
+          // the nav rows' own comment above) as the nav rows: the avatar
+          // never moves, and now neither does the name label mid-collapse
+          className={`flex items-center rounded-md text-left hover:bg-surface-2 ${open ? "w-full gap-2" : "gap-0"}`}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
             <Avatar name={name} size={26} />

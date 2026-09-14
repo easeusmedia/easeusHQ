@@ -75,9 +75,17 @@ body {
    dedicated classes below (.btn-glow, .card-surface, .status-pop,
    .btn-ghost) already declare their own transition and simply override
    this by specificity, so this only fills in the plain elements that had
-   no transition at all and snapped instantly on hover. */
+   no transition at all and snapped instantly on hover.
+   +gap: the sidebar's collapsible rows animate their own icon-label gap
+   (see Sidebar.tsx) so a label mid-fade doesn't visibly snap onto its
+   icon the instant the row's gap class changes. That can't be added as a
+   Tailwind utility at the call site instead — this `transition` shorthand
+   is plain global CSS, outside any `@layer`, and an unlayered rule beats
+   a layered utility class of any specificity (importance and layer are
+   resolved before specificity is ever compared). Whatever this rule
+   lists is genuinely final for every button/link in the app. */
 a, button {
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color 0.12s ease, color 0.12s ease, gap 0.2s ease-in-out;
 }
 
 /* Glassmorphism for the big static panels only — dialogs and cards — kept
