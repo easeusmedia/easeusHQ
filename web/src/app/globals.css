@@ -10,6 +10,16 @@
   --hover-surface: #363c45; /* clearly lighter than surface/surface-2 — an obvious hover pop */
   --foreground: #eef0f2;
   --muted: #8b939c;
+  /* Tells the browser itself to render its own native chrome — the
+     <input type="date"> calendar popup, scrollbars, form-control
+     highlights — in the dark variant it already ships. Those aren't
+     styleable with our own CSS at all (the date picker popup is drawn
+     entirely by the OS/browser), so this is the only lever there is;
+     without it every native control renders light-themed no matter how
+     dark the page around it is, which is what made the date picker read
+     as a jarring white square. Inherited, so one declaration covers
+     every native control on every page. */
+  color-scheme: dark;
 }
 
 @theme inline {
