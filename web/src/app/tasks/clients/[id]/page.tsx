@@ -96,10 +96,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   }));
 
   return (
-    <div className="flex gap-4">
+    // -m-6/sm:-m-8 cancel the shared layout's own p-6/sm:p-8 on every side
+    // for this row only, so the switcher can sit flush against the app
+    // sidebar with nothing to fight — its sticky positioning needs a
+    // plain `top-0`, not an offset tuned to cancel a parent's padding
+    // (that tuning came apart under scroll; see ClientSwitcher). The
+    // padding comes back below, just scoped to where each side still
+    // wants it.
+    <div className="-m-6 flex gap-4 sm:-m-8">
       <ClientSwitcher clients={allClients} currentId={client.id} />
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 pt-6 pr-6 pb-6 sm:pt-8 sm:pr-8 sm:pb-8">
         <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
           <ArrowLeft size={14} /> Clients
         </Link>

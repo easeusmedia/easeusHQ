@@ -14,14 +14,18 @@ export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient
     // with the content instead of staying put like the app's own sidebar
     // does. Same fix as that sidebar: pin it to the viewport and let its
     // own overflow-y-auto handle a roster too long to fit.
-    // -ml-6 (sm:-ml-8) cancels the page's own left padding, same as
-    // before. The *top* side needs the offset on `top` itself, not a
-    // negative margin — a sticky element's stuck position is computed
-    // from `top`, and margin on a stuck element doesn't reliably cancel a
-    // parent's padding the way it does for a normal flow box. h-[calc...]
-    // grows the box back out by the same amount so its bottom still
-    // reaches the viewport edge instead of falling short by it.
-    <aside className="sticky -top-6 hidden -ml-6 h-[calc(100vh+2rem)] w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 py-2 pl-6 pr-2 pt-6 sm:-top-8 sm:-ml-8 sm:pl-8 sm:pt-8 lg:flex">
+    // The parent row already cancels the shared layout's own padding for
+    // this whole row (see [id]/page.tsx), which is what gets this flush
+    // against the app sidebar — but that cancellation doesn't reach a
+    // *sticky* descendant's own stuck-position math: a sticky element's
+    // threshold is measured from the nearest scrolling ancestor's real
+    // padding edge no matter what an in-between negative margin does
+    // visually, so without this it sits stuck 25.9px/2rem too low the
+    // instant scrolling engages it. -top-6 (sm:-top-8) cancels that
+    // padding for the threshold itself; h-[calc...] grows the box back
+    // out by the same amount so its bottom still reaches the viewport
+    // edge instead of falling short by it.
+    <aside className="sticky -top-6 hidden h-[calc(100vh+2rem)] w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 py-2 pl-6 pr-2 pt-6 sm:-top-8 sm:pl-8 sm:pt-8 lg:flex">
       {clients.map((c) => {
         const active = c.id === currentId;
         return (
