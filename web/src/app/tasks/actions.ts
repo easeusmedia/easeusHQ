@@ -296,9 +296,34 @@ const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
   // for want of a column — it has one of its own now.
   "sent for client approval": "sent_for_client_approval",
   "revision requested": "revision_requested",
-  "final export ready": "final_export_ready",
+  // Notion's "Final export ready" means the team has exported and handed
+  // the work over — it's done, and it should drop off the board into
+  // History on sync rather than sitting in an active column forever.
+  // (Our own board still has a separate final_export_ready stage for work
+  // driven here rather than in Notion; this is only how *Notion's* wording
+  // maps in.)
+  "final export ready": "delivered_and_uploaded",
   "delivered and uploaded": "delivered_and_uploaded",
 };
+
+// Notion has one "Exported Link" column that holds different things at
+// different stages: a Frame.io review link while the cut is under review,
+// and the final Google Drive link once it's delivered. Filing all of them
+// as frameioLink (what this used to do) meant a delivered task's Drive
+// link showed up labelled "Frame.io" and the Drive field stayed empty.
+// Route by what the URL actually is, and never clear the other field —
+// both are real, they just arrive at different times.
+function routeExportedLink(url: string | null): { frameioLink?: string; driveLink?: string } {
+  if (!url) return {};
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return {};
+  }
+  if (host.includes("drive.google.com") || host.includes("docs.google.com")) return { driveLink: url };
+  return { frameioLink: url };
+}
 
 // Same duplicated-on-purpose IST-offset approach as notion.ts's own
 // todayInIST() — this file doesn't otherwise need to know about Notion's
@@ -422,7 +447,7 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         rawLink: getUrl(row.properties, "Raw Links"),
         referenceLink: getUrl(row.properties, "Reference "),
         assetLink: getUrl(row.properties, "Assets"),
-        frameioLink: getUrl(row.properties, "Exported Link"),
+        ...routeExportedLink(getUrl(row.properties, "Exported Link")),
       };
 
       // already tracked — Notion is the source of truth during this

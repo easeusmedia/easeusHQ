@@ -18,6 +18,7 @@ type HistoryTask = {
   createdAt: Date;
   updatedAt: Date;
   driveLink: string | null;
+  frameioLink: string | null;
   assignedTo: { name: string } | null;
   project: { client: { name: string } };
 };
@@ -64,7 +65,7 @@ export function HistoryList({
               <th className="px-3 py-2 font-medium">Task</th>
               <th className="px-3 py-2 font-medium">Editor</th>
               <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Drive</th>
+              <th className="px-3 py-2 font-medium">Deliverable</th>
               {canDelete && <th className="px-3 py-2 font-medium"></th>}
             </tr>
           </thead>
@@ -82,14 +83,19 @@ export function HistoryList({
                 <td className="px-3 py-2 text-muted">{t.assignedTo?.name ?? "Unassigned"}</td>
                 <td className="px-3 py-2 text-muted">{STATUS_LABEL[t.status]}</td>
                 <td className="px-3 py-2">
-                  {t.driveLink ? (
+                  {/* Notion has one "Exported Link" that's a Frame.io review
+                      link until it's replaced by the final Drive link, so a
+                      delivered task can legitimately have either. Show
+                      whichever exists, labelled honestly, rather than "None"
+                      on every task that hasn't had its Drive link pasted in. */}
+                  {t.driveLink || t.frameioLink ? (
                     <a
-                      href={t.driveLink}
+                      href={(t.driveLink ?? t.frameioLink)!}
                       target="_blank"
                       onClick={(e) => e.stopPropagation()}
                       className="text-blue-400 underline underline-offset-2"
                     >
-                      View ↗
+                      {t.driveLink ? "Drive" : "Frame.io"} ↗
                     </a>
                   ) : (
                     <span className="text-muted">None</span>
