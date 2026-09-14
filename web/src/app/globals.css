@@ -164,7 +164,7 @@ a, button {
   flex-direction: column;
 }
 
-/* --- The one hover rule, three cases. Don't hand-roll a fourth. ---
+/* --- The one hover rule, four cases. Don't hand-roll a fifth. ---
    1. Solid action buttons (Save/Confirm/Add task) -> .btn-glow. Bordered,
       filled at rest, swaps to --hover-surface on hover.
    2. List rows / nav items (sidebar links, dropdown options, table rows) ->
@@ -174,7 +174,16 @@ a, button {
    3. Plain tertiary text buttons (Cancel/Close/Dismiss) -> .btn-ghost.
       These are small and low-emphasis; the full solid fill from #1/#2
       reads as a disproportionately loud "pop" on a one-word text button,
-      so this gets a lighter partial-opacity tint instead. */
+      so this gets a lighter partial-opacity tint instead.
+   4. "+ Add/New X" triggers (new task, new project, new client, add a
+      link…) -> .btn-add. Used to be a dashed border, which reads as a
+      wireframe placeholder rather than a real, pressable control — a
+      solid border plus a faint gradient reads as an actual button at
+      rest, with a soft accent-tinted glow on hover instead of the flat
+      background-swap #1/#2 use, since these sit in emptier areas (an
+      empty grid slot, the bottom of a list) where a bit more presence
+      earns its keep. Kept intentionally understated — one low-opacity
+      accent color, no hue shift on hover, nothing saturated. */
 .btn-ghost {
   color: var(--muted);
   transition: background-color 0.12s ease, color 0.12s ease;
@@ -182,6 +191,19 @@ a, button {
 .btn-ghost:hover {
   background-color: color-mix(in srgb, var(--surface-2) 70%, transparent);
   color: var(--foreground);
+}
+
+.btn-add {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--foreground) 3%, transparent), transparent);
+  color: var(--muted);
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+.btn-add:hover {
+  border-color: color-mix(in srgb, #60a5fa 35%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #60a5fa 12%, transparent), 0 6px 16px -8px color-mix(in srgb, #60a5fa 45%, transparent);
 }
 
 

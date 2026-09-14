@@ -39,14 +39,14 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
       {variant === "row" ? (
         <button
           onClick={open}
-          className="flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted hover:bg-surface-2 hover:text-foreground"
+          className="btn-add flex items-center gap-2 rounded-xl px-4 py-3 text-sm"
         >
           <Plus size={15} /> Add client
         </button>
       ) : (
         <button
           onClick={open}
-          className="flex h-full min-h-[160px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted hover:bg-surface-2 hover:text-foreground"
+          className="btn-add flex h-full min-h-[160px] flex-col items-center justify-center gap-2 rounded-2xl"
         >
           <Plus size={22} />
           <span className="text-xs">Add client</span>

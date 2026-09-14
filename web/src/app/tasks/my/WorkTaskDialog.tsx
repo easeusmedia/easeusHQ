@@ -15,8 +15,7 @@ const label = "flex flex-col gap-1.5 text-sm text-muted";
 // a real button, not a bare text link — "+ Add a link"/"+ Add an image"
 // used to be plain underline-less text with no padding at all, which read
 // as inert and was genuinely fiddly to hit
-const addBtn =
-  "flex w-fit items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-foreground";
+const addBtn = "btn-add flex w-fit items-center gap-1.5 rounded-lg px-3 py-2 text-sm";
 
 // One dialog handles both creating and editing — the fields are identical,
 // only what happens on save (and whether a delete button shows) differs.
@@ -106,7 +105,7 @@ export const WorkTaskDialog = forwardRef<
       {mode === "create" && (
         <button
           onClick={open}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted hover:bg-surface-2 hover:text-foreground"
+          className="btn-add flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm"
         >
           <Plus size={16} /> New task
         </button>

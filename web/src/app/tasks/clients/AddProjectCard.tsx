@@ -60,7 +60,7 @@ export function AddProjectCard({ clientId }: { clientId: string }) {
     <>
       <button
         onClick={open}
-        className="flex h-full min-h-[140px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-muted hover:bg-surface-2 hover:text-foreground"
+        className="btn-add flex h-full min-h-[140px] flex-col items-center justify-center gap-1.5 rounded-xl"
       >
         <Plus size={18} />
         <span className="text-xs">New project</span>
