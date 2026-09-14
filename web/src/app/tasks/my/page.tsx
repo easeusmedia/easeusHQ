@@ -5,7 +5,7 @@ import { getAllUsers } from "@/lib/users";
 import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
-import { WorkTaskBoard } from "./WorkTaskBoard";
+import { WorkTaskView } from "./WorkTaskView";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -128,7 +128,7 @@ export default async function MyTasksPage({
         </div>
       )}
 
-      <WorkTaskBoard
+      <WorkTaskView
         tasks={tasks}
         projects={projects}
         actingUserId={actingUser.id}
