@@ -68,6 +68,25 @@ export function TeamPanel({
     return () => cancelAnimationFrame(id);
   }, []);
 
+  // The panel used to only ever see unreadBySender once, at mount — if you
+  // opened it and left it sitting on the roster (or in an unrelated
+  // thread), a message arriving from someone else never showed up in here
+  // at all until you closed and reopened the whole panel, even though
+  // LiveRefresh was already bringing this same prop fresh data every 15s
+  // one level up. Re-sync from it on every change instead, so a message
+  // from anyone but whoever's thread is actively open (already read,
+  // server-side, the moment that thread loaded — see getThreadMessages)
+  // shows up here live, panel open or not.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberately syncing local state from a prop that changes over time (LiveRefresh ticking one level up), the canonical case this rule can't distinguish from a real render loop
+    setUnread(() => {
+      if (!openWith) return unreadBySender;
+      const next = { ...unreadBySender };
+      delete next[openWith.id];
+      return next;
+    });
+  }, [unreadBySender, openWith]);
+
   // slides back out first, then actually unmounts (via the parent's
   // onClose) once that transition has had time to finish — closing
   // instantly looked like nothing but a hard cut
