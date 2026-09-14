@@ -4,13 +4,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
+import { LayoutDashboard, History, ListTodo, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { TeamPanel } from "./team/TeamPanel";
 
 const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
+  // everyone's own — editors and ops alike, unlike Clients/Calendar/Users
+  // below which stay ops-only
+  { segment: "/my", label: "My Tasks", Icon: ListTodo },
   { segment: "/history", label: "History", Icon: History },
 ];
 

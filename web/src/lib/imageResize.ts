@@ -29,3 +29,30 @@ export function resizeToJpeg(file: File, width: number, height: number): Promise
     reader.readAsDataURL(file);
   });
 }
+
+// Same idea, but for attachments that aren't card covers — a task
+// screenshot or reference image has no fixed shape to fit, so this scales
+// to fit within maxDim on its longer side instead of cropping to a forced
+// aspect ratio (which would mangle anything that isn't already ~16:9).
+export function resizeToJpegMaxDim(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      img.onerror = () => reject(new Error("Couldn't read that image."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas not supported."));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}

@@ -5,12 +5,31 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // DATABASE_URL goes through Supabase's pgbouncer pooler (port 6543,
+  // transaction mode) — fine for the app's own runtime queries, but it's
+  // what made `prisma db push` hang indefinitely the first time this ran:
+  // transaction-mode pooling doesn't reliably support the DDL/introspection
+  // Prisma's schema engine needs. directUrl (port 5432, no pgbouncer) is
+  // what migrate/db push actually use instead when this is set.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
   admin
   core
   employee
+}
+
+// A personal work item — "audio pass for this episode," "record intro VO"
+// — real work that isn't itself a step in a client project's editing-queue
+// pipeline (Task, below). Much simpler lifecycle than Task on purpose: no
+// client-approval stage, no Frame.io/Drive fields, just enough to track
+// that it's happening and see it through.
+enum WorkTaskStatus {
+  todo
+  in_progress
+  in_review
+  done
 }
 
 // matches the team's "Editing Queue Status Guide" — see src/lib/workflow.ts
@@ -75,27 +94,29 @@ model User {
   // not a real online/offline socket connection
   lastSeenAt   DateTime?
 
-  tasksAssigned    Task[]        @relation("AssignedTasks")
-  tasksReviewed    Task[]        @relation("ReviewedTasks")
-  feedback         Feedback[]
-  kpiSnapshots     KpiSnapshot[]
-  activity         ActivityLog[]
-  messagesSent     Message[]     @relation("MessagesSent")
-  messagesReceived Message[]     @relation("MessagesReceived")
+  tasksAssigned     Task[]        @relation("AssignedTasks")
+  tasksReviewed     Task[]        @relation("ReviewedTasks")
+  workTasksCreated  WorkTask[]    @relation("WorkTasksCreated")
+  workTasksAssigned WorkTask[]    @relation("WorkTasksAssigned")
+  feedback          Feedback[]
+  kpiSnapshots      KpiSnapshot[]
+  activity          ActivityLog[]
+  messagesSent      Message[]     @relation("MessagesSent")
+  messagesReceived  Message[]     @relation("MessagesReceived")
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
 // separate Conversation row; a thread is just every Message between two
 // user ids, queried both directions and sorted by time.
 model Message {
-  id         String    @id @default(uuid())
-  from       User      @relation("MessagesSent", fields: [fromId], references: [id])
-  fromId     String
-  to         User      @relation("MessagesReceived", fields: [toId], references: [id])
-  toId       String
-  body       String    @db.Text
-  createdAt  DateTime  @default(now())
-  readAt     DateTime?
+  id        String    @id @default(uuid())
+  from      User      @relation("MessagesSent", fields: [fromId], references: [id])
+  fromId    String
+  to        User      @relation("MessagesReceived", fields: [toId], references: [id])
+  toId      String
+  body      String    @db.Text
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
 
   @@index([fromId, toId])
   @@index([toId, fromId])
@@ -113,7 +134,7 @@ model Client {
   contact   String? // primary contact's name
   email     String?
   whatsapp  String?
-  address   String? @db.Text
+  address   String?  @db.Text
   createdAt DateTime @default(now())
 
   // a small square image, stored as a data: URI directly in the row
@@ -180,11 +201,11 @@ model ClientTemplate {
   resources        String? @db.Text
 
   // [{ name, detail }] — the contracted scope a new client starts with
-  deliverables Json @default("[]")
+  deliverables Json   @default("[]")
   // [{ title, detail }] — the Client Onboarding SOP's steps, as a checklist
-  onboarding   Json @default("[]")
+  onboarding   Json   @default("[]")
   // tag names applied to every new client (must already exist in Tag)
-  tags         Json @default("[]")
+  tags         Json   @default("[]")
   // the project a client starts with, e.g. "Podcast"
   projectType  String @default("Podcast")
 
@@ -267,9 +288,10 @@ model Project {
   notionPageId  String?        @unique
   createdAt     DateTime       @default(now())
 
-  tasks    Task[]
-  invoices Invoice[]
-  assets   ProjectAsset[]
+  tasks     Task[]
+  invoices  Invoice[]
+  assets    ProjectAsset[]
+  workTasks WorkTask[]
 }
 
 model Task {
@@ -321,6 +343,50 @@ model Task {
   updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs
 
   feedback Feedback[]
+}
+
+// A personal/team work item — see the WorkTaskStatus comment above for how
+// this differs from Task. Everyone can create their own; only an admin can
+// create or reassign one to somebody else (enforced in actions.ts, not
+// here — same approach as Task's role rules living in workflow.ts).
+model WorkTask {
+  id        String         @id @default(uuid())
+  title     String
+  notes     String?        @db.Text
+  status    WorkTaskStatus @default(todo)
+  // free text, not a relation — "Audio", "Graphics", "Research"; a whole
+  // tag-management system is overkill for what's just a label on a
+  // personal to-do
+  category  String?
+  dueDate   DateTime?
+  // manual drag-to-reorder within a status column — same float-midpoint
+  // trick as Task.sortOrder
+  sortOrder Float          @default(0)
+
+  createdBy    User   @relation("WorkTasksCreated", fields: [createdById], references: [id])
+  createdById  String
+  assignedTo   User   @relation("WorkTasksAssigned", fields: [assignedToId], references: [id])
+  assignedToId String
+
+  // optional context — "this is the audio pass for that episode" —
+  // without making it a formal step in that project's own task pipeline
+  project   Project? @relation(fields: [projectId], references: [id])
+  projectId String?
+
+  // [{ label, url }] — reference links (Notion, Drive, Frame.io…), same
+  // free-form shape as everywhere else in this app that needs a handful of
+  // named links without a dedicated column per link
+  links       Json @default("[]")
+  // [{ name, dataUrl }] — small images/files attached directly, same
+  // downscale-then-store-as-data-URI approach as client avatars/project
+  // covers (see Client.avatarUrl); no object storage wired up for this app
+  attachments Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId])
+  @@index([createdById])
 }
 
 model Feedback {
