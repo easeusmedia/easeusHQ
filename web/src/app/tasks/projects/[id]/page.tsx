@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
-import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { TaskRow } from "../../TaskRow";
 import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
+import { ProjectFiles } from "../ProjectFiles";
 
 export const dynamic = "force-dynamic";
 
@@ -42,17 +42,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     client: { id: project.client.id, name: project.client.name },
   }));
 
-  const groups = Object.entries(
-    project.assets.reduce<Record<string, typeof project.assets>>((acc, a) => {
-      (acc[a.contentType] ??= []).push(a);
-      return acc;
-    }, {})
-  ).sort(([a], [b]) => {
-    const ia = TYPE_ORDER.indexOf(a);
-    const ib = TYPE_ORDER.indexOf(b);
-    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-  });
-
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
 
@@ -72,11 +61,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         status={project.status}
         coverUrl={project.coverUrl}
         driveLink={project.driveLink}
+        type={project.type}
         completedAt={
           project.completedAt
             ? project.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
             : null
         }
+        completedOn={project.completedAt ? project.completedAt.toISOString().slice(0, 10) : ""}
         canDelete={project.tasks.length === 0}
       />
 
@@ -111,49 +102,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </ul>
       </section>
 
-      <section className="mt-12">
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium">Files</h2>
-          {project.assets.length > 0 && <span className="text-xs text-muted">{project.assets.length} total</span>}
-        </div>
-
-        {groups.length === 0 ? (
-          <p className="text-sm text-muted">No files recorded for this project yet.</p>
-        ) : (
-          <div className="flex flex-col gap-8">
-            {groups.map(([type, assets]) => (
-              <div key={type}>
-                <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
-                  {type} <span className="text-muted/60">{assets.length}</span>
-                </h3>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {assets.map((a) =>
-                    a.link ? (
-                      <a
-                        key={a.id}
-                        href={a.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
-                      >
-                        <span className="min-w-0 truncate text-sm">{a.name}</span>
-                        <ExternalLink size={13} className="shrink-0 text-muted" />
-                      </a>
-                    ) : (
-                      <div
-                        key={a.id}
-                        className="flex items-center rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 text-sm text-muted"
-                      >
-                        {a.name}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <ProjectFiles
+        projectId={project.id}
+        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link }))}
+      />
     </div>
   );
 }

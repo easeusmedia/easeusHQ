@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { ExternalLink, ImagePlus, Pencil, Trash2 } from "lucide-react";
+import { resizeToJpeg } from "@/lib/imageResize";
+import { DatePicker } from "../DatePicker";
 import { updateProject, deleteProject } from "../clients/actions";
 
 // Cover left, the few facts that matter right. Editing swaps the right-hand
@@ -14,7 +16,9 @@ export function ProjectHeader({
   status,
   coverUrl,
   driveLink,
+  type,
   completedAt,
+  completedOn,
   canDelete,
 }: {
   projectId: string;
@@ -23,7 +27,10 @@ export function ProjectHeader({
   status: string;
   coverUrl: string | null;
   driveLink: string | null;
+  type: string;
   completedAt: string | null;
+  /** yyyy-mm-dd, for the editable date field */
+  completedOn: string;
   canDelete: boolean;
 }) {
   const router = useRouter();
@@ -31,15 +38,47 @@ export function ProjectHeader({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const deleteRef = useRef<HTMLDialogElement>(null);
-  const [form, setForm] = useState({ name, status, driveLink: driveLink ?? "" });
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({
+    name,
+    status,
+    driveLink: driveLink ?? "",
+    type,
+    completedAt: completedOn,
+  });
+  // held separately from the rest of the form: undefined means "leave the
+  // cover as it is", null means "remove it", a string means "replace it"
+  const [cover, setCover] = useState<string | null | undefined>(undefined);
+  const shownCover = cover === undefined ? coverUrl : cover;
+
+  function startEditing() {
+    setForm({ name, status, driveLink: driveLink ?? "", type, completedAt: completedOn });
+    setCover(undefined);
+    setError(null);
+    setEditing(true);
+  }
+
+  async function onPickCover(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      // same 480x270 as a project's own cover elsewhere, so a replacement
+      // matches whatever the Notion import produced
+      setCover(await resizeToJpeg(file, 480, 270));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't process that image.");
+    }
+  }
 
   async function save() {
     setSaving(true);
     setError(null);
-    const res = await updateProject(projectId, form);
+    const res = await updateProject(projectId, { ...form, ...(cover !== undefined ? { coverUrl: cover } : {}) });
     setSaving(false);
     if (res.error) return setError(res.error);
     setEditing(false);
+    setCover(undefined);
     router.refresh();
   }
 
@@ -60,12 +99,29 @@ export function ProjectHeader({
 
   return (
     <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-      <div className="aspect-video w-full shrink-0 overflow-hidden rounded-2xl bg-surface-2 sm:w-72">
-        {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
-          <img src={coverUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
+      <div className="w-full shrink-0 sm:w-72">
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-surface-2">
+          {shownCover ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a data: URI or a local file under public/, already downscaled
+            <img src={shownCover} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
+          )}
+          {editing && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="absolute inset-0 flex items-center justify-center gap-2 bg-black/55 text-sm font-medium text-white opacity-0 transition-opacity hover:opacity-100"
+            >
+              <ImagePlus size={16} /> {shownCover ? "Replace cover" : "Add cover"}
+            </button>
+          )}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" onChange={onPickCover} className="hidden" />
+        {editing && shownCover && (
+          <button onClick={() => setCover(null)} className="btn-ghost mt-2 rounded-md px-2 py-1 text-xs">
+            Remove cover
+          </button>
         )}
       </div>
 
@@ -86,11 +142,27 @@ export function ProjectHeader({
               <option value="completed">Completed</option>
             </select>
             <input
+              placeholder="Type (Podcast, Short-form…)"
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
+            />
+            <input
               placeholder="Drive folder link"
               value={form.driveLink}
               onChange={(e) => setForm((f) => ({ ...f, driveLink: e.target.value }))}
               className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
             />
+            {form.status === "completed" && (
+              <label className="flex flex-col gap-1.5 text-xs text-muted">
+                Delivered on
+                <DatePicker
+                  value={form.completedAt}
+                  onChange={(v) => setForm((f) => ({ ...f, completedAt: v }))}
+                  placeholder="No date set"
+                />
+              </label>
+            )}
             {error && <p className="text-xs text-red-300">{error}</p>}
             <div className="flex items-center justify-between">
               {canDelete && (
@@ -115,7 +187,7 @@ export function ProjectHeader({
           <>
             <div className="flex items-start gap-3">
               <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">{name}</h1>
-              <button onClick={() => setEditing(true)} className="btn-ghost mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+              <button onClick={startEditing} className="btn-ghost mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-xs">
                 <Pencil size={12} /> Edit
               </button>
             </div>
@@ -129,7 +201,8 @@ export function ProjectHeader({
               >
                 {done ? "Completed" : "In progress"}
               </span>
-              {completedAt && <span className="text-xs text-muted">{completedAt}</span>}
+              <span className="text-xs text-muted">{type}</span>
+              {completedAt && <span className="text-xs text-muted">· {completedAt}</span>}
             </div>
             {driveLink && (
               <a

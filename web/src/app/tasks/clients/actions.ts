@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { normalizeUrl } from "@/lib/links";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
@@ -14,6 +15,17 @@ import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 // out of this system for now — see chat history). Add a name here to
 // bring another paused client in on the next sync.
 const TRACKED_ON_HOLD = ["The Broker Brunch", "HUMAIN"];
+
+// Same gate every other link field in the app goes through (see
+// tasks/actions.ts): an http(s) URL or nothing, never a bare
+// "javascript:"/"data:" string that becomes a live href for whoever
+// clicks it next.
+function requireLinkOrNull(value: string, label: string): string | null {
+  if (!value.trim()) return null;
+  const normalized = normalizeUrl(value);
+  if (!normalized) throw new Error(`${label} doesn't look like a valid link.`);
+  return normalized;
+}
 
 // admin/core only — same "ops" bar as the Clients page itself and the
 // Calendar page (see calendar/page.tsx's own employee redirect)
@@ -531,11 +543,36 @@ export async function createProject(
 
 export async function updateProject(
   projectId: string,
-  data: { name: string; status: string; driveLink: string }
+  // every field on the header is editable, not just the first three it
+  // started with — a Notion import can get any of them wrong, and the
+  // point of owning this data here is being able to correct it
+  data: {
+    name: string;
+    status: string;
+    driveLink: string;
+    type?: string;
+    coverUrl?: string | null;
+    completedAt?: string; // yyyy-mm-dd, "" to clear
+  }
 ): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can edit a project." };
   if (!data.name.trim()) return { error: "Give the project a name." };
+  if (data.coverUrl && data.coverUrl.length > 500_000) return { error: "That cover image is too large." };
+
+  const existing = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!existing) return { error: "Project not found." };
+
+  // completedAt is its own field now rather than something stamped with
+  // "now" on every save: a project finished last month shouldn't get
+  // today's date just because someone fixed a typo in its name.
+  let completedAt = existing.completedAt;
+  if (data.completedAt !== undefined) {
+    completedAt = data.completedAt ? new Date(`${data.completedAt}T12:00:00`) : null;
+  } else if (data.status === "completed" && !existing.completedAt) {
+    completedAt = new Date();
+  }
+  if (data.status !== "completed") completedAt = null;
 
   const project = await prisma.project.update({
     where: { id: projectId },
@@ -543,11 +580,77 @@ export async function updateProject(
       name: data.name.trim(),
       status: data.status,
       driveLink: data.driveLink.trim() || null,
-      completedAt: data.status === "completed" ? new Date() : null,
+      ...(data.type !== undefined ? { type: data.type.trim() || existing.type } : {}),
+      ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl } : {}),
+      completedAt,
     },
   });
   revalidatePath(`/tasks/clients/${project.clientId}`);
   revalidatePath(`/tasks/projects/${projectId}`);
+  return {};
+}
+
+// --- A project's files (ProjectAsset rows) -------------------------------
+// Whatever the Notion import pulled in is a starting point, not gospel:
+// names, types and links all get corrected by hand from the project page.
+
+export type ProjectAssetInput = { name: string; contentType: string; link: string };
+
+async function revalidateProject(projectId: string) {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { clientId: true } });
+  if (project) revalidatePath(`/tasks/clients/${project.clientId}`);
+  revalidatePath(`/tasks/projects/${projectId}`);
+}
+
+export async function addProjectAsset(projectId: string, input: ProjectAssetInput): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit a project's files." };
+  if (!input.name.trim()) return { error: "Give the file a name." };
+  let link: string | null;
+  try {
+    link = requireLinkOrNull(input.link, "File link");
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "That link isn't valid." };
+  }
+
+  const last = await prisma.projectAsset.findFirst({ where: { projectId }, orderBy: { sortOrder: "desc" } });
+  await prisma.projectAsset.create({
+    data: {
+      projectId,
+      name: input.name.trim(),
+      contentType: input.contentType.trim() || "Misc.",
+      link,
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+    },
+  });
+  await revalidateProject(projectId);
+  return {};
+}
+
+export async function updateProjectAsset(assetId: string, input: ProjectAssetInput): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit a project's files." };
+  if (!input.name.trim()) return { error: "Give the file a name." };
+  let link: string | null;
+  try {
+    link = requireLinkOrNull(input.link, "File link");
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "That link isn't valid." };
+  }
+
+  const asset = await prisma.projectAsset.update({
+    where: { id: assetId },
+    data: { name: input.name.trim(), contentType: input.contentType.trim() || "Misc.", link },
+  });
+  await revalidateProject(asset.projectId);
+  return {};
+}
+
+export async function deleteProjectAsset(assetId: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit a project's files." };
+  const asset = await prisma.projectAsset.delete({ where: { id: assetId } });
+  await revalidateProject(asset.projectId);
   return {};
 }
 
