@@ -8,17 +8,20 @@ export type SwitcherClient = { id: string; name: string; avatarUrl: string | nul
 // just to open a different one.
 export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient[]; currentId: string }) {
   return (
-    // self-stretch: the flex row this sits in only stretches its children
-    // by default when nothing else says otherwise, and it's easy for that
-    // to quietly stop being true — pin it explicitly so the border/tint
-    // below always run the full height of the row next to it, not just
-    // this list's own (usually shorter) content height.
-    // -ml-6/-mt-6 cancel the page's own edge padding on this side and top
-    // (sm:-ml-8/-mt-8 to match at the wider breakpoint) — the switcher
-    // reads as a second sidebar, so it should sit flush against the real
-    // one instead of floating a whole padding's-width away from it. pl/pt
-    // re-add just enough of that same padding as internal breathing room.
-    <aside className="hidden -ml-6 -mt-6 w-48 shrink-0 flex-col gap-0.5 self-stretch overflow-y-auto border-r border-border bg-surface/40 py-2 pl-6 pr-2 pt-6 sm:-ml-8 sm:-mt-8 sm:pl-8 sm:pt-8 lg:flex">
+    // sticky + h-screen: the page content this sits beside scrolls inside
+    // its own container (the layout's overflow-y-auto wrapper), and this
+    // was a plain flow child of that same container — so it scrolled away
+    // with the content instead of staying put like the app's own sidebar
+    // does. Same fix as that sidebar: pin it to the viewport and let its
+    // own overflow-y-auto handle a roster too long to fit.
+    // -ml-6 (sm:-ml-8) cancels the page's own left padding, same as
+    // before. The *top* side needs the offset on `top` itself, not a
+    // negative margin — a sticky element's stuck position is computed
+    // from `top`, and margin on a stuck element doesn't reliably cancel a
+    // parent's padding the way it does for a normal flow box. h-[calc...]
+    // grows the box back out by the same amount so its bottom still
+    // reaches the viewport edge instead of falling short by it.
+    <aside className="sticky -top-6 hidden -ml-6 h-[calc(100vh+2rem)] w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 py-2 pl-6 pr-2 pt-6 sm:-top-8 sm:-ml-8 sm:pl-8 sm:pt-8 lg:flex">
       {clients.map((c) => {
         const active = c.id === currentId;
         return (
