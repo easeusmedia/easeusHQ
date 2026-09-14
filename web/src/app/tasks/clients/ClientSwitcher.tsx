@@ -25,7 +25,12 @@ export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient
     // padding for the threshold itself; h-[calc...] grows the box back
     // out by the same amount so its bottom still reaches the viewport
     // edge instead of falling short by it.
-    <aside className="sticky -top-6 hidden h-[calc(100vh+2rem)] w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 py-2 pl-6 pr-2 pt-6 sm:-top-8 sm:pl-8 sm:pt-8 lg:flex">
+    // p-3 on every side (not pl-6/pr-2 as before, which put 4x more space
+    // on the left than the right and made the active/hover pill look
+    // lopsided and short of the border) — matches the app sidebar's own
+    // p-3 exactly, so the two rails line up and each row's highlight sits
+    // evenly inset from both edges instead of hugging one of them.
+    <aside className="sticky -top-6 hidden h-[calc(100vh+2rem)] w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 p-3 sm:-top-8 lg:flex">
       {clients.map((c) => {
         const active = c.id === currentId;
         return (
