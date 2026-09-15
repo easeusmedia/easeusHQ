@@ -77,7 +77,7 @@ export function ProjectsSection({
             className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
               isDefault
                 ? "border-border bg-surface-2 text-muted hover:text-foreground"
-                : "border-blue-400/30 bg-blue-400/10 text-blue-200"
+                : "border-hover bg-hover text-foreground"
             }`}
           >
             <Filter size={12} />
@@ -96,7 +96,7 @@ export function ProjectsSection({
                     onClick={() => selectPreset(p)}
                     className={`rounded-md px-2 py-1 text-xs ${
                       !dateFilterActive && preset === p
-                        ? "bg-blue-400/20 text-blue-200"
+                        ? "bg-hover text-foreground"
                         : "bg-surface text-muted hover:text-foreground"
                     }`}
                   >
@@ -107,7 +107,7 @@ export function ProjectsSection({
                   onClick={() => selectPreset("all")}
                   className={`rounded-md px-2 py-1 text-xs ${
                     !dateFilterActive && preset === "all"
-                      ? "bg-blue-400/20 text-blue-200"
+                      ? "bg-hover text-foreground"
                       : "bg-surface text-muted hover:text-foreground"
                   }`}
                 >
@@ -162,9 +162,22 @@ export function ProjectsSection({
 // reads as "more of this", not a generic placeholder.
 function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: string | null; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="group relative text-left">
-      <div className="absolute -top-3 -right-3 h-full w-full rounded-xl border border-border/40 bg-surface-2/25" />
-      <div className="absolute -top-1.5 -right-1.5 h-full w-full rounded-xl border border-border/60 bg-surface-2/45" />
+    <button onClick={onClick} className="group block w-full text-left">
+      {/* The two layers behind trace the card's own box exactly: `inset-0`
+          on a wrapper that is only as tall as the card, offset by an even
+          6px then 12px. They used to be sized off the grid cell, which
+          stretches to the tallest card in the row — so on a shorter card
+          they hung past its bottom edge by different amounts, which is what
+          read as an uneven stack. */}
+      <span className="relative block">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 translate-x-3 -translate-y-3 rounded-xl border border-border/40 bg-surface-2/25"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 translate-x-1.5 -translate-y-1.5 rounded-xl border border-border/60 bg-surface-2/45"
+        />
       <div className="card-surface card-interactive relative flex flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {cover && (
@@ -183,6 +196,7 @@ function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: str
           <p className="text-[13px] font-medium text-muted">+{count} more</p>
         </div>
       </div>
+      </span>
     </button>
   );
 }

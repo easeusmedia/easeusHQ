@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { LayoutDashboard, History, ListTodo, MessageCircle, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
+import { isActive } from "./sidebarActive";
+import { toggleClientsPanel } from "./clients/clientsPanel";
 
 const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
@@ -189,13 +191,24 @@ export function Sidebar({
         ...(isAdmin ? [{ segment: "/users", label: "Users", Icon: Users }] : []),
       ].map((item) => {
         const href = `${base}${item.segment}`;
-        const active = pathname === href;
+        const active = isActive(item.segment, pathname, base);
         return (
           <Link
             key={item.segment}
             href={qs ? `${href}?${qs}` : href}
             title={open ? undefined : item.label}
-            onClick={(e) => e.stopPropagation()} // don't also open the rail — this click already has its own job
+            onClick={(e) => {
+              e.stopPropagation(); // don't also open the rail — this click already has its own job
+              // On a client's own page the Clients icon is what put the
+              // roster panel on screen, so it's also what should take it
+              // away: toggle it instead of navigating to a list you're
+              // already effectively looking at. Anywhere else it stays a
+              // plain link.
+              if (item.segment === "/clients" && /^\/tasks\/clients\/[^/]+$/.test(pathname)) {
+                e.preventDefault();
+                toggleClientsPanel();
+              }
+            }}
             // w-full only while open — collapsed, this row has no width
             // class at all, so it sizes to exactly its own content (the
             // 36px icon slot; the label is 0-width) now that nav itself no
@@ -249,6 +262,7 @@ export function Sidebar({
                 <p className="mb-1 text-xs font-medium text-muted">Viewing as</p>
                 <Dropdown
                   key={current}
+                  size="sm"
                   defaultValue={current}
                   options={people.map((p) => ({ value: p.id, label: p.name }))}
                   onChange={(id) => {

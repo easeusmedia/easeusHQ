@@ -18,6 +18,7 @@ export function RoleDropdown({ userId, role }: { userId: string; role: string })
   return (
     <div className={pending ? "opacity-60" : undefined}>
       <Dropdown
+        size="sm"
         defaultValue={role}
         options={ROLE_OPTIONS}
         onChange={(next) =>

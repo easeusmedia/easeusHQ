@@ -7,19 +7,32 @@ import { ChevronDown } from "lucide-react";
 // blue hover highlight is Chrome/macOS, not us) — this is a plain button +
 // list instead, styled with our own tokens, that still submits like a
 // normal form field via a hidden input.
+// "md" matches a text input exactly (same radius, padding and type size), so
+// a Project or Assigned-to row in a form lines up with the Title row above
+// it instead of sitting shorter and tighter than everything around it.
+// "sm" is for the compact places a dropdown rides inside a dense row — a
+// table cell, a task card, the sidebar's viewing-as picker.
+const SIZES = {
+  sm: { trigger: "rounded-md px-2 py-1 text-xs", option: "px-2 py-1.5 text-xs", chevron: 13 },
+  md: { trigger: "rounded-lg px-3 py-2 text-sm", option: "px-3 py-2 text-sm", chevron: 15 },
+} as const;
+
 export function Dropdown({
   name,
   defaultValue = "",
   options,
   placeholder = "Select…",
   onChange,
+  size = "md",
 }: {
   name?: string;
   defaultValue?: string;
   options: { value: string; label: string }[];
   placeholder?: string;
   onChange?: (value: string) => void;
+  size?: keyof typeof SIZES;
 }) {
+  const s = SIZES[size];
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
@@ -51,10 +64,12 @@ export function Dropdown({
       <button
         type="button"
         onClick={() => (open ? setOpen(false) : openList())}
-        className="flex w-full items-center justify-between rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
+        className={`flex w-full items-center justify-between border border-border bg-surface-2 text-left ${s.trigger}`}
       >
-        <span className={current ? "text-foreground" : "text-muted"}>{current?.label ?? placeholder}</span>
-        <ChevronDown size={13} className="shrink-0 text-muted" />
+        <span className={`min-w-0 truncate ${current ? "text-foreground" : "text-muted"}`}>
+          {current?.label ?? placeholder}
+        </span>
+        <ChevronDown size={s.chevron} className="ml-2 shrink-0 text-muted" />
       </button>
       {open && (
         <div
@@ -71,7 +86,7 @@ export function Dropdown({
                 setOpen(false);
                 onChange?.(o.value);
               }}
-              className="block w-full px-2 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+              className={`block w-full text-left text-foreground hover:bg-hover ${s.option}`}
             >
               {o.label}
             </button>

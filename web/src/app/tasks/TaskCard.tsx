@@ -1,8 +1,6 @@
 "use client";
 
 import { useRef } from "react";
-import { deleteTask } from "./actions";
-import { ConfirmButton } from "./ConfirmButton";
 import { NotesButton } from "./NotesButton";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
@@ -158,45 +156,12 @@ export function TaskCard({
       onClick={() => detailsRef.current?.open()}
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
-        {canManage && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex shrink-0 gap-2 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-          >
-            <button type="button" onClick={() => detailsRef.current?.open()} className="cursor-pointer hover:text-foreground">
-              Edit
-            </button>
-            <form id={`delete-${task.id}`} action={deleteTask}>
-              <input type="hidden" name="taskId" value={task.id} />
-              <input type="hidden" name="actingRole" value={actingRole} />
-            </form>
-            <ConfirmButton
-              message={`Delete "${task.title}"?`}
-              className="hover:text-red-400"
-              formId={`delete-${task.id}`}
-            >
-              Delete
-            </ConfirmButton>
-          </div>
-        )}
-        {!canManage && isAssignee && task.status === "sent_for_approval" && (
-          // only while it's under review — that's the one window an editor
-          // has anything to fix (their Frame.io link); before or after
-          // that stage there's nothing here for them to edit
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              detailsRef.current?.open();
-            }}
-            className="shrink-0 text-xs text-muted opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-within:opacity-100"
-          >
-            Edit
-          </button>
-        )}
-      </div>
+      {/* No Edit/Delete on hover any more. The whole card already opens the
+          details dialog on click, so "Edit" was a second button for what a
+          click already did, and Delete — the one destructive action here —
+          sat one stray click away on every card. Both live in that dialog
+          now, which keeps the card to just the task. */}
+      <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
 
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-snug">{task.title}</p>

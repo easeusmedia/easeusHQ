@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { ClientSwitcher, type SwitcherClient } from "./ClientSwitcher";
+import { primeClientsPanel, useClientsPanelOpen } from "./clientsPanel";
 
 // Lives in the shared /tasks layout, as a sibling of the app sidebar rather
 // than inside any one page's own scrolling content — same reasoning as the
@@ -12,9 +13,11 @@ import { ClientSwitcher, type SwitcherClient } from "./ClientSwitcher";
 // from inside the page instead). Reads the current client id straight off
 // the URL rather than a prop, so it works from the layout without every
 // client page having to thread its own id down to it.
-export function ClientSwitcherSlot({ clients }: { clients: SwitcherClient[] }) {
+export function ClientSwitcherSlot({ clients, initialOpen }: { clients: SwitcherClient[]; initialOpen: boolean }) {
+  primeClientsPanel(initialOpen);
+  const panelOpen = useClientsPanelOpen();
   const pathname = usePathname();
   const match = pathname.match(/^\/tasks\/clients\/([^/]+)$/);
-  if (!match || clients.length === 0) return null;
+  if (!match || clients.length === 0 || !panelOpen) return null;
   return <ClientSwitcher clients={clients} currentId={match[1]} />;
 }

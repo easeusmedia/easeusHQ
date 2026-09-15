@@ -158,7 +158,7 @@ export function DatePicker({
         type="button"
         onClick={() => (open ? setOpen(false) : openPanel())}
         className={`flex w-full items-center gap-2 rounded-lg border bg-surface-2 px-3 py-2.5 text-left text-sm ${
-          open ? "border-blue-500" : "border-border"
+          open ? "border-hover" : "border-border"
         }`}
       >
         <CalendarDays size={15} className="shrink-0 text-muted" />
@@ -214,11 +214,11 @@ export function DatePicker({
                   onClick={() => setDraft(ymd)}
                   className={`flex h-9 items-center justify-center rounded-md text-sm ${
                     isSelected
-                      ? "bg-blue-600 font-medium text-white"
+                      ? "bg-foreground font-medium text-background"
                       : current
                         ? "bg-surface-2 text-foreground hover:bg-hover"
                         : "text-muted/50 hover:bg-surface-2"
-                  } ${isToday && !isSelected ? "ring-1 ring-blue-500/60" : ""}`}
+                  } ${isToday && !isSelected ? "ring-1 ring-muted/50" : ""}`}
                 >
                   {ymd.d}
                 </button>
@@ -254,7 +254,7 @@ export function DatePicker({
                 onChange(format(draft));
                 setOpen(false);
               }}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+              className="btn-glow rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               Choose date
             </button>

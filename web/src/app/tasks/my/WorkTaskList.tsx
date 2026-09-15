@@ -156,6 +156,7 @@ function ListRow({
         <span onClick={(e) => e.stopPropagation()} className="w-36 shrink-0">
           <Dropdown
             key={task.status}
+            size="sm"
             defaultValue={task.status}
             options={STATUS_OPTIONS}
             onChange={(v) => onChangeStatus(v as WorkTaskStatus)}

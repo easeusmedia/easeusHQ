@@ -266,7 +266,12 @@ dialog[open]::backdrop {
       background-swap #1/#2 use, since these sit in emptier areas (an
       empty grid slot, the bottom of a list) where a bit more presence
       earns its keep. Kept intentionally understated — one low-opacity
-      accent color, no hue shift on hover, nothing saturated. */
+      accent color, no hue shift on hover, nothing saturated.
+
+   Every one of these four resolves to the same greys (--surface-2 /
+   --hover-surface). Hover is never a hue — the blue glow this used to have
+   read as a second accent colour competing with the real one, and showed up
+   as "a blue thing on hover" everywhere a dropdown or +Add button sat. */
 .btn-ghost {
   color: var(--muted);
   transition: background-color 0.12s ease, color 0.12s ease;
@@ -283,10 +288,10 @@ dialog[open]::backdrop {
   transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 .btn-add:hover {
-  border-color: color-mix(in srgb, #60a5fa 35%, var(--border));
-  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  border-color: var(--hover-surface);
+  background: var(--surface-2);
   color: var(--foreground);
-  box-shadow: 0 0 0 1px color-mix(in srgb, #60a5fa 12%, transparent), 0 6px 16px -8px color-mix(in srgb, #60a5fa 45%, transparent);
+  box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.7);
 }
 
 

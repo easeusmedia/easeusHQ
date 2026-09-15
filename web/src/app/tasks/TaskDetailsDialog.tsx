@@ -12,7 +12,9 @@ import type { TaskCardData } from "./TaskCard";
 
 const initialState: TaskFormState = {};
 
-const inputCls = "w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-sm";
+// same radius/padding/type-size the Dropdown's "md" uses, so a text row and
+// a select row in this form are the same height and shape
+const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm";
 
 // a labelled row — the fields were bare boxes, so a URL sitting in one gave
 // no clue which link it was

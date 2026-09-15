@@ -29,16 +29,21 @@ export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient
             // different heights before, which showed up as the hover/
             // active rectangle looking a different size client to client.
             //
-            // The active row: square instead of rounded on the right, and
-            // bled out by exactly the padding + border it would otherwise
-            // sit inside of, so its own background paints over that border
-            // pixel for its own height — the open client's row reads as
-            // fused onto the content pane next to it, not separated from
-            // it by the same dividing line every other row still has.
-            className={`flex h-9 shrink-0 items-center gap-2 rounded-md px-2 text-sm ${
+            // The active row bleeds out of the panel's padding on BOTH
+            // sides: right by the padding plus the 1px border, so its own
+            // background paints over that dividing line and the row reads as
+            // fused onto the content pane; left by the padding alone, so it
+            // reaches the panel's own edge. It used to bleed right only,
+            // which left a 12px strip of panel showing down the left of the
+            // selected row — the "slight gap at the left".
+            //
+            // pl-5 puts the padding back as padding (12px bled + 8px = the
+            // same 20px from the panel edge every other row's content sits
+            // at), so nothing shifts sideways when a row becomes active.
+            className={`flex h-9 shrink-0 items-center gap-2 text-sm ${
               active
-                ? "-mr-[calc(0.75rem+1px)] rounded-r-none bg-surface-2 text-foreground"
-                : "text-muted hover:bg-surface-2 hover:text-foreground"
+                ? "-ml-3 -mr-[calc(0.75rem+1px)] rounded-none bg-surface-2 pl-5 pr-2 text-foreground"
+                : "rounded-md px-2 text-muted hover:bg-surface-2 hover:text-foreground"
             }`}
           >
             {c.avatarUrl ? (

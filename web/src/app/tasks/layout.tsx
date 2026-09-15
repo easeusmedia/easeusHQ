@@ -10,6 +10,7 @@ import { ApprovalWatcher } from "./ApprovalWatcher";
 import { PresenceHeartbeat } from "./team/PresenceHeartbeat";
 import { getUnreadBySender } from "./team/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
+import { CLIENTS_PANEL_COOKIE } from "./clients/clientsPanel";
 import { MainScroll } from "./MainScroll";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // saved preference — a client-only localStorage read meant every reload
   // rendered open by default, then snapped collapsed a moment later once
   // the effect ran, which is the "flickers open then collapses" bug
-  const sidebarOpen = (await cookies()).get("tasks-sidebar-open")?.value !== "0";
+  const jar = await cookies();
+  const sidebarOpen = jar.get("tasks-sidebar-open")?.value !== "0";
+  const clientsPanelOpen = jar.get(CLIENTS_PANEL_COOKIE)?.value !== "0";
 
   const users = await getAllUsers().catch(() => []);
   const sessionUser = users.find((u) => u.id === sessionUserId);
@@ -61,7 +64,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           with no offset math to fake that position from inside a padded,
           scrolling child. It only renders on a client's own page (checks
           the URL itself), so every other /tasks page is unaffected. */}
-      <ClientSwitcherSlot clients={currentClients} />
+      <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} />
       <MainScroll className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
