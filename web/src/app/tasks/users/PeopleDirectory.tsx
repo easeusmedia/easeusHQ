@@ -17,6 +17,18 @@ export type HistoryEntry = {
   tags: string[];
 };
 
+// One thing currently on someone's plate, from either task system.
+export type TaskEntry = {
+  id: string;
+  title: string;
+  kind: "work" | "client";
+  status: string;
+  pill: string;
+  context: string | null;
+  tags: string[];
+  due: string | null;
+};
+
 export type PersonRecord = {
   id: string;
   name: string;
@@ -35,6 +47,7 @@ export type PersonRecord = {
   openWork: number;
   doneWork: number;
   clientLoad: number;
+  current: TaskEntry[];
   history: HistoryEntry[];
 };
 

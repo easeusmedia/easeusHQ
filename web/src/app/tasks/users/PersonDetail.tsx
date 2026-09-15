@@ -18,6 +18,35 @@ function when(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+// Each block on this page is its own card with its own heading. It used to
+// be one continuous column — load, then employment form, then roles, then
+// history — which made it impossible to answer "what is this person on right
+// now" without reading past their salary to get there.
+function Section({
+  title,
+  subtitle,
+  aside,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
+        </div>
+        {aside && <div className="shrink-0 text-xs text-muted">{aside}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-surface-2/50 px-4 py-3">
@@ -138,16 +167,47 @@ export function PersonDetail({
         </div>
       </header>
 
-      <div className="flex flex-col gap-6 p-6">
-        {/* what they're actually carrying — the reason to open this page at
-            all is usually "how loaded is this person" */}
-        <div className="grid grid-cols-3 gap-3">
-          <Stat value={person.clientLoad} label="Client tasks open" />
-          <Stat value={person.openWork} label="Work tasks open" />
-          <Stat value={person.doneWork} label="Work tasks finished" />
-        </div>
+      <div className="flex flex-col gap-4 p-6">
+        <Section
+          title="Currently working on"
+          subtitle="Everything open right now, across the client queue and their own task list."
+          aside={`${person.current.length} open`}
+        >
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            <Stat value={person.clientLoad} label="Client tasks open" />
+            <Stat value={person.openWork} label="Work tasks open" />
+            <Stat value={person.doneWork} label="Work tasks finished" />
+          </div>
+
+          {person.current.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
+              Nothing in flight.
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
+              {person.current.map((t) => (
+                <li key={`${t.kind}-${t.id}`} className="flex items-center gap-3 bg-surface/40 px-4 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{t.title}</span>
+                    {t.context && <span className="block truncate text-xs text-muted">{t.context}</span>}
+                  </span>
+                  {t.tags.length > 0 && (
+                    <span className="hidden shrink-0 items-center gap-1 lg:flex">
+                      {t.tags.map((x) => (
+                        <TaskTagChip key={x} name={x} />
+                      ))}
+                    </span>
+                  )}
+                  {t.due && <span className="hidden w-24 shrink-0 text-right text-xs text-muted sm:block">Due {when(t.due)}</span>}
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${t.pill}`}>{t.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
 
         {canEdit ? (
+          <Section title="Employment details" subtitle="Only the admin can change any of this.">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-x-3 gap-y-3">
               <label className={labelCls}>
@@ -283,34 +343,11 @@ export function PersonDetail({
               </button>
               {saved && <span className="text-xs text-muted">Saved.</span>}
             </div>
-
-            {/* the list of roles itself, managed here rather than on a page
-                of its own — it's two fields and one delete */}
-            {jobTitles.length > 0 && (
-              <div className="flex flex-col gap-2 border-t border-border pt-4">
-                <p className="text-xs font-medium text-muted">Roles in use</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {jobTitles.map((j) => (
-                    <span
-                      key={j.id}
-                      className="group flex items-center gap-1 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-muted"
-                    >
-                      {j.name}
-                      <ConfirmButton
-                        message={`Remove the role "${j.name}"? Anyone holding it keeps their access — they just lose the label.`}
-                        className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
-                        onConfirm={() => removeTitle(j.id)}
-                      >
-                        <Trash2 size={11} />
-                      </ConfirmButton>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
+          </Section>
         ) : (
           // core members see the roster, not the employment terms
+          <Section title="Details">
           <dl className="grid grid-cols-2 gap-3">
             {[
               ["Email", person.email],
@@ -326,17 +363,17 @@ export function PersonDetail({
               </div>
             ))}
           </dl>
+          </Section>
         )}
 
         {/* What they've actually finished, from both task systems at once —
             an employee's record of work shouldn't depend on which board a
-            given job happened to live on. This is the "how has this person
-            been doing" answer the directory exists to give. */}
-        <div className="flex flex-col gap-2 border-t border-border pt-5">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-sm font-medium">Work history</h2>
-            <span className="text-xs text-muted">{person.history.length} completed</span>
-          </div>
+            given job happened to live on. */}
+        <Section
+          title="Work history"
+          subtitle="Finished work and delivered client work, newest first."
+          aside={`${person.history.length} completed`}
+        >
           {person.history.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
               Nothing finished yet.
@@ -365,9 +402,46 @@ export function PersonDetail({
             </ul>
           )}
           {person.history.length > 40 && (
-            <p className="text-xs text-muted">Showing the 40 most recent.</p>
+            <p className="mt-2 text-xs text-muted">Showing the 40 most recent.</p>
           )}
-        </div>
+        </Section>
+
+        {/* Agency-wide, not this person's — it lives last and says so. Having
+            it sit inside the employment form made one person's record look
+            like the place roles are defined, which is exactly backwards. */}
+        {canEdit && jobTitles.length > 0 && (
+          <Section
+            title="Roles"
+            subtitle="Shared across everyone. Removing one only takes the label away — nobody's access changes."
+            aside={
+              <button
+                type="button"
+                onClick={() => setAddingTitle(true)}
+                className="flex items-center gap-0.5 hover:text-foreground"
+              >
+                <Plus size={11} /> New role
+              </button>
+            }
+          >
+            <div className="flex flex-wrap gap-1.5">
+              {jobTitles.map((j) => (
+                <span
+                  key={j.id}
+                  className="group flex items-center gap-1 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-muted"
+                >
+                  {j.name}
+                  <ConfirmButton
+                    message={`Remove the role "${j.name}"? Anyone holding it keeps their access — they just lose the label.`}
+                    className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+                    onConfirm={() => removeTitle(j.id)}
+                  >
+                    <Trash2 size={11} />
+                  </ConfirmButton>
+                </span>
+              ))}
+            </div>
+          </Section>
+        )}
       </div>
     </div>
   );

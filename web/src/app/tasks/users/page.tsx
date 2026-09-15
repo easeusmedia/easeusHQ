@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEditPeople, seesEveryTeam, type Viewer } from "@/lib/scope";
-import { PeopleDirectory, type HistoryEntry, type PersonRecord } from "./PeopleDirectory";
+import { PeopleDirectory, type HistoryEntry, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
+import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { STAGE } from "@/lib/stages";
+import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 
 export const dynamic = "force-dynamic";
 
@@ -38,34 +41,21 @@ export default async function PeoplePage() {
     prisma.jobTitle.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
-  // Live load and finished work, counted per person in two grouped queries
-  // rather than one per row — this list is the whole agency.
+  // Everything the roster is carrying and everything it has finished, in four
+  // queries for the whole agency and grouped in memory — far cheaper than a
+  // round trip per person as you click down the list.
   const ids = people.map((p) => p.id);
-  const [openWork, doneWork, clientLoad] = await Promise.all([
-    prisma.workTask.groupBy({
-      by: ["assignedToId"],
+  const [openWorkRows, openClientRows, finishedWork, deliveredClient] = await Promise.all([
+    prisma.workTask.findMany({
       where: { assignedToId: { in: ids }, status: { not: "done" } },
-      _count: { _all: true },
+      include: { tags: true, project: { include: { client: true } } },
+      orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
     }),
-    prisma.workTask.groupBy({
-      by: ["assignedToId"],
-      where: { assignedToId: { in: ids }, status: "done" },
-      _count: { _all: true },
+    prisma.task.findMany({
+      where: { assignedToId: { in: ids }, status: { in: ACTIVE_STATUSES } },
+      include: { project: { include: { client: true } } },
+      orderBy: { createdAt: "desc" },
     }),
-    prisma.task.groupBy({
-      by: ["assignedToId"],
-      where: { assignedToId: { in: ids }, status: { not: "delivered_and_uploaded" } },
-      _count: { _all: true },
-    }),
-  ]);
-  const count = (rows: { assignedToId: string | null; _count: { _all: number } }[], id: string) =>
-    rows.find((r) => r.assignedToId === id)?._count._all ?? 0;
-
-  // The work history itself: finished work tasks and delivered client work,
-  // most recent first. Loaded for the whole roster in two queries and
-  // grouped in memory — a small agency's completed work is a few hundred
-  // rows, far cheaper than a round trip per person as you click through.
-  const [finishedWork, deliveredClient] = await Promise.all([
     prisma.workTask.findMany({
       where: { assignedToId: { in: ids }, status: "done" },
       include: { tags: true, project: { include: { client: true } } },
@@ -79,6 +69,34 @@ export default async function PeoplePage() {
       take: 400,
     }),
   ]);
+
+  // What's in flight right now — the first question this page answers.
+  const currentFor = (id: string): TaskEntry[] => [
+    ...openClientRows
+      .filter((t) => t.assignedToId === id)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        kind: "client" as const,
+        status: STAGE[t.status].label,
+        pill: STAGE[t.status].pill,
+        context: t.project.client.name,
+        tags: [] as string[],
+        due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+      })),
+    ...openWorkRows
+      .filter((t) => t.assignedToId === id)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        kind: "work" as const,
+        status: WORK_TASK_STAGE[t.status].label,
+        pill: WORK_TASK_STAGE[t.status].pill,
+        context: t.project ? `${t.project.client.name} · ${t.project.name || t.project.type}` : null,
+        tags: t.tags.map((x) => x.name),
+        due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+      })),
+  ];
 
   const historyFor = (id: string): HistoryEntry[] =>
     [
@@ -122,9 +140,10 @@ export default async function PeoplePage() {
     // and only when the viewer may edit people.
     salary: canEdit && p.salary ? p.salary.toString() : null,
     notes: p.notes,
-    openWork: count(openWork, p.id),
-    doneWork: count(doneWork, p.id),
-    clientLoad: count(clientLoad, p.id),
+    openWork: openWorkRows.filter((t) => t.assignedToId === p.id).length,
+    doneWork: finishedWork.filter((t) => t.assignedToId === p.id).length,
+    clientLoad: openClientRows.filter((t) => t.assignedToId === p.id).length,
+    current: currentFor(p.id),
     history: historyFor(p.id),
   }));
 
