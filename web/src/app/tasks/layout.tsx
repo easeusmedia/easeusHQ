@@ -10,6 +10,7 @@ import { ApprovalWatcher } from "./ApprovalWatcher";
 import { PresenceHeartbeat } from "./team/PresenceHeartbeat";
 import { getUnreadBySender } from "./team/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
+import { MainScroll } from "./MainScroll";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   const sessionUserId = await getSessionUserId();
@@ -61,7 +62,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           scrolling child. It only renders on a client's own page (checks
           the URL itself), so every other /tasks page is unaffected. */}
       <ClientSwitcherSlot clients={currentClients} />
-      <div className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</div>
+      <MainScroll className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { paramOrProp, setParam } from "../urlState";
 
 export type Tab = {
   key: string;
@@ -13,12 +14,27 @@ export type Tab = {
   bleed?: boolean;
 };
 
-// Local state, not a URL param — this page doesn't need to be deep-linkable
-// per tab. All panes stay mounted and are only hidden, because the Board
-// underneath has client-side state (drag, dialogs) that shouldn't reset
-// every time you switch tabs.
-export function ClientTabs({ tabs, width }: { tabs: Tab[]; width: string }) {
-  const [active, setActive] = useState(tabs[0].key);
+// The open tab lives in the URL (?tab=), because otherwise opening a project
+// from here and pressing Back dropped you on the client page with the tab
+// snapped back to Overview — you "came back" somewhere you'd never been.
+// The server reads the param and hands it in as initialTab, so the first
+// paint is already the right pane (no hydration flash).
+//
+// Switching uses replaceState rather than router.push: a tab switch isn't a
+// place you should have to press Back through, but the URL still has to be
+// current at the moment you navigate away, so Back can restore it. All panes
+// stay mounted and are only hidden — the Board underneath has client-side
+// state (drag, dialogs) that shouldn't reset every time you switch tabs.
+export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: string; initialTab?: string }) {
+  const [active, setActive] = useState(() => {
+    const want = paramOrProp("tab", initialTab);
+    return tabs.find((t) => t.key === want)?.key ?? tabs[0].key;
+  });
+
+  function select(key: string) {
+    setActive(key);
+    setParam("tab", key === tabs[0].key ? null : key);
+  }
 
   return (
     <div>
@@ -26,7 +42,7 @@ export function ClientTabs({ tabs, width }: { tabs: Tab[]; width: string }) {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => setActive(t.key)}
+            onClick={() => select(t.key)}
             className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
               active === t.key ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground"
             }`}

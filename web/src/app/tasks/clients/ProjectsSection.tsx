@@ -5,6 +5,7 @@ import { Filter } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
+import { paramOrProp, setParam } from "../urlState";
 
 const PRESETS = [4, 8, 12] as const;
 const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
@@ -14,8 +15,28 @@ const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
 // on the page at once. Every way to widen that (a bigger preset, "All", or
 // a specific date range) lives behind one Filter button instead of a row
 // of separate controls.
-export function ProjectsSection({ clientId, projects }: { clientId: string; projects: ProjectCardData[] }) {
-  const [preset, setPreset] = useState<number | "all">(DEFAULT_PRESET);
+//
+// What's on show lives in the URL (?show=), for the same reason the open tab
+// does: expanding to all 22 projects, opening one, and pressing Back used to
+// collapse straight back to 4 — the project you'd just been looking at
+// wasn't even on the page any more. It also has to be in the URL for scroll
+// restoration to have anything to restore *to*, since the filter is what
+// decides how tall this page is (see MainScroll).
+export function ProjectsSection({
+  clientId,
+  projects,
+  initialShow,
+}: {
+  clientId: string;
+  projects: ProjectCardData[];
+  initialShow?: string;
+}) {
+  const [preset, setPreset] = useState<number | "all">(() => {
+    const show = paramOrProp("show", initialShow);
+    if (show === "all") return "all";
+    const n = Number(show);
+    return (PRESETS as readonly number[]).includes(n) ? n : DEFAULT_PRESET;
+  });
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [open, setOpen] = useState(false);
@@ -42,6 +63,7 @@ export function ProjectsSection({ clientId, projects }: { clientId: string; proj
     setFrom("");
     setTo("");
     setOpen(false);
+    setParam("show", p === DEFAULT_PRESET ? null : String(p));
   }
 
   return (

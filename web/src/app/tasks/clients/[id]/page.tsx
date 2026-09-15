@@ -27,8 +27,15 @@ export const maxDuration = 60;
 
 const shortDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; show?: string }>;
+}) {
   const { id } = await params;
+  const { tab, show } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -118,6 +125,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       </div>
 
       <ClientTabs
+        initialTab={tab}
         width=""
         tabs={[
           {
@@ -139,7 +147,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                   />
                 </section>
 
-                <ProjectsSection clientId={client.id} projects={projectCards} />
+                <ProjectsSection clientId={client.id} projects={projectCards} initialShow={show} />
               </div>
             ),
           },
