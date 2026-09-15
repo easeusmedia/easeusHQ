@@ -11,11 +11,16 @@ export function ConfirmButton({
   className,
   children,
   formId,
+  onConfirm,
 }: {
   message: string;
   className?: string;
   children: React.ReactNode;
-  formId: string;
+  // Two ways to confirm, because callers arrive both ways: a server-action
+  // <form> elsewhere on the page submits by id, and a client component that
+  // already holds the call passes onConfirm. Exactly one is required.
+  formId?: string;
+  onConfirm?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -41,9 +46,12 @@ export function ConfirmButton({
             Cancel
           </button>
           <button
-            type="submit"
+            type={formId ? "submit" : "button"}
             form={formId}
-            onClick={() => ref.current?.close()}
+            onClick={() => {
+              ref.current?.close();
+              onConfirm?.();
+            }}
             className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25"
           >
             Delete

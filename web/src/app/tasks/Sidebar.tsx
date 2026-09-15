@@ -189,7 +189,8 @@ export function Sidebar({
         ...NAV,
         ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: Users2 }] : []),
         ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarCheck2 }] : []),
-        ...(isAdmin ? [{ segment: "/users", label: "Users", Icon: Users }] : []),
+        // core members see their own team here (read-only); admin edits everyone
+        ...(isOps ? [{ segment: "/users", label: "People", Icon: Users }] : []),
       ].map((item) => {
         const href = `${base}${item.segment}`;
         const active = isActive(item.segment, pathname, base);
