@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { STAGE } from "@/lib/stages";
+import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function CalendarPage({
     // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
     prisma.task.findMany({
       where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd } },
-      include: { assignedTo: true, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
   ]);
   const me = users.find((u) => u.id === sessionUserId);

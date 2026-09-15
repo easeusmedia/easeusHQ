@@ -579,7 +579,7 @@ export async function getMyActiveTaskSnapshot(userId: string) {
 export async function getTaskActivity(taskId: string) {
   const logs = await prisma.activityLog.findMany({
     where: { entity: "Task", entityId: taskId },
-    include: { actor: true },
+    include: { actor: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" },
   });
   return logs.map((log) => ({ createdAt: log.createdAt, action: log.action, actorName: log.actor.name }));

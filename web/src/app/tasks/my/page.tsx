@@ -4,6 +4,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { WorkTaskView } from "./WorkTaskView";
 import { ScopeToggle } from "./ScopeToggle";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
@@ -70,7 +71,7 @@ export default async function WorkPage({
     }),
     prisma.workTask.findMany({
       where,
-      include: { assignedTo: true, createdBy: true, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: { sortOrder: "asc" },
     }),
     // read-only: whatever's already on this person's plate on the client

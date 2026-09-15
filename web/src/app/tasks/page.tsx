@@ -7,6 +7,7 @@ import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // its own copy, which silently dropped a new status from the board
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { visibleTagWhere } from "@/lib/scope";
+import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { Board } from "./Board";
 import { NotionSyncButton } from "./NotionSyncButton";
 
@@ -31,7 +32,7 @@ export default async function TasksPage({
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: true, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
   ]);
   // a project set up before names were required can still have "" — fall

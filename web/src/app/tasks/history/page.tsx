@@ -4,6 +4,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 import type { TaskStatus } from "@/lib/workflow";
+import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { HistoryList } from "../HistoryList";
 
 export const dynamic = "force-dynamic";
@@ -31,11 +32,11 @@ export default async function HistoryPage({
     prisma.task.findMany({
       where: { status: { in: COMPLETED_STATUSES }, project: { client: { status: "current" } } },
       orderBy: { updatedAt: "desc" },
-      include: { assignedTo: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, project: { include: { client: true } } },
     }),
     prisma.activityLog.findMany({
       where: { entity: "Task" },
-      include: { actor: true },
+      include: { actor: { select: { id: true, name: true } } },
       orderBy: { createdAt: "asc" },
     }),
   ]);

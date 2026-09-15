@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
+import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { TaskRow } from "../../TaskRow";
 import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
@@ -29,7 +30,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       assets: { orderBy: { sortOrder: "asc" } },
       tasks: {
         orderBy: { createdAt: "desc" },
-        include: { assignedTo: true, tags: true, project: { include: { client: true } } },
+        include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       },
     },
   });
