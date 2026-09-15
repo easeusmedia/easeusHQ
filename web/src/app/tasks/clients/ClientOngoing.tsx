@@ -3,6 +3,7 @@
 import { TaskRow } from "../TaskRow";
 import { ALL_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
 import type { TaskCardData } from "../TaskCard";
+import type { TaskTagOption } from "../TaskTagPicker";
 
 // A flat list ordered by stage, with the stage named on every row — so
 // "where is this one" is answerable without counting back to a heading,
@@ -14,13 +15,15 @@ export function ClientOngoing({
   projects,
   actingUserId,
   actingRole,
+  taskTags = [],
 }: {
   tasks: TaskCardData[];
   clientName: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; name: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { id: string; name: string } }[];
   actingUserId: string;
   actingRole: Role;
+  taskTags?: TaskTagOption[];
 }) {
   if (tasks.length === 0) {
     return (
@@ -45,6 +48,7 @@ export function ClientOngoing({
             projects={projects}
             actingUserId={actingUserId}
             actingRole={actingRole}
+            taskTags={taskTags}
           />
         </li>
       ))}

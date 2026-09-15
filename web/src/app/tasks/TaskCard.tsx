@@ -4,10 +4,11 @@ import { useRef } from "react";
 import { NotesButton } from "./NotesButton";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
-import { ALL_STATUSES, canTransition, nextStatuses, type Role, type TaskStatus } from "@/lib/workflow";
+import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, EyeOff } from "lucide-react";
+import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 
 // kept as re-exports so the existing call sites don't all have to change —
 // STAGE in @/lib/stages is the single definition
@@ -96,6 +97,8 @@ export type TaskCardData = {
   scheduledFor: Date | null;
   createdAt: Date;
   sortOrder: number;
+  tags: { id: string; name: string }[];
+  internal: boolean;
   project: { name: string; type: string; client: { name: string } };
 };
 
@@ -126,21 +129,19 @@ export function TaskCard({
   projects,
   actingUserId,
   actingRole,
+  taskTags = [],
 }: {
   task: TaskCardData;
   clientName: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; name: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { id: string; name: string } }[];
   actingUserId: string;
   actingRole: Role;
+  taskTags?: TaskTagOption[];
 }) {
   const isAssignee = task.assignedTo?.id === actingUserId;
   const canManage = actingRole === "admin" || actingRole === "core";
-  // ops has full manual override (see workflow.ts), so give them every other
-  // status to jump to directly, not just the one guided "next" step
-  const options = canManage
-    ? ALL_STATUSES.filter((s) => s !== task.status)
-    : nextStatuses(task.status).filter((to) => canTransition(task.status, to, { role: actingRole, isAssignee }));
+  const options = availableStatuses(task.status, { role: actingRole, isAssignee });
 
   const cardLinkSpec = STATUS_LINK[task.status];
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
@@ -182,6 +183,24 @@ export function TaskCard({
           {task.editingNotes && <NotesButton notes={task.editingNotes} />}
         </div>
       </div>
+
+      {(task.tags.length > 0 || task.internal) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {/* internal work is marked once, here, rather than colouring the
+              whole card — it's a property of the task, not an alarm */}
+          {task.internal && (
+            <span
+              title="Internal work — not delivered to the client"
+              className="flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs text-muted"
+            >
+              <EyeOff size={10} /> Internal
+            </span>
+          )}
+          {task.tags.map((t) => (
+            <TaskTagChip key={t.id} name={t.name} />
+          ))}
+        </div>
+      )}
 
       {task.assignedTo && (
         <div className="flex items-center gap-2 text-xs text-muted">
@@ -241,6 +260,7 @@ export function TaskCard({
           projects={projects}
           actingUserId={actingUserId}
           actingRole={actingRole}
+          taskTags={taskTags}
         />
       </div>
     </div>

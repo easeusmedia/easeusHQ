@@ -114,3 +114,19 @@ export function canTransition(from: TaskStatus, to: TaskStatus, actor: Actor): b
   if (rule.requireAssigneeIfEmployee && !actor.isAssignee) return false;
   return true;
 }
+
+// Which statuses this person may move this task to, from where it is now.
+// Ops (admin/core) has full manual override, so they get every other status
+// to jump straight to; an editor only gets the guided next step(s) their
+// role and assignment actually allow.
+//
+// Lives here rather than in a component because the board card and the
+// client-overview row both need the same answer — two copies of this had
+// already started to drift.
+export function availableStatuses(
+  from: TaskStatus,
+  actor: { role: Role; isAssignee: boolean }
+): TaskStatus[] {
+  if (actor.role === "admin" || actor.role === "core") return ALL_STATUSES.filter((s) => s !== from);
+  return nextStatuses(from).filter((to) => canTransition(from, to, actor));
+}

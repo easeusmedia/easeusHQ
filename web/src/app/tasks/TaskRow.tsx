@@ -2,10 +2,12 @@
 
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { Avatar, StatusBadge, type TaskCardData } from "./TaskCard";
+import { Avatar, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
+import { StatusSelect } from "./StatusSelect";
+import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { STAGE } from "@/lib/stages";
-import type { Role } from "@/lib/workflow";
+import { availableStatuses, type Role } from "@/lib/workflow";
 
 // One task as a list row — the same click-to-open-details behaviour the
 // board cards have, so a task is editable everywhere it's shown rather
@@ -18,14 +20,16 @@ export function TaskRow({
   projects,
   actingUserId,
   actingRole,
+  taskTags = [],
 }: {
   task: TaskCardData;
   clientName: string;
   subtitle: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; name: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { id: string; name: string } }[];
   actingUserId: string;
   actingRole: Role;
+  taskTags?: TaskTagOption[];
 }) {
   const detailsRef = useRef<{ open: () => void }>(null);
 
@@ -34,6 +38,11 @@ export function TaskRow({
   // opening the task first.
   const spec = STAGE[task.status].link;
   const href = task[spec.field];
+
+  const options = availableStatuses(task.status, {
+    role: actingRole,
+    isAssignee: task.assignedTo?.id === actingUserId,
+  });
 
   return (
     <>
@@ -45,6 +54,14 @@ export function TaskRow({
           <span className="block truncate text-sm">{task.title}</span>
           <span className="block truncate text-xs text-muted">{subtitle}</span>
         </span>
+
+        {task.tags.length > 0 && (
+          <span className="hidden shrink-0 flex-wrap items-center gap-1 sm:flex">
+            {task.tags.map((t) => (
+              <TaskTagChip key={t.id} name={t.name} />
+            ))}
+          </span>
+        )}
 
         {href && (
           <a
@@ -60,7 +77,19 @@ export function TaskRow({
         )}
 
         {task.assignedTo && <Avatar name={task.assignedTo.name} size={22} />}
-        <StatusBadge status={task.status} />
+        {/* the stage is changed here, in place — it used to be a static
+            badge, so moving a task on from this list meant opening it or
+            going to the board. Same moveTask() and the same permission
+            rules the board card uses. */}
+        <StatusSelect
+          taskId={task.id}
+          currentStatus={task.status}
+          options={options}
+          actingUserId={actingUserId}
+          actingRole={actingRole}
+          links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+          variant="pill"
+        />
       </div>
 
       <TaskDetailsDialog
@@ -71,6 +100,7 @@ export function TaskRow({
         projects={projects}
         actingUserId={actingUserId}
         actingRole={actingRole}
+        taskTags={taskTags}
       />
     </>
   );

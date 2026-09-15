@@ -47,7 +47,7 @@ export default async function CalendarPage({
     // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
     prisma.task.findMany({
       where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd } },
-      include: { assignedTo: true, project: { include: { client: true } } },
+      include: { assignedTo: true, tags: true, project: { include: { client: true } } },
     }),
   ]);
   const me = users.find((u) => u.id === sessionUserId);

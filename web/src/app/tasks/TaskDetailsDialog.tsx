@@ -6,6 +6,8 @@ import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./a
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesGlyph, linkify } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
+import { ProjectField } from "./ProjectField";
+import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
 import { Avatar, formatDateTime } from "./TaskCard";
 import type { Role } from "@/lib/workflow";
 import type { TaskCardData } from "./TaskCard";
@@ -40,15 +42,17 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   task: TaskCardData;
   clientName: string;
   editors: { id: string; name: string }[];
-  projects: { id: string; name: string; client: { name: string } }[];
+  projects: { id: string; name: string; client: { id: string; name: string } }[];
   actingUserId: string;
   actingRole: Role;
-}>(function TaskDetailsDialog({ task, clientName, editors, projects, actingUserId, actingRole }, ref) {
+  taskTags?: TaskTagOption[];
+}>(function TaskDetailsDialog({ task, clientName, editors, projects, actingUserId, actingRole, taskTags = [] }, ref) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [state, formAction, pending] = useActionState(updateTask, initialState);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[] | null>(null);
   const [editingFrameio, setEditingFrameio] = useState(false);
+  const [internal, setInternal] = useState(task.internal);
 
   const canManage = actingRole === "admin" || actingRole === "core";
   const isAssignee = task.assignedTo?.id === actingUserId;
@@ -133,13 +137,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <Field label="Title">
                   <input name="title" defaultValue={task.title} required className={inputCls} />
                 </Field>
-                <Field label="Project">
-                  <Dropdown
-                    name="projectId"
-                    defaultValue={task.projectId}
-                    options={projects.map((p) => ({ value: p.id, label: `${p.client.name} · ${p.name}` }))}
-                  />
-                </Field>
+                {/* client first, then that client's projects, and a new
+                    project can be created inline — same control the create
+                    form uses, instead of one flat list of every project */}
+                <ProjectField
+                  projects={projects}
+                  defaultProjectId={task.projectId}
+                  clients={[...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
+                    a.name.localeCompare(b.name)
+                  )}
+                />
                 <Field label="Assigned to">
                   <Dropdown
                     name="assignedToId"
@@ -176,6 +183,25 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     <input name="assetLink" defaultValue={task.assetLink} className={inputCls} />
                   </Field>
                 )}
+
+                <div className="flex flex-col gap-1.5 text-xs text-muted">
+                  Type of work
+                  <TaskTagPicker
+                    tags={taskTags}
+                    selected={task.tags.map((t) => t.id)}
+                    internal={internal}
+                    onInternalHint={setInternal}
+                  />
+                  <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
+                    <input
+                      type="checkbox"
+                      checked={internal}
+                      onChange={(e) => setInternal(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-current"
+                    />
+                    Internal work — the client never receives this
+                  </label>
+                </div>
 
                 <div className="flex items-center gap-1.5 text-sm text-muted">
                   <NotesGlyph size={14} />

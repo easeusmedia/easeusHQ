@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   // DATABASE_URL goes through Supabase's pgbouncer pooler (port 6543,
   // transaction mode) — fine for the app's own runtime queries, but it's
   // what made `prisma db push` hang indefinitely the first time this ran:
@@ -241,6 +241,25 @@ model Tag {
   clients Client[]
 }
 
+// What kind of work a task is — "Thumbnail", "Audio engineering",
+// "YouTube management". Deliberately separate from Tag above, which labels
+// *clients* and carries a colour: these label tasks, there are a lot of them
+// on screen at once, and colouring them would turn every card into a
+// rainbow competing with the status pill that actually needs to stand out.
+//
+// clientFacing says whether this kind of work produces something the client
+// actually receives (a reel, a thumbnail, the final cut) as opposed to work
+// done for them that never leaves the studio (audio engineering, colour
+// correction, channel management). It's the default for a task tagged this
+// way, not a hard rule — Task.internal is what each task actually goes by.
+model TaskTag {
+  id           String  @id @default(uuid())
+  name         String  @unique
+  clientFacing Boolean @default(true)
+  sortOrder    Int     @default(0)
+  tasks        Task[]
+}
+
 // The contracted scope, one line per deliverable — e.g. "Podcast episodes"
 // / "2 long-form per cycle", "Thumbnails" / "custom, for all content".
 // This is the client's overall retainer, distinct from Task: a client's
@@ -333,6 +352,16 @@ model Task {
   // every transition into revision_requested, never reset; a quick signal
   // for "this one's eaten a lot of back-and-forth"
   revisionCount Int     @default(0)
+
+  // The work this task is: thumbnail, audio engineering, reel, and so on.
+  tags     TaskTag[]
+  // Work done for this client that they never receive as a file — audio
+  // engineering, colour correction, channel management. It still belongs to
+  // the client, still gets assigned and tracked; it just isn't a deliverable,
+  // so it stays out of the delivered counts and doesn't need the
+  // Frame.io/client-approval round trip. Everything that existed before this
+  // was a deliverable, which is why the default is false.
+  internal Boolean   @default(false)
 
   // set only for tasks pulled in by the temporary Notion sync button —
   // stops a repeat click from re-creating the same task. Null for every

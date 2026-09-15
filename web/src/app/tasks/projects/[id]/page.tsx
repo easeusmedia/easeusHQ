@@ -29,7 +29,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       assets: { orderBy: { sortOrder: "asc" } },
       tasks: {
         orderBy: { createdAt: "desc" },
-        include: { assignedTo: true, project: { include: { client: true } } },
+        include: { assignedTo: true, tags: true, project: { include: { client: true } } },
       },
     },
   });

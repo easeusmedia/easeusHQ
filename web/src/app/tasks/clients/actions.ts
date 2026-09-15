@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getSessionUserId, requireOps } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { normalizeUrl } from "@/lib/links";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
@@ -25,14 +25,6 @@ function requireLinkOrNull(value: string, label: string): string | null {
   const normalized = normalizeUrl(value);
   if (!normalized) throw new Error(`${label} doesn't look like a valid link.`);
   return normalized;
-}
-
-// admin/core only — same "ops" bar as the Clients page itself and the
-// Calendar page (see calendar/page.tsx's own employee redirect)
-async function requireOps() {
-  const sessionUserId = await getSessionUserId();
-  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
-  return user && user.role !== "employee" ? user : null;
 }
 
 export type ClientSyncResult = { created: number; updated: number; error?: string };

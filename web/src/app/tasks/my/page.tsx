@@ -61,7 +61,7 @@ export default async function MyTasksPage({
         }),
   ]);
 
-  const projects = projectsRaw.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: p.client.name } }));
+  const projects = projectsRaw.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: p.client.id, name: p.client.name } }));
 
   const tasks = workTasks.map((t) => ({
     id: t.id,

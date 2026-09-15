@@ -6,6 +6,8 @@ import { createTask, type TaskFormState } from "./actions";
 import { NotesGlyph } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 import { DatePicker } from "./DatePicker";
+import { ProjectField } from "./ProjectField";
+import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
@@ -19,9 +21,11 @@ export function NewTaskRow({
   projects,
   editors,
   defaultProjectId,
+  taskTags = [],
 }: {
   projects: Project[];
   editors: Editor[];
+  taskTags?: TaskTagOption[];
   // pre-picks the project when this is embedded on that project's own page,
   // so adding a task there doesn't mean hunting it back out of the list
   defaultProjectId?: string;
@@ -30,14 +34,10 @@ export function NewTaskRow({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // client-first, not one flat list of every project from every client —
-  // that list only reads fine for a client with one or two episodes; a
-  // client with a year of them buried the other 40-odd clients under it
-  const defaultProject = projects.find((p) => p.id === defaultProjectId);
-  const [clientId, setClientId] = useState(defaultProject?.client.id ?? "");
   // the form posts as FormData, and DatePicker isn't a form control — it
   // keeps its value in state and writes it to a hidden input below
   const [dueDate, setDueDate] = useState("");
+  const [internal, setInternal] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const clients = useMemo(() => {
     const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
@@ -45,7 +45,6 @@ export function NewTaskRow({
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [projects]);
-  const projectsForClient = projects.filter((p) => p.client.id === clientId);
 
   // close once the task actually lands, and clear the form (and the client
   // filter, so a re-open starts fully blank) so the next open doesn't show
@@ -53,13 +52,11 @@ export function NewTaskRow({
   useEffect(() => {
     if (state.success) {
       formRef.current?.reset();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting the client filter is part of the same "clear the form after a successful submit" reaction as formRef.reset() just above, not a render-loop
-      setClientId(defaultProject?.client.id ?? "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the form after a successful submit is the same reaction as formRef.reset() just above, not a render-loop
       setDueDate("");
       setScheduledFor("");
       dialogRef.current?.close();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultProject is derived from props that don't change while this dialog is open
   }, [state.success]);
 
   const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
@@ -85,29 +82,10 @@ export function NewTaskRow({
       >
         <h2 className="mb-4 text-base font-semibold">New task</h2>
         <form ref={formRef} action={formAction} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Client
-            <Dropdown
-              defaultValue={clientId}
-              placeholder="Client…"
-              onChange={setClientId}
-              options={clients.map((c) => ({ value: c.id, label: c.name }))}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Project
-            {/* key={clientId}: a fresh Dropdown instance per client, so
-                switching clients can't leave the previous client's project
-                still selected underneath a now-different options list */}
-            <Dropdown
-              key={clientId}
-              name="projectId"
-              defaultValue={clientId === defaultProject?.client.id ? defaultProjectId : undefined}
-              placeholder={clientId ? "Project…" : "Pick a client first…"}
-              options={projectsForClient.map((p) => ({ value: p.id, label: p.name }))}
-            />
-          </label>
+          {/* client first, then that client's projects — and a project can
+              be created right here, since plenty of tasks are the first
+              task of a project that doesn't exist yet */}
+          <ProjectField projects={projects} defaultProjectId={defaultProjectId} clients={clients} />
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
             Video / subject
@@ -118,6 +96,20 @@ export function NewTaskRow({
             Assign to
             <Dropdown name="assignedToId" placeholder="Assign to…" options={editors.map((e) => ({ value: e.id, label: e.name }))} />
           </label>
+
+          <div className="flex flex-col gap-1.5 text-xs text-muted">
+            Type of work
+            <TaskTagPicker tags={taskTags} selected={[]} internal={internal} onInternalHint={setInternal} />
+            <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={internal}
+                onChange={(e) => setInternal(e.target.checked)}
+                className="h-3.5 w-3.5 accent-current"
+              />
+              Internal work — the client never receives this
+            </label>
+          </div>
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
             Raw footage

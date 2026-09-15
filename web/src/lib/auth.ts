@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { prisma } from "./prisma";
 
 export { hashPassword, verifyPassword } from "./password";
 
@@ -43,4 +44,17 @@ export async function createSession(userId: string) {
 export async function destroySession() {
   const store = await cookies();
   store.delete(COOKIE_NAME);
+}
+
+// The signed-in user if they're ops (admin/core), otherwise null — the same
+// bar the Clients and Calendar pages use to redirect an employee away.
+// Server actions call this to re-derive permission from the session rather
+// than trusting a role posted in a form.
+//
+// Lives here rather than in one feature's actions file because both the
+// client actions and the task actions gate on it.
+export async function requireOps() {
+  const sessionUserId = await getSessionUserId();
+  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
+  return user && user.role !== "employee" ? user : null;
 }

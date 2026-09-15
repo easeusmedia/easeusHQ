@@ -8,6 +8,7 @@ import { NewTaskRow } from "./NewTaskRow";
 import { moveTask, reorderTask } from "./actions";
 import { STAGE } from "@/lib/stages";
 import { ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
+import type { TaskTagOption } from "./TaskTagPicker";
 
 export type Column = { status: TaskStatus; label: string; dot: string };
 
@@ -55,6 +56,7 @@ export function Board({
   actingRole,
   canCreate = true,
   columns = BOARD_COLUMNS,
+  taskTags = [],
 }: {
   tasks: TaskCardData[];
   projects: Project[];
@@ -63,6 +65,7 @@ export function Board({
   actingRole: Role;
   canCreate?: boolean;
   columns?: Column[];
+  taskTags?: TaskTagOption[];
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -316,7 +319,7 @@ export function Board({
                 </div>
               </div>
 
-              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} />}
+              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
 
               {/* the whole drop target for this column — and, off its own
                   page, this column's own scroller too */}
@@ -353,6 +356,7 @@ export function Board({
                       projects={projects}
                       actingUserId={actingUserId}
                       actingRole={actingRole}
+                      taskTags={taskTags}
                     />
                   </div>
                 ))}

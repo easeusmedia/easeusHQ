@@ -30,13 +30,14 @@ export default async function TasksPage({
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: true, project: { include: { client: true } } },
+      include: { assignedTo: true, tags: true, project: { include: { client: true } } },
     }),
   ]);
   // a project set up before names were required can still have "" — fall
   // back to its type so the new/reassign-task dropdown never shows a blank
   const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
 
+  const taskTags = await prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
   const editors = users.filter((u) => u.role === "employee"); // assignable pool — ops (admin/core) don't edit, they manage
   const actingUser = resolveActingUser(users, sessionUserId, as);
 
@@ -81,6 +82,7 @@ export default async function TasksPage({
         actingUserId={actingUser.id}
         actingRole={actingUser.role as Role}
         canCreate
+        taskTags={taskTags}
       />
 
       {canSyncNotion && <NotionSyncButton />}

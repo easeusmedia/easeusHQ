@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { moveTask } from "./actions";
-import { STATUS_LABEL, EXTRA_FIELD } from "./TaskCard";
+import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
 import type { Role, TaskStatus } from "@/lib/workflow";
 
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
@@ -17,6 +17,7 @@ export function StatusSelect({
   actingUserId,
   actingRole,
   links,
+  variant = "block",
 }: {
   taskId: string;
   currentStatus: TaskStatus;
@@ -24,6 +25,11 @@ export function StatusSelect({
   actingUserId: string;
   actingRole: Role;
   links: { frameioLink: string | null; driveLink: string | null };
+  // "block" is the full-width control on a board card. "pill" looks exactly
+  // like the static StatusBadge it replaces in a list row — same colours,
+  // same shape — so a row reads the same as before but the stage is now
+  // something you can click and change in place.
+  variant?: "block" | "pill";
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -38,7 +44,16 @@ export function StatusSelect({
   // dropdown was the one place status changes still had a beat of nothing
   // happening before the whole board jumped.
   const [optimisticStatus, setOptimisticStatus] = useState(currentStatus);
-  useEffect(() => setOptimisticStatus(currentStatus), [currentStatus]);
+  // Adjusted during render rather than in an effect: an effect that calls
+  // setState runs *after* the browser has already painted the stale value,
+  // so the server's status would flash the old stage for a frame before
+  // correcting. Comparing against the last prop we saw re-renders before
+  // anything is shown.
+  const [lastSeen, setLastSeen] = useState(currentStatus);
+  if (lastSeen !== currentStatus) {
+    setLastSeen(currentStatus);
+    setOptimisticStatus(currentStatus);
+  }
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -91,11 +106,92 @@ export function StatusSelect({
 
   const extraField = pendingTo ? EXTRA_FIELD[pendingTo] : undefined;
 
+  // The "one more thing before this move" prompt (a Frame.io link on submit,
+  // the final Drive link on delivery). Shared by both variants so a status
+  // changed from a list row collects exactly what the board card would.
+  const extraDialog = (
+      <dialog
+        ref={dialogRef}
+        onClose={() => setPendingTo(null)}
+        onClick={(e) => {
+          if (e.target === dialogRef.current) dialogRef.current?.close();
+        }}
+        className="glass fixed top-1/2 left-1/2 m-0 w-72 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
+      >
+        {extraField && (
+          <form
+            method="dialog"
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmDialog();
+            }}
+          >
+            <p className="text-sm font-medium">{extraField.label}</p>
+            <input
+              autoFocus
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={extraField.placeholder}
+              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
+            />
+            <div className="mt-1 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => dialogRef.current?.close()}
+                className="rounded-md px-3 py-1 text-sm btn-ghost"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
+                Confirm
+              </button>
+            </div>
+          </form>
+        )}
+      </dialog>
+  );
+
   if (options.length === 0) {
-    return (
+    return variant === "pill" ? (
+      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}>
+        {STATUS_LABEL[optimisticStatus]}
+      </span>
+    ) : (
       <span className="block rounded-md border border-border bg-surface-2 px-3 py-2 text-center text-xs text-muted">
         {STATUS_LABEL[optimisticStatus]}
       </span>
+    );
+  }
+
+  if (variant === "pill") {
+    return (
+      <div ref={menuRef} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}
+        >
+          {STATUS_LABEL[optimisticStatus]}
+          <ChevronDown size={11} />
+        </button>
+        {open && (
+          <div className="pop-in absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-surface-2 py-1 shadow-lg">
+            {options.map((to) => (
+              <button
+                key={to}
+                type="button"
+                onClick={() => pick(to)}
+                className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+              >
+                {STATUS_LABEL[to]}
+              </button>
+            ))}
+          </div>
+        )}
+        {error && <p className="absolute right-0 top-full mt-1 text-xs text-red-300">{error}</p>}
+        {extraDialog}
+      </div>
     );
   }
 
@@ -139,47 +235,7 @@ export function StatusSelect({
         </div>
       )}
       {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
-
-      <dialog
-        ref={dialogRef}
-        onClose={() => setPendingTo(null)}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
-        className="glass fixed top-1/2 left-1/2 m-0 w-72 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
-      >
-        {extraField && (
-          <form
-            method="dialog"
-            className="flex flex-col gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              confirmDialog();
-            }}
-          >
-            <p className="text-sm font-medium">{extraField.label}</p>
-            <input
-              autoFocus
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={extraField.placeholder}
-              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
-            />
-            <div className="mt-1 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => dialogRef.current?.close()}
-                className="rounded-md px-3 py-1 text-sm btn-ghost"
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
-                Confirm
-              </button>
-            </div>
-          </form>
-        )}
-      </dialog>
+      {extraDialog}
     </div>
   );
 }

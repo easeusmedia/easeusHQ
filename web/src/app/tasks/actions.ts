@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
-import { destroySession, getSessionUserId } from "@/lib/auth";
+import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -74,6 +74,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       referenceLink,
       editingNotes,
       sortOrder: Date.now(),
+      internal: formData.get("internal") === "on",
+      tags: { connect: formData.getAll("tagIds").map(String).filter(Boolean).map((id) => ({ id })) },
     },
     // status defaults to "queued"
   });
@@ -233,6 +235,12 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: err instanceof Error ? err.message : "That link isn't valid." };
   }
 
+  // tagIds arrives as one entry per checked tag; `set` replaces the whole
+  // list, so unchecking really does remove. The hidden "tagsPresent" marker
+  // distinguishes "the form had no tag section" from "every tag unchecked".
+  const tagIds = formData.getAll("tagIds").map(String).filter(Boolean);
+  const internal = formData.get("internal") === "on";
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -245,10 +253,35 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       ...(driveLink !== undefined ? { driveLink } : {}),
       ...(referenceLink !== undefined ? { referenceLink } : {}),
       ...(assetLink !== undefined ? { assetLink } : {}),
+      ...(formData.has("tagsPresent") ? { tags: { set: tagIds.map((id) => ({ id })) }, internal } : {}),
     },
   });
   revalidatePath("/tasks");
+  revalidatePath("/tasks/clients");
   return { success: true };
+}
+
+// Every tag, for the pickers. Ordered the way taskTags.ts seeds them so the
+// list reads client-facing work first, internal work after.
+export async function listTaskTags() {
+  return prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+}
+
+// Ops adding a kind of work that wasn't in the seed list. New tags default
+// to client-facing — the common case — and can be flipped later.
+export async function createTaskTag(name: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can add a tag." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the tag a name." };
+
+  const existing = await prisma.taskTag.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
+  if (existing) return { error: `"${existing.name}" already exists.` };
+
+  const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
+  await prisma.taskTag.create({ data: { name: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  revalidatePath("/tasks");
+  return {};
 }
 
 export async function deleteTask(formData: FormData) {

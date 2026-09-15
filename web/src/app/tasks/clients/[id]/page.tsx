@@ -70,7 +70,7 @@ export default async function ClientDetailPage({
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: true, project: { include: { client: true } } },
+      include: { assignedTo: true, tags: true, project: { include: { client: true } } },
     }),
     prisma.task.count({
       where: {
@@ -81,6 +81,11 @@ export default async function ClientDetailPage({
     }),
     listTags(),
   ]);
+  const taskTags = await prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  // the client's work splits two ways on the Overview: what they'll receive,
+  // and what's done for them behind the scenes
+  const deliverableTasks = tasks.filter((t) => !t.internal);
+  const internalTasks = tasks.filter((t) => t.internal);
 
   const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }));
   const completed = client.projects.filter((p) => p.status === "completed");
@@ -143,15 +148,43 @@ export default async function ClientDetailPage({
 
                 <section>
                   <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
+                  <p className="-mt-3 mb-3 text-xs text-muted">
+                    What the client receives — this is what lands in their projects once delivered.
+                  </p>
                   <ClientOngoing
-                    tasks={tasks}
+                    tasks={deliverableTasks}
                     clientName={client.name}
                     editors={editors}
                     projects={boardProjects}
                     actingUserId={me.id}
                     actingRole={me.role as Role}
+                    taskTags={taskTags}
                   />
                 </section>
+
+                {/* The other half of the client's work: real work done for
+                    them that never leaves the studio — audio engineering,
+                    colour correction, channel management. It belongs to the
+                    client and is tracked and assigned like anything else,
+                    it just isn't a deliverable, so it's listed apart from
+                    the work that is rather than mixed in with it. */}
+                {internalTasks.length > 0 && (
+                  <section>
+                    <h2 className="mb-4 text-sm font-medium">Internal work</h2>
+                    <p className="-mt-3 mb-3 text-xs text-muted">
+                      Done for this client, never handed to them — doesn&apos;t count towards delivered projects.
+                    </p>
+                    <ClientOngoing
+                      tasks={internalTasks}
+                      clientName={client.name}
+                      editors={editors}
+                      projects={boardProjects}
+                      actingUserId={me.id}
+                      actingRole={me.role as Role}
+                      taskTags={taskTags}
+                    />
+                  </section>
+                )}
 
                 <ProjectsSection clientId={client.id} projects={projectCards} initialShow={show} />
               </div>
@@ -179,6 +212,7 @@ export default async function ClientDetailPage({
                   actingUserId={me.id}
                   actingRole={me.role as Role}
                   canCreate
+                  taskTags={taskTags}
                 />
               </div>
             ),
