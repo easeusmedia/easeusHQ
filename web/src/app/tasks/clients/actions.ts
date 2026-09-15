@@ -59,6 +59,11 @@ export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
 
     let created = 0;
     let updated = 0;
+    // fetched once, then applied to every client this run touches, so a
+    // client imported from Notion ends up with the same checklist,
+    // deliverables and documents as one created here by hand
+    const template = await getClientTemplate();
+    const touched: string[] = [];
 
     for (const row of rows) {
       const name = getTitleText(row.properties);
@@ -73,6 +78,7 @@ export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
 
       if (existingId) {
         await prisma.client.update({ where: { id: existingId }, data: { name, status, notionPageId: row.id } });
+        touched.push(existingId);
         updated++;
         continue;
       }
@@ -89,8 +95,13 @@ export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
           engagement: notionType === "Project" ? "one_off" : "subscription",
         },
       });
+      touched.push(client.id);
       created++;
     }
+
+    // sequential on purpose — this is a handful of clients on a button
+    // press, and it shares the one pooled connection with everything else
+    for (const clientId of touched) await applyTemplateTo(clientId, template);
 
     if (created > 0 || updated > 0) revalidatePath("/tasks/clients");
     return { created, updated };
@@ -454,25 +465,65 @@ export async function toggleOnboardingStep(stepId: string, done: boolean): Promi
   return {};
 }
 
-// Re-applies the current template's checklist to a client that predates it
-// (or was set up before a step was added).
-export async function applyOnboardingTemplate(clientId: string): Promise<{ added: number; error?: string }> {
-  const user = await requireOps();
-  if (!user) return { added: 0, error: "Only ops team members can do that." };
-
-  const [template, existing] = await Promise.all([
-    getClientTemplate(),
+// Brings one client up to the current template: the onboarding checklist,
+// the deliverables list, and the four standing documents.
+//
+// Only ever fills gaps — it adds onboarding steps whose titles aren't there,
+// seeds deliverables when the client has none at all, and writes a document
+// only where the client's own is still empty. So it's safe to re-run over
+// everyone, and it can't overwrite something ops has edited.
+//
+// createClient does the same thing inline in a single nested create; this is
+// the path for clients that arrive any other way — above all the Notion sync,
+// which until now produced a bare client row with a "General" project and no
+// template at all, which is why some clients had a checklist and others had
+// nothing.
+async function applyTemplateTo(clientId: string, template: ClientTemplateData): Promise<number> {
+  const [steps, deliverableCount, client] = await Promise.all([
     prisma.onboardingStep.findMany({ where: { clientId }, select: { title: true } }),
+    prisma.deliverable.count({ where: { clientId } }),
+    prisma.client.findUnique({
+      where: { id: clientId },
+      select: { brandGuidelines: true, sop: true, qualityChecklist: true, meetingNotes: true, resources: true },
+    }),
   ]);
-  const have = new Set(existing.map((s) => s.title));
+
+  const have = new Set(steps.map((s) => s.title));
   const missing = template.onboarding.filter((s) => !have.has(s.title));
   if (missing.length > 0) {
     await prisma.onboardingStep.createMany({
       data: missing.map((s, i) => ({ clientId, title: s.title, detail: s.detail || null, sortOrder: have.size + i })),
     });
   }
+
+  // all-or-nothing, unlike the checklist: a client who's had their list
+  // tailored shouldn't have the generic one merged back in on top
+  if (deliverableCount === 0 && template.deliverables.length > 0) {
+    await prisma.deliverable.createMany({
+      data: template.deliverables.map((d, i) => ({ clientId, name: d.name, detail: d.detail || null, sortOrder: i })),
+    });
+  }
+
+  if (client) {
+    const docs: Record<string, string> = {};
+    for (const key of ["brandGuidelines", "sop", "qualityChecklist", "meetingNotes", "resources"] as const) {
+      if (!client[key] && template[key]) docs[key] = template[key];
+    }
+    if (Object.keys(docs).length > 0) await prisma.client.update({ where: { id: clientId }, data: docs });
+  }
+
+  return missing.length;
+}
+
+// Re-applies the current template to a client that predates it (or was set
+// up before a step was added).
+export async function applyOnboardingTemplate(clientId: string): Promise<{ added: number; error?: string }> {
+  const user = await requireOps();
+  if (!user) return { added: 0, error: "Only ops team members can do that." };
+
+  const added = await applyTemplateTo(clientId, await getClientTemplate());
   revalidatePath(`/tasks/clients/${clientId}`);
-  return { added: missing.length };
+  return { added };
 }
 
 export async function setNotionContentDb(clientId: string, dbId: string): Promise<{ error?: string }> {
