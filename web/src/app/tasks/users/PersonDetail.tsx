@@ -9,9 +9,14 @@ import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { createJobTitle, deleteJobTitle, updatePerson } from "./actions";
 import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, type Option, type PersonRecord } from "./PeopleDirectory";
+import { TaskTagChip } from "../TaskTagPicker";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 const labelCls = "flex min-w-0 flex-col gap-1 text-xs text-muted";
+
+function when(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (
@@ -322,6 +327,47 @@ export function PersonDetail({
             ))}
           </dl>
         )}
+
+        {/* What they've actually finished, from both task systems at once —
+            an employee's record of work shouldn't depend on which board a
+            given job happened to live on. This is the "how has this person
+            been doing" answer the directory exists to give. */}
+        <div className="flex flex-col gap-2 border-t border-border pt-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-medium">Work history</h2>
+            <span className="text-xs text-muted">{person.history.length} completed</span>
+          </div>
+          {person.history.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
+              Nothing finished yet.
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
+              {person.history.slice(0, 40).map((h) => (
+                <li key={`${h.kind}-${h.id}`} className="flex items-center gap-3 bg-surface-2/30 px-4 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{h.title}</span>
+                    {h.context && <span className="block truncate text-xs text-muted">{h.context}</span>}
+                  </span>
+                  {h.tags.length > 0 && (
+                    <span className="hidden shrink-0 items-center gap-1 sm:flex">
+                      {h.tags.map((t) => (
+                        <TaskTagChip key={t} name={t} />
+                      ))}
+                    </span>
+                  )}
+                  <span className="shrink-0 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-muted">
+                    {h.kind === "client" ? "Delivered" : "Done"}
+                  </span>
+                  <span className="w-24 shrink-0 text-right text-xs text-muted">{when(h.at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {person.history.length > 40 && (
+            <p className="text-xs text-muted">Showing the 40 most recent.</p>
+          )}
+        </div>
       </div>
     </div>
   );

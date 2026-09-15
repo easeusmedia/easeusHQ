@@ -33,6 +33,7 @@ export function WorkTaskList({
   showAssignee,
   assignees = [],
   taskTags = [],
+  canManageTags = false,
 }: {
   tasks: WorkTaskCardData[];
   projects: Project[];
@@ -40,6 +41,7 @@ export function WorkTaskList({
   showAssignee: boolean;
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
+  canManageTags?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +88,7 @@ export function WorkTaskList({
                   actingUserId={actingUserId}
                   showAssignee={showAssignee}
                   assignees={assignees}
-                  taskTags={taskTags}
+                  taskTags={taskTags} canManageTags={canManageTags}
                   onChangeStatus={(s) => changeStatus(task.id, task.sortOrder, s)}
                 />
               ))}
@@ -107,6 +109,7 @@ function ListRow({
   showAssignee,
   assignees,
   taskTags,
+  canManageTags,
   onChangeStatus,
 }: {
   task: WorkTaskCardData;
@@ -115,6 +118,7 @@ function ListRow({
   showAssignee: boolean;
   assignees: { id: string; name: string }[];
   taskTags: TaskTagOption[];
+  canManageTags: boolean;
   onChangeStatus: (status: WorkTaskStatus) => void;
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
@@ -179,7 +183,7 @@ function ListRow({
         </span>
       </div>
 
-      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
+      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
     </>
   );
 }

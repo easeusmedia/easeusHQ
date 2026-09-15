@@ -6,6 +6,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
+import { visibleTagWhere } from "@/lib/scope";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
@@ -81,7 +82,12 @@ export default async function ClientDetailPage({
     }),
     listTags(),
   ]);
-  const taskTags = await prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+  // only this person's own team's kinds of work (plus any shared ones) —
+  // Sales never has to pick past "Colour correction"
+  const taskTags = await prisma.taskTag.findMany({
+    where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
   // the client's work splits two ways on the Overview: what they'll receive,
   // and what's done for them behind the scenes
   const deliverableTasks = tasks.filter((t) => !t.internal);

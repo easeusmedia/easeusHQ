@@ -6,6 +6,17 @@ import type { EmploymentStatus, Role } from "@prisma/client";
 import { Avatar } from "../TaskCard";
 import { PersonDetail } from "./PersonDetail";
 
+// One finished thing, from either task system — an employee's record of
+// work shouldn't depend on which board it happened to live on.
+export type HistoryEntry = {
+  id: string;
+  title: string;
+  kind: "work" | "client";
+  at: string;
+  context: string | null;
+  tags: string[];
+};
+
 export type PersonRecord = {
   id: string;
   name: string;
@@ -24,6 +35,7 @@ export type PersonRecord = {
   openWork: number;
   doneWork: number;
   clientLoad: number;
+  history: HistoryEntry[];
 };
 
 export type Option = { id: string; name: string };

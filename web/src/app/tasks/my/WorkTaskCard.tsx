@@ -44,6 +44,7 @@ export function WorkTaskCard({
   showAssignee,
   assignees = [],
   taskTags = [],
+  canManageTags = false,
   actingUserId,
 }: {
   task: WorkTaskCardData;
@@ -51,6 +52,7 @@ export function WorkTaskCard({
   showAssignee: boolean;
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
+  canManageTags?: boolean;
   actingUserId: string;
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
@@ -104,7 +106,7 @@ export function WorkTaskCard({
         )}
       </button>
 
-      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
+      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
     </>
   );
 }

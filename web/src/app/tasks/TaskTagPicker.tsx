@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
-import { createTaskTag } from "./actions";
+import { Plus, X } from "lucide-react";
+import { createTaskTag, deleteTaskTag } from "./actions";
+import { ConfirmButton } from "./ConfirmButton";
 
 export type TaskTagOption = { id: string; name: string; clientFacing: boolean };
 
@@ -26,6 +27,7 @@ export function TaskTagPicker({
   internal,
   onInternalHint,
   onChange,
+  canManage = false,
 }: {
   tags: TaskTagOption[];
   selected: string[];
@@ -40,6 +42,9 @@ export function TaskTagPicker({
   // ids directly. Given onChange, the hidden inputs are pointless and are
   // left out rather than posted into a form that isn't there.
   onChange?: (ids: string[]) => void;
+  // whether this viewer may curate the list itself. Core members own their
+  // own team's vocabulary; everyone else just picks from it.
+  canManage?: boolean;
 }) {
   const [picked, setPicked] = useState<string[]>(selected);
   const [adding, setAdding] = useState(false);
@@ -60,6 +65,16 @@ export function TaskTagPicker({
     if (next.length > 0 && onInternalHint) {
       onInternalHint(next.every((id) => !all.find((t) => t.id === id)?.clientFacing));
     }
+  }
+
+  async function remove(id: string) {
+    const res = await deleteTaskTag(id);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setPicked((p) => p.filter((x) => x !== id));
+    window.location.reload();
   }
 
   async function add() {
@@ -94,16 +109,25 @@ export function TaskTagPicker({
         {all.map((t) => {
           const on = picked.includes(t.id);
           return (
-            <button
+            <span
               key={t.id}
-              type="button"
-              onClick={() => toggle(t.id)}
-              className={`rounded-md border px-2 py-1 text-xs ${
-                on ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted hover:text-foreground"
+              className={`group/tag flex items-center rounded-md border text-xs ${
+                on ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted"
               }`}
             >
-              {t.name}
-            </button>
+              <button type="button" onClick={() => toggle(t.id)} className="px-2 py-1 hover:text-foreground">
+                {t.name}
+              </button>
+              {canManage && (
+                <ConfirmButton
+                  message={`Remove the tag "${t.name}"? Tasks already tagged with it keep everything else — they just lose the label.`}
+                  className="pr-1.5 opacity-0 transition-opacity group-hover/tag:opacity-100 hover:text-red-400"
+                  onConfirm={() => remove(t.id)}
+                >
+                  <X size={11} />
+                </ConfirmButton>
+              )}
+            </span>
           );
         })}
         {adding ? (

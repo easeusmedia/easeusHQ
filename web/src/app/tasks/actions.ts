@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
+import { canEditTag } from "@/lib/scope";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -267,8 +268,9 @@ export async function listTaskTags() {
   return prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
 }
 
-// Ops adding a kind of work that wasn't in the seed list. New tags default
-// to client-facing — the common case — and can be flipped later.
+// Ops adding a kind of work that wasn't in the seed list. It lands on the
+// creator's own team, so a Sales tag stays in Sales. New tags default to
+// client-facing — the common case — and can be flipped later.
 export async function createTaskTag(name: string): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a tag." };
@@ -279,8 +281,31 @@ export async function createTaskTag(name: string): Promise<{ error?: string }> {
   if (existing) return { error: `"${existing.name}" already exists.` };
 
   const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
-  await prisma.taskTag.create({ data: { name: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  await prisma.taskTag.create({
+    data: { name: trimmed, teamId: user.teamId, sortOrder: (last?.sortOrder ?? 0) + 1 },
+  });
   revalidatePath("/tasks");
+  revalidatePath("/tasks/my");
+  return {};
+}
+
+// A core member curates their own team's vocabulary; admin curates anyone's.
+// The tag is detached from whatever already carries it rather than blocking
+// the delete — the tasks themselves are the record, the label is just how
+// they're grouped.
+export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can remove a tag." };
+
+  const tag = await prisma.taskTag.findUnique({ where: { id: tagId }, select: { teamId: true } });
+  if (!tag) return { error: "That tag is already gone." };
+  if (!canEditTag({ id: user.id, role: user.role, email: user.email, teamId: user.teamId }, tag)) {
+    return { error: "That tag belongs to another team." };
+  }
+
+  await prisma.taskTag.delete({ where: { id: tagId } });
+  revalidatePath("/tasks");
+  revalidatePath("/tasks/my");
   return {};
 }
 

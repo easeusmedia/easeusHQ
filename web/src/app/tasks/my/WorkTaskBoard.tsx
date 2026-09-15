@@ -22,6 +22,7 @@ export function WorkTaskBoard({
   showAssignee,
   assignees = [],
   taskTags = [],
+  canManageTags = false,
   canCreate,
 }: {
   tasks: WorkTaskCardData[];
@@ -30,6 +31,7 @@ export function WorkTaskBoard({
   showAssignee: boolean;
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
+  canManageTags?: boolean;
   canCreate: boolean;
 }) {
   const router = useRouter();
@@ -129,7 +131,7 @@ export function WorkTaskBoard({
               </div>
 
               {status === "todo" && canCreate && (
-                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
+                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
               )}
 
               <div
@@ -149,7 +151,7 @@ export function WorkTaskBoard({
                     onDragEnd={() => setDraggingId(null)}
                     className={draggingId === task.id ? "opacity-40" : undefined}
                   >
-                    <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
+                    <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
                   </div>
                 ))}
                 <div className="h-6 shrink-0" />

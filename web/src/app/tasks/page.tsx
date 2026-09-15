@@ -6,6 +6,7 @@ import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
+import { visibleTagWhere } from "@/lib/scope";
 import { Board } from "./Board";
 import { NotionSyncButton } from "./NotionSyncButton";
 
@@ -37,7 +38,6 @@ export default async function TasksPage({
   // back to its type so the new/reassign-task dropdown never shows a blank
   const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
 
-  const taskTags = await prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
   const editors = users.filter((u) => u.role === "employee"); // assignable pool — ops (admin/core) don't edit, they manage
   const actingUser = resolveActingUser(users, sessionUserId, as);
 
@@ -63,6 +63,15 @@ export default async function TasksPage({
   // same rule as History's delete button (see history/page.tsx)
   const realUser = users.find((u) => u.id === sessionUserId);
   const canSyncNotion = !!realUser && isAbhishekOrAdmin(realUser);
+
+  // only this person's own team's kinds of work (plus any shared ones) —
+  // Sales never has to pick past "Colour correction"
+  const taskTags = realUser
+    ? await prisma.taskTag.findMany({
+        where: visibleTagWhere({ id: realUser.id, role: realUser.role, email: realUser.email, teamId: realUser.teamId }),
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      })
+    : [];
 
   // Cancels the layout's page padding on all four sides and grows to cover
   // it (a negative margin alone moves what follows, not this element's own

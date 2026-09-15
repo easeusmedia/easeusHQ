@@ -35,8 +35,9 @@ export const WorkTaskDialog = forwardRef<
     // member, everyone for admin, just themselves for an employee
     assignees?: { id: string; name: string }[];
     taskTags?: TaskTagOption[];
+    canManageTags?: boolean;
   }
->(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], taskTags = [] }, ref) {
+>(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], taskTags = [], canManageTags = false }, ref) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -147,7 +148,7 @@ export const WorkTaskDialog = forwardRef<
           {taskTags.length > 0 && (
             <div className={label}>
               Type of work
-              <TaskTagPicker tags={taskTags} selected={tagIds} internal={false} onChange={setTagIds} />
+              <TaskTagPicker tags={taskTags} selected={tagIds} internal={false} onChange={setTagIds} canManage={canManageTags} />
             </div>
           )}
 

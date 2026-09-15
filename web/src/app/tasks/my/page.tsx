@@ -153,6 +153,7 @@ export default async function WorkPage({
         canCreate
         assignees={assignable}
         taskTags={taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing }))}
+        canManageTags={me.role !== "employee"}
       />
     </div>
   );

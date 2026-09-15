@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEditPeople, seesEveryTeam, type Viewer } from "@/lib/scope";
-import { PeopleDirectory, type PersonRecord } from "./PeopleDirectory";
+import { PeopleDirectory, type HistoryEntry, type PersonRecord } from "./PeopleDirectory";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +61,49 @@ export default async function PeoplePage() {
   const count = (rows: { assignedToId: string | null; _count: { _all: number } }[], id: string) =>
     rows.find((r) => r.assignedToId === id)?._count._all ?? 0;
 
+  // The work history itself: finished work tasks and delivered client work,
+  // most recent first. Loaded for the whole roster in two queries and
+  // grouped in memory — a small agency's completed work is a few hundred
+  // rows, far cheaper than a round trip per person as you click through.
+  const [finishedWork, deliveredClient] = await Promise.all([
+    prisma.workTask.findMany({
+      where: { assignedToId: { in: ids }, status: "done" },
+      include: { tags: true, project: { include: { client: true } } },
+      orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }],
+      take: 400,
+    }),
+    prisma.task.findMany({
+      where: { assignedToId: { in: ids }, status: "delivered_and_uploaded" },
+      include: { project: { include: { client: true } } },
+      orderBy: { updatedAt: "desc" },
+      take: 400,
+    }),
+  ]);
+
+  const historyFor = (id: string): HistoryEntry[] =>
+    [
+      ...finishedWork
+        .filter((t) => t.assignedToId === id)
+        .map((t) => ({
+          id: t.id,
+          title: t.title,
+          kind: "work" as const,
+          at: (t.completedAt ?? t.updatedAt).toISOString(),
+          context: t.project ? `${t.project.client.name} · ${t.project.name || t.project.type}` : null,
+          tags: t.tags.map((x) => x.name),
+        })),
+      ...deliveredClient
+        .filter((t) => t.assignedToId === id)
+        .map((t) => ({
+          id: t.id,
+          title: t.title,
+          kind: "client" as const,
+          at: t.updatedAt.toISOString(),
+          context: t.project.client.name,
+          tags: [],
+        })),
+    ].sort((a, b) => b.at.localeCompare(a.at));
+
   const records: PersonRecord[] = people.map((p) => ({
     id: p.id,
     name: p.name,
@@ -82,6 +125,7 @@ export default async function PeoplePage() {
     openWork: count(openWork, p.id),
     doneWork: count(doneWork, p.id),
     clientLoad: count(clientLoad, p.id),
+    history: historyFor(p.id),
   }));
 
   return (
