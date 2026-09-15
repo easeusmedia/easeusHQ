@@ -133,7 +133,11 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           <form
             id={formId}
             action={formAction}
-            className="grid w-[34rem] shrink-0 auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto pr-1"
+            // px-1, not pr-1: this is a scroll container, so it clips at
+            // its own edges, and a field sitting flush against the left one
+            // had its focus ring shaved off down that side the moment you
+            // clicked into it. The padding is the room the ring needs.
+            className="grid w-[34rem] shrink-0 auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1"
           >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />

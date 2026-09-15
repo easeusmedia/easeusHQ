@@ -16,7 +16,7 @@ export type SwitcherClient = { id: string; name: string; avatarUrl: string | nul
 // room to work with.
 export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient[]; currentId: string }) {
   return (
-    <aside className="sticky top-0 hidden h-screen w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-surface/40 p-3 lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-48 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface/40 py-3 lg:flex">
       {clients.map((c) => {
         const active = c.id === currentId;
         return (
@@ -29,21 +29,23 @@ export function ClientSwitcher({ clients, currentId }: { clients: SwitcherClient
             // different heights before, which showed up as the hover/
             // active rectangle looking a different size client to client.
             //
-            // The active row bleeds out of the panel's padding on BOTH
-            // sides: right by the padding plus the 1px border, so its own
-            // background paints over that dividing line and the row reads as
-            // fused onto the content pane; left by the padding alone, so it
-            // reaches the panel's own edge. It used to bleed right only,
-            // which left a 12px strip of panel showing down the left of the
-            // selected row — the "slight gap at the left".
+            // Every row spans the panel edge to edge — the horizontal
+            // padding lives on the row (px-5) rather than on the panel, so a
+            // highlight fills the full width instead of floating inside a
+            // 12px margin with unhovered strips down both sides. That held
+            // for the selected row already; hover was still inset, which is
+            // what left the gaps.
             //
-            // pl-5 puts the padding back as padding (12px bled + 8px = the
-            // same 20px from the panel edge every other row's content sits
-            // at), so nothing shifts sideways when a row becomes active.
-            className={`flex h-9 shrink-0 items-center gap-2 text-sm ${
+            // Full-width bars are square, not rounded: a rounded rectangle
+            // touching both edges reads as a mistake, and stacked rounded
+            // rows visually merge into each other.
+            className={`flex h-9 shrink-0 items-center gap-2 px-5 text-sm ${
               active
-                ? "-ml-3 -mr-[calc(0.75rem+1px)] rounded-none bg-surface-2 pl-5 pr-2 text-foreground"
-                : "rounded-md px-2 text-muted hover:bg-surface-2 hover:text-foreground"
+                ? // -mr-px so its background paints over the panel's own
+                  // right border and the open client reads as fused onto
+                  // the content pane beside it
+                  "-mr-px bg-surface-2 text-foreground"
+                : "text-muted hover:bg-surface-2 hover:text-foreground"
             }`}
           >
             {c.avatarUrl ? (

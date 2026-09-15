@@ -43,8 +43,12 @@ export default async function ChatPage() {
     });
 
   return (
-    <div className="flex h-full flex-col gap-5">
-      <h1 className="text-xl font-semibold">Chat</h1>
+    // no page heading: the sidebar's Chat item already says where you are,
+    // and the two panes below are self-evidently a chat. h-full lets the
+    // panes fill the window exactly — the dashboard used to size itself with
+    // its own 100vh calc, which didn't account for the layout's padding and
+    // pushed the composer off the bottom of the screen.
+    <div className="h-full">
       <ChatDashboard people={people} meId={sessionUserId} />
     </div>
   );

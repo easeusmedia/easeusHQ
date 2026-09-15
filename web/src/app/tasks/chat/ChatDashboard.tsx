@@ -45,6 +45,12 @@ function ago(iso: string) {
   return `${Math.round(days / 7)}w`;
 }
 
+// two messages close enough in time to read as one turn rather than two
+const RUN_GAP_MS = 5 * 60 * 1000;
+function within(a: Date | string, b: Date | string) {
+  return new Date(b).getTime() - new Date(a).getTime() < RUN_GAP_MS;
+}
+
 function timeLabel(d: Date | string) {
   return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
@@ -110,7 +116,10 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
   }
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] gap-4">
+    // h-full, not a 100vh calc: this sits inside the layout's padded,
+    // full-height scroll pane, so 100vh minus a guessed padding overshot by
+    // exactly that padding and cropped the composer off the bottom.
+    <div className="flex h-full gap-4">
       {/* conversations */}
       <aside className="flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface/40">
         <div className="border-b border-border p-3">
@@ -125,14 +134,14 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
           {filtered.map((p) => {
             const selected = p.id === openId;
             return (
               <button
                 key={p.id}
                 onClick={() => setOpenId(p.id)}
-                className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left ${
+                className={`flex w-full shrink-0 items-center gap-3 rounded-xl px-2.5 py-2 text-left ${
                   selected ? "bg-surface-2" : "hover:bg-surface-2/60"
                 }`}
               >
@@ -182,7 +191,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
               </span>
             </header>
 
-            <div ref={listRef} className="flex flex-1 flex-col gap-2 overflow-y-auto px-5 py-4">
+            <div ref={listRef} className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
               {messages === null ? (
                 <p className="text-xs text-muted">Loading…</p>
               ) : messages.length === 0 ? (
@@ -190,27 +199,37 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
               ) : (
                 messages.map((m, i) => {
                   const mine = m.fromId === meId;
+                  const prev = messages[i - 1];
+                  const next = messages[i + 1];
                   // a date separator whenever the day changes, so a thread
                   // spanning weeks doesn't read as one undifferentiated run
-                  const showDay = i === 0 || dayLabel(messages[i - 1].createdAt) !== dayLabel(m.createdAt);
+                  const showDay = !prev || dayLabel(prev.createdAt) !== dayLabel(m.createdAt);
+                  // Consecutive messages from the same person within a few
+                  // minutes are one run: they sit tight together and only the
+                  // last of them carries a timestamp. A time under every
+                  // single bubble was what made short back-and-forth ("hi",
+                  // "yes", "yesss?") sprawl down the whole pane.
+                  const startsRun = showDay || !prev || prev.fromId !== m.fromId || !within(prev.createdAt, m.createdAt);
+                  const endsRun = !next || next.fromId !== m.fromId || !within(m.createdAt, next.createdAt)
+                    || dayLabel(next.createdAt) !== dayLabel(m.createdAt);
                   return (
-                    <div key={m.id} className="flex flex-col gap-2">
+                    <div key={m.id} className={startsRun && !showDay ? "mt-3" : undefined}>
                       {showDay && (
-                        <div className="my-2 flex items-center gap-3">
+                        <div className="my-4 flex items-center gap-3">
                           <span className="h-px flex-1 bg-border" />
                           <span className="text-xs text-muted">{dayLabel(m.createdAt)}</span>
                           <span className="h-px flex-1 bg-border" />
                         </div>
                       )}
-                      <div className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
+                      <div className={`flex flex-col ${mine ? "items-end" : "items-start"} ${startsRun ? "" : "mt-0.5"}`}>
                         <div
-                          className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                            mine ? "rounded-br-md bg-blue-600 text-white" : "rounded-bl-md bg-surface-2 text-foreground"
-                          }`}
+                          className={`max-w-[68%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
+                            mine ? "bg-blue-600 text-white" : "bg-surface-2 text-foreground"
+                          } ${endsRun ? (mine ? "rounded-br-md" : "rounded-bl-md") : ""}`}
                         >
                           {m.body}
                         </div>
-                        <span className="mt-1 px-1 text-xs text-muted">{timeLabel(m.createdAt)}</span>
+                        {endsRun && <span className="mt-1 px-1 text-xs text-muted">{timeLabel(m.createdAt)}</span>}
                       </div>
                     </div>
                   );
