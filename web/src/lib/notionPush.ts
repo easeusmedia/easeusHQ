@@ -1,51 +1,12 @@
 import { prisma } from "./prisma";
 import { notionPatch, notionPost, TASK_DATABASE_ID } from "./notion";
+import { NOTION_STATUS, exportedLinkFor } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
 // Pushing work *up* to Notion, the other direction from lib/notion.ts.
-//
-// The Editing Queue's own columns, and what we put in each:
-//
-//   Video / Subject   the task title
-//   Status            our stage, in Notion's own wording
-//   Editor            the assignee's Notion account, when they have one
-//   Editor Queu Date  the due date, or the day it was created
-//   Raw Links         raw footage
-//   Reference         reference link
-//   Assets            assets link
-//   Exported Link     the Frame.io link while under review, the Drive link
-//                     once delivered — the same single column Notion uses for
-//                     both (see routeExportedLink in tasks/actions.ts)
-//   Sync check        who it's assigned to, in text. A fallback, not a
-//                     duplicate: most of the team has no Notion account, so
-//                     without this the Editor column would simply be blank
-//                     and the row wouldn't say whose work it is.
-
-// Our stage -> the exact option names on the Notion Status property,
-// verified against the live database rather than assumed.
-const NOTION_STATUS: Record<TaskStatus, string> = {
-  queued: "Queued",
-  editing: "Editing",
-  sent_for_approval: "Sent for approval",
-  revision_requested: "Revision requested",
-  sent_for_client_approval: "Sent for Client Approval",
-  final_export_ready: "Final export ready",
-  delivered_and_uploaded: "Delivered and uploaded",
-};
-
-// Whose work gets mirrored: Operations, minus the admin. Core members and
-// editors alike — Jyotsna, Arpit, Abhishek and the editors — but not Ashmit
-// (he runs the place rather than working the queue) and not Sales, whose
-// work has no business in a database called Editing Queue.
-//
-// Derived from team and role rather than a list of names, so someone joining
-// Operations is covered without anyone remembering to add them here.
-export function pushesToNotion(user: {
-  role: string;
-  teamSlug: string | null;
-}): boolean {
-  return user.teamSlug === "operations" && user.role !== "admin";
-}
+// The column-by-column mapping lives in notionMapping.ts, which has no
+// database or network imports so it can be tested on its own.
+export { pushesToNotion, exportedLinkFor } from "./notionMapping";
 
 type PushableTask = {
   id: string;
@@ -65,11 +26,8 @@ type PushableTask = {
 const url = (v: string | null) => ({ url: v && v.trim() ? v : null });
 
 function propertiesFor(task: PushableTask) {
-  // Whichever link is current for the stage — Notion keeps both in one
-  // column, so sending the Drive link once it exists and the Frame.io link
-  // before that matches how the team already uses it.
-  const exported = task.driveLink ?? task.frameioLink;
-  const date = task.dueDate ?? task.createdAt;
+  const exported = exportedLinkFor(task);
+  const date = task.createdAt;
 
   return {
     "Video / Subject": { title: [{ text: { content: task.title.slice(0, 2000) } }] },
