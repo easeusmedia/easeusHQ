@@ -142,13 +142,17 @@ model User {
   jobTitleId String?
 
   // --- the people record itself, admin-only to edit ---
-  phone      String?
-  joinedAt   DateTime?
+  phone        String?
+  joinedAt     DateTime?
+  // Their Notion account, so a task pushed up lands with the right person in
+  // the Editing Queue's "Editor" column. Harvested from rows Notion already
+  // has; null for anyone who's never appeared on one.
+  notionUserId String?
   // monthly, in INR. Decimal not Float: money that rounds wrong is worse
   // than money that's slightly awkward to read back out.
-  salary     Decimal?         @db.Decimal(12, 2)
-  employment EmploymentStatus @default(active)
-  notes      String?          @db.Text
+  salary       Decimal?         @db.Decimal(12, 2)
+  employment   EmploymentStatus @default(active)
+  notes        String?          @db.Text
 
   tasksAssigned     Task[]        @relation("AssignedTasks")
   tasksReviewed     Task[]        @relation("ReviewedTasks")
@@ -424,6 +428,13 @@ model Task {
   // Frame.io/client-approval round trip. Everything that existed before this
   // was a deliverable, which is why the default is false.
   internal Boolean   @default(false)
+
+  // True when *this app* created the Notion page, rather than the row having
+  // been pulled in from Notion. It decides which side wins on sync: a task
+  // born here pushes its status and links up; a task born in Notion keeps
+  // pulling down. One owner per row, so neither side silently overwrites the
+  // other.
+  notionCreatedByApp Boolean @default(false)
 
   // set only for tasks pulled in by the temporary Notion sync button —
   // stops a repeat click from re-creating the same task. Null for every

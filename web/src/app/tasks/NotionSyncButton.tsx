@@ -38,7 +38,9 @@ export function NotionSyncButton() {
         <p className={`text-xs ${result.error ? "text-red-300" : "text-muted"}`}>
           {result.error
             ? `Notion sync failed: ${result.error}`
-            : `${result.created} new, ${result.updated} updated${result.skipped ? `, ${result.skipped} skipped` : ""}.`}
+            : `${result.created} new, ${result.updated} updated${result.pushed ? `, ${result.pushed} sent to Notion` : ""}${
+                result.skipped ? `, ${result.skipped} skipped` : ""
+              }.`}
         </p>
       )}
       <button

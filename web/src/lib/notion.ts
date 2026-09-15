@@ -22,7 +22,7 @@ const NOTION_VERSION = "2022-06-28";
 // pages. This is that duplicate's ID. If the team starts a truly new
 // database later, update this one ID and the mapping below still applies
 // as long as the property names match.
-const TASK_DATABASE_ID = "c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b";
+export const TASK_DATABASE_ID = "c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b";
 
 function token(): string {
   const t = process.env.NOTION_TOKEN;
@@ -43,6 +43,17 @@ async function notionFetch(path: string, init?: RequestInit) {
   const body = await res.json();
   if (!res.ok) throw new Error(body?.message ?? `Notion API error (${res.status})`);
   return body;
+}
+
+// Writing, for the other direction (see lib/notionPush.ts). Same auth and
+// error handling as every read above — a non-2xx throws with Notion's own
+// message rather than a bare status code.
+export async function notionPost(path: string, body: unknown) {
+  return notionFetch(path, { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function notionPatch(path: string, body: unknown) {
+  return notionFetch(path, { method: "PATCH", body: JSON.stringify(body) });
 }
 
 export type NotionRow = { id: string; properties: Record<string, NotionProp> };

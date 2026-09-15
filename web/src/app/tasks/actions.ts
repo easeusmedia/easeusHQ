@@ -1,10 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { canTransition, type Role, type TaskStatus } from "@/lib/workflow";
+import { ACTIVE_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
 import { canEditTag } from "@/lib/scope";
+import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -85,6 +86,19 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (actorId) {
     await prisma.activityLog.create({ data: { actorId, action: "created", entity: "Task", entityId: task.id } });
   }
+
+  // Mirror it into Notion's Editing Queue, for the people whose work lives
+  // there. Deliberately not awaited for correctness: if Notion is slow or
+  // down, the task is still created here and the next sync picks it up as
+  // unmirrored — creating a task must never depend on someone else's API.
+  const assignee = await prisma.user.findUnique({
+    where: { id: assignedToId },
+    select: { role: true, team: { select: { slug: true } } },
+  });
+  if (assignee && pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
+    await createInNotion(task.id).catch(() => {});
+  }
+
   revalidatePath("/tasks");
   return { success: true };
 }
@@ -435,6 +449,9 @@ function matchEditor<T extends { name: string }>(personName: string, editors: T[
 export type NotionSyncResult = {
   created: number;
   updated: number;
+  // rows sent *up* to Notion — created there, or had their status and links
+  // refreshed because this app owns them
+  pushed: number;
   skipped: number;
   skippedReasons: string[];
   error?: string;
@@ -444,7 +461,7 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
   const sessionUserId = await getSessionUserId();
   const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
   if (!user || !isAbhishekOrAdmin(user)) {
-    return { created: 0, updated: 0, skipped: 0, skippedReasons: [], error: "Only Abhishek or an admin can sync Notion." };
+    return { created: 0, updated: 0, pushed: 0, skipped: 0, skippedReasons: [], error: "Only Abhishek or an admin can sync Notion." };
   }
 
   try {
@@ -457,17 +474,16 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
     // one query for every already-imported row instead of one round-trip
     // per row — with the sync scoped to just today, rows is small, but no
     // reason to make it N queries when it's this easy to make it one
-    const existingByNotionId = new Map(
-      (
-        await prisma.task.findMany({
-          where: { notionPageId: { in: rows.map((r) => r.id) } },
-          select: { id: true, notionPageId: true },
-        })
-      ).map((t) => [t.notionPageId, t.id])
-    );
+    const mirrored = await prisma.task.findMany({
+      where: { notionPageId: { in: rows.map((r) => r.id) } },
+      select: { id: true, notionPageId: true, notionCreatedByApp: true },
+    });
+    const existingByNotionId = new Map(mirrored.map((t) => [t.notionPageId, t.id]));
+    const appOwned = new Set(mirrored.filter((t) => t.notionCreatedByApp).map((t) => t.id));
 
     let created = 0;
     let updated = 0;
+    let pushed = 0;
     let skipped = 0;
     const skippedReasons: string[] = [];
 
@@ -517,6 +533,17 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       // still catch up regardless of which day it was originally queued.
       const existingId = existingByNotionId.get(row.id);
       if (existingId) {
+        // A row this app created is ours to drive: its status and links go
+        // *up*, and nothing comes down over the top of them. Rows that came
+        // from Notion still pull down, as before. One owner per row, so a
+        // status changed here can't be reverted by the next sync and a
+        // status changed in Notion can't be clobbered by this one.
+        if (appOwned.has(existingId)) {
+          const res = await updateInNotion(existingId);
+          if (res.error) skippedReasons.push(`"${title}": couldn't push to Notion — ${res.error}`);
+          else pushed++;
+          continue;
+        }
         await prisma.task.update({ where: { id: existingId }, data: sharedData });
         updated++;
         continue;
@@ -548,12 +575,31 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       created++;
     }
 
-    if (created > 0 || updated > 0) revalidatePath("/tasks");
-    return { created, updated, skipped, skippedReasons: skippedReasons.slice(0, 20) };
+    // Anything created here while Notion was unreachable (or before this
+    // existed) has no page yet — give it one now. Scoped to the same people
+    // whose work belongs in the Editing Queue.
+    const unmirrored = await prisma.task.findMany({
+      where: {
+        notionPageId: null,
+        status: { in: ACTIVE_STATUSES },
+        assignedTo: { role: { not: "admin" }, team: { slug: "operations" } },
+      },
+      select: { id: true, title: true },
+      take: 50,
+    });
+    for (const t of unmirrored) {
+      const res = await createInNotion(t.id);
+      if (res.error) skippedReasons.push(`"${t.title}": couldn't create in Notion — ${res.error}`);
+      else pushed++;
+    }
+
+    if (created > 0 || updated > 0 || pushed > 0) revalidatePath("/tasks");
+    return { created, updated, pushed, skipped, skippedReasons: skippedReasons.slice(0, 20) };
   } catch (err) {
     return {
       created: 0,
       updated: 0,
+      pushed: 0,
       skipped: 0,
       skippedReasons: [],
       error: err instanceof Error ? err.message : "Notion sync failed.",
