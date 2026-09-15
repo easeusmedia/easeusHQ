@@ -14,10 +14,51 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// What someone can SEE and DO. Deliberately separate from Team (which part
+// of the agency they work in) and JobTitle (what they're called) — those two
+// are org structure and change often; this is the permission bar and changes
+// almost never.
+//
+//   admin    — Ashmit, plus Abhishek by email: every team, every task
+//   core     — runs one team: every task in THAT team
+//   employee — their own work
 enum Role {
   admin
   core
   employee
+}
+
+// Whether someone is currently on the team — a former employee's work
+// history has to stay readable after they leave, so they're marked rather
+// than deleted.
+enum EmploymentStatus {
+  active
+  on_leave
+  former
+}
+
+// A side of the agency: Operations (everything that fulfils client work —
+// editing, audio, thumbnails, channel management) and Sales, with more to
+// come. This is the unit visibility is scoped to: a core member sees their
+// own team's work and nobody else's, and task tags belong to a team so
+// Sales never has to scroll past "Colour correction".
+model Team {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  members   User[]
+  taskTags  TaskTag[]
+}
+
+// What a person is called — "Video editor", "Project manager", "Social media
+// manager". Purely descriptive: it never grants access (Role does that), so
+// admin can add and remove these freely without touching permissions.
+model JobTitle {
+  id        String @id @default(uuid())
+  name      String @unique
+  sortOrder Int    @default(0)
+  users     User[]
 }
 
 // A personal work item — "audio pass for this episode," "record intro VO"
@@ -93,6 +134,21 @@ model User {
   // "active" in the team panel just means "seen in the last few minutes",
   // not a real online/offline socket connection
   lastSeenAt   DateTime?
+
+  // --- org placement: who they work with, what they're called ---
+  team       Team?     @relation(fields: [teamId], references: [id])
+  teamId     String?
+  jobTitle   JobTitle? @relation(fields: [jobTitleId], references: [id])
+  jobTitleId String?
+
+  // --- the people record itself, admin-only to edit ---
+  phone      String?
+  joinedAt   DateTime?
+  // monthly, in INR. Decimal not Float: money that rounds wrong is worse
+  // than money that's slightly awkward to read back out.
+  salary     Decimal?         @db.Decimal(12, 2)
+  employment EmploymentStatus @default(active)
+  notes      String?          @db.Text
 
   tasksAssigned     Task[]        @relation("AssignedTasks")
   tasksReviewed     Task[]        @relation("ReviewedTasks")
@@ -253,11 +309,17 @@ model Tag {
 // correction, channel management). It's the default for a task tagged this
 // way, not a hard rule — Task.internal is what each task actually goes by.
 model TaskTag {
-  id           String  @id @default(uuid())
-  name         String  @unique
-  clientFacing Boolean @default(true)
-  sortOrder    Int     @default(0)
+  id           String     @id @default(uuid())
+  name         String     @unique
+  clientFacing Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  // Which side of the agency this kind of work belongs to. Sales shouldn't
+  // have to pick past "Colour correction" and Operations shouldn't see
+  // "Cold outreach". null means shared by everyone.
+  team         Team?      @relation(fields: [teamId], references: [id])
+  teamId       String?
   tasks        Task[]
+  workTasks    WorkTask[]
 }
 
 // The contracted scope, one line per deliverable — e.g. "Podcast episodes"
@@ -401,6 +463,16 @@ model WorkTask {
   // without making it a formal step in that project's own task pipeline
   project   Project? @relation(fields: [projectId], references: [id])
   projectId String?
+
+  // Same tags the client pipeline uses, so "what kind of work was this"
+  // means one thing across the whole app rather than two parallel
+  // vocabularies. Replaces the old free-text `category`.
+  tags TaskTag[]
+
+  // Stamped when it first reaches `done`, and left alone afterwards — this
+  // is what an employee's work history is built from, so it has to record
+  // when the work was actually finished, not when the row was last touched.
+  completedAt DateTime?
 
   // [{ label, url }] — reference links (Notion, Drive, Frame.io…), same
   // free-form shape as everywhere else in this app that needs a handful of
