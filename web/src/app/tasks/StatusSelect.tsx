@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePopover, useCloseOnScroll } from "./popover";
 import { useRouter } from "next/navigation";
 import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { moveTask } from "./actions";
@@ -34,6 +35,7 @@ export function StatusSelect({
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [pendingTo, setPendingTo] = useState<TaskStatus | null>(null);
   const [inputValue, setInputValue] = useState("");
@@ -102,6 +104,18 @@ export function StatusSelect({
     setPendingTo(null);
   }
 
+  // same escape as Dropdown: a board column scrolls its own cards, so an
+  // absolute menu on a card near the bottom lost most of its options
+  const { position, place } = usePopover(Math.min(320, options.length * 30 + 8));
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
+
+  function toggle() {
+    if (open) return setOpen(false);
+    place(triggerRef.current);
+    setOpen(true);
+  }
+
   const extraField = pendingTo ? EXTRA_FIELD[pendingTo] : undefined;
 
   // The "one more thing before this move" prompt (a Frame.io link on submit,
@@ -166,15 +180,21 @@ export function StatusSelect({
     return (
       <div ref={menuRef} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
         <button
+          ref={triggerRef}
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggle}
           className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}
         >
           {STATUS_LABEL[optimisticStatus]}
           <ChevronDown size={11} />
         </button>
-        {open && (
-          <div className="pop-in absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-surface-2 py-1 shadow-lg">
+        {open && position && (
+          <div
+            // right-aligned to the pill: the menu (11rem) is wider than the
+            // pill it hangs off, so left-aligning pushed it past the edge
+            style={{ top: position.top, left: Math.max(8, position.left + position.width - 176) }}
+            className="pop-in fixed z-50 w-44 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
+          >
             {options.map((to) => (
               <button
                 key={to}
@@ -211,15 +231,19 @@ export function StatusSelect({
         </button>
       )}
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         className="btn-glow flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium"
       >
         {STATUS_LABEL[optimisticStatus]}
         <ChevronDown size={13} />
       </button>
-      {open && (
-        <div className="absolute z-20 top-full mt-1 w-full rounded-md border border-border bg-surface-2 py-1 shadow-lg">
+      {open && position && (
+        <div
+          style={{ top: position.top, left: position.left, width: position.width }}
+          className="pop-in fixed z-50 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
+        >
           {dropdownOptions.map((to) => (
             <button
               key={to}

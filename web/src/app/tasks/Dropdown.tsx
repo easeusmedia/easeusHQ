@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePopover, useCloseOnScroll } from "./popover";
 import { ChevronDown } from "lucide-react";
 
 // Native <select> option lists are OS-rendered and can't be restyled (that
@@ -35,8 +36,8 @@ export function Dropdown({
   const s = SIZES[size];
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -47,14 +48,16 @@ export function Dropdown({
   }, []);
 
   const current = options.find((o) => o.value === value);
-  const LIST_HEIGHT = 320; // matches max-h-80 below
+  // roughly what the list will render at, for the flip-up check — capped by
+  // max-h-80 below
+  const listHeight = Math.min(320, options.length * (size === "sm" ? 28 : 36) + 8);
+  const { position, place } = usePopover(listHeight);
+
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
 
   function openList() {
-    // flip upward when the list wouldn't fit under the trigger (e.g. this
-    // dropdown sits near the bottom of the viewport) — otherwise it renders
-    // straight down and off-screen, forcing a page scroll to reach it
-    const rect = ref.current?.getBoundingClientRect();
-    setOpenUpward(!!rect && window.innerHeight - rect.bottom < LIST_HEIGHT && rect.top > LIST_HEIGHT);
+    place(triggerRef.current);
     setOpen(true);
   }
 
@@ -62,6 +65,7 @@ export function Dropdown({
     <div ref={ref} className="relative">
       {name && <input type="hidden" name={name} value={value} />}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => (open ? setOpen(false) : openList())}
         className={`flex w-full items-center justify-between border border-border bg-surface-2 text-left ${s.trigger}`}
@@ -71,11 +75,12 @@ export function Dropdown({
         </span>
         <ChevronDown size={s.chevron} className="ml-2 shrink-0 text-muted" />
       </button>
-      {open && (
+      {open && position && (
+        // fixed, not absolute: an absolute menu is clipped by whichever
+        // scrolling ancestor it happens to sit in (see popover.ts)
         <div
-          className={`pop-in absolute z-20 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg ${
-            openUpward ? "bottom-full mb-1" : "mt-1"
-          }`}
+          style={{ top: position.top, left: position.left, width: position.width }}
+          className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg"
         >
           {options.map((o) => (
             <button
