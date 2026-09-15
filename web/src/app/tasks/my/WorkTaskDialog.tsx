@@ -8,6 +8,7 @@ import { DatePicker } from "../DatePicker";
 import { resizeToJpegMaxDim } from "@/lib/imageResize";
 import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type WorkTaskAttachment } from "./actions";
 import type { WorkTaskCardData } from "./WorkTaskCard";
+import { TaskTagPicker, type TaskTagOption } from "../TaskTagPicker";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -25,14 +26,24 @@ const addBtn = "btn-add flex w-fit items-center gap-1.5 rounded-lg px-3 py-2 tex
 // TaskDetailsDialog on the client task board).
 export const WorkTaskDialog = forwardRef<
   { open: () => void },
-  { mode: "create" | "edit"; task?: WorkTaskCardData; projects: Project[]; actingUserId: string }
->(function WorkTaskDialog({ mode, task, projects, actingUserId }, ref) {
+  {
+    mode: "create" | "edit";
+    task?: WorkTaskCardData;
+    projects: Project[];
+    actingUserId: string;
+    // the people this person may hand work to — their own team for a core
+    // member, everyone for admin, just themselves for an employee
+    assignees?: { id: string; name: string }[];
+    taskTags?: TaskTagOption[];
+  }
+>(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], taskTags = [] }, ref) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [title, setTitle] = useState(task?.title ?? "");
-  const [category, setCategory] = useState(task?.category ?? "");
+  const [tagIds, setTagIds] = useState<string[]>(task?.tags?.map((t) => t.id) ?? []);
+  const [assignedToId, setAssignedToId] = useState(task?.assignedTo?.id ?? actingUserId);
   const [projectId, setProjectId] = useState(task?.projectId ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
@@ -43,7 +54,8 @@ export const WorkTaskDialog = forwardRef<
 
   function open() {
     setTitle(task?.title ?? "");
-    setCategory(task?.category ?? "");
+    setTagIds(task?.tags?.map((t) => t.id) ?? []);
+    setAssignedToId(task?.assignedTo?.id ?? actingUserId);
     setProjectId(task?.projectId ?? "");
     setDueDate(task?.dueDate ?? "");
     setNotes(task?.notes ?? "");
@@ -74,11 +86,9 @@ export const WorkTaskDialog = forwardRef<
     }
     setSaving(true);
     setError(null);
-    const payload = { title, notes, category, dueDate, projectId, links, attachments };
+    const payload = { title, notes, tagIds, dueDate, projectId, links, attachments, assignedToId };
     const res =
-      mode === "create"
-        ? await createWorkTask({ actingUserId, ...payload })
-        : await updateWorkTask({ id: task!.id, ...payload });
+      mode === "create" ? await createWorkTask(payload) : await updateWorkTask({ id: task!.id, ...payload });
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -132,18 +142,28 @@ export const WorkTaskDialog = forwardRef<
             />
           </label>
 
-          {/* stacked, not side-by-side — a "Category (optional)" label next
-              to "Due date" in a two-column row had no room to stay on one
-              line and wrapped mid-label */}
-          <label className={label}>
-            Category <span className="font-normal normal-case text-muted/70">(optional)</span>
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Audio, graphics, research…"
-              className={field}
-            />
-          </label>
+          {/* the same tags the client pipeline uses, filtered to this
+              person's own team — Sales never sees "Colour correction" */}
+          {taskTags.length > 0 && (
+            <div className={label}>
+              Type of work
+              <TaskTagPicker tags={taskTags} selected={tagIds} internal={false} onChange={setTagIds} />
+            </div>
+          )}
+
+          {/* only shown when there's actually someone else to pick: an
+              employee's work is their own, so the row would be a dropdown
+              with one option */}
+          {assignees.length > 1 && (
+            <label className={label}>
+              Assigned to
+              <Dropdown
+                defaultValue={assignedToId}
+                onChange={setAssignedToId}
+                options={assignees.map((a) => ({ value: a.id, label: a.name }))}
+              />
+            </label>
+          )}
 
           <div className={label}>
             Due date

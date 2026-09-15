@@ -9,7 +9,9 @@ import { Avatar } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
 import { moveWorkTask } from "./actions";
 import { WorkTaskDialog } from "./WorkTaskDialog";
+import { TaskTagChip } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
+import type { TaskTagOption } from "../TaskTagPicker";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -29,11 +31,15 @@ export function WorkTaskList({
   projects,
   actingUserId,
   showAssignee,
+  assignees = [],
+  taskTags = [],
 }: {
   tasks: WorkTaskCardData[];
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
+  assignees?: { id: string; name: string }[];
+  taskTags?: TaskTagOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +85,8 @@ export function WorkTaskList({
                   projects={projects}
                   actingUserId={actingUserId}
                   showAssignee={showAssignee}
+                  assignees={assignees}
+                  taskTags={taskTags}
                   onChangeStatus={(s) => changeStatus(task.id, task.sortOrder, s)}
                 />
               ))}
@@ -97,12 +105,16 @@ function ListRow({
   projects,
   actingUserId,
   showAssignee,
+  assignees,
+  taskTags,
   onChangeStatus,
 }: {
   task: WorkTaskCardData;
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
+  assignees: { id: string; name: string }[];
+  taskTags: TaskTagOption[];
   onChangeStatus: (status: WorkTaskStatus) => void;
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
@@ -119,12 +131,15 @@ function ListRow({
         onClick={() => dialogRef.current?.open()}
         className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2"
       >
-        {task.category && (
-          <span className="shrink-0 rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">
-            {task.category}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
+        {(task.tags.length > 0 || task.category) && (
+          <span className="hidden shrink-0 items-center gap-1 sm:flex">
+            {task.tags.map((t) => (
+              <TaskTagChip key={t.id} name={t.name} />
+            ))}
+            {task.tags.length === 0 && task.category && <TaskTagChip name={task.category} />}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
         {task.project && (
           <span className="hidden shrink-0 truncate text-xs text-muted sm:inline">
             {task.project.client.name} · {task.project.name}
@@ -164,7 +179,7 @@ function ListRow({
         </span>
       </div>
 
-      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} />
+      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
     </>
   );
 }

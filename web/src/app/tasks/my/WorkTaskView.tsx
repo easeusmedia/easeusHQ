@@ -6,6 +6,7 @@ import { WorkTaskBoard } from "./WorkTaskBoard";
 import { WorkTaskList } from "./WorkTaskList";
 import { WorkTaskDialog } from "./WorkTaskDialog";
 import type { WorkTaskCardData } from "./WorkTaskCard";
+import type { TaskTagOption } from "../TaskTagPicker";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -18,12 +19,16 @@ export function WorkTaskView({
   actingUserId,
   showAssignee,
   canCreate,
+  assignees = [],
+  taskTags = [],
 }: {
   tasks: WorkTaskCardData[];
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
   canCreate: boolean;
+  assignees?: { id: string; name: string }[];
+  taskTags?: TaskTagOption[];
 }) {
   const [view, setView] = useState<"board" | "list">("board");
 
@@ -50,15 +55,15 @@ export function WorkTaskView({
             gets one up here instead */}
         {view === "list" && canCreate && (
           <div className="w-fit">
-            <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} />
+            <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
           </div>
         )}
       </div>
 
       {view === "board" ? (
-        <WorkTaskBoard tasks={tasks} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} />
+        <WorkTaskBoard tasks={tasks} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} />
       ) : (
-        <WorkTaskList tasks={tasks} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} />
+        <WorkTaskList tasks={tasks} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} assignees={assignees} taskTags={taskTags} />
       )}
     </div>
   );

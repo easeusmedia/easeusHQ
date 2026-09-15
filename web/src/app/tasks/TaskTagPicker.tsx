@@ -25,6 +25,7 @@ export function TaskTagPicker({
   selected,
   internal,
   onInternalHint,
+  onChange,
 }: {
   tags: TaskTagOption[];
   selected: string[];
@@ -33,6 +34,12 @@ export function TaskTagPicker({
   // "internal" checkbox — lets the form follow the tag without overriding
   // a deliberate choice
   onInternalHint?: (next: boolean) => void;
+  // Two callers, two submit styles. The client task forms post real
+  // FormData, so this writes hidden inputs; the work-task dialog calls a
+  // server action with its own state, so it passes onChange and gets the
+  // ids directly. Given onChange, the hidden inputs are pointless and are
+  // left out rather than posted into a form that isn't there.
+  onChange?: (ids: string[]) => void;
 }) {
   const [picked, setPicked] = useState<string[]>(selected);
   const [adding, setAdding] = useState(false);
@@ -45,6 +52,7 @@ export function TaskTagPicker({
   function toggle(id: string) {
     const next = picked.includes(id) ? picked.filter((t) => t !== id) : [...picked, id];
     setPicked(next);
+    onChange?.(next);
     // A task tagged only with internal kinds of work (audio engineering,
     // channel management) is internal work; tag it with anything the client
     // receives and it's a deliverable. Suggested from the tags rather than
@@ -70,13 +78,17 @@ export function TaskTagPicker({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* one hidden marker so the action can tell "no tag section in this
-          form" apart from "every tag was unticked" */}
-      <input type="hidden" name="tagsPresent" value="1" />
-      {picked.map((id) => (
-        <input key={id} type="hidden" name="tagIds" value={id} />
-      ))}
-      <input type="hidden" name="internal" value={internal ? "on" : ""} />
+      {!onChange && (
+        <>
+          {/* one hidden marker so the action can tell "no tag section in
+              this form" apart from "every tag was unticked" */}
+          <input type="hidden" name="tagsPresent" value="1" />
+          {picked.map((id) => (
+            <input key={id} type="hidden" name="tagIds" value={id} />
+          ))}
+          <input type="hidden" name="internal" value={internal ? "on" : ""} />
+        </>
+      )}
 
       <div className="flex flex-wrap gap-1.5">
         {all.map((t) => {

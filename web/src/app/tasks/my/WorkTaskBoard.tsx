@@ -7,6 +7,7 @@ import { WORK_TASK_STAGE, WORK_TASK_STATUSES } from "@/lib/workTaskStages";
 import { moveWorkTask, reorderWorkTask } from "./actions";
 import { WorkTaskCard, type WorkTaskCardData } from "./WorkTaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
+import type { TaskTagOption } from "../TaskTagPicker";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -19,12 +20,16 @@ export function WorkTaskBoard({
   projects,
   actingUserId,
   showAssignee,
+  assignees = [],
+  taskTags = [],
   canCreate,
 }: {
   tasks: WorkTaskCardData[];
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
+  assignees?: { id: string; name: string }[];
+  taskTags?: TaskTagOption[];
   canCreate: boolean;
 }) {
   const router = useRouter();
@@ -124,7 +129,7 @@ export function WorkTaskBoard({
               </div>
 
               {status === "todo" && canCreate && (
-                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} />
+                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
               )}
 
               <div
@@ -144,7 +149,7 @@ export function WorkTaskBoard({
                     onDragEnd={() => setDraggingId(null)}
                     className={draggingId === task.id ? "opacity-40" : undefined}
                   >
-                    <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} />
+                    <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
                   </div>
                 ))}
                 <div className="h-6 shrink-0" />

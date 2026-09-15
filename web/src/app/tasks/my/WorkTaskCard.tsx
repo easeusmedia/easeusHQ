@@ -5,6 +5,8 @@ import { CalendarClock, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
 import { Avatar } from "../TaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
+import { TaskTagChip } from "../TaskTagPicker";
+import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
 
 export type WorkTaskCardData = {
@@ -12,7 +14,10 @@ export type WorkTaskCardData = {
   title: string;
   notes: string | null;
   status: WorkTaskStatus;
+  // the free-text label this used to carry; kept on the type so old rows
+  // still render, but tags are what new work is labelled with
   category: string | null;
+  tags: { id: string; name: string }[];
   dueDate: string | null;
   sortOrder: number;
   links: WorkTaskLink[];
@@ -37,11 +42,15 @@ export function WorkTaskCard({
   task,
   projects,
   showAssignee,
+  assignees = [],
+  taskTags = [],
   actingUserId,
 }: {
   task: WorkTaskCardData;
   projects: Project[];
   showAssignee: boolean;
+  assignees?: { id: string; name: string }[];
+  taskTags?: TaskTagOption[];
   actingUserId: string;
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
@@ -54,9 +63,14 @@ export function WorkTaskCard({
         onClick={() => dialogRef.current?.open()}
         className="card-surface card-interactive flex w-full flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
-        {task.category && (
-          <span className="w-fit rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">
-            {task.category}
+        {(task.tags.length > 0 || task.category) && (
+          <span className="flex w-fit flex-wrap items-center gap-1">
+            {task.tags.map((t) => (
+              <TaskTagChip key={t.id} name={t.name} />
+            ))}
+            {/* rows created before tags existed still carry a free-text
+                category — shown so nothing silently disappears */}
+            {task.tags.length === 0 && task.category && <TaskTagChip name={task.category} />}
           </span>
         )}
         <p className="text-sm font-medium leading-snug">{task.title}</p>
@@ -90,7 +104,7 @@ export function WorkTaskCard({
         )}
       </button>
 
-      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} />
+      <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />
     </>
   );
 }

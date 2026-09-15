@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
+import { canSeeMember, type Viewer } from "@/lib/scope";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
 import type { WorkTaskStatus } from "@prisma/client";
@@ -29,18 +30,23 @@ function cleanLinks(links: WorkTaskLink[]): WorkTaskLink[] {
     .filter((l) => l.url); // silently drop a row someone left blank/unparseable rather than blocking the whole save on it
 }
 
-// assignedToId is *never* taken from the caller directly — it's always
-// `actingUserId`, which the page resolves the same way every other page in
-// this app resolves "who am I acting as" (see lib/actingUser.ts): your own
-// session id for anyone but an admin, or — only for an admin — whoever
-// they're currently "Viewing as" in the sidebar. That existing mechanism is
-// the entire delegation path: an admin creates a task for someone else by
-// first viewing as them, not through a separate assignee picker here.
+// Who this person is allowed to hand work to. Replaces the old "Viewing
+// as" delegation path: a core member running Operations should be able to
+// assign to their own team from the task form, without first pretending to
+// be that person. Still re-derived from the session — an assignee posted
+// from the client is checked, never trusted.
+async function resolveAssignee(me: Viewer, requested: string | undefined): Promise<string> {
+  if (!requested || requested === me.id) return me.id;
+  const target = await prisma.user.findUnique({ where: { id: requested }, select: { id: true, teamId: true } });
+  if (!target || !canSeeMember(me, target)) return me.id; // fail closed, onto yourself
+  return target.id;
+}
+
 export async function createWorkTask(input: {
-  actingUserId: string;
+  assignedToId?: string;
   title: string;
   notes: string;
-  category: string;
+  tagIds?: string[];
   dueDate: string;
   projectId: string;
   links: WorkTaskLink[];
@@ -49,20 +55,17 @@ export async function createWorkTask(input: {
   const me = await requireRealUser();
   if (!input.title.trim()) return { error: "Give it a title." };
 
-  // an admin acting as themselves, or as someone else via Viewing as, is
-  // always fine; anyone else can only ever land on their own id — even if
-  // the client somehow sent a different one
-  const assignedToId = isAbhishekOrAdmin(me) ? input.actingUserId : me.id;
+  const assignedToId = await resolveAssignee(me, input.assignedToId);
 
   await prisma.workTask.create({
     data: {
       title: input.title.trim(),
       notes: input.notes.trim() || null,
-      category: input.category.trim() || null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       projectId: input.projectId || null,
       links: cleanLinks(input.links),
       attachments: input.attachments,
+      tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
       createdById: me.id,
       assignedToId,
       sortOrder: Date.now(),
@@ -87,15 +90,18 @@ async function assertCanTouch(taskId: string) {
 
 export async function updateWorkTask(input: {
   id: string;
+  assignedToId?: string;
   title: string;
   notes: string;
-  category: string;
+  tagIds?: string[];
   dueDate: string;
   projectId: string;
   links: WorkTaskLink[];
   attachments: WorkTaskAttachment[];
 }): Promise<WorkTaskFormState> {
+  let me;
   try {
+    me = await requireRealUser();
     await assertCanTouch(input.id);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't update that task." };
@@ -107,11 +113,12 @@ export async function updateWorkTask(input: {
     data: {
       title: input.title.trim(),
       notes: input.notes.trim() || null,
-      category: input.category.trim() || null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       projectId: input.projectId || null,
       links: cleanLinks(input.links),
       attachments: input.attachments,
+      ...(input.assignedToId ? { assignedToId: await resolveAssignee(me, input.assignedToId) } : {}),
+      ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
     },
   });
 
@@ -128,8 +135,16 @@ export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortO
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't move that task." };
   }
-  await prisma.workTask.update({ where: { id: taskId }, data: { status, sortOrder } });
+  // completedAt is what work history is built from, so it records when the
+  // work was actually finished. Set on the first arrival at `done` and left
+  // alone on later moves within it; cleared if the task comes back out, so
+  // a reopened task doesn't sit in history claiming to be finished.
+  const existing = await prisma.workTask.findUnique({ where: { id: taskId }, select: { completedAt: true } });
+  const completedAt = status === "done" ? existing?.completedAt ?? new Date() : null;
+
+  await prisma.workTask.update({ where: { id: taskId }, data: { status, sortOrder, completedAt } });
   revalidatePath("/tasks/my");
+  revalidatePath("/tasks/people");
   return { success: true };
 }
 

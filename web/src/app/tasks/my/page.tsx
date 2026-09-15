@@ -1,67 +1,103 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { getAllUsers } from "@/lib/users";
-import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
+import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { WorkTaskView } from "./WorkTaskView";
+import { ScopeToggle } from "./ScopeToggle";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function MyTasksPage({
+// Everyone's work, scoped to what you're allowed to see.
+//
+// This page used to be "My Tasks" with an admin-only Abhishek/Everyone
+// switch bolted on. It's the team's work board now: an employee still sees
+// exactly their own, but a core member sees everything their team is doing
+// and admin sees every team — picked with the toggle at the top rather than
+// by impersonating someone from the sidebar.
+export default async function WorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ as?: string; view?: string }>;
+  searchParams: Promise<{ scope?: string }>;
 }) {
-  const { as, view } = await searchParams;
+  const { scope } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const users = await getAllUsers();
-  const sessionUser = users.find((u) => u.id === sessionUserId);
-  if (!sessionUser) redirect("/login");
+  const me = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    include: { team: true },
+  });
+  if (!me) redirect("/login");
 
-  // same "Viewing as" mechanism the rest of /tasks already uses — an admin
-  // switching to someone else here manages *that person's* board, which is
-  // also the entire delegation path (see actions.ts): there's no separate
-  // assignee picker, an admin creates a task for someone else by viewing
-  // as them first.
-  const actingUser = resolveActingUser(users, sessionUserId, as) ?? sessionUser;
-  const isAdmin = isAbhishekOrAdmin(sessionUser);
-  const showEveryone = isAdmin && view === "all";
+  const viewer: Viewer = { id: me.id, role: me.role, email: me.email, teamId: me.teamId };
+  const everyTeam = seesEveryTeam(viewer);
 
-  const [projectsRaw, workTasks, clientTasks] = await Promise.all([
+  // What this person may switch between. An employee gets no toggle at all
+  // — there is only one thing they can see, and a one-option control is
+  // just noise.
+  const teams = everyTeam
+    ? await prisma.team.findMany({ orderBy: { sortOrder: "asc" } })
+    : me.team
+      ? [me.team]
+      : [];
+  const canPickTeam = me.role !== "employee" && teams.length > 0;
+  const options = [
+    { key: "mine", label: "Mine" },
+    ...(canPickTeam ? teams.map((t) => ({ key: t.slug, label: t.name })) : []),
+    ...(everyTeam ? [{ key: "all", label: "Everyone" }] : []),
+  ];
+
+  // Default to the widest view this person has: a core member opens onto
+  // their team's work, because that's the job; an employee onto their own.
+  const fallback = options.length > 1 ? options[options.length - 1].key : "mine";
+  const active = options.some((o) => o.key === scope) ? scope! : fallback;
+
+  const where =
+    active === "mine"
+      ? { assignedToId: me.id }
+      : active === "all"
+        ? {}
+        : { assignedTo: { team: { slug: active } } };
+
+  const [projectsRaw, workTasks, clientTasks, taskTags, assignable] = await Promise.all([
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: true },
       orderBy: { client: { name: "asc" } },
     }),
     prisma.workTask.findMany({
-      where: showEveryone ? {} : { assignedToId: actingUser.id },
-      include: {
-        assignedTo: true,
-        createdBy: true,
-        project: { include: { client: true } },
-      },
+      where,
+      include: { assignedTo: true, createdBy: true, tags: true, project: { include: { client: true } } },
       orderBy: { sortOrder: "asc" },
     }),
-    // read-only: whatever's already assigned to this person on the client
-    // editing-queue board shows up here too, so "my tasks" is genuinely
-    // everything on their plate, not just this new system's own tasks.
-    // Managing these still happens on the real board (Board.tsx) — this is
-    // just so they're visible from one place.
-    showEveryone
-      ? Promise.resolve([])
-      : prisma.task.findMany({
-          where: { assignedToId: actingUser.id, status: { in: ACTIVE_STATUSES } },
+    // read-only: whatever's already on this person's plate on the client
+    // editing queue shows up here too, so "my work" is genuinely everything
+    // and not just this system's own tasks. Only in the "mine" view — the
+    // editing queue has its own board for the team-wide picture.
+    active === "mine"
+      ? prisma.task.findMany({
+          where: { assignedToId: me.id, status: { in: ACTIVE_STATUSES } },
           orderBy: { createdAt: "desc" },
           include: { project: { include: { client: true } } },
-        }),
+        })
+      : Promise.resolve([]),
+    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    // who work can be handed to: everyone, your own team, or only you
+    prisma.user.findMany({
+      where: everyTeam
+        ? { employment: "active" }
+        : me.role === "core" && me.teamId
+          ? { teamId: me.teamId, employment: "active" }
+          : { id: me.id },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
-  const projects = projectsRaw.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: p.client.id, name: p.client.name } }));
+  const projects = projectsRaw.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: p.client.name } }));
 
   const tasks = workTasks.map((t) => ({
     id: t.id,
@@ -69,6 +105,7 @@ export default async function MyTasksPage({
     notes: t.notes,
     status: t.status,
     category: t.category,
+    tags: t.tags.map((tag) => ({ id: tag.id, name: tag.name })),
     dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
     sortOrder: t.sortOrder,
     links: (t.links as WorkTaskLink[]) ?? [],
@@ -80,33 +117,13 @@ export default async function MyTasksPage({
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">My Tasks</h1>
-          {actingUser.id !== sessionUser.id && (
-            <p className="mt-1 text-xs text-muted">Viewing as {actingUser.name} — new tasks go on their board.</p>
-          )}
-        </div>
-        {isAdmin && (
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1 text-sm">
-            <a
-              href="/tasks/my"
-              className={`rounded-md px-3 py-1.5 ${!showEveryone ? "bg-surface text-foreground" : "text-muted hover:text-foreground"}`}
-            >
-              {actingUser.name}
-            </a>
-            <a
-              href="/tasks/my?view=all"
-              className={`rounded-md px-3 py-1.5 ${showEveryone ? "bg-surface text-foreground" : "text-muted hover:text-foreground"}`}
-            >
-              Everyone
-            </a>
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* no page heading: the sidebar already says where you are, and that
+          row is better spent on the control that actually changes what's
+          on screen */}
+      {options.length > 1 && <ScopeToggle options={options} active={active} />}
 
-      {!showEveryone && clientTasks.length > 0 && (
+      {clientTasks.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-medium">Assigned on the editing queue</h2>
           <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface/40">
@@ -131,9 +148,11 @@ export default async function MyTasksPage({
       <WorkTaskView
         tasks={tasks}
         projects={projects}
-        actingUserId={actingUser.id}
-        showAssignee={showEveryone}
-        canCreate={!showEveryone}
+        actingUserId={me.id}
+        showAssignee={active !== "mine"}
+        canCreate
+        assignees={assignable}
+        taskTags={taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing }))}
       />
     </div>
   );

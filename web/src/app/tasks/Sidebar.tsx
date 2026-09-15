@@ -14,7 +14,8 @@ const NAV = [
   { segment: "", label: "Board", Icon: LayoutDashboard },
   // everyone's own — editors and ops alike, unlike Clients/Calendar/Users
   // below which stay ops-only
-  { segment: "/my", label: "My Tasks", Icon: ListTodo },
+  // not "My Tasks" any more — a core member sees their whole team here
+  { segment: "/my", label: "Work", Icon: ListTodo },
   { segment: "/history", label: "History", Icon: History },
   // the team's own chat — a real page now, not the avatar stack that used
   // to float over the bottom-right corner of every other page
