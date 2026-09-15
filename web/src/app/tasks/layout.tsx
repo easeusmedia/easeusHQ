@@ -49,7 +49,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <LiveRefresh />
       <PresenceHeartbeat />
       <Sidebar
-        isAdmin={isAdmin}
         isOps={isOps}
         name={sessionUser.name}
         canViewAs={canViewAs && users.length > 0}

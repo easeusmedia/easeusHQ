@@ -4,22 +4,28 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, History, ListTodo, MessageCircle, Users, Users2, CalendarCheck2, PanelLeft, LogOut } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { isActive } from "./sidebarActive";
 import { toggleClientsPanel } from "./clients/clientsPanel";
 
+// Chosen for what each destination actually is, not just for variety. The
+// two that mattered most: Clients and People were Users2 and Users — near
+// identical glyphs for "companies we work for" and "people who work here",
+// which is the one pair you never want ambiguous. They're a building and a
+// group of people now.
 const NAV = [
-  { segment: "", label: "Board", Icon: LayoutDashboard },
+  // a kanban board, because that is literally what it is
+  { segment: "", label: "Board", Icon: SquareKanban },
   // everyone's own — editors and ops alike, unlike Clients/Calendar/Users
   // below which stay ops-only
   // not "My Tasks" any more — a core member sees their whole team here
-  { segment: "/my", label: "Work", Icon: ListTodo },
+  { segment: "/my", label: "Work", Icon: ListChecks },
   { segment: "/history", label: "History", Icon: History },
   // the team's own chat — a real page now, not the avatar stack that used
   // to float over the bottom-right corner of every other page
-  { segment: "/chat", label: "Chat", Icon: MessageCircle },
+  { segment: "/chat", label: "Chat", Icon: MessagesSquare },
 ];
 
 const COOKIE_NAME = "tasks-sidebar-open";
@@ -43,7 +49,6 @@ function FadeLabel({ open, children }: { open: boolean; children: React.ReactNod
 }
 
 export function Sidebar({
-  isAdmin = false,
   isOps = false,
   name,
   canViewAs,
@@ -53,7 +58,6 @@ export function Sidebar({
   logout,
   initialOpen,
 }: {
-  isAdmin?: boolean;
   isOps?: boolean;
   name: string;
   canViewAs: boolean;
@@ -187,10 +191,10 @@ export function Sidebar({
 
       {[
         ...NAV,
-        ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: Users2 }] : []),
-        ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarCheck2 }] : []),
+        ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: Building2 }] : []),
+        ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarDays }] : []),
         // core members see their own team here (read-only); admin edits everyone
-        ...(isOps ? [{ segment: "/users", label: "People", Icon: Users }] : []),
+        ...(isOps ? [{ segment: "/users", label: "People", Icon: UsersRound }] : []),
       ].map((item) => {
         const href = `${base}${item.segment}`;
         const active = isActive(item.segment, pathname, base);
