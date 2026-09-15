@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
@@ -43,6 +44,7 @@ export default async function ClientDetailPage({
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/login");
   if (me.role === "employee") redirect("/tasks"); // admin/core only
+  const canSeeBilling = isAbhishekOrAdmin(me);
 
   const client = await prisma.client.findUnique({
     where: { id },
@@ -98,7 +100,11 @@ export default async function ClientDetailPage({
     // the left-side switcher (ClientSwitcherSlot) lives in the shared
     // layout now, as a sibling of this whole page rather than something
     // rendered from inside it — see ClientSwitcher's own comment for why
-    <div>
+    //
+    // min-h-full + flex column: the task-board tab fills the height left
+    // under the tab strip and scrolls inside itself, the way the main
+    // dashboard does. Every other tab just grows and lets the page scroll.
+    <div className="flex min-h-full flex-col">
       <Link href="/tasks/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft size={14} /> Clients
       </Link>
@@ -156,19 +162,25 @@ export default async function ClientDetailPage({
             label: "Task board",
             count: tasks.length,
             bleed: true,
-            // `flow`: the board grows with its cards and the page does the
-            // scrolling, so nothing is cut off at the bottom and each stage
-            // header pins itself to the top as it passes.
+            // Exactly the dashboard's board, not a second layout for it.
+            // This used to run in `flow` mode, which squeezed all seven
+            // stages into the available width (columns ~85px wide, titles
+            // wrapping over four lines) and added its own px-6/px-8 on top
+            // of the page padding it already sat inside — the "compressed,
+            // too much left-right padding" this is fixing. The wrapper
+            // cancels that page padding on the sides and gives the board a
+            // real height to fill, which is all the dashboard does too.
             content: (
-              <Board
-                tasks={tasks}
-                projects={boardProjects}
-                editors={editors}
-                actingUserId={me.id}
-                actingRole={me.role as Role}
-                canCreate
-                flow
-              />
+              <div className="-mx-6 flex min-h-0 flex-1 flex-col sm:-mx-8">
+                <Board
+                  tasks={tasks}
+                  projects={boardProjects}
+                  editors={editors}
+                  actingUserId={me.id}
+                  actingRole={me.role as Role}
+                  canCreate
+                />
+              </div>
             ),
           },
           {
@@ -176,7 +188,11 @@ export default async function ClientDetailPage({
             label: "Deliverables",
             content: <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />,
           },
-          {
+          // Billing is money: invoice amounts, the billing rule, what's owed.
+          // Every core member could open it; it's admin + Abhishek (dev)
+          // only now, the same bar "viewing as" and permanent deletes use.
+          ...(canSeeBilling
+            ? [{
             key: "billing",
             label: "Billing",
             content: (
@@ -189,7 +205,8 @@ export default async function ClientDetailPage({
                 invoices={client.invoices.map((inv) => ({ ...inv, amount: inv.amount.toString() }))}
               />
             ),
-          },
+              }]
+            : []),
           {
             key: "info",
             label: "Client info",

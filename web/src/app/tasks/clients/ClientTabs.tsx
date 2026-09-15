@@ -36,9 +36,13 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
     setParam("tab", key === tabs[0].key ? null : key);
   }
 
+  const bleedActive = !!tabs.find((t) => t.key === active)?.bleed;
+
   return (
-    <div>
-      <div className={`mb-6 flex gap-1 overflow-x-auto border-b border-border ${width}`}>
+    // only claims the page's leftover height while a bleed tab is open —
+    // see the panel's own comment below
+    <div className={bleedActive ? "flex min-h-0 flex-1 flex-col" : undefined}>
+      <div className={`mb-6 flex shrink-0 gap-1 overflow-x-auto border-b border-border ${width}`}>
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -55,7 +59,17 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
         ))}
       </div>
       {tabs.map((t) => (
-        <div key={t.key} hidden={active !== t.key} className={t.bleed ? undefined : width}>
+        <div
+          key={t.key}
+          hidden={active !== t.key}
+          // A bleed tab (the task board) fills the height left under the
+          // tab strip and scrolls inside itself, exactly like the main
+          // dashboard — so it needs to be a flex child that can shrink.
+          // Only while it's the open one: giving a basis-0 flex-1 box to a
+          // normal tab would size it to the leftover space rather than its
+          // content, and a long Overview would overflow its own panel.
+          className={t.bleed ? (active === t.key ? "flex min-h-0 flex-1 flex-col" : undefined) : width}
+        >
           {t.content}
         </div>
       ))}
