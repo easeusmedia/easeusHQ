@@ -53,6 +53,8 @@ export type PersonRecord = {
 
 export type Option = { id: string; name: string };
 
+const FORMER = "Former employees";
+
 export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
   active: "Active",
   on_leave: "On leave",
@@ -98,23 +100,26 @@ export function PeopleDirectory({
     const q = query.trim().toLowerCase();
     return people.filter(
       (p) =>
-        (team === "all" || p.teamId === team) &&
+        (team === "all" || (team === "former" ? p.employment === "former" : p.teamId === team && p.employment !== "former")) &&
         (!q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || (p.jobTitleName ?? "").toLowerCase().includes(q))
     );
   }, [people, query, team]);
 
   const open = people.find((p) => p.id === openId) ?? null;
 
-  // grouped by team, because that's the question this page is usually
-  // answering — "who's on Operations right now"
+  // Grouped by team, because that's the question this page is usually
+  // answering — "who's on Operations right now". Former employees are their
+  // own category at the bottom rather than sitting inside a team they've
+  // left: their record stays readable (their finished work is still part of
+  // the agency's history) but they're plainly not part of the active roster.
   const groups = useMemo(() => {
-    const byTeam = new Map<string, PersonRecord[]>();
+    const byGroup = new Map<string, PersonRecord[]>();
     for (const p of filtered) {
-      const key = p.teamName ?? "No team";
-      if (!byTeam.has(key)) byTeam.set(key, []);
-      byTeam.get(key)!.push(p);
+      const key = p.employment === "former" ? FORMER : p.teamName ?? "No team";
+      if (!byGroup.has(key)) byGroup.set(key, []);
+      byGroup.get(key)!.push(p);
     }
-    return [...byTeam.entries()];
+    return [...byGroup.entries()].sort(([a], [b]) => (a === FORMER ? 1 : b === FORMER ? -1 : 0));
   }, [filtered]);
 
   return (
@@ -132,7 +137,7 @@ export function PeopleDirectory({
           </div>
           {teams.length > 1 && (
             <div className="flex flex-wrap gap-1">
-              {[{ id: "all", name: "All" }, ...teams].map((t) => (
+              {[{ id: "all", name: "All" }, ...teams, ...(people.some((p) => p.employment === "former") ? [{ id: "former", name: "Former" }] : [])].map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTeam(t.id)}
