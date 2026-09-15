@@ -78,26 +78,45 @@ export function NewTaskRow({
           // inner panel) to dismiss
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        className="glass fixed top-1/2 left-1/2 m-0 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] w-[min(37rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-6 text-foreground"
       >
         <h2 className="mb-4 text-base font-semibold">New task</h2>
-        <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+        {/* two columns, same as the details dialog — nine stacked fields
+            made this a scroll from top to bottom */}
+        <form ref={formRef} action={formAction} className="grid auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5">
           {/* client first, then that client's projects — and a project can
               be created right here, since plenty of tasks are the first
               task of a project that doesn't exist yet */}
           <ProjectField projects={projects} defaultProjectId={defaultProjectId} clients={clients} />
 
-          <label className="flex flex-col gap-1.5 text-xs text-muted">
+          <label className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
             Video / subject
             <input name="title" placeholder="What needs editing?" required autoFocus className={field} />
           </label>
 
-          <label className="flex flex-col gap-1.5 text-xs text-muted">
+          <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
             Assign to
             <Dropdown name="assignedToId" placeholder="Assign to…" options={editors.map((e) => ({ value: e.id, label: e.name }))} />
           </label>
 
-          <div className="flex flex-col gap-1.5 text-xs text-muted">
+          <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
+            Raw footage
+            <input name="rawLink" placeholder="Google Drive link" className={field} />
+          </label>
+
+            <div className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
+              Due date <span className="font-normal normal-case">(for client approval)</span>
+              <input type="hidden" name="dueDate" value={dueDate} />
+              <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
+              Schedule for <span className="font-normal normal-case">(hidden from the editor until then)</span>
+              <input type="hidden" name="scheduledFor" value={scheduledFor} />
+              <DatePicker value={scheduledFor} onChange={setScheduledFor} placeholder="Visible immediately" />
+            </div>
+
+          <div className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
             Type of work
             <TaskTagPicker tags={taskTags} selected={[]} internal={internal} onInternalHint={setInternal} />
             <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
@@ -111,26 +130,7 @@ export function NewTaskRow({
             </label>
           </div>
 
-          <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Raw footage
-            <input name="rawLink" placeholder="Google Drive link" className={field} />
-          </label>
-
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5 text-xs text-muted">
-              Due date <span className="font-normal normal-case">(for client approval)</span>
-              <input type="hidden" name="dueDate" value={dueDate} />
-              <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
-            </div>
-
-            <div className="flex flex-col gap-1.5 text-xs text-muted">
-              Schedule for <span className="font-normal normal-case">(hidden from the editor until then)</span>
-              <input type="hidden" name="scheduledFor" value={scheduledFor} />
-              <DatePicker value={scheduledFor} onChange={setScheduledFor} placeholder="Visible immediately" />
-            </div>
-          </div>
-
-          <label className="flex flex-col gap-1.5 text-xs text-muted">
+          <label className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
             <span className="flex items-center gap-1.5">
               <NotesGlyph size={12} /> Editing notes
             </span>
@@ -142,9 +142,9 @@ export function NewTaskRow({
             />
           </label>
 
-          {state.error && <p className="text-xs text-red-300">{state.error}</p>}
+          {state.error && <p className="col-span-2 text-xs text-red-300">{state.error}</p>}
 
-          <div className="mt-1 flex justify-end gap-2">
+          <div className="col-span-2 mt-1 flex justify-end gap-2">
             <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-xs">
               Cancel
             </button>

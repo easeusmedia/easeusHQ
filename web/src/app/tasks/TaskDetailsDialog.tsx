@@ -20,9 +20,9 @@ const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 
 
 // a labelled row — the fields were bare boxes, so a URL sitting in one gave
 // no clue which link it was
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-muted">
+    <label className={`flex min-w-0 flex-col gap-1 text-xs text-muted ${wide ? "col-span-2" : ""}`}>
       {label}
       {children}
     </label>
@@ -108,7 +108,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
         className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[85vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
-          historyOpen ? "w-[51.5rem]" : "w-[27.5rem]"
+          historyOpen ? "w-[61rem]" : "w-[37rem]"
         }`}
       >
         <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
@@ -127,14 +127,21 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
         </div>
 
         <div className="flex min-h-0 flex-1 gap-4">
-          <form id={formId} action={formAction} className="flex w-[25rem] shrink-0 flex-col gap-3 overflow-y-auto pr-1">
+          {/* Two columns, so the form stops being one tall stack you have
+              to scroll end to end. Short fields pair up; anything that
+              needs the width (title, tags, notes) spans both. */}
+          <form
+            id={formId}
+            action={formAction}
+            className="grid w-[34rem] shrink-0 auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto pr-1"
+          >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />
             <input type="hidden" name="actingUserId" value={actingUserId} />
 
             {canManage ? (
               <>
-                <Field label="Title">
+                <Field label="Title" wide>
                   <input name="title" defaultValue={task.title} required className={inputCls} />
                 </Field>
                 {/* client first, then that client's projects, and a new
@@ -184,7 +191,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   </Field>
                 )}
 
-                <div className="flex flex-col gap-1.5 text-xs text-muted">
+                <div className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
                   Type of work
                   <TaskTagPicker
                     tags={taskTags}
@@ -203,22 +210,24 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   </label>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-sm text-muted">
-                  <NotesGlyph size={14} />
-                  Editing notes
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <span className="flex items-center gap-1.5 text-sm text-muted">
+                    <NotesGlyph size={14} />
+                    Editing notes
+                  </span>
+                  <textarea
+                    name="editingNotes"
+                    defaultValue={task.editingNotes ?? ""}
+                    placeholder="Instructions, references, anything the editor needs…"
+                    rows={3}
+                    className={inputCls}
+                  />
                 </div>
-                <textarea
-                  name="editingNotes"
-                  defaultValue={task.editingNotes ?? ""}
-                  placeholder="Instructions, references, anything the editor needs…"
-                  rows={6}
-                  className={inputCls}
-                />
               </>
             ) : (
               // an editor sees everything but can only ever change the
               // Frame.io link — the rest is ops' input, read-only here
-              <>
+              <div className="col-span-2 flex flex-col gap-3">
                 {task.assignedTo && (
                   <div className="flex items-center gap-2 text-sm text-muted">
                     <Avatar name={task.assignedTo.name} />
@@ -281,15 +290,10 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     </div>
                   )
                 )}
-              </>
+              </div>
             )}
 
-            <p className="text-xs text-muted">
-              Created {formatDateTime(task.createdAt)}
-              {created && <> by {created.actorName}</>}
-            </p>
-
-            {state.error && <p className="text-sm text-red-300">{state.error}</p>}
+            {state.error && <p className="col-span-2 text-sm text-red-300">{state.error}</p>}
           </form>
 
           {/* always rendered (not conditionally mounted) so the width
@@ -356,11 +360,14 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             <input type="hidden" name="actingRole" value={actingRole} />
           </form>
         )}
-        <div className="mt-3 flex items-center justify-between gap-2">
+        {/* Outside both columns, so it sits on one line under them rather
+            than riding the form's scroll and ending at a different height
+            than the history panel beside it. */}
+        <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border pt-3">
           {canManage ? (
             <ConfirmButton
               message={`Delete "${task.title}"?`}
-              className="rounded-md p-1.5 text-muted hover:text-red-400"
+              className="shrink-0 rounded-md p-1.5 text-muted hover:text-red-400"
               formId={`delete-${task.id}`}
             >
               <Trash2 size={14} />
@@ -368,7 +375,11 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           ) : (
             <span />
           )}
-          <div className="flex gap-2">
+          <p className="min-w-0 flex-1 truncate text-xs text-muted">
+            Created {formatDateTime(task.createdAt)}
+            {created && <> by {created.actorName}</>}
+          </p>
+          <div className="flex shrink-0 gap-2">
             <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
               Close
             </button>

@@ -44,16 +44,14 @@ export function StatusSelect({
   // dropdown was the one place status changes still had a beat of nothing
   // happening before the whole board jumped.
   const [optimisticStatus, setOptimisticStatus] = useState(currentStatus);
-  // Adjusted during render rather than in an effect: an effect that calls
-  // setState runs *after* the browser has already painted the stale value,
-  // so the server's status would flash the old stage for a frame before
-  // correcting. Comparing against the last prop we saw re-renders before
-  // anything is shown.
-  const [lastSeen, setLastSeen] = useState(currentStatus);
-  if (lastSeen !== currentStatus) {
-    setLastSeen(currentStatus);
-    setOptimisticStatus(currentStatus);
-  }
+  // Re-syncs to the server's value whenever it changes. This was briefly a
+  // render-phase adjustment instead (to avoid painting the stale stage for
+  // one frame) and that deadlocked: a board holds dozens of these, one
+  // mousedown fires every instance's outside-click handler at once, and the
+  // render-phase update turned that fan-out into "Maximum update depth
+  // exceeded". The one-frame flash is not worth it.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing to a changed prop; see above for why the render-phase version is worse
+  useEffect(() => setOptimisticStatus(currentStatus), [currentStatus]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
