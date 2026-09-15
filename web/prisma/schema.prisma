@@ -480,6 +480,11 @@ model WorkTask {
   // vocabularies. Replaces the old free-text `category`.
   tags TaskTag[]
 
+  // The row mirroring this task in Notion's Editing Queue, when it has one.
+  // Work tasks only ever push up — they're born here, so there's no
+  // pull-down direction to conflict with.
+  notionPageId String?
+
   // Stamped when it first reaches `done`, and left alone afterwards — this
   // is what an employee's work history is built from, so it has to record
   // when the work was actually finished, not when the row was last touched.

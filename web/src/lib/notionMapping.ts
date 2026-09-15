@@ -48,6 +48,17 @@ export function pushesToNotion(user: { role: string; teamSlug: string | null }):
   return user.teamSlug === "operations" && user.role !== "admin";
 }
 
+// A work task's own four stages, onto the same Notion column. The Editing
+// Queue's wording is about a video going out the door, so the fit is
+// approximate by nature — "In review" is the team looking at it, which is
+// what "Sent for approval" means there.
+export const WORK_TASK_NOTION_STATUS: Record<string, string> = {
+  todo: "Queued",
+  in_progress: "Editing",
+  in_review: "Sent for approval",
+  done: "Delivered and uploaded",
+};
+
 // The stages at which the work has left review and the Drive link is the
 // one that matters.
 const DELIVERED_STAGES: TaskStatus[] = ["final_export_ready", "delivered_and_uploaded"];

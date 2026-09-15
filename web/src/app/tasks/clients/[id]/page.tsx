@@ -17,6 +17,7 @@ import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
+import { ClientWorkTasks } from "../ClientWorkTasks";
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
@@ -68,7 +69,7 @@ export default async function ClientDetailPage({
   const projectIds = client.projects.map((p) => p.id);
   const editors = users.filter((u) => u.role === "employee");
 
-  const [tasks, deliveredSinceInvoice, allTags] = await Promise.all([
+  const [tasks, deliveredSinceInvoice, allTags, clientWorkTasks] = await Promise.all([
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
       orderBy: { createdAt: "desc" },
@@ -82,6 +83,13 @@ export default async function ClientDetailPage({
       },
     }),
     listTags(),
+    // work tasks sitting on one of this client's projects — a different
+    // system from the editing queue, and previously invisible here
+    prisma.workTask.findMany({
+      where: { projectId: { in: projectIds }, status: { not: "done" } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: true },
+      orderBy: [{ status: "asc" }, { sortOrder: "asc" }],
+    }),
   ]);
   // only this person's own team's kinds of work (plus any shared ones) —
   // Sales never has to pick past "Colour correction"
@@ -192,6 +200,17 @@ export default async function ClientDetailPage({
                     />
                   </section>
                 )}
+
+                <ClientWorkTasks
+                  tasks={clientWorkTasks.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status,
+                    projectName: t.project ? t.project.name || t.project.type : null,
+                    assignee: t.assignedTo ? { name: t.assignedTo.name } : null,
+                    tags: t.tags.map((x) => x.name),
+                  }))}
+                />
 
                 <ProjectsSection clientId={client.id} projects={projectCards} initialShow={show} />
               </div>

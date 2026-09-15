@@ -7,6 +7,7 @@ import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { WorkTaskView } from "./WorkTaskView";
 import { ScopeToggle } from "./ScopeToggle";
+import { WorkNotionSyncButton } from "./WorkNotionSyncButton";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -119,11 +120,9 @@ export default async function WorkPage({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* no page heading: the sidebar already says where you are, and that
-          row is better spent on the control that actually changes what's
-          on screen */}
-      {options.length > 1 && <ScopeToggle options={options} active={active} />}
-
+      {/* no page heading: the sidebar already says where you are. The scope
+          picker rides in WorkTaskView's own toolbar row (right-hand side)
+          rather than sitting on a row of its own above it. */}
       {clientTasks.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-medium">Assigned on the editing queue</h2>
@@ -155,6 +154,14 @@ export default async function WorkPage({
         assignees={assignable}
         taskTags={taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing }))}
         canManageTags={me.role !== "employee"}
+        toolbarRight={
+          <>
+            {/* ops only, and only where the tasks on screen are ones that
+                belong in the Editing Queue */}
+            {me.role !== "employee" && me.team?.slug === "operations" && <WorkNotionSyncButton />}
+            {options.length > 1 && <ScopeToggle options={options} active={active} />}
+          </>
+        }
       />
     </div>
   );

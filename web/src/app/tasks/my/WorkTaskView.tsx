@@ -22,6 +22,7 @@ export function WorkTaskView({
   assignees = [],
   taskTags = [],
   canManageTags = false,
+  toolbarRight,
 }: {
   tasks: WorkTaskCardData[];
   projects: Project[];
@@ -31,6 +32,10 @@ export function WorkTaskView({
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
   canManageTags?: boolean;
+  // the scope picker (Mine / Operations / …) and the Notion sync, rendered
+  // into this component's own toolbar row rather than stacked above it —
+  // two full-width control rows for two small controls was wasted height
+  toolbarRight?: React.ReactNode;
 }) {
   const [view, setView] = useState<"board" | "list">("board");
 
@@ -52,14 +57,17 @@ export function WorkTaskView({
           ))}
         </div>
 
-        {/* board mode already has its own "New task" trigger inline in the
-            To-do column; list mode has no columns to put one in, so it
-            gets one up here instead */}
-        {view === "list" && canCreate && (
-          <div className="w-fit">
-            <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {/* board mode already has its own "New task" trigger inline in the
+              To-do column; list mode has no columns to put one in, so it
+              gets one up here instead */}
+          {view === "list" && canCreate && (
+            <div className="w-fit">
+              <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+            </div>
+          )}
+          {toolbarRight}
+        </div>
       </div>
 
       {view === "board" ? (

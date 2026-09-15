@@ -3,7 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { canSeeMember, type Viewer } from "@/lib/scope";
+import { assigneeWhere, canSeeMember, type Viewer } from "@/lib/scope";
+import { pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
 import type { WorkTaskStatus } from "@prisma/client";
@@ -57,7 +58,7 @@ export async function createWorkTask(input: {
 
   const assignedToId = await resolveAssignee(me, input.assignedToId);
 
-  await prisma.workTask.create({
+  const created = await prisma.workTask.create({
     data: {
       title: input.title.trim(),
       notes: input.notes.trim() || null,
@@ -72,8 +73,54 @@ export async function createWorkTask(input: {
     },
   });
 
+  // Mirror it into Notion for the people whose work belongs there — same
+  // rule the client queue uses. Best-effort on purpose: if Notion is down
+  // the task is still created here and the sync button picks it up later.
+  await mirrorIfOperations(assignedToId, created.id);
+
   revalidatePath("/tasks/my");
   return { success: true };
+}
+
+// Shared by create and the sync button: only Operations (and not the admin)
+// mirrors into the Editing Queue.
+async function mirrorIfOperations(userId: string, workTaskId: string) {
+  const person = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, team: { select: { slug: true } } },
+  });
+  if (!person || !pushesToNotion({ role: person.role, teamSlug: person.team?.slug ?? null })) return;
+  await pushWorkTaskToNotion(workTaskId).catch(() => {});
+}
+
+// Sends every mirrorable work task in view up to Notion — creating the rows
+// that don't exist yet and refreshing the status and links on the ones that
+// do. These tasks are born here, so this is one-directional by nature:
+// there's nothing in Notion to pull back down over the top of them.
+export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped: number; error?: string }> {
+  const me = await requireRealUser().catch(() => null);
+  if (!me || me.role === "employee") return { pushed: 0, skipped: 0, error: "Only ops team members can sync." };
+
+  // their own team's work, or everyone's for whoever sees every team
+  const viewer = { id: me.id, role: me.role, email: me.email, teamId: me.teamId };
+  const tasks = await prisma.workTask.findMany({
+    where: {
+      ...assigneeWhere(viewer),
+      assignedTo: { role: { not: "admin" }, team: { slug: "operations" } },
+    },
+    select: { id: true },
+    take: 100,
+  });
+
+  let pushed = 0;
+  let skipped = 0;
+  for (const t of tasks) {
+    const res = await pushWorkTaskToNotion(t.id);
+    if (res.error) skipped++;
+    else pushed++;
+  }
+  revalidatePath("/tasks/my");
+  return { pushed, skipped };
 }
 
 // A task is yours to touch if it's assigned to you, you created it, or
@@ -142,7 +189,10 @@ export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortO
   const existing = await prisma.workTask.findUnique({ where: { id: taskId }, select: { completedAt: true } });
   const completedAt = status === "done" ? existing?.completedAt ?? new Date() : null;
 
-  await prisma.workTask.update({ where: { id: taskId }, data: { status, sortOrder, completedAt } });
+  const moved = await prisma.workTask.update({ where: { id: taskId }, data: { status, sortOrder, completedAt } });
+  // a stage change is the thing most worth mirroring, so it goes up now
+  // rather than waiting for someone to press sync
+  await mirrorIfOperations(moved.assignedToId, moved.id);
   revalidatePath("/tasks/my");
   revalidatePath("/tasks/people");
   return { success: true };
