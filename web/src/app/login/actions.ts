@@ -17,5 +17,5 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
 
   await createSession(user.id);
-  redirect("/tasks");
+  redirect("/board");
 }

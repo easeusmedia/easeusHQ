@@ -1,0 +1,287 @@
+"use client";
+
+import { useRef } from "react";
+import { NotesButton } from "./NotesButton";
+import { TaskDetailsDialog } from "./TaskDetailsDialog";
+import { StatusSelect } from "./StatusSelect";
+import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
+import { STAGE } from "@/lib/stages";
+import { colorFor, initials } from "@/lib/avatar";
+import { RotateCcw, EyeOff } from "lucide-react";
+import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
+
+// kept as re-exports so the existing call sites don't all have to change —
+// STAGE in @/lib/stages is the single definition
+export const STATUS_LABEL = Object.fromEntries(
+  Object.entries(STAGE).map(([k, v]) => [k, v.label])
+) as Record<TaskStatus, string>;
+export const STATUS_STYLE = Object.fromEntries(
+  Object.entries(STAGE).map(([k, v]) => [k, v.pill])
+) as Record<TaskStatus, string>;
+
+// columns/actions that need one extra piece of info before landing there —
+// collected inline (button click reveals the field) rather than shown
+// up front on every card
+export const EXTRA_FIELD: Partial<Record<TaskStatus, { field: "frameioLink" | "driveLink" | "reviewNotes"; label: string; placeholder: string }>> = {
+  sent_for_approval: { field: "frameioLink", label: "Frame.io link", placeholder: "https://f.io/…" },
+  // the client reviews on Frame.io too — prefilled with the cut already on
+  // file, so this is usually just a confirm, but never skipped
+  sent_for_client_approval: { field: "frameioLink", label: "Frame.io link", placeholder: "https://f.io/…" },
+  // no extra prompt for revision_requested — the change notes already live
+  // on the Frame.io comment thread, no need to duplicate them here
+  delivered_and_uploaded: { field: "driveLink", label: "Final Drive link", placeholder: "https://drive.google.com/…" },
+};
+
+// which single link matters most on the card depends on where the task is
+// in the workflow — the raw footage while it's being cut, the Frame.io
+// thread while it's under review, the final export once it's ready to hand
+// off — showing all of them at once regardless of stage was just noise
+export const STATUS_LINK = Object.fromEntries(Object.entries(STAGE).map(([k, v]) => [k, v.link])) as Record<
+  TaskStatus,
+  { field: "rawLink" | "frameioLink" | "driveLink"; label: string }
+>;
+
+// Shifted to IST (UTC+5:30, fixed — India has no DST) with fixed-offset math
+// rather than Intl/toLocaleString, so this stays deterministic regardless of
+// the server's or browser's own timezone/locale — using either of those
+// would risk a server-render vs client-hydration mismatch. Everyone on the
+// team is in India, so IST (not UTC) is what "today" and "9am" should mean;
+// showing raw UTC put dates a day behind whenever it was evening in India.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function toIST(d: Date | string): Date {
+  return new Date(new Date(d).getTime() + IST_OFFSET_MS);
+}
+
+// DD/MM/YYYY — the team's own convention, not the US MM/DD/YYYY one.
+export function formatDate(d: Date | string) {
+  const date = toIST(d);
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `${dd}/${mm}/${date.getUTCFullYear()}`;
+}
+
+// plus time-of-day — the activity trail logs every status change with a
+// full timestamp already (ActivityLog.createdAt always had the time, just
+// nothing displayed it), which matters once a task moves through several
+// stages in the same day.
+export function formatDateTime(d: Date | string) {
+  const date = toIST(d);
+  let hours = date.getUTCHours();
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${formatDate(d)}, ${hours}:${minutes} ${ampm} IST`;
+}
+
+export function StatusBadge({ status }: { status: TaskStatus }) {
+  return (
+    <span className={`status-pop shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}>
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+export type TaskCardData = {
+  id: string;
+  projectId: string;
+  title: string;
+  status: TaskStatus;
+  assignedTo: { id: string; name: string } | null;
+  rawLink: string | null;
+  referenceLink: string | null;
+  assetLink: string | null;
+  frameioLink: string | null;
+  driveLink: string | null;
+  reviewNotes: string | null;
+  editingNotes: string | null;
+  revisionCount: number;
+  dueDate: Date | null;
+  scheduledFor: Date | null;
+  createdAt: Date;
+  sortOrder: number;
+  tags: { id: string; name: string }[];
+  internal: boolean;
+  project: { name: string; type: string; client: { name: string } };
+};
+
+export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-black"
+      style={{ backgroundColor: colorFor(name), width: size, height: size, fontSize: size * 0.42 }}
+      title={name}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+// A list row's "who" and "where" columns. Both are fixed width on wider
+// screens so names and stage pills line up down the list instead of shifting
+// with each pill's label length; on a phone the name drops to the avatar.
+export function AssigneeLabel({ name }: { name: string }) {
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-xs sm:w-36" title={name}>
+      <Avatar name={name} size={22} />
+      <span className="hidden truncate text-foreground sm:inline">{name}</span>
+    </span>
+  );
+}
+
+export function StageColumn({ children }: { children: React.ReactNode }) {
+  return <span className="flex shrink-0 justify-end sm:w-48">{children}</span>;
+}
+
+function Link({ href, label }: { href: string; label: string }) {
+  return (
+    <a href={href} target="_blank" className="text-xs text-blue-400 underline underline-offset-2">
+      {label} ↗
+    </a>
+  );
+}
+
+export function TaskCard({
+  task,
+  clientName,
+  editors,
+  projects,
+  actingUserId,
+  actingRole,
+  taskTags = [],
+}: {
+  task: TaskCardData;
+  clientName: string;
+  editors: { id: string; name: string }[];
+  projects: { id: string; name: string; client: { id: string; name: string } }[];
+  actingUserId: string;
+  actingRole: Role;
+  taskTags?: TaskTagOption[];
+}) {
+  const isAssignee = task.assignedTo?.id === actingUserId;
+  const canManage = actingRole === "admin" || actingRole === "core";
+  const options = availableStatuses(task.status, { role: actingRole, isAssignee });
+
+  const cardLinkSpec = STATUS_LINK[task.status];
+  const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
+  const detailsRef = useRef<{ open: () => void }>(null);
+
+  // every interactive element inside the card below stops the click from
+  // bubbling here — the card itself is now one big "open the details
+  // dialog" click target (replacing the old separate info icon), so
+  // anything that has its own click behavior needs to opt out or you'd
+  // get a details dialog AND, say, a notes dialog stacked on top of it.
+  return (
+    <div
+      onClick={() => detailsRef.current?.open()}
+      className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
+    >
+      {/* No Edit/Delete on hover any more. The whole card already opens the
+          details dialog on click, so "Edit" was a second button for what a
+          click already did, and Delete — the one destructive action here —
+          sat one stray click away on every card. Both live in that dialog
+          now, which keeps the card to just the task. */}
+      <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
+
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium leading-snug">{task.title}</p>
+        <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2">
+          {task.revisionCount > 0 && (
+            <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-xs font-medium text-orange-300">
+              <RotateCcw size={10} />
+              {task.revisionCount}
+              {/* below the badge, not above (top-full, not bottom-full) —
+                  a card near the top of its scrolling column had nowhere
+                  for an upward tooltip to go, so the column's own overflow
+                  clipped it instead of letting it show */}
+              <span className="pointer-events-none absolute top-full right-0 z-10 mt-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-xs font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
+                Sent back for revision {task.revisionCount} time{task.revisionCount === 1 ? "" : "s"}
+              </span>
+            </span>
+          )}
+          {task.editingNotes && <NotesButton notes={task.editingNotes} />}
+        </div>
+      </div>
+
+      {(task.tags.length > 0 || task.internal) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {/* internal work is marked once, here, rather than colouring the
+              whole card — it's a property of the task, not an alarm */}
+          {task.internal && (
+            <span
+              title="Internal work — not delivered to the client"
+              className="flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs text-muted"
+            >
+              <EyeOff size={10} /> Internal
+            </span>
+          )}
+          {task.tags.map((t) => (
+            <TaskTagChip key={t.id} name={t.name} />
+          ))}
+        </div>
+      )}
+
+      {task.assignedTo && (
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <Avatar name={task.assignedTo.name} />
+          {task.assignedTo.name}
+        </div>
+      )}
+
+      {/* only ops sees this — the assigned editor doesn't get the task at
+          all until this date (filtered out server-side in tasks/page.tsx) */}
+      {canManage && task.scheduledFor && task.scheduledFor > new Date() && (
+        <p className="rounded-md bg-surface-2 px-2 py-1 text-xs text-muted">
+          Scheduled for {formatDate(task.scheduledFor)}, hidden from {task.assignedTo?.name ?? "the editor"} until then
+        </p>
+      )}
+
+      {task.status === "revision_requested" && canManage && (
+        <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
+          Waiting on the editor to pick this back up.
+        </p>
+      )}
+      {task.status === "revision_requested" && actingRole === "employee" && (
+        <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
+          Revision requested. Check the notes and resume editing.
+        </p>
+      )}
+
+      {task.status === "sent_for_approval" && actingRole === "employee" && (
+        <p className="rounded-md bg-purple-400/10 px-2 py-1 text-xs text-purple-300">
+          Sent. Waiting on ops to review it.
+        </p>
+      )}
+
+      <div onClick={(e) => e.stopPropagation()}>
+        <StatusSelect
+          taskId={task.id}
+          currentStatus={task.status}
+          options={options}
+          actingUserId={actingUserId}
+          actingRole={actingRole}
+          links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+        />
+      </div>
+
+      {cardLinkHref && (
+        <div onClick={(e) => e.stopPropagation()} className="flex flex-wrap gap-2">
+          <Link href={cardLinkHref} label={cardLinkSpec!.label} />
+        </div>
+      )}
+
+      <div onClick={(e) => e.stopPropagation()}>
+        <TaskDetailsDialog
+          ref={detailsRef}
+          task={task}
+          clientName={clientName}
+          editors={editors}
+          projects={projects}
+          actingUserId={actingUserId}
+          actingRole={actingRole}
+          taskTags={taskTags}
+        />
+      </div>
+    </div>
+  );
+}

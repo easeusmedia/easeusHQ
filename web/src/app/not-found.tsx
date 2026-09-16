@@ -13,7 +13,7 @@ export default function NotFound() {
           The link may be old or mistyped. Head back to the board.
         </p>
         <Link
-          href="/tasks"
+          href="/board"
           className="btn-glow mt-4 inline-block rounded-md px-4 py-2 text-sm font-medium"
         >
           Back to Board

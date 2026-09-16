@@ -18,7 +18,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
           <button type="button" onClick={reset} className="btn-glow rounded-md px-4 py-2 text-sm font-medium">
             Try again
           </button>
-          <Link href="/tasks" className="rounded-md px-4 py-2 text-sm text-muted hover:bg-hover">
+          <Link href="/board" className="rounded-md px-4 py-2 text-sm text-muted hover:bg-hover">
             Back to Board
           </Link>
         </div>
