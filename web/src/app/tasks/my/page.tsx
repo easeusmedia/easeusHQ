@@ -65,8 +65,9 @@ export default async function WorkPage({
       : active === "all"
         ? {}
         : { assignedTo: { team: { slug: active } } };
-  const groupOptions: GroupBy[] =
-    active === "mine" ? ["status"] : active === "all" ? ["status", "person", "team"] : ["status", "person"];
+  // Your own work is a status board. Anyone else's is laid out by who's
+  // doing it (or, across every team, by team) — status is on each card.
+  const groupOptions: GroupBy[] = active === "mine" ? ["status"] : active === "all" ? ["person", "team"] : ["person"];
   const assigneeSelect = { select: { ...PUBLIC_USER_SELECT, team: { select: { slug: true, name: true } } } };
 
   const [projectsRaw, workTasks, queueTasks, taskTags, assignable] = await Promise.all([

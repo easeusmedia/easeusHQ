@@ -34,7 +34,7 @@ export function WorkTaskView({
   tasks: WorkTaskCardData[];
   // editors' tasks from the client editing queue, shown alongside
   queueTasks: QueueCardData[];
-  // the ways this scope can be laid out; status is always first
+  // the ways this scope can be laid out; the first is the default
   groupOptions: GroupBy[];
   teams: { slug: string; name: string }[];
   projects: Project[];
@@ -50,9 +50,10 @@ export function WorkTaskView({
   toolbarRight?: React.ReactNode;
 }) {
   const [view, setView] = useState<"board" | "list">("board");
-  const [groupPick, setGroupPick] = useState<GroupBy>("status");
-  // switching to a narrower scope (Mine has no Person or Team) falls back
-  const groupBy = groupOptions.includes(groupPick) ? groupPick : "status";
+  const [groupPick, setGroupPick] = useState<GroupBy>(groupOptions[0]);
+  // a pick the current scope doesn't offer (Team, after switching to one
+  // team) falls back to that scope's default
+  const groupBy = groupOptions.includes(groupPick) ? groupPick : groupOptions[0];
   const groups = groupTasks(groupBy, tasks, queueTasks, teams);
 
   return (
