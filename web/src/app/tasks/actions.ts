@@ -476,8 +476,9 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
     // reason to make it N queries when it's this easy to make it one
     const mirrored = await prisma.task.findMany({
       where: { notionPageId: { in: rows.map((r) => r.id) } },
-      select: { id: true, notionPageId: true, notionCreatedByApp: true },
+      select: { id: true, notionPageId: true, notionCreatedByApp: true, status: true },
     });
+    const statusById = new Map(mirrored.map((t) => [t.id, t.status]));
     const existingByNotionId = new Map(mirrored.map((t) => [t.notionPageId, t.id]));
     const appOwned = new Set(mirrored.filter((t) => t.notionCreatedByApp).map((t) => t.id));
 
@@ -545,6 +546,15 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
           continue;
         }
         await prisma.task.update({ where: { id: existingId }, data: sharedData });
+        // a stage change made in Notion goes in the log like any other, so
+        // History and the editor export see it; stamped at sync time, which
+        // is as close as we can know
+        const before = statusById.get(existingId);
+        if (before && before !== sharedData.status) {
+          await prisma.activityLog.create({
+            data: { actorId: user.id, action: `${before} → ${sharedData.status}`, entity: "Task", entityId: existingId },
+          });
+        }
         updated++;
         continue;
       }

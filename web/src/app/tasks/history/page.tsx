@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
@@ -66,6 +67,20 @@ export default async function HistoryPage({
 
   return (
     <>
+      {/* same bar as delete: the export covers every editor's work, so it's
+          admin/Abhishek only — the route checks this again on its own */}
+      {canDelete && (
+        <div className="mb-4 flex justify-end">
+          <a
+            href="/tasks/history/export"
+            download
+            title="Every editing task with its timings, revisions and full status trail — for a spreadsheet or an AI model"
+            className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium"
+          >
+            <Download size={14} /> Export
+          </a>
+        </div>
+      )}
       <HistoryList tasks={visible} logsByTask={logsByTask} canDelete={canDelete} />
     </>
   );
