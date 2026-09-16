@@ -139,32 +139,33 @@ export function ProjectsSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+      {/* title · how to view, centred · what to show */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <h2 className="text-sm font-medium">Projects</h2>
+        <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
+          {(
+            [
+              [false, LayoutGrid, "Grid"],
+              [true, List, "List"],
+            ] as const
+          ).map(([on, Icon, label]) => (
+            <button
+              key={label}
+              onClick={() => {
+                setList(on);
+                setParam("layout", on ? "list" : null);
+              }}
+              aria-pressed={list === on}
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${
+                list === on ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
+              }`}
+            >
+              <Icon size={12} /> {label}
+            </button>
+          ))}
+        </div>
 
-        <div ref={ref} className="relative flex items-center gap-2">
-          <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
-            {(
-              [
-                [false, LayoutGrid, "Grid"],
-                [true, List, "List"],
-              ] as const
-            ).map(([on, Icon, label]) => (
-              <button
-                key={label}
-                onClick={() => {
-                  setList(on);
-                  setParam("layout", on ? "list" : null);
-                }}
-                aria-pressed={list === on}
-                className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${
-                  list === on ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
-                }`}
-              >
-                <Icon size={12} /> {label}
-              </button>
-            ))}
-          </div>
+        <div ref={ref} className="relative flex items-center gap-2 justify-self-end">
           {!isDefault && (
             <button onClick={() => selectPreset(DEFAULT_PRESET)} className="text-xs text-muted hover:text-foreground">
               Reset

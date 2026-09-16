@@ -73,7 +73,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           scrolling child. It only renders on a client's own page (checks
           the URL itself), so every other page is unaffected. */}
       <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} />
-      <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(6)] sm:[--page-pad:--spacing(8)]">{children}</MainScroll>
+      <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)]">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
     </PeopleProvider>

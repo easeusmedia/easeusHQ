@@ -211,14 +211,23 @@ export function TaskCard({
   return (
     <div
       onClick={() => detailsRef.current?.open()}
-      className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
+      className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-1.5 rounded-xl p-3 shadow-sm"
     >
       {/* No Edit/Delete on hover any more. The whole card already opens the
           details dialog on click, so "Edit" was a second button for what a
           click already did, and Delete — the one destructive action here —
           sat one stray click away on every card. Both live in that dialog
           now, which keeps the card to just the task. */}
-      <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
+      {/* who it's for and who's on it — two facts, one line */}
+      <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
+        <span className="min-w-0 truncate">{clientName}</span>
+        {task.assignedTo && (
+          <span className="flex min-w-0 shrink items-center gap-1.5" title={task.assignedTo.name}>
+            <Avatar name={task.assignedTo.name} size={18} />
+            <span className="truncate">{task.assignedTo.name}</span>
+          </span>
+        )}
+      </div>
 
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-snug">{task.title}</p>
@@ -247,21 +256,14 @@ export function TaskCard({
           {task.internal && (
             <span
               title="Internal work — not delivered to the client"
-              className="flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs text-muted"
+              className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted"
             >
-              <EyeOff size={10} /> Internal
+              <EyeOff size={9} /> Internal
             </span>
           )}
           {task.tags.map((t) => (
             <TaskTagChip key={t.id} name={t.name} />
           ))}
-        </div>
-      )}
-
-      {task.assignedTo && (
-        <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-          <Avatar name={task.assignedTo.name} />
-          <span className="truncate">{task.assignedTo.name}</span>
         </div>
       )}
 
@@ -290,7 +292,7 @@ export function TaskCard({
         </p>
       )}
 
-      <div onClick={(e) => e.stopPropagation()}>
+      <div onClick={(e) => e.stopPropagation()} className="mt-1">
         <StatusSelect
           taskId={task.id}
           currentStatus={task.status}

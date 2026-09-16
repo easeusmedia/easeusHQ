@@ -35,10 +35,10 @@ export function StickyColumns({
     `.${scope} [data-strip]{display:${p >= n ? "block" : "none"}}` +
     `.${scope} [data-head]{display:${p >= n ? "none" : "block"}}` +
     `.${scope} [data-body]{row-gap:${p >= n ? 1 : 2}rem}`;
-  let css = layout(perRow(0, n, minColumn));
-  for (let f = 2, last = perRow(0, n, minColumn); f <= n; f++) {
-    const width = f * (minColumn + 1) - 1; // the narrowest box that fits f
-    const p = perRow(width, n, minColumn);
+  let css = layout(perRow(0, n, minColumn, GAP));
+  for (let f = 2, last = perRow(0, n, minColumn, GAP); f <= n; f++) {
+    const width = f * (minColumn + GAP) - GAP; // the narrowest box that fits f
+    const p = perRow(width, n, minColumn, GAP);
     if (p !== last) css += `@container (min-width:${width}rem){${layout(p)}}`;
     last = p;
   }
@@ -62,7 +62,7 @@ export function StickyColumns({
       <style>{css}</style>
       <div className={scope}>
         <div data-strip className={`${pinned} z-20`}>
-          <div className="grid gap-4" style={grid}>
+          <div className="grid gap-3" style={grid}>
             {columns.map((c) => (
               <div key={c.key} className="min-w-0">
                 {c.header}
@@ -70,7 +70,7 @@ export function StickyColumns({
             ))}
           </div>
         </div>
-        <div data-body className="grid items-stretch gap-x-4 pb-4" style={grid}>
+        <div data-body className="grid items-stretch gap-x-3 pb-4" style={grid}>
           {columns.map((c) => (
             <div key={c.key} className="flex min-w-0 flex-col">
               <div data-head className={`${pinned} z-10`}>
@@ -84,6 +84,9 @@ export function StickyColumns({
     </div>
   );
 }
+
+// rem between columns (gap-3)
+const GAP = 0.75;
 
 const EDGE = 80;
 

@@ -232,13 +232,6 @@ dialog[open]::backdrop {
   filter: brightness(1.35);
 }
 
-/* Task details dialog growing to fit the History panel — the panel itself
-   animates its own width (0 -> full) with the same duration/easing, in
-   TaskDetailsDialog.tsx, so the two move together as one piece instead of
-   the form column snapping to a new size the instant history opens. */
-.dialog-grow {
-  transition: width 0.3s ease-in-out;
-}
 /* flex layout only while actually open — see the long comment in
    TaskDetailsDialog.tsx on why this can't just be a `flex` Tailwind class
    on the element itself. */
