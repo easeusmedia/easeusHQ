@@ -24,8 +24,9 @@ export function isStorablePicture(dataUrl: string): boolean {
   return dataUrl.length <= 300_000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(dataUrl);
 }
 
-// The bytes and type of a stored picture, for the routes that serve them.
+// The bytes and type of a stored picture, for the routes that serve them —
+// images only, so nothing stored can ever be served as a page.
 export function decodePicture(dataUrl: string | null | undefined): { type: string; bytes: Buffer } | null {
-  const m = dataUrl?.match(/^data:([^;,]+);base64,(.+)$/);
+  const m = dataUrl?.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
   return m ? { type: m[1], bytes: Buffer.from(m[2], "base64") } : null;
 }

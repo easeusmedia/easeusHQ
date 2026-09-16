@@ -24,14 +24,18 @@ async function requirePeopleAdmin(): Promise<Viewer | null> {
   return actor;
 }
 
-// Your own photo — anyone, whatever their role. Only ever the signed-in
-// person's, and only a small image (the browser resizes it before sending).
-export async function updateOwnPhoto(dataUrl: string | null): Promise<PeopleFormState> {
+// Someone's photo. Everyone can change their own, whatever their role;
+// admin (and Abhishek) can change anyone's. Only ever a small image — the
+// browser resizes it before sending.
+export async function updatePersonPhoto(userId: string, dataUrl: string | null): Promise<PeopleFormState> {
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) return { error: "Not signed in." };
+  if (userId !== sessionUserId && !(await requirePeopleAdmin())) {
+    return { error: "Only the admin can change someone else's photo." };
+  }
   if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That picture couldn't be used — try a JPEG or PNG." };
 
-  await prisma.user.update({ where: { id: sessionUserId }, data: { avatarUrl: dataUrl } });
+  await prisma.user.update({ where: { id: userId }, data: { avatarUrl: dataUrl } });
   // the photo shows everywhere, so every page's layout needs it
   revalidatePath("/", "layout");
   return { success: true };

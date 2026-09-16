@@ -21,9 +21,9 @@ import { ProjectsSection } from "../ProjectsSection";
 
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
-import { ClientAvatar } from "../ClientAvatar";
+import { PhotoEdit } from "../../PhotoEdit";
 import { ClientTags } from "../ClientTags";
-import { listTags } from "../actions";
+import { listTags, updateClientAvatar } from "../actions";
 
 export const dynamic = "force-dynamic";
 // the Notion import runs as a server action from this page and talks to
@@ -135,7 +135,7 @@ export default async function ClientDetailPage({
       </Link>
 
       <div className="mb-8 flex items-center gap-4">
-        <ClientAvatar clientId={client.id} name={client.name} logo={clientLogoSrc(client)} />
+        <PhotoEdit name={client.name} src={clientLogoSrc(client)} save={updateClientAvatar.bind(null, client.id)} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>

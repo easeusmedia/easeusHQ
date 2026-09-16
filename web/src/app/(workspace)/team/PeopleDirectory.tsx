@@ -70,7 +70,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 export function Face({ person, size }: { person: { name: string; avatarUrl: string | null }; size: number }) {
   return person.avatarUrl ? (
     // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-    <img src={person.avatarUrl} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    <img src={person.avatarUrl} alt="" className="photo" style={{ width: size, height: size }} />
   ) : (
     <Avatar name={person.name} size={size} />
   );

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId, requireOps } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { firstFree, slugify } from "@/lib/slug";
+import { isStorablePicture } from "@/lib/photos";
 import { normalizeUrl } from "@/lib/links";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
@@ -258,10 +259,9 @@ export async function updateClientDoc(clientId: string, doc: ClientDocType, cont
 export async function updateClientAvatar(clientId: string, dataUrl: string | null): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can change a client's photo." };
-  // 500KB of base64 text is already a very generous cap for a downscaled
-  // square avatar — anything bigger means the client-side resize didn't
-  // run (or was bypassed), not a legitimately large photo
-  if (dataUrl && dataUrl.length > 500_000) return { error: "That image is too large." };
+  // a small image only — anything else means the in-browser resize didn't
+  // run (or was bypassed), and it's served back from our own site
+  if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That picture couldn't be used — try a JPEG or PNG." };
 
   await prisma.client.update({ where: { id: clientId }, data: { avatarUrl: dataUrl } });
   revalidatePath("/clients");

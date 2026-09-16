@@ -23,7 +23,7 @@ export type ClientCardData = {
 function Face({ client, size }: { client: ClientCardData; size: number }) {
   return client.logo ? (
     // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-    <img src={client.logo} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    <img src={client.logo} alt="" className="photo" style={{ width: size, height: size }} />
   ) : (
     <Avatar name={client.name} size={size} />
   );

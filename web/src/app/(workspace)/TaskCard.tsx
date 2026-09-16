@@ -111,12 +111,13 @@ export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   if (photo) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized photo behind sign-in
-      <img src={photo} alt={name} title={name} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+      <img src={photo} alt={name} title={name} className="photo" style={{ width: size, height: size }} />
     );
   }
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-black"
+      // `photo` for the same hairline edge a picture gets, so every avatar matches
+      className="photo flex items-center justify-center font-semibold leading-none text-black"
       style={{ backgroundColor: colorFor(name), width: size, height: size, fontSize: size * 0.42 }}
       title={name}
     >

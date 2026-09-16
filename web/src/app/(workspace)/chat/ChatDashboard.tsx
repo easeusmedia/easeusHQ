@@ -26,7 +26,7 @@ function isActive(p: ChatPerson) {
 function Face({ person, size }: { person: ChatPerson; size: number }) {
   return person.avatarUrl ? (
     // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-    <img src={person.avatarUrl} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    <img src={person.avatarUrl} alt="" className="photo" style={{ width: size, height: size }} />
   ) : (
     <Avatar name={person.name} size={size} />
   );

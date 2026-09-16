@@ -50,7 +50,7 @@ export function ClientSwitcher({
           <Row key={c.id} href={clientHref(c)} active={current === c.slug}>
             {c.logo ? (
               // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-              <img src={c.logo} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+              <img src={c.logo} alt="" className="photo h-6 w-6" />
             ) : (
               <Avatar name={c.name} size={24} />
             )}

@@ -281,6 +281,17 @@ dialog[open]::backdrop {
   color: var(--foreground);
 }
 
+/* Every round picture — a person's photo, a client's logo. The hairline
+   edge keeps a dark photo off a dark page (and a light one off a light
+   page) from melting into the background. Mixed from the text colour, so
+   it reads in both themes. */
+.photo {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
 .btn-add {
   border: 1px solid var(--border);
   background: linear-gradient(180deg, color-mix(in srgb, var(--foreground) 3%, transparent), transparent);

@@ -23,4 +23,6 @@ test("a stored picture decodes to its bytes and type", () => {
   assert.equal(d?.type, "image/png");
   assert.equal(d?.bytes.toString(), "hi");
   assert.equal(decodePicture(null), null);
+  // never served as anything but an image, whatever was stored
+  assert.equal(decodePicture("data:text/html;base64,PHNjcmlwdD4="), null);
 });

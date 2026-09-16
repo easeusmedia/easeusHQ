@@ -8,7 +8,7 @@ import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
-import { updateOwnPhoto } from "./team/actions";
+import { updatePersonPhoto } from "./team/actions";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, toggleClientsPanel } from "./clients/clientsPanel";
@@ -106,7 +106,7 @@ export function Sidebar({
   async function setPhoto(file: File | null) {
     setPhotoState("Saving…");
     try {
-      const res = await updateOwnPhoto(file ? await resizeToJpeg(file, 160, 160) : null);
+      const res = await updatePersonPhoto(sessionUserId, file ? await resizeToJpeg(file, 160, 160) : null);
       setPhotoState(res.error ?? null);
       if (!res.error) router.refresh();
     } catch {
