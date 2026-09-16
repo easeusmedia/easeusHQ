@@ -2,13 +2,13 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
-import { STAGE } from "@/lib/stages";
 import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { WorkTaskView } from "./WorkTaskView";
 import { ScopeToggle } from "./ScopeToggle";
 import { WorkNotionSyncButton } from "./WorkNotionSyncButton";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
+import type { GroupBy } from "@/lib/workTaskStages";
 
 export const dynamic = "force-dynamic";
 
@@ -57,14 +57,19 @@ export default async function WorkPage({
   const fallback = options.length > 1 ? options[options.length - 1].key : "mine";
   const active = options.some((o) => o.key === scope) ? scope! : fallback;
 
+  // one filter for both kinds of task: yours, one team's (everyone on it,
+  // editors included, whatever their role), or everything
   const where =
     active === "mine"
       ? { assignedToId: me.id }
       : active === "all"
         ? {}
         : { assignedTo: { team: { slug: active } } };
+  const groupOptions: GroupBy[] =
+    active === "mine" ? ["status"] : active === "all" ? ["status", "person", "team"] : ["status", "person"];
+  const assigneeSelect = { select: { ...PUBLIC_USER_SELECT, team: { select: { slug: true, name: true } } } };
 
-  const [projectsRaw, workTasks, clientTasks, taskTags, assignable] = await Promise.all([
+  const [projectsRaw, workTasks, queueTasks, taskTags, assignable] = await Promise.all([
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: true },
@@ -72,20 +77,17 @@ export default async function WorkPage({
     }),
     prisma.workTask.findMany({
       where,
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: assigneeSelect, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: { sortOrder: "asc" },
     }),
-    // read-only: whatever's already on this person's plate on the client
-    // editing queue shows up here too, so "my work" is genuinely everything
-    // and not just this system's own tasks. Only in the "mine" view — the
-    // editing queue has its own board for the team-wide picture.
-    active === "mine"
-      ? prisma.task.findMany({
-          where: { assignedToId: me.id, status: { in: ACTIVE_STATUSES } },
-          orderBy: { createdAt: "desc" },
-          include: { project: { include: { client: true } } },
-        })
-      : Promise.resolve([]),
+    // Editors' work lives on the client editing queue, a separate system —
+    // without it "Everyone" missed most of what the team is doing. Shown
+    // read-only in every scope, under the same filter as the work tasks.
+    prisma.task.findMany({
+      where: { ...where, status: { in: ACTIVE_STATUSES } },
+      orderBy: { createdAt: "desc" },
+      include: { assignedTo: assigneeSelect, project: { include: { client: true } } },
+    }),
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     // who work can be handed to: everyone, your own team, or only you
     prisma.user.findMany({
@@ -114,7 +116,7 @@ export default async function WorkPage({
     attachments: (t.attachments as WorkTaskAttachment[]) ?? [],
     projectId: t.projectId,
     project: t.project ? { name: t.project.name || t.project.type, client: { name: t.project.client.name } } : null,
-    assignedTo: { id: t.assignedTo.id, name: t.assignedTo.name },
+    assignedTo: { id: t.assignedTo.id, name: t.assignedTo.name, team: t.assignedTo.team },
     createdBy: { id: t.createdBy.id, name: t.createdBy.name },
   }));
 
@@ -123,30 +125,18 @@ export default async function WorkPage({
       {/* no page heading: the sidebar already says where you are. The scope
           picker rides in WorkTaskView's own toolbar row (right-hand side)
           rather than sitting on a row of its own above it. */}
-      {clientTasks.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium">Assigned on the editing queue</h2>
-          <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface/40">
-            {clientTasks.map((t) => (
-              <a
-                key={t.id}
-                href="/tasks"
-                className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-surface-2"
-              >
-                <span className="min-w-0 truncate">
-                  <span className="text-muted">{t.project.client.name}</span> · {t.title}
-                </span>
-                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STAGE[t.status].pill}`}>
-                  {STAGE[t.status].label}
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
       <WorkTaskView
         tasks={tasks}
+        queueTasks={queueTasks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          client: t.project.client.name,
+          project: t.project.name || t.project.type,
+          assignedTo: t.assignedTo && { id: t.assignedTo.id, name: t.assignedTo.name, team: t.assignedTo.team },
+        }))}
+        groupOptions={groupOptions}
+        teams={teams.map((t) => ({ slug: t.slug, name: t.name }))}
         projects={projects}
         actingUserId={me.id}
         showAssignee={active !== "mine"}

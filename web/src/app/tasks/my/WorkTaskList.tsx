@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { CalendarClock, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
 import { WORK_TASK_STAGE, WORK_TASK_STATUSES } from "@/lib/workTaskStages";
-import { Avatar } from "../TaskCard";
+import { AssigneeLabel } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
 import { moveWorkTask } from "./actions";
 import { WorkTaskDialog } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
+import type { GroupBy } from "@/lib/workTaskStages";
+import { GroupHeader, QueueRow, type Group } from "./grouping";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -27,7 +29,8 @@ const STATUS_OPTIONS = WORK_TASK_STATUSES.map((s) => ({ value: s, label: WORK_TA
 // for anyone who'd rather scan a column of rows than a wall of cards.
 // Status changes here via a plain dropdown per row, not drag-and-drop.
 export function WorkTaskList({
-  tasks,
+  groups,
+  groupBy,
   projects,
   actingUserId,
   showAssignee,
@@ -35,7 +38,8 @@ export function WorkTaskList({
   taskTags = [],
   canManageTags = false,
 }: {
-  tasks: WorkTaskCardData[];
+  groups: Group[];
+  groupBy: GroupBy;
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
@@ -67,17 +71,15 @@ export function WorkTaskList({
         </div>
       )}
 
-      {WORK_TASK_STATUSES.map((status) => {
-        const stage = WORK_TASK_STAGE[status];
-        const rows = tasks.filter((t) => t.status === status);
-        if (rows.length === 0) return null;
+      {groups.map((group) => {
+        const rows = group.work;
+        const count = rows.length + group.queue.length;
+        if (count === 0) return null;
+        // grouped by person, every row is theirs — no need to repeat the name
+        const rowAssignee = showAssignee && groupBy !== "person";
         return (
-          <section key={status} className="flex flex-col gap-2">
-            <div className={`status-pop flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${stage.pill}`}>
-              <span className={`h-2 w-2 rounded-full ${stage.dot}`} />
-              {stage.label}
-              <span className="rounded-full bg-black/20 px-2 text-xs">{rows.length}</span>
-            </div>
+          <section key={group.key} className="flex flex-col gap-2">
+            <GroupHeader group={group} count={count} className="w-fit" />
 
             <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40">
               {rows.map((task) => (
@@ -86,18 +88,21 @@ export function WorkTaskList({
                   task={task}
                   projects={projects}
                   actingUserId={actingUserId}
-                  showAssignee={showAssignee}
+                  showAssignee={rowAssignee}
                   assignees={assignees}
                   taskTags={taskTags} canManageTags={canManageTags}
                   onChangeStatus={(s) => changeStatus(task.id, task.sortOrder, s)}
                 />
+              ))}
+              {group.queue.map((task) => (
+                <QueueRow key={task.id} task={task} showAssignee={rowAssignee} />
               ))}
             </div>
           </section>
         );
       })}
 
-      {tasks.length === 0 && <p className="text-sm text-muted">Nothing here yet.</p>}
+      {groups.every((g) => g.work.length + g.queue.length === 0) && <p className="text-sm text-muted">Nothing here yet.</p>}
     </div>
   );
 }
@@ -166,7 +171,7 @@ function ListRow({
             </span>
           )}
         </span>
-        {showAssignee && <Avatar name={task.assignedTo.name} size={22} />}
+        {showAssignee && <AssigneeLabel name={task.assignedTo.name} />}
         {/* key={task.status}: Dropdown tracks its own selection internally
             from defaultValue at mount only — without a remount keyed to
             the actual status, it'd keep showing whatever was selected

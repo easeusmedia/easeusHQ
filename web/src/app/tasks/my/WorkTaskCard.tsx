@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { CalendarClock, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
+import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { Avatar } from "../TaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
@@ -24,7 +25,7 @@ export type WorkTaskCardData = {
   attachments: WorkTaskAttachment[];
   projectId: string | null;
   project: { name: string; client: { name: string } } | null;
-  assignedTo: { id: string; name: string };
+  assignedTo: { id: string; name: string; team?: { slug: string; name: string } | null };
   createdBy: { id: string; name: string };
 };
 
@@ -42,6 +43,7 @@ export function WorkTaskCard({
   task,
   projects,
   showAssignee,
+  showStatus = false,
   assignees = [],
   taskTags = [],
   canManageTags = false,
@@ -50,6 +52,8 @@ export function WorkTaskCard({
   task: WorkTaskCardData;
   projects: Project[];
   showAssignee: boolean;
+  // on a board grouped by person or team, the column no longer says it
+  showStatus?: boolean;
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
   canManageTags?: boolean;
@@ -65,6 +69,11 @@ export function WorkTaskCard({
         onClick={() => dialogRef.current?.open()}
         className="card-surface card-interactive flex w-full flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
+        {showStatus && (
+          <span className={`w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${WORK_TASK_STAGE[task.status].pill}`}>
+            {WORK_TASK_STAGE[task.status].label}
+          </span>
+        )}
         {(task.tags.length > 0 || task.category) && (
           <span className="flex w-fit flex-wrap items-center gap-1">
             {task.tags.map((t) => (
