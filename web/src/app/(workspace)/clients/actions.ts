@@ -150,7 +150,7 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can update invoices." };
 
-  const invoice = await prisma.invoice.update({ where: { id: invoiceId }, data: { status } });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { status } });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -165,6 +165,24 @@ export async function updateClientStatus(clientId: string, status: string): Prom
 
   await prisma.client.update({ where: { id: clientId }, data: { status } });
   revalidatePath("/clients");
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
+// The client's own page at their address, for anyone not signed in (see
+// proxy.ts). Ops only; off by default.
+export async function setClientSharing(clientId: string, enabled: boolean): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can share a client's page." };
+  await prisma.client.update({ where: { id: clientId }, data: { shareEnabled: enabled } });
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
+export async function markClientFeedbackRead(clientId: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can do that." };
+  await prisma.clientFeedback.updateMany({ where: { clientId, readAt: null }, data: { readAt: new Date() } });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -354,7 +372,7 @@ export async function updateDeliverable(
   if (!user) return { error: "Only ops team members can edit deliverables." };
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
-  const d = await prisma.deliverable.update({
+  await prisma.deliverable.update({
     where: { id },
     data: { name: name.trim(), detail: detail.trim() || null, deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0) },
   });
@@ -366,7 +384,7 @@ export async function deleteDeliverable(id: string): Promise<{ error?: string }>
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can edit deliverables." };
 
-  const d = await prisma.deliverable.delete({ where: { id } });
+  await prisma.deliverable.delete({ where: { id } });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -482,7 +500,7 @@ export async function toggleOnboardingStep(stepId: string, done: boolean): Promi
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can update onboarding." };
 
-  const step = await prisma.onboardingStep.update({ where: { id: stepId }, data: { done } });
+  await prisma.onboardingStep.update({ where: { id: stepId }, data: { done } });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -647,7 +665,7 @@ export async function updateProject(
   }
   if (data.status !== "completed") completedAt = null;
 
-  const project = await prisma.project.update({
+  await prisma.project.update({
     where: { id: projectId },
     data: {
       name: data.name.trim(),

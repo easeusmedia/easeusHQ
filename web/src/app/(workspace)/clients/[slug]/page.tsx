@@ -20,6 +20,8 @@ import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
 
 import { StatusDropdown } from "../StatusDropdown";
+import { ClientShare } from "../ClientShare";
+import { ClientFeedbackList } from "../ClientFeedbackList";
 import { ClientTabs } from "../ClientTabs";
 import { PhotoEdit } from "../../PhotoEdit";
 import { ClientTags } from "../ClientTags";
@@ -66,6 +68,7 @@ export default async function ClientDetailPage({
       deliverables: { orderBy: { sortOrder: "asc" } },
       onboarding: { orderBy: { sortOrder: "asc" } },
       tags: true,
+      feedback: { orderBy: { createdAt: "desc" }, take: 20 },
     },
   });
   if (!client) notFound();
@@ -144,6 +147,12 @@ export default async function ClientDetailPage({
           {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
           <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
         </div>
+        {/* the client's own page at this address, for the team to switch on */}
+        {me.role !== "employee" && (
+          <div className="ml-auto self-start">
+            <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />
+          </div>
+        )}
       </div>
 
       <div className="mb-10">
@@ -164,6 +173,18 @@ export default async function ClientDetailPage({
             label: "Overview",
             content: (
               <div className="flex flex-col gap-10">
+                {client.feedback.length > 0 && (
+                  <ClientFeedbackList
+                    clientId={client.id}
+                    items={client.feedback.map((f) => ({
+                      id: f.id,
+                      name: f.name,
+                      message: f.message,
+                      createdAt: f.createdAt.toISOString(),
+                      unread: !f.readAt,
+                    }))}
+                  />
+                )}
                 <ClientOnboarding clientId={client.id} steps={client.onboarding} />
 
                 <section>

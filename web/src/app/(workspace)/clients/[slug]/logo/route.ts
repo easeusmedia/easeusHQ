@@ -5,10 +5,11 @@ import { decodePicture } from "@/lib/photos";
 // A client's logo, served as an image. It's stored as a data: URI (see
 // Client.avatarUrl); pages link here instead of inlining it (clientLogoSrc),
 // and the ?v= in that link changes with the logo, so it caches for good.
+// Open to the team, and to anyone while the client's page is shared.
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  if (!(await getSessionUserId())) return new Response(null, { status: 401 });
   const { slug } = await params;
-  const client = await prisma.client.findUnique({ where: { slug }, select: { avatarUrl: true } });
+  const client = await prisma.client.findUnique({ where: { slug }, select: { avatarUrl: true, shareEnabled: true } });
+  if (!client?.shareEnabled && !(await getSessionUserId())) return new Response(null, { status: 401 });
   const picture = decodePicture(client?.avatarUrl);
   if (!picture) return new Response(null, { status: 404 });
 

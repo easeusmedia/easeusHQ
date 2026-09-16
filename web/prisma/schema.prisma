@@ -254,7 +254,12 @@ model Client {
   // two others is a single write (their midpoint).
   sortOrder Float @default(0)
 
+  // Off until ops switches it on: the client's own read-only page at the
+  // same address (/clients/<slug>) for anyone not signed in — see proxy.ts.
+  shareEnabled Boolean @default(false)
+
   projects     Project[]
+  feedback     ClientFeedback[]
   invoices     Invoice[]
   deliverables Deliverable[]
   onboarding   OnboardingStep[]
@@ -529,6 +534,20 @@ model Feedback {
   authorId  String
   body      String
   createdAt DateTime @default(now())
+}
+
+// What a client sends from their shared page. Nobody signs in to send it,
+// so it's only ever text, capped, and rate-limited per client.
+model ClientFeedback {
+  id        String    @id @default(uuid())
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId  String
+  name      String?
+  message   String    @db.Text
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([clientId, createdAt])
 }
 
 model KpiSnapshot {
