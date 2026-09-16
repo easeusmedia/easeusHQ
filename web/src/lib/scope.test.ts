@@ -5,8 +5,8 @@ import {
   canEditPeople,
   canEditTag,
   canSeeMember,
-  seesAllWork,
   seesEveryTeam,
+  viewScope,
   visibleTagWhere,
   type Viewer,
 } from "./scope.ts";
@@ -20,26 +20,37 @@ const arpit: Viewer = { id: "u-arpit", role: "core", email: "arpit@easeus.media"
 const pankaj: Viewer = { id: "u-pankaj", role: "core", email: "pankaj@easeus.media", teamId: SALES };
 const sparsh: Viewer = { id: "u-sparsh", role: "employee", email: "sparsh@easeus.media", teamId: OPS };
 
-test("only admin and Abhishek have admin-level access", () => {
+test("admin and Abhishek see every team; other core members do not", () => {
   assert.equal(seesEveryTeam(ashmit), true);
   assert.equal(seesEveryTeam(abhishek), true); // core by role, full access by identity
   assert.equal(seesEveryTeam(arpit), false);
   assert.equal(seesEveryTeam(pankaj), false);
 });
 
-test("every core member sees all work; an employee sees only their own", () => {
-  assert.equal(seesAllWork(ashmit), true);
-  assert.equal(seesAllWork(arpit), true);
-  assert.equal(seesAllWork(pankaj), true);
-  assert.equal(seesAllWork(sparsh), false);
-  assert.deepEqual(assigneeWhere(pankaj), {});
+test("a core member's scope is their own team; an employee's is themselves", () => {
+  assert.deepEqual(viewScope(ashmit), "all");
+  assert.deepEqual(viewScope(arpit), { teamId: OPS });
+  assert.deepEqual(viewScope(pankaj), { teamId: SALES });
+  assert.equal(viewScope(sparsh), null);
+});
+
+test("a core member with no team set falls back to themselves, not to everything", () => {
+  const stray: Viewer = { id: "u-x", role: "core", email: "x@easeus.media", teamId: null };
+  assert.equal(viewScope(stray), null);
+  assert.deepEqual(assigneeWhere(stray), { assignedToId: "u-x" });
+});
+
+test("the task filter matches the scope", () => {
+  assert.deepEqual(assigneeWhere(ashmit), {});
+  assert.deepEqual(assigneeWhere(arpit), { assignedTo: { teamId: OPS } });
   assert.deepEqual(assigneeWhere(sparsh), { assignedToId: "u-sparsh" });
 });
 
-test("core members see across teams; an employee sees no one else", () => {
-  assert.equal(canSeeMember(pankaj, sparsh), true);
-  assert.equal(canSeeMember(arpit, pankaj), true);
-  assert.equal(canSeeMember(sparsh, arpit), false);
+test("Sales core cannot see Operations people, and vice versa", () => {
+  assert.equal(canSeeMember(pankaj, sparsh), false);
+  assert.equal(canSeeMember(arpit, pankaj), false);
+  assert.equal(canSeeMember(arpit, sparsh), true); // same team
+  assert.equal(canSeeMember(ashmit, pankaj), true); // admin sees all
 });
 
 test("everyone can see themselves, including an employee", () => {

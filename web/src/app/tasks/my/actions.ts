@@ -115,13 +115,17 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
   // workbook, or an Operations editor whose work belongs in the shared queue
   const tasks = await prisma.workTask.findMany({
     where: {
-      ...assigneeWhere(viewer),
-      assignedTo: {
-        OR: [
-          { notionWorkbookDbId: { not: null } },
-          { role: { not: "admin" }, team: { slug: "operations" } },
-        ],
-      },
+      AND: [
+        assigneeWhere(viewer),
+        {
+          assignedTo: {
+            OR: [
+              { notionWorkbookDbId: { not: null } },
+              { role: { not: "admin" }, team: { slug: "operations" } },
+            ],
+          },
+        },
+      ],
     },
     select: { id: true },
     take: 100,
