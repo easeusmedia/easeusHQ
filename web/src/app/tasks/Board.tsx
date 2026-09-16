@@ -238,7 +238,10 @@ export function Board({
   const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
 
   return (
-    <div className="flex h-full flex-col">
+    // the height left over, not h-full: the toolbar above it shares the same
+    // screen, and a full-height board under it pushed the whole page into a
+    // small scroll that slid the toolbar out of view. Only the columns scroll.
+    <div className="flex min-h-0 flex-1 flex-col">
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
