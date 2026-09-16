@@ -134,35 +134,11 @@ export function ProjectsSection({
         <h2 className="text-sm font-medium">Projects</h2>
 
         <div ref={ref} className="relative flex items-center gap-2">
-          {/* how to look at them: as a list of projects, or split into the
-              invoices they were billed in */}
-          {batches.length > 0 && (
-            <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
-              {(
-                [
-                  [false, LayoutGrid, "Projects"],
-                  [true, Receipt, "By invoice"],
-                ] as const
-              ).map(([on, Icon, label]) => (
-                <button
-                  key={label}
-                  onClick={() => selectPreset(on ? "invoice" : DEFAULT_PRESET)}
-                  aria-pressed={grouped === on}
-                  className={`flex items-center gap-1.5 rounded px-2 py-0.5 text-xs ${
-                    grouped === on ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon size={12} /> {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {!grouped && !isDefault && (
+          {!isDefault && (
             <button onClick={() => selectPreset(DEFAULT_PRESET)} className="text-xs text-muted hover:text-foreground">
               Reset
             </button>
           )}
-          {!grouped && (
           <button
             onClick={() => setOpen((v) => !v)}
             className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
@@ -174,7 +150,9 @@ export function ProjectsSection({
             <Filter size={12} />
             {isDefault
               ? "Filter"
-              : batch
+              : grouped
+                ? "By invoice"
+                : batch
                 ? batch.label
                 : dateFilterActive
                   ? "Custom range"
@@ -182,75 +160,107 @@ export function ProjectsSection({
                     ? `Last ${preset}`
                     : "All"}
           </button>
-          )}
 
-          {open && !grouped && (
+          {open && (
             // w-[21.5rem]: wide enough to hold the date pickers' own
             // calendar popovers (20rem) without them spilling off the edge
             <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
-              <p className="mb-1.5 text-xs font-medium text-muted">Show</p>
-              <div className="flex flex-wrap gap-1.5">
-                {PRESETS.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => selectPreset(p)}
-                    className={`rounded-md px-2 py-1 text-xs ${
-                      !batch && !dateFilterActive && preset === p
-                        ? "bg-hover text-foreground"
-                        : "bg-surface text-muted hover:text-foreground"
-                    }`}
-                  >
-                    Last {p}
-                  </button>
-                ))}
-                <button
-                  onClick={() => selectPreset("all")}
-                  className={`rounded-md px-2 py-1 text-xs ${
-                    !batch && !dateFilterActive && preset === "all"
-                      ? "bg-hover text-foreground"
-                      : "bg-surface text-muted hover:text-foreground"
-                  }`}
-                >
-                  All
-                </button>
-              </div>
-
-              <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
-              <div className="flex flex-col gap-2">
-                <DatePicker value={from} onChange={(v) => pickDate(setFrom, v)} placeholder="From…" />
-                <DatePicker value={to} onChange={(v) => pickDate(setTo, v)} placeholder="To…" />
-              </div>
-              {dateFilterActive && (
-                <button
-                  onClick={() => {
-                    setFrom("");
-                    setTo("");
-                  }}
-                  className="mt-2 text-xs text-muted hover:text-foreground"
-                >
-                  Clear dates
-                </button>
+              {/* how to look at them: as a list, or split into the invoices
+                  they were billed in — only where the client has a rule */}
+              {batches.length > 0 && (
+                <>
+                  <p className="mb-1.5 text-xs font-medium text-muted">View</p>
+                  <div className="mb-3 flex gap-1.5">
+                    {(
+                      [
+                        [false, LayoutGrid, "Projects"],
+                        [true, Receipt, "By invoice"],
+                      ] as const
+                    ).map(([on, Icon, label]) => (
+                      <button
+                        key={label}
+                        onClick={() => selectPreset(on ? "invoice" : DEFAULT_PRESET)}
+                        aria-pressed={grouped === on}
+                        className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs ${
+                          grouped === on ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
+                        }`}
+                      >
+                        <Icon size={12} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
 
-              {/* One invoice's worth of work, by the client's billing rule
-                  (every N projects, or once a month). A single field like the
-                  dates above, named the way the invoice itself is. */}
-              <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Invoice</p>
-              {batches.length > 0 ? (
-                <Dropdown
-                  key={batchKey ?? "any"}
-                  defaultValue={batchKey ?? ""}
-                  placeholder="Any invoice"
-                  onChange={(v) => (v ? selectBatch(v) : setBatchKey(null))}
-                  options={[
-                    { value: "", label: "Any invoice" },
-                    ...batches.map((b) => ({ value: b.key, label: `${b.label} · ${b.detail}` })),
-                  ]}
-                />
-              ) : (
-                <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted">
-                  {billing.cadence ? "No finished projects to invoice yet" : "No invoicing rule set for this client"}
-                </p>
+              {/* the by-invoice view already shows everything, so the ways of
+                  narrowing a list only apply to the list */}
+              {!grouped && (
+                <>
+                  <p className="mb-1.5 text-xs font-medium text-muted">Show</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESETS.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => selectPreset(p)}
+                        className={`rounded-md px-2 py-1 text-xs ${
+                          !batch && !dateFilterActive && preset === p
+                            ? "bg-hover text-foreground"
+                            : "bg-surface text-muted hover:text-foreground"
+                        }`}
+                      >
+                        Last {p}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => selectPreset("all")}
+                      className={`rounded-md px-2 py-1 text-xs ${
+                        !batch && !dateFilterActive && preset === "all"
+                          ? "bg-hover text-foreground"
+                          : "bg-surface text-muted hover:text-foreground"
+                      }`}
+                    >
+                      All
+                    </button>
+                  </div>
+
+                  <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
+                  <div className="flex flex-col gap-2">
+                    <DatePicker value={from} onChange={(v) => pickDate(setFrom, v)} placeholder="From…" />
+                    <DatePicker value={to} onChange={(v) => pickDate(setTo, v)} placeholder="To…" />
+                  </div>
+                  {dateFilterActive && (
+                    <button
+                      onClick={() => {
+                        setFrom("");
+                        setTo("");
+                      }}
+                      className="mt-2 text-xs text-muted hover:text-foreground"
+                    >
+                      Clear dates
+                    </button>
+                  )}
+
+                  {/* One invoice's worth of work, by the client's billing rule
+                      (every N projects, or once a month). A single field like the
+                      dates above, named the way the invoice itself is. */}
+                  <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Invoice</p>
+                  {batches.length > 0 ? (
+                    <Dropdown
+                      key={batchKey ?? "any"}
+                      defaultValue={batchKey ?? ""}
+                      placeholder="Any invoice"
+                      onChange={(v) => (v ? selectBatch(v) : setBatchKey(null))}
+                      options={[
+                        { value: "", label: "Any invoice" },
+                        ...batches.map((b) => ({ value: b.key, label: `${b.label} · ${b.detail}` })),
+                      ]}
+                    />
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted">
+                      {billing.cadence ? "No finished projects to invoice yet" : "No invoicing rule set for this client"}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
