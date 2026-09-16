@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCloseOnScroll, usePopover } from "./popover";
+import { topLayer, useCloseOnScroll, usePopover } from "./popover";
 
 const MONTHS = [
   "January",
@@ -116,8 +116,10 @@ export function DatePicker({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  const PANEL_HEIGHT = 380; // roughly the rendered popover, for the flip check
-  const { position, place } = usePopover(PANEL_HEIGHT);
+  // the rendered calendar is 24rem tall; used to flip it above the field
+  // when there's no room below, sitting right against it
+  const rem = typeof window === "undefined" ? 16 : parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const { position, place } = usePopover(24 * rem);
   const close = useCallback(() => setOpen(false), []);
   useCloseOnScroll(open, close);
 
@@ -189,7 +191,8 @@ export function DatePicker({
 
       {open && position && (
         <div
-          style={{ top: position.top, left: position.left + shift, width: panelWidth }}
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left + shift, width: panelWidth }}
           className="pop-in fixed z-50 rounded-xl border border-border bg-surface p-3 shadow-2xl"
         >
           <div className="mb-3 flex items-center justify-between gap-2">

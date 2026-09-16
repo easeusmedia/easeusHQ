@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePopover, useCloseOnScroll } from "./popover";
+import { topLayer, usePopover, useCloseOnScroll } from "./popover";
 import { useRouter } from "next/navigation";
 import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { moveTask } from "./actions";
@@ -233,9 +233,10 @@ export function StatusSelect({
         </button>
         {open && position && (
           <div
+            {...topLayer}
             // right-aligned to the pill: the menu (11rem) is wider than the
             // pill it hangs off, so left-aligning pushed it past the edge
-            style={{ top: position.top, left: Math.max(8, position.left + position.width - 176) }}
+            style={{ top: position.top, bottom: position.bottom, left: Math.max(8, position.left + position.width - 176) }}
             className="pop-in fixed z-50 w-44 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
           >
             {options.map((to) => (
@@ -283,9 +284,11 @@ export function StatusSelect({
       </button>
       {open && position && (
         <div
+          {...topLayer}
           // never narrower than the longest stage name, and kept on screen
           style={{
             top: position.top,
+            bottom: position.bottom,
             left: Math.max(8, Math.min(position.left, window.innerWidth - Math.max(position.width, 176) - 8)),
             width: Math.max(position.width, 176),
           }}

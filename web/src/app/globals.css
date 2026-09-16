@@ -311,3 +311,18 @@ dialog[open]::backdrop {
   height: 0;
   display: none;
 }
+
+/* Menus drawn in the top layer (popover.ts) look like any other element:
+   the browser's own popover box — centred, padded, bordered, canvas-coloured
+   — is undone here, underneath the utilities that style each menu. */
+@layer base {
+  [popover] {
+    margin: 0;
+    inset: auto;
+    padding: 0;
+    border: 0;
+    color: var(--foreground);
+    background: none;
+    overflow: visible;
+  }
+}

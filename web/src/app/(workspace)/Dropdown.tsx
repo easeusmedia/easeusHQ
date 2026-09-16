@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePopover, useCloseOnScroll } from "./popover";
+import { topLayer, usePopover, useCloseOnScroll } from "./popover";
 import { ChevronDown } from "lucide-react";
 
 // Native <select> option lists are OS-rendered and can't be restyled (that
@@ -79,7 +79,8 @@ export function Dropdown({
         // fixed, not absolute: an absolute menu is clipped by whichever
         // scrolling ancestor it happens to sit in (see popover.ts)
         <div
-          style={{ top: position.top, left: position.left, width: position.width }}
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
           className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg"
         >
           {options.map((o) => (
