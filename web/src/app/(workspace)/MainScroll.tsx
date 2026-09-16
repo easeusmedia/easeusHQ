@@ -92,7 +92,8 @@ export function MainScroll({ children, className }: { children: React.ReactNode;
   }, [pathname]);
 
   return (
-    <div ref={ref} className={className}>
+    // data-scroll-root: boards scroll this while a card is dragged near its edge
+    <div ref={ref} data-scroll-root className={className}>
       {children}
     </div>
   );

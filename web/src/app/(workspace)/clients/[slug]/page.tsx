@@ -129,9 +129,8 @@ export default async function ClientDetailPage({
     // layout now, as a sibling of this whole page rather than something
     // rendered from inside it — see ClientSwitcher's own comment for why
     //
-    // min-h-full + flex column: the task-board tab fills the height left
-    // under the tab strip and scrolls inside itself, the way the main
-    // dashboard does. Every other tab just grows and lets the page scroll.
+    // Every tab, the task board included, just grows and lets the page
+    // scroll; the board keeps its stage headers pinned while it does.
     <div className="flex min-h-full flex-col">
       <Link href="/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft size={14} /> Clients
@@ -252,16 +251,11 @@ export default async function ClientDetailPage({
             label: "Task board",
             count: tasks.length,
             bleed: true,
-            // Exactly the dashboard's board, not a second layout for it.
-            // This used to run in `flow` mode, which squeezed all seven
-            // stages into the available width (columns ~85px wide, titles
-            // wrapping over four lines) and added its own px-6/px-8 on top
-            // of the page padding it already sat inside — the "compressed,
-            // too much left-right padding" this is fixing. The wrapper
-            // cancels that page padding on the sides and gives the board a
-            // real height to fill, which is all the dashboard does too.
+            // Exactly the dashboard's board, not a second layout for it: the
+            // page scrolls, the stage headers stay pinned, and wide boards
+            // scroll sideways (see StickyColumns).
             content: (
-              <div className="-mx-6 flex min-h-0 flex-1 flex-col sm:-mx-8">
+              <div className="flex min-h-0 flex-1 flex-col">
                 <Board
                   tasks={tasks}
                   projects={boardProjects}

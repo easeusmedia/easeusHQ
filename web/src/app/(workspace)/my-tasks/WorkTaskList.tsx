@@ -81,7 +81,10 @@ export function WorkTaskList({
         const rowAssignee = showAssignee && groupBy !== "person";
         return (
           <section key={group.key} className="flex flex-col gap-2">
-            <GroupHeader group={group} count={count} className="w-fit" />
+            {/* pinned while its own rows scroll past */}
+            <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
+              <GroupHeader group={group} count={count} className="w-fit" />
+            </div>
 
             {rows.length > 0 && (
             <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40">

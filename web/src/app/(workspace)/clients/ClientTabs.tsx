@@ -62,12 +62,8 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
         <div
           key={t.key}
           hidden={active !== t.key}
-          // A bleed tab (the task board) fills the height left under the
-          // tab strip and scrolls inside itself, exactly like the main
-          // dashboard — so it needs to be a flex child that can shrink.
-          // Only while it's the open one: giving a basis-0 flex-1 box to a
-          // normal tab would size it to the leftover space rather than its
-          // content, and a long Overview would overflow its own panel.
+          // A bleed tab (the task board) takes the page's full width rather
+          // than the reading column the other tabs sit in.
           className={t.bleed ? (active === t.key ? "flex min-h-0 flex-1 flex-col" : undefined) : width}
         >
           {t.content}

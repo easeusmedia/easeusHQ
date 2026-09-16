@@ -6,6 +6,7 @@ import type { WorkTaskStatus } from "@prisma/client";
 import { moveWorkTask, reorderWorkTask } from "./actions";
 import { WorkTaskCard, type WorkTaskCardData } from "./WorkTaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
+import { StickyColumns } from "../StickyColumns";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
 import { GroupHeader, QueueCard, type Group, type QueueEnv } from "./grouping";
@@ -124,34 +125,38 @@ export function WorkTaskBoard({
         </div>
       )}
 
-      {/* By person or team: one column per group, scrolling sideways when
-          there are more than fit. Nothing to drag between — moving a card
-          to another person isn't a status change — so status is shown on
-          each card and changed from the task itself. */}
-      {groupBy !== "status" && (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {groups.map((group) => (
-            <section key={group.key} className="flex w-72 shrink-0 flex-col gap-3">
-              <GroupHeader group={group} count={group.work.length + group.queue.length} />
-              {group.work.map((task) => (
-                <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy !== "person"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-              ))}
-              {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
-            </section>
-          ))}
-          {groups.length === 0 && <p className="text-sm text-muted">Nothing here yet.</p>}
-        </div>
-      )}
+      {/* By person or team: one column per group. Nothing to drag between —
+          moving a card to another person isn't a status change — so status
+          is shown on each card and changed from the task itself. Headers
+          stay pinned as the page scrolls (see StickyColumns). */}
+      {groupBy !== "status" &&
+        (groups.length === 0 ? (
+          <p className="text-sm text-muted">Nothing here yet.</p>
+        ) : (
+          <StickyColumns headers={groups.map((group) => <GroupHeader key={group.key} group={group} count={group.work.length + group.queue.length} />)}>
+            {groups.map((group) => (
+              <section key={group.key} className="flex min-w-0 flex-col gap-3">
+                {group.work.map((task) => (
+                  <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy !== "person"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+                ))}
+                {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
+              </section>
+            ))}
+          </StickyColumns>
+        ))}
 
       {groupBy === "status" && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StickyColumns
+          minColumn="14rem"
+          headers={groups.map((group) => (
+            <GroupHeader key={group.key} group={group} count={columnOf(group.status!).length + group.queue.length} />
+          ))}
+        >
           {groups.map((group) => {
             const status = group.status!;
             const columnTasks = columnOf(status);
             return (
               <section key={status} className="flex min-w-0 flex-col gap-3">
-                <GroupHeader group={group} count={columnTasks.length + group.queue.length} />
-
                 {status === "todo" && canCreate && (
                   <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
                 )}
@@ -182,7 +187,7 @@ export function WorkTaskBoard({
               </section>
             );
           })}
-        </div>
+        </StickyColumns>
       )}
     </div>
   );

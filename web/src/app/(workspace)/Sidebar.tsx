@@ -372,7 +372,7 @@ export function Sidebar({
           className={`group/tip relative flex items-center rounded-md text-left hover:bg-surface-2 ${open ? "w-full gap-2" : "gap-0"}`}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
-            <Avatar name={name} size={26} />
+            <Avatar name={name} size={26} presence={false} />
           </span>
           <FadeLabel open={open}>
             <span className="text-sm">{name}</span>

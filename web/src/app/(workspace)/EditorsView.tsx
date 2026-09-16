@@ -28,17 +28,11 @@ export function EditorsView({ switcher, ...props }: Props) {
 
   return (
     <>
-      <Toolbar
-        left={<ViewToggle view={view} onChange={setView} />}
-        center={switcher}
-        // the board's columns bring their own top padding; this eats most of
-        // it so the gap under the toolbar matches the other views
-        className={`px-6 pt-6 sm:px-8 sm:pt-8 ${view === "board" ? "-mb-2 sm:-mb-4" : ""}`}
-      />
+      <Toolbar left={<ViewToggle view={view} onChange={setView} />} center={switcher} className="mb-1" />
       {view === "board" ? (
         <Board {...props} canCreate />
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto p-6 pt-4 sm:p-8 sm:pt-4">
+        <div className="pt-3">
           <EditorsList {...props} />
         </div>
       )}
@@ -58,10 +52,13 @@ function EditorsList({ tasks, projects, editors, actingUserId, actingRole, taskT
     <div className="flex flex-col gap-6">
       {sections.map(({ status, rows }) => (
         <section key={status} className="flex flex-col gap-2">
-          <div className={`status-pop flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STAGE[status].pill}`}>
-            <span className={`h-2 w-2 rounded-full ${STAGE[status].dot}`} />
-            {STAGE[status].label}
-            <span className="rounded-full bg-black/20 px-2 text-xs">{rows.length}</span>
+          {/* pinned while its own rows scroll past */}
+          <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
+            <div className={`status-pop flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STAGE[status].pill}`}>
+              <span className={`h-2 w-2 rounded-full ${STAGE[status].dot}`} />
+              {STAGE[status].label}
+              <span className="rounded-full bg-black/20 px-2 text-xs">{rows.length}</span>
+            </div>
           </div>
           <ul className="flex flex-col gap-2">
             {rows.map((task) => (

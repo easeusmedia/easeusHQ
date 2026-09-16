@@ -23,13 +23,9 @@ function isActive(p: ChatPerson) {
   return !!p.lastSeenAt && Date.now() - new Date(p.lastSeenAt).getTime() < ACTIVE_WINDOW_MS;
 }
 
+// a person's photo (or initials) and online dot — the shared avatar
 function Face({ person, size }: { person: ChatPerson; size: number }) {
-  return person.avatarUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-    <img src={person.avatarUrl} alt="" className="photo" style={{ width: size, height: size }} />
-  ) : (
-    <Avatar name={person.name} size={size} />
-  );
+  return <Avatar name={person.name} size={size} />;
 }
 
 // "4m", "3h", "2d" — a conversation list wants elapsed time at a glance,
@@ -145,14 +141,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                   selected ? "bg-surface-2" : "hover:bg-surface-2/60"
                 }`}
               >
-                <span className="relative shrink-0">
-                  <Face person={p} size={38} />
-                  <span
-                    className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-surface ${
-                      isActive(p) ? "bg-green-400" : "bg-muted"
-                    }`}
-                  />
-                </span>
+                <Face person={p} size={38} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className={`truncate text-sm ${p.unread > 0 ? "font-semibold" : "font-medium"}`}>{p.name}</span>

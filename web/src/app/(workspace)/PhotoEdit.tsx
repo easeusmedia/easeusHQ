@@ -13,11 +13,14 @@ export function PhotoEdit({
   name,
   src,
   size = 56,
+  person = false,
   save,
 }: {
   name: string;
   src: string | null;
   size?: number;
+  // a teammate: drawn by the shared avatar, so it gets their online dot too
+  person?: boolean;
   save: (dataUrl: string | null) => Promise<{ error?: string }>;
 }) {
   const router = useRouter();
@@ -41,7 +44,9 @@ export function PhotoEdit({
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="group relative">
-        {src ? (
+        {person ? (
+          <Avatar name={name} size={size} />
+        ) : src ? (
           // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized picture behind sign-in
           <img src={src} alt={name} className="photo" style={{ width: size, height: size }} />
         ) : (

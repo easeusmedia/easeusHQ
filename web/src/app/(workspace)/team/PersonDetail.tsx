@@ -168,7 +168,7 @@ export function PersonDetail({
       <header className="flex items-center gap-4 border-b border-border px-6 py-5">
         {/* the admin can change anyone's photo here, and you can change your own */}
         {canEdit || isSelf ? (
-          <PhotoEdit name={person.name} src={person.avatarUrl} size={64} save={(d) => updatePersonPhoto(person.id, d)} />
+          <PhotoEdit person name={person.name} src={person.avatarUrl} size={64} save={(d) => updatePersonPhoto(person.id, d)} />
         ) : (
           <Face person={person} size={64} />
         )}

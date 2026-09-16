@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { NotesButton } from "./NotesButton";
-import { usePhoto } from "./photos";
+import { useOnline, usePhoto } from "./photos";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
 import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
@@ -106,14 +106,32 @@ export type TaskCardData = {
   project: { name: string; type: string; client: { name: string } };
 };
 
-export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
+// `presence`: whether to show the green online dot. On everywhere a person
+// appears, except where the avatar is your own account button.
+export function Avatar({ name, size = 24, presence = true }: { name: string; size?: number; presence?: boolean }) {
   const photo = usePhoto(name);
-  if (photo) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized photo behind sign-in
-      <img src={photo} alt={name} title={name} className="photo" style={{ width: size, height: size }} />
-    );
-  }
+  const online = useOnline(name) && presence;
+  const face = photo ? (
+    // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized photo behind sign-in
+    <img src={photo} alt={name} title={name} className="photo" style={{ width: size, height: size }} />
+  ) : (
+    <Initials name={name} size={size} />
+  );
+  if (!online) return face;
+  const dot = Math.max(7, Math.round(size * 0.3));
+  return (
+    <span className="relative inline-flex shrink-0">
+      {face}
+      <span
+        title={`${name} is online`}
+        className="absolute -bottom-px -right-px rounded-full bg-green-500 ring-2 ring-background"
+        style={{ width: dot, height: dot }}
+      />
+    </span>
+  );
+}
+
+function Initials({ name, size }: { name: string; size: number }) {
   return (
     <span
       // `photo` for the same hairline edge a picture gets, so every avatar matches

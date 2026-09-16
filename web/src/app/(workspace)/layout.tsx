@@ -12,7 +12,8 @@ import { getUnreadBySender } from "./presence/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
 import { CLIENTS_PANEL_COOKIE } from "./clients/clientsPanel";
 import { MainScroll } from "./MainScroll";
-import { PhotosProvider } from "./photos";
+import { PeopleProvider } from "./photos";
+import { ACTIVE_WINDOW_MS } from "./presence/constants";
 import { clientLogoSrc } from "@/lib/photos";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
@@ -47,9 +48,12 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   ).map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
+  // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
+  const now = Date.now();
+  const online = users.filter((u) => u.lastSeenAt && now - u.lastSeenAt.getTime() < ACTIVE_WINDOW_MS).map((u) => u.name);
 
   return (
-    <PhotosProvider photos={photos}>
+    <PeopleProvider photos={photos} online={online}>
     <div className="flex h-screen bg-background text-foreground">
       <LiveRefresh />
       <PresenceHeartbeat />
@@ -69,9 +73,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           scrolling child. It only renders on a client's own page (checks
           the URL itself), so every other page is unaffected. */}
       <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} />
-      <MainScroll className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</MainScroll>
+      <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(6)] sm:[--page-pad:--spacing(8)]">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
-    </PhotosProvider>
+    </PeopleProvider>
   );
 }

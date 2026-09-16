@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
+import { StickyColumns } from "./StickyColumns";
 import { moveTask, reorderTask } from "./actions";
 import { linkProblem, pickLink } from "@/lib/links";
 import { STAGE } from "@/lib/stages";
@@ -70,7 +71,6 @@ export function Board({
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
@@ -175,23 +175,6 @@ export function Board({
   // a stage that's off to the side, and — the one that actually bites —
   // you can't drag the last card of a long column anywhere above the fold,
   // because the board won't follow you up.
-  function autoScroll(e: React.DragEvent<HTMLDivElement>) {
-    const el = scrollRef.current;
-    if (!el) return;
-    const { left, right } = el.getBoundingClientRect();
-    const edge = 100;
-    if (e.clientX < left + edge) el.scrollLeft -= 20;
-    else if (e.clientX > right - edge) el.scrollLeft += 20;
-  }
-
-  // and vertically inside whichever column the cursor is currently over
-  function scrollColumn(e: React.DragEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    const { top, bottom } = el.getBoundingClientRect();
-    const edge = 70;
-    if (e.clientY < top + edge) el.scrollTop -= 16;
-    else if (e.clientY > bottom - edge) el.scrollTop += 16;
-  }
 
   // one drop handler per column, attached to the whole card-list container
   // (not per card) — covers dropping on a card, between cards, or in the
@@ -238,10 +221,7 @@ export function Board({
   const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
 
   return (
-    // the height left over, not h-full: the toolbar above it shares the same
-    // screen, and a full-height board under it pushed the whole page into a
-    // small scroll that slid the toolbar out of view. Only the columns scroll.
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-col">
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
@@ -309,47 +289,31 @@ export function Board({
         )}
       </dialog>
 
-      {/* Every column is exactly one screen tall and scrolls its own cards.
-          The board itself only scrolls sideways.
-
-          This is what makes a drag across columns work from anywhere. When
-          the board scrolled as one tall surface, a long column made that
-          surface tall but the short columns still only stretched to one
-          screen — so once you scrolled past that, the other stages had no
-          drop area under your cursor at all and you had to drag all the way
-          back up to hit one. Equal, fixed-height columns can't have that
-          mismatch. It also puts the stage headers outside the scrolling
-          area, so they simply never move. */}
-      <div
-        ref={scrollRef}
-        onDragOver={autoScroll}
-        className="flex min-h-0 flex-1 items-stretch gap-4 overflow-x-auto overflow-y-hidden px-6 sm:px-8"
+      {/* The page scrolls, the stage headers stay pinned above the cards,
+          and every column is as tall as the tallest — so a card can be
+          dropped anywhere down any column (see StickyColumns). */}
+      <StickyColumns
+        headers={columns.map((col) => (
+          <div
+            key={col.status}
+            className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}
+          >
+            <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+            <span className="truncate whitespace-nowrap">{col.label}</span>
+            <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnOf(col.status).length}</span>
+          </div>
+        ))}
       >
         {columns.map((col) => {
           const columnTasks = columnOf(col.status);
           return (
-            <section
-              key={col.status}
-              className="flex min-h-0 min-w-64 flex-1 flex-col gap-3 pt-6 sm:pt-8"
-            >
-              <div className="shrink-0">
-                <div className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}>
-                  <span className={`h-2 w-2 rounded-full ${col.dot}`} />
-                  <span className="whitespace-nowrap">{col.label}</span>
-                  <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnTasks.length}</span>
-                </div>
-              </div>
-
+            <section key={col.status} className="flex min-w-0 flex-col gap-3">
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
 
-              {/* the whole drop target for this column — and, off its own
-                  page, this column's own scroller too */}
+              {/* the whole drop target for this column */}
               <div
-                className="flex min-h-24 min-w-0 flex-1 flex-col gap-3 overflow-y-auto"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  scrollColumn(e);
-                }}
+                className="flex min-h-24 min-w-0 flex-1 flex-col gap-3"
+                onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
                   handleColumnDrop(col.status, e);
@@ -381,15 +345,13 @@ export function Board({
                     />
                   </div>
                 ))}
-                {/* guaranteed droppable cushion below the last card — not
-                    just leftover flex space, which shrinks to nothing once
-                    this column has enough cards of its own */}
+                {/* guaranteed droppable cushion below the last card */}
                 <div className="h-6 shrink-0" />
               </div>
             </section>
           );
         })}
-      </div>
+      </StickyColumns>
     </div>
   );
 }

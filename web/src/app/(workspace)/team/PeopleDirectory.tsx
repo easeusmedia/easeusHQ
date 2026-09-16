@@ -67,13 +67,9 @@ export const ROLE_LABEL: Record<Role, string> = {
   employee: "Member",
 };
 
-export function Face({ person, size }: { person: { name: string; avatarUrl: string | null }; size: number }) {
-  return person.avatarUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-    <img src={person.avatarUrl} alt="" className="photo" style={{ width: size, height: size }} />
-  ) : (
-    <Avatar name={person.name} size={size} />
-  );
+// a person's photo (or initials) and online dot — the shared avatar
+export function Face({ person, size }: { person: { name: string }; size: number }) {
+  return <Avatar name={person.name} size={size} />;
 }
 
 // Roster on the left, the open record on the right — the same two-pane shape
