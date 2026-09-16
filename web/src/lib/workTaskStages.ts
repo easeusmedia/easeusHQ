@@ -5,11 +5,6 @@ import type { TaskStatus } from "./workflow";
 // task board's equivalent of stages.ts, deliberately much shorter than the
 // client editing-queue pipeline (see the WorkTaskStatus comment in
 // schema.prisma for why these are two separate systems).
-//
-// The labels are deliberately unlike the editing queue's (Queued, Editing,
-// Sent for approval…): both kinds of task now sit on the same Organization
-// view, and a personal task reading "In review" next to an edit reading
-// "Sent for approval" invited exactly the mix-up this avoids.
 export const WORK_TASK_STAGE: Record<WorkTaskStatus, { label: string; dot: string; pill: string }> = {
   todo: {
     label: "Up next",
@@ -17,12 +12,12 @@ export const WORK_TASK_STAGE: Record<WorkTaskStatus, { label: string; dot: strin
     pill: "bg-surface text-muted border-border",
   },
   in_progress: {
-    label: "Underway",
+    label: "In progress",
     dot: "bg-blue-400",
     pill: "bg-blue-400/15 text-blue-300 border-blue-400/30",
   },
   in_review: {
-    label: "Awaiting review",
+    label: "In review",
     dot: "bg-purple-400",
     pill: "bg-purple-400/15 text-purple-300 border-purple-400/30",
   },
