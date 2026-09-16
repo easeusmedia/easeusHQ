@@ -211,10 +211,10 @@ export function Sidebar({
       </div>
 
       {[
-        ...NAV,
-        // everyone sees the clients — what the agency is working on isn't
-        // privileged information inside the agency
+        // clients first: everyone sees them — what the agency is working on
+        // isn't privileged information inside the agency
         { segment: "/clients", label: "Clients", hint: "Every client and their projects", Icon: Building2 },
+        ...NAV,
         ...(isOps ? [{ segment: "/calendar", label: "Calendar", hint: "Workload day by day", Icon: CalendarDays }] : []),
         // core members see their own team here (read-only); admin edits everyone
         ...(isOps ? [{ segment: "/users", label: "People", hint: "The team and their roles", Icon: UsersRound }] : []),
