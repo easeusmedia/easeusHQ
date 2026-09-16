@@ -161,7 +161,14 @@ export const WorkTaskDialog = forwardRef<
               <Dropdown
                 defaultValue={assignedToId}
                 onChange={setAssignedToId}
-                options={assignees.map((a) => ({ value: a.id, label: a.name }))}
+                options={[
+                  ...assignees.map((a) => ({ value: a.id, label: a.name })),
+                  // someone who's left isn't offered, but a task still on
+                  // them keeps showing their name
+                  ...(task?.assignedTo && !assignees.some((a) => a.id === task.assignedTo.id)
+                    ? [{ value: task.assignedTo.id, label: task.assignedTo.name }]
+                    : []),
+                ]}
               />
             </label>
           )}

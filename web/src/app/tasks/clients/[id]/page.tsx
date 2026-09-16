@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { getAllUsers } from "@/lib/users";
+import { assignableEditors, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { visibleTagWhere } from "@/lib/scope";
@@ -70,7 +70,7 @@ export default async function ClientDetailPage({
   if (!client) notFound();
 
   const projectIds = client.projects.map((p) => p.id);
-  const editors = users.filter((u) => u.role === "employee");
+  const editors = assignableEditors(users);
 
   const [tasks, deliveredSinceInvoice, allTags, clientWorkTasks] = await Promise.all([
     prisma.task.findMany({

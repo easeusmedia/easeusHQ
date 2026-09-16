@@ -162,7 +162,15 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   <Dropdown
                     name="assignedToId"
                     defaultValue={task.assignedTo?.id ?? ""}
-                    options={[{ value: "", label: "Unassigned" }, ...editors.map((e) => ({ value: e.id, label: e.name }))]}
+                    // the list is only people who can take new work; a task
+                    // still on someone who's left keeps showing their name
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...editors.map((e) => ({ value: e.id, label: e.name })),
+                      ...(task.assignedTo && !editors.some((e) => e.id === task.assignedTo!.id)
+                        ? [{ value: task.assignedTo.id, label: task.assignedTo.name }]
+                        : []),
+                    ]}
                   />
                 </Field>
 

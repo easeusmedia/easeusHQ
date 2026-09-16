@@ -30,3 +30,9 @@ export const getAllUsers = cache(() =>
     orderBy: { name: "asc" },
   })
 );
+
+// Who new editing work can go to. A former employee keeps their history and
+// any task still on them, but never shows up to be handed anything new.
+export function assignableEditors<T extends { role: string; employment: string }>(users: T[]): T[] {
+  return users.filter((u) => u.role === "employee" && u.employment !== "former");
+}

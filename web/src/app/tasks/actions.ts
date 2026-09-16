@@ -61,6 +61,14 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
 
+  const assignee = await prisma.user.findUnique({
+    where: { id: assignedToId },
+    select: { role: true, employment: true, team: { select: { slug: true } } },
+  });
+  if (!assignee || assignee.employment === "former") {
+    return { error: "That person is no longer with the team — pick someone else." };
+  }
+
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
     // default to 0) without needing to query the column's current max
@@ -91,11 +99,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   // there. Deliberately not awaited for correctness: if Notion is slow or
   // down, the task is still created here and the next sync picks it up as
   // unmirrored — creating a task must never depend on someone else's API.
-  const assignee = await prisma.user.findUnique({
-    where: { id: assignedToId },
-    select: { role: true, team: { select: { slug: true } } },
-  });
-  if (assignee && pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
+  if (pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
     await createInNotion(task.id).catch(() => {});
   }
 
@@ -215,6 +219,17 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const title = String(formData.get("title") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "") || undefined;
   const assignedToId = String(formData.get("assignedToId") ?? "") || null;
+  // nothing new goes to someone who's left; a task already on them can
+  // still be saved without being handed to anyone else
+  if (
+    assignedToId &&
+    (await prisma.user.findFirst({
+      where: { id: assignedToId, employment: "former", tasksAssigned: { none: { id: taskId } } },
+      select: { id: true },
+    }))
+  ) {
+    return { error: "That person is no longer with the team — pick someone else." };
+  }
   // .has() rather than .get() so "field wasn't in the form" (leave it
   // untouched) stays distinct from "field was shown and cleared" (null it).
   let rawLink: string | null;

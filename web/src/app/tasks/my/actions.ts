@@ -36,10 +36,14 @@ function cleanLinks(links: WorkTaskLink[]): WorkTaskLink[] {
 // assign to their own team from the task form, without first pretending to
 // be that person. Still re-derived from the session — an assignee posted
 // from the client is checked, never trusted.
-async function resolveAssignee(me: Viewer, requested: string | undefined): Promise<string> {
+// `current` is who has the task now: keeping them is always allowed, even
+// once they've left, so editing an old task doesn't quietly reassign it.
+async function resolveAssignee(me: Viewer, requested: string | undefined, current?: string | null): Promise<string> {
   if (!requested || requested === me.id) return me.id;
-  const target = await prisma.user.findUnique({ where: { id: requested }, select: { id: true, teamId: true } });
-  if (!target || !canSeeMember(me, target)) return me.id; // fail closed, onto yourself
+  if (requested === current) return requested;
+  const target = await prisma.user.findUnique({ where: { id: requested }, select: { id: true, teamId: true, employment: true } });
+  // fail closed, onto yourself
+  if (!target || target.employment === "former" || !canSeeMember(me, target)) return me.id;
   return target.id;
 }
 
@@ -158,9 +162,10 @@ export async function updateWorkTask(input: {
   attachments: WorkTaskAttachment[];
 }): Promise<WorkTaskFormState> {
   let me;
+  let existing;
   try {
     me = await requireRealUser();
-    await assertCanTouch(input.id);
+    existing = await assertCanTouch(input.id);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't update that task." };
   }
@@ -175,7 +180,7 @@ export async function updateWorkTask(input: {
       projectId: input.projectId || null,
       links: cleanLinks(input.links),
       attachments: input.attachments,
-      ...(input.assignedToId ? { assignedToId: await resolveAssignee(me, input.assignedToId) } : {}),
+      ...(input.assignedToId ? { assignedToId: await resolveAssignee(me, input.assignedToId, existing.assignedToId) } : {}),
       ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
     },
   });
