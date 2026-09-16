@@ -5,6 +5,7 @@ import { usePopover, useCloseOnScroll } from "./popover";
 import { useRouter } from "next/navigation";
 import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { moveTask } from "./actions";
+import { linkProblem, pickLink } from "@/lib/links";
 import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
 import type { Role, TaskStatus } from "@/lib/workflow";
 
@@ -40,6 +41,7 @@ export function StatusSelect({
   const [pendingTo, setPendingTo] = useState<TaskStatus | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   // shown instead of currentStatus — flips the instant you pick something,
   // rather than waiting on the round-trip + router.refresh() to come back.
   // Dragging a card already felt instant via Board's useOptimistic; this
@@ -63,25 +65,29 @@ export function StatusSelect({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  async function commit(to: TaskStatus, extra: Record<string, string> = {}) {
+  // Resolves to the reason it failed, or null. The caller decides how to
+  // show it — always in the prompt below, never as loose text under the
+  // pill, which spilled out of list rows and never went away.
+  async function commit(to: TaskStatus, extra: Record<string, string> = {}): Promise<string | null> {
     const previous = optimisticStatus;
     setOptimisticStatus(to);
     try {
       const result = await moveTask(taskId, to, actingUserId, actingRole, extra);
       if (result?.error) {
         setOptimisticStatus(previous);
-        setError(result.error);
-        return;
+        return result.error;
       }
       router.refresh();
+      return null;
     } catch (err) {
       setOptimisticStatus(previous);
-      setError(err instanceof Error ? err.message : "Couldn't update status.");
+      return err instanceof Error ? err.message : "Couldn't update status.";
     }
   }
 
   function pick(to: TaskStatus) {
     setOpen(false);
+    setError(null);
     const extra = EXTRA_FIELD[to];
     if (extra) {
       setPendingTo(to);
@@ -92,16 +98,30 @@ export function StatusSelect({
       dialogRef.current?.showModal();
       return;
     }
-    commit(to);
+    // a move that needs nothing extra can still be refused; say why in the
+    // same prompt rather than leaving the pill to snap back unexplained
+    commit(to).then((reason) => {
+      if (!reason) return;
+      setError(reason);
+      dialogRef.current?.showModal();
+    });
   }
 
-  function confirmDialog() {
-    if (!pendingTo) return;
+  // Checked here, before anything is sent, and the prompt stays open until
+  // the move actually saves — a bad link used to close the prompt and fail
+  // afterwards, leaving nowhere to fix it.
+  async function confirmDialog() {
+    if (!pendingTo || submitting) return;
     const extra = EXTRA_FIELD[pendingTo];
-    if (!extra || !inputValue.trim()) return;
-    commit(pendingTo, { [extra.field]: inputValue.trim() });
+    if (!extra) return;
+    const value = pickLink(inputValue);
+    if (!value) return setError(linkProblem(inputValue, extra.label, extra.placeholder));
+    setError(null);
+    setSubmitting(true);
+    const reason = await commit(pendingTo, { [extra.field]: value });
+    setSubmitting(false);
+    if (reason) return setError(reason);
     dialogRef.current?.close();
-    setPendingTo(null);
   }
 
   // same escape as Dropdown: a board column scrolls its own cards, so an
@@ -119,12 +139,16 @@ export function StatusSelect({
   const extraField = pendingTo ? EXTRA_FIELD[pendingTo] : undefined;
 
   // The "one more thing before this move" prompt (a Frame.io link on submit,
-  // the final Drive link on delivery). Shared by both variants so a status
-  // changed from a list row collects exactly what the board card would.
+  // the final Drive link on delivery), and the place a refused move explains
+  // itself. Shared by both variants so a status changed from a list row
+  // behaves exactly as the board card does.
   const extraDialog = (
       <dialog
         ref={dialogRef}
-        onClose={() => setPendingTo(null)}
+        onClose={() => {
+          setPendingTo(null);
+          setError(null);
+        }}
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
@@ -140,13 +164,25 @@ export function StatusSelect({
             }}
           >
             <p className="text-sm font-medium">{extraField.label}</p>
+            <p className="text-xs text-muted">
+              Needed to move this to {STATUS_LABEL[pendingTo!]}.
+            </p>
             <input
               autoFocus
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setError(null);
+              }}
               placeholder={extraField.placeholder}
-              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
+              aria-invalid={!!error}
+              className={`rounded-md border bg-surface-2 px-2 py-1 text-sm ${error ? "border-red-400/60" : "border-border"}`}
             />
+            {error && (
+              <p role="alert" className="text-xs text-red-300">
+                {error}
+              </p>
+            )}
             <div className="mt-1 flex justify-end gap-2">
               <button
                 type="button"
@@ -155,11 +191,22 @@ export function StatusSelect({
               >
                 Cancel
               </button>
-              <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
-                Confirm
+              <button type="submit" disabled={submitting} className="btn-glow rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60">
+                {submitting ? "Saving…" : "Confirm"}
               </button>
             </div>
           </form>
+        )}
+        {!extraField && error && (
+          <div role="alert" className="flex flex-col gap-2">
+            <p className="text-sm font-medium">Couldn&apos;t change the status</p>
+            <p className="text-sm text-muted">{error}</p>
+            <div className="mt-1 flex justify-end">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
+                OK
+              </button>
+            </div>
+          </div>
         )}
       </dialog>
   );
@@ -207,7 +254,6 @@ export function StatusSelect({
             ))}
           </div>
         )}
-        {error && <p className="absolute right-0 top-full mt-1 text-xs text-red-300">{error}</p>}
         {extraDialog}
       </div>
     );
@@ -256,7 +302,6 @@ export function StatusSelect({
           ))}
         </div>
       )}
-      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
       {extraDialog}
     </div>
   );

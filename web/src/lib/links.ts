@@ -23,3 +23,15 @@ export function normalizeUrl(value: string): string | null {
   if (!url.hostname.includes(".")) return null; // "https://foo" isn't a real domain
   return url.toString();
 }
+
+// The link to save from a "paste the link" prompt, or null if there isn't
+// one. A pasted "final cut: https://…" still finds the link inside it.
+export function pickLink(input: string): string | null {
+  const raw = input.trim();
+  return normalizeUrl(raw.match(/https?:\/\/\S+/)?.[0] ?? raw);
+}
+
+// Why pickLink came back empty, in words for the prompt.
+export function linkProblem(input: string, label: string, example: string): string {
+  return input.trim() ? `That isn't a link. Paste the full ${label}, like ${example}` : `Add the ${label} to continue.`;
+}

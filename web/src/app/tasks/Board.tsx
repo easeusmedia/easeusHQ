@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { moveTask, reorderTask } from "./actions";
+import { linkProblem, pickLink } from "@/lib/links";
 import { STAGE } from "@/lib/stages";
 import { ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import type { TaskTagOption } from "./TaskTagPicker";
@@ -74,6 +75,7 @@ export function Board({
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   // the card moves the instant you drop it — the server round-trip (and
@@ -223,8 +225,12 @@ export function Board({
   function confirmDialog() {
     if (!pending) return;
     const extra = EXTRA_FIELD[pending.to];
-    if (!extra || !inputValue.trim()) return;
-    commitMove(pending.to, pending.taskId, pending.sortOrder, { [extra.field]: inputValue.trim() });
+    if (!extra) return;
+    // checked before the prompt closes, so a bad link can be fixed right
+    // here instead of failing afterwards and needing the drag done again
+    const link = pickLink(inputValue);
+    if (!link) return setLinkError(linkProblem(inputValue, extra.label, extra.placeholder));
+    commitMove(pending.to, pending.taskId, pending.sortOrder, { [extra.field]: link });
     dialogRef.current?.close();
     setPending(null);
   }
@@ -249,7 +255,10 @@ export function Board({
 
       <dialog
         ref={dialogRef}
-        onClose={() => setPending(null)}
+        onClose={() => {
+          setPending(null);
+          setLinkError(null);
+        }}
         onClick={(e) => {
           // clicking the backdrop (the dialog element itself, outside the
           // inner panel) dismisses it, same as every other dialog
@@ -272,10 +281,19 @@ export function Board({
             <input
               autoFocus
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setLinkError(null);
+              }}
               placeholder={extraField.placeholder}
-              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
+              aria-invalid={!!linkError}
+              className={`rounded-md border bg-surface-2 px-2 py-1 text-sm ${linkError ? "border-red-400/60" : "border-border"}`}
             />
+            {linkError && (
+              <p role="alert" className="text-xs text-red-300">
+                {linkError}
+              </p>
+            )}
             <div className="mt-1 flex justify-end gap-2">
               <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
                 Cancel
