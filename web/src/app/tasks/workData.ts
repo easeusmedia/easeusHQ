@@ -5,8 +5,8 @@ import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { WorkTaskLink, WorkTaskAttachment } from "./my/actions";
 
 // What the work views load, for either page that shows them: My tasks (your
-// own work tasks) and the Board's Organization tab (everyone's work in a
-// team, or every team, including editors' editing-queue tasks).
+// own work tasks) and the Board's team views (everyone's work in a team, or
+// every team, including editors' editing-queue tasks).
 
 // "mine", "all", or a team's slug
 export type WorkScope = string;
@@ -15,12 +15,11 @@ const assignee = {
   select: {
     ...PUBLIC_USER_SELECT,
     team: { select: { slug: true, name: true } },
-    jobTitle: { select: { name: true } },
   },
 };
 
-type Assignee = { id: string; name: string; team: { slug: string; name: string } | null; jobTitle: { name: string } | null };
-const person = (u: Assignee) => ({ id: u.id, name: u.name, team: u.team, role: u.jobTitle?.name ?? null });
+type Assignee = { id: string; name: string; team: { slug: string; name: string } | null };
+const person = (u: Assignee) => ({ id: u.id, name: u.name, team: u.team });
 
 export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: { withQueue: boolean }) {
   const everyTeam = seesEveryTeam(viewer);
@@ -28,7 +27,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
   // whatever their role), or everything
   const where = scope === "mine" ? { assignedToId: viewer.id } : scope === "all" ? {} : { assignedTo: { team: { slug: scope } } };
 
-  const [projects, workTasks, queueTasks, taskTags, assignable, roles] = await Promise.all([
+  const [projects, workTasks, queueTasks, taskTags, assignable] = await Promise.all([
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: true },
@@ -57,7 +56,6 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.jobTitle.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { name: true } }),
   ]);
 
   return {
@@ -88,6 +86,5 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     })),
     taskTags: taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing })),
     assignable,
-    roles: roles.map((r) => r.name),
   };
 }

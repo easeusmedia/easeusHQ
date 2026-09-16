@@ -31,7 +31,6 @@ export default async function MyTasksPage() {
       queueTasks={[]}
       groupOptions={["status"]}
       teams={[]}
-      roles={[]}
       projects={work.projects}
       actingUserId={me.id}
       showAssignee={false}

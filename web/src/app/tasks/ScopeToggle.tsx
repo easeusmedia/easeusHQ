@@ -2,9 +2,9 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-// Whose work the Organization tab shows. Built from what the viewer is
-// allowed to see: an Operations lead gets only Operations (so no toggle at
-// all), admin and Abhishek get every team plus Everyone.
+// The Board's one switch: Editors, then whose work — built from what the
+// viewer is allowed to see. An Operations lead gets Editors / Operations,
+// admin and Abhishek get Editors, every team, and Everyone.
 //
 // router.push, not replaceState: which team you're looking at is a real
 // place, worth having in history and worth being able to link someone to.

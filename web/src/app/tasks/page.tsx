@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
@@ -21,9 +20,9 @@ export const dynamic = "force-dynamic"; // always hits the DB, never statically 
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ as?: string; view?: string; scope?: string }>;
+  searchParams: Promise<{ as?: string; scope?: string }>;
 }) {
-  const { as, view, scope } = await searchParams;
+  const { as, scope } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -61,63 +60,41 @@ export default async function TasksPage({
 
   const isEditor = actingUser.role === "employee";
 
-  // Two tabs. Editors: the editing queue, the thing the studio runs on.
-  // Organization: everyone's work in your team (every team, for admin and
-  // Abhishek), editors' edits included, laid out by team, role or person.
-  // An editor only ever gets the first; a lead outside Operations only the
-  // second, since the editing queue isn't their team's work.
+  // One switch, top right: Editors (the editing queue, the thing the studio
+  // runs on), then your team's work (every team, and Everyone, for admin and
+  // Abhishek) — editors' edits included, laid out by person or team. An
+  // editor only ever gets the editing queue, so no switch at all; a lead
+  // outside Operations never gets it, since it isn't their team's work.
   const viewer = { id: actingUser.id, role: actingUser.role, email: actingUser.email, teamId: actingUser.teamId };
   const everyTeam = seesEveryTeam(viewer);
   const myTeam = teams.find((t) => t.id === actingUser.teamId);
-  const views = [
+  const teamScopes = isEditor
+    ? []
+    : [
+        ...(everyTeam ? teams : myTeam ? [myTeam] : []).map((t) => ({ key: t.slug, label: t.name })),
+        ...(everyTeam ? [{ key: "all", label: "Everyone" }] : []),
+      ];
+  const scopes = [
     ...(isEditor || everyTeam || myTeam?.slug === "operations" ? [{ key: "editors", label: "Editors" }] : []),
-    ...(!isEditor ? [{ key: "org", label: "Organization" }] : []),
+    ...teamScopes,
   ];
-  const activeView = views.find((v) => v.key === view)?.key ?? views[0].key;
-  // the "viewing as" choice rides along on every tab link
-  const hrefFor = (key: string) => {
-    const params = new URLSearchParams();
-    if (as) params.set("as", as);
-    if (key !== views[0].key) params.set("view", key);
-    const qs = params.toString();
-    return qs ? `/tasks?${qs}` : "/tasks";
-  };
-  const tabStrip = views.length > 1 && (
-    <nav className="flex shrink-0 gap-1 border-b border-border px-6 pt-4 sm:px-8">
-      {views.map((v) => (
-        <Link
-          key={v.key}
-          href={hrefFor(v.key)}
-          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-            activeView === v.key ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground"
-          }`}
-        >
-          {v.label}
-        </Link>
-      ))}
-    </nav>
-  );
+  // "org" (what a client page links to) means the widest team view you have
+  const wanted = scope === "org" ? teamScopes.at(-1)?.key : scope;
+  const activeScope = scopes.find((s) => s.key === wanted)?.key ?? scopes[0]?.key ?? "mine";
+  const scopeToggle = scopes.length > 1 && <ScopeToggle options={scopes} active={activeScope} />;
 
-  if (activeView === "org") {
-    const scopes = [
-      ...(everyTeam ? teams : myTeam ? [myTeam] : []).map((t) => ({ key: t.slug, label: t.name })),
-      ...(everyTeam ? [{ key: "all", label: "Everyone" }] : []),
-    ];
-    // widest view first: Everyone for admin, your own team for a lead
-    const activeScope = scopes.find((s) => s.key === scope)?.key ?? scopes.at(-1)?.key ?? "mine";
-    const groupOptions: GroupBy[] = activeScope === "all" ? ["team", "role", "person"] : ["role", "person"];
+  if (activeScope !== "editors") {
+    const groupOptions: GroupBy[] = activeScope === "all" ? ["person", "team"] : ["person"];
     const work = await loadWork(viewer, activeScope, { withQueue: true });
 
     return (
       <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
-        {tabStrip}
         <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
           <WorkTaskView
             tasks={work.tasks}
             queueTasks={work.queueTasks}
             groupOptions={groupOptions}
             teams={teams}
-            roles={work.roles}
             projects={work.projects}
             actingUserId={actingUser.id}
             showAssignee
@@ -125,12 +102,13 @@ export default async function TasksPage({
             assignees={work.assignable}
             taskTags={work.taskTags}
             canManageTags
-            toolbarRight={scopes.length > 1 && <ScopeToggle options={scopes} active={activeScope} />}
+            toolbarRight={scopeToggle}
           />
         </div>
       </div>
     );
   }
+
   // a scheduled-for-the-future task stays off the assigned editor's board
   // until that date — ops/admin (the `else` below) always sees everything
   const visibleTasks = isEditor
@@ -158,7 +136,12 @@ export default async function TasksPage({
   // re-applied inside the scroll area where it can't clip anything.
   return (
     <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
-      {tabStrip}
+      {/* the switch sits where it does on the team views, top right; the
+          negative bottom margin eats most of the columns' own top padding
+          so the gap below it matches theirs too */}
+      {scopeToggle && (
+        <div className="-mb-2 flex shrink-0 justify-end px-6 pt-6 sm:-mb-4 sm:px-8 sm:pt-8">{scopeToggle}</div>
+      )}
       {/* the same board for everyone — editors used to get a separate
           List/Board toggle onto a simplified view; now it's exactly what
           ops sees, just pre-filtered to their own tasks (see visibleTasks

@@ -48,13 +48,12 @@ export const QUEUE_COLUMN: Record<TaskStatus, WorkTaskStatus> = {
   delivered_and_uploaded: "done",
 };
 
-// The Organization view shows two kinds of task side by side — the team's
-// own work tasks and editors' editing-queue tasks — laid out by the person
-// doing the work, by their role (job title: Video editor, Project manager…)
-// or by their team. A personal board is laid out by status.
-export type GroupBy = "status" | "person" | "role" | "team";
+// A team's view on the Board shows two kinds of task side by side — the
+// team's own work tasks and editors' editing-queue tasks — laid out by the
+// person doing the work or by their team. A personal board is by status.
+export type GroupBy = "status" | "person" | "team";
 
-type Person = { id: string; name: string; team?: { slug: string; name: string } | null; role?: string | null };
+type Person = { id: string; name: string; team?: { slug: string; name: string } | null };
 type WorkItem = { status: WorkTaskStatus; sortOrder: number; assignedTo: Person };
 type QueueItem = { status: TaskStatus; assignedTo: Person | null };
 
@@ -71,8 +70,8 @@ export function groupTasks<W extends WorkItem, Q extends QueueItem>(
   by: GroupBy,
   work: W[],
   queue: Q[],
-  // the order teams (by slug) or roles (by name) are listed in
-  order: string[]
+  // team slugs, in the order teams are listed
+  teams: string[]
 ): WorkGroup<W, Q>[] {
   if (by === "status") {
     return WORK_TASK_STATUSES.map((s) => ({
@@ -86,11 +85,10 @@ export function groupTasks<W extends WorkItem, Q extends QueueItem>(
 
   const groups = new Map<string, WorkGroup<W, Q>>();
   const bucket = (p: Person | null) => {
-    const key = (by === "person" ? p?.id : by === "role" ? p?.role : p?.team?.slug) ?? "";
+    const key = (by === "person" ? p?.id : p?.team?.slug) ?? "";
     let g = groups.get(key);
     if (!g) {
-      const label =
-        by === "person" ? (p?.name ?? "Unassigned") : by === "role" ? (p?.role ?? "No role") : (p?.team?.name ?? "No team");
+      const label = by === "person" ? (p?.name ?? "Unassigned") : (p?.team?.name ?? "No team");
       g = { key, label, person: by === "person" ? p?.name : undefined, work: [], queue: [] };
       groups.set(key, g);
     }
@@ -99,8 +97,8 @@ export function groupTasks<W extends WorkItem, Q extends QueueItem>(
   for (const t of work) bucket(t.assignedTo).work.push(t);
   for (const q of queue) bucket(q.assignedTo).queue.push(q);
 
-  // people A–Z, teams and roles in their own order; the catch-all goes last
-  const rank = (g: WorkGroup<W, Q>) => (g.key === "" ? order.length + 1 : by === "person" ? 0 : order.indexOf(g.key));
+  // people A–Z, teams in their own order; the catch-all group goes last
+  const rank = (g: WorkGroup<W, Q>) => (g.key === "" ? teams.length + 1 : by === "team" ? teams.indexOf(g.key) : 0);
   const byStage = (a: W, b: W) =>
     WORK_TASK_STATUSES.indexOf(a.status) - WORK_TASK_STATUSES.indexOf(b.status) || a.sortOrder - b.sortOrder;
   return [...groups.values()]

@@ -25,7 +25,7 @@ export type WorkTaskCardData = {
   attachments: WorkTaskAttachment[];
   projectId: string | null;
   project: { name: string; client: { name: string } } | null;
-  assignedTo: { id: string; name: string; team?: { slug: string; name: string } | null; role?: string | null };
+  assignedTo: { id: string; name: string; team?: { slug: string; name: string } | null };
   createdBy: { id: string; name: string };
 };
 
