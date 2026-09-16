@@ -51,7 +51,7 @@ export type PersonRecord = {
   history: HistoryEntry[];
 };
 
-export type Option = { id: string; name: string };
+export type Option = { id: string; name: string; slug?: string };
 
 const FORMER = "Former employees";
 

@@ -151,7 +151,7 @@ export default async function PeoplePage() {
     <div className="h-full">
       <PeopleDirectory
         people={records}
-        teams={teams.map((t) => ({ id: t.id, name: t.name }))}
+        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug }))}
         jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name }))}
         canEdit={canEdit}
         meId={me.id}

@@ -10,6 +10,7 @@ import { ConfirmButton } from "../ConfirmButton";
 import { createJobTitle, deleteJobTitle, updatePerson } from "./actions";
 import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, type Option, type PersonRecord } from "./PeopleDirectory";
 import { TaskTagChip } from "../TaskTagPicker";
+import { seesEveryTeam } from "@/lib/scope";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 const labelCls = "flex min-w-0 flex-col gap-1 text-xs text-muted";
@@ -45,6 +46,25 @@ function Section({
       {children}
     </section>
   );
+}
+
+// The same rule the Board applies (see tasks/page.tsx and lib/scope.ts),
+// spelled out, so whoever sets Team and Access level sees what it grants
+// before saving rather than finding out from the person.
+function canSeeSummary(role: Role, email: string, team: Option | undefined): string {
+  if (seesEveryTeam({ role, email: email.trim().toLowerCase() })) {
+    return role === "admin"
+      ? "Everything: every team's work and the editing queue."
+      : "Everything: every team's work and the editing queue (developer access).";
+  }
+  const ops = team?.slug === "operations";
+  if (role === "core") {
+    if (!team) return "Only their own work. Pick a team to give them that team's view.";
+    return ops
+      ? `The whole ${team.name} team's work, and every editor's tasks on the editing queue.`
+      : `The whole ${team.name} team's work.`;
+  }
+  return ops ? "Only their own work, including their own editing tasks." : "Only their own work.";
 }
 
 function Stat({ value, label }: { value: number; label: string }) {
@@ -128,6 +148,20 @@ export function PersonDetail({
     else router.refresh();
   }
 
+  // both editable cards save the whole record — one form, two places to
+  // commit it from, so neither card needs scrolling past the other
+  const saveRow = (
+    <>
+      {error && <p className="text-sm text-red-300">{error}</p>}
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+        {saved && <span className="text-xs text-muted">Saved.</span>}
+      </div>
+    </>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <header className="flex items-center gap-4 border-b border-border px-6 py-5">
@@ -207,26 +241,13 @@ export function PersonDetail({
         </Section>
 
         {canEdit ? (
-          <Section title="Employment details" subtitle="Only the admin can change any of this.">
+          <>
+          {/* first, because it's what decides everything else about how
+              this person uses the app — and it's the thing admin comes
+              here to change most */}
+          <Section title="Team & access" subtitle="Decides whose work they see on the Board.">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-x-3 gap-y-3">
-              <label className={labelCls}>
-                Name
-                <input value={form.name} onChange={(e) => set("name", e.target.value)} className={field} />
-              </label>
-              <label className={labelCls}>
-                Email
-                <input value={form.email} onChange={(e) => set("email", e.target.value)} className={field} />
-              </label>
-              <label className={labelCls}>
-                Phone
-                <input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91 …" className={field} />
-              </label>
-              <div className={labelCls}>
-                Joined
-                <DatePicker value={form.joinedAt} onChange={(v) => set("joinedAt", v)} placeholder="Not set" />
-              </div>
-
               <div className={labelCls}>
                 Team
                 <Dropdown
@@ -234,6 +255,18 @@ export function PersonDetail({
                   placeholder="No team"
                   onChange={(v) => set("teamId", v)}
                   options={[{ value: "", label: "No team" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
+                />
+              </div>
+              <div className={labelCls}>
+                Access level
+                <Dropdown
+                  defaultValue={form.role}
+                  onChange={(v) => set("role", v)}
+                  options={[
+                    { value: "admin", label: "Admin — every team" },
+                    { value: "core", label: "Core — their whole team" },
+                    { value: "employee", label: "Member — their own work" },
+                  ]}
                 />
               </div>
               <div className={labelCls}>
@@ -283,18 +316,38 @@ export function PersonDetail({
                 )}
               </div>
 
+            </div>
+            <p className="rounded-xl border border-border bg-surface-2/50 px-4 py-3 text-sm">
+              <span className="text-muted">Can see: </span>
+              {canSeeSummary(form.role as Role, form.email, teams.find((t) => t.id === form.teamId))}
+            </p>
+            {isSelf && form.role !== "admin" && person.role === "admin" && (
+              <p className="text-xs text-muted">You can&apos;t remove your own admin access.</p>
+            )}
+            {saveRow}
+          </div>
+          </Section>
+
+          <Section title="Employment details" subtitle="Only the admin can change any of this.">
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+              <label className={labelCls}>
+                Name
+                <input value={form.name} onChange={(e) => set("name", e.target.value)} className={field} />
+              </label>
+              <label className={labelCls}>
+                Email
+                <input value={form.email} onChange={(e) => set("email", e.target.value)} className={field} />
+              </label>
+              <label className={labelCls}>
+                Phone
+                <input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+91 …" className={field} />
+              </label>
               <div className={labelCls}>
-                Access level
-                <Dropdown
-                  defaultValue={form.role}
-                  onChange={(v) => set("role", v)}
-                  options={[
-                    { value: "admin", label: "Admin — every team" },
-                    { value: "core", label: "Core — runs their team" },
-                    { value: "employee", label: "Member — their own work" },
-                  ]}
-                />
+                Joined
+                <DatePicker value={form.joinedAt} onChange={(v) => set("joinedAt", v)} placeholder="Not set" />
               </div>
+
               <div className={labelCls}>
                 Status
                 <Dropdown
@@ -318,8 +371,6 @@ export function PersonDetail({
                   className={field}
                 />
               </label>
-              <span />
-
               <label className={`${labelCls} col-span-2`}>
                 Notes
                 <textarea
@@ -332,19 +383,10 @@ export function PersonDetail({
               </label>
             </div>
 
-            {error && <p className="text-sm text-red-300">{error}</p>}
-            {isSelf && form.role !== "admin" && person.role === "admin" && (
-              <p className="text-xs text-muted">You can&apos;t remove your own admin access.</p>
-            )}
-
-            <div className="flex items-center gap-3">
-              <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
-                {saving ? "Saving…" : "Save changes"}
-              </button>
-              {saved && <span className="text-xs text-muted">Saved.</span>}
-            </div>
+            {saveRow}
           </div>
           </Section>
+          </>
         ) : (
           // core members see the roster, not the employment terms
           <Section title="Details">
