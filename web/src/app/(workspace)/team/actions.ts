@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEditPeople, type Viewer } from "@/lib/scope";
+import { isStorablePicture } from "@/lib/photos";
 import { revalidatePath } from "next/cache";
 import type { EmploymentStatus, Role } from "@prisma/client";
 
@@ -21,6 +22,19 @@ async function requirePeopleAdmin(): Promise<Viewer | null> {
   });
   if (!actor || !canEditPeople(actor)) return null;
   return actor;
+}
+
+// Your own photo — anyone, whatever their role. Only ever the signed-in
+// person's, and only a small image (the browser resizes it before sending).
+export async function updateOwnPhoto(dataUrl: string | null): Promise<PeopleFormState> {
+  const sessionUserId = await getSessionUserId();
+  if (!sessionUserId) return { error: "Not signed in." };
+  if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That picture couldn't be used — try a JPEG or PNG." };
+
+  await prisma.user.update({ where: { id: sessionUserId }, data: { avatarUrl: dataUrl } });
+  // the photo shows everywhere, so every page's layout needs it
+  revalidatePath("/", "layout");
+  return { success: true };
 }
 
 const ROLES: Role[] = ["admin", "core", "employee"];

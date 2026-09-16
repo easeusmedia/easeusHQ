@@ -12,7 +12,8 @@ import { getUnreadBySender } from "./presence/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
 import { CLIENTS_PANEL_COOKIE } from "./clients/clientsPanel";
 import { MainScroll } from "./MainScroll";
-import { clientLogoSrc } from "@/lib/slug";
+import { PhotosProvider } from "./photos";
+import { clientLogoSrc } from "@/lib/photos";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   const sessionUserId = await getSessionUserId();
@@ -45,7 +46,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     })
   ).map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
+  const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
+
   return (
+    <PhotosProvider photos={photos}>
     <div className="flex h-screen bg-background text-foreground">
       <LiveRefresh />
       <PresenceHeartbeat />
@@ -68,5 +72,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <MainScroll className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
     </div>
+    </PhotosProvider>
   );
 }

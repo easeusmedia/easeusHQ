@@ -10,8 +10,9 @@
 // Use this anywhere a user is loaded as a relation on something that reaches
 // the client. Anything needing more than a name and a face should say so
 // explicitly, close to where it's used and with a reason.
+// No avatarUrl: that's the stored picture itself. Avatars find a person's
+// photo by name (see photos.tsx), from the one list the layout loads.
 export const PUBLIC_USER_SELECT = {
   id: true,
   name: true,
-  avatarUrl: true,
 } as const;

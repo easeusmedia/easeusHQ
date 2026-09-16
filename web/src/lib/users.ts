@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { prisma } from "./prisma";
+import { userPhotoSrc } from "./photos";
 
 // De-duplicated across one request — layout.tsx and whichever page renders
 // alongside it both need the users list, and Prisma calls (unlike fetch())
@@ -14,8 +15,10 @@ import { prisma } from "./prisma";
 // reach the browser, and an employment record has no business travelling
 // with them. Anything that genuinely needs salary reads it server-side in
 // the people directory, which gates on canEditPeople.
-export const getAllUsers = cache(() =>
-  prisma.user.findMany({
+// avatarUrl comes back as the photo's address (lib/photos.ts), never the
+// stored picture — these rows go to the browser on every refresh.
+export const getAllUsers = cache(async () =>
+  (await prisma.user.findMany({
     select: {
       id: true,
       name: true,
@@ -28,7 +31,7 @@ export const getAllUsers = cache(() =>
       employment: true,
     },
     orderBy: { name: "asc" },
-  })
+  })).map((u) => ({ ...u, avatarUrl: userPhotoSrc(u) }))
 );
 
 // Who new editing work can go to. A former employee keeps their history and

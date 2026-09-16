@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { userPhotoSrc } from "@/lib/photos";
 import { canEditPeople, seesEveryTeam, type Viewer } from "@/lib/scope";
 import { PeopleDirectory, type HistoryEntry, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
@@ -127,7 +128,7 @@ export default async function PeoplePage() {
     name: p.name,
     email: p.email,
     phone: p.phone,
-    avatarUrl: p.avatarUrl,
+    avatarUrl: userPhotoSrc(p),
     role: p.role,
     employment: p.employment,
     teamId: p.teamId,

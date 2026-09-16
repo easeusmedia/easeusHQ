@@ -232,7 +232,7 @@ export function PersonDetail({
                       ))}
                     </span>
                   )}
-                  {t.due && <span className="hidden w-24 shrink-0 text-right text-xs text-muted sm:block">Due {when(t.due)}</span>}
+                  {t.due && <span className="hidden shrink-0 whitespace-nowrap text-xs text-muted sm:block">Due {when(t.due)}</span>}
                   <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${t.pill}`}>{t.status}</span>
                 </li>
               ))}
@@ -362,7 +362,9 @@ export function PersonDetail({
               </div>
 
               <label className={labelCls}>
-                Salary <span className="font-normal normal-case text-muted/70">(monthly, INR)</span>
+                <span>
+                  Salary <span className="text-muted/70">· monthly, INR</span>
+                </span>
                 <input
                   value={form.salary}
                   onChange={(e) => set("salary", e.target.value)}
@@ -438,7 +440,7 @@ export function PersonDetail({
                   <span className="shrink-0 rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-muted">
                     {h.kind === "client" ? "Delivered" : "Done"}
                   </span>
-                  <span className="w-24 shrink-0 text-right text-xs text-muted">{when(h.at)}</span>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-muted">{when(h.at)}</span>
                 </li>
               ))}
             </ul>

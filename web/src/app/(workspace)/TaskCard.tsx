@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { NotesButton } from "./NotesButton";
+import { usePhoto } from "./photos";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
 import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
@@ -106,6 +107,13 @@ export type TaskCardData = {
 };
 
 export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
+  const photo = usePhoto(name);
+  if (photo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized photo behind sign-in
+      <img src={photo} alt={name} title={name} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    );
+  }
   return (
     <span
       className="flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-black"

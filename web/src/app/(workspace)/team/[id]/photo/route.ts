@@ -2,14 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { decodePicture } from "@/lib/photos";
 
-// A client's logo, served as an image. It's stored as a data: URI (see
-// Client.avatarUrl); pages link here instead of inlining it (clientLogoSrc),
-// and the ?v= in that link changes with the logo, so it caches for good.
-export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
+// Someone's profile photo, served as an image (see lib/photos.ts).
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await getSessionUserId())) return new Response(null, { status: 401 });
-  const { slug } = await params;
-  const client = await prisma.client.findUnique({ where: { slug }, select: { avatarUrl: true } });
-  const picture = decodePicture(client?.avatarUrl);
+  const { id } = await params;
+  const user = await prisma.user.findUnique({ where: { id }, select: { avatarUrl: true } });
+  const picture = decodePicture(user?.avatarUrl);
   if (!picture) return new Response(null, { status: 404 });
 
   return new Response(new Uint8Array(picture.bytes), {

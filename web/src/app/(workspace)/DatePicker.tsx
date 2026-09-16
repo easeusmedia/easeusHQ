@@ -65,10 +65,12 @@ const ORDINAL = (d: number) => {
 };
 
 // "Thursday, 9th April" — the long, readable form the reference uses on
-// the closed control, rather than a bare numeric date.
+// the closed control, rather than a bare numeric date. The year is added
+// when it isn't this one: a joining date of "5th February" could be any year.
 function longLabel(v: Ymd): string {
   const weekday = new Date(v.y, v.m - 1, v.d).toLocaleDateString("en-GB", { weekday: "long" });
-  return `${weekday}, ${ORDINAL(v.d)} ${MONTHS[v.m - 1]}`;
+  const year = v.y === new Date().getFullYear() ? "" : ` ${v.y}`;
+  return `${weekday}, ${ORDINAL(v.d)} ${MONTHS[v.m - 1]}${year}`;
 }
 
 // A calendar we draw ourselves, instead of <input type="date">. The native
@@ -157,7 +159,9 @@ export function DatePicker({
       <button
         type="button"
         onClick={() => (open ? setOpen(false) : openPanel())}
-        className={`flex w-full items-center gap-2 rounded-lg border bg-surface-2 px-3 py-2.5 text-left text-sm ${
+        // py-2, like a text input and a Dropdown, so a date field sits level
+        // with the fields beside it in a form
+        className={`flex w-full items-center gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-sm ${
           open ? "border-hover" : "border-border"
         }`}
       >

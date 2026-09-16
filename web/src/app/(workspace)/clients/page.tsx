@@ -6,7 +6,7 @@ import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { ClientsSyncButton } from "./ClientsSyncButton";
 import { ClientsBoard } from "./ClientsBoard";
 import type { ClientCardData } from "./ClientCard";
-import { clientLogoSrc } from "@/lib/slug";
+import { clientLogoSrc } from "@/lib/photos";
 
 export const dynamic = "force-dynamic";
 

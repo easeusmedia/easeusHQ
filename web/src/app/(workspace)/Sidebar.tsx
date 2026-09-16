@@ -4,9 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Trash2 } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
+import { usePhoto } from "./photos";
+import { updateOwnPhoto } from "./team/actions";
+import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, toggleClientsPanel } from "./clients/clientsPanel";
 
@@ -95,6 +98,21 @@ export function Sidebar({
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const [photoState, setPhotoState] = useState<string | null>(null);
+  const hasPhoto = !!usePhoto(name);
+
+  // your own photo, from the profile menu — open to everyone
+  async function setPhoto(file: File | null) {
+    setPhotoState("Saving…");
+    try {
+      const res = await updateOwnPhoto(file ? await resizeToJpeg(file, 160, 160) : null);
+      setPhotoState(res.error ?? null);
+      if (!res.error) router.refresh();
+    } catch {
+      setPhotoState("Couldn't read that picture.");
+    }
+  }
   const profileRef = useRef<HTMLDivElement>(null);
   const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
 
@@ -302,6 +320,36 @@ export function Sidebar({
                 />
               </div>
             )}
+            <input
+              ref={photoInput}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = ""; // picking the same file again still counts
+                if (file) setPhoto(file);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => photoInput.current?.click()}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+            >
+              <Camera size={15} />
+              {hasPhoto ? "Change photo" : "Add a photo"}
+            </button>
+            {hasPhoto && (
+              <button
+                type="button"
+                onClick={() => setPhoto(null)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+              >
+                <Trash2 size={15} />
+                Remove photo
+              </button>
+            )}
+            {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
             <form action={logout}>
               <button
                 type="submit"
@@ -329,7 +377,7 @@ export function Sidebar({
           <FadeLabel open={open}>
             <span className="text-sm">{name}</span>
           </FadeLabel>
-          <Tip show={!open && !profileOpen} label={name} hint="Account and log out" />
+          <Tip show={!open && !profileOpen} label={name} hint="Photo, account and log out" />
         </button>
         </div>
       </div>
