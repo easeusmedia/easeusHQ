@@ -118,14 +118,17 @@ export function Avatar({ name, size = 24, presence = true }: { name: string; siz
     <Initials name={name} size={size} />
   );
   if (!online) return face;
-  const dot = Math.max(7, Math.round(size * 0.3));
+  // small and fixed-ish: a hint, not a badge — even on a large avatar
+  const dot = size >= 40 ? 10 : size >= 24 ? 8 : 7;
+  // on the circle's edge (bottom-right, 45°), not the square's far corner
+  const inset = Math.max(0, Math.round(size * 0.146 - dot / 2));
   return (
     <span className="relative inline-flex shrink-0">
       {face}
       <span
         title={`${name} is online`}
-        className="absolute -bottom-px -right-px rounded-full bg-green-500 ring-2 ring-background"
-        style={{ width: dot, height: dot }}
+        className="absolute rounded-full bg-green-500 ring-2 ring-background"
+        style={{ width: dot, height: dot, right: inset, bottom: inset }}
       />
     </span>
   );

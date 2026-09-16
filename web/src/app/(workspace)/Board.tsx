@@ -303,11 +303,7 @@ export function Board({
   }
 
   return (
-    // --board-col: the narrowest a column may get. Wide enough for a card on
-    // a phone (and the board scrolls sideways there); from tablet width up,
-    // narrow enough that every stage fits the window instead of running off
-    // its right edge.
-    <div className="flex flex-col [--board-col:16rem] md:[--board-col:9rem]">
+    <div className="flex flex-col">
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
@@ -379,14 +375,19 @@ export function Board({
         // The page scrolls, the stage headers stay pinned above the cards,
         // and every column is as tall as the tallest — so a card can be
         // dropped anywhere down any column (see StickyColumns).
-        <StickyColumns minColumn="var(--board-col)" headers={columns.map(stageHeader)}>
-          {columns.map((col) => (
-            <section key={col.status} className="flex min-w-0 flex-col gap-3">
-              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
-              {dropZone(col)}
-            </section>
-          ))}
-        </StickyColumns>
+        <StickyColumns
+          minColumn={9.5}
+          columns={columns.map((col) => ({
+            key: col.status,
+            header: stageHeader(col),
+            body: (
+              <section className="flex min-w-0 flex-1 flex-col gap-3">
+                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
+                {dropZone(col)}
+              </section>
+            ),
+          }))}
+        />
       ) : (
         // Every stage in turn, its header pinned while its rows scroll past.
         // Empty stages still show, as somewhere to drop a task.

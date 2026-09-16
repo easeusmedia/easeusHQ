@@ -53,7 +53,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const online = users.filter((u) => u.lastSeenAt && now - u.lastSeenAt.getTime() < ACTIVE_WINDOW_MS).map((u) => u.name);
 
   return (
-    <PeopleProvider photos={photos} online={online}>
+    <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
     <div className="flex h-screen bg-background text-foreground">
       <LiveRefresh />
       <PresenceHeartbeat />

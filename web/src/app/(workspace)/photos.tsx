@@ -8,12 +8,17 @@ import { createContext, useContext } from "react";
 // avatar is given; names on the team are unique. It's refreshed with the
 // rest of the page every few seconds (LiveRefresh), which is what keeps the
 // online dots current.
-type People = { photos: Record<string, string>; online: string[] };
-const PeopleContext = createContext<People>({ photos: {}, online: [] });
+// `self`: the signed-in person — you know you're online, so your own
+// avatars never carry the dot; only other people see it.
+type People = { photos: Record<string, string>; online: string[]; self: string };
+const PeopleContext = createContext<People>({ photos: {}, online: [], self: "" });
 
-export function PeopleProvider({ photos, online, children }: People & { children: React.ReactNode }) {
-  return <PeopleContext.Provider value={{ photos, online }}>{children}</PeopleContext.Provider>;
+export function PeopleProvider({ photos, online, self, children }: People & { children: React.ReactNode }) {
+  return <PeopleContext.Provider value={{ photos, online, self }}>{children}</PeopleContext.Provider>;
 }
 
 export const usePhoto = (name: string): string | undefined => useContext(PeopleContext).photos[name];
-export const useOnline = (name: string): boolean => useContext(PeopleContext).online.includes(name);
+export const useOnline = (name: string): boolean => {
+  const { online, self } = useContext(PeopleContext);
+  return name !== self && online.includes(name);
+};

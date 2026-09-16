@@ -188,34 +188,39 @@ export function WorkTaskBoard({
         (groups.length === 0 ? (
           <p className="text-sm text-muted">Nothing here yet.</p>
         ) : (
-          <StickyColumns headers={groups.map((group) => <GroupHeader key={group.key} group={group} count={group.work.length + group.queue.length} />)}>
-            {groups.map((group) => (
-              <section key={group.key} className="flex min-w-0 flex-col gap-3">
-                {group.work.map((task) => (
-                  <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy !== "person"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-                ))}
-                {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
-              </section>
-            ))}
-          </StickyColumns>
+          <StickyColumns
+            minColumn={11}
+            columns={groups.map((group) => ({
+              key: group.key,
+              header: <GroupHeader group={group} count={group.work.length + group.queue.length} />,
+              body: (
+                <section className="flex min-w-0 flex-1 flex-col gap-3">
+                  {group.work.map((task) => (
+                    <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy !== "person"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+                  ))}
+                  {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
+                </section>
+              ),
+            }))}
+          />
         ))}
 
       {groupBy === "status" && layout === "board" && (
         <StickyColumns
-          minColumn="14rem"
-          headers={groups.map((group) => (
-            <GroupHeader key={group.key} group={group} count={columnOf(group.status!).length + group.queue.length} />
-          ))}
-        >
-          {groups.map((group) => (
-            <section key={group.key} className="flex min-w-0 flex-col gap-3">
-              {group.status === "todo" && canCreate && (
-                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-              )}
-              {dropZone(group)}
-            </section>
-          ))}
-        </StickyColumns>
+          minColumn={11}
+          columns={groups.map((group) => ({
+            key: group.key,
+            header: <GroupHeader group={group} count={columnOf(group.status!).length + group.queue.length} />,
+            body: (
+              <section className="flex min-w-0 flex-1 flex-col gap-3">
+                {group.status === "todo" && canCreate && (
+                  <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+                )}
+                {dropZone(group)}
+              </section>
+            ),
+          }))}
+        />
       )}
 
       {/* the list: every stage in turn, header pinned, rows draggable
