@@ -26,7 +26,7 @@ export function ClientSwitcherSlot({ clients, initialOpen }: { clients: Switcher
   return (
     <ClientSwitcher
       clients={clients}
-      currentId={section?.[1] ?? null}
+      current={section?.[1] ?? null}
       onDashboard={pathname === "/clients"}
       shown={!!section && panelOpen}
     />

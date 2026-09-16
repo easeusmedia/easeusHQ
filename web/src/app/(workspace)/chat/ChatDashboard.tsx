@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Send } from "lucide-react";
 import { Avatar } from "../TaskCard";
-import { getThreadMessages, sendMessage, type ThreadMessage } from "../team/actions";
-import { ACTIVE_WINDOW_MS } from "../team/constants";
+import { getThreadMessages, sendMessage, type ThreadMessage } from "../presence/actions";
+import { ACTIVE_WINDOW_MS } from "../presence/constants";
 
 export type ChatPerson = {
   id: string;

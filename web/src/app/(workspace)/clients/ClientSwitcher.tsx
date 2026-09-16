@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { LayoutGrid } from "lucide-react";
 import { Avatar } from "../TaskCard";
+import { clientHref } from "@/lib/slug";
 
-export type SwitcherClient = { id: string; name: string; avatarUrl: string | null };
+export type SwitcherClient = { id: string; slug: string | null; name: string; avatarUrl: string | null };
 
 // The client roster down the left of the Clients section — jump straight
 // to another client, or back to all of them, without leaving the page
@@ -17,12 +18,13 @@ export type SwitcherClient = { id: string; name: string; avatarUrl: string | nul
 // the panel grows.
 export function ClientSwitcher({
   clients,
-  currentId,
+  current,
   onDashboard,
   shown,
 }: {
   clients: SwitcherClient[];
-  currentId: string | null;
+  // the open client's address (or id, from an old link)
+  current: string | null;
   onDashboard: boolean;
   shown: boolean;
 }) {
@@ -44,7 +46,7 @@ export function ClientSwitcher({
         </Row>
         <div className="mx-5 my-2 border-t border-border" />
         {clients.map((c) => (
-          <Row key={c.id} href={`/clients/${c.id}`} active={c.id === currentId}>
+          <Row key={c.id} href={clientHref(c)} active={current === c.slug || current === c.id}>
             {c.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
               <img src={c.avatarUrl} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />

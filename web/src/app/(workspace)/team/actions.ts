@@ -2,112 +2,123 @@
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { canEditPeople, type Viewer } from "@/lib/scope";
 import { revalidatePath } from "next/cache";
+import type { EmploymentStatus, Role } from "@prisma/client";
 
-// Called every ~60s by PresenceHeartbeat while a tab is open. Re-derives
-// who's pinging from the session rather than trusting a client-passed id —
-// same reasoning as every other action here that actually mutates data.
-export async function pingPresence(): Promise<void> {
-  const userId = await getSessionUserId();
-  if (!userId) return;
-  await prisma.user.update({ where: { id: userId }, data: { lastSeenAt: new Date() } });
+export type PeopleFormState = { error?: string; success?: boolean };
+
+// Everything here re-derives the actor from the session. An employment
+// record is the most sensitive thing in this app — what people are paid,
+// what they can see — so none of it takes a role or an id on trust from
+// whoever happened to call the action.
+async function requirePeopleAdmin(): Promise<Viewer | null> {
+  const sessionUserId = await getSessionUserId();
+  if (!sessionUserId) return null;
+  const actor = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: { id: true, role: true, email: true, teamId: true },
+  });
+  if (!actor || !canEditPeople(actor)) return null;
+  return actor;
 }
 
-export type ThreadMessage = { id: string; fromId: string; body: string; createdAt: Date };
+const ROLES: Role[] = ["admin", "core", "employee"];
+const EMPLOYMENT: EmploymentStatus[] = ["active", "on_leave", "former"];
 
-// Every message either direction between me and one other person, oldest
-// first — there's no separate Conversation row, a thread is just this
-// query. Also marks whatever they sent me as read, since opening the
-// thread is exactly "I've now seen this".
-export async function getThreadMessages(otherUserId: string): Promise<ThreadMessage[]> {
-  const userId = await getSessionUserId();
-  if (!userId) return [];
+// One save for the whole profile rather than a dozen field-level actions:
+// the detail pane edits as a form and commits as a form.
+export async function updatePerson(input: {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  teamId: string;
+  jobTitleId: string;
+  joinedAt: string;
+  salary: string;
+  employment: string;
+  notes: string;
+}): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can change someone's record." };
 
-  const messages = await prisma.message.findMany({
-    where: {
-      OR: [
-        { fromId: userId, toId: otherUserId },
-        { fromId: otherUserId, toId: userId },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, fromId: true, body: true, createdAt: true },
-  });
+  const name = input.name.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!name) return { error: "A name is required." };
+  if (!email) return { error: "An email is required." };
+  if (!ROLES.includes(input.role as Role)) return { error: "That isn't a valid access level." };
+  if (!EMPLOYMENT.includes(input.employment as EmploymentStatus)) return { error: "That isn't a valid status." };
 
-  await prisma.message.updateMany({
-    where: { fromId: otherUserId, toId: userId, readAt: null },
-    data: { readAt: new Date() },
-  });
-
-  return messages;
-}
-
-export async function sendMessage(toUserId: string, body: string): Promise<{ error?: string }> {
-  const fromUserId = await getSessionUserId();
-  if (!fromUserId) return { error: "Not signed in." };
-  const trimmed = body.trim();
-  if (!trimmed) return { error: "Message is empty." };
-
-  await prisma.message.create({ data: { fromId: fromUserId, toId: toUserId, body: trimmed } });
-  revalidatePath("/", "layout"); // the unread badge lives in the layout, above every page
-  return {};
-}
-
-// Unread count per sender — drives both the header's aggregate badge (sum
-// of these) and, more usefully, which specific person's row gets a badge
-// in the team roster itself: seeing "1 unread" on the stack doesn't tell
-// you who it's from without opening the panel and guessing.
-export async function getUnreadBySender(): Promise<Record<string, number>> {
-  const userId = await getSessionUserId();
-  if (!userId) return {};
-  const rows = await prisma.message.groupBy({
-    by: ["fromId"],
-    where: { toId: userId, readAt: null },
-    _count: { _all: true },
-  });
-  return Object.fromEntries(rows.map((r) => [r.fromId, r._count._all]));
-}
-
-export type Conversation = {
-  userId: string;
-  lastBody: string;
-  lastAt: Date;
-  lastFromMe: boolean;
-  unread: number;
-};
-
-// One row per person you've actually exchanged messages with, newest
-// first — the left column of the chat dashboard. Done as a single query
-// over every message either direction and folded in memory rather than N
-// queries (one per teammate): the whole team is under a dozen people and
-// this table is small, so the simple version is also the fast one.
-export async function listConversations(): Promise<Conversation[]> {
-  const userId = await getSessionUserId();
-  if (!userId) return [];
-
-  const messages = await prisma.message.findMany({
-    where: { OR: [{ fromId: userId }, { toId: userId }] },
-    orderBy: { createdAt: "desc" },
-    select: { fromId: true, toId: true, body: true, createdAt: true, readAt: true },
-  });
-
-  const byPerson = new Map<string, Conversation>();
-  for (const m of messages) {
-    const other = m.fromId === userId ? m.toId : m.fromId;
-    // messages come newest-first, so the first one seen per person is the
-    // latest; everything after only contributes to the unread count
-    const existing = byPerson.get(other);
-    if (!existing) {
-      byPerson.set(other, {
-        userId: other,
-        lastBody: m.body,
-        lastAt: m.createdAt,
-        lastFromMe: m.fromId === userId,
-        unread: m.toId === userId && !m.readAt ? 1 : 0,
-      });
-    } else if (m.toId === userId && !m.readAt) {
-      existing.unread += 1;
-    }
+  // Nobody can strip their own admin access — one misclick would lock the
+  // only person who can undo it out of the thing they'd need to undo it.
+  if (input.id === actor.id && input.role !== "admin" && actor.role === "admin") {
+    return { error: "You can't remove your own admin access." };
   }
-  return [...byPerson.values()];
+
+  const clash = await prisma.user.findFirst({ where: { email, id: { not: input.id } }, select: { id: true } });
+  if (clash) return { error: "Someone else already uses that email." };
+
+  const salary = input.salary.trim() ? Number(input.salary.replace(/[^0-9.]/g, "")) : null;
+  if (salary !== null && !Number.isFinite(salary)) return { error: "That salary isn't a number." };
+
+  await prisma.user.update({
+    where: { id: input.id },
+    data: {
+      name,
+      email,
+      phone: input.phone.trim() || null,
+      role: input.role as Role,
+      teamId: input.teamId || null,
+      jobTitleId: input.jobTitleId || null,
+      joinedAt: input.joinedAt ? new Date(`${input.joinedAt}T00:00:00Z`) : null,
+      salary,
+      employment: input.employment as EmploymentStatus,
+      notes: input.notes.trim() || null,
+    },
+  });
+
+  revalidatePath("/team");
+  return { success: true };
+}
+
+// Job titles are descriptive and grant nothing (see schema.prisma), which
+// is exactly why admin can add and remove them freely.
+export async function createJobTitle(name: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can add a role." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the role a name." };
+
+  const existing = await prisma.jobTitle.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
+  if (existing) return { error: `"${existing.name}" already exists.` };
+
+  const last = await prisma.jobTitle.findFirst({ orderBy: { sortOrder: "desc" } });
+  await prisma.jobTitle.create({ data: { name: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  revalidatePath("/team");
+  return { success: true };
+}
+
+export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can remove a role." };
+
+  // Unset it from whoever holds it rather than refusing — the title is a
+  // label, and blocking the delete would mean hunting down every holder
+  // first. Their access is untouched either way; only the label goes.
+  await prisma.user.updateMany({ where: { jobTitleId: id }, data: { jobTitleId: null } });
+  await prisma.jobTitle.delete({ where: { id } });
+  revalidatePath("/team");
+  return { success: true };
+}
+
+// Kept for the older inline role dropdown; same admin bar as everything else.
+export async function updateUserRole(userId: string, role: string) {
+  const actor = await requirePeopleAdmin();
+  if (!actor) throw new Error("Only admin can change roles");
+  if (!ROLES.includes(role as Role)) throw new Error("Invalid role");
+
+  await prisma.user.update({ where: { id: userId }, data: { role: role as Role } });
+  revalidatePath("/team");
 }

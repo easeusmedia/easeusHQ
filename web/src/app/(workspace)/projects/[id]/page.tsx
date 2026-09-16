@@ -9,6 +9,7 @@ import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { TaskRow } from "../../TaskRow";
 import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
+import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto max-w-5xl">
       <Link
-        href={`/clients/${project.clientId}`}
+        href={clientHref(project.client)}
         className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
       >
         <ArrowLeft size={14} /> {project.client.name}
@@ -60,7 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <ProjectHeader
         projectId={project.id}
-        clientId={project.clientId}
+        clientHref={clientHref(project.client)}
         name={project.name || project.type}
         status={project.status}
         coverUrl={project.coverUrl}

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId, requireOps } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { firstFree, slugify } from "@/lib/slug";
 import { normalizeUrl } from "@/lib/links";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
@@ -69,14 +70,17 @@ export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
       const existingId = existingByNotionId.get(row.id) ?? existingByName.get(name.toLowerCase());
 
       if (existingId) {
-        await prisma.client.update({ where: { id: existingId }, data: { name, status, notionPageId: row.id } });
+        await prisma.client.update({
+          where: { id: existingId },
+          data: { name, slug: await slugFor(name, existingId), status, notionPageId: row.id },
+        });
         touched.push(existingId);
         updated++;
         continue;
       }
 
       const notionType = getSelectName(row.properties, "Type"); // Subscription | Project
-      const client = await prisma.client.create({ data: { name, status, notionPageId: row.id } });
+      const client = await prisma.client.create({ data: { name, slug: await slugFor(name), status, notionPageId: row.id } });
       // bootstrap one placeholder project so the client has somewhere for
       // tasks/invoices to attach right away — rename/add more later
       await prisma.project.create({
@@ -119,7 +123,7 @@ export async function setBillingRule(
       billingMilestoneCount: cadence === "milestone" ? milestoneCount : null,
     },
   });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -137,7 +141,7 @@ export async function createInvoice(
   });
   // resets the "delivered since last invoice" counter for milestone clients
   await prisma.client.update({ where: { id: clientId }, data: { lastInvoicedAt: new Date() } });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -146,7 +150,7 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
   if (!user) return { error: "Only ops team members can update invoices." };
 
   const invoice = await prisma.invoice.update({ where: { id: invoiceId }, data: { status } });
-  revalidatePath(`/clients/${invoice.clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -160,7 +164,7 @@ export async function updateClientStatus(clientId: string, status: string): Prom
 
   await prisma.client.update({ where: { id: clientId }, data: { status } });
   revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -174,6 +178,17 @@ export async function reorderClient(clientId: string, sortOrder: number): Promis
   await prisma.client.update({ where: { id: clientId }, data: { sortOrder } });
   revalidatePath("/clients");
   return {};
+}
+
+// The address for a client called `name` — its own current one if the name
+// hasn't changed, otherwise the first free one.
+async function slugFor(name: string, exceptId?: string): Promise<string> {
+  const base = slugify(name);
+  const clash = await prisma.client.findMany({
+    where: { slug: { startsWith: base }, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    select: { slug: true },
+  });
+  return firstFree(base, new Set(clash.map((c) => c.slug!)));
 }
 
 export type ClientInfoInput = {
@@ -201,6 +216,8 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
     where: { id: clientId },
     data: {
       name: input.name.trim(),
+      // the address follows the name
+      slug: await slugFor(input.name.trim(), clientId),
       niche: empty(input.niche) ? null : input.niche.trim(),
       contact: empty(input.contact) ? null : input.contact.trim(),
       email: empty(input.email) ? null : input.email.trim(),
@@ -210,7 +227,7 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
     },
   });
   revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -231,7 +248,7 @@ export async function updateClientDoc(clientId: string, doc: ClientDocType, cont
   if (!user) return { error: `Only ops team members can edit ${DOC_LABEL[doc]}.` };
 
   await prisma.client.update({ where: { id: clientId }, data: { [doc]: content.trim() || null } });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -248,7 +265,7 @@ export async function updateClientAvatar(clientId: string, dataUrl: string | nul
 
   await prisma.client.update({ where: { id: clientId }, data: { avatarUrl: dataUrl } });
   revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -277,7 +294,7 @@ export async function setClientTags(clientId: string, tagIds: string[]): Promise
 
   await prisma.client.update({ where: { id: clientId }, data: { tags: { set: tagIds.map((id) => ({ id })) } } });
   revalidatePath("/clients");
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -323,7 +340,7 @@ export async function addDeliverable(
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -341,7 +358,7 @@ export async function updateDeliverable(
     where: { id },
     data: { name: name.trim(), detail: detail.trim() || null, deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0) },
   });
-  revalidatePath(`/clients/${d.clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -350,7 +367,7 @@ export async function deleteDeliverable(id: string): Promise<{ error?: string }>
   if (!user) return { error: "Only ops team members can edit deliverables." };
 
   const d = await prisma.deliverable.delete({ where: { id } });
-  revalidatePath(`/clients/${d.clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -413,7 +430,7 @@ export async function updateClientTemplate(data: ClientTemplateData): Promise<{ 
 // Every client is created the same way: the template's documents, its
 // contracted deliverables, its tags, a first project, and the onboarding
 // checklist. Nothing is left to whoever happened to set the client up.
-export async function createClient(name: string, niche = ""): Promise<{ id?: string; error?: string }> {
+export async function createClient(name: string, niche = ""): Promise<{ id?: string; slug?: string; error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a client." };
   const trimmed = name.trim();
@@ -427,6 +444,7 @@ export async function createClient(name: string, niche = ""): Promise<{ id?: str
   const client = await prisma.client.create({
     data: {
       name: trimmed,
+      slug: await slugFor(trimmed),
       status: "current",
       niche: niche.trim() || null,
       brandGuidelines: template.brandGuidelines || null,
@@ -457,7 +475,7 @@ export async function createClient(name: string, niche = ""): Promise<{ id?: str
   }
 
   revalidatePath("/clients");
-  return { id: client.id };
+  return { id: client.id, slug: client.slug ?? undefined };
 }
 
 export async function toggleOnboardingStep(stepId: string, done: boolean): Promise<{ error?: string }> {
@@ -465,7 +483,7 @@ export async function toggleOnboardingStep(stepId: string, done: boolean): Promi
   if (!user) return { error: "Only ops team members can update onboarding." };
 
   const step = await prisma.onboardingStep.update({ where: { id: stepId }, data: { done } });
-  revalidatePath(`/clients/${step.clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -526,7 +544,7 @@ export async function applyOnboardingTemplate(clientId: string): Promise<{ added
   if (!user) return { added: 0, error: "Only ops team members can do that." };
 
   const added = await applyTemplateTo(clientId, await getClientTemplate());
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return { added };
 }
 
@@ -540,7 +558,7 @@ export async function setNotionContentDb(clientId: string, dbId: string): Promis
     where: { id: clientId },
     data: { notionContentDbId: match ? match[0] : null },
   });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }
 
@@ -550,7 +568,7 @@ export async function importFromNotion(clientId: string) {
 
   try {
     const result = await importClientFromNotion(clientId);
-    revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/clients/[slug]", "page");
     return result;
   } catch (err) {
     return { projects: 0, assets: 0, docs: 0, error: err instanceof Error ? err.message : "Import failed." };
@@ -592,7 +610,7 @@ export async function createProject(
       assets: { create: deliverableTypes.map((t, i) => ({ name: t, contentType: t, sortOrder: i })) },
     },
   });
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return { id: project.id };
 }
 
@@ -640,7 +658,7 @@ export async function updateProject(
       completedAt,
     },
   });
-  revalidatePath(`/clients/${project.clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   revalidatePath(`/projects/${projectId}`);
   return {};
 }
@@ -653,7 +671,7 @@ export type ProjectAssetInput = { name: string; contentType: string; link: strin
 
 async function revalidateProject(projectId: string) {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { clientId: true } });
-  if (project) revalidatePath(`/clients/${project.clientId}`);
+  if (project) revalidatePath("/clients/[slug]", "page");
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -720,6 +738,6 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
   await prisma.projectAsset.deleteMany({ where: { projectId } });
   await prisma.invoice.deleteMany({ where: { projectId } });
   await prisma.project.delete({ where: { id: projectId } });
-  revalidatePath(`/clients/${project.clientId}`);
+  revalidatePath("/clients/[slug]", "page");
   return {};
 }

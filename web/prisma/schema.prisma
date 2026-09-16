@@ -192,6 +192,9 @@ model Message {
 model Client {
   id        String   @id @default(uuid())
   name      String
+  // the name as it appears in the address (/clients/elle-sera); follows the
+  // name when it's renamed — see lib/slug.ts
+  slug      String?  @unique
   // matches the Notion Clients Dashboard "Status" property: Current | On Hold | Previous
   status    String   @default("current")
   // free text — real clients span far more than doctors/podcasts (e.g. Neelkamal TMT is a steel company)

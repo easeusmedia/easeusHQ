@@ -7,8 +7,8 @@ import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
 import { ApprovalWatcher } from "./ApprovalWatcher";
-import { PresenceHeartbeat } from "./team/PresenceHeartbeat";
-import { getUnreadBySender } from "./team/actions";
+import { PresenceHeartbeat } from "./presence/PresenceHeartbeat";
+import { getUnreadBySender } from "./presence/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
 import { CLIENTS_PANEL_COOKIE } from "./clients/clientsPanel";
 import { MainScroll } from "./MainScroll";
@@ -37,7 +37,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // the roster beside the Clients section, which everyone can open
   const currentClients = await prisma.client.findMany({
     where: { status: "current" },
-    select: { id: true, name: true, avatarUrl: true },
+    select: { id: true, slug: true, name: true, avatarUrl: true },
     // the same order as the Clients dashboard
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });

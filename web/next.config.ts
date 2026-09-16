@@ -9,7 +9,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/tasks", destination: "/board", permanent: false },
       { source: "/tasks/my", destination: "/my-tasks", permanent: false },
-      { source: "/tasks/users", destination: "/people", permanent: false },
+      { source: "/tasks/users", destination: "/team", permanent: false },
+      { source: "/people", destination: "/team", permanent: false },
       { source: "/tasks/:path*", destination: "/:path*", permanent: false },
     ];
   },

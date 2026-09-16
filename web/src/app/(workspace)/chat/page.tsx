@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { listConversations } from "../team/actions";
+import { listConversations } from "../presence/actions";
 import { ChatDashboard, type ChatPerson } from "./ChatDashboard";
 
 export const dynamic = "force-dynamic";

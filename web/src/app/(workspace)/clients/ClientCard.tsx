@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { clientHref } from "@/lib/slug";
 import { Avatar } from "../TaskCard";
 import { TagPill } from "./TagPill";
 import { StatusDropdown } from "./StatusDropdown";
 
 export type ClientCardData = {
   id: string;
+  slug: string | null;
   name: string;
   status: string;
   sortOrder: number;
@@ -46,7 +48,7 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
     // ClientsBoard actually holds the draggable=true) showed a "you're
     // dragging a link" ghost instead of the card itself.
     <Link
-      href={`/clients/${client.id}`}
+      href={clientHref(client)}
       draggable={false}
       className="card-surface card-interactive flex min-w-0 flex-col gap-3 rounded-2xl p-5 shadow-sm"
     >
@@ -80,7 +82,7 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
 export function ClientRow({ client, onStatusChange }: { client: ClientCardData; onStatusChange?: (id: string, next: string) => void }) {
   return (
     <Link
-      href={`/clients/${client.id}`}
+      href={clientHref(client)}
       draggable={false}
       className="flex items-center gap-4 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
     >

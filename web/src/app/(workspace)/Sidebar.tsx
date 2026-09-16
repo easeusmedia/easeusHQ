@@ -216,7 +216,7 @@ export function Sidebar({
         ...NAV,
         ...(isOps ? [{ href: "/calendar", label: "Calendar", hint: "Workload day by day", Icon: CalendarDays }] : []),
         // core members see their own team here (read-only); admin edits everyone
-        ...(isOps ? [{ href: "/people", label: "People", hint: "The team and their roles", Icon: UsersRound }] : []),
+        ...(isOps ? [{ href: "/team", label: "Team", hint: "Everyone and their roles", Icon: UsersRound }] : []),
       ].map((item) => {
         const active = isActive(item.href, pathname);
         return (

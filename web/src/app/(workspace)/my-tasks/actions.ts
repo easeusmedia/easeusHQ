@@ -218,7 +218,7 @@ export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortO
   // rather than waiting for someone to press sync
   await mirrorIfOperations(moved.assignedToId, moved.id);
   revalidatePath("/my-tasks");
-  revalidatePath("/people");
+  revalidatePath("/team");
   return { success: true };
 }
 

@@ -11,7 +11,7 @@ import { updateProject, deleteProject } from "../clients/actions";
 // column in place rather than opening a dialog — it's three fields.
 export function ProjectHeader({
   projectId,
-  clientId,
+  clientHref,
   name,
   status,
   coverUrl,
@@ -22,7 +22,8 @@ export function ProjectHeader({
   canDelete,
 }: {
   projectId: string;
-  clientId: string;
+  // where its client lives — where deleting the project lands you
+  clientHref: string;
   name: string;
   status: string;
   coverUrl: string | null;
@@ -92,7 +93,7 @@ export function ProjectHeader({
     // back to this client's own dashboard, not the top-level roster —
     // deleting one of a client's projects shouldn't bounce you away from
     // the client you were just looking at
-    router.push(`/clients/${clientId}`);
+    router.push(clientHref);
   }
 
   const done = status === "completed";

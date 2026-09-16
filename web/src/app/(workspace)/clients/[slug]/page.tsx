@@ -35,10 +35,10 @@ export default async function ClientDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
   searchParams: Promise<{ tab?: string; show?: string }>;
 }) {
-  const { id } = await params;
+  const { slug } = await params;
   const { tab, show } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
@@ -52,8 +52,9 @@ export default async function ClientDetailPage({
   // that isn't everybody's business.
   const canSeeBilling = isAbhishekOrAdmin(me);
 
-  const client = await prisma.client.findUnique({
-    where: { id },
+  const client = await prisma.client.findFirst({
+    // by its address; an older link that used the id still finds it
+    where: { OR: [{ slug }, { id: slug }] },
     include: {
       projects: {
         orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
@@ -68,6 +69,10 @@ export default async function ClientDetailPage({
     },
   });
   if (!client) notFound();
+  if (client.slug && client.slug !== slug) {
+    const qs = new URLSearchParams({ ...(tab ? { tab } : {}), ...(show ? { show } : {}) }).toString();
+    redirect(`/clients/${client.slug}${qs ? `?${qs}` : ""}`);
+  }
 
   const projectIds = client.projects.map((p) => p.id);
   const editors = assignableEditors(users);

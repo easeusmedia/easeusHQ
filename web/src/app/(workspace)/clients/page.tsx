@@ -34,6 +34,7 @@ export default async function ClientsPage() {
 
   const cards: ClientCardData[] = clients.map((c) => ({
     id: c.id,
+    slug: c.slug,
     name: c.name,
     status: c.status,
     sortOrder: c.sortOrder,
