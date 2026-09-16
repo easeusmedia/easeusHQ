@@ -213,7 +213,14 @@ export default async function ClientDetailPage({
                 )}
 
 
-                <ProjectsSection clientId={client.id} projects={projectCards} initialShow={show} />
+                <ProjectsSection
+                  clientId={client.id}
+                  projects={projectCards}
+                  initialShow={show}
+                  billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
+                  // the studio's own calendar day, not the server's UTC one
+                  today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
+                />
               </div>
             ),
           },

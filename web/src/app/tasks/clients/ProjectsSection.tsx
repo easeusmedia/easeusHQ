@@ -6,6 +6,7 @@ import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
+import { describeRule, invoiceBatches, type BillingRule } from "@/lib/invoiceBatches";
 
 const PRESETS = [4, 8, 12] as const;
 const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
@@ -26,10 +27,17 @@ export function ProjectsSection({
   clientId,
   projects,
   initialShow,
+  billing,
+  today,
 }: {
   clientId: string;
   projects: ProjectCardData[];
   initialShow?: string;
+  // the client's invoicing rule (Billing tab), for "show one invoice's worth"
+  billing: BillingRule;
+  // yyyy-mm-dd, from the server, so "is this invoice due yet" can't differ
+  // between the server's render and the browser's
+  today: string;
 }) {
   const [preset, setPreset] = useState<number | "all">(() => {
     const show = paramOrProp("show", initialShow);
@@ -37,6 +45,7 @@ export function ProjectsSection({
     const n = Number(show);
     return (PRESETS as readonly number[]).includes(n) ? n : DEFAULT_PRESET;
   });
+  const [batchKey, setBatchKey] = useState<string | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [open, setOpen] = useState(false);
@@ -50,15 +59,43 @@ export function ProjectsSection({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  // an invoice covers finished work, so only finished projects count — which
+  // also keeps out the catch-all project each client's tasks live in
+  const batches = invoiceBatches(
+    projects.filter((p) => p.completedAt),
+    billing,
+    today
+  );
+  const batch = batches.find((b) => b.key === batchKey) ?? null;
+  const ruleText = describeRule(billing);
   const dateFilterActive = !!(from || to);
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
   // the picker's own yyyy-mm-dd values is already a correct date compare
   const dateFiltered = projects.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
-  const visible = dateFilterActive ? dateFiltered : preset === "all" ? projects : projects.slice(0, preset);
+  const visible = batch
+    ? projects.filter((p) => batch.ids.includes(p.id))
+    : dateFilterActive
+      ? dateFiltered
+      : preset === "all"
+        ? projects
+        : projects.slice(0, preset);
   const hiddenCount = projects.length - visible.length;
-  const isDefault = !dateFilterActive && preset === DEFAULT_PRESET;
+  const isDefault = !batch && !dateFilterActive && preset === DEFAULT_PRESET;
+
+  // one filter at a time — a batch, a preset, or a date range
+  function selectBatch(key: string) {
+    setBatchKey(key);
+    setFrom("");
+    setTo("");
+    setOpen(false);
+  }
+  function pickDate(set: (v: string) => void, v: string) {
+    setBatchKey(null);
+    set(v);
+  }
 
   function selectPreset(p: number | "all") {
+    setBatchKey(null);
     setPreset(p);
     setFrom("");
     setTo("");
@@ -81,7 +118,15 @@ export function ProjectsSection({
             }`}
           >
             <Filter size={12} />
-            {isDefault ? "Filter" : dateFilterActive ? "Custom range" : preset === "all" ? "All" : `Last ${preset}`}
+            {isDefault
+              ? "Filter"
+              : batch
+                ? batch.label
+                : dateFilterActive
+                  ? "Custom range"
+                  : preset === "all"
+                    ? "All"
+                    : `Last ${preset}`}
           </button>
 
           {open && (
@@ -95,7 +140,7 @@ export function ProjectsSection({
                     key={p}
                     onClick={() => selectPreset(p)}
                     className={`rounded-md px-2 py-1 text-xs ${
-                      !dateFilterActive && preset === p
+                      !batch && !dateFilterActive && preset === p
                         ? "bg-hover text-foreground"
                         : "bg-surface text-muted hover:text-foreground"
                     }`}
@@ -106,7 +151,7 @@ export function ProjectsSection({
                 <button
                   onClick={() => selectPreset("all")}
                   className={`rounded-md px-2 py-1 text-xs ${
-                    !dateFilterActive && preset === "all"
+                    !batch && !dateFilterActive && preset === "all"
                       ? "bg-hover text-foreground"
                       : "bg-surface text-muted hover:text-foreground"
                   }`}
@@ -115,10 +160,35 @@ export function ProjectsSection({
                 </button>
               </div>
 
+              {/* one invoice's worth of work, per the client's billing rule */}
+              <p className="mb-0.5 mt-3 text-xs font-medium text-muted">Invoice batch</p>
+              {ruleText ? (
+                <>
+                  <p className="mb-1.5 text-xs text-muted/70">{ruleText}</p>
+                  <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+                    {batches.map((b) => (
+                      <button
+                        key={b.key}
+                        onClick={() => selectBatch(b.key)}
+                        title={`${b.ids.length} project${b.ids.length === 1 ? "" : "s"}${b.complete ? "" : " · not invoiced yet"}`}
+                        className={`rounded-md px-2 py-1 text-xs ${
+                          batchKey === b.key ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
+                        }`}
+                      >
+                        {b.label}
+                        {!b.complete && <span className="ml-1 text-emerald-300">•</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-muted/70">No billing rule set for this client yet — add one on the Billing tab.</p>
+              )}
+
               <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
               <div className="flex flex-col gap-2">
-                <DatePicker value={from} onChange={setFrom} placeholder="From…" />
-                <DatePicker value={to} onChange={setTo} placeholder="To…" />
+                <DatePicker value={from} onChange={(v) => pickDate(setFrom, v)} placeholder="From…" />
+                <DatePicker value={to} onChange={(v) => pickDate(setTo, v)} placeholder="To…" />
               </div>
               {dateFilterActive && (
                 <button
@@ -141,7 +211,7 @@ export function ProjectsSection({
         {visible.map((p) => (
           <ProjectCard key={p.id} project={p} />
         ))}
-        {!dateFilterActive && hiddenCount > 0 && (
+        {!batch && !dateFilterActive && hiddenCount > 0 && (
           <MoreProjectsCard
             count={hiddenCount}
             cover={projects[visible.length]?.coverUrl ?? null}

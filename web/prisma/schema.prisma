@@ -246,6 +246,11 @@ model Client {
   // — it used to mean running a script with the id hard-coded.
   notionContentDbId String?
 
+  // where this client sits on the Clients dashboard — dragged into place,
+  // shared by everyone, lower first. A float so moving one card between
+  // two others is a single write (their midpoint).
+  sortOrder Float @default(0)
+
   projects     Project[]
   invoices     Invoice[]
   deliverables Deliverable[]
