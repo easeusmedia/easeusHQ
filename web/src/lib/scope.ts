@@ -77,3 +77,10 @@ export function canEditTag(user: Viewer, tag: { teamId: string | null }): boolea
   if (user.role !== "core" || !user.teamId) return false;
   return tag.teamId === user.teamId;
 }
+
+// What clients write from their shared page is for whoever runs client work:
+// admin and Abhishek, and Operations' core members — not editors, not Sales.
+export function seesClientFeedback(user: Pick<Viewer, "role" | "email" | "teamId">, operationsTeamId: string | null): boolean {
+  if (seesEveryTeam(user)) return true;
+  return user.role === "core" && !!user.teamId && user.teamId === operationsTeamId;
+}

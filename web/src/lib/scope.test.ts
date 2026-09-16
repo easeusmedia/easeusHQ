@@ -6,6 +6,7 @@ import {
   canEditTag,
   canSeeMember,
   seesEveryTeam,
+  seesClientFeedback,
   viewScope,
   visibleTagWhere,
   type Viewer,
@@ -78,4 +79,14 @@ test("core members curate only their own team's tags", () => {
   assert.equal(canEditTag(ashmit, { teamId: null }), true);
   // an employee never curates tags
   assert.equal(canEditTag(sparsh, { teamId: OPS }), false);
+});
+
+test("client feedback: admin, Abhishek and Operations core only", () => {
+  const ops = "team-ops";
+  assert.equal(seesClientFeedback({ role: "admin", email: "a@x", teamId: null }, ops), true);
+  assert.equal(seesClientFeedback({ role: "core", email: "abhishek@easeus.media", teamId: null }, ops), true);
+  assert.equal(seesClientFeedback({ role: "core", email: "j@x", teamId: ops }, ops), true);
+  assert.equal(seesClientFeedback({ role: "core", email: "p@x", teamId: "team-sales" }, ops), false);
+  assert.equal(seesClientFeedback({ role: "employee", email: "e@x", teamId: ops }, ops), false);
+  assert.equal(seesClientFeedback({ role: "core", email: "n@x", teamId: null }, null), false);
 });

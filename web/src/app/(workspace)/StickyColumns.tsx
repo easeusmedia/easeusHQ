@@ -20,11 +20,15 @@ export type StickyColumn = { key: string; header: React.ReactNode; body: React.R
 export function StickyColumns({
   columns,
   minColumn = 10,
+  stretch = false,
   onDragOver,
 }: {
   columns: StickyColumn[];
   // rem: the narrowest a column may get before the board wraps
   minColumn?: number;
+  // share the whole width evenly (a short, fixed set like My tasks' four
+  // stages) instead of stopping at a card's width
+  stretch?: boolean;
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
 }) {
   const scope = `sc${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -44,7 +48,9 @@ export function StickyColumns({
   }
 
   // no wider than a comfortable card, scaled a little with the screen
-  const grid = { gridTemplateColumns: "repeat(var(--per-row), minmax(0, clamp(16rem, 24vw, 22rem)))" };
+  const grid = {
+    gridTemplateColumns: `repeat(var(--per-row), minmax(0, ${stretch ? "1fr" : "clamp(16rem, 24vw, 22rem)"}))`,
+  };
   // A scroller's padding also pads where sticky things stop, so a plain
   // top-0 would pin headers a padding's height down the page with cards
   // showing above them. Pulling the stop up by the page padding

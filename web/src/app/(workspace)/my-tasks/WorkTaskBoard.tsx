@@ -125,7 +125,13 @@ export function WorkTaskBoard({
     const list = layout === "list";
     return (
       <div
-        className={list ? "flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40" : "flex min-h-24 min-w-0 flex-1 flex-col gap-3"}
+        className={
+          !list
+            ? "flex min-h-24 min-w-0 flex-1 flex-col gap-3"
+            : columnTasks.length + group.queue.length === 0
+              ? `rounded-xl border border-dashed ${draggingId ? "border-foreground/30" : "border-border"}`
+              : "flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40"
+        }
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -208,6 +214,7 @@ export function WorkTaskBoard({
       {groupBy === "status" && layout === "board" && (
         <StickyColumns
           minColumn={11}
+          stretch
           columns={groups.map((group) => ({
             key: group.key,
             header: <GroupHeader group={group} count={columnOf(group.status!).length + group.queue.length} />,

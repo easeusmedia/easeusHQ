@@ -6,7 +6,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { visibleTagWhere } from "@/lib/scope";
+import { seesClientFeedback, visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { clientLogoSrc } from "@/lib/photos";
 import { Board } from "../../Board";
@@ -21,7 +21,7 @@ import { ProjectsSection } from "../ProjectsSection";
 
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientShare } from "../ClientShare";
-import { ClientFeedbackList } from "../ClientFeedbackList";
+import { ClientMessages } from "../ClientMessages";
 import { ClientTabs } from "../ClientTabs";
 import { ProfileHead } from "../../ProfileHead";
 import { PhotoEdit } from "../../PhotoEdit";
@@ -69,10 +69,16 @@ export default async function ClientDetailPage({
       deliverables: { orderBy: { sortOrder: "asc" } },
       onboarding: { orderBy: { sortOrder: "asc" } },
       tags: true,
-      feedback: { orderBy: { createdAt: "desc" }, take: 20 },
     },
   });
   if (!client) notFound();
+
+  // client messages: admin/Abhishek and Operations' core members only
+  const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
+  const canSeeFeedback = seesClientFeedback(me, opsTeam?.id ?? null);
+  const feedback = canSeeFeedback
+    ? await prisma.clientFeedback.findMany({ where: { clientId: client.id }, orderBy: { createdAt: "desc" }, take: 50 })
+    : [];
 
   const projectIds = client.projects.map((p) => p.id);
   const editors = assignOptionsFor(me, users);
@@ -148,12 +154,22 @@ export default async function ClientDetailPage({
             <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
           </div>
         </ProfileHead>
-        {/* the client's own page at this address, for the team to switch on */}
-        {me.role !== "employee" && (
-          <div className="ml-auto self-start">
-            <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />
-          </div>
-        )}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start">
+          {/* the client's own page at this address, for the team to switch on */}
+          {me.role !== "employee" && <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />}
+          {canSeeFeedback && (client.shareEnabled || feedback.length > 0) && (
+            <ClientMessages
+              clientId={client.id}
+              items={feedback.map((f) => ({
+                id: f.id,
+                name: f.name,
+                message: f.message,
+                createdAt: f.createdAt.toISOString(),
+                unread: !f.readAt,
+              }))}
+            />
+          )}
+        </div>
       </div>
 
       <div className="mb-10">
@@ -174,18 +190,6 @@ export default async function ClientDetailPage({
             label: "Overview",
             content: (
               <div className="flex flex-col gap-10">
-                {client.feedback.length > 0 && (
-                  <ClientFeedbackList
-                    clientId={client.id}
-                    items={client.feedback.map((f) => ({
-                      id: f.id,
-                      name: f.name,
-                      message: f.message,
-                      createdAt: f.createdAt.toISOString(),
-                      unread: !f.readAt,
-                    }))}
-                  />
-                )}
                 <ClientOnboarding clientId={client.id} steps={client.onboarding} />
 
                 <section>

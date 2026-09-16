@@ -7,6 +7,8 @@ import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
 import { ApprovalWatcher } from "./ApprovalWatcher";
+import { FeedbackWatcher } from "./FeedbackWatcher";
+import { seesClientFeedback } from "@/lib/scope";
 import { PresenceHeartbeat } from "./presence/PresenceHeartbeat";
 import { getUnreadBySender } from "./presence/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
@@ -37,6 +39,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
   const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
   const unreadBySender = await getUnreadBySender().catch(() => ({}));
+  const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
+  const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
   // the roster beside the Clients section, which everyone can open
   const currentClients = (
     await prisma.client.findMany({
@@ -75,6 +79,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} />
       <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)]">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
+      {hearsFromClients && <FeedbackWatcher />}
     </div>
     </PeopleProvider>
   );

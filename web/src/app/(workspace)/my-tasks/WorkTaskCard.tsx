@@ -78,7 +78,7 @@ export function WorkTaskCard({
         tabIndex={0}
         onClick={() => dialogRef.current?.open()}
         onKeyDown={(e) => e.key === "Enter" && dialogRef.current?.open()}
-        className="card-surface card-interactive flex w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left shadow-sm"
+        className="card-surface card-interactive flex w-full cursor-pointer flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
         {showStatus && (
           <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="w-full max-w-40">
@@ -116,7 +116,7 @@ export function WorkTaskCard({
         )}
 
         {hasFooter && (
-          <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+          <div className="mt-1 flex items-center justify-between gap-2 border-t border-border pt-2.5">
             {/* Name, not just a circle. An initial alone doesn't say who has
                 the task, and on a board scoped to a whole team "who is on
                 this" is the main thing the card has to answer. It leads the

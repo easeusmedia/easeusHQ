@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId, requireOps } from "@/lib/auth";
+import { getSessionUserId, requireFeedbackViewer, requireOps } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { firstFree, slugify } from "@/lib/slug";
 import { isStorablePicture } from "@/lib/photos";
@@ -180,11 +180,23 @@ export async function setClientSharing(clientId: string, enabled: boolean): Prom
 }
 
 export async function markClientFeedbackRead(clientId: string): Promise<{ error?: string }> {
-  const user = await requireOps();
-  if (!user) return { error: "Only ops team members can do that." };
+  if (!(await requireFeedbackViewer())) return { error: "Only Operations and the admin can do that." };
   await prisma.clientFeedback.updateMany({ where: { clientId, readAt: null }, data: { readAt: new Date() } });
   revalidatePath("/clients/[slug]", "page");
   return {};
+}
+
+// Messages nobody has read yet, across every client — for the bottom-right
+// notice (FeedbackWatcher). Empty for anyone who doesn't see feedback.
+export async function unreadClientFeedback() {
+  if (!(await requireFeedbackViewer())) return [];
+  const rows = await prisma.clientFeedback.findMany({
+    where: { readAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true, name: true, message: true, client: { select: { name: true, slug: true } } },
+  });
+  return rows.map((r) => ({ id: r.id, from: r.name, message: r.message.slice(0, 140), client: r.client.name, slug: r.client.slug }));
 }
 
 // Dragging a client into place on the dashboard. One shared order for the
