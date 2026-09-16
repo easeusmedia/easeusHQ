@@ -12,6 +12,7 @@ import { getUnreadBySender } from "./presence/actions";
 import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
 import { CLIENTS_PANEL_COOKIE } from "./clients/clientsPanel";
 import { MainScroll } from "./MainScroll";
+import { clientLogoSrc } from "@/lib/slug";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   const sessionUserId = await getSessionUserId();
@@ -35,12 +36,14 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
   const unreadBySender = await getUnreadBySender().catch(() => ({}));
   // the roster beside the Clients section, which everyone can open
-  const currentClients = await prisma.client.findMany({
-    where: { status: "current" },
-    select: { id: true, slug: true, name: true, avatarUrl: true },
-    // the same order as the Clients dashboard
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
+  const currentClients = (
+    await prisma.client.findMany({
+      where: { status: "current" },
+      select: { id: true, slug: true, name: true, avatarUrl: true },
+      // the same order as the Clients dashboard
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    })
+  ).map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
   return (
     <div className="flex h-screen bg-background text-foreground">

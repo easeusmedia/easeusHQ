@@ -6,6 +6,7 @@ import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { ClientsSyncButton } from "./ClientsSyncButton";
 import { ClientsBoard } from "./ClientsBoard";
 import type { ClientCardData } from "./ClientCard";
+import { clientLogoSrc } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function ClientsPage() {
     status: c.status,
     sortOrder: c.sortOrder,
     niche: c.niche,
-    avatarUrl: c.avatarUrl,
+    logo: clientLogoSrc(c),
     tags: c.tags,
     activeProjects: c.projects.length,
     activeTasks: c.projects.reduce((sum, p) => sum + p._count.tasks, 0),

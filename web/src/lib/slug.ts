@@ -6,7 +6,7 @@ const RESERVED = new Set(["template"]);
 export function slugify(name: string): string {
   const s = name
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "") // accents off: "Café" → "cafe"
+    .replace(/[\u0300-\u036f]/g, "") // accents off: "Café" → "cafe"
     .toLowerCase()
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, "-")
@@ -21,4 +21,16 @@ export function firstFree(base: string, taken: Set<string>): string {
   return slug;
 }
 
-export const clientHref = (c: { id: string; slug: string | null }) => `/clients/${c.slug ?? c.id}`;
+export const clientHref = (c: { slug: string }) => `/clients/${c.slug}`;
+
+// A client's logo as an ordinary cached image rather than the image itself
+// inlined into every page: the stored logo is a data: URI, and pages refresh
+// themselves every few seconds. The version is a short hash of the logo, so
+// a new upload is a new address and the browser can keep the old one cached
+// for good.
+export function clientLogoSrc(c: { slug: string; avatarUrl: string | null }): string | null {
+  if (!c.avatarUrl) return null;
+  let h = 2166136261; // FNV-1a
+  for (let i = 0; i < c.avatarUrl.length; i++) h = Math.imul(h ^ c.avatarUrl.charCodeAt(i), 16777619);
+  return `/clients/${c.slug}/logo?v=${(h >>> 0).toString(36)}`;
+}

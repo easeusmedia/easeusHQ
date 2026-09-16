@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password.ts";
+import { slugify } from "../src/lib/slug.ts";
 
 const prisma = new PrismaClient();
 
@@ -71,7 +72,7 @@ async function main() {
       const client = await prisma.client.upsert({
         where: { id: c.id },
         update: {},
-        create: { id: c.id, name: c.name, niche: c.niche, status: "current" },
+        create: { id: c.id, name: c.name, slug: slugify(c.name), niche: c.niche, status: "current" },
       });
       return prisma.project.upsert({
         where: { id: `project-${c.id}` },

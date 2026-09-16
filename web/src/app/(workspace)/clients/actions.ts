@@ -188,7 +188,7 @@ async function slugFor(name: string, exceptId?: string): Promise<string> {
     where: { slug: { startsWith: base }, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
     select: { slug: true },
   });
-  return firstFree(base, new Set(clash.map((c) => c.slug!)));
+  return firstFree(base, new Set(clash.map((c) => c.slug)));
 }
 
 export type ClientInfoInput = {
@@ -475,7 +475,7 @@ export async function createClient(name: string, niche = ""): Promise<{ id?: str
   }
 
   revalidatePath("/clients");
-  return { id: client.id, slug: client.slug ?? undefined };
+  return { id: client.id, slug: client.slug };
 }
 
 export async function toggleOnboardingStep(stepId: string, done: boolean): Promise<{ error?: string }> {

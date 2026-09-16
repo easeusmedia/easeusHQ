@@ -7,7 +7,7 @@ import { Avatar } from "../TaskCard";
 import { updateClientAvatar } from "./actions";
 import { resizeToJpeg } from "@/lib/imageResize";
 
-export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; name: string; avatarUrl: string | null }) {
+export function ClientAvatar({ clientId, name, logo }: { clientId: string; name: string; logo: string | null }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
@@ -40,9 +40,9 @@ export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; 
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="group relative">
-        {avatarUrl ? (
+        {logo ? (
           // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-          <img src={avatarUrl} alt={name} className="h-14 w-14 shrink-0 rounded-full object-cover" />
+          <img src={logo} alt={name} className="h-14 w-14 shrink-0 rounded-full object-cover" />
         ) : (
           <Avatar name={name} size={56} />
         )}
@@ -55,7 +55,7 @@ export function ClientAvatar({ clientId, name, avatarUrl }: { clientId: string; 
         >
           <Camera size={16} />
         </button>
-        {avatarUrl && !pending && (
+        {logo && !pending && (
           <button
             type="button"
             onClick={remove}

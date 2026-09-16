@@ -8,21 +8,22 @@ import { StatusDropdown } from "./StatusDropdown";
 
 export type ClientCardData = {
   id: string;
-  slug: string | null;
+  slug: string;
   name: string;
   status: string;
   sortOrder: number;
   niche: string | null;
-  avatarUrl: string | null;
+  // the logo's own address (see clientLogoSrc), not the image itself
+  logo: string | null;
   tags: { id: string; name: string; color: string }[];
   activeProjects: number;
   activeTasks: number;
 };
 
 function Face({ client, size }: { client: ClientCardData; size: number }) {
-  return client.avatarUrl ? (
+  return client.logo ? (
     // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
-    <img src={client.avatarUrl} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
+    <img src={client.logo} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
   ) : (
     <Avatar name={client.name} size={size} />
   );

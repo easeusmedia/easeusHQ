@@ -8,6 +8,7 @@ import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { clientLogoSrc } from "@/lib/slug";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
@@ -52,9 +53,8 @@ export default async function ClientDetailPage({
   // that isn't everybody's business.
   const canSeeBilling = isAbhishekOrAdmin(me);
 
-  const client = await prisma.client.findFirst({
-    // by its address; an older link that used the id still finds it
-    where: { OR: [{ slug }, { id: slug }] },
+  const client = await prisma.client.findUnique({
+    where: { slug },
     include: {
       projects: {
         orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
@@ -69,10 +69,6 @@ export default async function ClientDetailPage({
     },
   });
   if (!client) notFound();
-  if (client.slug && client.slug !== slug) {
-    const qs = new URLSearchParams({ ...(tab ? { tab } : {}), ...(show ? { show } : {}) }).toString();
-    redirect(`/clients/${client.slug}${qs ? `?${qs}` : ""}`);
-  }
 
   const projectIds = client.projects.map((p) => p.id);
   const editors = assignableEditors(users);
@@ -139,7 +135,7 @@ export default async function ClientDetailPage({
       </Link>
 
       <div className="mb-8 flex items-center gap-4">
-        <ClientAvatar clientId={client.id} name={client.name} avatarUrl={client.avatarUrl} />
+        <ClientAvatar clientId={client.id} name={client.name} logo={clientLogoSrc(client)} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
