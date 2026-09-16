@@ -206,6 +206,7 @@ export default async function ClientDetailPage({
                       projectName: t.project ? t.project.name || t.project.type : null,
                       assignee: t.assignedTo ? { name: t.assignedTo.name } : null,
                       tags: t.tags.map((x) => x.name),
+                      dueDate: t.dueDate,
                     }))}
                     clientName={client.name}
                     editors={editors}

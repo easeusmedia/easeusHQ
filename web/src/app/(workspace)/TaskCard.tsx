@@ -8,7 +8,7 @@ import { StatusSelect } from "./StatusSelect";
 import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
-import { RotateCcw, EyeOff } from "lucide-react";
+import { CalendarClock, RotateCcw, EyeOff } from "lucide-react";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 
 // kept as re-exports so the existing call sites don't all have to change —
@@ -60,6 +60,32 @@ export function formatDate(d: Date | string) {
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(date.getUTCDate()).padStart(2, "0");
   return `${dd}/${mm}/${date.getUTCFullYear()}`;
+}
+
+// yyyy-mm-dd of a stored date, in India — what a date field holds
+export function istDay(d: Date | string) {
+  return toIST(d).toISOString().slice(0, 10);
+}
+
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "20 Sep" (plus the year when it isn't this one), red once it has passed
+// on anything not yet finished.
+export function DueDate({ date, done = false }: { date: Date | string; done?: boolean }) {
+  const due = istDay(date);
+  const today = istDay(new Date());
+  const [y, m, d] = due.split("-").map(Number);
+  const overdue = !done && due < today;
+  return (
+    <span
+      title={`${overdue ? "Overdue — was due" : "Due"} ${formatDate(date)}`}
+      className={`flex shrink-0 items-center gap-1 whitespace-nowrap text-xs ${overdue ? "font-medium text-red-300" : "text-muted"}`}
+    >
+      <CalendarClock size={12} className="shrink-0" />
+      {d} {MONTH_SHORT[m - 1]}
+      {y !== Number(today.slice(0, 4)) && ` ${y}`}
+    </span>
+  );
 }
 
 // plus time-of-day — the activity trail logs every status change with a
@@ -258,10 +284,19 @@ export function TaskCard({
         </div>
       )}
 
-      {task.assignedTo && (
+      {(task.assignedTo || task.dueDate) && (
         <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-          <Avatar name={task.assignedTo.name} />
-          <span className="truncate">{task.assignedTo.name}</span>
+          {task.assignedTo && (
+            <>
+              <Avatar name={task.assignedTo.name} />
+              <span className="truncate">{task.assignedTo.name}</span>
+            </>
+          )}
+          {task.dueDate && (
+            <span className="ml-auto">
+              <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />
+            </span>
+          )}
         </div>
       )}
 

@@ -278,6 +278,15 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const tagIds = formData.getAll("tagIds").map(String).filter(Boolean);
   const internal = formData.get("internal") === "on";
 
+  // yyyy-mm-dd or empty (cleared); absent means the form didn't show it
+  const day = (name: string): Date | null | undefined => {
+    if (!formData.has(name)) return undefined;
+    const v = String(formData.get(name) ?? "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v) : null;
+  };
+  const dueDate = day("dueDate");
+  const scheduledFor = day("scheduledFor");
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -290,6 +299,8 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       ...(driveLink !== undefined ? { driveLink } : {}),
       ...(referenceLink !== undefined ? { referenceLink } : {}),
       ...(assetLink !== undefined ? { assetLink } : {}),
+      ...(dueDate !== undefined ? { dueDate } : {}),
+      ...(scheduledFor !== undefined ? { scheduledFor } : {}),
       ...(formData.has("tagsPresent") ? { tags: { set: tagIds.map((id) => ({ id })) }, internal } : {}),
     },
   });

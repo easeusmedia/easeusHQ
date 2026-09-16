@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { WorkTaskStatus } from "@prisma/client";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { AssigneeLabel, StageColumn } from "../TaskCard";
+import { AssigneeLabel, DueDate, StageColumn } from "../TaskCard";
 import { TaskTagChip } from "../TaskTagPicker";
 
 export type ClientWorkTask = {
@@ -11,6 +11,7 @@ export type ClientWorkTask = {
   projectName: string | null;
   assignee: { name: string } | null;
   tags: string[];
+  dueDate: Date | null;
 };
 
 // One work task, shaped to sit in the same list as the editing-queue rows on
@@ -36,6 +37,9 @@ export function WorkTaskRow({ task }: { task: ClientWorkTask }) {
         </span>
       )}
 
+      <span className="flex w-16 shrink-0 justify-end">
+        {task.dueDate && <DueDate date={task.dueDate} done={task.status === "done"} />}
+      </span>
       {task.assignee && <AssigneeLabel name={task.assignee.name} />}
       <StageColumn>
         <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${WORK_TASK_STAGE[task.status].pill}`}>

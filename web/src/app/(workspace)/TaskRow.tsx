@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { AssigneeLabel, StageColumn, type TaskCardData } from "./TaskCard";
+import { AssigneeLabel, DueDate, StageColumn, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
@@ -76,6 +76,10 @@ export function TaskRow({
           </a>
         )}
 
+        {/* a fixed slot, so due dates line up down the list */}
+        <span className="flex w-16 shrink-0 justify-end">
+          {task.dueDate && <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />}
+        </span>
         {task.assignedTo && <AssigneeLabel name={task.assignedTo.name} />}
         {/* the stage is changed here, in place — it used to be a static
             badge, so moving a task on from this list meant opening it or

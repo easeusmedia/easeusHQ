@@ -1,14 +1,15 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useActionState } from "react";
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesGlyph, linkify } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 import { ProjectField } from "./ProjectField";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
-import { Avatar, formatDateTime } from "./TaskCard";
+import { Avatar, DueDate, formatDateTime, istDay } from "./TaskCard";
+import { DatePicker } from "./DatePicker";
 import type { Role, TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import type { TaskCardData } from "./TaskCard";
@@ -54,6 +55,8 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const [logs, setLogs] = useState<LogEntry[] | null>(null);
   const [editingFrameio, setEditingFrameio] = useState(false);
   const [internal, setInternal] = useState(task.internal);
+  const [due, setDue] = useState(task.dueDate ? istDay(task.dueDate) : "");
+  const [scheduled, setScheduled] = useState(task.scheduledFor ? istDay(task.scheduledFor) : "");
 
   const canManage = actingRole === "admin" || actingRole === "core";
   const isAssignee = task.assignedTo?.id === actingUserId;
@@ -64,6 +67,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   function open() {
     dialogRef.current?.showModal();
     setEditingFrameio(false);
+    // what's saved now, not what was typed before a Cancel
+    setDue(task.dueDate ? istDay(task.dueDate) : "");
+    setScheduled(task.scheduledFor ? istDay(task.scheduledFor) : "");
     // always refetch, not just once — the trail changes every time the
     // task's status changes elsewhere on the board, and this component
     // instance can stay mounted (and its state cached) across many of
@@ -108,6 +114,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
+        // the width eases open with the History panel (see .dialog-grow);
+        // the panel grows by exactly what the dialog does, so the form
+        // beside it never changes size on the way
         className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[85vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
           historyOpen ? "w-[58rem]" : "w-[37rem]"
         }`}
@@ -122,12 +131,12 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             onClick={() => setHistoryOpen((v) => !v)}
             className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground"
           >
-            {historyOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            <ChevronRight size={13} className={`transition-transform duration-300 ${historyOpen ? "rotate-90" : ""}`} />
             History
           </button>
         </div>
 
-        <div className="flex min-h-0 flex-1 gap-4">
+        <div className="flex min-h-0 flex-1">
           {/* Two columns, so the form stops being one tall stack you have
               to scroll end to end. Short fields pair up; anything that
               needs the width (title, tags, notes) spans both. */}
@@ -187,6 +196,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <Field label="Raw footage">
                   <input name="rawLink" defaultValue={task.rawLink ?? ""} placeholder="Google Drive link" className={inputCls} />
                 </Field>
+                {/* ops set when it's due and when the editor sees it;
+                    an editor's own save never carries these */}
+                <Field label="Due date">
+                  <input type="hidden" name="dueDate" value={due} />
+                  <DatePicker value={due} onChange={setDue} placeholder="No due date" />
+                </Field>
+                <Field label="Schedule for">
+                  <input type="hidden" name="scheduledFor" value={scheduled} />
+                  <DatePicker value={scheduled} onChange={setScheduled} placeholder="Visible immediately" />
+                </Field>
                 <Field label="Frame.io">
                   <input name="frameioLink" defaultValue={task.frameioLink ?? ""} placeholder="https://f.io/…" className={inputCls} />
                 </Field>
@@ -243,10 +262,19 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               // an editor sees everything but can only ever change the
               // Frame.io link — the rest is ops' input, read-only here
               <div className="col-span-2 flex flex-col gap-3">
-                {task.assignedTo && (
+                {(task.assignedTo || task.dueDate) && (
                   <div className="flex items-center gap-2 text-sm text-muted">
-                    <Avatar name={task.assignedTo.name} />
-                    {task.assignedTo.name}
+                    {task.assignedTo && (
+                      <>
+                        <Avatar name={task.assignedTo.name} />
+                        {task.assignedTo.name}
+                      </>
+                    )}
+                    {task.dueDate && (
+                      <span className="ml-auto">
+                        <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />
+                      </span>
+                    )}
                   </div>
                 )}
                 <div>
@@ -311,21 +339,24 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             {state.error && <p className="col-span-2 text-sm text-red-300">{state.error}</p>}
           </form>
 
-          {/* Beside the form, the same height as it: the panel's own
-              content never sizes the dialog (it's absolutely placed), so
-              opening it can't make the dialog grow and shrink, and a long
-              trail scrolls inside it instead. Shown at once — no width
-              animation for the form to reflow through. */}
-          {historyOpen && (
-            <div className="pop-in relative min-h-64 w-[min(20rem,38vw)] shrink-0">
-              <div className="absolute inset-0 flex flex-col gap-2">
-                <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has gone through</p>
-                <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border p-3">
-                  <TaskHistory logs={logs} />
-                </div>
+          {/* Beside the form, the same height as it. It slides open in step
+              with the dialog's width: its content is a fixed width, pinned
+              left, so nothing inside reflows while it grows, and it's
+              absolutely placed, so it never makes the dialog taller — a
+              long trail scrolls inside it instead. */}
+          <div
+            inert={!historyOpen}
+            className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              historyOpen ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"
+            }`}
+          >
+            <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
+              <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has gone through</p>
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border p-3">
+                <TaskHistory logs={logs} />
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {canManage && (

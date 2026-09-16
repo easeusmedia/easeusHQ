@@ -235,6 +235,17 @@ dialog[open]::backdrop {
 /* flex layout only while actually open — see the long comment in
    TaskDetailsDialog.tsx on why this can't just be a `flex` Tailwind class
    on the element itself. */
+/* The task dialog widens as its History panel slides open — same curve and
+   length as the panel (TaskDetailsDialog.tsx), on top of the open/close
+   fade every dialog has. */
+.dialog-grow {
+  transition:
+    opacity 0.18s ease,
+    scale 0.18s ease,
+    overlay 0.18s ease allow-discrete,
+    display 0.18s ease allow-discrete,
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .dialog-grow[open] {
   display: flex;
   flex-direction: column;
