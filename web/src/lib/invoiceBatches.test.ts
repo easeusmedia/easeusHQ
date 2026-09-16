@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { invoiceBatches } from "./invoiceBatches.ts";
+import { batchPayment, invoiceBatches } from "./invoiceBatches.ts";
 
 const p = (id: string, date: string) => ({ id, date });
 
@@ -46,4 +46,14 @@ test("an invoice spanning into another year says which", () => {
   const items = [p("a", "2025-12-20"), p("b", "2026-01-05")];
   const b = invoiceBatches(items, { cadence: "milestone", dayOfMonth: null, every: 2 }, "2026-09-17");
   assert.equal(b[0].detail, "20 Dec 2025 – 5 Jan");
+});
+
+test("an invoice's payment comes from its projects; unrecorded ones don't count against it", () => {
+  assert.equal(batchPayment(["paid", "paid", null, "paid"], true), "paid");
+  assert.equal(batchPayment(["paid", "unpaid"], true), "part_paid");
+  assert.equal(batchPayment(["unpaid", null], true), "unpaid");
+  assert.equal(batchPayment([null, null], true), "not_marked");
+  // an invoice that hasn't gone out yet isn't owed
+  assert.equal(batchPayment(["unpaid", "unpaid"], false), "not_sent");
+  assert.equal(batchPayment(["paid"], false), "paid");
 });

@@ -18,6 +18,8 @@ export type ProjectCardData = {
   date: string;
   assetCount: number;
   activeTasks: number;
+  // paid / unpaid, or null when nobody's recorded it
+  invoiceStatus: string | null;
 };
 
 // A cover, a name, and one line underneath. Clicking opens the project,

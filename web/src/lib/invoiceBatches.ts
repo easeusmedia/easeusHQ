@@ -97,3 +97,17 @@ export function invoiceBatches(items: { id: string; date: string }[], rule: Bill
 
   return [];
 }
+
+// Whether an invoice's been paid, from what's recorded on its projects
+// (paid / unpaid, or nothing — rows from Notion often carry nothing).
+export type Payment = "paid" | "unpaid" | "part_paid" | "not_sent" | "not_marked";
+
+export function batchPayment(statuses: (string | null)[], complete: boolean): Payment {
+  const known = statuses.filter((s) => s === "paid" || s === "unpaid");
+  if (known.length > 0 && known.every((s) => s === "paid")) return "paid";
+  // still filling up (or this month isn't over): nothing to pay yet
+  if (!complete) return "not_sent";
+  if (known.some((s) => s === "paid")) return "part_paid";
+  if (known.length > 0) return "unpaid";
+  return "not_marked";
+}

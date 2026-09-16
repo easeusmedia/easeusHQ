@@ -117,6 +117,7 @@ export default async function ClientDetailPage({
     date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10),
     assetCount: p._count.assets,
     activeTasks: p._count.tasks,
+    invoiceStatus: p.invoiceStatus,
   }));
 
   return (

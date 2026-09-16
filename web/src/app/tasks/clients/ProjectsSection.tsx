@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Filter } from "lucide-react";
+import { Filter, LayoutGrid, Receipt } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
-import { invoiceBatches, type BillingRule } from "@/lib/invoiceBatches";
+import { batchPayment, invoiceBatches, type BillingRule, type Payment } from "@/lib/invoiceBatches";
 import { Dropdown } from "../Dropdown";
 
 const PRESETS = [4, 8, 12] as const;
+
+const PAYMENT: Record<Payment, { label: string; className: string }> = {
+  paid: { label: "Paid", className: "border-green-400/30 bg-green-400/15 text-green-300" },
+  unpaid: { label: "Unpaid", className: "border-amber-400/30 bg-amber-400/15 text-amber-300" },
+  part_paid: { label: "Part paid", className: "border-amber-400/30 bg-amber-400/10 text-amber-300" },
+  not_sent: { label: "Not invoiced yet", className: "border-border bg-surface text-muted" },
+  not_marked: { label: "Payment not marked", className: "border-border bg-surface text-muted" },
+};
 const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
 
 // Projects already come in most-recent-first. Default view is just the
@@ -70,15 +78,20 @@ export function ProjectsSection({
   );
   const batch = batches.find((b) => b.key === batchKey) ?? null;
   const dateFilterActive = !!(from || to);
-  const grouped = preset === "invoice" && batches.length > 0 && !batch && !dateFilterActive;
+  // the By invoice view (the switch beside Filter) — its own way of seeing
+  // everything, so the filters step aside while it's on
+  const grouped = preset === "invoice" && batches.length > 0;
   // what isn't finished yet belongs to no invoice, so it leads, on its own
   const unfinished = projects.filter((p) => !p.completedAt);
   const groups = grouped
     ? [
         ...(unfinished.length
-          ? [{ key: "unfinished", label: "Not finished yet", detail: `${unfinished.length} project${unfinished.length === 1 ? "" : "s"}`, items: unfinished }]
+          ? [{ key: "unfinished", label: "Not finished yet", detail: `${unfinished.length} project${unfinished.length === 1 ? "" : "s"}`, items: unfinished, payment: null }]
           : []),
-        ...batches.map((b) => ({ key: b.key, label: b.label, detail: b.detail, items: projects.filter((p) => b.ids.includes(p.id)) })),
+        ...batches.map((b) => {
+          const items = projects.filter((p) => b.ids.includes(p.id));
+          return { key: b.key, label: b.label, detail: b.detail, items, payment: batchPayment(items.map((p) => p.invoiceStatus), b.complete) };
+        }),
       ]
     : [];
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
@@ -121,11 +134,35 @@ export function ProjectsSection({
         <h2 className="text-sm font-medium">Projects</h2>
 
         <div ref={ref} className="relative flex items-center gap-2">
-          {!isDefault && (
+          {/* how to look at them: as a list of projects, or split into the
+              invoices they were billed in */}
+          {batches.length > 0 && (
+            <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
+              {(
+                [
+                  [false, LayoutGrid, "Projects"],
+                  [true, Receipt, "By invoice"],
+                ] as const
+              ).map(([on, Icon, label]) => (
+                <button
+                  key={label}
+                  onClick={() => selectPreset(on ? "invoice" : DEFAULT_PRESET)}
+                  aria-pressed={grouped === on}
+                  className={`flex items-center gap-1.5 rounded px-2 py-0.5 text-xs ${
+                    grouped === on ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon size={12} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {!grouped && !isDefault && (
             <button onClick={() => selectPreset(DEFAULT_PRESET)} className="text-xs text-muted hover:text-foreground">
               Reset
             </button>
           )}
+          {!grouped && (
           <button
             onClick={() => setOpen((v) => !v)}
             className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
@@ -141,14 +178,13 @@ export function ProjectsSection({
                 ? batch.label
                 : dateFilterActive
                   ? "Custom range"
-                  : grouped
-                    ? "By invoice"
-                    : typeof preset === "number"
-                      ? `Last ${preset}`
-                      : "All"}
+                  : typeof preset === "number"
+                    ? `Last ${preset}`
+                    : "All"}
           </button>
+          )}
 
-          {open && (
+          {open && !grouped && (
             // w-[21.5rem]: wide enough to hold the date pickers' own
             // calendar popovers (20rem) without them spilling off the edge
             <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
@@ -177,18 +213,6 @@ export function ProjectsSection({
                 >
                   All
                 </button>
-                {/* every project, split into its invoices — only where the
-                    client has an invoicing rule to split by */}
-                {batches.length > 0 && (
-                  <button
-                    onClick={() => selectPreset("invoice")}
-                    className={`rounded-md px-2 py-1 text-xs ${
-                      grouped ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
-                    }`}
-                  >
-                    By invoice
-                  </button>
-                )}
               </div>
 
               <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
@@ -237,9 +261,14 @@ export function ProjectsSection({
         <div className="flex flex-col gap-8">
           {groups.map((g, i) => (
             <section key={g.key} className="flex flex-col gap-3">
-              <div className="flex items-baseline gap-2 border-b border-border pb-2">
+              <div className="flex items-center gap-2 border-b border-border pb-2">
                 <h3 className="text-sm font-medium">{g.label}</h3>
                 <span className="text-xs text-muted">{g.detail}</span>
+                {g.payment && (
+                  <span className={`ml-auto rounded-full border px-2 py-0.5 text-xs font-medium ${PAYMENT[g.payment].className}`}>
+                    {PAYMENT[g.payment].label}
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
                 {i === 0 && <AddProjectCard clientId={clientId} />}
