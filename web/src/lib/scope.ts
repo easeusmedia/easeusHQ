@@ -1,17 +1,15 @@
 import type { Role } from "@prisma/client";
 
-// Who can see whose work.
+// Who can see whose work, and who can change what.
 //
-// Three concentric rings, and every list in the app is filtered by exactly
-// one of them rather than each page inventing its own rule:
-//
-//   admin / Abhishek  → every team, everyone's work
-//   core              → their own team's work, for every member of it
+//   admin / Abhishek  → everyone's work, and the People records (pay, roles)
+//   core              → everyone's work, every team; People is read-only and
+//                       limited to their own team, tags to their own team's
 //   employee          → their own work only
 //
-// Team is the unit, not role: "the Operations core team sees Operations" is
-// the requirement, so a core member with no team set sees only themselves
-// (fail closed) rather than accidentally seeing everything.
+// Core members used to see only their own team's work. The leads asked to
+// see all of it, so work visibility is now simply "not an employee"; what
+// stays team-bound is the People directory and each team's tag vocabulary.
 export type Viewer = {
   id: string;
   role: Role;
@@ -28,31 +26,20 @@ export function seesEveryTeam(user: Pick<Viewer, "role" | "email">): boolean {
   return user.role === "admin" || user.email === FULL_ACCESS_EMAIL;
 }
 
-// How wide this person's view is. "all" is unrestricted; a team id means
-// that team only; null means just themselves.
-export function viewScope(user: Viewer): "all" | { teamId: string } | null {
-  if (seesEveryTeam(user)) return "all";
-  if (user.role === "core" && user.teamId) return { teamId: user.teamId };
-  return null;
+// Everyone's work, across every team — or only your own.
+export function seesAllWork(user: Pick<Viewer, "role" | "email">): boolean {
+  return user.role !== "employee" || seesEveryTeam(user);
 }
 
-// A Prisma `where` fragment for any model with an assignee, expressed in
-// terms of that assignee's own fields. Used for WorkTask.assignedTo and
-// Task.assignedTo alike, so one rule covers both task systems.
+// A Prisma `where` fragment for any model with an assignee. Used for
+// WorkTask and Task alike, so one rule covers both task systems.
 export function assigneeWhere(user: Viewer): Record<string, unknown> {
-  const scope = viewScope(user);
-  if (scope === "all") return {};
-  if (scope === null) return { assignedToId: user.id };
-  return { assignedTo: { teamId: scope.teamId } };
+  return seesAllWork(user) ? {} : { assignedToId: user.id };
 }
 
-// Whether `viewer` may open `target`'s profile and work history.
-export function canSeeMember(viewer: Viewer, target: Pick<Viewer, "id" | "teamId">): boolean {
-  if (viewer.id === target.id) return true; // always yourself
-  const scope = viewScope(viewer);
-  if (scope === "all") return true;
-  if (scope === null) return false;
-  return !!target.teamId && target.teamId === scope.teamId;
+// Whether `viewer` may see `target`'s work, and so hand them a task.
+export function canSeeMember(viewer: Viewer, target: Pick<Viewer, "id">): boolean {
+  return viewer.id === target.id || seesAllWork(viewer);
 }
 
 // Only admin (and Abhishek) change what someone is paid, what they're

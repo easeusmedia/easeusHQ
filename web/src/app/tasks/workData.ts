@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
-import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { seesAllWork, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { WorkTaskLink, WorkTaskAttachment } from "./my/actions";
 
@@ -22,7 +22,6 @@ type Assignee = { id: string; name: string; team: { slug: string; name: string }
 const person = (u: Assignee) => ({ id: u.id, name: u.name, team: u.team });
 
 export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: { withQueue: boolean }) {
-  const everyTeam = seesEveryTeam(viewer);
   // one filter for both kinds of task: yours, one team's (everyone on it,
   // whatever their role), or everything
   const where = scope === "mine" ? { assignedToId: viewer.id } : scope === "all" ? {} : { assignedTo: { team: { slug: scope } } };
@@ -46,13 +45,9 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
         })
       : Promise.resolve([]),
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-    // who work can be handed to: anyone, your own team, or only you
+    // who work can be handed to: anyone still here, or (an employee) only you
     prisma.user.findMany({
-      where: everyTeam
-        ? { employment: "active" }
-        : viewer.role === "core" && viewer.teamId
-          ? { teamId: viewer.teamId, employment: "active" }
-          : { id: viewer.id },
+      where: seesAllWork(viewer) ? { employment: "active" } : { id: viewer.id },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

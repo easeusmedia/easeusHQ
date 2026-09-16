@@ -6,7 +6,7 @@ import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
-import { seesEveryTeam, visibleTagWhere } from "@/lib/scope";
+import { visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { Board } from "./Board";
 import { NotionSyncButton } from "./NotionSyncButton";
@@ -61,26 +61,18 @@ export default async function TasksPage({
   const isEditor = actingUser.role === "employee";
 
   // One switch, top right: Editors (the editing queue, the thing the studio
-  // runs on), then your team's work (every team, and Everyone, for admin and
-  // Abhishek) — editors' edits included, laid out by person or team. An
-  // editor only ever gets the editing queue, so no switch at all; a lead
-  // outside Operations never gets it, since it isn't their team's work.
+  // runs on), then each team's work and Everyone's — editors' edits
+  // included, laid out by person or team. Every admin and core member gets
+  // all of it; an editor only ever gets their own editing queue, so no
+  // switch at all.
   const viewer = { id: actingUser.id, role: actingUser.role, email: actingUser.email, teamId: actingUser.teamId };
-  const everyTeam = seesEveryTeam(viewer);
-  const myTeam = teams.find((t) => t.id === actingUser.teamId);
-  const teamScopes = isEditor
-    ? []
-    : [
-        ...(everyTeam ? teams : myTeam ? [myTeam] : []).map((t) => ({ key: t.slug, label: t.name })),
-        ...(everyTeam ? [{ key: "all", label: "Everyone" }] : []),
-      ];
   const scopes = [
-    ...(isEditor || everyTeam || myTeam?.slug === "operations" ? [{ key: "editors", label: "Editors" }] : []),
-    ...teamScopes,
+    { key: "editors", label: "Editors" },
+    ...(isEditor ? [] : [...teams.map((t) => ({ key: t.slug, label: t.name })), { key: "all", label: "Everyone" }]),
   ];
-  // "org" (what a client page links to) means the widest team view you have
-  const wanted = scope === "org" ? teamScopes.at(-1)?.key : scope;
-  const activeScope = scopes.find((s) => s.key === wanted)?.key ?? scopes[0]?.key ?? "mine";
+  // "org" (what a client page links to) means Everyone
+  const wanted = scope === "org" ? "all" : scope;
+  const activeScope = scopes.find((s) => s.key === wanted)?.key ?? "editors";
   const scopeToggle = scopes.length > 1 && <ScopeToggle options={scopes} active={activeScope} />;
 
   if (activeScope !== "editors") {
