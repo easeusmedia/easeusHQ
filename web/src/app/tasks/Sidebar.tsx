@@ -17,20 +17,37 @@ import { toggleClientsPanel } from "./clients/clientsPanel";
 // group of people now.
 const NAV = [
   // a kanban board, because that is literally what it is
-  { segment: "", label: "Board", Icon: SquareKanban },
+  { segment: "", label: "Board", hint: "Editing queue and the team's work", Icon: SquareKanban },
   // everyone's own — editors and ops alike, unlike Clients/Calendar/Users
   // below which stay ops-only
   // your own tasks only — the whole team's work is the Board's Organization tab
-  { segment: "/my", label: "My tasks", Icon: ListChecks },
-  { segment: "/history", label: "History", Icon: History },
+  { segment: "/my", label: "My tasks", hint: "Your own to-dos", Icon: ListChecks },
+  { segment: "/history", label: "History", hint: "Delivered work", Icon: History },
   // the team's own chat — a real page now, not the avatar stack that used
   // to float over the bottom-right corner of every other page
-  { segment: "/chat", label: "Chat", Icon: MessagesSquare },
+  { segment: "/chat", label: "Chat", hint: "Message the team", Icon: MessagesSquare },
 ];
 
 const COOKIE_NAME = "tasks-sidebar-open";
 
 type Person = { id: string; name: string; role: string; avatarUrl: string | null; lastSeenAt: Date | null };
+
+// Collapsed, the rail is icons only; this names each one the moment the
+// pointer is on it. The browser's own title tooltip did the job in theory,
+// but it takes a second or more to appear, so in practice nobody saw it.
+// Hidden from screen readers — the row's own (faded) label already names it.
+function Tip({ show, label, hint }: { show: boolean; label: string; hint?: string }) {
+  if (!show) return null;
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute left-full top-1/2 ml-5 -translate-y-1/2 whitespace-nowrap rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-left opacity-0 shadow-lg transition-opacity duration-100 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100"
+    >
+      <span className="block text-xs font-medium text-foreground">{label}</span>
+      {hint && <span className="block text-xs text-muted">{hint}</span>}
+    </span>
+  );
+}
 
 // always mounted, never conditionally rendered — fading opacity/max-width
 // in sync with the nav's own width transition is what makes open/collapse
@@ -121,7 +138,10 @@ export function Sidebar({
       // icon — the actual source of the icons reading as off-center; not
       // the icon glyphs themselves, which were already centered in their
       // own slot the whole time.
-      className={`sticky top-0 flex h-screen shrink-0 flex-col items-start gap-1 border-r border-border bg-background p-3 transition-[width] duration-200 ease-in-out ${
+      // z-30: sticky makes this its own stacking context, so without a
+      // z-index the clients panel (also sticky, and later in the page)
+      // would paint over the hover labels that stick out past this rail
+      className={`sticky top-0 z-30 flex h-screen shrink-0 flex-col items-start gap-1 border-r border-border bg-background p-3 transition-[width] duration-200 ease-in-out ${
         open ? "w-52" : "w-16"
       }`}
     >
@@ -149,8 +169,8 @@ export function Sidebar({
           // button to the right exists, the logo goes back to being a
           // plain, non-interactive-looking logo — two things swapping to
           // the same "close sidebar" icon on hover was the actual complaint
-          title={open ? undefined : "Open sidebar"}
-          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${open ? "" : "group hover:bg-surface-2"}`}
+          aria-label={open ? undefined : "Open sidebar"}
+          className={`group/tip relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${open ? "" : "group hover:bg-surface-2"}`}
         >
           <Image
             src="/logo.png"
@@ -163,6 +183,7 @@ export function Sidebar({
           {!open && (
             <PanelLeft size={18} className="absolute text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
           )}
+          <Tip show={!open} label="Open sidebar" />
         </button>
         <FadeLabel open={open}>
           <span className="text-sm font-semibold">Easeus HQ</span>
@@ -193,10 +214,10 @@ export function Sidebar({
         ...NAV,
         // everyone sees the clients — what the agency is working on isn't
         // privileged information inside the agency
-        { segment: "/clients", label: "Clients", Icon: Building2 },
-        ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarDays }] : []),
+        { segment: "/clients", label: "Clients", hint: "Every client and their projects", Icon: Building2 },
+        ...(isOps ? [{ segment: "/calendar", label: "Calendar", hint: "Workload day by day", Icon: CalendarDays }] : []),
         // core members see their own team here (read-only); admin edits everyone
-        ...(isOps ? [{ segment: "/users", label: "People", Icon: UsersRound }] : []),
+        ...(isOps ? [{ segment: "/users", label: "People", hint: "The team and their roles", Icon: UsersRound }] : []),
       ].map((item) => {
         const href = `${base}${item.segment}`;
         const active = isActive(item.segment, pathname, base);
@@ -204,7 +225,6 @@ export function Sidebar({
           <Link
             key={item.segment}
             href={qs ? `${href}?${qs}` : href}
-            title={open ? undefined : item.label}
             onClick={(e) => {
               e.stopPropagation(); // don't also open the rail — this click already has its own job
               // On a client's own page the Clients icon is what put the
@@ -232,7 +252,7 @@ export function Sidebar({
             // globals.css's shared `a, button` rule, not a utility class
             // here — see that rule's own comment for why a Tailwind
             // transition utility on gap silently never worked.
-            className={`flex items-center rounded-md text-sm ${open ? "w-full gap-2" : "gap-0"} ${
+            className={`group/tip relative flex items-center rounded-md text-sm ${open ? "w-full gap-2" : "gap-0"} ${
               active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
             }`}
           >
@@ -251,6 +271,11 @@ export function Sidebar({
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
+            <Tip
+              show={!open}
+              label={item.label}
+              hint={item.segment === "/chat" && unreadCount > 0 ? `${unreadCount} unread` : item.hint}
+            />
           </Link>
         );
       })}
@@ -297,11 +322,10 @@ export function Sidebar({
             e.stopPropagation(); // don't also open the rail — this click already has its own job
             setProfileOpen((v) => !v);
           }}
-          title={open ? undefined : name}
           // same fixed layout (and the same animated gap-2/gap-0 — see
           // the nav rows' own comment above) as the nav rows: the avatar
           // never moves, and now neither does the name label mid-collapse
-          className={`flex items-center rounded-md text-left hover:bg-surface-2 ${open ? "w-full gap-2" : "gap-0"}`}
+          className={`group/tip relative flex items-center rounded-md text-left hover:bg-surface-2 ${open ? "w-full gap-2" : "gap-0"}`}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
             <Avatar name={name} size={26} />
@@ -309,6 +333,7 @@ export function Sidebar({
           <FadeLabel open={open}>
             <span className="text-sm">{name}</span>
           </FadeLabel>
+          <Tip show={!open && !profileOpen} label={name} hint="Account and log out" />
         </button>
         </div>
       </div>
