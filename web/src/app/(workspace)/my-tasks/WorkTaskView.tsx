@@ -99,8 +99,9 @@ export function WorkTaskView({
         }
       />
 
-      {view === "board" ? (
-        <WorkTaskBoard tasks={tasks} groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+      {/* a status list drags like the board, so the board draws it too */}
+      {view === "board" || groupBy === "status" ? (
+        <WorkTaskBoard layout={view} tasks={tasks} groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
       ) : (
         <WorkTaskList groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
       )}

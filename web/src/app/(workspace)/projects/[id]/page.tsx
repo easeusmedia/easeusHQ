@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { assignableEditors, getAllUsers } from "@/lib/users";
+import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { TaskRow } from "../../TaskRow";
@@ -40,7 +40,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   });
   if (!project) notFound();
 
-  const editors = assignableEditors(users);
+  const editors = assignOptionsFor(me, users);
   const boardProjects = project.client.projects.map((p) => ({
     id: p.id,
     name: p.name || p.type,

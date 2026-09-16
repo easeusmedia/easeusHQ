@@ -120,7 +120,7 @@ export function PeopleDirectory({
 
   return (
     <div className="flex h-full gap-4">
-      <aside className="flex w-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface/40">
+      <aside className="flex w-[min(20rem,40vw)] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface/40">
         <div className="flex flex-col gap-2 border-b border-border p-3">
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
             <Search size={14} className="shrink-0 text-muted" />

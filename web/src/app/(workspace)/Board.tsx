@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
-import { StickyColumns } from "./StickyColumns";
+import { StickyColumns, scrollPageNearEdge } from "./StickyColumns";
+import { TaskRow } from "./TaskRow";
 import { moveTask, reorderTask } from "./actions";
 import { linkProblem, pickLink } from "@/lib/links";
 import { STAGE } from "@/lib/stages";
@@ -59,6 +60,7 @@ export function Board({
   canCreate = true,
   columns = BOARD_COLUMNS,
   taskTags = [],
+  layout = "board",
 }: {
   tasks: TaskCardData[];
   projects: Project[];
@@ -68,6 +70,9 @@ export function Board({
   canCreate?: boolean;
   columns?: Column[];
   taskTags?: TaskTagOption[];
+  // the same tasks, same drag-and-drop and same rules, as columns of cards
+  // or as a list of rows grouped by stage
+  layout?: "board" | "list";
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -93,7 +98,7 @@ export function Board({
     startTransition(async () => {
       applyOptimistic({ taskId, sortOrder, status: to });
       try {
-        const result = await moveTask(taskId, to, actingUserId, actingRole, { ...extra, sortOrder });
+        const result = await moveTask(taskId, to, { ...extra, sortOrder });
         if (result?.error) {
           setError(friendlyError(result.error));
           return;
@@ -220,8 +225,89 @@ export function Board({
 
   const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
 
+  function stageHeader(col: Column) {
+    return (
+      <div
+        key={col.status}
+        className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}
+      >
+        <span className={`h-2 w-2 shrink-0 rounded-full ${col.dot}`} />
+        <span className="truncate whitespace-nowrap">{col.label}</span>
+        <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnOf(col.status).length}</span>
+      </div>
+    );
+  }
+
+  // One stage's drop target: its cards (or rows), each draggable
+  function dropZone(col: Column) {
+    const columnTasks = columnOf(col.status);
+    const list = layout === "list";
+    return (
+      <div
+        className={list ? "flex flex-col gap-2" : "flex min-h-24 min-w-0 flex-1 flex-col gap-3"}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          handleColumnDrop(col.status, e);
+        }}
+      >
+        {columnTasks.map((task) => (
+          <div
+            key={task.id}
+            data-task-id={task.id}
+            draggable
+            onDragStart={() => setDraggingId(task.id)}
+            // safety net: if the drop lands somewhere that never calls
+            // handleColumnDrop (outside any dropzone, Escape, the browser
+            // chrome), draggingId was never cleared — the card stayed stuck
+            // at 40% opacity until the next drag. This always fires.
+            onDragEnd={() => setDraggingId(null)}
+            className={`${list ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === task.id ? "opacity-40" : ""}`}
+          >
+            {list ? (
+              <TaskRow
+                task={task}
+                clientName={task.project.client.name}
+                subtitle={`${task.project.client.name} · ${task.project.name || task.project.type}`}
+                editors={editors}
+                projects={projects}
+                actingUserId={actingUserId}
+                actingRole={actingRole}
+                taskTags={taskTags}
+              />
+            ) : (
+              <TaskCard
+                task={task}
+                clientName={task.project.client.name}
+                editors={editors}
+                projects={projects}
+                actingUserId={actingUserId}
+                actingRole={actingRole}
+                taskTags={taskTags}
+              />
+            )}
+          </div>
+        ))}
+        {list ? (
+          columnTasks.length === 0 && (
+            <p className={`rounded-xl border border-dashed px-4 py-3 text-xs text-muted ${draggingId ? "border-foreground/30" : "border-border"}`}>
+              {draggingId ? "Drop here" : "Nothing here"}
+            </p>
+          )
+        ) : (
+          // guaranteed droppable cushion below the last card
+          <div className="h-6 shrink-0" />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col">
+    // --board-col: the narrowest a column may get. Wide enough for a card on
+    // a phone (and the board scrolls sideways there); from tablet width up,
+    // narrow enough that every stage fits the window instead of running off
+    // its right edge.
+    <div className="flex flex-col [--board-col:16rem] md:[--board-col:9rem]">
       {error && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
           <div className="glass flex max-w-sm flex-col items-center gap-4 rounded-xl p-6 text-center">
@@ -289,69 +375,33 @@ export function Board({
         )}
       </dialog>
 
-      {/* The page scrolls, the stage headers stay pinned above the cards,
-          and every column is as tall as the tallest — so a card can be
-          dropped anywhere down any column (see StickyColumns). */}
-      <StickyColumns
-        headers={columns.map((col) => (
-          <div
-            key={col.status}
-            className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}
-          >
-            <span className={`h-2 w-2 rounded-full ${col.dot}`} />
-            <span className="truncate whitespace-nowrap">{col.label}</span>
-            <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnOf(col.status).length}</span>
-          </div>
-        ))}
-      >
-        {columns.map((col) => {
-          const columnTasks = columnOf(col.status);
-          return (
+      {layout === "board" ? (
+        // The page scrolls, the stage headers stay pinned above the cards,
+        // and every column is as tall as the tallest — so a card can be
+        // dropped anywhere down any column (see StickyColumns).
+        <StickyColumns minColumn="var(--board-col)" headers={columns.map(stageHeader)}>
+          {columns.map((col) => (
             <section key={col.status} className="flex min-w-0 flex-col gap-3">
               {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
-
-              {/* the whole drop target for this column */}
-              <div
-                className="flex min-h-24 min-w-0 flex-1 flex-col gap-3"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  handleColumnDrop(col.status, e);
-                }}
-              >
-                {columnTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    data-task-id={task.id}
-                    draggable
-                    onDragStart={() => setDraggingId(task.id)}
-                    // safety net: if the drop lands somewhere that never
-                    // calls handleColumnDrop (dropped outside any dropzone,
-                    // drag cancelled with Escape, dropped on the browser
-                    // chrome), draggingId was never getting cleared — the
-                    // card stayed stuck at 40% opacity, unclickable, until
-                    // the next drag. This always fires, drop or not.
-                    onDragEnd={() => setDraggingId(null)}
-                    className={draggingId === task.id ? "opacity-40" : undefined}
-                  >
-                    <TaskCard
-                      task={task}
-                      clientName={task.project.client.name}
-                      editors={editors}
-                      projects={projects}
-                      actingUserId={actingUserId}
-                      actingRole={actingRole}
-                      taskTags={taskTags}
-                    />
-                  </div>
-                ))}
-                {/* guaranteed droppable cushion below the last card */}
-                <div className="h-6 shrink-0" />
-              </div>
+              {dropZone(col)}
             </section>
-          );
-        })}
-      </StickyColumns>
+          ))}
+        </StickyColumns>
+      ) : (
+        // Every stage in turn, its header pinned while its rows scroll past.
+        // Empty stages still show, as somewhere to drop a task.
+        <div className="flex flex-col gap-6" onDragOver={scrollPageNearEdge}>
+          {columns.map((col) => (
+            <section key={col.status} className="flex flex-col gap-2">
+              <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
+                <div className="w-fit">{stageHeader(col)}</div>
+              </div>
+              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
+              {dropZone(col)}
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

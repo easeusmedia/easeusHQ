@@ -7,7 +7,7 @@ import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { moveTask } from "./actions";
 import { linkProblem, pickLink } from "@/lib/links";
 import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
-import type { Role, TaskStatus } from "@/lib/workflow";
+import type { TaskStatus } from "@/lib/workflow";
 
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
 // picking a status calls the exact same moveTask() that dragging the card
@@ -16,16 +16,12 @@ export function StatusSelect({
   taskId,
   currentStatus,
   options,
-  actingUserId,
-  actingRole,
   links,
   variant = "block",
 }: {
   taskId: string;
   currentStatus: TaskStatus;
   options: TaskStatus[];
-  actingUserId: string;
-  actingRole: Role;
   links: { frameioLink: string | null; driveLink: string | null };
   // "block" is the full-width control on a board card. "pill" looks exactly
   // like the static StatusBadge it replaces in a list row — same colours,
@@ -72,7 +68,7 @@ export function StatusSelect({
     const previous = optimisticStatus;
     setOptimisticStatus(to);
     try {
-      const result = await moveTask(taskId, to, actingUserId, actingRole, extra);
+      const result = await moveTask(taskId, to, extra);
       if (result?.error) {
         setOptimisticStatus(previous);
         return result.error;
@@ -271,23 +267,28 @@ export function StatusSelect({
         <button
           type="button"
           onClick={() => pick("delivered_and_uploaded")}
-          className="status-pop flex w-full items-center justify-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-3 py-2 text-xs font-medium text-emerald-300"
+          className="status-pop flex w-full min-w-0 items-center justify-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-2 text-center text-xs font-medium text-emerald-300"
         >
-          <CheckCircle2 size={13} /> Mark delivered to client
+          <CheckCircle2 size={13} className="shrink-0" /> Mark delivered
         </button>
       )}
       <button
         ref={triggerRef}
         type="button"
         onClick={toggle}
-        className="btn-glow flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium"
+        className="btn-glow flex w-full min-w-0 items-center justify-between gap-1 rounded-md px-3 py-2 text-xs font-medium"
       >
-        {STATUS_LABEL[optimisticStatus]}
-        <ChevronDown size={13} />
+        <span className="truncate">{STATUS_LABEL[optimisticStatus]}</span>
+        <ChevronDown size={13} className="shrink-0" />
       </button>
       {open && position && (
         <div
-          style={{ top: position.top, left: position.left, width: position.width }}
+          // never narrower than the longest stage name, and kept on screen
+          style={{
+            top: position.top,
+            left: Math.max(8, Math.min(position.left, window.innerWidth - Math.max(position.width, 176) - 8)),
+            width: Math.max(position.width, 176),
+          }}
           className="pop-in fixed z-50 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
         >
           {dropdownOptions.map((to) => (

@@ -21,7 +21,7 @@ const DOCS: Doc[] = [
 // Collapsed by default — the complaint about the old version was being
 // bombarded with everything at once. Open the one you need; the rest stay
 // one line tall.
-function DocSection({ clientId, doc, content }: { clientId: string; doc: Doc; content: string | null }) {
+function DocSection({ clientId, doc, content, readOnly = false }: { clientId: string; doc: Doc; content: string | null; readOnly?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -74,17 +74,33 @@ function DocSection({ clientId, doc, content }: { clientId: string; doc: Doc; co
             </div>
           ) : (
             <>
-              <div className="mb-2 flex justify-end">
-                <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
-                  <Pencil size={12} /> Edit
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="mb-2 flex justify-end">
+                  <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+                    <Pencil size={12} /> Edit
+                  </button>
+                </div>
+              )}
               {content ? <Markdown text={content} /> : <p className="pb-2 text-sm text-muted">Nothing here yet.</p>}
             </>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+// The same document sections, read-only — what a client sees of their own
+// documents on their shared page. Only the ones actually written.
+export function ClientDocuments({ docs }: { docs: Record<ClientDocType, string | null> }) {
+  const written = DOCS.filter((d) => docs[d.key]?.trim());
+  if (written.length === 0) return <p className="text-sm text-muted">Nothing here yet.</p>;
+  return (
+    <div className="flex flex-col gap-3">
+      {written.map((doc) => (
+        <DocSection key={doc.key} clientId="" doc={doc} content={docs[doc.key]} readOnly />
+      ))}
+    </div>
   );
 }
 

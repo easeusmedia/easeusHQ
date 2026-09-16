@@ -96,7 +96,13 @@ export function NewTaskRow({
 
           <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
             Assign to
-            <Dropdown name="assignedToId" placeholder="Assign to…" options={editors.map((e) => ({ value: e.id, label: e.name }))} />
+            <Dropdown
+              name="assignedToId"
+              placeholder="Assign to…"
+              // an editor's only choice is themselves, so it's already made
+              defaultValue={editors.length === 1 ? editors[0].id : undefined}
+              options={editors.map((e) => ({ value: e.id, label: e.name }))}
+            />
           </label>
 
           <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">

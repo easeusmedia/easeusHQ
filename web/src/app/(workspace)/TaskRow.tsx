@@ -86,9 +86,7 @@ export function TaskRow({
             taskId={task.id}
             currentStatus={task.status}
             options={options}
-            actingUserId={actingUserId}
-            actingRole={actingRole}
-            links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+                        links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
             variant="pill"
           />
         </StageColumn>

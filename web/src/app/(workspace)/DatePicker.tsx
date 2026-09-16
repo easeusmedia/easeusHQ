@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { useCloseOnScroll, usePopover } from "./popover";
 
 const MONTHS = [
   "January",
@@ -90,8 +91,13 @@ export function DatePicker({
   clearable?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
+  // where the calendar goes: fixed to the window like the dropdowns (see
+  // popover.ts), so a scrolling panel or dialog can't cut it off, and
+  // nudged left when the field sits near the window's right edge
+  const [shift, setShift] = useState(0);
+  const [panelWidth, setPanelWidth] = useState(320);
   const selected = useMemo(() => parse(value), [value]);
   // the day highlighted inside the open calendar, which only becomes the
   // real value on "Choose date" — so browsing months (or clicking around)
@@ -111,13 +117,22 @@ export function DatePicker({
   }, []);
 
   const PANEL_HEIGHT = 380; // roughly the rendered popover, for the flip check
+  const { position, place } = usePopover(PANEL_HEIGHT);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
 
   function openPanel() {
     const base = selected ?? todayYmd();
     setDraft(selected);
     setView({ y: base.y, m: base.m });
-    const rect = ref.current?.getBoundingClientRect();
-    setOpenUpward(!!rect && window.innerHeight - rect.bottom < PANEL_HEIGHT && rect.top > PANEL_HEIGHT);
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    // 20rem, or the window less a margin on a phone
+    const width = Math.min(20 * parseFloat(getComputedStyle(document.documentElement).fontSize), window.innerWidth - 16);
+    const left = trigger.getBoundingClientRect().left;
+    setPanelWidth(width);
+    setShift(Math.max(8, Math.min(left, window.innerWidth - width - 8)) - left);
+    place(trigger);
     setOpen(true);
   }
 
@@ -157,6 +172,7 @@ export function DatePicker({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => (open ? setOpen(false) : openPanel())}
         // py-2, like a text input and a Dropdown, so a date field sits level
@@ -171,11 +187,10 @@ export function DatePicker({
         </span>
       </button>
 
-      {open && (
+      {open && position && (
         <div
-          className={`pop-in absolute left-0 z-30 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-3 shadow-2xl ${
-            openUpward ? "bottom-full mb-2" : "mt-2"
-          }`}
+          style={{ top: position.top, left: position.left + shift, width: panelWidth }}
+          className="pop-in fixed z-50 rounded-xl border border-border bg-surface p-3 shadow-2xl"
         >
           <div className="mb-3 flex items-center justify-between gap-2">
             <button

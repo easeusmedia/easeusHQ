@@ -122,7 +122,7 @@ export function WorkTaskList({
   );
 }
 
-function ListRow({
+export function ListRow({
   task,
   projects,
   actingUserId,

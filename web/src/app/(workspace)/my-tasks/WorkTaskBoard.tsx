@@ -6,7 +6,8 @@ import type { WorkTaskStatus } from "@prisma/client";
 import { moveWorkTask, reorderWorkTask } from "./actions";
 import { WorkTaskCard, type WorkTaskCardData } from "./WorkTaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
-import { StickyColumns } from "../StickyColumns";
+import { StickyColumns, scrollPageNearEdge } from "../StickyColumns";
+import { ListRow } from "./WorkTaskList";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
 import { GroupHeader, QueueCard, type Group, type QueueEnv } from "./grouping";
@@ -29,6 +30,7 @@ export function WorkTaskBoard({
   taskTags = [],
   canManageTags = false,
   canCreate,
+  layout = "board",
 }: {
   tasks: WorkTaskCardData[];
   // the same tasks (plus editing-queue ones) already sorted into columns
@@ -42,6 +44,8 @@ export function WorkTaskBoard({
   taskTags?: TaskTagOption[];
   canManageTags?: boolean;
   canCreate: boolean;
+  // by status only: the same cards and drag-and-drop, as a list of rows
+  layout?: "board" | "list";
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -114,6 +118,57 @@ export function WorkTaskBoard({
     else commitMove(to, taskId, sortOrder);
   }
 
+  // One stage's drop target, as cards or rows
+  function dropZone(group: Group) {
+    const status = group.status!;
+    const columnTasks = columnOf(status);
+    const list = layout === "list";
+    return (
+      <div
+        className={list ? "flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40" : "flex min-h-24 min-w-0 flex-1 flex-col gap-3"}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          handleColumnDrop(status, e);
+        }}
+      >
+        {columnTasks.map((task) => (
+          <div
+            key={task.id}
+            data-work-task-id={task.id}
+            draggable
+            onDragStart={() => setDraggingId(task.id)}
+            onDragEnd={() => setDraggingId(null)}
+            className={`${list ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === task.id ? "opacity-40" : ""}`}
+          >
+            {list ? (
+              <ListRow
+                task={task}
+                projects={projects}
+                actingUserId={actingUserId}
+                showAssignee={showAssignee}
+                assignees={assignees}
+                taskTags={taskTags}
+                canManageTags={canManageTags}
+                onChangeStatus={(s) => commitMove(s, task.id, task.sortOrder)}
+              />
+            ) : (
+              <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+            )}
+          </div>
+        ))}
+        {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
+        {list ? (
+          columnTasks.length + group.queue.length === 0 && (
+            <p className="px-4 py-3 text-xs text-muted">{draggingId ? "Drop here" : "Nothing here"}</p>
+          )
+        ) : (
+          <div className="h-6 shrink-0" />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {error && (
@@ -145,49 +200,37 @@ export function WorkTaskBoard({
           </StickyColumns>
         ))}
 
-      {groupBy === "status" && (
+      {groupBy === "status" && layout === "board" && (
         <StickyColumns
           minColumn="14rem"
           headers={groups.map((group) => (
             <GroupHeader key={group.key} group={group} count={columnOf(group.status!).length + group.queue.length} />
           ))}
         >
-          {groups.map((group) => {
-            const status = group.status!;
-            const columnTasks = columnOf(status);
-            return (
-              <section key={status} className="flex min-w-0 flex-col gap-3">
-                {status === "todo" && canCreate && (
-                  <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-                )}
-
-                <div
-                  className="flex min-h-24 min-w-0 flex-1 flex-col gap-3"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    handleColumnDrop(status, e);
-                  }}
-                >
-                  {columnTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      data-work-task-id={task.id}
-                      draggable
-                      onDragStart={() => setDraggingId(task.id)}
-                      onDragEnd={() => setDraggingId(null)}
-                      className={draggingId === task.id ? "opacity-40" : undefined}
-                    >
-                      <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-                    </div>
-                  ))}
-                  {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
-                  <div className="h-6 shrink-0" />
-                </div>
-              </section>
-            );
-          })}
+          {groups.map((group) => (
+            <section key={group.key} className="flex min-w-0 flex-col gap-3">
+              {group.status === "todo" && canCreate && (
+                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+              )}
+              {dropZone(group)}
+            </section>
+          ))}
         </StickyColumns>
+      )}
+
+      {/* the list: every stage in turn, header pinned, rows draggable
+          between stages just like the cards */}
+      {groupBy === "status" && layout === "list" && (
+        <div className="flex flex-col gap-6" onDragOver={scrollPageNearEdge}>
+          {groups.map((group) => (
+            <section key={group.key} className="flex flex-col gap-2">
+              <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
+                <GroupHeader group={group} count={columnOf(group.status!).length + group.queue.length} className="w-fit" />
+              </div>
+              {dropZone(group)}
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );

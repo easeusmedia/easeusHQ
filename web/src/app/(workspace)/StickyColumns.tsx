@@ -32,16 +32,10 @@ export function StickyColumns({
   // Dragging a card near an edge scrolls: sideways within the board, up and
   // down the page.
   function edgeScroll(e: React.DragEvent<HTMLDivElement>) {
-    const edge = 80;
     const box = e.currentTarget.getBoundingClientRect();
-    if (e.clientX < box.left + edge) e.currentTarget.scrollLeft -= 18;
-    else if (e.clientX > box.right - edge) e.currentTarget.scrollLeft += 18;
-
-    const page = e.currentTarget.closest<HTMLElement>("[data-scroll-root]");
-    if (!page) return;
-    const view = page.getBoundingClientRect();
-    if (e.clientY < view.top + edge) page.scrollTop -= 18;
-    else if (e.clientY > view.bottom - edge) page.scrollTop += 18;
+    if (e.clientX < box.left + EDGE) e.currentTarget.scrollLeft -= 18;
+    else if (e.clientX > box.right - EDGE) e.currentTarget.scrollLeft += 18;
+    scrollPageNearEdge(e);
   }
 
   return (
@@ -81,4 +75,16 @@ export function StickyColumns({
       </div>
     </div>
   );
+}
+
+const EDGE = 80;
+
+// Dragging something near the top or bottom of the window scrolls the page
+// (the app scrolls inside MainScroll, not the window, so the browser won't).
+export function scrollPageNearEdge(e: React.DragEvent<HTMLElement>) {
+  const page = e.currentTarget.closest<HTMLElement>("[data-scroll-root]");
+  if (!page) return;
+  const view = page.getBoundingClientRect();
+  if (e.clientY < view.top + EDGE) page.scrollTop -= 18;
+  else if (e.clientY > view.bottom - EDGE) page.scrollTop += 18;
 }

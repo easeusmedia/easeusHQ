@@ -14,7 +14,16 @@ export type Deliverable = { id: string; name: string; detail: string | null; del
 // deliveredCount is the running total to date (e.g. "14 delivered") — a
 // plain number ops keeps current, not something auto-computed, since the
 // real historical volume lives in Notion's task history.
-export function ClientDeliverables({ clientId, deliverables }: { clientId: string; deliverables: Deliverable[] }) {
+export function ClientDeliverables({
+  clientId,
+  deliverables,
+  readOnly = false,
+}: {
+  clientId: string;
+  deliverables: Deliverable[];
+  // the client's own page: the list, without the controls
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -101,7 +110,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
     <section className="card-surface flex flex-col gap-3 rounded-xl p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Deliverables</h2>
-        {!adding && (
+        {!adding && !readOnly && (
           <button onClick={startAdd} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
             <Plus size={13} /> Add deliverable
           </button>
@@ -110,7 +119,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
 
       {deliverables.length === 0 && !adding ? (
         <p className="text-sm text-muted">
-          No deliverables listed yet. This is the contracted scope, e.g. &ldquo;2 podcast episodes/cycle&rdquo;.
+          {readOnly ? "No deliverables listed yet." : <>No deliverables listed yet. This is the contracted scope, e.g. &ldquo;2 podcast episodes/cycle&rdquo;.</>}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
@@ -127,6 +136,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
                   {d.deliveredCount > 0 && (
                     <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{d.deliveredCount} delivered</span>
                   )}
+                  {!readOnly && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                     <button onClick={() => startEdit(d)} className="btn-ghost flex h-6 w-6 items-center justify-center rounded-md">
                       <Pencil size={12} />
@@ -135,6 +145,7 @@ export function ClientDeliverables({ clientId, deliverables }: { clientId: strin
                       <X size={13} />
                     </button>
                   </div>
+                  )}
                 </div>
               </li>
             )

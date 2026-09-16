@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { assignableEditors, getAllUsers } from "@/lib/users";
+import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
@@ -40,7 +40,6 @@ export default async function TasksPage({
   // back to its type so the new/reassign-task dropdown never shows a blank
   const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
 
-  const editors = assignableEditors(users); // ops (admin/core) don't edit, they manage
   const actingUser = resolveActingUser(users, sessionUserId, as);
 
   if (!actingUser) {
@@ -55,6 +54,8 @@ export default async function TasksPage({
   }
 
   const isEditor = actingUser.role === "employee";
+  // an editor only ever assigns to themselves (the server holds them to it too)
+  const editors = assignOptionsFor(actingUser, users);
 
   // One switch, centred: Editors (the editing queue, the thing the studio
   // runs on), then whose work — editors' edits included, laid out by person

@@ -39,3 +39,12 @@ export const getAllUsers = cache(async () =>
 export function assignableEditors<T extends { role: string; employment: string }>(users: T[]): T[] {
   return users.filter((u) => u.role === "employee" && u.employment !== "former");
 }
+
+// Who a person may hand editing work to: an editor only ever to themselves;
+// everyone else to any editor still on the team.
+export function assignOptionsFor<T extends { id: string; role: string; employment: string }>(
+  actor: { id: string; role: string },
+  users: T[]
+): T[] {
+  return actor.role === "employee" ? users.filter((u) => u.id === actor.id) : assignableEditors(users);
+}

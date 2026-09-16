@@ -38,6 +38,7 @@ export function ProjectsSection({
   initialShow,
   billing,
   today,
+  projectBase,
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -47,6 +48,9 @@ export function ProjectsSection({
   // yyyy-mm-dd, from the server, so "is this invoice due yet" can't differ
   // between the server's render and the browser's
   today: string;
+  // the client's own page: where its projects open (…/<id>), and no adding
+  // or deleting. A string, not a function — this comes from a server page.
+  projectBase?: string;
 }) {
   // "invoice": every project, in sections, one per invoice
   const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
@@ -162,9 +166,8 @@ export function ProjectsSection({
           </button>
 
           {open && (
-            // w-[21.5rem]: wide enough to hold the date pickers' own
-            // calendar popovers (20rem) without them spilling off the edge
-            <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
+            // never wider than the screen, so it can't run off a phone's edge
+            <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[min(21.5rem,calc(100vw-2rem))] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
               {/* how to look at them: as a list, or split into the invoices
                   they were billed in — only where the client has a rule */}
               {batches.length > 0 && (
@@ -281,9 +284,9 @@ export function ProjectsSection({
                 )}
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-                {i === 0 && <AddProjectCard clientId={clientId} />}
+                {i === 0 && !projectBase && <AddProjectCard clientId={clientId} />}
                 {g.items.map((p) => (
-                  <ProjectCard key={p.id} project={p} />
+                  <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
                 ))}
               </div>
             </section>
@@ -291,9 +294,9 @@ export function ProjectsSection({
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-          <AddProjectCard clientId={clientId} />
+          {!projectBase && <AddProjectCard clientId={clientId} />}
           {visible.map((p) => (
-            <ProjectCard key={p.id} project={p} />
+            <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
           ))}
           {!batch && !dateFilterActive && hiddenCount > 0 && (
             <MoreProjectsCard

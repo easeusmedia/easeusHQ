@@ -23,12 +23,15 @@ function requireLinkOrNull(value: string, label: string): string | null {
   return normalized;
 }
 
-// NOTE: login now exists (src/app/login), and page.tsx/history/page.tsx
-// resolve actingUserId/actingRole from the verified session before ever
-// putting them in a form — but the actions below still just take whatever
-// values a form hands them, same as before. Fully closing that gap (making
-// every action re-derive the actor from the session itself) is follow-up
-// work, not done here.
+// Who's doing this, from the signed-in session — never from the form or the
+// call. The pages still pass an "acting" user to the UI (so "viewing as"
+// can preview someone's permissions), but what a request may do is decided
+// here, by who actually sent it. An editor claiming to be admin in a form
+// used to be taken at their word.
+async function sessionActor() {
+  const id = await getSessionUserId();
+  return id ? prisma.user.findUnique({ where: { id }, select: { id: true, role: true } }) : null;
+}
 
 export async function logout() {
   await destroySession();
@@ -43,6 +46,8 @@ export async function logout() {
 export type TaskFormState = { error?: string; success?: boolean };
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
+  const actor = await sessionActor();
+  if (!actor) return { error: "You're not signed in." };
   const projectId = String(formData.get("projectId"));
   const title = String(formData.get("title"));
   const assignedToId = String(formData.get("assignedToId") ?? "");
@@ -57,6 +62,9 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
   if (!projectId || !title.trim() || !assignedToId) {
     return { error: "Project, title, and an editor are all required" };
+  }
+  if (actor.role === "employee" && assignedToId !== actor.id) {
+    return { error: "You can only add tasks for yourself." };
   }
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
@@ -90,10 +98,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     // status defaults to "queued"
   });
 
-  const actorId = await getSessionUserId();
-  if (actorId) {
-    await prisma.activityLog.create({ data: { actorId, action: "created", entity: "Task", entityId: task.id } });
-  }
+  await prisma.activityLog.create({ data: { actorId: actor.id, action: "created", entity: "Task", entityId: task.id } });
 
   // Mirror it into Notion's Editing Queue, for the people whose work lives
   // there. Deliberately not awaited for correctness: if Notion is slow or
@@ -115,14 +120,12 @@ type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNote
 // error #441" digest in production (Next.js only preserves the message
 // for an error a form action returns, not one it throws). Same reason
 // createTask/updateTask were converted earlier.
-async function changeStatus(
-  taskId: string,
-  to: TaskStatus,
-  actingUserId: string,
-  actingRole: Role,
-  extras: StatusChangeExtras
-): Promise<TaskFormState> {
+async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChangeExtras): Promise<TaskFormState> {
   try {
+    const actor = await sessionActor();
+    if (!actor) return { error: "You're not signed in." };
+    const actingUserId = actor.id;
+    const actingRole = actor.role as Role;
     const frameioLink = extras.frameioLink ? requireLinkOrNull(extras.frameioLink, "Frame.io link") : null;
     const driveLink = extras.driveLink ? requireLinkOrNull(extras.driveLink, "Drive link") : null;
 
@@ -170,14 +173,8 @@ async function changeStatus(
 
 // called directly (not via a form) — both the StatusSelect dropdown and
 // dragging a card call this exact same function, so they behave identically
-export async function moveTask(
-  taskId: string,
-  to: TaskStatus,
-  actingUserId: string,
-  actingRole: Role,
-  extras: StatusChangeExtras = {}
-): Promise<TaskFormState> {
-  return changeStatus(taskId, to, actingUserId, actingRole, extras);
+export async function moveTask(taskId: string, to: TaskStatus, extras: StatusChangeExtras = {}): Promise<TaskFormState> {
+  return changeStatus(taskId, to, extras);
 }
 
 // pure manual reordering within a column — no status change, no workflow
@@ -185,7 +182,12 @@ export async function moveTask(
 // doesn't touch anything the workflow rules care about
 export async function reorderTask(taskId: string, sortOrder: number): Promise<TaskFormState> {
   try {
-    await prisma.task.update({ where: { id: taskId }, data: { sortOrder } });
+    // ops arrange anything; an editor only their own cards
+    const actor = await sessionActor();
+    if (!actor) return { error: "You're not signed in." };
+    const where = actor.role === "employee" ? { id: taskId, assignedToId: actor.id } : { id: taskId };
+    const { count } = await prisma.task.updateMany({ where, data: { sortOrder } });
+    if (count === 0) return { error: "You can only move your own tasks." };
     revalidatePath("/board");
     return { success: true };
   } catch (err) {
@@ -200,18 +202,18 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
 // not task details).
 export async function updateTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const taskId = String(formData.get("taskId"));
-  const actingRole = String(formData.get("actingRole")) as Role;
+  const actor = await sessionActor();
+  if (!actor) return { error: "You're not signed in." };
 
-  if (actingRole === "employee") {
-    const actingUserId = String(formData.get("actingUserId") ?? "");
+  if (actor.role === "employee") {
+    const actingUserId = actor.id;
     let frameioLink: string | null;
     try {
       frameioLink = requireLinkOrNull(String(formData.get("frameioLink") ?? ""), "Frame.io link");
     } catch (err) {
       return { error: err instanceof Error ? err.message : "That link isn't valid." };
     }
-    // re-derived server-side, not trusted from the client — an editor can
-    // only touch a task actually assigned to them
+    // an editor can only touch a task actually assigned to them
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task || task.assignedToId !== actingUserId) {
       return { error: "You can only edit your own tasks." };
@@ -345,8 +347,8 @@ export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> 
 
 export async function deleteTask(formData: FormData) {
   const taskId = String(formData.get("taskId"));
-  const actingRole = String(formData.get("actingRole")) as Role;
-  if (actingRole === "employee") throw new Error("Only admin/core can delete a task");
+  const actor = await sessionActor();
+  if (!actor || actor.role === "employee") throw new Error("Only admin/core can delete a task");
 
   await prisma.task.delete({ where: { id: taskId } });
   revalidatePath("/board");
@@ -356,10 +358,7 @@ export async function deleteTask(formData: FormData) {
 // dummy/test rows out of History, not something ops reaches for on real
 // client work (that's what deleteTask above is for, and it's reversible in
 // spirit since the task is still "real"; this one leaves nothing behind).
-// Deliberately re-checks the real signed-in session instead of trusting a
-// client-supplied role, unlike the older deleteTask above — a destructive,
-// unrecoverable action needs the stronger check even though the rest of
-// this file doesn't do that yet (see the note at the top of this file).
+// Admin and Abhishek only, checked against the signed-in session.
 export async function deleteTaskPermanently(formData: FormData) {
   const taskId = String(formData.get("taskId"));
   const sessionUserId = await getSessionUserId();

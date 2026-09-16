@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { assignableEditors, getAllUsers } from "@/lib/users";
+import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { visibleTagWhere } from "@/lib/scope";
@@ -74,7 +74,7 @@ export default async function ClientDetailPage({
   if (!client) notFound();
 
   const projectIds = client.projects.map((p) => p.id);
-  const editors = assignableEditors(users);
+  const editors = assignOptionsFor(me, users);
 
   const [tasks, deliveredSinceInvoice, allTags, clientWorkTasks] = await Promise.all([
     prisma.task.findMany({
@@ -136,7 +136,7 @@ export default async function ClientDetailPage({
         <ArrowLeft size={14} /> Clients
       </Link>
 
-      <div className="mb-8 flex items-center gap-4">
+      <div className="mb-8 flex flex-wrap items-center gap-4">
         <PhotoEdit name={client.name} src={clientLogoSrc(client)} save={updateClientAvatar.bind(null, client.id)} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-3">

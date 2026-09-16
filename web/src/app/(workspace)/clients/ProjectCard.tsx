@@ -25,7 +25,16 @@ export type ProjectCardData = {
 // A cover, a name, and one line underneath. Clicking opens the project,
 // where everything it produced actually lives — except the delete button
 // in the corner, which skips that trip entirely.
-export function ProjectCard({ project }: { project: ProjectCardData }) {
+export function ProjectCard({
+  project,
+  href = `/projects/${project.id}`,
+  readOnly = false,
+}: {
+  project: ProjectCardData;
+  href?: string;
+  // the client's own page: no delete
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [deleting, setDeleting] = useState(false);
@@ -47,7 +56,7 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
 
   return (
     <div className="group relative">
-      <Link href={`/projects/${project.id}`} className="card-surface card-interactive flex flex-col overflow-hidden rounded-xl shadow-sm">
+      <Link href={href} className="card-surface card-interactive flex flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {project.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
@@ -76,6 +85,7 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
         </div>
       </Link>
 
+      {!readOnly && (
       <button
         type="button"
         onClick={(e) => {
@@ -87,6 +97,7 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
       >
         <Trash2 size={13} />
       </button>
+      )}
 
       <dialog
         ref={dialogRef}

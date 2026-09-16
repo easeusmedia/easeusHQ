@@ -17,7 +17,16 @@ const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 tex
 // imported rows are wrong (wrong link, wrong bucket, a placeholder that
 // never got filled), and there was previously no way to fix any of it
 // short of editing the database by hand.
-export function ProjectFiles({ projectId, assets }: { projectId: string; assets: ProjectAssetData[] }) {
+export function ProjectFiles({
+  projectId,
+  assets,
+  readOnly = false,
+}: {
+  projectId: string;
+  assets: ProjectAssetData[];
+  // the client's own page: the files, without the controls
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -46,9 +55,11 @@ export function ProjectFiles({ projectId, assets }: { projectId: string; assets:
         <h2 className="text-sm font-medium">Files</h2>
         <div className="flex items-center gap-3">
           {assets.length > 0 && <span className="text-xs text-muted">{assets.length} total</span>}
-          <button onClick={() => setAdding(true)} className="btn-add flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
-            <Plus size={13} /> Add file
-          </button>
+          {!readOnly && (
+            <button onClick={() => setAdding(true)} className="btn-add flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+              <Plus size={13} /> Add file
+            </button>
+          )}
         </div>
       </div>
 
@@ -103,7 +114,7 @@ export function ProjectFiles({ projectId, assets }: { projectId: string; assets:
                         <a
                           href={a.link}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="flex min-w-0 flex-1 items-center gap-2 text-sm"
                         >
                           <span className="min-w-0 truncate">{a.name}</span>
@@ -114,6 +125,7 @@ export function ProjectFiles({ projectId, assets }: { projectId: string; assets:
                       )}
                       {/* only on hover, so a row of files stays a row of
                           files rather than a row of controls */}
+                      {!readOnly && (
                       <span className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                         <button
                           onClick={() => setEditingId(a.id)}
@@ -130,6 +142,7 @@ export function ProjectFiles({ projectId, assets }: { projectId: string; assets:
                           <Trash2 size={13} />
                         </button>
                       </span>
+                      )}
                     </div>
                   )
                 )}

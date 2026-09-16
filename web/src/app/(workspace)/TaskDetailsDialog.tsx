@@ -137,7 +137,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             // its own edges, and a field sitting flush against the left one
             // had its focus ring shaved off down that side the moment you
             // clicked into it. The padding is the room the ring needs.
-            className="grid w-[34rem] shrink-0 auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1"
+            // w-[34rem] but free to shrink: the dialog is capped at the
+            // window's width, and a form that couldn't shrink got cut off
+            className="grid w-[34rem] min-w-0 shrink auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1"
           >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />
@@ -318,7 +320,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               snapping to a new size the instant history opens. */}
           <div
             className={`shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
-              historyOpen ? "w-[23rem] opacity-100" : "w-0 opacity-0"
+              historyOpen ? "w-[min(23rem,40vw)] opacity-100" : "w-0 opacity-0"
             }`}
           >
             {/* h-full: the row above (`flex gap-4`) stretches this whole
@@ -326,7 +328,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 inside it claimed that height — the table sat in a fixed,
                 much-shorter box, leaving real dead space below it and
                 cropping mid-row well before the panel's actual bottom. */}
-            <div className="flex h-full w-[23rem] flex-col gap-2">
+            <div className="flex h-full w-[min(23rem,40vw)] flex-col gap-2">
               <p className="text-xs font-medium text-muted">Every stage this task has gone through</p>
               <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-left text-xs">

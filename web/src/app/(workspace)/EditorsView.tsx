@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import { Board } from "./Board";
-import { TaskRow } from "./TaskRow";
 import { Toolbar, ViewToggle, type View } from "./ViewToggle";
 import type { TaskCardData } from "./TaskCard";
 import type { TaskTagOption } from "./TaskTagPicker";
-import { STAGE } from "@/lib/stages";
-import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
+import type { Role } from "@/lib/workflow";
 
 type Props = {
   tasks: TaskCardData[];
@@ -20,9 +18,8 @@ type Props = {
   switcher?: React.ReactNode;
 };
 
-// The editing queue, as the kanban board or as a list grouped by stage.
-// The list is the same rows a client's page uses, so a task opens and moves
-// stage from here exactly as it does there.
+// The editing queue, as the kanban board or as a list grouped by stage —
+// one Board either way, so both drag, prompt and move by the same rules.
 export function EditorsView({ switcher, ...props }: Props) {
   const [view, setView] = useState<View>("board");
 
@@ -33,51 +30,9 @@ export function EditorsView({ switcher, ...props }: Props) {
         <Board {...props} canCreate />
       ) : (
         <div className="pt-3">
-          <EditorsList {...props} />
+          <Board {...props} canCreate layout="list" />
         </div>
       )}
     </>
-  );
-}
-
-function EditorsList({ tasks, projects, editors, actingUserId, actingRole, taskTags }: Omit<Props, "switcher">) {
-  const sections = ACTIVE_STATUSES.map((status) => ({
-    status,
-    rows: tasks.filter((t) => t.status === status).sort((a, b) => a.sortOrder - b.sortOrder),
-  })).filter((s) => s.rows.length > 0);
-
-  if (sections.length === 0) return <p className="text-sm text-muted">Nothing in the editing queue.</p>;
-
-  return (
-    <div className="flex flex-col gap-6">
-      {sections.map(({ status, rows }) => (
-        <section key={status} className="flex flex-col gap-2">
-          {/* pinned while its own rows scroll past */}
-          <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
-            <div className={`status-pop flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STAGE[status].pill}`}>
-              <span className={`h-2 w-2 rounded-full ${STAGE[status].dot}`} />
-              {STAGE[status].label}
-              <span className="rounded-full bg-black/20 px-2 text-xs">{rows.length}</span>
-            </div>
-          </div>
-          <ul className="flex flex-col gap-2">
-            {rows.map((task) => (
-              <li key={task.id}>
-                <TaskRow
-                  task={task}
-                  clientName={task.project.client.name}
-                  subtitle={`${task.project.client.name} · ${task.project.name || task.project.type}`}
-                  editors={editors}
-                  projects={projects}
-                  actingUserId={actingUserId}
-                  actingRole={actingRole}
-                  taskTags={taskTags}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
   );
 }

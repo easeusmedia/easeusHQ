@@ -249,9 +249,9 @@ export function TaskCard({
       )}
 
       {task.assignedTo && (
-        <div className="flex items-center gap-2 text-xs text-muted">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
           <Avatar name={task.assignedTo.name} />
-          {task.assignedTo.name}
+          <span className="truncate">{task.assignedTo.name}</span>
         </div>
       )}
 
@@ -285,9 +285,7 @@ export function TaskCard({
           taskId={task.id}
           currentStatus={task.status}
           options={options}
-          actingUserId={actingUserId}
-          actingRole={actingRole}
-          links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+                    links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
         />
       </div>
 

@@ -81,7 +81,7 @@ export function WorkTaskCard({
         className="card-surface card-interactive flex w-full cursor-pointer flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
         {showStatus && (
-          <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="w-40">
+          <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="w-full max-w-40">
             {/* keyed on status so it shows the saved stage after a refresh */}
             <Dropdown
               key={task.status}
