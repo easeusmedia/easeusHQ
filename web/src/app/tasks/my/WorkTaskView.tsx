@@ -15,13 +15,14 @@ type Project = { id: string; name: string; client: { name: string } };
 // Same toggle, same two-option segmented control as the Clients dashboard
 // (see ClientsBoard.tsx) — one visual pattern for "view this data as a
 // board or a list" everywhere it comes up, not a new one per page.
-const GROUP_LABEL: Record<GroupBy, string> = { status: "Status", person: "Person", team: "Team" };
+const GROUP_LABEL: Record<GroupBy, string> = { status: "Status", person: "Person", role: "Role", team: "Team" };
 
 export function WorkTaskView({
   tasks,
   queueTasks,
   groupOptions,
   teams,
+  roles,
   projects,
   actingUserId,
   showAssignee,
@@ -37,6 +38,8 @@ export function WorkTaskView({
   // the ways this scope can be laid out; the first is the default
   groupOptions: GroupBy[];
   teams: { slug: string; name: string }[];
+  // job titles, in the order People lists them
+  roles: string[];
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
@@ -44,7 +47,7 @@ export function WorkTaskView({
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
   canManageTags?: boolean;
-  // the scope picker (Mine / Operations / …) and the Notion sync, rendered
+  // the team picker (Operations / Sales / Everyone) or the Notion sync, rendered
   // into this component's own toolbar row rather than stacked above it —
   // two full-width control rows for two small controls was wasted height
   toolbarRight?: React.ReactNode;
@@ -54,7 +57,7 @@ export function WorkTaskView({
   // a pick the current scope doesn't offer (Team, after switching to one
   // team) falls back to that scope's default
   const groupBy = groupOptions.includes(groupPick) ? groupPick : groupOptions[0];
-  const groups = groupTasks(groupBy, tasks, queueTasks, teams);
+  const groups = groupTasks(groupBy, tasks, queueTasks, groupBy === "team" ? teams.map((t) => t.slug) : roles);
 
   return (
     <div className="flex flex-col gap-4">

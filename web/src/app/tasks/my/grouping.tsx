@@ -9,7 +9,7 @@ import type { WorkTaskCardData } from "./WorkTaskCard";
 // to the team's own work tasks, and to lay both out in groups (the grouping
 // itself is groupTasks, in workTaskStages).
 
-type Person = { id: string; name: string; team?: { slug: string; name: string } | null };
+type Person = { id: string; name: string; team?: { slug: string; name: string } | null; role?: string | null };
 
 // An editing-queue task, read-only here — its stage moves on the editing
 // board, where the approval rules live, so the card links there.

@@ -132,10 +132,10 @@ export function WorkTaskBoard({
             <section key={group.key} className="flex w-72 shrink-0 flex-col gap-3">
               <GroupHeader group={group} count={group.work.length + group.queue.length} />
               {group.work.map((task) => (
-                <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy === "team"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+                <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy !== "person"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
               ))}
               {group.queue.map((task) => (
-                <QueueCard key={task.id} task={task} showAssignee={groupBy === "team"} />
+                <QueueCard key={task.id} task={task} showAssignee={groupBy !== "person"} />
               ))}
             </section>
           ))}

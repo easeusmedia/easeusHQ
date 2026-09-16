@@ -2,11 +2,9 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-// Whose work you're looking at. Replaces the old admin-only "Abhishek /
-// Everyone" pair, which only ever had two states and said nothing about
-// teams: this is built from what the viewer is actually allowed to see, so
-// an Operations lead gets Mine / Operations, Sales gets Mine / Sales, and
-// admin gets every team plus Everyone.
+// Whose work the Organization tab shows. Built from what the viewer is
+// allowed to see: an Operations lead gets only Operations (so no toggle at
+// all), admin and Abhishek get every team plus Everyone.
 //
 // router.push, not replaceState: which team you're looking at is a real
 // place, worth having in history and worth being able to link someone to.

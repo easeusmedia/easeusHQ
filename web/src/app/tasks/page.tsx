@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
@@ -6,24 +7,29 @@ import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
-import { visibleTagWhere } from "@/lib/scope";
+import { seesEveryTeam, visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { Board } from "./Board";
 import { NotionSyncButton } from "./NotionSyncButton";
+import { ScopeToggle } from "./ScopeToggle";
+import { loadWork } from "./workData";
+import { WorkTaskView } from "./my/WorkTaskView";
+import type { GroupBy } from "@/lib/workTaskStages";
 
 export const dynamic = "force-dynamic"; // always hits the DB, never statically cached
 
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ as?: string }>;
+  searchParams: Promise<{ as?: string; view?: string; scope?: string }>;
 }) {
-  const { as } = await searchParams;
+  const { as, view, scope } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const [users, rawProjects, tasks] = await Promise.all([
+  const [users, teams, rawProjects, tasks] = await Promise.all([
     getAllUsers(),
+    prisma.team.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, slug: true, name: true } }),
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: true },
@@ -54,6 +60,77 @@ export default async function TasksPage({
   }
 
   const isEditor = actingUser.role === "employee";
+
+  // Two tabs. Editors: the editing queue, the thing the studio runs on.
+  // Organization: everyone's work in your team (every team, for admin and
+  // Abhishek), editors' edits included, laid out by team, role or person.
+  // An editor only ever gets the first; a lead outside Operations only the
+  // second, since the editing queue isn't their team's work.
+  const viewer = { id: actingUser.id, role: actingUser.role, email: actingUser.email, teamId: actingUser.teamId };
+  const everyTeam = seesEveryTeam(viewer);
+  const myTeam = teams.find((t) => t.id === actingUser.teamId);
+  const views = [
+    ...(isEditor || everyTeam || myTeam?.slug === "operations" ? [{ key: "editors", label: "Editors" }] : []),
+    ...(!isEditor ? [{ key: "org", label: "Organization" }] : []),
+  ];
+  const activeView = views.find((v) => v.key === view)?.key ?? views[0].key;
+  // the "viewing as" choice rides along on every tab link
+  const hrefFor = (key: string) => {
+    const params = new URLSearchParams();
+    if (as) params.set("as", as);
+    if (key !== views[0].key) params.set("view", key);
+    const qs = params.toString();
+    return qs ? `/tasks?${qs}` : "/tasks";
+  };
+  const tabStrip = views.length > 1 && (
+    <nav className="flex shrink-0 gap-1 border-b border-border px-6 pt-4 sm:px-8">
+      {views.map((v) => (
+        <Link
+          key={v.key}
+          href={hrefFor(v.key)}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            activeView === v.key ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground"
+          }`}
+        >
+          {v.label}
+        </Link>
+      ))}
+    </nav>
+  );
+
+  if (activeView === "org") {
+    const scopes = [
+      ...(everyTeam ? teams : myTeam ? [myTeam] : []).map((t) => ({ key: t.slug, label: t.name })),
+      ...(everyTeam ? [{ key: "all", label: "Everyone" }] : []),
+    ];
+    // widest view first: Everyone for admin, your own team for a lead
+    const activeScope = scopes.find((s) => s.key === scope)?.key ?? scopes.at(-1)?.key ?? "mine";
+    const groupOptions: GroupBy[] = activeScope === "all" ? ["team", "role", "person"] : ["role", "person"];
+    const work = await loadWork(viewer, activeScope, { withQueue: true });
+
+    return (
+      <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
+        {tabStrip}
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
+          <WorkTaskView
+            tasks={work.tasks}
+            queueTasks={work.queueTasks}
+            groupOptions={groupOptions}
+            teams={teams}
+            roles={work.roles}
+            projects={work.projects}
+            actingUserId={actingUser.id}
+            showAssignee
+            canCreate
+            assignees={work.assignable}
+            taskTags={work.taskTags}
+            canManageTags
+            toolbarRight={scopes.length > 1 && <ScopeToggle options={scopes} active={activeScope} />}
+          />
+        </div>
+      </div>
+    );
+  }
   // a scheduled-for-the-future task stays off the assigned editor's board
   // until that date — ops/admin (the `else` below) always sees everything
   const visibleTasks = isEditor
@@ -81,6 +158,7 @@ export default async function TasksPage({
   // re-applied inside the scroll area where it can't clip anything.
   return (
     <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
+      {tabStrip}
       {/* the same board for everyone — editors used to get a separate
           List/Board toggle onto a simplified view; now it's exactly what
           ops sees, just pre-filtered to their own tasks (see visibleTasks
