@@ -17,7 +17,7 @@ import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
-import { ClientWorkTasks } from "../ClientWorkTasks";
+
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientTabs } from "../ClientTabs";
 import { ClientAvatar } from "../ClientAvatar";
@@ -46,7 +46,10 @@ export default async function ClientDetailPage({
   const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/login");
-  if (me.role === "employee") redirect("/tasks"); // admin/core only
+  // Open to the whole team: everyone should be able to see what's
+  // happening for a client, whatever their role. Billing stays admin-only
+  // (see the canSeeBilling tab below) — that's the one part of a client
+  // that isn't everybody's business.
   const canSeeBilling = isAbhishekOrAdmin(me);
 
   const client = await prisma.client.findUnique({
@@ -168,6 +171,14 @@ export default async function ClientDetailPage({
                   </p>
                   <ClientOngoing
                     tasks={deliverableTasks}
+                    workTasks={clientWorkTasks.map((t) => ({
+                      id: t.id,
+                      title: t.title,
+                      status: t.status,
+                      projectName: t.project ? t.project.name || t.project.type : null,
+                      assignee: t.assignedTo ? { name: t.assignedTo.name } : null,
+                      tags: t.tags.map((x) => x.name),
+                    }))}
                     clientName={client.name}
                     editors={editors}
                     projects={boardProjects}
@@ -201,16 +212,6 @@ export default async function ClientDetailPage({
                   </section>
                 )}
 
-                <ClientWorkTasks
-                  tasks={clientWorkTasks.map((t) => ({
-                    id: t.id,
-                    title: t.title,
-                    status: t.status,
-                    projectName: t.project ? t.project.name || t.project.type : null,
-                    assignee: t.assignedTo ? { name: t.assignedTo.name } : null,
-                    tags: t.tags.map((x) => x.name),
-                  }))}
-                />
 
                 <ProjectsSection clientId={client.id} projects={projectCards} initialShow={show} />
               </div>

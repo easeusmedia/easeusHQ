@@ -191,7 +191,9 @@ export function Sidebar({
 
       {[
         ...NAV,
-        ...(isOps ? [{ segment: "/clients", label: "Clients", Icon: Building2 }] : []),
+        // everyone sees the clients — what the agency is working on isn't
+        // privileged information inside the agency
+        { segment: "/clients", label: "Clients", Icon: Building2 },
         ...(isOps ? [{ segment: "/calendar", label: "Calendar", Icon: CalendarDays }] : []),
         // core members see their own team here (read-only); admin edits everyone
         ...(isOps ? [{ segment: "/users", label: "People", Icon: UsersRound }] : []),

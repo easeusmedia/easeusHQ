@@ -84,7 +84,19 @@ export function WorkTaskCard({
 
         {hasFooter && (
           <div className="mt-1 flex items-center justify-between gap-2 border-t border-border pt-2.5">
-            <div className="flex min-w-0 items-center gap-3 text-xs text-muted">
+            {/* Name, not just a circle. An initial alone doesn't say who has
+                the task, and on a board scoped to a whole team "who is on
+                this" is the main thing the card has to answer. It leads the
+                row; the counts and the date sit after it. */}
+            {showAssignee ? (
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 text-xs">
+                <Avatar name={task.assignedTo.name} size={20} />
+                <span className="truncate text-foreground">{task.assignedTo.name}</span>
+              </span>
+            ) : (
+              <span className="flex-1" />
+            )}
+            <div className="flex shrink-0 items-center gap-3 text-xs text-muted">
               {task.dueDate && (
                 <span className={`flex items-center gap-1 ${overdue ? "font-medium text-red-300" : ""}`}>
                   <CalendarClock size={13} /> {shortDate(task.dueDate)}
@@ -101,7 +113,6 @@ export function WorkTaskCard({
                 </span>
               )}
             </div>
-            {showAssignee && <Avatar name={task.assignedTo.name} size={24} />}
           </div>
         )}
       </button>

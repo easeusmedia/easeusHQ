@@ -21,7 +21,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/login");
-  if (me.role === "employee") redirect("/tasks"); // admin/core only
+  // Open to the whole team: everyone should be able to see what's
+  // happening for a client, whatever their role. Billing stays admin-only
+  // (see the canSeeBilling tab below) — that's the one part of a client
+  // that isn't everybody's business.
 
   const project = await prisma.project.findUnique({
     where: { id },

@@ -15,7 +15,10 @@ export default async function ClientsPage() {
 
   const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
-  if (me?.role === "employee") redirect("/tasks"); // admin/core only — same bar as Calendar
+  // Open to the whole team: everyone should be able to see what's
+  // happening for a client, whatever their role. Billing stays admin-only
+  // (see the canSeeBilling tab below) — that's the one part of a client
+  // that isn't everybody's business.
 
   const clients = await prisma.client.findMany({
     include: {
