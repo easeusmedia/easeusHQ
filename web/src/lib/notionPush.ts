@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { notionPatch, notionPost, TASK_DATABASE_ID } from "./notion";
+import { notionGet, notionPatch, notionPost, TASK_DATABASE_ID } from "./notion";
 import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, exportedLinkFor } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
@@ -86,20 +86,105 @@ export async function updateInNotion(taskId: string): Promise<{ error?: string }
 
 // ---- work tasks ----
 //
-// The personal/team to-do items core members keep (Abhishek, Jyotsna, Arpit
-// and anyone else in Operations). They have no client, no raw footage and no
-// Frame.io thread, so most Editing Queue columns simply stay empty: what
-// carries over is the title, the stage, the day it was created, who it's on,
-// and the first attached link if there is one.
+// Two destinations, because the team's Notion is already arranged that way:
+//
+//   Core members (Abhishek, Jyotsna, Arpit) each have their own workbook —
+//   a plain to-do list: a task name, a done checkbox, a start date. Their
+//   work tasks go there.
+//
+//   Editors have no workbook of their own; theirs are filtered *views* of
+//   the shared Editing Queue, so their work belongs in the queue and shows
+//   up in their workbook automatically.
+//
+// The workbooks don't agree on property names — Arpit's checkbox is called
+// "Checkbox" where the others say "Status" — so properties are matched by
+// type rather than by name. That also covers whoever's workbook is added
+// next without needing to know what they called their columns.
+type WorkbookSchema = {
+  title: string;
+  checkbox: string | null;
+  startDate: string | null;
+  endDate: string | null;
+};
+
+// One fetch per database per process rather than per task — a sync pushes
+// many tasks to the same handful of workbooks.
+const schemaCache = new Map<string, WorkbookSchema>();
+
+async function workbookSchema(databaseId: string): Promise<WorkbookSchema> {
+  const cached = schemaCache.get(databaseId);
+  if (cached) return cached;
+
+  const db = await notionGet(`/databases/${databaseId}`);
+  const props = Object.entries(db.properties ?? {}) as [string, { type: string }][];
+  const byType = (type: string) => props.filter(([, p]) => p.type === type).map(([n]) => n);
+  const dates = byType("date");
+
+  const schema: WorkbookSchema = {
+    title: byType("title")[0] ?? "Name",
+    checkbox: byType("checkbox")[0] ?? null,
+    // by name where they follow the convention, else just the first/second
+    // date column in order
+    startDate: dates.find((n) => /start/i.test(n)) ?? dates[0] ?? null,
+    endDate: dates.find((n) => /end|due/i.test(n)) ?? null,
+  };
+  schemaCache.set(databaseId, schema);
+  return schema;
+}
+
 export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?: string }> {
   const t = await prisma.workTask.findUnique({
     where: { id: workTaskId },
-    include: { assignedTo: { select: { name: true, notionUserId: true } } },
+    include: {
+      tags: true,
+      assignedTo: { select: { name: true, notionUserId: true, notionWorkbookDbId: true } },
+    },
   });
   if (!t) return { error: "That task doesn't exist." };
 
+  try {
+    const workbook = t.assignedTo.notionWorkbookDbId;
+    const properties = workbook
+      ? await workbookProperties(workbook, t)
+      : editingQueueProperties(t);
+    const databaseId = workbook ?? TASK_DATABASE_ID;
+
+    if (t.notionPageId) {
+      await notionPatch(`/pages/${t.notionPageId}`, { properties });
+    } else {
+      const page = await notionPost("/pages", { parent: { database_id: databaseId }, properties });
+      await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: page.id } });
+    }
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't reach Notion." };
+  }
+}
+
+type WorkTaskRow = {
+  title: string;
+  status: string;
+  createdAt: Date;
+  dueDate: Date | null;
+  links: unknown;
+  assignedTo: { name: string; notionUserId: string | null };
+};
+
+async function workbookProperties(databaseId: string, t: WorkTaskRow) {
+  const s = await workbookSchema(databaseId);
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return {
+    [s.title]: { title: [{ text: { content: t.title.slice(0, 2000) } }] },
+    ...(s.checkbox ? { [s.checkbox]: { checkbox: t.status === "done" } } : {}),
+    ...(s.startDate ? { [s.startDate]: { date: { start: day(t.createdAt) } } } : {}),
+    ...(s.endDate && t.dueDate ? { [s.endDate]: { date: { start: day(t.dueDate) } } } : {}),
+  };
+}
+
+// An editor's work task, in the shared queue's own shape.
+function editingQueueProperties(t: WorkTaskRow) {
   const links = (t.links as { label: string; url: string }[] | null) ?? [];
-  const properties = {
+  return {
     "Video / Subject": { title: [{ text: { content: t.title.slice(0, 2000) } }] },
     Status: { status: { name: WORK_TASK_NOTION_STATUS[t.status] ?? "Queued" } },
     "Editor Queu Date": { date: { start: t.createdAt.toISOString().slice(0, 10) } },
@@ -109,18 +194,6 @@ export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?
       ? { Editor: { people: [{ object: "user", id: t.assignedTo.notionUserId }] } }
       : {}),
   };
-
-  try {
-    if (t.notionPageId) {
-      await notionPatch(`/pages/${t.notionPageId}`, { properties });
-    } else {
-      const page = await notionPost("/pages", { parent: { database_id: TASK_DATABASE_ID }, properties });
-      await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: page.id } });
-    }
-    return {};
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Couldn't reach Notion." };
-  }
 }
 
 async function loadTask(id: string) {

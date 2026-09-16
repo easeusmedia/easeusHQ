@@ -156,9 +156,11 @@ export default async function WorkPage({
         canManageTags={me.role !== "employee"}
         toolbarRight={
           <>
-            {/* ops only, and only where the tasks on screen are ones that
-                belong in the Editing Queue */}
-            {me.role !== "employee" && me.team?.slug === "operations" && <WorkNotionSyncButton />}
+            {/* shown to anyone whose work has a home in Notion — a core
+                member with their own workbook, or Operations */}
+            {me.role !== "employee" && (!!me.notionWorkbookDbId || me.team?.slug === "operations") && (
+              <WorkNotionSyncButton />
+            )}
             {options.length > 1 && <ScopeToggle options={options} active={active} />}
           </>
         }

@@ -48,6 +48,10 @@ async function notionFetch(path: string, init?: RequestInit) {
 // Writing, for the other direction (see lib/notionPush.ts). Same auth and
 // error handling as every read above — a non-2xx throws with Notion's own
 // message rather than a bare status code.
+export async function notionGet(path: string) {
+  return notionFetch(path);
+}
+
 export async function notionPost(path: string, body: unknown) {
   return notionFetch(path, { method: "POST", body: JSON.stringify(body) });
 }

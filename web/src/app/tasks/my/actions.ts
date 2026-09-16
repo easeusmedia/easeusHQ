@@ -87,9 +87,13 @@ export async function createWorkTask(input: {
 async function mirrorIfOperations(userId: string, workTaskId: string) {
   const person = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, team: { select: { slug: true } } },
+    select: { role: true, notionWorkbookDbId: true, team: { select: { slug: true } } },
   });
-  if (!person || !pushesToNotion({ role: person.role, teamSlug: person.team?.slug ?? null })) return;
+  // a personal workbook is itself the reason to mirror, regardless of team
+  const mirrors =
+    !!person?.notionWorkbookDbId ||
+    (!!person && pushesToNotion({ role: person.role, teamSlug: person.team?.slug ?? null }));
+  if (!mirrors) return;
   await pushWorkTaskToNotion(workTaskId).catch(() => {});
 }
 
@@ -103,10 +107,17 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
 
   // their own team's work, or everyone's for whoever sees every team
   const viewer = { id: me.id, role: me.role, email: me.email, teamId: me.teamId };
+  // anyone whose work has a home in Notion: a core member with their own
+  // workbook, or an Operations editor whose work belongs in the shared queue
   const tasks = await prisma.workTask.findMany({
     where: {
       ...assigneeWhere(viewer),
-      assignedTo: { role: { not: "admin" }, team: { slug: "operations" } },
+      assignedTo: {
+        OR: [
+          { notionWorkbookDbId: { not: null } },
+          { role: { not: "admin" }, team: { slug: "operations" } },
+        ],
+      },
     },
     select: { id: true },
     take: 100,
