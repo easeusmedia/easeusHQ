@@ -16,9 +16,8 @@ export default async function ClientsPage() {
   const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
   // Open to the whole team: everyone should be able to see what's
-  // happening for a client, whatever their role. Billing stays admin-only
-  // (see the canSeeBilling tab below) — that's the one part of a client
-  // that isn't everybody's business.
+  // happening for a client, whatever their role. Rearranging them or
+  // changing their status is for ops.
 
   const clients = await prisma.client.findMany({
     include: {
@@ -30,13 +29,14 @@ export default async function ClientsPage() {
         include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } },
       },
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
   const cards: ClientCardData[] = clients.map((c) => ({
     id: c.id,
     name: c.name,
     status: c.status,
+    sortOrder: c.sortOrder,
     niche: c.niche,
     avatarUrl: c.avatarUrl,
     tags: c.tags,
@@ -46,7 +46,7 @@ export default async function ClientsPage() {
 
   return (
     <>
-      <ClientsBoard clients={cards} />
+      <ClientsBoard clients={cards} canArrange={!!me && me.role !== "employee"} />
       <ClientsSyncButton />
     </>
   );

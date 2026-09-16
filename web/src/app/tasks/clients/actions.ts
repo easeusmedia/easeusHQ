@@ -164,6 +164,18 @@ export async function updateClientStatus(clientId: string, status: string): Prom
   return {};
 }
 
+// Dragging a client into place on the dashboard. One shared order for the
+// whole team — it's the agency's queue, not a personal view.
+export async function reorderClient(clientId: string, sortOrder: number): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can rearrange clients." };
+  if (!Number.isFinite(sortOrder)) return { error: "That position isn't valid." };
+
+  await prisma.client.update({ where: { id: clientId }, data: { sortOrder } });
+  revalidatePath("/tasks/clients");
+  return {};
+}
+
 export type ClientInfoInput = {
   name: string;
   niche: string;

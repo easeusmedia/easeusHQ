@@ -9,6 +9,7 @@ export type ClientCardData = {
   id: string;
   name: string;
   status: string;
+  sortOrder: number;
   niche: string | null;
   avatarUrl: string | null;
   tags: { id: string; name: string; color: string }[];

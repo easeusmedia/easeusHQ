@@ -40,7 +40,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     ? await prisma.client.findMany({
         where: { status: "current" },
         select: { id: true, name: true, avatarUrl: true },
-        orderBy: { name: "asc" },
+        // the same order as the Clients dashboard
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       })
     : [];
 

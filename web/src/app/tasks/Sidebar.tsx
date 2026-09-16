@@ -90,7 +90,10 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const qs = searchParams.toString();
+  // only "viewing as" follows you between pages — a page's own view state
+  // (?scope=, ?tab=) means nothing anywhere else
+  const as = searchParams.get("as");
+  const qs = as ? `as=${encodeURIComponent(as)}` : "";
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
