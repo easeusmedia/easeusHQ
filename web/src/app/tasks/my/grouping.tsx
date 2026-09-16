@@ -1,8 +1,8 @@
-import Link from "next/link";
-import type { TaskStatus } from "@/lib/workflow";
-import { STAGE } from "@/lib/stages";
+import type { Role } from "@/lib/workflow";
 import { WORK_TASK_STAGE, type WorkGroup } from "@/lib/workTaskStages";
-import { AssigneeLabel, Avatar, StageColumn } from "../TaskCard";
+import { Avatar, TaskCard, type TaskCardData } from "../TaskCard";
+import { TaskRow } from "../TaskRow";
+import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 
 // The pieces the Work board needs to show editors' editing-queue tasks next
@@ -11,15 +11,18 @@ import type { WorkTaskCardData } from "./WorkTaskCard";
 
 type Person = { id: string; name: string; team?: { slug: string; name: string } | null };
 
-// An editing-queue task, read-only here — its stage moves on the editing
-// board, where the approval rules live, so the card links there.
-export type QueueCardData = {
-  id: string;
-  title: string;
-  status: TaskStatus;
-  client: string;
-  project: string;
-  assignedTo: Person | null;
+// An editing-queue task: a whole row, shown with the editing board's own
+// card and list row, so it opens and changes stage here exactly as it does
+// there — Frame.io link on the way to approval, Drive link on delivery.
+export type QueueCardData = Omit<TaskCardData, "assignedTo"> & { assignedTo: Person | null };
+
+// What those cards need beyond the task itself, passed down once
+export type QueueEnv = {
+  editors: { id: string; name: string }[];
+  projects: { id: string; name: string; client: { id: string; name: string } }[];
+  actingUserId: string;
+  actingRole: Role;
+  taskTags: TaskTagOption[];
 };
 
 export type Group = WorkGroup<WorkTaskCardData, QueueCardData>;
@@ -40,43 +43,17 @@ export function GroupHeader({ group, count, className = "" }: { group: Group; co
   );
 }
 
-function QueuePill({ status }: { status: TaskStatus }) {
-  return (
-    <span className={`w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${STAGE[status].pill}`}>
-      {STAGE[status].label}
-    </span>
-  );
+export function QueueCard({ task, env }: { task: QueueCardData; env: QueueEnv }) {
+  return <TaskCard task={task} clientName={task.project.client.name} {...env} />;
 }
 
-export function QueueCard({ task, showAssignee }: { task: QueueCardData; showAssignee: boolean }) {
+export function QueueRow({ task, env }: { task: QueueCardData; env: QueueEnv }) {
   return (
-    <Link href="/tasks" className="card-surface card-interactive flex w-full flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm">
-      <QueuePill status={task.status} />
-      <p className="text-sm font-medium leading-snug">{task.title}</p>
-      <p className="truncate text-xs text-muted">
-        {task.client} · {task.project}
-      </p>
-      {showAssignee && task.assignedTo && (
-        <span className="mt-1 flex min-w-0 items-center gap-1.5 border-t border-border pt-2.5 text-xs">
-          <Avatar name={task.assignedTo.name} size={20} />
-          <span className="truncate text-foreground">{task.assignedTo.name}</span>
-        </span>
-      )}
-    </Link>
-  );
-}
-
-export function QueueRow({ task, showAssignee }: { task: QueueCardData; showAssignee: boolean }) {
-  return (
-    <Link href="/tasks" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2">
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
-      <span className="hidden shrink-0 truncate text-xs text-muted sm:inline">
-        {task.client} · {task.project}
-      </span>
-      {showAssignee && task.assignedTo && <AssigneeLabel name={task.assignedTo.name} />}
-      <StageColumn>
-        <QueuePill status={task.status} />
-      </StageColumn>
-    </Link>
+    <TaskRow
+      task={task}
+      clientName={task.project.client.name}
+      subtitle={`${task.project.client.name} · ${task.project.name || task.project.type}`}
+      {...env}
+    />
   );
 }

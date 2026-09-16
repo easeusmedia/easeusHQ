@@ -42,7 +42,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       ? prisma.task.findMany({
           where: { ...where, status: { in: ACTIVE_STATUSES } },
           orderBy: { createdAt: "desc" },
-          include: { assignedTo: assignee, project: { include: { client: true } } },
+          include: { assignedTo: assignee, tags: true, project: { include: { client: true } } },
         })
       : Promise.resolve([]),
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
@@ -59,7 +59,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
   ]);
 
   return {
-    projects: projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { name: p.client.name } })),
+    projects: projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: p.client.id, name: p.client.name } })),
     tasks: workTasks.map((t) => ({
       id: t.id,
       title: t.title,
@@ -76,14 +76,9 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       assignedTo: person(t.assignedTo),
       createdBy: { id: t.createdBy.id, name: t.createdBy.name },
     })),
-    queueTasks: queueTasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      client: t.project.client.name,
-      project: t.project.name || t.project.type,
-      assignedTo: t.assignedTo && person(t.assignedTo),
-    })),
+    // whole rows: they render as the editing board's own cards, which open
+    // the task and move its stage under the editing queue's rules
+    queueTasks: queueTasks.map((t) => ({ ...t, assignedTo: t.assignedTo && person(t.assignedTo) })),
     taskTags: taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing })),
     assignable,
   };

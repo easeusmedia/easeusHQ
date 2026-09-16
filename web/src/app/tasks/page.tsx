@@ -94,6 +94,7 @@ export default async function TasksPage({
           <WorkTaskView
             tasks={work.tasks}
             queueTasks={work.queueTasks}
+            queueEnv={{ editors, projects: work.projects, actingUserId: actingUser.id, actingRole: actingUser.role as Role, taskTags: work.taskTags }}
             groupOptions={groupOptions}
             teams={teams}
             projects={work.projects}

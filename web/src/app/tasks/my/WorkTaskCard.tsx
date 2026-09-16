@@ -1,9 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarClock, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
-import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
+import { WORK_TASK_STAGE, WORK_TASK_STATUSES } from "@/lib/workTaskStages";
+import { Dropdown } from "../Dropdown";
+import { moveWorkTask } from "./actions";
 import { Avatar } from "../TaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
@@ -52,7 +55,8 @@ export function WorkTaskCard({
   task: WorkTaskCardData;
   projects: Project[];
   showAssignee: boolean;
-  // on a board grouped by person or team, the column no longer says it
+  // on a board grouped by person or team the column no longer says what
+  // stage a task is at, so the card does — as a dropdown that moves it
   showStatus?: boolean;
   assignees?: { id: string; name: string }[];
   taskTags?: TaskTagOption[];
@@ -60,20 +64,40 @@ export function WorkTaskCard({
   actingUserId: string;
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
   const overdue = !!task.dueDate && task.status !== "done" && task.dueDate < new Date().toISOString().slice(0, 10);
   const hasFooter = task.dueDate || task.links.length > 0 || task.attachments.length > 0 || showAssignee;
 
   return (
     <>
-      <button
+      {/* a div, not a button: with the status dropdown inside it, a button
+          would be one control nested in another */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => dialogRef.current?.open()}
-        className="card-surface card-interactive flex w-full flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
+        onKeyDown={(e) => e.key === "Enter" && dialogRef.current?.open()}
+        className="card-surface card-interactive flex w-full cursor-pointer flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
         {showStatus && (
-          <span className={`w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${WORK_TASK_STAGE[task.status].pill}`}>
-            {WORK_TASK_STAGE[task.status].label}
+          <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="w-40">
+            {/* keyed on status so it shows the saved stage after a refresh */}
+            <Dropdown
+              key={task.status}
+              size="sm"
+              defaultValue={task.status}
+              options={WORK_TASK_STATUSES.map((s) => ({ value: s, label: WORK_TASK_STAGE[s].label }))}
+              onChange={async (v) => {
+                setError(null);
+                const res = await moveWorkTask(task.id, v as WorkTaskStatus, task.sortOrder);
+                if (res.error) setError(res.error);
+                else router.refresh();
+              }}
+            />
           </span>
         )}
+        {error && <p className="text-xs text-red-300">{error}</p>}
         {(task.tags.length > 0 || task.category) && (
           <span className="flex w-fit flex-wrap items-center gap-1">
             {task.tags.map((t) => (
@@ -124,7 +148,7 @@ export function WorkTaskCard({
             </div>
           </div>
         )}
-      </button>
+      </div>
 
       <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
     </>

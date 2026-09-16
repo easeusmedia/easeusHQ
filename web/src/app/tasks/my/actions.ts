@@ -146,9 +146,13 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
 // you're an admin — the same three-way check on every write below.
 async function assertCanTouch(taskId: string) {
   const me = await requireRealUser();
-  const task = await prisma.workTask.findUnique({ where: { id: taskId } });
+  const task = await prisma.workTask.findUnique({ where: { id: taskId }, include: { assignedTo: { select: { id: true, teamId: true } } } });
   if (!task) throw new Error("That task doesn't exist any more.");
-  if (task.assignedToId !== me.id && task.createdById !== me.id && !isAbhishekOrAdmin(me)) {
+  // yours, one you handed out, or — for a core member — anything in the
+  // team they can see on the Board (admin and Abhishek: any team)
+  const mine = task.assignedToId === me.id || task.createdById === me.id;
+  const teamLead = me.role !== "employee" && canSeeMember(me, task.assignedTo);
+  if (!mine && !teamLead && !isAbhishekOrAdmin(me)) {
     throw new Error("Not your task to change.");
   }
   return task;

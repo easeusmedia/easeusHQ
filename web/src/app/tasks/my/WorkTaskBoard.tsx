@@ -8,7 +8,7 @@ import { WorkTaskCard, type WorkTaskCardData } from "./WorkTaskCard";
 import { WorkTaskDialog } from "./WorkTaskDialog";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
-import { GroupHeader, QueueCard, type Group } from "./grouping";
+import { GroupHeader, QueueCard, type Group, type QueueEnv } from "./grouping";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -20,6 +20,7 @@ export function WorkTaskBoard({
   tasks,
   groups,
   groupBy,
+  queueEnv,
   projects,
   actingUserId,
   showAssignee,
@@ -32,6 +33,7 @@ export function WorkTaskBoard({
   // the same tasks (plus editing-queue ones) already sorted into columns
   groups: Group[];
   groupBy: GroupBy;
+  queueEnv?: QueueEnv;
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
@@ -134,9 +136,7 @@ export function WorkTaskBoard({
               {group.work.map((task) => (
                 <WorkTaskCard key={task.id} task={task} projects={projects} showAssignee={groupBy !== "person"} showStatus actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
               ))}
-              {group.queue.map((task) => (
-                <QueueCard key={task.id} task={task} showAssignee={groupBy !== "person"} />
-              ))}
+              {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
             </section>
           ))}
           {groups.length === 0 && <p className="text-sm text-muted">Nothing here yet.</p>}
@@ -176,9 +176,7 @@ export function WorkTaskBoard({
                       <WorkTaskCard task={task} projects={projects} showAssignee={showAssignee} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
                     </div>
                   ))}
-                  {group.queue.map((task) => (
-                    <QueueCard key={task.id} task={task} showAssignee={showAssignee} />
-                  ))}
+                  {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
                   <div className="h-6 shrink-0" />
                 </div>
               </section>

@@ -8,7 +8,7 @@ import { WorkTaskDialog } from "./WorkTaskDialog";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import { groupTasks, type GroupBy } from "@/lib/workTaskStages";
-import type { QueueCardData } from "./grouping";
+import type { QueueCardData, QueueEnv } from "./grouping";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -17,6 +17,7 @@ const GROUP_LABEL: Record<GroupBy, string> = { status: "Status", person: "Person
 export function WorkTaskView({
   tasks,
   queueTasks,
+  queueEnv,
   groupOptions,
   teams,
   projects,
@@ -32,6 +33,8 @@ export function WorkTaskView({
   tasks: WorkTaskCardData[];
   // editors' tasks from the client editing queue, shown alongside
   queueTasks: QueueCardData[];
+  // what their cards need to open and move them; absent where there are none
+  queueEnv?: QueueEnv;
   // the ways this scope can be laid out; the first is the default
   groupOptions: GroupBy[];
   teams: { slug: string; name: string }[];
@@ -97,9 +100,9 @@ export function WorkTaskView({
       />
 
       {view === "board" ? (
-        <WorkTaskBoard tasks={tasks} groups={groups} groupBy={groupBy} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+        <WorkTaskBoard tasks={tasks} groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
       ) : (
-        <WorkTaskList groups={groups} groupBy={groupBy} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+        <WorkTaskList groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
       )}
     </div>
   );

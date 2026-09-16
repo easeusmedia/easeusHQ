@@ -13,7 +13,7 @@ import { TaskTagChip } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
-import { GroupHeader, QueueRow, type Group } from "./grouping";
+import { GroupHeader, QueueRow, type Group, type QueueEnv } from "./grouping";
 
 type Project = { id: string; name: string; client: { name: string } };
 
@@ -31,6 +31,7 @@ const STATUS_OPTIONS = WORK_TASK_STATUSES.map((s) => ({ value: s, label: WORK_TA
 export function WorkTaskList({
   groups,
   groupBy,
+  queueEnv,
   projects,
   actingUserId,
   showAssignee,
@@ -40,6 +41,7 @@ export function WorkTaskList({
 }: {
   groups: Group[];
   groupBy: GroupBy;
+  queueEnv?: QueueEnv;
   projects: Project[];
   actingUserId: string;
   showAssignee: boolean;
@@ -81,6 +83,7 @@ export function WorkTaskList({
           <section key={group.key} className="flex flex-col gap-2">
             <GroupHeader group={group} count={count} className="w-fit" />
 
+            {rows.length > 0 && (
             <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40">
               {rows.map((task) => (
                 <ListRow
@@ -94,10 +97,19 @@ export function WorkTaskList({
                   onChangeStatus={(s) => changeStatus(task.id, task.sortOrder, s)}
                 />
               ))}
-              {group.queue.map((task) => (
-                <QueueRow key={task.id} task={task} showAssignee={rowAssignee} />
-              ))}
             </div>
+            )}
+            {/* editing-queue tasks as their own rows — the same ones a
+                client's page and the Editors list use */}
+            {queueEnv && group.queue.length > 0 && (
+              <ul className="flex flex-col gap-2">
+                {group.queue.map((task) => (
+                  <li key={task.id}>
+                    <QueueRow task={task} env={queueEnv} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         );
       })}
