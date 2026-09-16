@@ -8,7 +8,7 @@ import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
-import { Board } from "./Board";
+import { EditorsView } from "./EditorsView";
 import { NotionSyncButton } from "./NotionSyncButton";
 import { ScopeToggle } from "./ScopeToggle";
 import { loadWork } from "./workData";
@@ -94,7 +94,7 @@ export default async function TasksPage({
             assignees={work.assignable}
             taskTags={work.taskTags}
             canManageTags
-            toolbarRight={scopeToggle}
+            toolbarCenter={scopeToggle}
           />
         </div>
       </div>
@@ -128,24 +128,17 @@ export default async function TasksPage({
   // re-applied inside the scroll area where it can't clip anything.
   return (
     <div className="-m-6 flex h-[calc(100%+3rem)] w-[calc(100%+3rem)] flex-col sm:-m-8 sm:h-[calc(100%+4rem)] sm:w-[calc(100%+4rem)]">
-      {/* the switch sits where it does on the team views, top right; the
-          negative bottom margin eats most of the columns' own top padding
-          so the gap below it matches theirs too */}
-      {scopeToggle && (
-        <div className="-mb-2 flex shrink-0 justify-end px-6 pt-6 sm:-mb-4 sm:px-8 sm:pt-8">{scopeToggle}</div>
-      )}
-      {/* the same board for everyone — editors used to get a separate
-          List/Board toggle onto a simplified view; now it's exactly what
-          ops sees, just pre-filtered to their own tasks (see visibleTasks
-          above) rather than a different dashboard */}
-      <Board
+      {/* the same view for everyone — editors used to get a separate
+          simplified dashboard; now it's exactly what ops sees, just
+          pre-filtered to their own tasks (see visibleTasks above) */}
+      <EditorsView
         tasks={visibleTasks}
         projects={projects}
         editors={editors}
         actingUserId={actingUser.id}
         actingRole={actingUser.role as Role}
-        canCreate
         taskTags={taskTags}
+        switcher={scopeToggle}
       />
 
       {canSyncNotion && <NotionSyncButton />}
