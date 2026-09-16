@@ -40,9 +40,10 @@ export function ProjectsSection({
   // between the server's render and the browser's
   today: string;
 }) {
-  const [preset, setPreset] = useState<number | "all">(() => {
+  // "invoice": every project, in sections, one per invoice
+  const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
     const show = paramOrProp("show", initialShow);
-    if (show === "all") return "all";
+    if (show === "all" || show === "invoice") return show;
     const n = Number(show);
     return (PRESETS as readonly number[]).includes(n) ? n : DEFAULT_PRESET;
   });
@@ -69,6 +70,17 @@ export function ProjectsSection({
   );
   const batch = batches.find((b) => b.key === batchKey) ?? null;
   const dateFilterActive = !!(from || to);
+  const grouped = preset === "invoice" && batches.length > 0 && !batch && !dateFilterActive;
+  // what isn't finished yet belongs to no invoice, so it leads, on its own
+  const unfinished = projects.filter((p) => !p.completedAt);
+  const groups = grouped
+    ? [
+        ...(unfinished.length
+          ? [{ key: "unfinished", label: "Not finished yet", detail: `${unfinished.length} project${unfinished.length === 1 ? "" : "s"}`, items: unfinished }]
+          : []),
+        ...batches.map((b) => ({ key: b.key, label: b.label, detail: b.detail, items: projects.filter((p) => b.ids.includes(p.id)) })),
+      ]
+    : [];
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
   // the picker's own yyyy-mm-dd values is already a correct date compare
   const dateFiltered = projects.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
@@ -76,7 +88,7 @@ export function ProjectsSection({
     ? projects.filter((p) => batch.ids.includes(p.id))
     : dateFilterActive
       ? dateFiltered
-      : preset === "all"
+      : preset === "all" || preset === "invoice"
         ? projects
         : projects.slice(0, preset);
   const hiddenCount = projects.length - visible.length;
@@ -94,7 +106,7 @@ export function ProjectsSection({
     set(v);
   }
 
-  function selectPreset(p: number | "all") {
+  function selectPreset(p: number | "all" | "invoice") {
     setBatchKey(null);
     setPreset(p);
     setFrom("");
@@ -129,9 +141,11 @@ export function ProjectsSection({
                 ? batch.label
                 : dateFilterActive
                   ? "Custom range"
-                  : preset === "all"
-                    ? "All"
-                    : `Last ${preset}`}
+                  : grouped
+                    ? "By invoice"
+                    : typeof preset === "number"
+                      ? `Last ${preset}`
+                      : "All"}
           </button>
 
           {open && (
@@ -163,6 +177,18 @@ export function ProjectsSection({
                 >
                   All
                 </button>
+                {/* every project, split into its invoices — only where the
+                    client has an invoicing rule to split by */}
+                {batches.length > 0 && (
+                  <button
+                    onClick={() => selectPreset("invoice")}
+                    className={`rounded-md px-2 py-1 text-xs ${
+                      grouped ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
+                    }`}
+                  >
+                    By invoice
+                  </button>
+                )}
               </div>
 
               <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
@@ -207,22 +233,41 @@ export function ProjectsSection({
         </div>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-        <AddProjectCard clientId={clientId} />
-        {visible.map((p) => (
-          <ProjectCard key={p.id} project={p} />
-        ))}
-        {!batch && !dateFilterActive && hiddenCount > 0 && (
-          <MoreProjectsCard
-            count={hiddenCount}
-            cover={projects[visible.length]?.coverUrl ?? null}
-            onClick={() => selectPreset("all")}
-          />
-        )}
-        {dateFilterActive && visible.length === 0 && (
-          <p className="col-span-full text-sm text-muted">No projects in that range.</p>
-        )}
-      </div>
+      {grouped ? (
+        <div className="flex flex-col gap-8">
+          {groups.map((g, i) => (
+            <section key={g.key} className="flex flex-col gap-3">
+              <div className="flex items-baseline gap-2 border-b border-border pb-2">
+                <h3 className="text-sm font-medium">{g.label}</h3>
+                <span className="text-xs text-muted">{g.detail}</span>
+              </div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+                {i === 0 && <AddProjectCard clientId={clientId} />}
+                {g.items.map((p) => (
+                  <ProjectCard key={p.id} project={p} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+          <AddProjectCard clientId={clientId} />
+          {visible.map((p) => (
+            <ProjectCard key={p.id} project={p} />
+          ))}
+          {!batch && !dateFilterActive && hiddenCount > 0 && (
+            <MoreProjectsCard
+              count={hiddenCount}
+              cover={projects[visible.length]?.coverUrl ?? null}
+              onClick={() => selectPreset("all")}
+            />
+          )}
+          {dateFilterActive && visible.length === 0 && (
+            <p className="col-span-full text-sm text-muted">No projects in that range.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
