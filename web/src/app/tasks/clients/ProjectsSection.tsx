@@ -6,7 +6,8 @@ import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
-import { describeRule, invoiceBatches, type BillingRule } from "@/lib/invoiceBatches";
+import { invoiceBatches, type BillingRule } from "@/lib/invoiceBatches";
+import { Dropdown } from "../Dropdown";
 
 const PRESETS = [4, 8, 12] as const;
 const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
@@ -67,7 +68,6 @@ export function ProjectsSection({
     today
   );
   const batch = batches.find((b) => b.key === batchKey) ?? null;
-  const ruleText = describeRule(billing);
   const dateFilterActive = !!(from || to);
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
   // the picker's own yyyy-mm-dd values is already a correct date compare
@@ -108,7 +108,12 @@ export function ProjectsSection({
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium">Projects</h2>
 
-        <div ref={ref} className="relative">
+        <div ref={ref} className="relative flex items-center gap-2">
+          {!isDefault && (
+            <button onClick={() => selectPreset(DEFAULT_PRESET)} className="text-xs text-muted hover:text-foreground">
+              Reset
+            </button>
+          )}
           <button
             onClick={() => setOpen((v) => !v)}
             className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
@@ -132,7 +137,7 @@ export function ProjectsSection({
           {open && (
             // w-[21.5rem]: wide enough to hold the date pickers' own
             // calendar popovers (20rem) without them spilling off the edge
-            <div className="pop-in absolute right-0 z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
+            <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[21.5rem] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
               <p className="mb-1.5 text-xs font-medium text-muted">Show</p>
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map((p) => (
@@ -160,31 +165,6 @@ export function ProjectsSection({
                 </button>
               </div>
 
-              {/* one invoice's worth of work, per the client's billing rule */}
-              <p className="mb-0.5 mt-3 text-xs font-medium text-muted">Invoice batch</p>
-              {ruleText ? (
-                <>
-                  <p className="mb-1.5 text-xs text-muted/70">{ruleText}</p>
-                  <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
-                    {batches.map((b) => (
-                      <button
-                        key={b.key}
-                        onClick={() => selectBatch(b.key)}
-                        title={`${b.ids.length} project${b.ids.length === 1 ? "" : "s"}${b.complete ? "" : " · not invoiced yet"}`}
-                        className={`rounded-md px-2 py-1 text-xs ${
-                          batchKey === b.key ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
-                        }`}
-                      >
-                        {b.label}
-                        {!b.complete && <span className="ml-1 text-emerald-300">•</span>}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-xs text-muted/70">No billing rule set for this client yet — add one on the Billing tab.</p>
-              )}
-
               <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
               <div className="flex flex-col gap-2">
                 <DatePicker value={from} onChange={(v) => pickDate(setFrom, v)} placeholder="From…" />
@@ -200,6 +180,27 @@ export function ProjectsSection({
                 >
                   Clear dates
                 </button>
+              )}
+
+              {/* One invoice's worth of work, by the client's billing rule
+                  (every N projects, or once a month). A single field like the
+                  dates above, named the way the invoice itself is. */}
+              <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Invoice</p>
+              {batches.length > 0 ? (
+                <Dropdown
+                  key={batchKey ?? "any"}
+                  defaultValue={batchKey ?? ""}
+                  placeholder="Any invoice"
+                  onChange={(v) => (v ? selectBatch(v) : setBatchKey(null))}
+                  options={[
+                    { value: "", label: "Any invoice" },
+                    ...batches.map((b) => ({ value: b.key, label: `${b.label} · ${b.detail}` })),
+                  ]}
+                />
+              ) : (
+                <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted">
+                  {billing.cadence ? "No finished projects to invoice yet" : "No invoicing rule set for this client"}
+                </p>
               )}
             </div>
           )}

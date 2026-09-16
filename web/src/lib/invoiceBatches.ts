@@ -19,7 +19,10 @@ export type BillingRule = {
 
 export type Batch = {
   key: string;
+  // what the invoice is called: "Invoice 3", "Current invoice", "Aug 2026"
   label: string;
+  // one line of context: its date span, or how far along the open one is
+  detail: string;
   ids: string[];
   // the invoice for this batch is due (monthly: its day has passed;
   // milestone: all N projects are in)
@@ -27,6 +30,12 @@ export type Batch = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "6 Jul", with the year only when it isn't this one
+function shortDate(iso: string, thisYear: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${Number(d)} ${MONTHS[Number(m) - 1]}${y === thisYear ? "" : ` ${y}`}`;
+}
 
 const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m is 1-based
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -37,15 +46,18 @@ export function invoiceBatches(items: { id: string; date: string }[], rule: Bill
 
   if (rule.cadence === "milestone" && rule.every && rule.every > 0) {
     const n = rule.every;
+    const thisYear = today.slice(0, 4);
     const batches: Batch[] = [];
     for (let i = 0; i < oldestFirst.length; i += n) {
-      const ids = oldestFirst.slice(i, i + n).map((p) => p.id);
-      const number = i / n + 1;
-      const complete = ids.length === n;
+      const group = oldestFirst.slice(i, i + n);
+      const complete = group.length === n;
+      const span = `${shortDate(group[0].date, thisYear)} – ${shortDate(group.at(-1)!.date, thisYear)}`;
       batches.push({
-        key: `batch-${number}`,
-        label: complete ? `Batch ${number}` : `Batch ${number} (${ids.length}/${n})`,
-        ids,
+        key: `batch-${i / n + 1}`,
+        // the unfinished one is the invoice being worked towards right now
+        label: complete ? `Invoice ${i / n + 1}` : "Current invoice",
+        detail: complete ? span : `${group.length} of ${n} done`,
+        ids: group.map((p) => p.id),
         complete,
       });
     }
@@ -77,19 +89,11 @@ export function invoiceBatches(items: { id: string; date: string }[], rule: Bill
         const label = monthEnd
           ? `${MONTHS[m - 1]} ${y}`
           : `${startDay > daysIn(py, pm) ? `1 ${MONTHS[m - 1]}` : `${startDay} ${MONTHS[pm - 1]}`} – ${invoiceDay} ${MONTHS[m - 1]} ${y}`;
-        return { key, label, ids, complete: `${key}-${pad(invoiceDay)}` < today };
+        const complete = `${key}-${pad(invoiceDay)}` < today;
+        const count = `${ids.length} project${ids.length === 1 ? "" : "s"}`;
+        return { key, label, detail: complete ? count : `${count}, not invoiced yet`, ids, complete };
       });
   }
 
   return [];
-}
-
-// How the rule reads in words, for the filter's heading.
-export function describeRule(rule: BillingRule): string | null {
-  if (rule.cadence === "milestone" && rule.every) return `Invoiced every ${rule.every} project${rule.every === 1 ? "" : "s"}`;
-  if (rule.cadence === "monthly_date") {
-    const day = rule.dayOfMonth ?? 31;
-    return day >= 28 ? "Invoiced at each month end" : `Invoiced on day ${day} of each month`;
-  }
-  return null;
 }
