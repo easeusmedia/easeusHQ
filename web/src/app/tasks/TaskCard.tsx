@@ -114,6 +114,22 @@ export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   );
 }
 
+// A list row's "who" and "where" columns. Both are fixed width on wider
+// screens so names and stage pills line up down the list instead of shifting
+// with each pill's label length; on a phone the name drops to the avatar.
+export function AssigneeLabel({ name }: { name: string }) {
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-xs sm:w-36" title={name}>
+      <Avatar name={name} size={22} />
+      <span className="hidden truncate text-foreground sm:inline">{name}</span>
+    </span>
+  );
+}
+
+export function StageColumn({ children }: { children: React.ReactNode }) {
+  return <span className="flex shrink-0 justify-end sm:w-48">{children}</span>;
+}
+
 function Link({ href, label }: { href: string; label: string }) {
   return (
     <a href={href} target="_blank" className="text-xs text-blue-400 underline underline-offset-2">

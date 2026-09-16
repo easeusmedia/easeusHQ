@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { Avatar, type TaskCardData } from "./TaskCard";
+import { AssigneeLabel, StageColumn, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
@@ -76,20 +76,22 @@ export function TaskRow({
           </a>
         )}
 
-        {task.assignedTo && <Avatar name={task.assignedTo.name} size={22} />}
+        {task.assignedTo && <AssigneeLabel name={task.assignedTo.name} />}
         {/* the stage is changed here, in place — it used to be a static
             badge, so moving a task on from this list meant opening it or
             going to the board. Same moveTask() and the same permission
             rules the board card uses. */}
-        <StatusSelect
-          taskId={task.id}
-          currentStatus={task.status}
-          options={options}
-          actingUserId={actingUserId}
-          actingRole={actingRole}
-          links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
-          variant="pill"
-        />
+        <StageColumn>
+          <StatusSelect
+            taskId={task.id}
+            currentStatus={task.status}
+            options={options}
+            actingUserId={actingUserId}
+            actingRole={actingRole}
+            links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+            variant="pill"
+          />
+        </StageColumn>
       </div>
 
       <TaskDetailsDialog

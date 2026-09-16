@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { WorkTaskStatus } from "@prisma/client";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { Avatar } from "../TaskCard";
+import { AssigneeLabel, StageColumn } from "../TaskCard";
 import { TaskTagChip } from "../TaskTagPicker";
 
 export type ClientWorkTask = {
@@ -36,10 +36,12 @@ export function WorkTaskRow({ task }: { task: ClientWorkTask }) {
         </span>
       )}
 
-      {task.assignee && <Avatar name={task.assignee.name} size={22} />}
-      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${WORK_TASK_STAGE[task.status].pill}`}>
-        {WORK_TASK_STAGE[task.status].label}
-      </span>
+      {task.assignee && <AssigneeLabel name={task.assignee.name} />}
+      <StageColumn>
+        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${WORK_TASK_STAGE[task.status].pill}`}>
+          {WORK_TASK_STAGE[task.status].label}
+        </span>
+      </StageColumn>
     </Link>
   );
 }
