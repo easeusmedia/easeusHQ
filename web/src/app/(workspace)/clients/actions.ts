@@ -56,7 +56,7 @@ export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
     // fetched once, then applied to every client this run touches, so a
     // client imported from Notion ends up with the same checklist,
     // deliverables and documents as one created here by hand
-    const template = await getClientTemplate();
+    const template = await loadClientTemplate();
     const touched: string[] = [];
 
     for (const row of rows) {
@@ -288,6 +288,7 @@ export async function updateClientAvatar(clientId: string, dataUrl: string | nul
 }
 
 export async function listTags() {
+  if (!(await getSessionUserId())) return [];
   return prisma.tag.findMany({ orderBy: { name: "asc" } });
 }
 
@@ -405,6 +406,11 @@ export type ClientTemplateData = {
 // seeded from templateDefaults — after that the database is the source of
 // truth and ops edits it in the app.
 export async function getClientTemplate(): Promise<ClientTemplateData> {
+  if (!(await requireOps())) throw new Error("Only ops team members can see the template.");
+  return loadClientTemplate();
+}
+
+async function loadClientTemplate(): Promise<ClientTemplateData> {
   const existing = await prisma.clientTemplate.findUnique({ where: { id: "default" } });
   const row =
     existing ??
@@ -457,7 +463,7 @@ export async function createClient(name: string, niche = ""): Promise<{ id?: str
   const existing = await prisma.client.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
   if (existing) return { error: `${existing.name} is already on the roster.` };
 
-  const template = await getClientTemplate();
+  const template = await loadClientTemplate();
 
   const client = await prisma.client.create({
     data: {
@@ -561,7 +567,7 @@ export async function applyOnboardingTemplate(clientId: string): Promise<{ added
   const user = await requireOps();
   if (!user) return { added: 0, error: "Only ops team members can do that." };
 
-  const added = await applyTemplateTo(clientId, await getClientTemplate());
+  const added = await applyTemplateTo(clientId, await loadClientTemplate());
   revalidatePath("/clients/[slug]", "page");
   return { added };
 }

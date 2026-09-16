@@ -18,7 +18,8 @@ export function PhotoEdit({
 }: {
   name: string;
   src: string | null;
-  size?: number;
+  // pixels, or "fill" for as big as its box (ProfileHead)
+  size?: number | "fill";
   // a teammate: drawn by the shared avatar, so it gets their online dot too
   person?: boolean;
   save: (dataUrl: string | null) => Promise<{ error?: string }>;
@@ -42,13 +43,13 @@ export function PhotoEdit({
   }
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="group relative">
+    <div className={`flex flex-col items-center gap-1 ${size === "fill" ? "size-full" : ""}`}>
+      <div className={`group relative ${size === "fill" ? "size-full" : ""}`}>
         {person ? (
           <Avatar name={name} size={size} />
         ) : src ? (
           // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized picture behind sign-in
-          <img src={src} alt={name} className="photo" style={{ width: size, height: size }} />
+          <img src={src} alt={name} className="photo" style={size === "fill" ? { width: "100%", height: "100%" } : { width: size, height: size }} />
         ) : (
           <Avatar name={name} size={size} />
         )}

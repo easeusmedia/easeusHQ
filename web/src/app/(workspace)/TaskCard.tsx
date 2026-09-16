@@ -108,43 +108,50 @@ export type TaskCardData = {
 
 // `presence`: whether to show the green online dot. On everywhere a person
 // appears, except where the avatar is your own account button.
-export function Avatar({ name, size = 24, presence = true }: { name: string; size?: number; presence?: boolean }) {
+// `size`: pixels, or "fill" for as big as the box it's in (ProfileHead).
+export function Avatar({ name, size = 24, presence = true }: { name: string; size?: number | "fill"; presence?: boolean }) {
   const photo = usePhoto(name);
   const online = useOnline(name) && presence;
+  const fill = size === "fill";
   const face = photo ? (
     // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized photo behind sign-in
-    <img src={photo} alt={name} title={name} className="photo" style={{ width: size, height: size }} />
+    <img src={photo} alt={name} title={name} className="photo" style={fill ? { width: "100%", height: "100%" } : { width: size, height: size }} />
   ) : (
     <Initials name={name} size={size} />
   );
   if (!online) return face;
-  // small and fixed-ish: a hint, not a badge — even on a large avatar
-  const dot = size >= 40 ? 10 : size >= 24 ? 8 : 7;
+  // subtle but findable: a pinpoint on small avatars, a touch more on big ones
+  const dot = fill || size >= 40 ? 8 : size >= 24 ? 6 : 5;
   // on the circle's edge (bottom-right, 45°), not the square's far corner
-  const inset = Math.max(0, Math.round(size * 0.146 - dot / 2));
+  const inset = fill ? `calc(14.6% - ${dot / 2}px)` : Math.max(0, Math.round(size * 0.146 - dot / 2));
   return (
-    <span className="relative inline-flex shrink-0">
+    <span className={`relative inline-flex shrink-0 ${fill ? "size-full" : ""}`}>
       {face}
       <span
         title={`${name} is online`}
-        className="absolute rounded-full bg-green-500 ring-2 ring-background"
+        className="absolute rounded-full bg-green-500 ring-[1.5px] ring-background"
         style={{ width: dot, height: dot, right: inset, bottom: inset }}
       />
     </span>
   );
 }
 
-function Initials({ name, size }: { name: string; size: number }) {
-  return (
+function Initials({ name, size }: { name: string; size: number | "fill" }) {
+  const face = (
     <span
       // `photo` for the same hairline edge a picture gets, so every avatar matches
       className="photo flex items-center justify-center font-semibold leading-none text-black"
-      style={{ backgroundColor: colorFor(name), width: size, height: size, fontSize: size * 0.42 }}
+      style={{
+        backgroundColor: colorFor(name),
+        ...(size === "fill" ? { width: "100%", height: "100%", fontSize: "42cqi" } : { width: size, height: size, fontSize: size * 0.42 }),
+      }}
       title={name}
     >
       {initials(name)}
     </span>
   );
+  // filling a box: the letters scale with it (cqi = % of the box's width)
+  return size === "fill" ? <span className="block size-full [container-type:inline-size]">{face}</span> : face;
 }
 
 // A list row's "who" and "where" columns. Both are fixed width on wider

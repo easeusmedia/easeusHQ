@@ -49,7 +49,7 @@ export function ApprovalWatcher({ userId }: { userId: string }) {
     async function poll() {
       let tasks;
       try {
-        tasks = await getMyActiveTaskSnapshot(userId);
+        tasks = await getMyActiveTaskSnapshot();
       } catch {
         return; // network hiccup — next tick tries again
       }

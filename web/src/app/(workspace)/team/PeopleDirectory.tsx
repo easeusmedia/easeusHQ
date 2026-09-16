@@ -68,7 +68,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 // a person's photo (or initials) and online dot — the shared avatar
-export function Face({ person, size }: { person: { name: string }; size: number }) {
+export function Face({ person, size }: { person: { name: string }; size: number | "fill" }) {
   return <Avatar name={person.name} size={size} />;
 }
 

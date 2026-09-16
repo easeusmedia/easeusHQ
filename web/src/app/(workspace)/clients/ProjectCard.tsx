@@ -22,6 +22,43 @@ export type ProjectCardData = {
   invoiceStatus: string | null;
 };
 
+// the line under a project's name: what's still being made on it, else when
+// it was finished, else how many files it has
+function projectLine(project: ProjectCardData) {
+  return project.activeTasks > 0
+    ? `${project.activeTasks} active task${project.activeTasks === 1 ? "" : "s"}`
+    : project.completedAt ?? `${project.assetCount} file${project.assetCount === 1 ? "" : "s"}`;
+}
+
+// The same project as one row of the list view: a small cover, the name and
+// its line, and where it stands.
+export function ProjectRow({ project, href = `/projects/${project.id}` }: { project: ProjectCardData; href?: string }) {
+  const done = project.status === "completed";
+  return (
+    <li>
+      <Link href={href} className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-surface-2/60">
+        <span className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
+          {project.coverUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
+            <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{project.name}</span>
+          <span className="block truncate text-xs text-muted">{projectLine(project)}</span>
+        </span>
+        <span
+          className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${
+            done ? "border-green-400/30 bg-green-400/15 text-green-300" : "border-blue-400/30 bg-blue-400/15 text-blue-300"
+          }`}
+        >
+          {done ? "Delivered" : "In progress"}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 // A cover, a name, and one line underneath. Clicking opens the project,
 // where everything it produced actually lives — except the delete button
 // in the corner, which skips that trip entirely.
@@ -77,11 +114,7 @@ export function ProjectCard({
 
         <div className="flex flex-col gap-0.5 px-3 py-2.5">
           <p className="truncate text-[13px] font-medium">{project.name}</p>
-          <p className="text-xs text-muted">
-            {project.activeTasks > 0
-              ? `${project.activeTasks} active task${project.activeTasks === 1 ? "" : "s"}`
-              : project.completedAt ?? `${project.assetCount} file${project.assetCount === 1 ? "" : "s"}`}
-          </p>
+          <p className="text-xs text-muted">{projectLine(project)}</p>
         </div>
       </Link>
 

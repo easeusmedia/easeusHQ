@@ -301,6 +301,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
 // Every tag, for the pickers. Ordered the way taskTags.ts seeds them so the
 // list reads client-facing work first, internal work after.
 export async function listTaskTags() {
+  if (!(await getSessionUserId())) return [];
   return prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
 }
 
@@ -640,7 +641,10 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
 // actually showing — an editor camped on History or Calendar should still
 // get told the moment one of their tasks is delivered, not only when
 // they happen to be looking at the Board
-export async function getMyActiveTaskSnapshot(userId: string) {
+// Always the signed-in person's own tasks — never whoever the caller names.
+export async function getMyActiveTaskSnapshot() {
+  const userId = await getSessionUserId();
+  if (!userId) return [];
   return prisma.task.findMany({
     where: { assignedToId: userId, status: { not: "delivered_and_uploaded" } },
     select: { id: true, title: true, status: true },
@@ -652,6 +656,7 @@ export async function getMyActiveTaskSnapshot(userId: string) {
 // waste. The "created" row (always first, since logs are oldest-first) is
 // exactly "assigned on this date by this person" — no separate field needed.
 export async function getTaskActivity(taskId: string) {
+  if (!(await getSessionUserId())) return [];
   const logs = await prisma.activityLog.findMany({
     where: { entity: "Task", entityId: taskId },
     include: { actor: { select: { id: true, name: true } } },

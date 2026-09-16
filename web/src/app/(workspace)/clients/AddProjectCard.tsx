@@ -10,7 +10,8 @@ import { DELIVERABLE_TYPES } from "@/lib/deliverableTypes";
 // The same shape every project starts with — name, cover, and which of the
 // agency's deliverable types apply — so a project set up in five minutes on
 // a busy day looks identical to one set up carefully.
-export function AddProjectCard({ clientId }: { clientId: string }) {
+// `row`: a slim bar at the head of the list view instead of a tile
+export function AddProjectCard({ clientId, row = false }: { clientId: string; row?: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -60,7 +61,7 @@ export function AddProjectCard({ clientId }: { clientId: string }) {
     <>
       <button
         onClick={open}
-        className="btn-add flex h-full min-h-[140px] flex-col items-center justify-center gap-1.5 rounded-xl"
+        className={`btn-add flex items-center justify-center gap-1.5 rounded-xl ${row ? "w-full py-2.5" : "h-full min-h-[140px] flex-col"}`}
       >
         <Plus size={18} />
         <span className="text-xs">New project</span>

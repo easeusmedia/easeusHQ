@@ -23,6 +23,7 @@ import { StatusDropdown } from "../StatusDropdown";
 import { ClientShare } from "../ClientShare";
 import { ClientFeedbackList } from "../ClientFeedbackList";
 import { ClientTabs } from "../ClientTabs";
+import { ProfileHead } from "../../ProfileHead";
 import { PhotoEdit } from "../../PhotoEdit";
 import { ClientTags } from "../ClientTags";
 import { listTags, updateClientAvatar } from "../actions";
@@ -39,10 +40,10 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; show?: string }>;
+  searchParams: Promise<{ tab?: string; show?: string; layout?: string }>;
 }) {
   const { slug } = await params;
-  const { tab, show } = await searchParams;
+  const { tab, show, layout } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -136,16 +137,17 @@ export default async function ClientDetailPage({
         <ArrowLeft size={14} /> Clients
       </Link>
 
-      <div className="mb-8 flex flex-wrap items-center gap-4">
-        <PhotoEdit name={client.name} src={clientLogoSrc(client)} save={updateClientAvatar.bind(null, client.id)} />
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
-            <StatusDropdown clientId={client.id} status={client.status} size="md" />
+      <div className="mb-8 flex flex-wrap items-start gap-4">
+        <ProfileHead photo={<PhotoEdit name={client.name} src={clientLogoSrc(client)} size="fill" save={updateClientAvatar.bind(null, client.id)} />}>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+              <StatusDropdown clientId={client.id} status={client.status} size="md" />
+            </div>
+            {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
+            <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
           </div>
-          {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
-          <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
-        </div>
+        </ProfileHead>
         {/* the client's own page at this address, for the team to switch on */}
         {me.role !== "employee" && (
           <div className="ml-auto self-start">
@@ -239,6 +241,7 @@ export default async function ClientDetailPage({
                   clientId={client.id}
                   projects={projectCards}
                   initialShow={show}
+                  initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}

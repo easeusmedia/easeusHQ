@@ -6,11 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
+import { ClientTabs } from "../../../../(workspace)/clients/ClientTabs";
 import { OngoingList, sharedClient } from "../../shared";
 
-// One project on a client's shared page, at /clients/<name>/projects/<id>
-// (see proxy.ts) — the team's project page, read-only: its cover, where it
-// stands, what's still being made for it, and every file it produced.
+// One project on a client's shared page — the team's project page, read-only:
+// its cover and where it stands, then a switch between every file it produced
+// and every piece of work on it, as a list. Its links stay on the client's own
+// pages (/share/…), so they never lead into the team app, even in a browser
+// that also happens to be signed in to it.
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +28,23 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function SharedProjectPage({ params }: { params: Promise<{ slug: string; id: string }> }) {
-  const { slug, id } = await params;
+export default async function SharedProjectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string; id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const [{ slug, id }, { tab }] = await Promise.all([params, searchParams]);
   const client = await sharedClient(slug);
   const project = client
     ? await prisma.project.findFirst({
         where: { id, clientId: client.id },
         include: {
           assets: { orderBy: { sortOrder: "asc" } },
+          // everything made for them, not the team's own internal tasks
           tasks: {
-            where: { status: { in: ACTIVE_STATUSES }, internal: false },
+            where: { internal: false },
             orderBy: { createdAt: "desc" },
             select: { id: true, title: true, status: true, frameioLink: true },
           },
@@ -48,7 +58,7 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href={`/clients/${client.slug}`} className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+      <Link href={`/share/${client.slug}`} className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft size={14} /> {client.name}
       </Link>
 
@@ -80,18 +90,40 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {project.tasks.length > 0 && (
-        <section className="mt-12">
-          <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
-          <OngoingList tasks={project.tasks.map((t) => ({ ...t, subtitle: name }))} />
-        </section>
-      )}
-
-      <ProjectFiles
-        projectId={project.id}
-        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null }))}
-        readOnly
-      />
+      <div className="mt-10">
+        <ClientTabs
+          initialTab={tab}
+          width=""
+          tabs={[
+            {
+              key: "files",
+              label: "Files",
+              count: project.assets.length,
+              content: (
+                <ProjectFiles
+                  projectId={project.id}
+                  assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null }))}
+                  readOnly
+                />
+              ),
+            },
+            {
+              key: "work",
+              label: "Work",
+              count: project.tasks.length,
+              content: (
+                <OngoingList
+                  // what's still moving first, then what's delivered
+                  tasks={[...project.tasks]
+                    .sort((a, b) => Number(!ACTIVE_STATUSES.includes(a.status)) - Number(!ACTIVE_STATUSES.includes(b.status)))
+                    .map((t) => ({ ...t, subtitle: name }))}
+                  empty="No work on this project yet."
+                />
+              ),
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }

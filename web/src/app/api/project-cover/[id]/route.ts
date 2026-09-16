@@ -10,10 +10,9 @@ import { notionCoverUrl } from "@/lib/notionClientImport";
 export const revalidate = 3000;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await getSessionUserId())) return new NextResponse("Unauthorized", { status: 401 });
-
   const { id } = await params;
-  const project = await prisma.project.findUnique({ where: { id }, select: { notionPageId: true } });
+  const project = await prisma.project.findUnique({ where: { id }, select: { notionPageId: true, client: { select: { shareEnabled: true } } } });
+  if (!project?.client.shareEnabled && !(await getSessionUserId())) return new NextResponse("Unauthorized", { status: 401 });
   if (!project?.notionPageId) return new NextResponse("No cover", { status: 404 });
 
   try {

@@ -19,17 +19,18 @@ const STAGE: Partial<Record<TaskStatus, { label: string; className: string }>> =
   sent_for_approval: { label: "In our review", className: "border-purple-400/30 bg-purple-400/15 text-purple-300" },
   sent_for_client_approval: { label: "Ready for your review", className: "border-cyan-400/30 bg-cyan-400/15 text-cyan-300" },
   final_export_ready: { label: "Finalising", className: "border-green-400/30 bg-green-400/15 text-green-300" },
+  delivered_and_uploaded: { label: "Delivered", className: "border-green-400/30 bg-green-400/15 text-green-300" },
 };
 
 type OngoingTask = { id: string; title: string; status: TaskStatus; frameioLink: string | null; subtitle: string };
 
 // The work in flight, read-only, laid out like the team's own ongoing list:
 // what it is, where it is, and the review link when it's the client's turn.
-export function OngoingList({ tasks }: { tasks: OngoingTask[] }) {
+export function OngoingList({ tasks, empty = "Nothing in production right now." }: { tasks: OngoingTask[]; empty?: string }) {
   if (tasks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border px-5 py-10 text-center">
-        <p className="text-sm text-muted">Nothing in production right now.</p>
+        <p className="text-sm text-muted">{empty}</p>
       </div>
     );
   }

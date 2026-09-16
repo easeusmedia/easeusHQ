@@ -10,6 +10,7 @@ import { ClientDeliverables } from "../../(workspace)/clients/ClientDeliverables
 import { ClientDocuments } from "../../(workspace)/clients/ClientInfo";
 import { ProjectsSection } from "../../(workspace)/clients/ProjectsSection";
 import { TagPill } from "../../(workspace)/clients/TagPill";
+import { ProfileHead } from "../../(workspace)/ProfileHead";
 import { FeedbackForm } from "./FeedbackForm";
 import { OngoingList, sharedClient } from "./shared";
 
@@ -38,9 +39,9 @@ export default async function SharedClientPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; show?: string }>;
+  searchParams: Promise<{ tab?: string; show?: string; layout?: string }>;
 }) {
-  const [{ slug }, { tab, show }] = await Promise.all([params, searchParams]);
+  const [{ slug }, { tab, show, layout }] = await Promise.all([params, searchParams]);
   const found = await sharedClient(slug);
   // not shared (or no such client): this address is the team's page
   if (!found) redirect("/login");
@@ -77,24 +78,29 @@ export default async function SharedClientPage({
 
   return (
     <div className="flex flex-col">
-      <div className="mb-8 flex flex-wrap items-center gap-4">
-        {logo ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized logo
-          <img src={logo} alt="" className="photo h-14 w-14" />
-        ) : (
-          <Avatar name={client.name} size={56} />
-        )}
-        <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
-          {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
-          {client.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {client.tags.map((t) => (
-                <TagPill key={t.id} name={t.name} color={t.color} />
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="mb-8 flex">
+        <ProfileHead
+          photo={
+            logo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a small, already-resized logo
+              <img src={logo} alt="" className="photo size-full" />
+            ) : (
+              <Avatar name={client.name} size="fill" />
+            )
+          }
+        >
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+            {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
+            {client.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {client.tags.map((t) => (
+                  <TagPill key={t.id} name={t.name} color={t.color} />
+                ))}
+              </div>
+            )}
+          </div>
+        </ProfileHead>
       </div>
 
       <div className="mb-10">
@@ -126,9 +132,10 @@ export default async function SharedClientPage({
                   clientId={client.id}
                   projects={projectCards}
                   initialShow={show}
+                  initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
-                  projectBase={`/clients/${client.slug}/projects`}
+                  projectBase={`/share/${client.slug}/projects`}
                 />
               </div>
             ),

@@ -50,18 +50,19 @@ export function ProjectFiles({
   }
 
   return (
-    <section className="mt-12">
-      <div className="mb-4 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium">Files</h2>
-        <div className="flex items-center gap-3">
-          {assets.length > 0 && <span className="text-xs text-muted">{assets.length} total</span>}
-          {!readOnly && (
+    // read-only, it sits under a "Files" tab that already names and counts it
+    <section className={readOnly ? undefined : "mt-12"}>
+      {!readOnly && (
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-medium">Files</h2>
+          <div className="flex items-center gap-3">
+            {assets.length > 0 && <span className="text-xs text-muted">{assets.length} total</span>}
             <button onClick={() => setAdding(true)} className="btn-add flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
               <Plus size={13} /> Add file
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {error && <p className="mb-3 text-xs text-red-300">{error}</p>}
 

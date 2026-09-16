@@ -9,6 +9,7 @@ import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { createJobTitle, deleteJobTitle, updatePerson, updatePersonPhoto } from "./actions";
 import { PhotoEdit } from "../PhotoEdit";
+import { ProfileHead } from "../ProfileHead";
 import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, type Option, type PersonRecord } from "./PeopleDirectory";
 import { TaskTagChip } from "../TaskTagPicker";
 import { seesEveryTeam } from "@/lib/scope";
@@ -166,13 +167,16 @@ export function PersonDetail({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <header className="flex items-center gap-4 border-b border-border px-6 py-5">
-        {/* the admin can change anyone's photo here, and you can change your own */}
-        {canEdit || isSelf ? (
-          <PhotoEdit person name={person.name} src={person.avatarUrl} size={64} save={(d) => updatePersonPhoto(person.id, d)} />
-        ) : (
-          <Face person={person} size={64} />
-        )}
-        <div className="min-w-0 flex-1">
+        <ProfileHead
+          photo={
+            // the admin can change anyone's photo here, and you can change your own
+            canEdit || isSelf ? (
+              <PhotoEdit person name={person.name} src={person.avatarUrl} size="fill" save={(d) => updatePersonPhoto(person.id, d)} />
+            ) : (
+              <Face person={person} size="fill" />
+            )
+          }
+        >
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
           <p className="truncate text-sm text-muted">
             {person.jobTitleName ?? "No role set"}
@@ -186,7 +190,7 @@ export function PersonDetail({
               {EMPLOYMENT_LABEL[person.employment as EmploymentStatus]}
             </span>
           </div>
-        </div>
+        </ProfileHead>
         <div className="flex shrink-0 gap-2">
           <a
             href={`mailto:${person.email}`}

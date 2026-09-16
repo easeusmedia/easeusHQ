@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Filter, LayoutGrid, Receipt } from "lucide-react";
+import { Filter, LayoutGrid, List, Receipt } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
-import { ProjectCard, type ProjectCardData } from "./ProjectCard";
+import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
 import { batchPayment, invoiceBatches, type BillingRule, type Payment } from "@/lib/invoiceBatches";
@@ -36,6 +36,7 @@ export function ProjectsSection({
   clientId,
   projects,
   initialShow,
+  initialLayout,
   billing,
   today,
   projectBase,
@@ -43,6 +44,8 @@ export function ProjectsSection({
   clientId: string;
   projects: ProjectCardData[];
   initialShow?: string;
+  // ?layout=list from the server, for the first paint
+  initialLayout?: string;
   // the client's invoicing rule (Billing tab), for "show one invoice's worth"
   billing: BillingRule;
   // yyyy-mm-dd, from the server, so "is this invoice due yet" can't differ
@@ -59,6 +62,8 @@ export function ProjectsSection({
     const n = Number(show);
     return (PRESETS as readonly number[]).includes(n) ? n : DEFAULT_PRESET;
   });
+  // covers in a grid, or one project a row (?layout=list)
+  const [list, setList] = useState(() => paramOrProp("layout", initialLayout) === "list");
   const [batchKey, setBatchKey] = useState<string | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -138,6 +143,28 @@ export function ProjectsSection({
         <h2 className="text-sm font-medium">Projects</h2>
 
         <div ref={ref} className="relative flex items-center gap-2">
+          <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
+            {(
+              [
+                [false, LayoutGrid, "Grid"],
+                [true, List, "List"],
+              ] as const
+            ).map(([on, Icon, label]) => (
+              <button
+                key={label}
+                onClick={() => {
+                  setList(on);
+                  setParam("layout", on ? "list" : null);
+                }}
+                aria-pressed={list === on}
+                className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${
+                  list === on ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Icon size={12} /> {label}
+              </button>
+            ))}
+          </div>
           {!isDefault && (
             <button onClick={() => selectPreset(DEFAULT_PRESET)} className="text-xs text-muted hover:text-foreground">
               Reset
@@ -283,14 +310,32 @@ export function ProjectsSection({
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-                {i === 0 && !projectBase && <AddProjectCard clientId={clientId} />}
-                {g.items.map((p) => (
-                  <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
-                ))}
-              </div>
+              {list ? (
+                <>
+                  {i === 0 && !projectBase && <AddProjectCard clientId={clientId} row />}
+                  <ProjectRows projects={g.items} projectBase={projectBase} />
+                </>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+                  {i === 0 && !projectBase && <AddProjectCard clientId={clientId} />}
+                  {g.items.map((p) => (
+                    <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
+                  ))}
+                </div>
+              )}
             </section>
           ))}
+        </div>
+      ) : list ? (
+        <div className="flex flex-col gap-3">
+          {!projectBase && <AddProjectCard clientId={clientId} row />}
+          <ProjectRows projects={visible} projectBase={projectBase} />
+          {!batch && !dateFilterActive && hiddenCount > 0 && (
+            <button onClick={() => selectPreset("all")} className="self-start text-xs text-muted hover:text-foreground">
+              Show {hiddenCount} more
+            </button>
+          )}
+          {dateFilterActive && visible.length === 0 && <p className="text-sm text-muted">No projects in that range.</p>}
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
@@ -311,6 +356,17 @@ export function ProjectsSection({
         </div>
       )}
     </div>
+  );
+}
+
+function ProjectRows({ projects, projectBase }: { projects: ProjectCardData[]; projectBase?: string }) {
+  if (projects.length === 0) return null;
+  return (
+    <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40">
+      {projects.map((p) => (
+        <ProjectRow key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} />
+      ))}
+    </ul>
   );
 }
 
