@@ -34,16 +34,13 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
   const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
   const unreadBySender = await getUnreadBySender().catch(() => ({}));
-  // only ops ever lands on a client's own page — no reason to query this
-  // for an editor session that can never render it
-  const currentClients = isOps
-    ? await prisma.client.findMany({
-        where: { status: "current" },
-        select: { id: true, name: true, avatarUrl: true },
-        // the same order as the Clients dashboard
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      })
-    : [];
+  // the roster beside the Clients section, which everyone can open
+  const currentClients = await prisma.client.findMany({
+    where: { status: "current" },
+    select: { id: true, name: true, avatarUrl: true },
+    // the same order as the Clients dashboard
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
 
   return (
     <div className="flex h-screen bg-background text-foreground">

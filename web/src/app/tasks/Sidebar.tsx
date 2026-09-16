@@ -8,7 +8,7 @@ import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { isActive } from "./sidebarActive";
-import { toggleClientsPanel } from "./clients/clientsPanel";
+import { CLIENTS_SECTION, toggleClientsPanel } from "./clients/clientsPanel";
 
 // Chosen for what each destination actually is, not just for variety. The
 // two that mattered most: Clients and People were Users2 and Users — near
@@ -230,12 +230,10 @@ export function Sidebar({
             href={qs ? `${href}?${qs}` : href}
             onClick={(e) => {
               e.stopPropagation(); // don't also open the rail — this click already has its own job
-              // On a client's own page the Clients icon is what put the
-              // roster panel on screen, so it's also what should take it
-              // away: toggle it instead of navigating to a list you're
-              // already effectively looking at. Anywhere else it stays a
-              // plain link.
-              if (item.segment === "/clients" && /^\/tasks\/clients\/[^/]+$/.test(pathname)) {
+              // Already in the Clients section, the Clients icon opens and
+              // closes the client panel instead of reloading a page you're
+              // on. Anywhere else it's a plain link there.
+              if (item.segment === "/clients" && CLIENTS_SECTION.test(pathname)) {
                 e.preventDefault();
                 toggleClientsPanel();
               }

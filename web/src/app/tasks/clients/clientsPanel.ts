@@ -14,6 +14,10 @@ import { useSyncExternalStore } from "react";
 // then snapping shut once an effect runs.
 export const CLIENTS_PANEL_COOKIE = "clients-panel-open";
 
+// Where the panel belongs: the Clients dashboard, and one client's own page
+// (the capture is that client's id).
+export const CLIENTS_SECTION = /^\/tasks\/clients(?:\/([^/]+))?$/;
+
 let open = true;
 const listeners = new Set<() => void>();
 

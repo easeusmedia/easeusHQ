@@ -32,3 +32,12 @@ test("items don't light up for each other", () => {
   assert.equal(isActive("/history", "/tasks/clients", BASE), false);
   assert.equal(isActive("/clients", "/tasks/calendar", BASE), false);
 });
+
+test("the client panel belongs to the Clients dashboard and each client's page, nowhere else", async () => {
+  const { CLIENTS_SECTION } = await import("./clients/clientsPanel.ts");
+  assert.equal(CLIENTS_SECTION.test("/tasks/clients"), true);
+  assert.equal("/tasks/clients/client-courageous-leaders".match(CLIENTS_SECTION)?.[1], "client-courageous-leaders");
+  assert.equal(CLIENTS_SECTION.test("/tasks/clients/abc/projects"), false);
+  assert.equal(CLIENTS_SECTION.test("/tasks/clientsx"), false);
+  assert.equal(CLIENTS_SECTION.test("/tasks"), false);
+});
