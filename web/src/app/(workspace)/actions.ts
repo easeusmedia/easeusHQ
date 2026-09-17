@@ -207,6 +207,10 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
 
   if (actor.role === "employee") {
     const actingUserId = actor.id;
+    // An editor's one editable field is the Frame.io link, and only while
+    // the task is waiting on review. A save without that field (the link
+    // wasn't opened for editing) changes nothing — it used to clear it.
+    if (!formData.has("frameioLink")) return { success: true };
     let frameioLink: string | null;
     try {
       frameioLink = requireLinkOrNull(String(formData.get("frameioLink") ?? ""), "Frame.io link");
@@ -217,6 +221,9 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task || task.assignedToId !== actingUserId) {
       return { error: "You can only edit your own tasks." };
+    }
+    if (task.status !== "sent_for_approval") {
+      return { error: "The Frame.io link can only be changed while the task is waiting for review." };
     }
     await prisma.task.update({ where: { id: taskId }, data: { frameioLink } });
     revalidatePath("/board");
