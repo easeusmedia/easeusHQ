@@ -178,7 +178,7 @@ export function BillingPanel({
         </div>
 
         {showInvoiceForm && (
-          <form onSubmit={submitInvoice} className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-surface-2 p-3">
+          <form onSubmit={submitInvoice} className="fade-in mb-3 flex flex-col gap-2 rounded-lg border border-border bg-surface-2 p-3">
             <input
               autoFocus
               type="number"

@@ -107,7 +107,7 @@ export function ApprovalWatcher({ userId }: { userId: string }) {
   if (!celebration) return null;
 
   return (
-    <div className="glass fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-4 py-3 pr-3 shadow-2xl">
+    <div className="glass pop-in fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-4 py-3 pr-3 shadow-2xl">
       <PartyPopper size={18} className="shrink-0 text-emerald-300" />
       <p className="text-sm">{celebration}</p>
       <button

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ClipboardCheck, ClipboardList, FolderOpen, MessagesSquare, Palette, Pencil, Trash2 } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { updateClientInfo, updateClientDoc, deleteClient, type ClientDocType, type ClientInfoInput } from "./actions";
+import { Reveal } from "../Reveal";
 
 type Doc = { key: ClientDocType; label: string; icon: typeof Palette; hint: string };
 
@@ -48,10 +49,10 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
           <span className="block text-sm font-medium">{doc.label}</span>
           <span className="block truncate text-xs text-muted">{content ? doc.hint : "Not written yet"}</span>
         </span>
-        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && (
+      <Reveal open={open}>
         <div className="border-t border-border px-4 py-3">
           {editing ? (
             <div className="flex flex-col gap-3">
@@ -85,7 +86,7 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
             </>
           )}
         </div>
-      )}
+      </Reveal>
     </section>
   );
 }

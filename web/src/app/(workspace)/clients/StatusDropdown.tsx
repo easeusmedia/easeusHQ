@@ -86,7 +86,7 @@ export function StatusDropdown({
         <ChevronDown size={size === "sm" ? 11 : 13} />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-36 rounded-md border border-border bg-surface-2 p-1 shadow-lg">
+        <div className="pop-in absolute left-0 top-full z-20 mt-1 w-36 rounded-md border border-border bg-surface-2 p-1 shadow-lg">
           {OPTIONS.map((o) => (
             <button
               key={o}

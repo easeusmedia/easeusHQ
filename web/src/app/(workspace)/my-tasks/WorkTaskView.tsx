@@ -28,6 +28,7 @@ export function WorkTaskView({
   taskTags = [],
   canManageTags = false,
   toolbarCenter,
+  contentKey = "",
   toolbarRight,
 }: {
   tasks: WorkTaskCardData[];
@@ -49,6 +50,9 @@ export function WorkTaskView({
   // above it: the Board's Editors / team / Everyone switch in the middle,
   // the Notion sync on the right
   toolbarCenter?: React.ReactNode;
+  // changes when the same view is showing different work (the Board's team
+  // switch), so the new work eases in too
+  contentKey?: string;
   toolbarRight?: React.ReactNode;
 }) {
   const [view, setView] = useState<View>("board");
@@ -99,12 +103,14 @@ export function WorkTaskView({
         }
       />
 
-      {/* a status list drags like the board, so the board draws it too */}
-      {view === "board" || groupBy === "status" ? (
-        <WorkTaskBoard layout={view} tasks={tasks} groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-      ) : (
-        <WorkTaskList groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-      )}
+      <div key={`${contentKey}-${view}-${groupBy}`} className="fade-in">
+        {/* a status list drags like the board, so the board draws it too */}
+        {view === "board" || groupBy === "status" ? (
+          <WorkTaskBoard layout={view} tasks={tasks} groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} canCreate={canCreate} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+        ) : (
+          <WorkTaskList groups={groups} groupBy={groupBy} queueEnv={queueEnv} projects={projects} actingUserId={actingUserId} showAssignee={showAssignee} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+        )}
+      </div>
     </div>
   );
 }

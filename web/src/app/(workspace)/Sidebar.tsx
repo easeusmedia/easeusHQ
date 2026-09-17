@@ -42,7 +42,7 @@ function Tip({ show, label, hint }: { show: boolean; label: string; hint?: strin
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute left-full top-1/2 ml-5 -translate-y-1/2 whitespace-nowrap rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-left opacity-0 shadow-lg transition-opacity duration-100 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100"
+      className="pointer-events-none absolute left-full top-1/2 ml-5 -translate-x-1 -translate-y-1/2 whitespace-nowrap rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-left opacity-0 shadow-lg transition-[opacity,translate] duration-200 ease-out group-hover/tip:translate-x-0 group-hover/tip:opacity-100 group-focus-visible/tip:translate-x-0 group-focus-visible/tip:opacity-100"
     >
       <span className="block text-xs font-medium text-foreground">{label}</span>
       {hint && <span className="block text-xs text-muted">{hint}</span>}
@@ -302,7 +302,7 @@ export function Sidebar({
         {profileOpen && (
           <div
             onClick={(e) => e.stopPropagation()} // includes the nested Viewing-as dropdown — none of this should reach the rail's own click-to-open handler
-            className="absolute bottom-full left-0 mb-1 w-56 rounded-lg border border-border bg-surface-2 p-1 shadow-xl"
+            className="pop-in absolute bottom-full left-0 mb-1 w-56 rounded-lg border border-border bg-surface-2 p-1 shadow-xl"
           >
             {canViewAs && (
               <div className="px-2 py-1.5">

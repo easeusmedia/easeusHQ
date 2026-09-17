@@ -298,6 +298,7 @@ export function ProjectsSection({
         </div>
       </div>
 
+      <div key={`${list}-${preset}-${batchKey}-${from}-${to}`} className="fade-in">
       {grouped ? (
         <div className="flex flex-col gap-8">
           {groups.map((g, i) => (
@@ -356,6 +357,7 @@ export function ProjectsSection({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

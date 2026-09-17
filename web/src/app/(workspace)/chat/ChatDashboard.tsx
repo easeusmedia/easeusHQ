@@ -168,7 +168,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
       {/* thread */}
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface/40">
         {open ? (
-          <>
+          <div key={open.id} className="fade-in flex min-h-0 flex-1 flex-col">
             <header className="flex items-center gap-3 border-b border-border px-5 py-3.5">
               <Face person={open} size={34} />
               <div className="min-w-0">
@@ -243,7 +243,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                 <Send size={16} />
               </button>
             </div>
-          </>
+          </div>
         ) : (
           <p className="m-auto text-sm text-muted">Pick someone to start a conversation.</p>
         )}

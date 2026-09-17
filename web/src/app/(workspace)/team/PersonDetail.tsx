@@ -165,7 +165,7 @@ export function PersonDetail({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="fade-in flex min-h-0 flex-1 flex-col overflow-y-auto">
       <header className="flex items-center gap-4 border-b border-border px-6 py-5">
         <ProfileHead
           photo={

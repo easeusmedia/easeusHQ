@@ -27,9 +27,11 @@ export function EditorsView({ switcher, ...props }: Props) {
     <>
       <Toolbar left={<ViewToggle view={view} onChange={setView} />} center={switcher} className="mb-1" />
       {view === "board" ? (
-        <Board {...props} canCreate />
+        <div key="board" className="fade-in">
+          <Board {...props} canCreate />
+        </div>
       ) : (
-        <div className="pt-3">
+        <div key="list" className="fade-in pt-3">
           <Board {...props} canCreate layout="list" />
         </div>
       )}

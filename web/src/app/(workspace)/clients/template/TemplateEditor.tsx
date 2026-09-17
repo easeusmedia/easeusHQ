@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, GripVertical, Plus, X } from "lucide-react";
 import { updateClientTemplate, type ClientTemplateData } from "../actions";
+import { Reveal } from "../../Reveal";
 
 type ListKey = "deliverables" | "onboarding";
 
@@ -44,9 +45,9 @@ function DocBlock({
           <span className="block text-sm font-medium">{label}</span>
           <span className="block truncate text-xs text-muted">{hint}</span>
         </span>
-        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && (
+      <Reveal open={open}>
         <div className="border-t border-border p-4">
           <textarea
             rows={16}
@@ -55,7 +56,7 @@ function DocBlock({
             className="w-full rounded-lg border border-border bg-surface-2 p-3 text-sm leading-relaxed"
           />
         </div>
-      )}
+      </Reveal>
     </div>
   );
 }

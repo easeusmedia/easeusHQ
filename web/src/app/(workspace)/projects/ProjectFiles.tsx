@@ -67,7 +67,7 @@ export function ProjectFiles({
       {error && <p className="mb-3 text-xs text-red-300">{error}</p>}
 
       {adding && (
-        <div className="mb-6">
+        <div className="fade-in mb-6">
           <AssetForm
             onCancel={() => setAdding(false)}
             onSubmit={async (input) => {

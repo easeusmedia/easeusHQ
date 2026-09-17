@@ -76,6 +76,7 @@ export function BoardViews({
             taskTags={work.taskTags}
             canManageTags
             toolbarCenter={switcher}
+            contentKey={scope}
           />
         </div>
       )}

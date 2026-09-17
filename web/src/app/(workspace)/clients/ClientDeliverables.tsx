@@ -153,7 +153,7 @@ export function ClientDeliverables({
         </ul>
       )}
 
-      {adding && form}
+      {adding && <div className="fade-in">{form}</div>}
     </section>
   );
 }
