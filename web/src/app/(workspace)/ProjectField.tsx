@@ -68,6 +68,7 @@ export function ProjectField({
   return (
     <>
       <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="clientId" value={clientId} />
 
       <label className="flex flex-col gap-1 text-xs text-muted">
         Client

@@ -48,7 +48,21 @@ export function NotionSyncButton() {
       {/* status text first so it stacks above the buttons, which stay put
           as the last (bottom-most) child regardless of how much text
           shows above it */}
-      {result && <p className={`fade-in text-xs ${result.data.error ? "text-red-300" : "text-muted"}`}>{summary(result)}</p>}
+      {result && (
+        <div className="fade-in flex max-w-[min(38rem,calc(100vw-2rem))] flex-col items-center gap-0.5 text-center">
+          <p className={`text-xs ${result.data.error ? "text-red-300" : "text-muted"}`}>{summary(result)}</p>
+          {/* why something didn't go through, rather than a bare count —
+              a row deleted in Notion, an editor we couldn't match, and so on */}
+          {result.data.skippedReasons.slice(0, 3).map((reason, i) => (
+            <p key={i} className="text-xs text-muted/80">
+              {reason}
+            </p>
+          ))}
+          {result.data.skippedReasons.length > 3 && (
+            <p className="text-xs text-muted/80">…and {result.data.skippedReasons.length - 3} more.</p>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         {(
           [

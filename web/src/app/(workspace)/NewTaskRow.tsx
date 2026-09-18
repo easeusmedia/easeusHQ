@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { Plus } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
 import { NotesGlyph } from "./NotesButton";
@@ -33,6 +33,9 @@ export function NewTaskRow({
   const [state, formAction, pending] = useActionState(createTask, initialState);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  // bumped after a task lands, to start the next one from a blank form —
+  // including the client/project picker and tags, which keep their own state
+  const [formKey, setFormKey] = useState(0);
 
   // the form posts as FormData, and DatePicker isn't a form control — it
   // keeps its value in state and writes it to a hidden input below
@@ -51,10 +54,11 @@ export function NewTaskRow({
   // the last thing that was added
   useEffect(() => {
     if (state.success) {
-      formRef.current?.reset();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the form after a successful submit is the same reaction as formRef.reset() just above, not a render-loop
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the form after a successful submit is a reaction to it landing, not a render-loop
       setDueDate("");
       setScheduledFor("");
+      setInternal(false);
+      setFormKey((k) => k + 1);
       dialogRef.current?.close();
     }
   }, [state.success]);
@@ -83,7 +87,20 @@ export function NewTaskRow({
         <h2 className="mb-4 text-base font-semibold">New task</h2>
         {/* two columns, same as the details dialog — nine stacked fields
             made this a scroll from top to bottom */}
-        <form ref={formRef} action={formAction} className="grid auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5">
+        <form
+          key={formKey}
+          ref={formRef}
+          // submitted by hand rather than through the form's `action`: React
+          // resets an action form on every submit, so one missing field used
+          // to wipe everything already typed. Nothing is cleared until the
+          // task actually lands (the effect above).
+          onSubmit={(e) => {
+            e.preventDefault();
+            const data = new FormData(e.currentTarget);
+            startTransition(() => formAction(data));
+          }}
+          className="grid auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5"
+        >
           {/* client first, then that client's projects — and a project can
               be created right here, since plenty of tasks are the first
               task of a project that doesn't exist yet */}

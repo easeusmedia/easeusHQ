@@ -72,15 +72,36 @@ export async function createInNotion(taskId: string): Promise<{ pageId?: string;
   }
 }
 
-// Pushes the current status and links onto a page this app owns.
-export async function updateInNotion(taskId: string): Promise<{ error?: string }> {
+// Pushes the current title, status, dates and links onto the task's row.
+//
+// A row deleted in Notion sits in its trash, and Notion refuses to update a
+// trashed page — which used to leave the task silently un-pushed and missing
+// from the queue. So a trashed row is restored and written in one call, and
+// a row that's gone for good is replaced by a fresh one.
+export async function updateInNotion(taskId: string): Promise<{ error?: string; restored?: boolean; recreated?: boolean }> {
   const task = await loadTask(taskId);
   if (!task?.notionPageId) return { error: "Not mirrored in Notion." };
+  const properties = propertiesFor(task);
   try {
-    await notionPatch(`/pages/${task.notionPageId}`, { properties: propertiesFor(task) });
+    await notionPatch(`/pages/${task.notionPageId}`, { properties });
     return {};
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Couldn't reach Notion." };
+    const message = err instanceof Error ? err.message : "Couldn't reach Notion.";
+    if (/archiv|trash/i.test(message)) {
+      try {
+        await notionPatch(`/pages/${task.notionPageId}`, { archived: false, in_trash: false, properties });
+        return { restored: true };
+      } catch (retry) {
+        return { error: retry instanceof Error ? retry.message : message };
+      }
+    }
+    // the page itself is gone — forget it and make a new one
+    if (/could not find|not found|invalid.*id/i.test(message)) {
+      await prisma.task.update({ where: { id: taskId }, data: { notionPageId: null, notionCreatedByApp: false } });
+      const res = await createInNotion(taskId);
+      return res.error ? { error: res.error } : { recreated: true };
+    }
+    return { error: message };
   }
 }
 

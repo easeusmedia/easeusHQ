@@ -48,9 +48,19 @@ export type TaskFormState = { error?: string; success?: boolean };
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const actor = await sessionActor();
   if (!actor) return { error: "You're not signed in." };
-  const projectId = String(formData.get("projectId"));
   const title = String(formData.get("title"));
+  const clientId = String(formData.get("clientId") ?? "");
   const assignedToId = String(formData.get("assignedToId") ?? "");
+  // A task can start as just a client and a title — everything else gets
+  // filled in later, from the task itself. With no project picked it goes on
+  // that client's own catch-all project, where their loose work already lives.
+  let projectId = String(formData.get("projectId") ?? "");
+  if (!projectId && clientId) {
+    const fallback =
+      (await prisma.project.findFirst({ where: { clientId, id: { startsWith: "project-client-" } }, select: { id: true } })) ??
+      (await prisma.project.findFirst({ where: { clientId }, orderBy: { createdAt: "desc" }, select: { id: true } }));
+    projectId = fallback?.id ?? "";
+  }
   let rawLink: string | null;
   let referenceLink: string | null;
   try {
@@ -60,20 +70,24 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: err instanceof Error ? err.message : "That link isn't valid." };
   }
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
-  if (!projectId || !title.trim() || !assignedToId) {
-    return { error: "Project, title, and an editor are all required" };
+  if (!title.trim()) return { error: "Give the task a title." };
+  if (!projectId) {
+    return { error: clientId ? "That client has no project yet — add one with + New." : "Pick the client this task is for." };
   }
-  if (actor.role === "employee" && assignedToId !== actor.id) {
+  if (actor.role === "employee" && assignedToId && assignedToId !== actor.id) {
     return { error: "You can only add tasks for yourself." };
   }
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
 
-  const assignee = await prisma.user.findUnique({
-    where: { id: assignedToId },
-    select: { role: true, employment: true, team: { select: { slug: true } } },
-  });
-  if (!assignee || assignee.employment === "former") {
+  // unassigned is fine — someone picks it up later
+  const assignee = assignedToId
+    ? await prisma.user.findUnique({
+        where: { id: assignedToId },
+        select: { role: true, employment: true, team: { select: { slug: true } } },
+      })
+    : null;
+  if (assignedToId && (!assignee || assignee.employment === "former")) {
     return { error: "That person is no longer with the team — pick someone else." };
   }
 
@@ -87,7 +101,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       dueDate: dueDateInput ? new Date(dueDateInput) : null,
       // hidden from the assigned editor until this date — see the schema comment
       scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
-      assignedToId,
+      assignedToId: assignedToId || null,
       rawLink,
       referenceLink,
       editingNotes,
@@ -104,7 +118,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   // there. Deliberately not awaited for correctness: if Notion is slow or
   // down, the task is still created here and the next sync picks it up as
   // unmirrored — creating a task must never depend on someone else's API.
-  if (pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
+  if (assignee && pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
     await createInNotion(task.id).catch(() => {});
   }
 
