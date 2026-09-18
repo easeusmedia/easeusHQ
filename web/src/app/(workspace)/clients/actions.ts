@@ -763,17 +763,32 @@ export async function deleteProjectAsset(assetId: string): Promise<{ error?: str
   return {};
 }
 
+// Deleting a project takes its tasks with it — the whole thing goes, which
+// is what the confirmation on the card warns about. The team's own work
+// tasks only lose the link to it: they belong to a person, not a project.
 export async function deleteProject(projectId: string): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can delete a project." };
 
-  const project = await prisma.project.findUnique({ where: { id: projectId }, include: { _count: { select: { tasks: true } } } });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) return { error: "Project not found." };
-  if (project._count.tasks > 0) return { error: "Move or delete this project's tasks first." };
 
-  await prisma.projectAsset.deleteMany({ where: { projectId } });
-  await prisma.invoice.deleteMany({ where: { projectId } });
-  await prisma.project.delete({ where: { id: projectId } });
+  const taskIds = (await prisma.task.findMany({ where: { projectId }, select: { id: true } })).map((t) => t.id);
+
+  // one transaction: a half-deleted project (tasks gone, project still
+  // there) would leave the board pointing at nothing
+  await prisma.$transaction([
+    prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
+    prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
+    prisma.task.deleteMany({ where: { projectId } }),
+    prisma.workTask.updateMany({ where: { projectId }, data: { projectId: null } }),
+    prisma.projectAsset.deleteMany({ where: { projectId } }),
+    prisma.invoice.deleteMany({ where: { projectId } }),
+    prisma.project.delete({ where: { id: projectId } }),
+  ]);
+
   revalidatePath("/clients/[slug]", "page");
+  revalidatePath("/board"); // its tasks were on it
+  revalidatePath("/history");
   return {};
 }

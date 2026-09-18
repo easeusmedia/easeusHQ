@@ -18,6 +18,8 @@ export type ProjectCardData = {
   date: string;
   assetCount: number;
   activeTasks: number;
+  // every task on it, finished ones included — what deleting would take
+  taskCount?: number;
   // paid / unpaid, or null when nobody's recorded it
   invoiceStatus: string | null;
 };
@@ -140,7 +142,11 @@ export function ProjectCard({
         className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="text-sm">
-          Delete <strong>{project.name}</strong>? Its file links go with it. This can&apos;t be undone.
+          Delete <strong>{project.name}</strong>?{" "}
+          {project.taskCount
+            ? `Its ${project.taskCount} task${project.taskCount === 1 ? "" : "s"} — finished ones included — and its file links go with it.`
+            : "Its file links go with it."}{" "}
+          This can&apos;t be undone.
         </p>
         {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
         <div className="mt-3 flex justify-end gap-2">

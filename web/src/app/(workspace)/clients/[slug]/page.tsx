@@ -119,6 +119,13 @@ export default async function ClientDetailPage({
   const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }));
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
+  // how many tasks each project carries in total (the active count above is
+  // filtered) — the delete confirmation says what would go with it
+  const tasksPerProject = new Map(
+    (
+      await prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } })
+    ).map((r) => [r.projectId, r._count._all])
+  );
   const projectCards = client.projects.map((p) => ({
     id: p.id,
     name: p.name || p.type,
@@ -128,6 +135,7 @@ export default async function ClientDetailPage({
     date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10),
     assetCount: p._count.assets,
     activeTasks: p._count.tasks,
+    taskCount: tasksPerProject.get(p.id) ?? 0,
     invoiceStatus: p.invoiceStatus,
   }));
 
