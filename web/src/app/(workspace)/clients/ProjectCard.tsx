@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { deleteProject } from "./actions";
 
 export type ProjectCardData = {
@@ -78,6 +78,10 @@ export function ProjectCard({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a project's tasks go with it, so that one asks twice: the first Delete
+  // arms it and spells out what's about to happen, the second does it
+  const [armed, setArmed] = useState(false);
+  const tasks = project.taskCount ?? 0;
   const done = project.status === "completed";
 
   async function confirmDelete() {
@@ -125,6 +129,8 @@ export function ProjectCard({
         type="button"
         onClick={(e) => {
           e.preventDefault(); // sits over the Link — don't also navigate
+          setArmed(false);
+          setError(null);
           dialogRef.current?.showModal();
         }}
         title="Delete project"
@@ -139,6 +145,7 @@ export function ProjectCard({
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
+        onClose={() => setArmed(false)}
         className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="text-sm">
@@ -148,6 +155,15 @@ export function ProjectCard({
             : "Its file links go with it."}{" "}
           This can&apos;t be undone.
         </p>
+        {armed && (
+          <div className="fade-in mt-3 flex gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-300" />
+            <p className="text-xs text-red-200">
+              Last check: this deletes <strong>{tasks}</strong> task{tasks === 1 ? "" : "s"} along with the project, including
+              everything already delivered and each task&apos;s history. There is no way to get them back.
+            </p>
+          </div>
+        )}
         {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
         <div className="mt-3 flex justify-end gap-2">
           <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">
@@ -155,11 +171,12 @@ export function ProjectCard({
           </button>
           <button
             type="button"
-            onClick={confirmDelete}
+            // with tasks on it, the first press only arms the delete
+            onClick={() => (tasks > 0 && !armed ? setArmed(true) : confirmDelete())}
             disabled={deleting}
             className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
           >
-            {deleting ? "Deleting…" : "Delete"}
+            {deleting ? "Deleting…" : armed ? `Yes, delete the project and ${tasks} task${tasks === 1 ? "" : "s"}` : "Delete"}
           </button>
         </div>
       </dialog>
