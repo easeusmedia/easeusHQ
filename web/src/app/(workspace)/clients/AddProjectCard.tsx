@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Image as ImageIcon } from "lucide-react";
 import { createProject } from "./actions";
+import { CoverPicker } from "./CoverPicker";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { DELIVERABLE_TYPES } from "@/lib/deliverableTypes";
 
@@ -93,6 +94,15 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
             )}
           </button>
           <input ref={fileRef} type="file" accept="image/*" onChange={onPickCover} className="hidden" />
+          {/* most new projects reuse a cover this client already has */}
+          <div className="-mt-2 flex flex-wrap items-center gap-1">
+            <CoverPicker clientId={clientId} onPick={setCover} />
+            {cover && (
+              <button type="button" onClick={() => setCover(null)} className="btn-ghost rounded-md px-2 py-1 text-xs">
+                Remove cover
+              </button>
+            )}
+          </div>
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
             Name

@@ -613,6 +613,27 @@ export async function importFromNotion(clientId: string) {
 
 // Projects are the unit of work a client is invoiced for — one podcast
 // episode, one video. Tasks hang off them.
+// Every cover this client's projects already use, newest first — the pool
+// the cover picker offers. Reusing one costs nothing: a cover is a link to
+// an image (or the image itself), so two projects can point at the same one.
+export async function listClientCovers(clientId: string): Promise<{ url: string; name: string }[]> {
+  if (!(await requireOps())) return [];
+  const projects = await prisma.project.findMany({
+    where: { clientId, coverUrl: { not: null } },
+    orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+    select: { name: true, type: true, coverUrl: true },
+    take: 120,
+  });
+  const seen = new Set<string>();
+  const pool: { url: string; name: string }[] = [];
+  for (const p of projects) {
+    if (seen.has(p.coverUrl!)) continue; // the same picture, once
+    seen.add(p.coverUrl!);
+    pool.push({ url: p.coverUrl!, name: p.name || p.type });
+  }
+  return pool.slice(0, 60);
+}
+
 export async function createProject(
   clientId: string,
   name: string,

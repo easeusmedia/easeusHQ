@@ -6,11 +6,13 @@ import { ExternalLink, ImagePlus, Pencil, Trash2 } from "lucide-react";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { DatePicker } from "../DatePicker";
 import { updateProject, deleteProject } from "../clients/actions";
+import { CoverPicker } from "../clients/CoverPicker";
 
 // Cover left, the few facts that matter right. Editing swaps the right-hand
 // column in place rather than opening a dialog — it's three fields.
 export function ProjectHeader({
   projectId,
+  clientId,
   clientHref,
   name,
   status,
@@ -22,6 +24,8 @@ export function ProjectHeader({
   canDelete,
 }: {
   projectId: string;
+  // whose covers the picker offers
+  clientId: string;
   // where its client lives — where deleting the project lands you
   clientHref: string;
   name: string;
@@ -119,10 +123,17 @@ export function ProjectHeader({
           )}
         </div>
         <input ref={fileRef} type="file" accept="image/*" onChange={onPickCover} className="hidden" />
-        {editing && shownCover && (
-          <button onClick={() => setCover(null)} className="btn-ghost mt-2 rounded-md px-2 py-1 text-xs">
-            Remove cover
-          </button>
+        {editing && (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {/* the same picture as another of this client's projects, rather
+                than tracking the file down again */}
+            <CoverPicker clientId={clientId} onPick={setCover} />
+            {shownCover && (
+              <button onClick={() => setCover(null)} className="btn-ghost rounded-md px-2 py-1 text-xs">
+                Remove cover
+              </button>
+            )}
+          </div>
         )}
       </div>
 

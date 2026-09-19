@@ -61,6 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <ProjectHeader
         projectId={project.id}
+        clientId={project.clientId}
         clientHref={clientHref(project.client)}
         name={project.name || project.type}
         status={project.status}
