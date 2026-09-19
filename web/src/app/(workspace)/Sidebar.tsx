@@ -23,7 +23,7 @@ const NAV = [
   { href: "/board", label: "Board", hint: "Editing queue and the team's work", Icon: SquareKanban },
   // your own tasks only — the whole team's work is on the Board
   { href: "/my-tasks", label: "My tasks", hint: "Your own to-dos", Icon: ListChecks },
-  { href: "/history", label: "History", hint: "Delivered work", Icon: History },
+  { href: "/history", label: "History", hint: "Everything finished", Icon: History },
   // the team's own chat — a real page now, not the avatar stack that used
   // to float over the bottom-right corner of every other page
   { href: "/chat", label: "Chat", hint: "Message the team", Icon: MessagesSquare },

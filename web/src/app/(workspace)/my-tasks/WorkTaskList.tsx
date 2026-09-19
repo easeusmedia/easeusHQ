@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Link2, Paperclip } from "lucide-react";
+import { CalendarClock, CheckCircle2, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
-import { WORK_TASK_STAGE, WORK_TASK_STATUSES } from "@/lib/workTaskStages";
+import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { AssigneeLabel } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
 import { moveWorkTask } from "./actions";
@@ -22,7 +22,7 @@ function shortDate(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-const STATUS_OPTIONS = WORK_TASK_STATUSES.map((s) => ({ value: s, label: WORK_TASK_STAGE[s].label }));
+const STATUS_OPTIONS = ACTIVE_WORK_STATUSES.map((s) => ({ value: s, label: WORK_TASK_STAGE[s].label }));
 
 // The board arranged staggered on purpose (see WorkTaskBoard) — this is
 // the same tasks, same data, laid out as one plain grouped list instead,
@@ -187,6 +187,17 @@ export function ListRow({
           )}
         </span>
         {showAssignee && <AssigneeLabel name={task.assignedTo.name} />}
+        {/* the same finish here as on a card: off the board, into History */}
+        <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+          <button
+            type="button"
+            onClick={() => onChangeStatus("done")}
+            title="Mark complete — moves it to History"
+            className="status-pop flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1 text-xs font-medium text-emerald-300"
+          >
+            <CheckCircle2 size={13} className="shrink-0" /> Complete
+          </button>
+        </span>
         {/* key={task.status}: Dropdown tracks its own selection internally
             from defaultValue at mount only — without a remount keyed to
             the actual status, it'd keep showing whatever was selected

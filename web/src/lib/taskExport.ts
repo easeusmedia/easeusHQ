@@ -135,6 +135,16 @@ export function exportRow(
   };
 }
 
+// One table out of rows that don't all carry the same columns — the editing
+// queue's per-stage timings mean nothing for someone's own work task, but
+// both belong in one export. Every column any row has appears once, in the
+// order first seen, and a row without it gets an empty cell.
+export function unionRows(rows: Record<string, Cell>[]): Record<string, Cell>[] {
+  const columns: string[] = [];
+  for (const row of rows) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
+  return rows.map((row) => Object.fromEntries(columns.map((c) => [c, row[c] ?? ""])));
+}
+
 // RFC 4180 CSV. The BOM makes Excel read names and the arrows as UTF-8;
 // text starting with = + - @ is prefixed so a spreadsheet shows it rather
 // than running it as a formula (task titles come in from Notion).

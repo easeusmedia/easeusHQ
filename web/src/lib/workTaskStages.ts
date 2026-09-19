@@ -30,6 +30,11 @@ export const WORK_TASK_STAGE: Record<WorkTaskStatus, { label: string; dot: strin
 
 export const WORK_TASK_STATUSES: WorkTaskStatus[] = ["todo", "in_progress", "in_review", "done"];
 
+// What a board shows: the work still in hand. Completing a task takes it off
+// the board and into History, which is the record of finished work — so
+// "Completed" is an action here, not a column to park things in.
+export const ACTIVE_WORK_STATUSES: WorkTaskStatus[] = ["todo", "in_progress", "in_review"];
+
 // Where an editing-queue task lands on the Work board's four columns, so
 // editors' work shows up next to everyone else's. Final export ready counts
 // as done — that's what it means in Notion too (see NOTION_STATUS_MAP).
@@ -69,7 +74,7 @@ export function groupTasks<W extends WorkItem, Q extends QueueItem>(
   teams: string[]
 ): WorkGroup<W, Q>[] {
   if (by === "status") {
-    return WORK_TASK_STATUSES.map((s) => ({
+    return ACTIVE_WORK_STATUSES.map((s) => ({
       key: s,
       label: WORK_TASK_STAGE[s].label,
       status: s,

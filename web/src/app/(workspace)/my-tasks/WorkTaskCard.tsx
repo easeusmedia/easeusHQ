@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Link2, Paperclip } from "lucide-react";
+import { CalendarClock, CheckCircle2, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
-import { WORK_TASK_STAGE, WORK_TASK_STATUSES } from "@/lib/workTaskStages";
+import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { Dropdown } from "../Dropdown";
 import { moveWorkTask } from "./actions";
 import { Avatar } from "../TaskCard";
@@ -66,6 +66,17 @@ export function WorkTaskCard({
   const dialogRef = useRef<{ open: () => void }>(null);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function complete() {
+    setSaving(true);
+    setError(null);
+    const res = await moveWorkTask(task.id, "done", task.sortOrder);
+    setSaving(false);
+    if (res.error) setError(res.error);
+    else router.refresh();
+  }
+
   const overdue = !!task.dueDate && task.status !== "done" && task.dueDate < new Date().toISOString().slice(0, 10);
   const hasFooter = task.dueDate || task.links.length > 0 || task.attachments.length > 0 || showAssignee;
 
@@ -87,7 +98,7 @@ export function WorkTaskCard({
               key={task.status}
               size="sm"
               defaultValue={task.status}
-              options={WORK_TASK_STATUSES.map((s) => ({ value: s, label: WORK_TASK_STAGE[s].label }))}
+              options={ACTIVE_WORK_STATUSES.map((s) => ({ value: s, label: WORK_TASK_STAGE[s].label }))}
               onChange={async (v) => {
                 setError(null);
                 const res = await moveWorkTask(task.id, v as WorkTaskStatus, task.sortOrder);
@@ -98,6 +109,19 @@ export function WorkTaskCard({
           </span>
         )}
         {error && <p className="text-xs text-red-300">{error}</p>}
+        {/* finishing it moves it off the board into History, where the
+            record of what everyone got done lives */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            complete();
+          }}
+          disabled={saving}
+          className="status-pop flex w-full items-center justify-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1.5 text-xs font-medium text-emerald-300 disabled:opacity-60"
+        >
+          <CheckCircle2 size={13} className="shrink-0" /> {saving ? "Completing…" : "Mark complete"}
+        </button>
         {(task.tags.length > 0 || task.category) && (
           <span className="flex w-fit flex-wrap items-center gap-1">
             {task.tags.map((t) => (

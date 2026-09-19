@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exportRow, toCsv, type ExportTask } from "./taskExport.ts";
+import { exportRow, toCsv, type ExportTask, unionRows } from "./taskExport.ts";
 
 const labels = {
   queued: "Queued",
@@ -72,4 +72,15 @@ test("a task reopened after delivery isn't delivered", () => {
   const r = exportRow({ ...task, status: "revision_requested" }, reopened, labels, h(20));
   assert.equal(r["Delivered (IST)"], "");
   assert.equal(r["Hours in Revision requested"], 8); // 4 earlier + 16→20
+});
+
+test("rows of different shapes line up as one table", () => {
+  const rows = unionRows([
+    { Task: "Trailer", "Hours in Editing": 3 },
+    { Task: "Website copy", Person: "Jyotsna" },
+  ]);
+  assert.deepEqual(Object.keys(rows[0]), ["Task", "Hours in Editing", "Person"]);
+  assert.equal(rows[0].Person, "");
+  assert.equal(rows[1]["Hours in Editing"], "");
+  assert.equal(toCsv(rows).split("\r\n")[0], "﻿Task,Hours in Editing,Person");
 });

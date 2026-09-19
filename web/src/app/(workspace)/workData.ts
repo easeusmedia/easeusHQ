@@ -34,7 +34,8 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       orderBy: { client: { name: "asc" } },
     }),
     prisma.workTask.findMany({
-      where,
+      // finished work belongs to History, not to a board
+      where: { ...where, status: { not: "done" } },
       include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: { sortOrder: "asc" },
     }),

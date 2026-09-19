@@ -20,12 +20,14 @@ const queue = [
   { id: "q3", status: "queued" as const, assignedTo: null },
 ];
 
-test("by status, editing-queue tasks land in the matching column", () => {
+test("by status, a board holds the work still in hand — finished work is History's", () => {
   const g = groupTasks("status", work, queue, teams);
-  assert.deepEqual(g.map((x) => x.key), ["todo", "in_progress", "in_review", "done"]);
+  assert.deepEqual(g.map((x) => x.key), ["todo", "in_progress", "in_review"]);
   assert.deepEqual(g[0].queue.map((q) => q.id), ["q3"]);
   assert.deepEqual(g[2].queue.map((q) => q.id), ["q1"]);
-  assert.deepEqual(g[3].queue.map((q) => q.id), ["q2"]);
+  // w1 (done) and q2 (final export ready) have no column to sit in
+  assert.equal(g.flatMap((x) => x.work).length, 2);
+  assert.equal(g.flatMap((x) => x.queue).length, 2);
 });
 
 test("by person, both kinds of task sit under whoever has them, A–Z, unassigned last", () => {
