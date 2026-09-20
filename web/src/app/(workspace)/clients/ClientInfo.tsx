@@ -221,13 +221,7 @@ export function ClientInfo({
             </label>
             {error && <p className="text-xs text-red-300">{error}</p>}
             <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={openDelete}
-                className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
-              >
-                <Trash2 size={13} /> Delete client
-              </button>
+              <span />
               <div className="flex gap-2">
                 <button onClick={() => setEditing(false)} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
                   Cancel
@@ -261,15 +255,6 @@ export function ClientInfo({
               ))}
             </dl>
             {notes && <p className="mt-3 whitespace-pre-wrap border-t border-border/50 pt-3 text-sm text-muted">{notes}</p>}
-            <div className="mt-4 flex justify-end border-t border-border/50 pt-3">
-              <button
-                type="button"
-                onClick={openDelete}
-                className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-red-500/10 hover:text-red-300"
-              >
-                <Trash2 size={13} /> Delete client
-              </button>
-            </div>
           </>
         )}
 
@@ -343,6 +328,17 @@ export function ClientInfo({
         <CustomDocSection key={doc.id} doc={doc} />
       ))}
       <NewDocument clientId={clientId} />
+
+      {/* the end of the page, well past anything anyone opens by accident */}
+      <div className="mt-6 flex justify-end border-t border-border/50 pt-4">
+        <button
+          type="button"
+          onClick={openDelete}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted hover:bg-red-500/10 hover:text-red-300"
+        >
+          <Trash2 size={13} /> Delete client
+        </button>
+      </div>
     </div>
   );
 }
