@@ -68,6 +68,7 @@ export default async function ClientDetailPage({
       invoices: { orderBy: { createdAt: "desc" } },
       deliverables: { orderBy: { sortOrder: "asc" } },
       onboarding: { orderBy: { sortOrder: "asc" } },
+      documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
       tags: true,
     },
   });
@@ -322,6 +323,7 @@ export default async function ClientDetailPage({
                   whatsapp={client.whatsapp}
                   address={client.address}
                   notes={client.notes}
+                  custom={client.documents.map((d) => ({ id: d.id, title: d.title, content: d.content }))}
                   docs={{
                     brandGuidelines: client.brandGuidelines,
                     sop: client.sop,

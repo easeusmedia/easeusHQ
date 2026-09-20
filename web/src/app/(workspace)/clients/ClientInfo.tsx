@@ -2,9 +2,19 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ClipboardCheck, ClipboardList, FolderOpen, MessagesSquare, Palette, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ClipboardCheck, ClipboardList, FileText, FolderOpen, MessagesSquare, Palette, Pencil, Plus, Trash2 } from "lucide-react";
 import { Markdown } from "./Markdown";
-import { updateClientInfo, updateClientDoc, deleteClient, type ClientDocType, type ClientInfoInput } from "./actions";
+import {
+  addClientDocument,
+  deleteClient,
+  deleteClientDocument,
+  updateClientDoc,
+  updateClientDocument,
+  updateClientInfo,
+  type ClientDocType,
+  type ClientInfoInput,
+} from "./actions";
+import { ConfirmButton } from "../ConfirmButton";
 import { Reveal } from "../Reveal";
 
 type Doc = { key: ClientDocType; label: string; icon: typeof Palette; hint: string };
@@ -115,6 +125,7 @@ export function ClientInfo({
   address,
   notes,
   docs,
+  custom = [],
 }: {
   clientId: string;
   name: string;
@@ -125,6 +136,7 @@ export function ClientInfo({
   address: string | null;
   notes: string | null;
   docs: Record<ClientDocType, string | null>;
+  custom?: CustomDoc[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -269,6 +281,150 @@ export function ClientInfo({
       {DOCS.map((doc) => (
         <DocSection key={doc.key} clientId={clientId} doc={doc} content={docs[doc.key]} />
       ))}
+
+      {/* whatever else this client needs written down — the five above are
+          what every client starts with, not the limit */}
+      {custom.map((doc) => (
+        <CustomDocSection key={doc.id} doc={doc} />
+      ))}
+      <NewDocument clientId={clientId} />
+    </div>
+  );
+}
+
+
+export type CustomDoc = { id: string; title: string; content: string | null };
+
+// A document this client needed that the template doesn't have. Same box,
+// same markdown; its name can be changed and it can be removed, which the
+// five built-in ones can't.
+function CustomDocSection({ doc }: { doc: CustomDoc }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(doc.content ?? "");
+  const [title, setTitle] = useState(doc.title);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await updateClientDocument(doc.id, { title, content: value });
+    setSaving(false);
+    setEditing(false);
+    router.refresh();
+  }
+
+  async function remove() {
+    await deleteClientDocument(doc.id);
+    router.refresh();
+  }
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-border">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2">
+        <FileText size={16} className="shrink-0 text-muted" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{doc.title}</span>
+          <span className="block truncate text-xs text-muted">{doc.content?.trim() ? "Written" : "Not written yet"}</span>
+        </span>
+        <ChevronDown size={15} className={`shrink-0 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      <Reveal open={open}>
+        <div className="border-t border-border px-4 py-3">
+          {editing ? (
+            <div className="flex flex-col gap-3">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Document name"
+                className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
+              />
+              <textarea
+                autoFocus
+                rows={18}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="Write it here…  (## heading, - bullet, | table |)"
+                className="rounded-lg border border-border bg-surface-2 p-3 text-sm leading-relaxed"
+              />
+              <div className="flex justify-between gap-2">
+                <ConfirmButton
+                  message={`Delete "${doc.title}"? This can't be undone.`}
+                  className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                  onConfirm={remove}
+                >
+                  <Trash2 size={13} /> Delete
+                </ConfirmButton>
+                <div className="flex gap-2">
+                  <button onClick={() => { setValue(doc.content ?? ""); setTitle(doc.title); setEditing(false); }} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
+                    Cancel
+                  </button>
+                  <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 flex justify-end">
+                <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+                  <Pencil size={12} /> Edit
+                </button>
+              </div>
+              {doc.content ? <Markdown text={doc.content} /> : <p className="pb-2 text-sm text-muted">Nothing here yet.</p>}
+            </>
+          )}
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+function NewDocument({ clientId }: { clientId: string }) {
+  const router = useRouter();
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!title.trim()) return;
+    setSaving(true);
+    await addClientDocument(clientId, title);
+    setSaving(false);
+    setTitle("");
+    setAdding(false);
+    router.refresh();
+  }
+
+  if (!adding) {
+    return (
+      <button onClick={() => setAdding(true)} className="btn-add flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm">
+        <Plus size={15} /> New document
+      </button>
+    );
+  }
+
+  return (
+    <div className="fade-in flex items-center gap-2">
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") add();
+          if (e.key === "Escape") setAdding(false);
+        }}
+        placeholder="What is it? e.g. Channel strategy, Tone of voice"
+        className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
+      />
+      <button onClick={add} disabled={saving} className="btn-glow shrink-0 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
+        {saving ? "Adding…" : "Add"}
+      </button>
+      <button onClick={() => setAdding(false)} className="btn-ghost shrink-0 rounded-lg px-3 py-2 text-xs">
+        Cancel
+      </button>
     </div>
   );
 }

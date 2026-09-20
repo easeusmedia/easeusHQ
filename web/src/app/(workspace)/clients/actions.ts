@@ -286,6 +286,45 @@ export async function updateClientDoc(clientId: string, doc: ClientDocType, cont
 // A small, fixed-size image stored directly as a data: URI — see the
 // schema comment on Client.avatarUrl for why there's no object storage
 // here yet. `dataUrl: null` clears it back to the colored-initial avatar.
+// Documents beyond the five every client starts with — a channel strategy,
+// a tone-of-voice note, a brief for one series. Same markdown, same place on
+// the page; these just aren't fixed by the template.
+export async function addClientDocument(clientId: string, title: string): Promise<{ id?: string; error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can add a document." };
+  const trimmed = title.trim();
+  if (!trimmed) return { error: "Give the document a name." };
+  const last = await prisma.clientDocument.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
+  const doc = await prisma.clientDocument.create({
+    data: { clientId, title: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 },
+  });
+  revalidatePath("/clients/[slug]", "page");
+  return { id: doc.id };
+}
+
+export async function updateClientDocument(id: string, input: { title?: string; content?: string }): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can edit a document." };
+  if (input.title !== undefined && !input.title.trim()) return { error: "A document needs a name." };
+  await prisma.clientDocument.update({
+    where: { id },
+    data: {
+      ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+      ...(input.content !== undefined ? { content: input.content.trim() || null } : {}),
+    },
+  });
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
+export async function deleteClientDocument(id: string): Promise<{ error?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only ops team members can delete a document." };
+  await prisma.clientDocument.delete({ where: { id } });
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
 export async function updateClientAvatar(clientId: string, dataUrl: string | null): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can change a client's photo." };

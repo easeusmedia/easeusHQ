@@ -168,6 +168,7 @@ model User {
   feedback          Feedback[]
   kpiSnapshots      KpiSnapshot[]
   activity          ActivityLog[]
+  clientInvites     ClientInvite[]
   messagesSent      Message[]     @relation("MessagesSent")
   messagesReceived  Message[]     @relation("MessagesReceived")
 }
@@ -228,7 +229,9 @@ model Client {
   // anything ops needs to remember about working with this client
   notes            String? @db.Text
 
-  tags Tag[]
+  tags      Tag[]
+  invites   ClientInvite[]
+  documents ClientDocument[]
 
   // set only for clients pulled in by the Notion clients sync — same
   // idempotency trick as Task.notionPageId
@@ -257,6 +260,15 @@ model Client {
   // Off until ops switches it on: the client's own read-only page at the
   // same address (/clients/<slug>) for anyone not signed in — see proxy.ts.
   shareEnabled Boolean @default(false)
+
+  // Their folder on the company Drive, made when they onboard — anything
+  // they upload on the onboarding form lands inside it (lib/drive.ts).
+  driveFolderId  String?
+  driveFolderUrl String?
+
+  // where their audience already is: {youtube, instagram, website, podcast…},
+  // as filled in on the onboarding form
+  socialLinks Json?
 
   projects     Project[]
   feedback     ClientFeedback[]
@@ -582,4 +594,42 @@ model ActivityLog {
   entity    String
   entityId  String
   createdAt DateTime @default(now())
+}
+
+// A one-off link sent to a new client so they can fill in their own details
+// (see /onboarding/<token>). No account, no password: the token is the
+// permission, it works until it's used, and ops can see who has filled
+// theirs in. Submitting one creates — or completes — the client's record.
+model ClientInvite {
+  id    String @id @default(uuid())
+  token String @unique
+  // what ops called them when the link was made, before the client says
+  // what they'd rather be called
+  name  String?
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime @default(now())
+
+  // filled in: when, and which client record came out of it
+  usedAt   DateTime?
+  client   Client?   @relation(fields: [clientId], references: [id])
+  clientId String?
+
+  @@index([clientId])
+}
+
+// A document on a client's page beyond the five every client starts with
+// (see ClientInfo's DOCS) — a channel strategy, a tone-of-voice note, a
+// per-series brief. Markdown, same as the built-in ones.
+model ClientDocument {
+  id        String   @id @default(uuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  title     String
+  content   String?  @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
 }

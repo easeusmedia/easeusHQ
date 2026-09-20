@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Check, Copy, Link2, Plus } from "lucide-react";
 import { createClient } from "./actions";
+import { createClientInvite } from "../../onboarding/actions";
 
 // One way in, for every client. The dialog only asks for what's actually
 // known at the moment someone is added — the rest of the structure comes
@@ -14,11 +15,35 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
   const [form, setForm] = useState({ name: "", niche: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // the onboarding link, once it's been made
+  const [invite, setInvite] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   function open() {
     setForm({ name: "", niche: "" });
     setError(null);
+    setInvite(null);
+    setCopied(false);
     dialogRef.current?.showModal();
+  }
+
+  // The other way in: the client fills their own details, and their record
+  // is made from what they send (see /onboarding).
+  async function makeInvite() {
+    setSaving(true);
+    setError(null);
+    const res = await createClientInvite(form.name);
+    setSaving(false);
+    if (res.error || !res.token) return setError(res.error ?? "Couldn't make that link.");
+    setInvite(`${window.location.origin}/onboarding/${res.token}`);
+    router.refresh();
+  }
+
+  async function copyInvite() {
+    if (!invite) return;
+    await navigator.clipboard.writeText(invite);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   async function save() {
@@ -91,13 +116,38 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
 
           {error && <p className="text-xs text-red-300">{error}</p>}
 
-          <div className="mt-1 flex justify-end gap-2">
+          <div className="mt-1 flex flex-wrap justify-end gap-2">
             <button onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-xs">
               Cancel
             </button>
             <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
               {saving ? "Creating…" : "Create client"}
             </button>
+          </div>
+
+          {/* or let them fill it in: their logo, contacts, channels and brand
+              files land here as a finished client record */}
+          <div className="mt-2 border-t border-border pt-4">
+            {invite ? (
+              <div className="fade-in flex flex-col gap-2">
+                <p className="text-xs text-muted">Send this to your client. It works once.</p>
+                <div className="flex items-center gap-2">
+                  <input readOnly value={invite} className={`${field} text-xs`} onFocus={(e) => e.currentTarget.select()} />
+                  <button onClick={copyInvite} className="btn-glow flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs">
+                    {copied ? <Check size={13} /> : <Copy size={13} />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={makeInvite}
+                disabled={saving}
+                className="btn-ghost flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs disabled:opacity-60"
+              >
+                <Link2 size={13} /> Send them an onboarding form instead
+              </button>
+            )}
           </div>
         </div>
       </dialog>
