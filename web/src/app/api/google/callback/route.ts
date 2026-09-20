@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { DRIVE_SETTINGS, exchangeCode, saveDriveSettings } from "@/lib/drive";
+import { DRIVE_SETTINGS, ensureAppFolder, exchangeCode, saveDriveSettings } from "@/lib/drive";
 
 // Where Google sends the admin back after they approve the Drive connection.
 // The code in the address is one-time and useless on its own; it's traded
@@ -22,7 +22,9 @@ export async function GET(request: Request) {
   try {
     const { refreshToken, email } = await exchangeCode(code, url.origin);
     await saveDriveSettings({ [DRIVE_SETTINGS.refreshToken]: refreshToken, [DRIVE_SETTINGS.account]: email });
-    return NextResponse.redirect(new URL("/integrations?connected=1", url.origin));
+    // and give it somewhere to put things, straight away
+    const folder = await ensureAppFolder();
+    return NextResponse.redirect(new URL(`/integrations?connected=1&folder=${encodeURIComponent(folder.name)}`, url.origin));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Couldn't finish connecting.";
     return NextResponse.redirect(new URL(`/integrations?error=${encodeURIComponent(message)}`, url.origin));

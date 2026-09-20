@@ -15,7 +15,11 @@ export function consentUrl(clientId: string, origin: string, state: string) {
     access_type: "offline", // so the connection lasts beyond this hour
     prompt: "consent", // and so Google really hands back a lasting one
     include_granted_scopes: "true",
-    scope: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email",
+    // drive.file, not full drive: the app can only see what it creates
+    // itself. Full access is a "restricted" scope, which Google won't let an
+    // app use in production without a formal review — and it asks for far
+    // more than this needs.
+    scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email",
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;

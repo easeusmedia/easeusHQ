@@ -26,30 +26,6 @@ export async function saveGoogleApp(clientId: string, clientSecret: string): Pro
   return {};
 }
 
-// The folder new client folders are made in — pasted as a Drive link, which
-// is what the browser's address bar gives you.
-export async function saveDriveFolder(link: string): Promise<{ error?: string; name?: string }> {
-  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
-  const id = link.trim().match(/[-\w]{25,}/)?.[0];
-  if (!id) return { error: "That doesn't look like a Drive folder link." };
-  await saveDriveSettings({ [DRIVE_SETTINGS.folderId]: id });
-
-  // confirm we can actually see it, and remember what it's called
-  try {
-    const name = await folderName(id);
-    await saveDriveSettings({ [DRIVE_SETTINGS.folderName]: name });
-    revalidatePath("/integrations");
-    return { name };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Couldn't open that folder." };
-  }
-}
-
-async function folderName(id: string): Promise<string> {
-  const { driveFileName } = await import("@/lib/drive");
-  return driveFileName(id);
-}
-
 export async function disconnectGoogle(): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   await saveDriveSettings({

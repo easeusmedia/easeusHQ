@@ -115,7 +115,7 @@ async function accessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const claim = {
     iss: key.client_email,
-    scope: "https://www.googleapis.com/auth/drive",
+    scope: "https://www.googleapis.com/auth/drive.file",
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -240,4 +240,31 @@ export async function exchangeCode(code: string, origin: string): Promise<{ refr
     headers: { Authorization: `Bearer ${body.access_token}` },
   }).then((r) => r.json());
   return { refreshToken: body.refresh_token, email: who?.email ?? "" };
+}
+
+// The folder the app keeps client folders in.
+//
+// With drive.file the app can only reach what it made itself, so it makes
+// its own folder rather than being pointed at one. Drag that folder wherever
+// you like afterwards — into Current Projects / Raw Files, say — and this
+// keeps working: access follows the folder, not its address.
+export async function ensureAppFolder(): Promise<{ id: string; name: string }> {
+  const settings = await driveSettings();
+  const existing = settings[DRIVE_SETTINGS.folderId];
+  if (existing) {
+    try {
+      const name = await driveFileName(existing);
+      return { id: existing, name };
+    } catch {
+      // set before the app could see it, or since deleted — make a fresh one
+    }
+  }
+  const name = "Easeus HQ — Client files";
+  const made = await driveFetch(`drive/v3/files?fields=id&${SHARED}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder" }),
+  });
+  await saveDriveSettings({ [DRIVE_SETTINGS.folderId]: made.id, [DRIVE_SETTINGS.folderName]: name });
+  return { id: made.id, name };
 }

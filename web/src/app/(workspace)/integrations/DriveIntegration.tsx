@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Check, ExternalLink, FolderOpen, Link2, Unplug } from "lucide-react";
 import { consentUrl, redirectUri } from "@/lib/driveClient";
-import { disconnectGoogle, saveDriveFolder, saveGoogleApp, testDrive } from "./actions";
+import { disconnectGoogle, saveGoogleApp, testDrive } from "./actions";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 
@@ -33,7 +33,6 @@ export function DriveIntegration({
 }) {
   const router = useRouter();
   const [app, setApp] = useState({ id: clientId, secret: "" });
-  const [folder, setFolder] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(problem);
   const [ok, setOk] = useState<string | null>(justConnected ? "Connected." : null);
@@ -51,17 +50,6 @@ export function DriveIntegration({
   function connect() {
     // straight to Google's own consent screen; it comes back to the callback
     window.location.href = consentUrl(app.id || clientId, window.location.origin, "drive");
-  }
-
-  async function saveFolder() {
-    setBusy("folder");
-    setError(null);
-    const res = await saveDriveFolder(folder);
-    setBusy(null);
-    if (res.error) return setError(res.error);
-    setOk(`Client folders will be made in ${res.name}.`);
-    setFolder("");
-    router.refresh();
   }
 
   async function test() {
@@ -123,7 +111,10 @@ export function DriveIntegration({
 
           <li className="flex flex-col gap-2 border-t border-border pt-4">
             <p className="font-medium">2. Approve it</p>
-            <p className="text-xs text-muted">Sign in with the Google account whose Drive the team uses.</p>
+            <p className="text-xs text-muted">
+              Sign in with the Google account whose Drive the team uses. If Google warns the app isn&apos;t verified,
+              choose Advanced → Continue: it&apos;s your own app.
+            </p>
             <button
               onClick={connect}
               disabled={!hasApp && !app.id}
@@ -136,28 +127,28 @@ export function DriveIntegration({
       )}
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
-        <p className="text-sm font-medium">{connected ? "Where client folders go" : "3. Where client folders go"}</p>
-        {folderId && (
-          <a
-            href={`https://drive.google.com/drive/folders/${folderId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex w-fit items-center gap-1.5 text-xs text-blue-400 hover:underline"
-          >
-            <FolderOpen size={13} /> {folderName ?? "Chosen folder"} <ExternalLink size={11} />
-          </a>
+        <p className="text-sm font-medium">Where client folders go</p>
+        {connected && folderId ? (
+          <>
+            <a
+              href={`https://drive.google.com/drive/folders/${folderId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex w-fit items-center gap-1.5 text-xs text-blue-400 hover:underline"
+            >
+              <FolderOpen size={13} /> {folderName ?? "Client files folder"} <ExternalLink size={11} />
+            </a>
+            <p className="text-xs text-muted">
+              Easeus HQ made this folder in your Drive and puts each client&apos;s folder inside it. Drag it wherever you
+              like — into Current Projects / Raw Files, say — and uploads keep going to it.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-muted">
+            Once connected, Easeus HQ makes its own folder in your Drive for client files. It can only ever see what it
+            creates there — never the rest of your Drive.
+          </p>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-            placeholder="Paste the folder's link — e.g. your Raw Files folder"
-            className={`${field} min-w-0 flex-1`}
-          />
-          <button onClick={saveFolder} disabled={busy === "folder" || !folder.trim()} className="btn-glow shrink-0 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
-            {busy === "folder" ? "Checking…" : "Use this folder"}
-          </button>
-        </div>
       </div>
 
       {(ok || error) && (
