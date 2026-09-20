@@ -372,21 +372,65 @@ export async function setClientTags(clientId: string, tagIds: string[]): Promise
 // deliverables) cascades away with it via onDelete: Cascade at the DB
 // level... actually Prisma's default is Restrict, so do it explicitly in
 // the right order instead of relying on that.
+// What a client leaves behind, and how much of it goes. Everything that
+// points at them has to go first, in one transaction — a half-deleted client
+// (projects gone, client still there) is worse than either outcome.
+export async function clientFootprint(clientId: string) {
+  const [projects, tasks, documents, invoices, deliverables, feedback] = await Promise.all([
+    prisma.project.count({ where: { clientId } }),
+    prisma.task.count({ where: { project: { clientId } } }),
+    prisma.clientDocument.count({ where: { clientId } }),
+    prisma.invoice.count({ where: { clientId } }),
+    prisma.deliverable.count({ where: { clientId } }),
+    prisma.clientFeedback.count({ where: { clientId } }),
+  ]);
+  return { projects, tasks, documents, invoices, deliverables, feedback };
+}
+
 export async function deleteClient(clientId: string): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can delete a client." };
 
-  const projects = await prisma.project.findMany({ where: { clientId }, select: { id: true } });
-  const projectIds = projects.map((p) => p.id);
-  await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
-  await prisma.invoice.deleteMany({ where: { clientId } });
-  await prisma.deliverable.deleteMany({ where: { clientId } });
-  await prisma.onboardingStep.deleteMany({ where: { clientId } });
-  await prisma.projectAsset.deleteMany({ where: { projectId: { in: projectIds } } });
-  await prisma.project.deleteMany({ where: { clientId } });
-  await prisma.client.delete({ where: { id: clientId } });
+  const projectIds = (await prisma.project.findMany({ where: { clientId }, select: { id: true } })).map((p) => p.id);
+  const taskIds = (await prisma.task.findMany({ where: { projectId: { in: projectIds } }, select: { id: true } })).map((t) => t.id);
+
+  await prisma.$transaction([
+    // a task's own trail first — nothing else can reference it afterwards
+    prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
+    prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
+    prisma.task.deleteMany({ where: { projectId: { in: projectIds } } }),
+    // the team's own work only loses the link to this client's projects
+    prisma.workTask.updateMany({ where: { projectId: { in: projectIds } }, data: { projectId: null } }),
+    prisma.projectAsset.deleteMany({ where: { projectId: { in: projectIds } } }),
+    prisma.invoice.deleteMany({ where: { clientId } }),
+    prisma.project.deleteMany({ where: { clientId } }),
+    // everything hanging off the client itself
+    prisma.deliverable.deleteMany({ where: { clientId } }),
+    prisma.onboardingStep.deleteMany({ where: { clientId } }),
+    prisma.clientDocument.deleteMany({ where: { clientId } }),
+    prisma.clientFeedback.deleteMany({ where: { clientId } }),
+    prisma.clientInvite.deleteMany({ where: { clientId } }),
+    prisma.client.update({ where: { id: clientId }, data: { tags: { set: [] } } }),
+    prisma.client.delete({ where: { id: clientId } }),
+  ]);
+
   revalidatePath("/clients");
+  revalidatePath("/board");
+  revalidatePath("/history");
   return {};
+}
+
+// Links sent to clients that nobody has filled in yet — so the same one can
+// be copied again rather than a second link being made for the same client.
+export async function pendingInvites() {
+  if (!(await requireOps())) return [];
+  const rows = await prisma.clientInvite.findMany({
+    where: { usedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, token: true, name: true, createdAt: true },
+    take: 20,
+  });
+  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
 }
 
 // Deliverables — the contracted scope, distinct from day-to-day Tasks.

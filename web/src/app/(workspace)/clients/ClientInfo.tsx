@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ClipboardCheck, ClipboardList, FileText, FolderOpen, MessagesSquare, Palette, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, ClipboardList, FileText, FolderOpen, MessagesSquare, Palette, Pencil, Plus, Trash2 } from "lucide-react";
 import { Markdown } from "./Markdown";
 import {
   addClientDocument,
+  clientFootprint,
   deleteClient,
   deleteClientDocument,
   updateClientDoc,
@@ -142,6 +143,18 @@ export function ClientInfo({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [armed, setArmed] = useState(false);
+  // what would go with them, fetched when the dialog opens
+  const [footprint, setFootprint] = useState<Awaited<ReturnType<typeof clientFootprint>> | null>(null);
+
+  function openDelete() {
+    setArmed(false);
+    setFootprint(null);
+    setError(null);
+    deleteRef.current?.showModal();
+    clientFootprint(clientId).then(setFootprint);
+  }
+
   const [error, setError] = useState<string | null>(null);
   const deleteRef = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<ClientInfoInput>({
@@ -210,7 +223,7 @@ export function ClientInfo({
             <div className="flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => deleteRef.current?.showModal()}
+                onClick={openDelete}
                 className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
               >
                 <Trash2 size={13} /> Delete client
@@ -248,6 +261,15 @@ export function ClientInfo({
               ))}
             </dl>
             {notes && <p className="mt-3 whitespace-pre-wrap border-t border-border/50 pt-3 text-sm text-muted">{notes}</p>}
+            <div className="mt-4 flex justify-end border-t border-border/50 pt-3">
+              <button
+                type="button"
+                onClick={openDelete}
+                className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash2 size={13} /> Delete client
+              </button>
+            </div>
           </>
         )}
 
@@ -256,23 +278,56 @@ export function ClientInfo({
           onClick={(e) => {
             if (e.target === deleteRef.current) deleteRef.current?.close();
           }}
-          className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
+          onClose={() => setArmed(false)}
+          className="glass fixed top-1/2 left-1/2 m-0 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"
         >
           <p className="text-sm">
-            Delete <strong>{name}</strong>? This permanently removes their projects, tasks, invoices, deliverables
-            and delivered work too. This can&apos;t be undone.
+            Delete <strong>{name}</strong>? Everything of theirs goes with them, and it can&apos;t be undone.
           </p>
-          <div className="mt-3 flex justify-end gap-2">
+
+          {/* what "everything" actually means, counted from their record */}
+          {footprint && (
+            <ul className="fade-in mt-3 flex flex-col gap-1 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted">
+              {[
+                ["projects", footprint.projects],
+                ["tasks, delivered work included", footprint.tasks],
+                ["documents", footprint.documents],
+                ["deliverables", footprint.deliverables],
+                ["invoices", footprint.invoices],
+                ["messages from them", footprint.feedback],
+              ]
+                .filter(([, n]) => (n as number) > 0)
+                .map(([label, n]) => (
+                  <li key={label as string}>
+                    <strong className="text-foreground">{n as number}</strong> {label as string}
+                  </li>
+                ))}
+              {Object.values(footprint).every((n) => n === 0) && <li>Nothing else is attached to them.</li>}
+            </ul>
+          )}
+
+          {armed && (
+            <div className="fade-in mt-3 flex gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-300" />
+              <p className="text-xs text-red-200">
+                Last check: this removes {name} and everything listed above from Easeus HQ for good. Their files in
+                Google Drive are left alone.
+              </p>
+            </div>
+          )}
+
+          {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+          <div className="mt-4 flex justify-end gap-2">
             <button type="button" onClick={() => deleteRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">
               Cancel
             </button>
             <button
               type="button"
-              onClick={confirmDelete}
+              onClick={() => (armed ? confirmDelete() : setArmed(true))}
               disabled={deleting}
               className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? "Deleting…" : armed ? `Yes, delete ${name}` : "Delete"}
             </button>
           </div>
         </dialog>
