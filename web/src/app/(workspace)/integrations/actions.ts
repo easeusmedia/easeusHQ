@@ -26,6 +26,24 @@ export async function saveGoogleApp(clientId: string, clientSecret: string): Pro
   return {};
 }
 
+// The folder client folders are created in — pasted as a Drive link, which
+// is what the browser's address bar gives you.
+export async function saveDriveFolder(link: string): Promise<{ error?: string; name?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  const id = link.trim().match(/[-\w]{25,}/)?.[0];
+  if (!id) return { error: "That doesn't look like a Drive folder link." };
+  await saveDriveSettings({ [DRIVE_SETTINGS.folderId]: id });
+  try {
+    const { driveFileName } = await import("@/lib/drive");
+    const name = await driveFileName(id);
+    await saveDriveSettings({ [DRIVE_SETTINGS.folderName]: name });
+    revalidatePath("/integrations");
+    return { name };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't open that folder." };
+  }
+}
+
 export async function disconnectGoogle(): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   await saveDriveSettings({
