@@ -187,17 +187,19 @@ export function ListRow({
           )}
         </span>
         {showAssignee && <AssigneeLabel name={task.assignedTo.name} />}
-        {/* the same finish here as on a card: off the board, into History */}
-        <span onClick={(e) => e.stopPropagation()} className="shrink-0">
-          <button
-            type="button"
-            onClick={() => onChangeStatus("done")}
-            title="Mark complete — moves it to History"
-            className="status-pop flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1 text-xs font-medium text-emerald-300"
-          >
-            <CheckCircle2 size={13} className="shrink-0" /> Complete
-          </button>
-        </span>
+        {/* the same finish as on a card, and only at the same point */}
+        {task.status === "in_review" && (
+          <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+            <button
+              type="button"
+              onClick={() => onChangeStatus("done")}
+              title="Mark complete — moves it to History"
+              className="status-pop flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1 text-xs font-medium text-emerald-300"
+            >
+              <CheckCircle2 size={13} className="shrink-0" /> Complete
+            </button>
+          </span>
+        )}
         {/* key={task.status}: Dropdown tracks its own selection internally
             from defaultValue at mount only — without a remount keyed to
             the actual status, it'd keep showing whatever was selected

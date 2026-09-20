@@ -48,6 +48,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       orderBy: { completedAt: "desc" },
       include: {
         assignedTo: { select: { ...PUBLIC_USER_SELECT, team: { select: { name: true } } } },
+        createdBy: { select: { name: true } },
         tags: true,
         project: { include: { client: true } },
       },
@@ -124,14 +125,45 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     })),
   ].sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime());
 
-  const links = Object.fromEntries(
-    tasks.map((t) => [t.id, { drive: t.driveLink, frameio: t.frameioLink }])
-  );
+  // everything worth reading when a row is opened — the task itself, not
+  // just the numbers History works out from it
+  const details = Object.fromEntries([
+    ...tasks.map((t) => [
+      t.id,
+      {
+        drive: t.driveLink,
+        frameio: t.frameioLink,
+        raw: t.rawLink,
+        reference: t.referenceLink,
+        assets: t.assetLink,
+        notes: t.editingNotes,
+        reviewNotes: t.reviewNotes,
+        internal: t.internal,
+        links: [] as { label: string; url: string }[],
+        createdBy: null as string | null,
+      },
+    ]),
+    ...workTasks.map((t) => [
+      t.id,
+      {
+        drive: null,
+        frameio: null,
+        raw: null,
+        reference: null,
+        assets: null,
+        notes: t.notes,
+        reviewNotes: null,
+        internal: false,
+        links: ((t.links as { label: string; url: string }[] | null) ?? []).filter((l) => l?.url),
+        createdBy: t.createdBy.name,
+      },
+    ]),
+  ]);
 
   return (
     <HistoryExplorer
       items={items}
-      links={links}
+      details={details}
       logsByTask={logsByTask}
       canDelete={canDelete}
     />

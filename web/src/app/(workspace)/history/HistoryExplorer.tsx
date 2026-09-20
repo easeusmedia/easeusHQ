@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Download, Filter, Search } from "lucide-react";
+import { Download, ExternalLink, Filter, Search } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
 import { deleteTaskPermanently } from "../actions";
 import { formatDate, formatDateTime } from "../TaskCard";
@@ -9,7 +9,9 @@ import { DatePicker } from "../DatePicker";
 import { Dropdown } from "../Dropdown";
 import { Toolbar } from "../ViewToggle";
 import { TaskTagChip } from "../TaskTagPicker";
-import { filterHistory, onTime, summarize, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
+import { STAGE } from "@/lib/stages";
+import type { TaskStatus } from "@/lib/workflow";
+import { activeHours, filterHistory, onTime, summarize, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
 
 type Wire = Omit<HistoryItem, "createdAt" | "startedAt" | "completedAt" | "dueDate"> & {
   createdAt: string | Date;
@@ -29,6 +31,9 @@ const VIEWS: { key: "list" | GroupBy; label: string; column: string }[] = [
 
 const columnFor = (view: "list" | GroupBy) => VIEWS.find((v) => v.key === view)!.column;
 
+// the stored keys ("sent_for_approval") read as the stage names the board uses
+const stageName = (key: string) => STAGE[key as TaskStatus]?.label ?? key;
+
 const hoursLabel = (h: number | null) => (h === null ? "—" : h >= 48 ? `${Math.round(h / 24)}d` : `${h}h`);
 
 // Everything the company has finished, and what it says about how the work
@@ -36,14 +41,27 @@ const hoursLabel = (h: number | null) => (h === null ? "—" : h >= 48 ? `${Math
 // answer "how are we doing" — per person, team, client, kind of work or
 // month, each with how long work takes and how often it comes back for
 // revision. Whatever is on screen is what Export writes out.
+export type TaskDetail = {
+  drive: string | null;
+  frameio: string | null;
+  raw: string | null;
+  reference: string | null;
+  assets: string | null;
+  notes: string | null;
+  reviewNotes: string | null;
+  internal: boolean;
+  links: { label: string; url: string }[];
+  createdBy: string | null;
+};
+
 export function HistoryExplorer({
   items: wire,
-  links,
+  details,
   logsByTask,
   canDelete,
 }: {
   items: Wire[];
-  links: Record<string, { drive: string | null; frameio: string | null }>;
+  details: Record<string, TaskDetail>;
   logsByTask: Record<string, { createdAt: string; action: string; actorName: string }[]>;
   canDelete: boolean;
 }) {
@@ -93,6 +111,16 @@ export function HistoryExplorer({
 
   const open = items.find((i) => i.id === openId) ?? null;
   const openLogs = openId ? logsByTask[openId] ?? [] : [];
+  const detail = openId ? details[openId] : undefined;
+  // every file the task carries, whichever system it came from
+  const fileLinks = [
+    { label: "Final Drive", url: detail?.drive },
+    { label: "Frame.io", url: detail?.frameio },
+    { label: "Raw footage", url: detail?.raw },
+    { label: "Reference", url: detail?.reference },
+    { label: "Assets", url: detail?.assets },
+    ...(detail?.links ?? []).map((l) => ({ label: l.label || "Link", url: l.url })),
+  ].filter((l): l is { label: string; url: string } => !!l.url);
 
   return (
     <div className="flex flex-col gap-4">
@@ -240,7 +268,7 @@ export function HistoryExplorer({
             </thead>
             <tbody>
               {shown.map((i) => {
-                const link = links[i.id];
+                const link = details[i.id];
                 const late = onTime(i) === false;
                 return (
                   <tr
@@ -353,13 +381,29 @@ export function HistoryExplorer({
             <h2 className="text-base font-semibold">{open.title}</h2>
             <p className="text-xs text-muted">
               {[open.client, open.project].filter(Boolean).join(" · ") || "Own work"} · {open.person}
+              {open.team && ` · ${open.team}`}
             </p>
+
+            {(open.tags.length > 0 || detail?.internal || open.kind === "internal") && (
+              <div className="mt-3 flex flex-wrap items-center gap-1">
+                {open.kind === "internal" && <TaskTagChip name="Own work" />}
+                {detail?.internal && <TaskTagChip name="Internal — not delivered to the client" />}
+                {open.tags.map((t) => (
+                  <TaskTagChip key={t} name={t} />
+                ))}
+              </div>
+            )}
+
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               {[
                 ["Created", formatDate(open.createdAt)],
+                ["Started", open.startedAt ? formatDate(open.startedAt) : "—"],
                 ["Finished", formatDate(open.completedAt)],
+                ["Due", open.dueDate ? formatDate(open.dueDate) : "—"],
                 ["Turnaround", hoursLabel(turnaroundHours(open))],
+                ["Working time", hoursLabel(activeHours(open))],
                 ["Revisions", String(open.revisions)],
+                ["On time", onTime(open) === null ? "—" : onTime(open) ? "Yes" : "No"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="tabular-nums">{value}</p>
@@ -367,18 +411,66 @@ export function HistoryExplorer({
                 </div>
               ))}
             </div>
+
+            {fileLinks.length > 0 && (
+              <div className="mt-5">
+                <p className="mb-2 text-xs font-medium text-muted">Files</p>
+                <div className="flex flex-wrap gap-2">
+                  {fileLinks.map((l) => (
+                    <a
+                      key={l.label + l.url}
+                      href={l.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+                    >
+                      {l.label} <ExternalLink size={11} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {detail?.notes && (
+              <div className="mt-5">
+                <p className="mb-1 text-xs font-medium text-muted">Brief</p>
+                <p className="whitespace-pre-wrap rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">{detail.notes}</p>
+              </div>
+            )}
+
+            {detail?.reviewNotes && (
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-medium text-muted">Last revision note</p>
+                <p className="whitespace-pre-wrap rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">{detail.reviewNotes}</p>
+              </div>
+            )}
+
+            {detail?.createdBy && <p className="mt-4 text-xs text-muted">Added by {detail.createdBy}</p>}
             {openLogs.length > 0 && (
               <div className="mt-5">
                 <p className="mb-2 text-xs font-medium text-muted">Every stage it went through</p>
                 <ol className="flex flex-col gap-2">
-                  {openLogs.map((l, idx) => (
-                    <li key={idx} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-2 text-sm last:border-0">
-                      <span>{l.action === "created" ? "Created" : l.action}</span>
-                      <span className="text-xs text-muted">
-                        {l.actorName} · {formatDateTime(l.createdAt)}
-                      </span>
-                    </li>
-                  ))}
+                  {openLogs.map((l, idx) => {
+                    const [from, to] = l.action.split(" → ");
+                    return (
+                      <li key={idx} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-2 text-sm last:border-0">
+                        <span>
+                          {to ? (
+                            <>
+                              {stageName(from)} <span className="text-muted">→</span> {stageName(to)}
+                            </>
+                          ) : l.action === "created" ? (
+                            "Created"
+                          ) : (
+                            l.action
+                          )}
+                        </span>
+                        <span className="text-xs text-muted">
+                          {l.actorName} · {formatDateTime(l.createdAt)}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ol>
               </div>
             )}

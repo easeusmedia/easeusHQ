@@ -109,8 +109,10 @@ export function WorkTaskCard({
           </span>
         )}
         {error && <p className="text-xs text-red-300">{error}</p>}
-        {/* finishing it moves it off the board into History, where the
-            record of what everyone got done lives */}
+        {/* only once it's through review: finishing moves it off the board
+            into History, the same way the editing board only offers "Mark
+            delivered" at the last stage */}
+        {task.status === "in_review" && (
         <button
           type="button"
           onClick={(e) => {
@@ -122,6 +124,7 @@ export function WorkTaskCard({
         >
           <CheckCircle2 size={13} className="shrink-0" /> {saving ? "Completing…" : "Mark complete"}
         </button>
+        )}
         {(task.tags.length > 0 || task.category) && (
           <span className="flex w-fit flex-wrap items-center gap-1">
             {task.tags.map((t) => (
