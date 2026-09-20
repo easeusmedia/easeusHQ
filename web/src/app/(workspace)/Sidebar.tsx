@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Trash2 } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2 } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
@@ -350,6 +350,17 @@ export function Sidebar({
               </button>
             )}
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
+            {/* admin-only: what the app is joined up to outside itself */}
+            {canViewAs && (
+              <Link
+                href="/integrations"
+                onClick={() => setProfileOpen(false)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+              >
+                <Plug size={15} />
+                Integrations
+              </Link>
+            )}
             <form action={logout}>
               <button
                 type="submit"

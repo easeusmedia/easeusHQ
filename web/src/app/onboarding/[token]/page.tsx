@@ -56,5 +56,5 @@ export default async function OnboardingPage({
     );
   }
 
-  return <OnboardingForm token={token} suggestedName={invite.name ?? ""} canUpload={driveConfigured()} />;
+  return <OnboardingForm token={token} suggestedName={invite.name ?? ""} canUpload={await driveConfigured()} />;
 }

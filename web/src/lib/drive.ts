@@ -1,24 +1,48 @@
 import { createSign } from "crypto";
+import { prisma } from "./prisma";
 
 // Uploading to the company's Google Drive.
 //
-// Auth is a service account: a robot Google account that owns nothing and
-// belongs to no one, whose key lives in the app's settings. The parent
-// folder is shared with that account's email, and everything the app writes
-// goes inside it — so uploads keep working regardless of who is signed in
-// here, and nobody's personal Drive is involved.
+// Two ways to authenticate, in this order:
 //
-// Two settings turn this on:
-//   GOOGLE_SERVICE_ACCOUNT_JSON  the whole key file, as one line
-//   DRIVE_PARENT_FOLDER_ID       the folder every client folder is made in
+//  1. The team's own Google account, connected once from Settings →
+//     Integrations. Files are created by that account and live in its Drive
+//     ("My Drive / Current Projects / Raw Files"), which is where the team
+//     already keeps client work.
 //
-// Without them `driveConfigured()` is false and the onboarding form asks
+//  2. A service account key in the deploy settings
+//     (GOOGLE_SERVICE_ACCOUNT_JSON + DRIVE_PARENT_FOLDER_ID). This only
+//     works for a shared drive: a service account owns no storage of its
+//     own, so Google refuses anything it would have to store in My Drive.
+//
+// With neither, `driveConfigured()` is false and the onboarding form asks
 // clients for a link instead of taking files — nothing breaks, the upload
-// step is simply not offered yet.
+// step simply isn't offered yet.
 //
-// Deliberately no googleapis dependency: a signed JWT and three REST calls
-// is the whole of what's needed, against a library that would add tens of
-// megabytes to every deploy.
+// Deliberately no googleapis dependency: a signed JWT (or a refresh token)
+// and three REST calls is the whole of what's needed, against a library that
+// would add tens of megabytes to every deploy.
+
+export const DRIVE_SETTINGS = {
+  clientId: "google.clientId",
+  clientSecret: "google.clientSecret",
+  refreshToken: "google.refreshToken",
+  account: "google.account",
+  folderId: "google.folderId",
+  folderName: "google.folderName",
+} as const;
+
+export async function driveSettings(): Promise<Record<string, string>> {
+  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: "google." } } });
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+export async function saveDriveSettings(values: Record<string, string | null>) {
+  for (const [key, value] of Object.entries(values)) {
+    if (value === null) await prisma.appSetting.deleteMany({ where: { key } });
+    else await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  }
+}
 
 type ServiceAccount = { client_email: string; private_key: string };
 
@@ -36,8 +60,42 @@ function credentials(): ServiceAccount | null {
   }
 }
 
-export function driveConfigured(): boolean {
+// Connected one way or the other, and told where to put things.
+export async function driveConfigured(): Promise<boolean> {
+  const settings = await driveSettings();
+  if (settings[DRIVE_SETTINGS.refreshToken] && settings[DRIVE_SETTINGS.folderId]) return true;
   return !!credentials() && !!process.env.DRIVE_PARENT_FOLDER_ID;
+}
+
+// Where client folders are created: whatever was picked when Drive was
+// connected, else the folder named in the deploy settings.
+export async function parentFolderId(): Promise<string> {
+  const settings = await driveSettings();
+  const id = settings[DRIVE_SETTINGS.folderId] ?? process.env.DRIVE_PARENT_FOLDER_ID;
+  if (!id) throw new Error("No Drive folder is set for new clients.");
+  return id;
+}
+
+// An access token for the team's own Google account, from the refresh token
+// saved when they connected it. Refresh tokens don't expire in normal use,
+// so this is the whole of the flow at upload time.
+async function userToken(): Promise<string | null> {
+  const settings = await driveSettings();
+  const refresh = settings[DRIVE_SETTINGS.refreshToken];
+  const id = settings[DRIVE_SETTINGS.clientId];
+  const secret = settings[DRIVE_SETTINGS.clientSecret];
+  if (!refresh || !id || !secret) return null;
+  if (cached && cached.expires > Date.now() + 60_000) return cached.token;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: id, client_secret: secret, refresh_token: refresh, grant_type: "refresh_token" }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error_description ?? "Google wouldn't refresh the connection.");
+  cached = { token: body.access_token, expires: Date.now() + body.expires_in * 1000 };
+  return cached.token;
 }
 
 const base64url = (input: Buffer | string) =>
@@ -48,6 +106,8 @@ const base64url = (input: Buffer | string) =>
 let cached: { token: string; expires: number } | null = null;
 
 async function accessToken(): Promise<string> {
+  const asUser = await userToken();
+  if (asUser) return asUser;
   if (cached && cached.expires > Date.now() + 60_000) return cached.token;
   const key = credentials();
   if (!key) throw new Error("Google Drive isn't connected.");
@@ -110,8 +170,7 @@ export async function folder(name: string, parentId: string): Promise<{ id: stri
 // A client's own folder under the parent, with the subfolder the files go in
 // ("Brand assets"). Made once and remembered on the client row.
 export async function clientFolder(clientName: string, subfolder: string) {
-  const parent = process.env.DRIVE_PARENT_FOLDER_ID;
-  if (!parent) throw new Error("No Drive folder is set for new clients.");
+  const parent = await parentFolderId();
   const client = await folder(clientName, parent);
   const target = await folder(subfolder, client.id);
   return { client, target };
@@ -138,4 +197,47 @@ export async function uploadFile(
     body: body as unknown as BodyInit,
   });
   return { id: created.id, url: created.webViewLink ?? `https://drive.google.com/file/d/${created.id}/view` };
+}
+
+// What a folder is called — used to confirm a pasted link really opens.
+export async function driveFileName(id: string): Promise<string> {
+  const file = await driveFetch(`drive/v3/files/${id}?fields=name,mimeType&${SHARED}`, { method: "GET" });
+  if (file.mimeType !== "application/vnd.google-apps.folder") throw new Error("That link isn't a folder.");
+  return file.name as string;
+}
+
+export async function deleteFile(id: string): Promise<void> {
+  await fetch(`https://www.googleapis.com/drive/v3/files/${id}?${SHARED}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${await accessToken()}` },
+  });
+}
+
+// Finishes the connection: swaps the one-time code for the refresh token the
+// uploads will use from then on.
+export async function exchangeCode(code: string, origin: string): Promise<{ refreshToken: string; email: string }> {
+  const settings = await driveSettings();
+  const clientId = settings[DRIVE_SETTINGS.clientId];
+  const clientSecret = settings[DRIVE_SETTINGS.clientSecret];
+  if (!clientId || !clientSecret) throw new Error("The Google app details are missing.");
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: `${origin}/api/google/callback`,
+      grant_type: "authorization_code",
+    }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error_description ?? "Google wouldn't complete the connection.");
+  if (!body.refresh_token) throw new Error("Google didn't return a lasting connection — try again.");
+
+  const who = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    headers: { Authorization: `Bearer ${body.access_token}` },
+  }).then((r) => r.json());
+  return { refreshToken: body.refresh_token, email: who?.email ?? "" };
 }

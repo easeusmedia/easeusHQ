@@ -633,3 +633,13 @@ model ClientDocument {
 
   @@index([clientId])
 }
+
+// Small key/value store for things ops connects from inside the app — the
+// Google Drive link being the first. Kept in the database rather than in
+// deploy settings so connecting (or re-connecting) is something the team
+// does for itself, without a developer.
+model AppSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
