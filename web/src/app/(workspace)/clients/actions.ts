@@ -9,7 +9,6 @@ import { normalizeUrl } from "@/lib/links";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
-import { importClientFromNotion } from "@/lib/notionClientImport";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 
 // The two On Hold clients ops is still actively tracking, chosen
@@ -667,35 +666,6 @@ export async function applyOnboardingTemplate(clientId: string): Promise<{ added
   return { added };
 }
 
-export async function setNotionContentDb(clientId: string, dbId: string): Promise<{ error?: string }> {
-  const user = await requireOps();
-  if (!user) return { error: "Only ops team members can change this." };
-
-  // accept a pasted Notion URL as well as a bare id
-  const match = dbId.trim().match(/[0-9a-f]{32}|[0-9a-f-]{36}/i);
-  await prisma.client.update({
-    where: { id: clientId },
-    data: { notionContentDbId: match ? match[0] : null },
-  });
-  revalidatePath("/clients/[slug]", "page");
-  return {};
-}
-
-export async function importFromNotion(clientId: string) {
-  const user = await requireOps();
-  if (!user) return { projects: 0, assets: 0, docs: 0, error: "Only ops team members can import." };
-
-  try {
-    const result = await importClientFromNotion(clientId);
-    revalidatePath("/clients/[slug]", "page");
-    return result;
-  } catch (err) {
-    return { projects: 0, assets: 0, docs: 0, error: err instanceof Error ? err.message : "Import failed." };
-  }
-}
-
-// Projects are the unit of work a client is invoiced for — one podcast
-// episode, one video. Tasks hang off them.
 // Every cover this client's projects already use, newest first — the pool
 // the cover picker offers. Reusing one costs nothing: a cover is a link to
 // an image (or the image itself), so two projects can point at the same one.

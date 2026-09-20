@@ -13,7 +13,6 @@ import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
 import { ClientInfo } from "../ClientInfo";
-import { ClientNotionLink } from "../ClientNotionLink";
 import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
@@ -332,7 +331,6 @@ export default async function ClientDetailPage({
                     resources: client.resources,
                   }}
                 />
-                <ClientNotionLink clientId={client.id} contentDbId={client.notionContentDbId} />
               </div>
             ),
           },
