@@ -9,18 +9,7 @@ import { DatePicker } from "../DatePicker";
 import { Dropdown } from "../Dropdown";
 import { Toolbar } from "../ViewToggle";
 import { TaskTagChip } from "../TaskTagPicker";
-import { toCsv } from "@/lib/taskExport";
-import {
-  activeHours,
-  filterHistory,
-  onTime,
-  summarize,
-  totals,
-  turnaroundHours,
-  type Filters,
-  type GroupBy,
-  type HistoryItem,
-} from "@/lib/history";
+import { filterHistory, onTime, summarize, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
 
 type Wire = Omit<HistoryItem, "createdAt" | "startedAt" | "completedAt" | "dueDate"> & {
   createdAt: string | Date;
@@ -52,13 +41,11 @@ export function HistoryExplorer({
   links,
   logsByTask,
   canDelete,
-  canExportAll,
 }: {
   items: Wire[];
   links: Record<string, { drive: string | null; frameio: string | null }>;
   logsByTask: Record<string, { createdAt: string; action: string; actorName: string }[]>;
   canDelete: boolean;
-  canExportAll: boolean;
 }) {
   const items = useMemo<HistoryItem[]>(
     () =>
@@ -79,7 +66,6 @@ export function HistoryExplorer({
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const shown = useMemo(() => filterHistory(items, filters), [items, filters]);
-  const stats = useMemo(() => totals(shown), [shown]);
   const rows = useMemo(() => (view === "list" ? [] : summarize(shown, view)), [shown, view]);
 
   // the lists each filter offers, taken from the work itself
@@ -96,43 +82,14 @@ export function HistoryExplorer({
   const set = (patch: Filters) => setFilters((f) => ({ ...f, ...patch }));
   const activeFilters = Object.values(filters).filter(Boolean).length;
 
-  function exportView() {
-    const rowsOut =
-      view === "list"
-        ? shown.map((i) => ({
-            Task: i.title,
-            Kind: i.kind === "client" ? "Client work" : "Own work",
-            Person: i.person,
-            Team: i.team ?? "",
-            Client: i.client ?? "",
-            Project: i.project ?? "",
-            "Type of work": i.tags.join(", "),
-            Created: formatDate(i.createdAt),
-            Completed: formatDate(i.completedAt),
-            Due: i.dueDate ? formatDate(i.dueDate) : "",
-            "On time": onTime(i) === null ? "" : onTime(i) ? "yes" : "no",
-            "Turnaround (hours)": turnaroundHours(i),
-            "Working time (hours)": activeHours(i) ?? "",
-            Revisions: i.revisions,
-          }))
-        : rows.map((r) => ({
-            [columnFor(view)]: r.key,
-            Completed: r.completed,
-            "Median turnaround (hours)": r.medianTurnaround,
-            "Median working time (hours)": r.medianActive ?? "",
-            "Revisions per task": r.revisionsPerTask,
-            "On time %": r.onTimePct ?? "",
-            "Completed per week": r.perWeek,
-            "First finished": formatDate(r.firstAt),
-            "Last finished": formatDate(r.lastAt),
-          }));
-    const blob = new Blob([toCsv(rowsOut)], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `easeus-history-${view}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
+  // The export is the view: same filters, same grouping. The server builds
+  // it because the detailed rows carry every stage's timings, which are
+  // worked out from the activity log rather than held on the task.
+  const exportHref = () => {
+    const params = new URLSearchParams({ group: view });
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, String(value));
+    return `/history/export?${params}`;
+  };
 
   const open = items.find((i) => i.id === openId) ?? null;
   const openLogs = openId ? logsByTask[openId] ?? [] : [];
@@ -183,21 +140,14 @@ export function HistoryExplorer({
           </div>
         }
         right={
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={exportView} className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium">
-              <Download size={14} /> Export view
-            </button>
-            {canExportAll && (
-              <a
-                href="/history/export"
-                download
-                title="Every finished task with its full timings, revisions and status trail"
-                className="btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
-              >
-                Full data
-              </a>
-            )}
-          </div>
+          <a
+            href={exportHref()}
+            download
+            title="A spreadsheet of exactly what's on screen — with each task's timings, revisions and full stage trail"
+            className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium"
+          >
+            <Download size={14} /> Export
+          </a>
         }
       />
 
@@ -267,22 +217,6 @@ export function HistoryExplorer({
           </div>
         </div>
       )}
-
-      {/* the headline numbers for whatever is filtered in */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {[
-          ["Finished", String(stats.completed)],
-          ["People", String(stats.people)],
-          ["Median turnaround", hoursLabel(stats.medianTurnaround)],
-          ["Revisions per task", String(stats.revisionsPerTask)],
-          ["On time", stats.onTimePct === null ? "—" : `${stats.onTimePct}%`],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-border bg-surface/40 px-4 py-3">
-            <p className="text-lg font-semibold tabular-nums">{value}</p>
-            <p className="text-xs text-muted">{label}</p>
-          </div>
-        ))}
-      </div>
 
       {shown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-5 py-10 text-center text-sm text-muted">

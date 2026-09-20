@@ -134,7 +134,6 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       links={links}
       logsByTask={logsByTask}
       canDelete={canDelete}
-      canExportAll={canDelete}
     />
   );
 }
