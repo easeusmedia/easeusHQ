@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
 import { canEditTag } from "@/lib/scope";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
+import { matchClient } from "@/lib/notionMapping";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -420,13 +421,10 @@ const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
   // for want of a column — it has one of its own now.
   "sent for client approval": "sent_for_client_approval",
   "revision requested": "revision_requested",
-  // Notion's "Final export ready" means the team has exported and handed
-  // the work over — it's done, and it should drop off the board into
-  // History on sync rather than sitting in an active column forever.
-  // (Our own board still has a separate final_export_ready stage for work
-  // driven here rather than in Notion; this is only how *Notion's* wording
-  // maps in.)
-  "final export ready": "delivered_and_uploaded",
+  // every column Notion has, onto the column of the same name here — a row
+  // sitting in "Final export ready" there belongs in that column here, not
+  // filed away in History as though it had shipped
+  "final export ready": "final_export_ready",
   "delivered and uploaded": "delivered_and_uploaded",
 };
 
@@ -447,39 +445,6 @@ function routeExportedLink(url: string | null): { frameioLink?: string; driveLin
   }
   if (host.includes("drive.google.com") || host.includes("docs.google.com")) return { driveLink: url };
   return { frameioLink: url };
-}
-
-// Same duplicated-on-purpose IST-offset approach as notion.ts's own
-// todayInIST() — this file doesn't otherwise need to know about Notion's
-// date handling, so it isn't worth importing/exporting just for this.
-function isToday(d: Date | null): boolean {
-  if (!d) return false;
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-  const toISTDateString = (x: Date) => new Date(x.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
-  return toISTDateString(d) === toISTDateString(new Date());
-}
-
-// Client isn't its own property — it's the prefix before " - " in the
-// title ("CL - Energy - Katie." -> "CL", "Tego - Skin Business" -> "Tego").
-// "CL" is initials ("Courageous Leaders"); "Tego" is a plain substring of
-// "Dr Tego" — so try both, in that order.
-function matchClient<T extends { name: string }>(prefix: string, clients: T[]): T | undefined {
-  const p = prefix.trim().toLowerCase();
-  if (!p) return undefined;
-  const exact = clients.find((c) => c.name.toLowerCase() === p);
-  if (exact) return exact;
-  if (/^[A-Za-z]{2,4}$/.test(prefix.trim())) {
-    const initials = clients.find(
-      (c) =>
-        c.name
-          .split(/\s+/)
-          .map((w) => w[0])
-          .join("")
-          .toLowerCase() === p
-    );
-    if (initials) return initials;
-  }
-  return clients.find((c) => c.name.toLowerCase().includes(p) || p.includes(c.name.toLowerCase()));
 }
 
 // The Notion "Editor" person is tied to their own Notion account name,
@@ -538,39 +503,44 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
     let created = 0;
     let updated = 0;
     let skipped = 0;
-    const skippedReasons: string[] = [];
+    // grouped, not one line per row: with a few hundred rows in that
+    // database, "couldn't match a client" 28 times is noise, and the one
+    // line that says which 28 is what anyone acts on
+    const skips = new Map<string, string[]>();
+    const skip = (reason: string, title: string) => {
+      skipped++;
+      skips.set(reason, [...(skips.get(reason) ?? []), title]);
+    };
 
     for (const row of rows) {
       const title = getTitleText(row.properties);
       if (!title) {
-        skipped++;
-        skippedReasons.push("a row with no title");
+        skip("with no title in Notion", "(untitled)");
         continue;
       }
 
-      const editorName = getFirstPersonName(row.properties, "Editor");
-      const editor = editorName ? matchEditor(editorName, editors) : undefined;
-      if (!editor) {
-        skipped++;
-        skippedReasons.push(`"${title}": couldn't match editor "${editorName ?? "(none)"}"`);
-        continue;
-      }
-
-      const clientPrefix = title.split(" - ")[0];
-      const client = matchClient(clientPrefix, clients);
+      const client = matchClient(title, clients);
       const project = client?.projects[0];
       if (!project) {
-        skipped++;
-        skippedReasons.push(`"${title}": couldn't match a client ("${clientPrefix}")`);
+        skip("need a client that doesn't exist here yet", title);
         continue;
       }
+
+      // no Editor set in Notion is normal — plenty of rows are queued
+      // before anyone picks them up. The task still belongs on the board,
+      // unassigned, rather than vanishing because of a blank column.
+      const editorName = getFirstPersonName(row.properties, "Editor");
+      const editor = editorName ? matchEditor(editorName, editors) : undefined;
 
       const statusName = getStatusName(row.properties);
       const status = statusName ? NOTION_STATUS_MAP[statusName.toLowerCase()] : undefined;
       const sharedData = {
         title,
         status: status ?? "queued",
-        assignedToId: editor.id,
+        // only overwrite who it's assigned to when Notion actually names
+        // someone — a blank column there shouldn't unassign work that was
+        // handed out here
+        ...(editor ? { assignedToId: editor.id } : {}),
         rawLink: getUrl(row.properties, "Raw Links"),
         referenceLink: getUrl(row.properties, "Reference "),
         assetLink: getUrl(row.properties, "Assets"),
@@ -602,34 +572,38 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         continue;
       }
 
-      // not already tracked — only create it if it's actually dated today.
-      // The date filter above reaches back further than today (on_or_before)
-      // so the update path can catch up on stale-but-tracked tasks, but that
-      // meant a still-untracked older row (e.g. one already sitting at
-      // "Delivered and uploaded" from days ago) got freshly created and
-      // dropped straight into History without ever having been on the
-      // board — exactly the backfill this button was built to avoid.
-      const dueDate = getDate(row.properties, "Editor Queu Date");
-      if (!isToday(dueDate)) {
-        skipped++;
-        skippedReasons.push(`"${title}": not dated today, skipping (only today's new tasks get created)`);
+      // not tracked here yet. Anything Notion still has open comes onto the
+      // board in the column its status names, whatever day it was queued —
+      // that's the whole point of the button. What doesn't come over is work
+      // Notion already finished before this board existed: that's years of
+      // delivered rows, and importing them would dump them all into History
+      // as though we'd just shipped them.
+      if (sharedData.status === "delivered_and_uploaded") {
+        skip("already finished in Notion before this board existed", title);
         continue;
       }
 
+      const queuedOn = getDate(row.properties, "Editor Queu Date");
       await prisma.task.create({
         data: {
           ...sharedData,
           projectId: project.id,
-          dueDate: dueDate ?? new Date(),
-          sortOrder: Date.now(),
+          dueDate: queuedOn ?? new Date(),
+          // newest at the top of its column, same as the board's own order
+          sortOrder: queuedOn?.getTime() ?? Date.now(),
           notionPageId: row.id,
         },
       });
       created++;
     }
 
+    const skippedReasons = [...skips].map(([reason, titles]) => {
+      const shown = titles.slice(0, 4).join(", ");
+      return `${titles.length} ${reason}: ${shown}${titles.length > 4 ? `, and ${titles.length - 4} more` : ""}`;
+    });
+
     if (created > 0 || updated > 0) revalidatePath("/board");
-    return { created, updated, pushed: 0, skipped, skippedReasons: skippedReasons.slice(0, 20) };
+    return { created, updated, pushed: 0, skipped, skippedReasons };
   } catch (err) {
     return {
       created: 0,

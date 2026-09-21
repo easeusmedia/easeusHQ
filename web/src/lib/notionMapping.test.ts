@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exportedLinkFor, pushesToNotion } from "./notionMapping.ts";
+import { exportedLinkFor, matchClient, pushesToNotion } from "./notionMapping.ts";
 
 const FRAME = "https://f.io/abc";
 const DRIVE = "https://drive.google.com/file/d/xyz/view";
@@ -34,4 +34,27 @@ test("only Operations, and not the admin, mirrors into the Editing Queue", () =>
   assert.equal(pushesToNotion({ role: "admin", teamSlug: "operations" }), false); // Ashmit
   assert.equal(pushesToNotion({ role: "core", teamSlug: "sales" }), false); // Pankaj
   assert.equal(pushesToNotion({ role: "employee", teamSlug: null }), false); // unplaced: fail closed
+});
+
+// the real roster, because that's where the near-misses are
+const CLIENTS = [
+  "The Broker Brunch", "Elle Sera", "Robyn", "Dr Tego", "HUMAIN", "Neelkamal TMT", "Dr Yusra", "Courageous Leaders",
+].map((name) => ({ name }));
+const client = (title: string) => matchClient(title, CLIENTS)?.name ?? null;
+
+test("a Notion row finds its client by prefix, initials, or the name in the title", () => {
+  assert.equal(client("Robyn - Levels"), "Robyn"); // the prefix is the name
+  assert.equal(client("CL - Energy - Katie"), "Courageous Leaders"); // initials
+  assert.equal(client("BB - Cold Calling"), "The Broker Brunch"); // "The" isn't an initial
+  assert.equal(client("Tego - Skin Business"), "Dr Tego"); // prefix inside the name
+  assert.equal(client("Yusra Reel"), "Dr Yusra"); // no prefix at all
+  assert.equal(client("Elle Sera - Spicules"), "Elle Sera");
+});
+
+test("a row we have no client for stays unmatched rather than landing on the wrong one", () => {
+  assert.equal(client("Ashmit - Sponsorships"), null);
+  assert.equal(client("Dr Ifeoma - Mandelic Acid"), null); // "Dr" must not match Dr Tego/Dr Yusra
+  assert.equal(client("Dr - 5 Treatments i will never do"), null);
+  assert.equal(client("SRT - Self Centred Leaders"), null); // "Leaders" alone isn't Courageous Leaders
+  assert.equal(client(""), null);
 });

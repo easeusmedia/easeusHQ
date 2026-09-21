@@ -59,6 +59,52 @@ export const WORK_TASK_NOTION_STATUS: Record<string, string> = {
   done: "Delivered and uploaded",
 };
 
+// Which client a Notion row belongs to. Notion has no client column — it's
+// in the title, usually as the prefix before " - " ("CL - Energy - Katie",
+// "Tego - Skin Business") and sometimes not at all ("Yusra Reel"). So:
+//
+//   1. the prefix as a name          "Robyn - Levels"  -> Robyn
+//   2. the prefix as initials        "BB - Cold Calling" -> The Broker Brunch
+//      ("The" doesn't count towards them)
+//   3. the prefix inside a name      "Tego - ..." -> Dr Tego
+//   4. the name's own distinctive words, anywhere in the title, all of them
+//      "Yusra Reel" -> Dr Yusra
+//
+// Step 4 needs every word so "SRT - Self Centred Leaders" doesn't land on
+// Courageous Leaders, and only words of 4+ letters so the "Dr" that starts
+// half this database doesn't match every doctor on the roster. Same reason
+// step 3 wants 3+ letters: "Dr - 5 Treatments" was quietly filing itself
+// under Dr Tego.
+const words = (s: string) => s.toLowerCase().split(/[^a-z0-9]+/i).filter(Boolean);
+const distinctive = (name: string) => words(name).filter((w) => w.length >= 4);
+
+export function matchClient<T extends { name: string }>(title: string, clients: T[]): T | undefined {
+  const prefix = title.split(" - ")[0].trim();
+  const p = prefix.toLowerCase();
+  if (!p) return undefined;
+
+  const exact = clients.find((c) => c.name.toLowerCase() === p);
+  if (exact) return exact;
+
+  if (/^[a-z]{2,4}$/.test(p)) {
+    const initials = clients.find(
+      (c) => words(c.name).filter((w) => w !== "the").map((w) => w[0]).join("") === p
+    );
+    if (initials) return initials;
+  }
+
+  if (p.length >= 3) {
+    const inside = clients.find((c) => c.name.toLowerCase().includes(p) || p.includes(c.name.toLowerCase()));
+    if (inside) return inside;
+  }
+
+  const inTitle = new Set(words(title));
+  return clients.find((c) => {
+    const own = distinctive(c.name);
+    return own.length > 0 && own.every((w) => inTitle.has(w));
+  });
+}
+
 // The stages at which the work has left review and the Drive link is the
 // one that matters.
 const DELIVERED_STAGES: TaskStatus[] = ["final_export_ready", "delivered_and_uploaded"];
