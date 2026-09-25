@@ -174,9 +174,12 @@ export function ProjectCard({
             // with tasks on it, the first press only arms the delete
             onClick={() => (tasks > 0 && !armed ? setArmed(true) : confirmDelete())}
             disabled={deleting}
-            className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
+            // the count and the consequence are in the warning right above;
+            // a button that spells them out again wraps to three lines and
+            // stops looking like a button
+            className="shrink-0 whitespace-nowrap rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
           >
-            {deleting ? "Deleting…" : armed ? `Yes, delete the project and ${tasks} task${tasks === 1 ? "" : "s"}` : "Delete"}
+            {deleting ? "Deleting…" : armed ? "Delete permanently" : "Delete"}
           </button>
         </div>
       </dialog>

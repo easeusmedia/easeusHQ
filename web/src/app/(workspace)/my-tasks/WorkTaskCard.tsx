@@ -8,7 +8,7 @@ import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { Dropdown } from "../Dropdown";
 import { moveWorkTask } from "./actions";
 import { Avatar } from "../TaskCard";
-import { WorkTaskDialog } from "./WorkTaskDialog";
+import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
@@ -32,7 +32,6 @@ export type WorkTaskCardData = {
   createdBy: { id: string; name: string };
 };
 
-type Project = { id: string; name: string; client: { name: string } };
 
 // DD/MM/YYYY, same convention as the client task board (TaskCard.formatDate)
 // — dueDate here is already a plain yyyy-mm-dd string (see page.tsx), so no

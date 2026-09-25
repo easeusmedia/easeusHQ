@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import type { WorkTaskStatus } from "@prisma/client";
 import { moveWorkTask, reorderWorkTask } from "./actions";
 import { WorkTaskCard, type WorkTaskCardData } from "./WorkTaskCard";
-import { WorkTaskDialog } from "./WorkTaskDialog";
+import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { StickyColumns, scrollPageNearEdge } from "../StickyColumns";
 import { ListRow } from "./WorkTaskList";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
 import { GroupHeader, QueueCard, type Group, type QueueEnv } from "./grouping";
 
-type Project = { id: string; name: string; client: { name: string } };
 
 // A much lighter version of the client Task board's drag-and-drop: no
 // workflow graph to check a drop against (see WorkTaskStatus in

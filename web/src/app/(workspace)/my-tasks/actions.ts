@@ -47,12 +47,26 @@ async function resolveAssignee(me: Viewer, requested: string | undefined, curren
   return target.id;
 }
 
+// Which project a task hangs off, from what the person actually chose.
+// Picking a client without naming a project is the common case — "something
+// for Dr Tego" — and every client has a catch-all project for exactly that,
+// the same one the editing board falls back to.
+async function projectFor(input: { clientId?: string; projectId?: string }): Promise<string | null> {
+  if (input.projectId) return input.projectId;
+  if (!input.clientId) return null;
+  const fallback =
+    (await prisma.project.findFirst({ where: { clientId: input.clientId, id: { startsWith: "project-client-" } }, select: { id: true } })) ??
+    (await prisma.project.findFirst({ where: { clientId: input.clientId }, orderBy: { createdAt: "desc" }, select: { id: true } }));
+  return fallback?.id ?? null;
+}
+
 export async function createWorkTask(input: {
   assignedToId?: string;
   title: string;
   notes: string;
   tagIds?: string[];
   dueDate: string;
+  clientId?: string;
   projectId: string;
   links: WorkTaskLink[];
   attachments: WorkTaskAttachment[];
@@ -67,7 +81,7 @@ export async function createWorkTask(input: {
       title: input.title.trim(),
       notes: input.notes.trim() || null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
-      projectId: input.projectId || null,
+      projectId: await projectFor(input),
       links: cleanLinks(input.links),
       attachments: input.attachments,
       tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
@@ -165,6 +179,7 @@ export async function updateWorkTask(input: {
   notes: string;
   tagIds?: string[];
   dueDate: string;
+  clientId?: string;
   projectId: string;
   links: WorkTaskLink[];
   attachments: WorkTaskAttachment[];
@@ -185,7 +200,7 @@ export async function updateWorkTask(input: {
       title: input.title.trim(),
       notes: input.notes.trim() || null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
-      projectId: input.projectId || null,
+      projectId: await projectFor(input),
       links: cleanLinks(input.links),
       attachments: input.attachments,
       ...(input.assignedToId ? { assignedToId: await resolveAssignee(me, input.assignedToId, existing.assignedToId) } : {}),

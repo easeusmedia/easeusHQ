@@ -21,6 +21,7 @@ const SIZES = {
 export function Dropdown({
   name,
   defaultValue = "",
+  value: controlled,
   options,
   placeholder = "Select…",
   onChange,
@@ -28,13 +29,22 @@ export function Dropdown({
 }: {
   name?: string;
   defaultValue?: string;
+  // Pass this when the owner decides what's selected — a dialog reusing one
+  // dropdown across openings, or a field another field clears. Without it
+  // the list keeps showing the last pick after the form behind it has been
+  // reset, which reads as selected but submits something else.
+  value?: string;
   options: { value: string; label: string }[];
   placeholder?: string;
   onChange?: (value: string) => void;
   size?: keyof typeof SIZES;
 }) {
   const s = SIZES[size];
-  const [value, setValue] = useState(defaultValue);
+  const [own, setOwn] = useState(defaultValue);
+  const value = controlled ?? own;
+  const setValue = (next: string) => {
+    if (controlled === undefined) setOwn(next);
+  };
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

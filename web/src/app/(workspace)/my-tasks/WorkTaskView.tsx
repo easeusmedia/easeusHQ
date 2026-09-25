@@ -4,13 +4,12 @@ import { useState } from "react";
 import { Toolbar, ViewToggle, type View } from "../ViewToggle";
 import { WorkTaskBoard } from "./WorkTaskBoard";
 import { WorkTaskList } from "./WorkTaskList";
-import { WorkTaskDialog } from "./WorkTaskDialog";
+import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import { groupTasks, type GroupBy } from "@/lib/workTaskStages";
 import type { QueueCardData, QueueEnv } from "./grouping";
 
-type Project = { id: string; name: string; client: { name: string } };
 
 const GROUP_LABEL: Record<GroupBy, string> = { status: "Status", person: "Person", team: "Team" };
 

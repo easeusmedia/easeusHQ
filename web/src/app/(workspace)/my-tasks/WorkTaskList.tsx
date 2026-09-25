@@ -8,14 +8,13 @@ import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { AssigneeLabel } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
 import { moveWorkTask } from "./actions";
-import { WorkTaskDialog } from "./WorkTaskDialog";
+import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
 import { GroupHeader, QueueRow, type Group, type QueueEnv } from "./grouping";
 
-type Project = { id: string; name: string; client: { name: string } };
 
 function shortDate(iso: string) {
   const [y, m, d] = iso.split("-");

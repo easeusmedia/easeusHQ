@@ -10,7 +10,9 @@ import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import { TaskTagPicker, type TaskTagOption } from "../TaskTagPicker";
 
-type Project = { id: string; name: string; client: { name: string } };
+// one definition, imported by the board, the list and the card — it was
+// copied into all four, so widening it in one place broke the other three
+export type Project = { id: string; name: string; client: { id: string; name: string } };
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground";
 const label = "flex flex-col gap-1.5 text-sm text-muted";
@@ -46,6 +48,7 @@ export const WorkTaskDialog = forwardRef<
   const [tagIds, setTagIds] = useState<string[]>(task?.tags?.map((t) => t.id) ?? []);
   const [assignedToId, setAssignedToId] = useState(task?.assignedTo?.id ?? actingUserId);
   const [projectId, setProjectId] = useState(task?.projectId ?? "");
+  const [clientId, setClientId] = useState(projects.find((p) => p.id === task?.projectId)?.client.id ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [links, setLinks] = useState<WorkTaskLink[]>(task?.links ?? []);
@@ -53,11 +56,17 @@ export const WorkTaskDialog = forwardRef<
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const clients = [...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+  const clientProjects = projects.filter((p) => p.client.id === clientId);
+
   function open() {
     setTitle(task?.title ?? "");
     setTagIds(task?.tags?.map((t) => t.id) ?? []);
     setAssignedToId(task?.assignedTo?.id ?? actingUserId);
     setProjectId(task?.projectId ?? "");
+    setClientId(projects.find((p) => p.id === task?.projectId)?.client.id ?? "");
     setDueDate(task?.dueDate ?? "");
     setNotes(task?.notes ?? "");
     setLinks(task?.links ?? []);
@@ -87,7 +96,7 @@ export const WorkTaskDialog = forwardRef<
     }
     setSaving(true);
     setError(null);
-    const payload = { title, notes, tagIds, dueDate, projectId, links, attachments, assignedToId };
+    const payload = { title, notes, tagIds, dueDate, clientId, projectId, links, attachments, assignedToId };
     const res =
       mode === "create" ? await createWorkTask(payload) : await updateWorkTask({ id: task!.id, ...payload });
     setSaving(false);
@@ -178,15 +187,37 @@ export const WorkTaskDialog = forwardRef<
             <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
           </div>
 
+          {/* Optional on purpose: plenty of this team's work — reviewing
+              someone's edit, chasing a supplier — belongs to no client at
+              all. Client first, because that's the answer people have;
+              which project it was is often a detail they don't. */}
           <label className={label}>
-            Related project <span className="font-normal normal-case text-muted/70">(optional)</span>
+            For a client <span className="font-normal normal-case text-muted/70">(optional)</span>
             <Dropdown
-              defaultValue={projectId}
-              placeholder="None"
-              onChange={setProjectId}
-              options={projects.map((p) => ({ value: p.id, label: `${p.client.name} · ${p.name}` }))}
+              value={clientId}
+              placeholder="Not client work"
+              onChange={(id) => {
+                setClientId(id);
+                // the old project belonged to the old client
+                setProjectId("");
+              }}
+              options={clients.map((c) => ({ value: c.id, label: c.name }))}
             />
           </label>
+
+          {/* only worth asking once they've said which client, and only when
+              that client has more than one thing on the go */}
+          {clientProjects.length > 1 && (
+            <label className={label}>
+              Which project <span className="font-normal normal-case text-muted/70">(optional)</span>
+              <Dropdown
+                value={projectId}
+                placeholder="Anything for them"
+                onChange={setProjectId}
+                options={clientProjects.map((p) => ({ value: p.id, label: p.name }))}
+              />
+            </label>
+          )}
 
           <label className={label}>
             Notes
@@ -270,7 +301,9 @@ export const WorkTaskDialog = forwardRef<
 
           {error && <p className="text-sm text-red-300">{error}</p>}
 
-          <div className="mt-1 flex items-center justify-between gap-2">
+          {/* sticky: the dialog scrolls, and "Add task" was below the fold
+              on a full form — the one button everybody came here to press */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-1 flex items-center justify-between gap-2 border-t border-border/60 bg-surface/80 px-6 py-4 backdrop-blur">
             {mode === "edit" ? (
               <button
                 type="button"
