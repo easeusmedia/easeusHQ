@@ -8,6 +8,8 @@ import { canEditTag } from "@/lib/scope";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { movedByHand, stageChangeAction } from "@/lib/stages";
+import { frameioConnected, shareFiles, shareIdFrom } from "@/lib/frameio";
+import { exportFolder, uploadFromUrl } from "@/lib/drive";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -724,4 +726,85 @@ export async function getTaskActivity(taskId: string) {
     orderBy: { createdAt: "asc" },
   });
   return logs.map((log) => ({ createdAt: log.createdAt, action: log.action, actorName: log.actor.name }));
+}
+
+// ---- delivering a finished file ----
+//
+// When a task is marked delivered, the Drive link is usually pasted by hand
+// because the team often re-renders at full quality rather than shipping
+// what's on Frame.io. Sometimes the Frame.io original IS the final file, and
+// then copying it across by hand is pure busywork — so this offers it, with
+// the file's name and size on screen, and never does it unasked. The
+// judgement about quality stays with the person delivering.
+
+export type DeliverableFile = {
+  id: string;
+  name: string;
+  size: number | null;
+  ready: boolean;
+  destination: string;
+};
+
+// What's on the other end of this task's review link, and where it would go.
+export async function frameioFileForTask(
+  taskId: string
+): Promise<{ files?: DeliverableFile[]; error?: string }> {
+  const actor = await sessionActor();
+  if (!actor) return { error: "You're not signed in." };
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { frameioLink: true, project: { select: { name: true, type: true, client: { select: { name: true } } } } },
+  });
+  if (!task) return { error: "That task doesn't exist any more." };
+  if (!task.frameioLink) return { error: "This task has no Frame.io link." };
+  if (!(await frameioConnected())) return { error: "Frame.io isn't connected yet — an admin can do that in Integrations." };
+
+  try {
+    const shareId = await shareIdFrom(task.frameioLink);
+    if (!shareId) return { error: "That Frame.io link doesn't point at a share." };
+    const files = await shareFiles(shareId);
+    if (files.length === 0) return { error: "That Frame.io share has no files in it." };
+
+    const destination = `${task.project.client.name} / ${task.project.name || task.project.type}`;
+    return { files: files.map((f) => ({ id: f.id, name: f.name, size: f.size, ready: f.ready, destination })) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't reach Frame.io." };
+  }
+}
+
+// Copies it, and hands back the Drive link so the delivery can carry it.
+export async function copyFrameioFileToDrive(
+  taskId: string,
+  fileId: string
+): Promise<{ url?: string; path?: string; error?: string }> {
+  const actor = await sessionActor();
+  if (!actor) return { error: "You're not signed in." };
+  if (actor.role === "employee") return { error: "Only the core team can deliver a file." };
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { frameioLink: true, project: { select: { name: true, type: true, client: { select: { name: true } } } } },
+  });
+  if (!task?.frameioLink) return { error: "This task has no Frame.io link." };
+
+  try {
+    const shareId = await shareIdFrom(task.frameioLink);
+    if (!shareId) return { error: "That Frame.io link doesn't point at a share." };
+    // re-listed rather than trusting what the prompt was showing: these
+    // download addresses are signed and short-lived
+    const file = (await shareFiles(shareId)).find((f) => f.id === fileId);
+    if (!file) return { error: "That file isn't in the share any more." };
+    if (!file.downloadUrl || !file.ready) return { error: "Frame.io hasn't finished processing that file yet." };
+
+    const folder = await exportFolder(task.project.client.name, task.project.name || task.project.type);
+    const uploaded = await uploadFromUrl(
+      file.downloadUrl,
+      { name: file.name, type: file.mediaType ?? "video/mp4", size: file.size ?? 0 },
+      folder.id
+    );
+    return { url: uploaded.url, path: `${folder.path} / ${file.name}` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't copy that file." };
+  }
 }

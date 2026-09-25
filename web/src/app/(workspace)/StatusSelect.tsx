@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { topLayer, usePopover, useCloseOnScroll } from "./popover";
 import { useRouter } from "next/navigation";
-import { ChevronDown, CheckCircle2 } from "lucide-react";
+import { ChevronDown, CheckCircle2, Copy } from "lucide-react";
 import { moveTask } from "./actions";
 import { linkProblem, pickLink } from "@/lib/links";
 import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
+import { copyFrameioFileToDrive, frameioFileForTask, type DeliverableFile } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
 
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
@@ -35,6 +36,13 @@ export function StatusSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [pendingTo, setPendingTo] = useState<TaskStatus | null>(null);
+  // what Frame.io has for this task, once the delivery prompt asks
+  const [fio, setFio] = useState<{
+    state: "idle" | "loading" | "ready" | "copying" | "copied" | "unavailable";
+    files?: DeliverableFile[];
+    where?: string;
+    why?: string;
+  }>({ state: "idle" });
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -81,12 +89,33 @@ export function StatusSelect({
     }
   }
 
+  // Offered only on delivery, and only when this task has a review link to
+  // copy from. Loaded when the prompt opens rather than up front — it's a
+  // round trip to Frame.io, and most status changes aren't deliveries.
+  async function offerFrameio() {
+    setFio({ state: "loading" });
+    const res = await frameioFileForTask(taskId);
+    if (res.error || !res.files?.length) return setFio({ state: "unavailable", why: res.error ?? "Nothing in that share." });
+    setFio({ state: "ready", files: res.files });
+  }
+
+  async function copyFromFrameio(fileId: string) {
+    setFio((f) => ({ ...f, state: "copying" }));
+    const res = await copyFrameioFileToDrive(taskId, fileId);
+    if (res.error) return setFio((f) => ({ ...f, state: "ready", why: res.error }));
+    // the copy IS the Drive link this delivery needed
+    setInputValue(res.url ?? "");
+    setFio({ state: "copied", where: res.path });
+  }
+
   function pick(to: TaskStatus) {
     setOpen(false);
     setError(null);
     const extra = EXTRA_FIELD[to];
     if (extra) {
       setPendingTo(to);
+      setFio({ state: "idle" });
+      if (to === "delivered_and_uploaded" && links.frameioLink) offerFrameio();
       // already has this link on file (e.g. resubmitting after a revision)
       // — prefill it instead of forcing a retype of the same link
       const existing = extra.field === "frameioLink" || extra.field === "driveLink" ? links[extra.field] : null;
@@ -163,6 +192,44 @@ export function StatusSelect({
             <p className="text-xs text-muted">
               Needed to move this to {STATUS_LABEL[pendingTo!]}.
             </p>
+
+            {/* The finished file is often re-rendered at full quality rather
+                than being whatever sits on Frame.io, so this only ever
+                offers — it shows what's there, with its size, and the person
+                delivering decides whether that's the file to ship. */}
+            {fio.state !== "idle" && fio.state !== "unavailable" && (
+              <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface-2/60 p-2.5">
+                {fio.state === "loading" && <p className="text-xs text-muted">Looking on Frame.io…</p>}
+                {(fio.state === "ready" || fio.state === "copying") &&
+                  fio.files?.map((f) => (
+                    <div key={f.id} className="flex flex-col gap-1.5">
+                      <p className="text-xs leading-snug">
+                        <span className="font-medium">{f.name}</span>
+                        <span className="text-muted">
+                          {f.size ? ` · ${(f.size / 1048576).toFixed(0)}MB` : ""}
+                          {f.ready ? "" : " · still processing"}
+                        </span>
+                      </p>
+                      <p className="text-[11px] leading-snug text-muted">
+                        Copies to Creative Exports / {f.destination}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => copyFromFrameio(f.id)}
+                        disabled={!f.ready || fio.state === "copying"}
+                        className="btn-ghost flex w-fit items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs disabled:opacity-60"
+                      >
+                        <Copy size={12} />
+                        {fio.state === "copying" ? "Copying…" : "Copy this to Drive"}
+                      </button>
+                    </div>
+                  ))}
+                {fio.state === "copied" && (
+                  <p className="text-xs text-emerald-300">Copied to {fio.where}. The link below is that file.</p>
+                )}
+                {fio.why && <p className="text-[11px] text-red-300">{fio.why}</p>}
+              </div>
+            )}
             <input
               autoFocus
               value={inputValue}

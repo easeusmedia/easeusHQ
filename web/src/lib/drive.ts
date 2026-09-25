@@ -1,5 +1,6 @@
 import { createSign } from "crypto";
 import { prisma } from "./prisma";
+import { matchFolder } from "./driveNames";
 
 // Uploading to the company's Google Drive.
 //
@@ -30,6 +31,9 @@ export const DRIVE_SETTINGS = {
   account: "google.account",
   folderId: "google.folderId",
   folderName: "google.folderName",
+  // where finished work goes, as opposed to what clients send in
+  exportsFolderId: "google.exportsFolderId",
+  exportsFolderName: "google.exportsFolderName",
 } as const;
 
 export async function driveSettings(): Promise<Record<string, string>> {
@@ -208,6 +212,67 @@ export async function resumableUploadUrl(
   const url = res.headers.get("location");
   if (!url) throw new Error("Drive didn't return an upload address.");
   return url;
+}
+
+// The folders inside `parentId`, so an existing one can be recognised
+// before a near-duplicate is created next to it (see lib/driveNames).
+export async function subfolders(parentId: string): Promise<{ id: string; name: string }[]> {
+  const query = `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const found = await driveFetch(
+    `drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=200&${SHARED}`,
+    { method: "GET" }
+  );
+  return (found.files ?? []) as { id: string; name: string }[];
+}
+
+// The folder of that name under `parentId`, reusing one that's already
+// there under a differently-punctuated name ("Dr. Tego" for Dr Tego)
+// rather than creating a second one beside it.
+export async function folderLike(name: string, parentId: string): Promise<{ id: string; url: string }> {
+  const existing = matchFolder(name, await subfolders(parentId));
+  if (existing) return { id: existing.id, url: `https://drive.google.com/drive/folders/${existing.id}` };
+  return folder(name, parentId);
+}
+
+// Where a finished file belongs: Creative Exports / <client> / <project>.
+// Both levels are matched against what's there before anything is made —
+// that folder has been organised by hand for years.
+export async function exportFolder(clientName: string, projectName: string): Promise<{ id: string; url: string; path: string }> {
+  const s = await driveSettings();
+  const root = s[DRIVE_SETTINGS.exportsFolderId];
+  if (!root) throw new Error("No Drive folder is set for finished work.");
+  const client = await folderLike(clientName, root);
+  const project = await folderLike(projectName, client.id);
+  return {
+    id: project.id,
+    url: project.url,
+    path: `${s[DRIVE_SETTINGS.exportsFolderName] ?? "Creative Exports"} / ${clientName} / ${projectName}`,
+  };
+}
+
+// Sends a file straight from wherever it is into Drive, without holding it
+// in memory: the response body is piped into Drive's resumable upload as it
+// arrives. A finished video is hundreds of megabytes, and buffering one
+// would be the difference between working and falling over.
+export async function uploadFromUrl(
+  source: string,
+  file: { name: string; type: string; size: number },
+  folderId: string
+): Promise<{ id: string; url: string }> {
+  const session = await resumableUploadUrl(file, folderId);
+  const download = await fetch(source);
+  if (!download.ok || !download.body) throw new Error(`Couldn't fetch the file (${download.status}).`);
+
+  const res = await fetch(session, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream", "Content-Length": String(file.size) },
+    body: download.body,
+    // required by Node/undici when the body is a stream
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.error?.message ?? `Drive refused the upload (${res.status}).`);
+  return { id: body.id, url: body.webViewLink ?? `https://drive.google.com/file/d/${body.id}/view` };
 }
 
 // What a folder is called — used to confirm a pasted link really opens.

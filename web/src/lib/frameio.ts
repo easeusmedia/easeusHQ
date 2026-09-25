@@ -132,55 +132,70 @@ export type FrameioFile = {
   id: string;
   name: string;
   size: number | null;
-  width: number | null;
-  height: number | null;
+  mediaType: string | null;
+  // Frame.io only hands back a download address once it has finished
+  // transcoding; anything else means "not yet"
+  ready: boolean;
   createdAt: string | null;
   downloadUrl: string | null;
 };
 
-type RawAsset = {
+type RawFile = {
   id: string;
   name: string;
   type?: string;
+  status?: string;
   file_size?: number;
-  media_metadata?: { width?: number; height?: number };
+  media_type?: string;
   created_at?: string;
   media_links?: { original?: { download_url?: string } };
 };
 
-// What's actually in a share, with a fresh download address for each file.
-// Those addresses are short-lived signed S3 URLs — fetched at the moment
-// they're used and never stored.
+type RawAsset = RawFile & { head_version?: RawFile };
+
+// What's actually in a share, each with a download address for the original
+// upload — the file as the editor exported it, not a proxy.
+//
+// Everything comes from this one listing because the per-file endpoint
+// refuses these ids (a share's asset isn't reachable as a file in its own
+// right). What a share holds is usually a *version stack* rather than a
+// bare file — every cut of that video, newest first — so the one that
+// matters is its head version.
+//
+// The addresses are short-lived signed URLs. They are fetched at the moment
+// they're used and never stored, so a copy always re-lists the share.
 export async function shareFiles(shareId: string): Promise<FrameioFile[]> {
   const s = await frameioSettings();
-  const accountId = s[FRAMEIO_SETTINGS.accountId];
-  if (!accountId) throw new Error("No Frame.io account has been chosen yet.");
+  const chosen = s[FRAMEIO_SETTINGS.accountId];
+  if (!chosen) throw new Error("No Frame.io account has been chosen yet.");
 
-  const body = await api(`/accounts/${accountId}/shares/${shareId}/assets?include=media_links.original`);
+  // The chosen account first, then any other this login can reach: the
+  // team's shares are spread across two of them, and which one a given
+  // review link belongs to isn't something anyone should have to know.
+  const others = (await accounts().catch(() => [])).map((a) => a.id).filter((id) => id !== chosen);
+  let lastError: unknown = null;
+  let body: { data?: unknown } | null = null;
+  for (const accountId of [chosen, ...others]) {
+    try {
+      body = await api(`/accounts/${accountId}/shares/${shareId}/assets?include=media_links.original`);
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (!body) throw lastError instanceof Error ? lastError : new Error("That share isn't in any Frame.io account we can see.");
+
   const assets = (body?.data ?? []) as RawAsset[];
   return assets
-    .filter((a) => (a.type ?? "file") === "file")
-    .map((a) => ({
-      id: a.id,
-      name: a.name,
-      size: a.file_size ?? null,
-      width: a.media_metadata?.width ?? null,
-      height: a.media_metadata?.height ?? null,
-      createdAt: a.created_at ?? null,
-      downloadUrl: a.media_links?.original?.download_url ?? null,
+    .map((a) => (a.type === "version_stack" && a.head_version ? a.head_version : a))
+    .filter((f) => (f.type ?? "file") === "file")
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      size: f.file_size ?? null,
+      mediaType: f.media_type ?? null,
+      ready: (f.status ?? "") === "transcoded" && !!f.media_links?.original?.download_url,
+      createdAt: f.created_at ?? null,
+      downloadUrl: f.media_links?.original?.download_url ?? null,
     }));
-}
-
-// A single file's own record, for the download address at the moment of
-// copying — the one from the share listing may be minutes old by then.
-export async function fileDownloadUrl(fileId: string): Promise<{ url: string; name: string; size: number | null }> {
-  const s = await frameioSettings();
-  const accountId = s[FRAMEIO_SETTINGS.accountId];
-  if (!accountId) throw new Error("No Frame.io account has been chosen yet.");
-
-  const body = await api(`/accounts/${accountId}/files/${fileId}?include=media_links.original`);
-  const file = body?.data as RawAsset | undefined;
-  const url = file?.media_links?.original?.download_url;
-  if (!url) throw new Error("Frame.io hasn't finished processing that file yet.");
-  return { url, name: file!.name, size: file!.file_size ?? null };
 }

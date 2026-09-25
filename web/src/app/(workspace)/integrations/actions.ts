@@ -125,8 +125,7 @@ export async function testFrameio(): Promise<{ ok?: string; error?: string }> {
     if (files.length === 0) return { error: `Reached Frame.io, but "${task.title}" has no files in its share.` };
     const f = files[0];
     const mb = f.size ? `${(f.size / 1024 / 1024).toFixed(0)}MB` : "size unknown";
-    const res = f.width && f.height ? `${f.width}×${f.height}` : "resolution unknown";
-    return { ok: `Working — "${task.title}" → ${f.name} (${res}, ${mb}).` };
+    return { ok: `Working — "${task.title}" → ${f.name} (${mb}${f.ready ? "" : ", still transcoding"}).` };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "That didn't work." };
   }
