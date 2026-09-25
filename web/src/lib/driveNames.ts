@@ -11,13 +11,26 @@
 // shared word would file Elle Sera's work under Elle Sera Ad.
 
 export function normalizeFolderName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[.,'’"`]/g, "") // Dr. Tego -> dr tego
-    .replace(/[_\-–—]+/g, " ") // hyphens and dashes read as spaces
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/^the /, ""); // The Broker Brunch -> broker brunch
+  return (
+    name
+      .toLowerCase()
+      .replace(/ /g, " ") // a non-breaking space is still a space
+      .trim()
+      // A hand-ordered folder often carries its position: "1. Reels",
+      // "02 - Trailer", "3) Ads". The number is ordering, not name. It only
+      // counts as a prefix when a separator follows it, so "2025" stays
+      // 2025 (otherwise every year folder would normalize to nothing and
+      // they'd all match each other) and "1 August - 13 Sept" keeps its day.
+      .replace(/^\d{1,3}\s*[.)\-:]\s*/, "")
+      .replace(/[.,'’"`]/g, "") // Dr. Tego -> dr tego
+      .replace(/[_\-–—]+/g, " ") // hyphens and dashes read as spaces
+      .replace(/&/g, "and")
+      // "25th June" and "25 June" are the same date written by two people
+      .replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^the /, "") // The Broker Brunch -> broker brunch
+  );
 }
 
 // The folder to put this in, out of what's already there. Null means there

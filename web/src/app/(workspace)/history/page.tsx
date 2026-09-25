@@ -132,11 +132,11 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     ...tasks.map((t) => [
       t.id,
       {
+        // the delivered file and nothing else: raw footage and the Frame.io
+        // thread are cleared after a project wraps, so History would be
+        // offering dead links (and shipping them to the browser) for the
+        // rest of the record's life
         drive: t.driveLink,
-        frameio: t.frameioLink,
-        raw: t.rawLink,
-        reference: t.referenceLink,
-        assets: t.assetLink,
         notes: t.editingNotes,
         reviewNotes: t.reviewNotes,
         internal: t.internal,
@@ -148,10 +148,6 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       t.id,
       {
         drive: null,
-        frameio: null,
-        raw: null,
-        reference: null,
-        assets: null,
         notes: t.notes,
         reviewNotes: null,
         internal: false,

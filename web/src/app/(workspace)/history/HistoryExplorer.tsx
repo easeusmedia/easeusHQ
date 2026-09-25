@@ -110,13 +110,13 @@ export function HistoryExplorer({
   const open = items.find((i) => i.id === openId) ?? null;
   const openLogs = openId ? logsByTask[openId] ?? [] : [];
   const detail = openId ? details[openId] : undefined;
-  // every file the task carries, whichever system it came from
+  // Only what still exists once the work is finished. Raw footage and the
+  // Frame.io thread are cleared out after a project wraps, so listing them
+  // here offers dead links to anyone reading the record months later — the
+  // delivered file is the one thing that lasts. A work task's own links are
+  // kept: nobody clears those, and they're often all it has.
   const fileLinks = [
     { label: "Final Drive", url: detail?.drive },
-    { label: "Frame.io", url: detail?.frameio },
-    { label: "Raw footage", url: detail?.raw },
-    { label: "Reference", url: detail?.reference },
-    { label: "Assets", url: detail?.assets },
     ...(detail?.links ?? []).map((l) => ({ label: l.label || "Link", url: l.url })),
   ].filter((l): l is { label: string; url: string } => !!l.url);
 
@@ -296,15 +296,17 @@ export function HistoryExplorer({
                     </td>
                     <td className="px-3 py-2 tabular-nums text-muted">{i.revisions || "—"}</td>
                     <td className="px-3 py-2">
-                      {link?.drive || link?.frameio ? (
+                      {/* the delivered file only — a Frame.io thread is gone
+                          by the time anyone reads this back */}
+                      {link?.drive ? (
                         <a
-                          href={(link.drive ?? link.frameio)!}
+                          href={link.drive}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-blue-400 underline underline-offset-2"
                         >
-                          {link.drive ? "Drive" : "Frame.io"} ↗
+                          Drive ↗
                         </a>
                       ) : (
                         <span className="text-muted">—</span>
