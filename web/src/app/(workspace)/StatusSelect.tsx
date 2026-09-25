@@ -99,13 +99,19 @@ export function StatusSelect({
     setFio({ state: "ready", files: res.files });
   }
 
-  async function copyFromFrameio(fileId: string) {
-    setFio((f) => ({ ...f, state: "copying" }));
+  // One press does the whole delivery: copy the file across, then move the
+  // task with the link that copy produced. Splitting it into "copy" and then
+  // "confirm" made the person do the app's filing for it.
+  async function copyAndDeliver(fileId: string) {
+    if (!pendingTo) return;
+    setFio((f) => ({ ...f, state: "copying", why: undefined }));
     const res = await copyFrameioFileToDrive(taskId, fileId);
-    if (res.error) return setFio((f) => ({ ...f, state: "ready", why: res.error }));
-    // the copy IS the Drive link this delivery needed
-    setInputValue(res.url ?? "");
+    if (res.error || !res.url) return setFio((f) => ({ ...f, state: "ready", why: res.error ?? "No link came back." }));
+    setInputValue(res.url);
     setFio({ state: "copied", where: res.path });
+    const reason = await commit(pendingTo, { driveLink: res.url });
+    if (reason) return setFio((f) => ({ ...f, state: "ready", why: reason }));
+    dialogRef.current?.close();
   }
 
   function pick(to: TaskStatus) {
@@ -162,6 +168,8 @@ export function StatusSelect({
   }
 
   const extraField = pendingTo ? EXTRA_FIELD[pendingTo] : undefined;
+  // whether Frame.io is offering to do this delivery for them
+  const hasOffer = fio.state !== "idle" && fio.state !== "unavailable" && !!fio.files?.length;
 
   // The "one more thing before this move" prompt (a Frame.io link on submit,
   // the final Drive link on delivery), and the place a refused move explains
@@ -177,7 +185,7 @@ export function StatusSelect({
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        className="glass fixed top-1/2 left-1/2 m-0 w-72 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 w-[min(21rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         {extraField && (
           <form
@@ -193,45 +201,44 @@ export function StatusSelect({
               Needed to move this to {STATUS_LABEL[pendingTo!]}.
             </p>
 
-            {/* The finished file is often re-rendered at full quality rather
-                than being whatever sits on Frame.io, so this only ever
-                offers — it shows what's there, with its size, and the person
-                delivering decides whether that's the file to ship. */}
-            {fio.state !== "idle" && fio.state !== "unavailable" && (
-              <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface-2/60 p-2.5">
-                {fio.state === "loading" && <p className="text-xs text-muted">Looking on Frame.io…</p>}
-                {(fio.state === "ready" || fio.state === "copying") &&
-                  fio.files?.map((f) => (
-                    <div key={f.id} className="flex flex-col gap-1.5">
-                      <p className="text-xs leading-snug">
-                        <span className="font-medium">{f.name}</span>
-                        <span className="text-muted">
-                          {f.size ? ` · ${(f.size / 1048576).toFixed(0)}MB` : ""}
-                          {f.ready ? "" : " · still processing"}
-                        </span>
-                      </p>
-                      <p className="text-[11px] leading-snug text-muted">
-                        Copies to Creative Exports / {f.destination}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => copyFromFrameio(f.id)}
-                        disabled={!f.ready || fio.state === "copying"}
-                        className="btn-ghost flex w-fit items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs disabled:opacity-60"
-                      >
-                        <Copy size={12} />
-                        {fio.state === "copying" ? "Copying…" : "Copy this to Drive"}
-                      </button>
-                    </div>
-                  ))}
-                {fio.state === "copied" && (
-                  <p className="text-xs text-emerald-300">Copied to {fio.where}. The link below is that file.</p>
-                )}
-                {fio.why && <p className="text-[11px] text-red-300">{fio.why}</p>}
-              </div>
-            )}
+            {/* The file Frame.io already has, offered as the whole answer:
+                one press copies it and delivers. The team often re-renders
+                at full quality instead of shipping what's on Frame.io, so
+                it stays an offer — the size on screen is what gives away a
+                low-quality proxy — and pasting a link by hand is always
+                right there underneath. */}
+            {fio.state === "loading" && <p className="text-xs text-muted">Looking on Frame.io…</p>}
+            {(fio.state === "ready" || fio.state === "copying" || fio.state === "copied") &&
+              fio.files?.map((f) => (
+                <div key={f.id} className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2/60 p-2.5">
+                  <div>
+                    <p className="text-xs leading-snug">
+                      <span className="font-medium">{f.name}</span>
+                      <span className="text-muted">{f.size ? ` · ${(f.size / 1048576).toFixed(0)}MB` : ""}</span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted">
+                      {f.ready ? `Creative Exports / ${f.destination}` : "Frame.io is still processing this one."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyAndDeliver(f.id)}
+                    disabled={!f.ready || fio.state === "copying" || fio.state === "copied"}
+                    className="btn-glow flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-60"
+                  >
+                    <Copy size={12} />
+                    {fio.state === "copying"
+                      ? "Copying to Drive…"
+                      : fio.state === "copied"
+                        ? "Delivering…"
+                        : "Copy to Drive and deliver"}
+                  </button>
+                  {fio.why && <p className="text-[11px] text-red-300">{fio.why}</p>}
+                </div>
+              ))}
+            {hasOffer && <p className="text-[11px] text-muted">Or, if you re-rendered it yourself:</p>}
             <input
-              autoFocus
+              autoFocus={!hasOffer}
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -254,7 +261,11 @@ export function StatusSelect({
               >
                 Cancel
               </button>
-              <button type="submit" disabled={submitting} className="btn-glow rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60">
+              <button
+                type="submit"
+                disabled={submitting}
+                className={`rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60 ${hasOffer ? "btn-ghost" : "btn-glow"}`}
+              >
                 {submitting ? "Saving…" : "Confirm"}
               </button>
             </div>
