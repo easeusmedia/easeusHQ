@@ -176,27 +176,38 @@ export async function clientFolder(clientName: string, subfolder: string) {
   return { client, target };
 }
 
-export async function uploadFile(
-  file: { name: string; type: string; bytes: Uint8Array },
-  folderId: string
-): Promise<{ id: string; url: string }> {
-  // multipart: the metadata and the bytes in one request, which is all a
-  // brand asset ever needs (Drive's resumable upload is for the gigabyte case)
-  const boundary = `easeus-${Date.now()}`;
-  const metadata = JSON.stringify({ name: file.name, parents: [folderId] });
-  const body = Buffer.concat([
-    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`),
-    Buffer.from(`--${boundary}\r\nContent-Type: ${file.type || "application/octet-stream"}\r\n\r\n`),
-    Buffer.from(file.bytes),
-    Buffer.from(`\r\n--${boundary}--\r\n`),
-  ]);
 
-  const created = await driveFetch(`upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&${SHARED}`, {
+// A URL the browser can PUT a whole file to, without our access token and
+// without the bytes ever passing through this app.
+//
+// This is how a client uploads something big. The alternative — the file
+// arriving inside a server action, base64'd — is capped at about 4.5MB by
+// the platform we deploy on, and a 400MB raw folder would be held in memory
+// twice on the way through. Google's resumable session URL carries its own
+// permission (that's why it must be treated as a secret and handed only to
+// the person doing that upload), so the browser talks to Google directly and
+// we only ever see the answers on the form.
+export async function resumableUploadUrl(
+  file: { name: string; type: string; size: number },
+  folderId: string
+): Promise<string> {
+  const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&${SHARED}`, {
     method: "POST",
-    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-    body: body as unknown as BodyInit,
+    headers: {
+      Authorization: `Bearer ${await accessToken()}`,
+      "Content-Type": "application/json",
+      "X-Upload-Content-Type": file.type || "application/octet-stream",
+      "X-Upload-Content-Length": String(file.size),
+    },
+    body: JSON.stringify({ name: file.name, parents: [folderId] }),
   });
-  return { id: created.id, url: created.webViewLink ?? `https://drive.google.com/file/d/${created.id}/view` };
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error?.message ?? `Drive said ${res.status}.`);
+  }
+  const url = res.headers.get("location");
+  if (!url) throw new Error("Drive didn't return an upload address.");
+  return url;
 }
 
 // What a folder is called — used to confirm a pasted link really opens.

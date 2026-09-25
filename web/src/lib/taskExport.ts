@@ -1,4 +1,5 @@
 import type { TaskStatus } from "./workflow";
+import { parseStageChange } from "./stages.ts";
 
 // The editor work export: one spreadsheet row per task, with the timings and
 // revision counts worked out from its activity log, so the file can be read
@@ -53,8 +54,9 @@ export function exportRow(
   now: Date
 ): Record<string, Cell> {
   const moves = events.flatMap((e) => {
-    const [from, to] = e.action.split(" → ") as [TaskStatus, TaskStatus?];
-    return to && from in labels && to in labels ? [{ ...e, from, to }] : [];
+    const change = parseStageChange(e.action);
+    const { from, to } = (change ?? {}) as { from?: TaskStatus; to?: TaskStatus };
+    return from && to && from in labels && to in labels ? [{ ...e, from, to }] : [];
   });
   const statusChanges = moves.length;
   // Delivered now, but the log's last word is some earlier stage: the
@@ -127,8 +129,10 @@ export function exportRow(
     // reconstruct what happened to the task, step by step
     Timeline: events
       .map((e) => {
-        const [from, to] = e.action.split(" → ") as [TaskStatus, TaskStatus?];
-        const what = to ? `${labels[from] ?? from} → ${labels[to] ?? to}` : e.action;
+        const change = parseStageChange(e.action);
+        const what = change
+          ? `${labels[change.from as TaskStatus] ?? change.from} → ${labels[change.to as TaskStatus] ?? change.to}${change.fromNotion ? " (from Notion)" : ""}`
+          : e.action;
         return `${ist(e.at)} · ${e.actor} · ${what}`;
       })
       .join(" | "),

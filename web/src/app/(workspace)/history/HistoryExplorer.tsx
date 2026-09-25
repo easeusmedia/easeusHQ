@@ -4,14 +4,13 @@ import { useMemo, useRef, useState } from "react";
 import { Download, ExternalLink, Filter, Search } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
 import { deleteTaskPermanently } from "../actions";
-import { formatDate, formatDateTime } from "../TaskCard";
+import { formatDate } from "../TaskCard";
 import { DatePicker } from "../DatePicker";
 import { Dropdown } from "../Dropdown";
 import { Toolbar } from "../ViewToggle";
 import { TaskTagChip } from "../TaskTagPicker";
-import { STAGE } from "@/lib/stages";
-import type { TaskStatus } from "@/lib/workflow";
 import { activeHours, filterHistory, onTime, summarize, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
+import { StageTrail } from "../StageTrail";
 
 type Wire = Omit<HistoryItem, "createdAt" | "startedAt" | "completedAt" | "dueDate"> & {
   createdAt: string | Date;
@@ -32,7 +31,6 @@ const VIEWS: { key: "list" | GroupBy; label: string; column: string }[] = [
 const columnFor = (view: "list" | GroupBy) => VIEWS.find((v) => v.key === view)!.column;
 
 // the stored keys ("sent_for_approval") read as the stage names the board uses
-const stageName = (key: string) => STAGE[key as TaskStatus]?.label ?? key;
 
 const hoursLabel = (h: number | null) => (h === null ? "—" : h >= 48 ? `${Math.round(h / 24)}d` : `${h}h`);
 
@@ -449,29 +447,7 @@ export function HistoryExplorer({
             {openLogs.length > 0 && (
               <div className="mt-5">
                 <p className="mb-2 text-xs font-medium text-muted">Every stage it went through</p>
-                <ol className="flex flex-col gap-2">
-                  {openLogs.map((l, idx) => {
-                    const [from, to] = l.action.split(" → ");
-                    return (
-                      <li key={idx} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-2 text-sm last:border-0">
-                        <span>
-                          {to ? (
-                            <>
-                              {stageName(from)} <span className="text-muted">→</span> {stageName(to)}
-                            </>
-                          ) : l.action === "created" ? (
-                            "Created"
-                          ) : (
-                            l.action
-                          )}
-                        </span>
-                        <span className="text-xs text-muted">
-                          {l.actorName} · {formatDateTime(l.createdAt)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
+                <StageTrail logs={openLogs} />
               </div>
             )}
             <div className="mt-5 flex justify-end">

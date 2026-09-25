@@ -6,7 +6,9 @@ import { ImagePlus, Paperclip, X } from "lucide-react";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { submitOnboarding } from "../actions";
 
-type Upload = { name: string; type: string; data: string; size: number };
+// the File itself stays in the browser — only its name, type and size are
+// ever sent to us (see submitOnboarding)
+type Upload = { file: File };
 
 const field =
   "w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground placeholder:text-muted";
@@ -18,12 +20,19 @@ const SOCIAL_FIELDS = [
   { key: "Other", placeholder: "Podcast, LinkedIn, anything else" },
 ];
 
-const readAsDataUrl = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`Couldn't read ${file.name}`));
-    reader.readAsDataURL(file);
+// Straight to Google, with the one-time address the server just made for
+// this file. XHR rather than fetch because it reports progress, and a client
+// sending a few hundred megabytes of raw footage deserves to see it move.
+const putToDrive = (url: string, file: File, onProgress: (fraction: number) => void) =>
+  new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 400 ? resolve() : reject(new Error(`${file.name} (${xhr.status})`));
+    xhr.onerror = () => reject(new Error(`${file.name} couldn't be uploaded`));
+    xhr.send(file);
   });
 
 // Six questions and a file picker. Everything here is either something we
@@ -54,6 +63,7 @@ export function OnboardingForm({
   const [logo, setLogo] = useState<string | null>(null);
   const [files, setFiles] = useState<Upload[]>([]);
   const [saving, setSaving] = useState(false);
+  const [sent, setSent] = useState(0); // bytes already at Google
   const [error, setError] = useState<string | null>(null);
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -69,18 +79,11 @@ export function OnboardingForm({
     }
   }
 
-  async function pickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+  function pickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const chosen = [...(e.target.files ?? [])];
     e.target.value = "";
     setError(null);
-    try {
-      const read = await Promise.all(
-        chosen.map(async (f) => ({ name: f.name, type: f.type, size: f.size, data: await readAsDataUrl(f) }))
-      );
-      setFiles((current) => [...current, ...read].slice(0, 20));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't read those files.");
-    }
+    setFiles((current) => [...current, ...chosen.map((file) => ({ file }))].slice(0, 50));
   }
 
   async function submit(e: React.FormEvent) {
@@ -92,15 +95,33 @@ export function OnboardingForm({
       ...form,
       logo,
       socials: Object.entries(socials).map(([label, url]) => ({ label, url })),
-      files: files.map(({ name, type, data }) => ({ name, type, data })),
+      files: files.map(({ file }) => ({ name: file.name, type: file.type, size: file.size })),
     });
+    if (res.error) {
+      setSaving(false);
+      return setError(res.error);
+    }
+
+    // their answers are saved by this point; the files go up now, one at a
+    // time so a slow connection isn't asked to do all of them at once
+    let failed = 0;
+    for (const [i, { url }] of (res.uploads ?? []).entries()) {
+      const file = files[i]?.file;
+      if (!file) continue;
+      const done = files.slice(0, i).reduce((sum, f) => sum + f.file.size, 0);
+      try {
+        await putToDrive(url, file, (fraction) => setSent(done + file.size * fraction));
+      } catch {
+        failed++;
+      }
+    }
     setSaving(false);
-    if (res.error) return setError(res.error);
     // the page itself shows the thank-you (see page.tsx)
-    window.location.replace(`/onboarding/${token}?sent=${res.warning ? "partial" : "ok"}`);
+    window.location.replace(`/onboarding/${token}?sent=${res.warning || failed ? "partial" : "ok"}`);
   }
 
-  const totalMb = files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024;
+  const totalBytes = files.reduce((sum, f) => sum + f.file.size, 0);
+  const mb = (bytes: number) => bytes / 1024 / 1024;
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
@@ -194,15 +215,16 @@ export function OnboardingForm({
               <input ref={fileRef} type="file" multiple onChange={pickFiles} className="hidden" />
               {files.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
-                  {files.map((f, i) => (
-                    <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">
-                      <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                      <span className="shrink-0 text-xs text-muted">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                  {files.map(({ file }, i) => (
+                    <li key={`${file.name}-${i}`} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                      <span className="shrink-0 text-xs text-muted">{mb(file.size).toFixed(1)}MB</span>
                       <button
                         type="button"
                         onClick={() => setFiles((cur) => cur.filter((_, idx) => idx !== i))}
-                        aria-label={`Remove ${f.name}`}
-                        className="btn-ghost shrink-0 rounded-md p-1"
+                        aria-label={`Remove ${file.name}`}
+                        disabled={saving}
+                        className="btn-ghost shrink-0 rounded-md p-1 disabled:opacity-40"
                       >
                         <X size={13} />
                       </button>
@@ -210,7 +232,22 @@ export function OnboardingForm({
                   ))}
                 </ul>
               )}
-              {totalMb > 0 && <p className="text-xs text-muted">{totalMb.toFixed(1)}MB in total · up to 100MB</p>}
+              {totalBytes > 0 && (
+                <p className="text-xs text-muted">
+                  {mb(totalBytes).toFixed(1)}MB in total
+                  {/* the bar only appears once bytes are actually moving, and
+                      the files go straight to our Drive, not through the app */}
+                  {saving && sent > 0 && ` · ${Math.min(100, Math.round((sent / totalBytes) * 100))}% uploaded`}
+                </p>
+              )}
+              {saving && totalBytes > 0 && (
+                <div className="h-1 overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    className="h-full rounded-full bg-foreground/70 transition-[width] duration-300 ease-out"
+                    style={{ width: `${Math.min(100, (sent / totalBytes) * 100)}%` }}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <input
@@ -225,7 +262,7 @@ export function OnboardingForm({
         {error && <p className="text-sm text-red-300">{error}</p>}
 
         <button type="submit" disabled={saving} className="btn-glow rounded-xl px-5 py-3 text-sm font-medium disabled:opacity-60">
-          {saving ? "Sending…" : "Send to Easeus"}
+          {!saving ? "Send to Easeus" : sent > 0 ? "Uploading your files…" : "Sending…"}
         </button>
         <p className="pb-6 text-center text-xs text-muted">Only the Easeus team sees this.</p>
       </form>

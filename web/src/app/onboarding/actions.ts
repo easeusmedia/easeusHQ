@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { firstFree, slugify } from "@/lib/slug";
 import { isStorablePicture } from "@/lib/photos";
 import { normalizeUrl } from "@/lib/links";
-import { clientFolder, driveConfigured, uploadFile } from "@/lib/drive";
+import { clientFolder, driveConfigured, resumableUploadUrl } from "@/lib/drive";
 
 // Onboarding a new client: ops makes a link, the client fills it in, and
 // their record here is created from what they wrote. No account for them, no
@@ -46,13 +46,27 @@ export type OnboardingInput = {
   logo: string | null; // small data: URI, resized in the browser
   socials: { label: string; url: string }[];
   assetsLink: string; // used when Drive isn't connected yet
-  files: { name: string; type: string; data: string }[]; // data: base64
+  // just what each file is, never its bytes: the browser uploads those to
+  // Drive itself, with the addresses this returns
+  files: { name: string; type: string; size: number }[];
 };
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+// A ceiling only so a typo can't ask Google for a 50TB session. Big enough
+// that a client sending raw footage doesn't hit it.
+const MAX_FILE_BYTES = 5 * 1024 * 1024 * 1024;
+const MAX_FILES = 50;
 
-export async function submitOnboarding(input: OnboardingInput): Promise<{ slug?: string; error?: string; warning?: string }> {
+export type OnboardingResult = {
+  slug?: string;
+  error?: string;
+  warning?: string;
+  // one per file, in the order they were sent: where the browser PUTs it.
+  // A secret — it grants an upload into that folder — so it goes to the
+  // person filling in the form and nowhere else.
+  uploads?: { name: string; url: string }[];
+};
+
+export async function submitOnboarding(input: OnboardingInput): Promise<OnboardingResult> {
   const invite = await prisma.clientInvite.findUnique({ where: { token: String(input.token ?? "") } });
   if (!invite) return { error: "This link isn't valid. Ask your contact at Easeus for a new one." };
   if (invite.usedAt) return { error: "This form has already been filled in. Get in touch if something needs changing." };
@@ -61,15 +75,11 @@ export async function submitOnboarding(input: OnboardingInput): Promise<{ slug?:
   if (!name) return { error: "Please give your brand or business name." };
   if (input.logo && !isStorablePicture(input.logo)) return { error: "That logo couldn't be read — try a JPEG or PNG." };
 
-  const files = (input.files ?? []).slice(0, 20);
-  const bytesOf = (f: { data: string }) => Buffer.from((f.data ?? "").split(",").pop() ?? "", "base64");
-  let total = 0;
+  const files = (input.files ?? []).slice(0, MAX_FILES);
   for (const f of files) {
-    const size = bytesOf(f).length;
-    total += size;
-    if (size > MAX_FILE_BYTES) return { error: `"${f.name}" is bigger than 25MB — send that one to us directly.` };
+    if (!f?.name) return { error: "One of those files has no name — remove it and try again." };
+    if (!(f.size >= 0) || f.size > MAX_FILE_BYTES) return { error: `"${f.name}" is too big to send this way.` };
   }
-  if (total > MAX_TOTAL_BYTES) return { error: "That's more than 100MB in one go — send the rest to us directly." };
 
   const socials = (input.socials ?? [])
     .map((s) => ({ label: s.label?.trim() || "Link", url: normalizeUrl(s.url ?? "") ?? "" }))
@@ -98,15 +108,18 @@ export async function submitOnboarding(input: OnboardingInput): Promise<{ slug?:
   });
 
   let warning: string | undefined;
+  let uploads: { name: string; url: string }[] | undefined;
   if (files.length > 0) {
-    if (!driveConfigured()) {
+    // await: this is a promise, and an un-awaited one is always truthy — the
+    // "Drive isn't connected" path was unreachable
+    if (!(await driveConfigured())) {
       warning = "We've saved your details. Our team will be in touch about the files.";
     } else {
       try {
         const { client: folder, target } = await clientFolder(name, "Brand assets");
-        for (const f of files) {
-          await uploadFile({ name: f.name, type: f.type, bytes: bytesOf(f) }, target.id);
-        }
+        uploads = await Promise.all(
+          files.map(async (f) => ({ name: f.name, url: await resumableUploadUrl(f, target.id) }))
+        );
         await prisma.client.update({
           where: { id: client.id },
           data: { driveFolderId: folder.id, driveFolderUrl: folder.url },
@@ -124,5 +137,5 @@ export async function submitOnboarding(input: OnboardingInput): Promise<{ slug?:
 
   await prisma.clientInvite.update({ where: { id: invite.id }, data: { usedAt: new Date(), clientId: client.id } });
   revalidatePath("/clients");
-  return { slug, warning };
+  return { slug, warning, uploads };
 }

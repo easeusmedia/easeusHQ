@@ -7,6 +7,7 @@ import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
 import { canEditTag } from "@/lib/scope";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
+import { movedByHand, stageChangeAction } from "@/lib/stages";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -177,7 +178,7 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     });
     // the record the calendar view reads — "this task had activity today"
     await prisma.activityLog.create({
-      data: { actorId: actingUserId, action: `${task.status} → ${to}`, entity: "Task", entityId: taskId },
+      data: { actorId: actingUserId, action: stageChangeAction(task.status, to), entity: "Task", entityId: taskId },
     });
     revalidatePath("/board");
     return { success: true };
@@ -500,6 +501,26 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
     const statusById = new Map(mirrored.map((t) => [t.id, t.status]));
     const existingByNotionId = new Map(mirrored.map((t) => [t.notionPageId, t.id]));
 
+    // Which of those the team has since moved themselves. Notion's column is
+    // where a task comes *in*; once someone here has moved it, this board is
+    // where that task's stage lives and a sync no longer overwrites it.
+    // Without this, an editor who stops updating Notion once they've exported
+    // (which is what they do) drags the task back to "Final export ready"
+    // every sync — including out of History, days after it was delivered.
+    const stageLogs = await prisma.activityLog.findMany({
+      where: { entity: "Task", entityId: { in: mirrored.map((t) => t.id) }, action: { contains: "→" } },
+      select: { entityId: true, action: true },
+    });
+    const byHand = new Set<string>();
+    for (const [id, actions] of Object.entries(
+      stageLogs.reduce<Record<string, string[]>>((acc, l) => {
+        (acc[l.entityId] ??= []).push(l.action);
+        return acc;
+      }, {})
+    )) {
+      if (movedByHand(actions)) byHand.add(id);
+    }
+
     let created = 0;
     let updated = 0;
     let skipped = 0;
@@ -547,25 +568,32 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         ...routeExportedLink(getUrl(row.properties, "Exported Link")),
       };
 
-      // already tracked — Notion is the source of truth during this
-      // testing phase, so keep the status (and links) in sync with
-      // whatever it currently shows there, rather than only ever creating
-      // once and then ignoring later changes made in Notion. This is the
-      // one thing allowed to reach back past today: an already-tracked
-      // task that's fallen behind (still shows an old status here) should
-      // still catch up regardless of which day it was originally queued.
+      // already tracked. The title and links always come across — Notion is
+      // where the editor keeps them. The stage and who it's assigned to only
+      // come across while nobody here has moved the task: after that this
+      // board is where its stage lives, and a stale Notion column (an editor
+      // who exported and never touched the row again) must not drag it
+      // backwards, least of all out of History.
       const existingId = existingByNotionId.get(row.id);
       if (existingId) {
-        // Notion wins here, on every row — that's what this button now
-        // means. Sending our own values the other way is the Push button.
-        await prisma.task.update({ where: { id: existingId }, data: sharedData });
+        const ours = byHand.has(existingId);
+        const { status: notionStatus, assignedToId, ...rest } = sharedData;
+        await prisma.task.update({
+          where: { id: existingId },
+          data: ours ? rest : { ...rest, status: notionStatus, ...(assignedToId ? { assignedToId } : {}) },
+        });
         // a stage change made in Notion goes in the log like any other, so
-        // History and the editor export see it; stamped at sync time, which
-        // is as close as we can know
+        // History and the editor export see it — marked as Notion's, so a
+        // later sync can still tell it apart from the team's own moves
         const before = statusById.get(existingId);
-        if (before && before !== sharedData.status) {
+        if (!ours && before && before !== notionStatus) {
           await prisma.activityLog.create({
-            data: { actorId: user.id, action: `${before} → ${sharedData.status}`, entity: "Task", entityId: existingId },
+            data: {
+              actorId: user.id,
+              action: stageChangeAction(before, notionStatus, true),
+              entity: "Task",
+              entityId: existingId,
+            },
           });
         }
         updated++;
@@ -632,12 +660,22 @@ export async function pushToNotion(): Promise<NotionSyncResult> {
   }
 
   try {
-    // the same people whose work belongs in the Editing Queue (pushesToNotion)
     const tasks = await prisma.task.findMany({
-      where: { status: { in: ACTIVE_STATUSES }, assignedTo: { role: { not: "admin" }, team: { slug: "operations" } } },
+      where: {
+        OR: [
+          // a row already in the queue is kept current whatever stage it's
+          // reached, delivered included — that's how Notion learns the work
+          // shipped. Leaving delivered tasks out is what left its rows stuck
+          // at "Final export ready" months after the client had the file.
+          { notionPageId: { not: null } },
+          // and anything still live that belongs there but isn't yet: the
+          // same people as pushesToNotion — Operations, minus the admin
+          { status: { in: ACTIVE_STATUSES }, assignedTo: { role: { not: "admin" }, team: { slug: "operations" } } },
+        ],
+      },
       select: { id: true, title: true, notionPageId: true },
       orderBy: { createdAt: "asc" },
-      take: 200,
+      take: 400,
     });
 
     let created = 0;

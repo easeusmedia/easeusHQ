@@ -10,8 +10,8 @@ import { ProjectField } from "./ProjectField";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
 import { Avatar, DueDate, formatDateTime, istDay } from "./TaskCard";
 import { DatePicker } from "./DatePicker";
-import type { Role, TaskStatus } from "@/lib/workflow";
-import { STAGE } from "@/lib/stages";
+import type { Role } from "@/lib/workflow";
+import { StageTrail } from "./StageTrail";
 import type { TaskCardData } from "./TaskCard";
 
 const initialState: TaskFormState = {};
@@ -353,7 +353,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
               <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has gone through</p>
               <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border p-3">
-                <TaskHistory logs={logs} />
+                <StageTrail logs={logs} />
               </div>
             </div>
           </div>
@@ -399,42 +399,4 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   );
 });
 
-const stageName = (s: string) => STAGE[s as TaskStatus]?.label ?? s;
 
-// The trail as a timeline, newest last: what changed in words ("Editing →
-// Sent for approval", not the stored keys), then who and when underneath.
-// One column that wraps, so nothing is ever cut off at the panel's edge.
-function TaskHistory({ logs }: { logs: LogEntry[] | null }) {
-  if (logs === null) return <p className="text-xs text-muted">Loading…</p>;
-  if (logs.length === 0) return <p className="text-xs text-muted">No recorded activity.</p>;
-  return (
-    <ol>
-      {logs.map((log, i) => {
-        const [from, to] = log.action.split(" → ");
-        return (
-          <li key={i} className="relative border-l border-border pb-4 pl-4 last:border-transparent last:pb-0">
-            <span
-              className={`absolute -left-[4.5px] top-1 h-2 w-2 rounded-full ring-2 ring-background ${
-                to ? (STAGE[to as TaskStatus]?.dot ?? "bg-neutral-400") : "bg-neutral-400"
-              }`}
-            />
-            <p className="text-sm leading-snug">
-              {to ? (
-                <>
-                  {stageName(from)} <span className="text-muted">→</span> {stageName(to)}
-                </>
-              ) : log.action === "created" ? (
-                "Created"
-              ) : (
-                log.action
-              )}
-            </p>
-            <p className="mt-0.5 text-xs text-muted">
-              {log.actorName} · {formatDateTime(log.createdAt)}
-            </p>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}

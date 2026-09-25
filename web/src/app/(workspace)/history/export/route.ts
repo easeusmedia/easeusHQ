@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assigneeWhere } from "@/lib/scope";
-import { STAGE } from "@/lib/stages";
+import { STAGE, parseStageChange } from "@/lib/stages";
 import { exportRow, toCsv, unionRows, type ExportEvent } from "@/lib/taskExport";
 import {
   activeHours,
@@ -72,8 +72,8 @@ export async function GET(request: Request) {
   }
 
   const startedAt = (taskId: string): Date | null =>
-    trail.get(taskId)?.find((e) => e.action.endsWith("→ editing"))?.at ??
-    trail.get(taskId)?.find((e) => e.action.includes("→"))?.at ??
+    trail.get(taskId)?.find((e) => parseStageChange(e.action)?.to === "editing")?.at ??
+    trail.get(taskId)?.find((e) => parseStageChange(e.action))?.at ??
     null;
 
   const asItem = (t: (typeof tasks)[number] | (typeof workTasks)[number], kind: HistoryItem["kind"]): HistoryItem => ({

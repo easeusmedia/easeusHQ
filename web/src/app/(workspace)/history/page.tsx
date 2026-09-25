@@ -7,6 +7,7 @@ import type { TaskStatus } from "@/lib/workflow";
 import { assigneeWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { HistoryItem } from "@/lib/history";
+import { parseStageChange } from "@/lib/stages";
 import { HistoryExplorer } from "./HistoryExplorer";
 
 export const dynamic = "force-dynamic";
@@ -83,8 +84,8 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   // first move of any kind
   const startedAt = (taskId: string): Date | null => {
     const trail = logsByTask[taskId] ?? [];
-    const editing = trail.find((l) => l.action.endsWith("→ editing"));
-    const firstMove = trail.find((l) => l.action.includes("→"));
+    const editing = trail.find((l) => parseStageChange(l.action)?.to === "editing");
+    const firstMove = trail.find((l) => parseStageChange(l.action));
     const at = editing?.createdAt ?? firstMove?.createdAt;
     return at ? new Date(at) : null;
   };

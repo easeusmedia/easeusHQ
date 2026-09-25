@@ -58,3 +58,30 @@ export const STAGE: Record<
     link: { field: "driveLink", label: "Drive" },
   },
 };
+
+// ---- the activity log's stage lines ----
+//
+// A stage change is stored as one string: "queued → editing". A sync writes
+// the same line with "(from Notion)" on the end, because the two are not the
+// same event: a person here moving a task is a decision, and a sync copying
+// Notion's column is not. Which it was decides whether a later sync may
+// change that task's stage again (see syncFromNotion) — so both the writing
+// and the reading of that mark live here, together, rather than as four
+// string tests scattered across the places that read the log.
+const FROM_NOTION = " (from Notion)";
+
+export function stageChangeAction(from: string, to: string, fromNotion = false): string {
+  return `${from} → ${to}${fromNotion ? FROM_NOTION : ""}`;
+}
+
+export function parseStageChange(action: string): { from: string; to: string; fromNotion: boolean } | null {
+  const fromNotion = action.endsWith(FROM_NOTION);
+  const [from, to] = (fromNotion ? action.slice(0, -FROM_NOTION.length) : action).split(" → ");
+  return from && to ? { from, to, fromNotion } : null;
+}
+
+// Did a person here move this task, as opposed to a sync copying Notion?
+// Once they have, the board owns that task's stage.
+export function movedByHand(actions: string[]): boolean {
+  return actions.some((a) => parseStageChange(a)?.fromNotion === false);
+}

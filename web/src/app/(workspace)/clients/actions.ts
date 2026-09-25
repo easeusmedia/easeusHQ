@@ -375,6 +375,10 @@ export async function setClientTags(clientId: string, tagIds: string[]): Promise
 // points at them has to go first, in one transaction — a half-deleted client
 // (projects gone, client still there) is worse than either outcome.
 export async function clientFootprint(clientId: string) {
+  // guarded like the delete it precedes: how much work and how many invoices
+  // a client has is the team's business, and a server action is callable by
+  // anyone who knows its name
+  if (!(await requireOps())) return { projects: 0, tasks: 0, documents: 0, invoices: 0, deliverables: 0, feedback: 0 };
   const [projects, tasks, documents, invoices, deliverables, feedback] = await Promise.all([
     prisma.project.count({ where: { clientId } }),
     prisma.task.count({ where: { project: { clientId } } }),
