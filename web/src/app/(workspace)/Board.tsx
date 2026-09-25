@@ -2,12 +2,13 @@
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, Trash2, X } from "lucide-react";
 import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { StickyColumns, scrollPageNearEdge } from "./StickyColumns";
 import { TaskRow } from "./TaskRow";
-import { moveTask, reorderTask } from "./actions";
+import { deleteTasks, moveTask, reorderTask } from "./actions";
+import { ConfirmButton } from "./ConfirmButton";
 import { linkProblem, pickLink } from "@/lib/links";
 import { STAGE } from "@/lib/stages";
 import { ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
@@ -77,6 +78,27 @@ export function Board({
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Picking several rows at once, to delete them in one go. List view only:
+  // the board's cards are for dragging, and a checkbox on each would be in
+  // the way of the thing they're actually for.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const canSelect = layout === "list" && actingRole !== "employee";
+  const toggleSelected = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  async function deleteSelected() {
+    setDeleting(true);
+    const res = await deleteTasks([...selected]);
+    setDeleting(false);
+    if (res.error) return;
+    setSelected(new Set());
+    router.refresh();
+  }
   const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -274,6 +296,8 @@ export function Board({
                 actingUserId={actingUserId}
                 actingRole={actingRole}
                 taskTags={taskTags}
+                selected={selected.has(task.id)}
+                onSelect={canSelect ? toggleSelected : undefined}
               />
             ) : (
               <TaskCard
@@ -370,6 +394,30 @@ export function Board({
           </form>
         )}
       </dialog>
+
+      {/* Sits above the Notion buttons rather than over them, and only while
+          something is actually ticked. */}
+      {selected.size > 0 && (
+        <div className="fade-in fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-2.5 shadow-xl">
+          <span className="text-sm">
+            {selected.size} task{selected.size === 1 ? "" : "s"} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+          >
+            <X size={13} /> Clear
+          </button>
+          <ConfirmButton
+            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? Their history goes too, and this can't be undone.`}
+            onConfirm={deleteSelected}
+            className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/25"
+          >
+            <Trash2 size={13} /> {deleting ? "Deleting…" : "Delete"}
+          </ConfirmButton>
+        </div>
+      )}
 
       {layout === "board" ? (
         // The page scrolls, the stage headers stay pinned above the cards,

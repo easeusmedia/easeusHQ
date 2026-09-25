@@ -21,6 +21,8 @@ export function TaskRow({
   actingUserId,
   actingRole,
   taskTags = [],
+  selected,
+  onSelect,
 }: {
   task: TaskCardData;
   clientName: string;
@@ -30,6 +32,10 @@ export function TaskRow({
   actingUserId: string;
   actingRole: Role;
   taskTags?: TaskTagOption[];
+  // present only where picking several at once is allowed (the list view,
+  // for admin and core) — absent, the row has no checkbox at all
+  selected?: boolean;
+  onSelect?: (id: string) => void;
 }) {
   const detailsRef = useRef<{ open: () => void }>(null);
 
@@ -48,8 +54,21 @@ export function TaskRow({
     <>
       <div
         onClick={() => detailsRef.current?.open()}
-        className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 text-left hover:bg-surface-2"
+        className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+          selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
+        }`}
       >
+        {onSelect && (
+          <input
+            type="checkbox"
+            checked={!!selected}
+            aria-label={`Select ${task.title}`}
+            // the row itself opens the task; ticking it must not
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => onSelect(task.id)}
+            className="size-4 shrink-0 accent-foreground"
+          />
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm">{task.title}</span>
           <span className="block truncate text-xs text-muted">{subtitle}</span>

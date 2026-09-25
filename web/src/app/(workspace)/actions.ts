@@ -1,13 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { ACTIVE_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
+import { ACTIVE_STATUSES, ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
 import { canEditTag } from "@/lib/scope";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
-import { movedByHand, stageChangeAction } from "@/lib/stages";
+import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
 import { frameioConnected, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { exportFolder, uploadFromUrl } from "@/lib/drive";
 import { redirect } from "next/navigation";
@@ -391,6 +391,21 @@ export async function deleteTask(formData: FormData) {
   revalidatePath("/board");
 }
 
+// Several at once, from the list view's selection. Same bar as deleting one
+// (admin/core), and one query rather than one per task — picking ten rows
+// and deleting them one at a time is exactly what the selection is for.
+export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number; error?: string }> {
+  const actor = await sessionActor();
+  if (!actor || actor.role === "employee") return { error: "Only admin or core can delete tasks." };
+  const ids = taskIds.filter(Boolean);
+  if (ids.length === 0) return { deleted: 0 };
+
+  const { count } = await prisma.task.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/board");
+  revalidatePath("/history");
+  return { deleted: count };
+}
+
 // Permanently wipes a task and everything referencing it — for cleaning
 // dummy/test rows out of History, not something ops reaches for on real
 // client work (that's what deleteTask above is for, and it's reversible in
@@ -415,6 +430,15 @@ export async function deleteTaskPermanently(formData: FormData) {
 // Their Notion "Status" options, verified directly against the database
 // schema — nearly identical to our own TaskStatus, just Notion's own
 // display casing/spacing.
+// Notion's authority stops at "Sent for Client Approval". Everything past
+// that — the client's verdict, the final export, the delivery — happens
+// here, and the Notion row is abandoned at whatever the editor last set it
+// to. So a row further along than this is not news about that task; it's a
+// stale column, and taking it would drag finished work back onto the board.
+const NOTION_LAST_STAGE: TaskStatus = "sent_for_client_approval";
+const fromNotionAllowed = (status: TaskStatus) =>
+  ALL_STATUSES.indexOf(status) <= ALL_STATUSES.indexOf(NOTION_LAST_STAGE);
+
 const NOTION_STATUS_MAP: Record<string, TaskStatus> = {
   queued: "queued",
   editing: "editing",
@@ -578,7 +602,9 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       // backwards, least of all out of History.
       const existingId = existingByNotionId.get(row.id);
       if (existingId) {
-        const ours = byHand.has(existingId);
+        // the board owns it once someone here has moved it, and Notion
+        // never speaks for a stage past its own last one
+        const ours = byHand.has(existingId) || !fromNotionAllowed(sharedData.status);
         const { status: notionStatus, assignedToId, ...rest } = sharedData;
         await prisma.task.update({
           where: { id: existingId },
@@ -602,14 +628,14 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         continue;
       }
 
-      // not tracked here yet. Anything Notion still has open comes onto the
-      // board in the column its status names, whatever day it was queued —
-      // that's the whole point of the button. What doesn't come over is work
-      // Notion already finished before this board existed: that's years of
-      // delivered rows, and importing them would dump them all into History
-      // as though we'd just shipped them.
-      if (sharedData.status === "delivered_and_uploaded") {
-        skip("already finished in Notion before this board existed", title);
+      // not tracked here yet. A row still moving through Notion's half of
+      // the pipeline comes onto the board in the column its status names,
+      // whatever day it was queued — that's the whole point of the button.
+      // A row already past that is work this app never handled: importing
+      // it would land finished videos straight into History as though we'd
+      // just shipped them.
+      if (!fromNotionAllowed(sharedData.status)) {
+        skip(`already past ${STAGE[NOTION_LAST_STAGE].label} in Notion`, title);
         continue;
       }
 
