@@ -35,7 +35,10 @@ export default async function MyTasksPage() {
       actingUserId={me.id}
       showAssignee={false}
       canCreate
-      assignees={work.assignable}
+      // Your own list, so what you add here is yours: no "Assignee" chip.
+      // Handing work to someone else is the Board's team tabs (Operations,
+      // Sales, Everyone), which list everyone you're allowed to give it to.
+      assignees={work.assignable.filter((a) => a.id === me.id)}
       taskTags={work.taskTags}
       canManageTags={me.role !== "employee"}
       toolbarRight={
