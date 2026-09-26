@@ -1,31 +1,26 @@
 import { NextResponse } from "next/server";
-import { requireOps } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/auth";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { youtubeConsentUrl } from "@/lib/youtube";
-import { instagramConsentUrl } from "@/lib/instagram";
-import { backToClient, startState } from "@/lib/socialConnect";
+import { metaConsentUrl } from "@/lib/instagram";
+import { startState } from "@/lib/socialConnect";
 
-// "Connect YouTube" / "Connect Instagram" on a client's Analytics tab: off to
-// Google's or Instagram's own consent screen, which comes back to the
-// callback with a one-time code. Ops only.
+// "Connect" under Integrations → Client analytics: off to Google's or
+// Facebook's own consent screen with the team's account, once. Admin only —
+// it's the company's account doing the reading for every client.
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const id = await getSessionUserId();
+  const user = id ? await prisma.user.findUnique({ where: { id } }) : null;
+  if (!user || !isAbhishekOrAdmin(user)) return NextResponse.redirect(new URL("/login", url.origin));
   const platform = url.searchParams.get("platform");
-  const clientId = url.searchParams.get("client") ?? "";
-  if (!(await requireOps())) return NextResponse.redirect(new URL("/login", url.origin));
-  if (!(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) {
-    return NextResponse.redirect(new URL("/clients", url.origin));
-  }
   try {
-    if (platform === "youtube") {
-      return NextResponse.redirect(await youtubeConsentUrl(url.origin, await startState("yt", clientId)));
-    }
-    if (platform === "instagram") {
-      return NextResponse.redirect(await instagramConsentUrl(url.origin, await startState("ig", clientId)));
-    }
-    return NextResponse.redirect(new URL("/clients", url.origin));
+    if (platform === "youtube") return NextResponse.redirect(await youtubeConsentUrl(url.origin, await startState("ytp")));
+    if (platform === "instagram") return NextResponse.redirect(await metaConsentUrl(url.origin, await startState("meta")));
+    return NextResponse.redirect(new URL("/integrations", url.origin));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Couldn't start connecting.";
-    return NextResponse.redirect(await backToClient(url.origin, clientId, platform ?? "youtube", message));
+    return NextResponse.redirect(new URL(`/integrations?analyticsError=${encodeURIComponent(message)}`, url.origin));
   }
 }

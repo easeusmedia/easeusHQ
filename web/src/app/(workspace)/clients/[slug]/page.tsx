@@ -19,8 +19,9 @@ import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
 import { ContentCalendar } from "../ContentCalendar";
 import { ClientAnalytics } from "../ClientAnalytics";
-import { DRIVE_SETTINGS, driveSettings } from "@/lib/drive";
-import { INSTAGRAM_SETTINGS, instagramSettings } from "@/lib/instagram";
+import { META_SETTINGS, metaSettings } from "@/lib/instagram";
+import { youtubeReady } from "@/lib/youtube";
+import { socialLink } from "@/lib/analytics";
 import { planFor } from "@/lib/contentPlan";
 import { dueState, indiaDay } from "@/lib/due";
 
@@ -45,10 +46,10 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; show?: string; layout?: string; platform?: string; analyticsError?: string }>;
+  searchParams: Promise<{ tab?: string; show?: string; layout?: string }>;
 }) {
   const { slug } = await params;
-  const { tab, show, layout, platform, analyticsError } = await searchParams;
+  const { tab, show, layout } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -146,16 +147,9 @@ export default async function ClientDetailPage({
   }));
   const plan = planFor(client.contentPlan);
 
-  // which of their accounts are connected for the Analytics tab (never the
-  // tokens), and whether the apps they connect through are set up at all
-  const [connections, google, insta] = await Promise.all([
-    prisma.socialConnection.findMany({
-      where: { clientId: client.id },
-      select: { platform: true, accountName: true, accountImage: true },
-    }),
-    driveSettings(),
-    instagramSettings(),
-  ]);
+  // whether the team's own YouTube / Instagram lookups are set up
+  // (Integrations) — the Analytics tab reads clients' public numbers through them
+  const [ytReady, meta] = await Promise.all([youtubeReady(), metaSettings()]);
   const canPlan = me.role !== "employee";
 
   const projectCards = client.projects.map((p) => ({
@@ -347,15 +341,13 @@ export default async function ClientDetailPage({
             content: (
               <ClientAnalytics
                 clientId={client.id}
-                connections={connections.map((c) => ({ ...c, platform: c.platform as "youtube" | "instagram" }))}
-                ready={{
-                  youtube: !!google[DRIVE_SETTINGS.clientId] && !!google[DRIVE_SETTINGS.clientSecret],
-                  instagram: !!insta[INSTAGRAM_SETTINGS.appId] && !!insta[INSTAGRAM_SETTINGS.appSecret],
+                accounts={{
+                  youtube: client.youtubeChannel ?? socialLink(client.socialLinks, "youtube.com"),
+                  instagram: client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"),
                 }}
-                canConnect={me.role !== "employee"}
+                ready={{ youtube: ytReady, instagram: !!meta[META_SETTINGS.token] }}
+                canEdit={me.role !== "employee"}
                 today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
-                initialPlatform={platform}
-                initialError={analyticsError}
               />
             ),
           },

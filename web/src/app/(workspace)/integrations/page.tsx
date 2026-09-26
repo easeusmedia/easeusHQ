@@ -9,7 +9,8 @@ import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
-import { INSTAGRAM_SETTINGS, instagramSettings } from "@/lib/instagram";
+import { META_SETTINGS, metaSettings } from "@/lib/instagram";
+import { YOUTUBE_SETTINGS, youtubeSettings } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,9 @@ export const dynamic = "force-dynamic";
 export default async function IntegrationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string; frameio?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; frameio?: string; analytics?: string; analyticsError?: string }>;
 }) {
-  const { connected, error, frameio } = await searchParams;
+  const { connected, error, frameio, analytics, analyticsError } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
   const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
@@ -35,7 +36,7 @@ export default async function IntegrationsPage({
     taskDatabaseId(),
     clientDatabaseId(),
   ]);
-  const insta = await instagramSettings();
+  const [meta, yt] = await Promise.all([metaSettings(), youtubeSettings()]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -70,8 +71,13 @@ export default async function IntegrationsPage({
 
       <AnalyticsIntegration
         googleReady={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}
-        instagramAppId={insta[INSTAGRAM_SETTINGS.appId] ?? ""}
-        instagramReady={!!insta[INSTAGRAM_SETTINGS.appId] && !!insta[INSTAGRAM_SETTINGS.appSecret]}
+        youtubeAccount={yt[YOUTUBE_SETTINGS.refreshToken] ? yt[YOUTUBE_SETTINGS.account] || "connected" : null}
+        youtubeViaServiceAccount={!!process.env.GOOGLE_SERVICE_ACCOUNT_JSON}
+        metaAppId={meta[META_SETTINGS.appId] ?? "1114199917692911"}
+        metaReady={!!meta[META_SETTINGS.appId] && !!meta[META_SETTINGS.appSecret]}
+        instagramAccount={meta[META_SETTINGS.token] ? (meta[META_SETTINGS.igUsername] ?? "connected") : null}
+        justConnected={analytics ?? null}
+        problem={analyticsError ?? null}
       />
 
       <NotionIntegration

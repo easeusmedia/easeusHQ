@@ -2,14 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { ExternalLink, Pencil, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import type { ContentRow, Dashboard, Format, Metric, Platform } from "@/lib/analytics";
 import { shiftDay } from "@/lib/analytics";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { disconnectSocial } from "./actions";
-
-type Connection = { platform: Platform; accountName: string; accountImage: string | null };
+import { saveAnalyticsAccount } from "./actions";
 
 const RANGES = [
   { value: "7", label: "Last 7 days" },
@@ -26,43 +24,41 @@ const PLATFORM: Record<Platform, { name: string; Logo: () => React.ReactElement;
 
 // One client's content performance, per platform: how the channel or
 // account did over the range (the headline numbers, against the period
-// before where the platform can say), how it moved day by day, and every
-// piece of content ranked — so nobody has to open Studio or Instagram to
-// know what's working. Loads only when the tab is actually opened.
+// before), how it moved day by day, and every piece of content ranked — so
+// nobody has to open YouTube or Instagram to know what's working. Public
+// numbers only: all it needs is the client's channel link and handle. Loads
+// only when the tab is actually opened.
 export function ClientAnalytics({
   clientId,
-  connections,
+  accounts,
   ready,
-  canConnect,
+  canEdit,
   today,
-  initialPlatform,
-  initialError,
 }: {
   clientId: string;
-  connections: Connection[];
-  // whether the Google / Instagram app is set up under Integrations
+  // their channel link / @handle, and Instagram @handle, if known
+  accounts: Record<Platform, string | null>;
+  // whether the team's own connection for that platform is made (Integrations)
   ready: Record<Platform, boolean>;
-  canConnect: boolean;
+  canEdit: boolean;
   today: string;
-  initialPlatform?: string;
-  // what went wrong coming back from connecting, if anything
-  initialError?: string;
 }) {
   const router = useRouter();
-  const [platform, setPlatform] = useState<Platform>(initialPlatform === "instagram" ? "instagram" : "youtube");
+  const [platform, setPlatform] = useState<Platform>("youtube");
   const [range, setRange] = useState("28");
   const [custom, setCustom] = useState({ from: shiftDay(today, -27), to: today });
   const { from, to } = range === "custom" ? custom : { from: shiftDay(today, -(Number(range) - 1)), to: today };
-  const conn = connections.find((c) => c.platform === platform);
+  const account = accounts[platform];
+  const [editing, setEditing] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
   const [data, setData] = useState<Record<string, { dashboard?: Dashboard; error?: string }>>({});
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [error, setError] = useState(initialError ?? null);
-  const key = `${platform}:${from}:${to}`;
+  const key = `${platform}:${account}:${from}:${to}`;
   const current = data[key];
+  const live = !!account && ready[platform] && !editing;
 
   // the tab's panel is hidden until opened; nothing is fetched before that
   useEffect(() => {
@@ -74,33 +70,25 @@ export function ClientAnalytics({
   }, [seen]);
 
   useEffect(() => {
-    if (!seen || !conn || (current && !refresh)) return;
-    let live = true;
+    if (!seen || !live || (current && !refresh)) return;
+    let alive = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the spinner for the fetch this effect starts
     setLoading(true);
     fetch(`/api/analytics/${clientId}?platform=${platform}&from=${from}&to=${to}${refresh ? "&refresh=1" : ""}`)
       .then((r) => r.json())
-      .then((body) => live && setData((d) => ({ ...d, [key]: { dashboard: body.dashboard, error: body.error } })))
-      .catch(() => live && setData((d) => ({ ...d, [key]: { error: "Couldn't reach the server." } })))
+      .then((body) => alive && setData((d) => ({ ...d, [key]: { dashboard: body.dashboard, error: body.error } })))
+      .catch(() => alive && setData((d) => ({ ...d, [key]: { error: "Couldn't reach the server." } })))
       .finally(() => {
-        if (!live) return;
+        if (!alive) return;
         setLoading(false);
         setRefresh(0);
       });
     return () => {
-      live = false;
+      alive = false;
     };
     // `current` is read, not watched: a new key or a refresh is what fetches
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seen, conn, clientId, platform, from, to, refresh]);
-
-  async function disconnect() {
-    if (!confirm(`Disconnect ${conn?.accountName}? Its numbers stop showing here; nothing changes on ${PLATFORM[platform].name}.`)) return;
-    const res = await disconnectSocial(clientId, platform);
-    if (res.error) return setError(res.error);
-    setData({});
-    router.refresh();
-  }
+  }, [seen, live, clientId, platform, account, from, to, refresh]);
 
   const d = current?.dashboard;
 
@@ -114,7 +102,10 @@ export function ClientAnalytics({
               <button
                 key={p}
                 type="button"
-                onClick={() => setPlatform(p)}
+                onClick={() => {
+                  setPlatform(p);
+                  setEditing(false);
+                }}
                 className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium ${
                   platform === p ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
                 }`}
@@ -124,7 +115,7 @@ export function ClientAnalytics({
             );
           })}
         </div>
-        {conn && (
+        {live && (
           <div className="flex flex-wrap items-center gap-2">
             <Dropdown value={range} options={RANGES} onChange={setRange} pill={{ icon: <span className="size-1.5 rounded-full bg-sky-400" /> }} />
             {range === "custom" && (
@@ -147,22 +138,30 @@ export function ClientAnalytics({
         )}
       </div>
 
-      {error && (
-        <p className="fade-in rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          {error}{" "}
-          <button type="button" onClick={() => setError(null)} className="ml-1 text-red-200 underline underline-offset-2">
-            Dismiss
-          </button>
-        </p>
-      )}
-
-      {!conn ? (
-        <ConnectCard clientId={clientId} platform={platform} ready={ready[platform]} canConnect={canConnect} />
+      {!ready[platform] ? (
+        <Notice platform={platform}>
+          The team&apos;s {PLATFORM[platform].name} connection isn&apos;t made yet — an admin makes it once, under
+          Integrations → Client analytics.
+        </Notice>
+      ) : !account || editing ? (
+        <AccountForm
+          clientId={clientId}
+          platform={platform}
+          value={account}
+          canEdit={canEdit}
+          onDone={() => {
+            setEditing(false);
+            router.refresh();
+          }}
+          onCancel={account ? () => setEditing(false) : undefined}
+        />
       ) : (
         <div key={platform} className="fade-in flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- the platform's own small avatar */}
-            {(d?.account.image ?? conn.accountImage) && <img src={(d?.account.image ?? conn.accountImage)!} alt="" className="photo h-10 w-10" />}
+            {d?.account.image && (
+              // eslint-disable-next-line @next/next/no-img-element -- the platform's own small avatar
+              <img src={d.account.image} alt="" className="photo h-10 w-10" />
+            )}
             <div className="min-w-0">
               <a
                 href={d?.account.url}
@@ -170,7 +169,7 @@ export function ClientAnalytics({
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-sm font-medium hover:underline"
               >
-                {conn.accountName} <ExternalLink size={12} className="text-muted" />
+                {d?.account.name ?? account} <ExternalLink size={12} className="text-muted" />
               </a>
               <p className="text-xs text-muted">
                 {d?.account.followers != null
@@ -178,9 +177,9 @@ export function ClientAnalytics({
                   : PLATFORM[platform].name}
               </p>
             </div>
-            {canConnect && (
-              <button type="button" onClick={disconnect} className="btn btn-xs btn-ghost ml-auto">
-                Disconnect
+            {canEdit && (
+              <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-ghost ml-auto">
+                <Pencil size={11} /> Change
               </button>
             )}
           </div>
@@ -446,40 +445,82 @@ function Chart({ series }: { series: { day: string; value: number }[] }) {
   );
 }
 
-function ConnectCard({ clientId, platform, ready, canConnect }: { clientId: string; platform: Platform; ready: boolean; canConnect: boolean }) {
-  const { name, Logo } = PLATFORM[platform];
-  const what =
-    platform === "youtube"
-      ? "views, watch time, impressions, click-through rate, retention and subscribers — for the channel and every video"
-      : "views, reach, likes, comments, shares and saves — for the account and every reel and post";
+// Which channel or account this client's numbers come from: a link or
+// @handle, nothing more — no login, nothing asked of the client.
+function AccountForm({
+  clientId,
+  platform,
+  value,
+  canEdit,
+  onDone,
+  onCancel,
+}: {
+  clientId: string;
+  platform: Platform;
+  value: string | null;
+  canEdit: boolean;
+  onDone: () => void;
+  onCancel?: () => void;
+}) {
+  const [input, setInput] = useState(value ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { name } = PLATFORM[platform];
+
+  async function save() {
+    if (!input.trim()) return;
+    setBusy(true);
+    setError(null);
+    const res = await saveAnalyticsAccount(clientId, platform, input);
+    setBusy(false);
+    if (res.error) return setError(res.error);
+    onDone();
+  }
+
   return (
-    <div className="card-surface flex flex-col items-center gap-3 rounded-2xl px-6 py-12 text-center shadow-sm">
+    <Notice platform={platform}>
+      {canEdit ? (
+        <>
+          <span className="block">
+            Their {name} {platform === "youtube" ? "channel link or @handle" : "@handle or profile link"} — their public
+            numbers show here from then on.
+          </span>
+          <span className="mt-4 flex w-full max-w-md gap-2">
+            <input
+              autoFocus
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              placeholder={platform === "youtube" ? "youtube.com/@channel" : "@handle"}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
+            />
+            {onCancel && (
+              <button type="button" onClick={onCancel} className="btn btn-ghost shrink-0">
+                Cancel
+              </button>
+            )}
+            <button type="button" onClick={save} disabled={busy || !input.trim()} className="btn btn-glow shrink-0 disabled:opacity-60">
+              {busy ? "Saving…" : "Show"}
+            </button>
+          </span>
+          {error && <span className="mt-2 block text-xs text-red-300">{error}</span>}
+        </>
+      ) : (
+        `No ${name} account set for this client yet.`
+      )}
+    </Notice>
+  );
+}
+
+function Notice({ platform, children }: { platform: Platform; children: React.ReactNode }) {
+  const { name, Logo } = PLATFORM[platform];
+  return (
+    <div className="card-surface flex flex-col items-center gap-2 rounded-2xl px-6 py-12 text-center shadow-sm">
       <span className="scale-[1.8]">
         <Logo />
       </span>
-      <p className="mt-2 text-base font-medium">Connect this client&apos;s {name}</p>
-      <p className="max-w-md text-sm text-muted">
-        See their {what} here, without opening {name}. Read-only — nothing is ever posted or changed.
-      </p>
-      {!ready ? (
-        <p className="max-w-md text-xs text-muted">
-          The {platform === "youtube" ? "Google" : "Instagram"} app isn&apos;t set up yet — an admin adds it once under
-          Integrations.
-        </p>
-      ) : canConnect ? (
-        <a href={`/api/analytics/connect?platform=${platform}&client=${clientId}`} className="btn btn-glow mt-1">
-          Connect {name}
-        </a>
-      ) : (
-        <p className="text-xs text-muted">Ask someone in ops to connect it.</p>
-      )}
-      {ready && canConnect && (
-        <p className="max-w-md text-xs text-muted/80">
-          {platform === "youtube"
-            ? "Sign in with an account that manages the channel, and pick the channel itself if Google asks."
-            : "Sign in with the client's Instagram (a professional account). While the app is in development, the account must first be added to it as a tester."}
-        </p>
-      )}
+      <p className="mt-2 text-base font-medium">{name}</p>
+      <div className="flex max-w-lg flex-col items-center text-sm text-muted">{children}</div>
     </div>
   );
 }

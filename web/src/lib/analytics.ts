@@ -69,37 +69,32 @@ export function isoSeconds(duration: string | null | undefined): number {
   return Number(m[1] ?? 0) * 86400 + Number(m[2] ?? 0) * 3600 + Number(m[3] ?? 0) * 60 + Number(m[4] ?? 0);
 }
 
-// One day's file from YouTube's Reporting API: thumbnail impressions and
-// click-through per video. CTR is kept as a fraction; the files have given
-// it either way, so a file with any value over 1 is read as percentages.
-// ponytail: that guess is per file — a file of all-sub-1% percentages would
-// read 100x too low; check against Studio once real files arrive.
-export function parseReachCsv(csv: string): { day: string; videoId: string; impressions: number; ctr: number }[] {
-  const [head, ...lines] = csv.trim().split(/\r?\n/);
-  if (!head) return [];
-  const cols = head.split(",");
-  const at = (name: string) => cols.indexOf(name);
-  const [iDate, iVideo, iImp, iCtr] = [at("date"), at("video_id"), at("video_thumbnail_impressions"), at("video_thumbnail_impressions_ctr")];
-  if ([iDate, iVideo, iImp, iCtr].includes(-1)) return [];
-  const rows = lines
-    .map((l) => l.split(","))
-    .filter((c) => c[iVideo])
-    .map((c) => ({
-      day: `${c[iDate].slice(0, 4)}-${c[iDate].slice(4, 6)}-${c[iDate].slice(6, 8)}`,
-      videoId: c[iVideo],
-      impressions: Number(c[iImp]) || 0,
-      ctr: Number(c[iCtr]) || 0,
-    }));
-  const percents = rows.some((r) => r.ctr > 1);
-  return rows.map((r) => ({ ...r, ctr: percents ? r.ctr / 100 : r.ctr }));
+// Which YouTube channel a pasted value means: a channel link, an @handle
+// (bare or in a link), a /user/ name, or the channel id itself.
+export function youtubeRef(input: string | null | undefined): { id: string } | { handle: string } | { username: string } | null {
+  const v = (input ?? "").trim();
+  if (!v) return null;
+  const id = v.match(/(?:^|\/channel\/)(UC[\w-]{22})(?:[/?#]|$)/);
+  if (id) return { id: id[1] };
+  const handle = v.match(/(?:^|youtube\.com\/)@([\w.-]+)/i);
+  if (handle) return { handle: handle[1] };
+  const user = v.match(/youtube\.com\/(?:user|c)\/([\w.-]+)/i);
+  if (user) return { username: user[1] };
+  // a bare word is most likely a handle typed without its @
+  return /^[\w.-]+$/.test(v) ? { handle: v } : null;
 }
 
-// Impressions summed and click-through weighted by them — a video shown a
-// million times at 2% counts for more than one shown ten times at 50%.
-export function sumReach(rows: { impressions: number; ctr: number }[]): { impressions: number; ctr: number | null } {
-  const impressions = rows.reduce((n, r) => n + r.impressions, 0);
-  return {
-    impressions,
-    ctr: impressions ? rows.reduce((n, r) => n + r.impressions * r.ctr, 0) / impressions : null,
-  };
+// An Instagram username from a link or an @handle
+export function instagramUsername(input: string | null | undefined): string | null {
+  const v = (input ?? "").trim();
+  const m = v.match(/instagram\.com\/([\w.]+)/i) ?? v.match(/^@?([\w.]+)$/);
+  const name = m?.[1]?.toLowerCase();
+  return name && !["p", "reel", "reels", "stories", "explore"].includes(name) ? name : null;
+}
+
+// The link a client gave on their onboarding form for a platform, if any
+export function socialLink(links: unknown, host: string): string | null {
+  if (!Array.isArray(links)) return null;
+  const hit = (links as { url?: string }[]).find((l) => typeof l?.url === "string" && l.url.includes(host));
+  return hit?.url ?? null;
 }

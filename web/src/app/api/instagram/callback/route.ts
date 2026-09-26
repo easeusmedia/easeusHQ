@@ -1,26 +1,27 @@
 import { NextResponse } from "next/server";
-import { requireOps } from "@/lib/auth";
-import { connectInstagram } from "@/lib/instagram";
-import { backToClient, finishState } from "@/lib/socialConnect";
+import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/auth";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
+import { connectMeta } from "@/lib/instagram";
+import { finishState } from "@/lib/socialConnect";
 
-// Where Instagram sends ops back after a client's account is approved.
+// Where Facebook sends the admin back after the one login that lets the app
+// look up clients' public Instagram numbers.
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  if (!(await requireOps())) return NextResponse.redirect(new URL("/login", url.origin));
-  const clientId = await finishState(url.searchParams.get("state"), "ig");
-  if (!clientId) return NextResponse.redirect(new URL("/clients", url.origin));
-
+  const id = await getSessionUserId();
+  const user = id ? await prisma.user.findUnique({ where: { id } }) : null;
+  if (!user || !isAbhishekOrAdmin(user)) return NextResponse.redirect(new URL("/login", url.origin));
+  const back = (error?: string) =>
+    NextResponse.redirect(new URL(`/integrations${error ? `?analyticsError=${encodeURIComponent(error)}` : "?analytics=instagram"}`, url.origin));
+  if (!(await finishState(url.searchParams.get("state"), "meta"))) return back("That sign-in didn't start here — try again.");
   const denied = url.searchParams.get("error_description") ?? url.searchParams.get("error");
   const code = url.searchParams.get("code");
-  if (denied || !code) {
-    return NextResponse.redirect(await backToClient(url.origin, clientId, "instagram", denied ?? "Instagram didn't send a code back."));
-  }
+  if (denied || !code) return back(denied ?? "Facebook didn't send a code back.");
   try {
-    // Instagram adds "#_" to the code
-    await connectInstagram(clientId, code.replace(/#_$/, ""), url.origin);
-    return NextResponse.redirect(await backToClient(url.origin, clientId, "instagram"));
+    await connectMeta(code, url.origin);
+    return back();
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Couldn't finish connecting.";
-    return NextResponse.redirect(await backToClient(url.origin, clientId, "instagram", message));
+    return back(err instanceof Error ? err.message : "Couldn't finish connecting.");
   }
 }

@@ -12,6 +12,7 @@ import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, t
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 import { clientBatches, newBatchKey, pinsAfterMove } from "@/lib/invoiceBatches";
 import { TYPE_TAG, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
+import { instagramUsername, youtubeRef } from "@/lib/analytics";
 
 // The two On Hold clients ops is still actively tracking, chosen
 // explicitly (everything else On Hold, and every Previous client, stays
@@ -960,15 +961,23 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
   return {};
 }
 
-// Unhooks a client's YouTube or Instagram from their Analytics tab. The
-// account itself is untouched; its numbers just stop being read here.
-export async function disconnectSocial(clientId: string, platform: "youtube" | "instagram"): Promise<{ error?: string }> {
+// Which YouTube channel or Instagram account a client's Analytics tab reads —
+// a link or @handle, checked for shape before it's kept.
+export async function saveAnalyticsAccount(
+  clientId: string,
+  platform: "youtube" | "instagram",
+  value: string
+): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can change this." };
-  await prisma.$transaction([
-    prisma.socialConnection.deleteMany({ where: { clientId, platform } }),
-    prisma.analyticsCache.deleteMany({ where: { clientId, key: { startsWith: `${platform}:` } } }),
-    ...(platform === "youtube" ? [prisma.youtubeReach.deleteMany({ where: { clientId } })] : []),
-  ]);
+  const v = value.trim();
+  if (v && (platform === "youtube" ? !youtubeRef(v) : !instagramUsername(v))) {
+    return { error: platform === "youtube" ? "That doesn't look like a YouTube channel link or @handle." : "That doesn't look like an Instagram link or @handle." };
+  }
+  await prisma.client.update({
+    where: { id: clientId },
+    data: platform === "youtube" ? { youtubeChannel: v || null } : { instagramHandle: v || null },
+  });
+  await prisma.analyticsCache.deleteMany({ where: { clientId, key: { startsWith: `${platform}:` } } });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }

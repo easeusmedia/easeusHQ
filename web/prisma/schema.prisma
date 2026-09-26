@@ -266,6 +266,13 @@ model Client {
   driveFolderId  String?
   driveFolderUrl String?
 
+  // Whose public numbers the Analytics tab shows: their YouTube channel (a
+  // link, @handle or channel id) and Instagram @handle. Nothing is connected
+  // per client — the app reads what anyone can see (lib/youtube.ts,
+  // lib/instagram.ts).
+  youtubeChannel  String?
+  instagramHandle String?
+
   // The content blueprint: per deliverable type, how many one project makes
   // and on which days they're due (lib/contentPlan.ts). Null = the default.
   contentPlan Json?
@@ -279,53 +286,13 @@ model Client {
   invoices     Invoice[]
   deliverables Deliverable[]
   onboarding   OnboardingStep[]
-  socialConnections SocialConnection[]
-}
-
-// A client's own YouTube channel or Instagram account, connected so their
-// numbers can be read here instead of in Studio or the Instagram app. One
-// per platform per client. The token — a Google refresh token, or a
-// long-lived Instagram one — never leaves the server.
-model SocialConnection {
-  id             String    @id @default(uuid())
-  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clientId       String
-  platform       String // youtube | instagram
-  accountId      String // channel id / Instagram user id
-  accountName    String // channel title / @username
-  accountImage   String?
-  token          String    @db.Text
-  // Instagram's lasts 60 days and is renewed as it's used
-  tokenExpiresAt DateTime?
-  // YouTube: the Reporting API job that makes the impressions + CTR files,
-  // and when the newest one already read here was made
-  reachJobId     String?
-  reachReadUntil DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  @@unique([clientId, platform])
-}
-
-// Thumbnail impressions and click-through for one video on one day. Only
-// YouTube's bulk Reporting API has these, one file per day, so they're kept
-// here as the files arrive rather than asked for on demand.
-model YoutubeReach {
-  clientId    String
-  videoId     String
-  day         String // yyyy-mm-dd
-  impressions Int
-  ctr         Float // a fraction, 0.045 = 4.5%
-
-  @@id([clientId, videoId, day])
-  @@index([clientId, day])
 }
 
 // One fetched dashboard, kept for a few hours so opening a client's
 // analytics doesn't call YouTube or Instagram every time.
 model AnalyticsCache {
   clientId  String
-  key       String // platform:from:to
+  key       String // platform:account:from:to
   data      Json
   fetchedAt DateTime @default(now())
 
