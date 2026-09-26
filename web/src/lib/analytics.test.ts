@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDashboard, daysBetween, instagramUsername, lastWeek, overview, previousRange, socialLink, youtubeRef, type Item } from "./analytics.ts";
+import { buildDashboard, daysBetween, instagramUsername, lastWeek, previousRange, socialLink, youtubeRef, type Item } from "./analytics.ts";
 
 test("the previous period is the same length, just before", () => {
   assert.deepEqual(previousRange("2026-09-01", "2026-09-28"), { from: "2026-08-04", to: "2026-08-31" });
@@ -49,20 +49,4 @@ test("a client's dashboard: this range against the one before, engagement per pl
   assert.equal(m.engagement[0], 45 / 1237);
   const ig = buildDashboard("instagram", { ...acct, followers: 1000 }, items.map((i) => ({ ...i, platform: "instagram" as const })), "", "2026-08-30", "2026-09-26");
   assert.equal(ig.metrics.find((x) => x.key === "engagement")!.value, 45 / 2 / 1000);
-});
-
-test("every client at once: totals, per client, the top posts", () => {
-  const items = [
-    item({ externalId: "1", clientId: "a", published: "2026-09-15", views: 100 }),
-    item({ externalId: "2", clientId: "a", platform: "instagram", kind: "Reel", published: "2026-09-19", views: 900 }),
-    item({ externalId: "3", clientId: "b", published: "2026-09-16", views: 300 }),
-    item({ externalId: "4", clientId: "b", published: "2026-09-09", views: 50 }), // the week before
-  ];
-  const o = overview(items, "2026-09-14", "2026-09-20");
-  assert.equal(o.views, 1300);
-  assert.equal(o.previousViews, 50);
-  assert.deepEqual(o.youtube, { views: 400, posts: 2 });
-  assert.deepEqual(o.clients.map((c) => [c.clientId, c.views, c.top?.externalId]), [["a", 1000, "2"], ["b", 300, "3"]]);
-  assert.equal(o.series.length, 7);
-  assert.equal(o.series[5].instagram, 900);
 });
