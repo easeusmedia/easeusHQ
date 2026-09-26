@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, PanelLeftClose } from "lucide-react";
+import { toggleClientsPanel } from "./clientsPanel";
 import { Avatar } from "../TaskCard";
 import { clientHref } from "@/lib/slug";
 
@@ -34,18 +37,36 @@ export function ClientSwitcher({
       aria-hidden={!shown}
       // not focusable or clickable while it's slid shut
       inert={!shown}
-      className={`sticky top-0 hidden h-screen shrink-0 overflow-hidden bg-surface/40 transition-[width,opacity] duration-200 ease-in-out lg:block ${
-        shown ? "w-48 border-r border-border opacity-100" : "w-0 opacity-0"
+      // The same build as the app's rail beside it — same background, same
+      // p-3, same h-9 rounded rows — so the two read as one sidebar in two
+      // parts rather than a second, differently-made panel bolted on.
+      className={`sticky top-0 hidden h-screen shrink-0 overflow-hidden bg-background transition-[width,opacity] duration-200 ease-in-out lg:block ${
+        shown ? "w-52 border-r border-border opacity-100" : "w-0 opacity-0"
       }`}
     >
-      <div className="flex h-full w-48 flex-col overflow-y-auto py-3">
+      <div className="flex h-full w-52 flex-col gap-1 overflow-y-auto p-3">
+        {/* level with the rail's logo row, so "All clients" lines up with
+            the Clients icon it opened from */}
+        <div className="mb-2 flex h-9 shrink-0 items-center justify-between pl-2">
+          <span className="text-sm font-semibold">Clients</span>
+          <button
+            type="button"
+            onClick={toggleClientsPanel}
+            title="Hide clients"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-foreground"
+          >
+            <PanelLeftClose size={16} />
+          </button>
+        </div>
         <Row href="/clients" active={onDashboard}>
           <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-            <LayoutGrid size={16} />
+            <LayoutGrid size={15} />
           </span>
           <span className="truncate">All clients</span>
         </Row>
-        <div className="mx-5 my-2 border-t border-border" />
+        <p className="mt-3 mb-1 flex items-center justify-between px-2 text-xs text-muted">
+          Current <span className="tabular-nums">{clients.length}</span>
+        </p>
         {clients.map((c) => (
           <Row key={c.id} href={clientHref(c)} active={current === c.slug}>
             {c.logo ? (
@@ -65,17 +86,13 @@ export function ClientSwitcher({
 // h-9: every row the same fixed height whatever's in it — a truncated name
 // or an uploaded logo used to render rows very slightly different heights,
 // which made the hover and selected rectangles look different sizes.
-//
-// Full width, edge to edge: the padding lives on the row (px-5), not the
-// panel, so a highlight fills the panel instead of floating inside a margin
-// with unhovered strips down both sides. Square, not rounded — rounded rows
-// touching both edges read as a mistake and merge into each other.
+// Rounded and inset, exactly like the rail's own rows next to it.
 function Row({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className={`flex h-9 shrink-0 items-center gap-2 px-5 text-sm ${
-        active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground"
+      className={`flex h-9 shrink-0 items-center gap-2.5 rounded-md px-2 text-sm transition-colors duration-150 ${
+        active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2/60 hover:text-foreground"
       }`}
     >
       {children}
