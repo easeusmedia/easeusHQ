@@ -1,9 +1,9 @@
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 
-// Connecting the team's own Google or Facebook account for client analytics
-// (Integrations): a one-time value the browser carries out to Google or
-// Facebook and back, so a connection can only be finished by the admin who
+// Connecting the team's own Google account for client analytics
+// (Integrations): a one-time value the browser carries out to Google and
+// back, so a connection can only be finished by the admin who
 // started it here.
 
 const COOKIE = "social_connect";

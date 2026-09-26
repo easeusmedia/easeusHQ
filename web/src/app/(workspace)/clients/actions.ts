@@ -977,7 +977,9 @@ export async function saveAnalyticsAccount(
     where: { id: clientId },
     data: platform === "youtube" ? { youtubeChannel: v || null } : { instagramHandle: v || null },
   });
-  await prisma.analyticsCache.deleteMany({ where: { clientId, key: { startsWith: `${platform}:` } } });
+  await prisma.analyticsCache.deleteMany({
+    where: { clientId, key: { startsWith: platform === "youtube" ? "youtube:" : "igraw:" } },
+  });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }

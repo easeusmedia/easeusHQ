@@ -53,7 +53,9 @@ export function ClientAnalytics({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
-  const [data, setData] = useState<Record<string, { dashboard?: Dashboard; error?: string }>>({});
+  // pending: an Instagram scrape still running — checked again shortly
+  const [data, setData] = useState<Record<string, { dashboard?: Dashboard; error?: string; pending?: boolean }>>({});
+  const [poll, setPoll] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const key = `${platform}:${account}:${from}:${to}`;
@@ -70,25 +72,35 @@ export function ClientAnalytics({
   }, [seen]);
 
   useEffect(() => {
-    if (!seen || !live || (current && !refresh)) return;
+    if (!seen || !live || (current && !current.pending && !refresh)) return;
     let alive = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the spinner for the fetch this effect starts
-    setLoading(true);
-    fetch(`/api/analytics/${clientId}?platform=${platform}&from=${from}&to=${to}${refresh ? "&refresh=1" : ""}`)
-      .then((r) => r.json())
-      .then((body) => alive && setData((d) => ({ ...d, [key]: { dashboard: body.dashboard, error: body.error } })))
-      .catch(() => alive && setData((d) => ({ ...d, [key]: { error: "Couldn't reach the server." } })))
-      .finally(() => {
-        if (!alive) return;
-        setLoading(false);
-        setRefresh(0);
-      });
+    // a scrape still running is asked about again in a few seconds
+    const wait = setTimeout(
+      () => {
+        setLoading(true);
+        fetch(`/api/analytics/${clientId}?platform=${platform}&from=${from}&to=${to}${refresh ? "&refresh=1" : ""}`)
+          .then((r) => r.json())
+          .then((body) => {
+            if (!alive) return;
+            setData((d) => ({ ...d, [key]: { dashboard: body.dashboard, error: body.error, pending: !!body.pending } }));
+            if (body.pending) setPoll((n) => n + 1);
+          })
+          .catch(() => alive && setData((d) => ({ ...d, [key]: { error: "Couldn't reach the server." } })))
+          .finally(() => {
+            if (!alive) return;
+            setLoading(false);
+            setRefresh(0);
+          });
+      },
+      current?.pending && !refresh ? 5000 : 0
+    );
     return () => {
       alive = false;
+      clearTimeout(wait);
     };
-    // `current` is read, not watched: a new key or a refresh is what fetches
+    // `current` is read, not watched: a new key, a refresh or a poll is what fetches
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seen, live, clientId, platform, account, from, to, refresh]);
+  }, [seen, live, clientId, platform, account, from, to, refresh, poll]);
 
   const d = current?.dashboard;
 
@@ -187,7 +199,15 @@ export function ClientAnalytics({
           {current?.error ? (
             <p className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300">{current.error}</p>
           ) : !d ? (
-            <Skeleton />
+            <div className="flex flex-col gap-3">
+              {current?.pending && (
+                <p className="fade-in flex items-center gap-2 text-sm text-muted">
+                  <RefreshCw size={13} className="animate-spin" />
+                  Reading their latest posts from Instagram — about a minute the first time, then kept for a few hours.
+                </p>
+              )}
+              <Skeleton />
+            </div>
           ) : (
             <Board dashboard={d} platform={platform} loading={loading} />
           )}

@@ -7,7 +7,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, driveSettings, folder, parentFolderId, saveDriveSettings } from "@/lib/drive";
 import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } from "@/lib/notion";
-import { META_SETTINGS } from "@/lib/instagram";
+import { APIFY_SETTINGS } from "@/lib/instagram";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -29,16 +29,22 @@ export async function saveGoogleApp(clientId: string, clientSecret: string): Pro
   return {};
 }
 
-// The Meta app the team's Facebook login goes through, for clients' public
-// Instagram numbers — its App ID and App secret (App settings → Basic).
-export async function saveMetaApp(appId: string, appSecret: string): Promise<{ error?: string }> {
+// The Apify API token clients' public Instagram numbers are scraped with
+// (Apify console → Settings → API & Integrations). Empty removes it.
+export async function saveApifyToken(token: string): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
-  if (!appId.trim() || !appSecret.trim()) return { error: "Both the app ID and secret are needed." };
-  for (const [key, value] of [
-    [META_SETTINGS.appId, appId.trim()],
-    [META_SETTINGS.appSecret, appSecret.trim()],
-  ]) {
-    await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  const value = token.trim();
+  if (!value) {
+    await prisma.appSetting.deleteMany({ where: { key: APIFY_SETTINGS.token } });
+  } else {
+    // checked before it's kept: a bad paste never replaces a working token
+    const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`);
+    if (!res.ok) return { error: "Apify didn't accept that token." };
+    await prisma.appSetting.upsert({
+      where: { key: APIFY_SETTINGS.token },
+      create: { key: APIFY_SETTINGS.token, value },
+      update: { value },
+    });
   }
   revalidatePath("/integrations");
   return {};

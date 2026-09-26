@@ -3,12 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { youtubeConsentUrl } from "@/lib/youtube";
-import { metaConsentUrl } from "@/lib/instagram";
 import { startState } from "@/lib/socialConnect";
 
-// "Connect" under Integrations → Client analytics: off to Google's or
-// Facebook's own consent screen with the team's account, once. Admin only —
-// it's the company's account doing the reading for every client.
+// "Connect YouTube" under Integrations → Client analytics: off to Google's
+// consent screen with the team's account, once. Admin only — it's the
+// company's account doing the reading for every client.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const id = await getSessionUserId();
@@ -17,7 +16,6 @@ export async function GET(request: Request) {
   const platform = url.searchParams.get("platform");
   try {
     if (platform === "youtube") return NextResponse.redirect(await youtubeConsentUrl(url.origin, await startState("ytp")));
-    if (platform === "instagram") return NextResponse.redirect(await metaConsentUrl(url.origin, await startState("meta")));
     return NextResponse.redirect(new URL("/integrations", url.origin));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Couldn't start connecting.";

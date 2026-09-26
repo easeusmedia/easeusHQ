@@ -1,225 +1,196 @@
-import { prisma } from "./prisma";
-import { daysBetween, instagramUsername, previousRange, type ContentRow, type Dashboard } from "./analytics";
+import { prisma } from "./prisma.ts";
+import { daysBetween, previousRange, type ContentRow, type Dashboard } from "./analytics.ts";
 
-// Any client's Instagram, from its public numbers — followers, and every
-// post's views, likes and comments — through Meta's Business Discovery.
-// Nothing is connected per client: the app looks their account up the way
-// one business account can look up another. The client's account has to be
-// a business or creator account (nearly all are); nothing else is asked.
+// Any client's Instagram, from what's public on their profile — followers,
+// and every post's views, likes and comments — scraped by Apify's Instagram
+// Scraper (apify/instagram-scraper). Nothing is connected, per client or
+// otherwise, and the client is never asked for anything; all it takes is
+// the team's Apify API token, entered once under Integrations.
 //
-// Who does the looking up is Easeus's own Instagram business account, linked
-// to a Facebook Page — connected once under Integrations with a Facebook
-// login, through the Meta app "Easeus HQ".
+// A scrape takes half a minute or more, longer than a page request should
+// wait, so it runs in the background: the first look starts it, the
+// Analytics tab polls, and the result is kept for a few hours.
 //
-// What public data can't show: reach, saves, shares, watch time. Instagram
+// What's public can't show reach, saves, shares or watch time — Instagram
 // keeps those for the account itself.
+//
+// Cost: Apify charges per post scraped (about $0.0027 on the free tier).
 
-export const META_SETTINGS = {
-  appId: "meta.appId",
-  appSecret: "meta.appSecret",
-  // a Page token, made from a long-lived login, which doesn't expire
-  token: "meta.pageToken",
-  igUserId: "meta.igUserId",
-  igUsername: "meta.igUsername",
-} as const;
-const GRAPH = "https://graph.facebook.com/v25.0";
-const SCOPES = "instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management";
+export const APIFY_SETTINGS = { token: "apify.token" } as const;
+const ACTOR = "apify~instagram-scraper";
+const API = "https://api.apify.com/v2";
+// a fresh scrape is kept this long before another is started
+const FRESH_MS = 6 * 60 * 60 * 1000;
+// a scrape still "running" after this is treated as lost and started again
+const STALE_MS = 10 * 60 * 1000;
 
-export async function metaSettings(): Promise<Record<string, string>> {
-  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: "meta." } } });
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+export type Post = {
+  id: string;
+  type?: string; // Video, Image, Sidecar
+  productType?: string; // clips = a Reel
+  url?: string;
+  caption?: string;
+  timestamp: string;
+  likesCount?: number;
+  commentsCount?: number;
+  videoPlayCount?: number; // what Instagram itself shows as views
+  videoViewCount?: number;
+  displayUrl?: string;
+};
+export type Profile = { username: string; fullName?: string; followersCount?: number; postsCount?: number; profilePicUrl?: string };
+
+type Raw =
+  | { since: string; fetchedAt: string; posts: Post[]; profile: Profile | null }
+  | { pending: { posts: string; details: string; since: string; startedAt: string } };
+
+export async function apifyToken(): Promise<string | null> {
+  return (await prisma.appSetting.findUnique({ where: { key: APIFY_SETTINGS.token } }))?.value ?? null;
 }
 
-async function app() {
-  const s = await metaSettings();
-  const id = s[META_SETTINGS.appId];
-  const secret = s[META_SETTINGS.appSecret];
-  if (!id || !secret) throw new Error("The Meta app isn't set up yet — add it under Integrations first.");
-  return { id, secret };
-}
-
-export async function metaConsentUrl(origin: string, state: string): Promise<string> {
-  const { id } = await app();
-  const params = new URLSearchParams({
-    client_id: id,
-    redirect_uri: `${origin}/api/instagram/callback`,
-    response_type: "code",
-    scope: SCOPES,
-    state,
-  });
-  return `https://www.facebook.com/v25.0/dialog/oauth?${params}`;
-}
-
-async function call<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function apify<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API}${path}${path.includes("?") ? "&" : "?"}token=${token}`, init);
   const body = await res.json().catch(() => null);
-  if (!res.ok) {
-    if (body?.error?.code === 190) throw new Error("The Instagram connection has lapsed — connect it again under Integrations.");
-    throw new Error(body?.error?.error_user_msg ?? body?.error?.message ?? `Instagram answered ${res.status}.`);
-  }
+  if (!res.ok) throw new Error(body?.error?.message ?? `Apify answered ${res.status}.`);
   return body as T;
 }
 
-// Finishes the one Facebook login: a long-lived token, then the Page that
-// has an Instagram business account linked, and that Page's own token.
-export async function connectMeta(code: string, origin: string): Promise<string> {
-  const { id, secret } = await app();
-  const short = await call<{ access_token: string }>(
-    `${GRAPH}/oauth/access_token?${new URLSearchParams({ client_id: id, client_secret: secret, redirect_uri: `${origin}/api/instagram/callback`, code })}`
-  );
-  const long = await call<{ access_token: string }>(
-    `${GRAPH}/oauth/access_token?${new URLSearchParams({
-      grant_type: "fb_exchange_token",
-      client_id: id,
-      client_secret: secret,
-      fb_exchange_token: short.access_token,
-    })}`
-  );
-  const { data = [] } = await call<{
-    data?: { name: string; access_token: string; instagram_business_account?: { id: string; username: string } }[];
-  }>(`${GRAPH}/me/accounts?fields=name,access_token,instagram_business_account{id,username}&limit=100&access_token=${long.access_token}`);
-  const page = data.find((p) => p.instagram_business_account);
-  if (!page) {
-    throw new Error(
-      "None of the Facebook Pages you picked has an Instagram business account linked. Link Easeus's Instagram to its Page (Instagram → Settings → Accounts Centre), then connect again."
-    );
-  }
-  const values: [string, string][] = [
-    [META_SETTINGS.token, page.access_token],
-    [META_SETTINGS.igUserId, page.instagram_business_account!.id],
-    [META_SETTINGS.igUsername, page.instagram_business_account!.username],
-  ];
-  for (const [key, value] of values) {
-    await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
-  }
-  return page.instagram_business_account!.username;
+async function start(token: string, username: string, input: Record<string, unknown>): Promise<string> {
+  const { data } = await apify<{ data: { id: string } }>(`/acts/${ACTOR}/runs?maxTotalChargeUsd=2`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ directUrls: [`https://www.instagram.com/${username}/`], addParentData: false, ...input }),
+  });
+  return data.id;
 }
 
-type Media = {
-  id: string;
-  caption?: string;
-  like_count?: number;
-  comments_count?: number;
-  view_count?: number;
-  media_type?: string;
-  media_product_type?: string;
-  permalink?: string;
-  timestamp: string;
-  thumbnail_url?: string;
-  media_url?: string;
-};
-type Discovery = {
-  business_discovery: {
-    username: string;
-    name?: string;
-    profile_picture_url?: string;
-    followers_count?: number;
-    media_count?: number;
-    media?: { data: Media[]; paging?: { cursors?: { after?: string } } };
-  };
-};
-
-const FULL = "id,caption,like_count,comments_count,view_count,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url";
-// if Meta refuses a field for this account, the ones every account has
-const BASIC = "id,caption,like_count,comments_count,media_type,permalink,timestamp,media_url";
-
-async function discover(username: string, fields: string, after?: string): Promise<Discovery> {
-  const s = await metaSettings();
-  const token = s[META_SETTINGS.token];
-  const me = s[META_SETTINGS.igUserId];
-  if (!token || !me) throw new Error("Instagram isn't connected yet — an admin connects it once under Integrations → Client analytics.");
-  const media = `media${after ? `.after(${after})` : ""}.limit(50){${fields}}`;
-  const q = `business_discovery.username(${username}){username,name,profile_picture_url,followers_count,media_count,${media}}`;
-  return call<Discovery>(`${GRAPH}/${me}?fields=${encodeURIComponent(q)}&access_token=${token}`);
+async function run(token: string, id: string): Promise<{ status: string; datasetId: string }> {
+  const { data } = await apify<{ data: { status: string; defaultDatasetId: string } }>(`/actor-runs/${id}`, token);
+  return { status: data.status, datasetId: data.defaultDatasetId };
 }
 
-const KIND: Record<string, string> = { CAROUSEL_ALBUM: "Carousel", IMAGE: "Post", VIDEO: "Reel" };
+async function items<T>(token: string, datasetId: string): Promise<T[]> {
+  return apify<T[]>(`/datasets/${datasetId}/items?clean=true&format=json`, token);
+}
 
-export async function instagramDashboard(input: string, from: string, to: string): Promise<Dashboard> {
-  const username = instagramUsername(input);
-  if (!username) throw new Error("That doesn't look like an Instagram account — paste its link or @handle.");
-  const prev = previousRange(from, to);
+// The account's posts back to `since` and its profile — from the last
+// scrape if it's recent and reaches back far enough, else a new one (and
+// "pending" until it's done).
+export async function instagramData(
+  clientId: string,
+  username: string,
+  since: string,
+  refresh: boolean
+): Promise<{ pending: true } | { posts: Post[]; profile: Profile | null; fetchedAt: string }> {
+  const token = await apifyToken();
+  if (!token) throw new Error("Instagram isn't set up yet — an admin adds the Apify token once under Integrations → Client analytics.");
+  const key = `igraw:${username}`;
+  const hit = await prisma.analyticsCache.findUnique({ where: { clientId_key: { clientId, key } } });
+  const raw = hit?.data as Raw | undefined;
+  const save = (data: Raw) =>
+    prisma.analyticsCache.upsert({
+      where: { clientId_key: { clientId, key } },
+      create: { clientId, key, data },
+      update: { data, fetchedAt: new Date() },
+    });
 
-  let fields = FULL;
-  let first: Discovery;
-  try {
-    first = await discover(username, fields);
-  } catch (err) {
-    if (err instanceof Error && /business|creator|cannot be found|does not exist/i.test(err.message)) {
-      throw new Error(`@${username} couldn't be looked up — it has to be a public business or creator account.`);
+  if (raw && "pending" in raw && Date.now() - Date.parse(raw.pending.startedAt) < STALE_MS) {
+    const [p, d] = await Promise.all([run(token, raw.pending.posts), run(token, raw.pending.details)]);
+    const failed = [p, d].find((r) => ["FAILED", "ABORTED", "TIMED-OUT"].includes(r.status));
+    if (failed) {
+      await prisma.analyticsCache.delete({ where: { clientId_key: { clientId, key } } });
+      throw new Error("The Instagram scrape didn't finish — try Refresh in a minute.");
     }
-    fields = BASIC;
-    first = await discover(username, fields);
+    if (p.status !== "SUCCEEDED" || d.status !== "SUCCEEDED") return { pending: true };
+    const [posts, profiles] = await Promise.all([items<Post>(token, p.datasetId), items<Profile>(token, d.datasetId)]);
+    const done = { since: raw.pending.since, fetchedAt: new Date().toISOString(), posts, profile: profiles[0] ?? null };
+    await save(done);
+    return done;
   }
 
-  // newest first, page by page, until past the start of the earlier period
-  const profile = first.business_discovery;
-  const posts: Media[] = [...(profile.media?.data ?? [])];
-  let after = profile.media?.paging?.cursors?.after;
-  while (after && posts.length < 400 && (posts.at(-1)?.timestamp.slice(0, 10) ?? "") >= prev.from) {
-    const page = (await discover(username, fields, after)).business_discovery.media;
-    posts.push(...(page?.data ?? []));
-    after = page?.paging?.cursors?.after;
+  if (raw && "posts" in raw && !refresh && raw.since <= since && Date.now() - Date.parse(raw.fetchedAt) < FRESH_MS) {
+    return raw;
   }
 
-  const day = (m: Media) => m.timestamp.slice(0, 10);
-  const inRange = posts.filter((m) => day(m) >= from && day(m) <= to);
-  const before = posts.filter((m) => day(m) >= prev.from && day(m) <= prev.to);
-  const followers = profile.followers_count ?? null;
-  const hasViews = fields === FULL && posts.some((m) => m.view_count !== undefined);
+  const [posts, details] = await Promise.all([
+    start(token, username, { resultsType: "posts", resultsLimit: 300, onlyPostsNewerThan: since }),
+    start(token, username, { resultsType: "details", resultsLimit: 1 }),
+  ]);
+  await save({ pending: { posts, details, since, startedAt: new Date().toISOString() } });
+  return { pending: true };
+}
 
-  const sum = (list: Media[], k: "like_count" | "comments_count" | "view_count") => list.reduce((n, m) => n + (m[k] ?? 0), 0);
-  const reels = (list: Media[]) => list.filter((m) => m.media_product_type === "REELS" || m.media_type === "VIDEO");
-  const avgViews = (list: Media[]) => (reels(list).length ? sum(reels(list), "view_count") / reels(list).length : null);
+const kindOf = (p: Post) =>
+  p.productType === "clips" ? "Reel" : p.type === "Sidecar" ? "Carousel" : p.type === "Video" ? "Video" : "Post";
+const viewsOf = (p: Post) => (p.type === "Video" ? (p.videoPlayCount ?? p.videoViewCount ?? null) : null);
+
+// The dashboard from a scrape. Pure, so it can be tested on its own.
+export function instagramDashboard(
+  username: string,
+  profile: Profile | null,
+  posts: Post[],
+  fetchedAt: string,
+  from: string,
+  to: string
+): Dashboard {
+  const prev = previousRange(from, to);
+  const day = (p: Post) => p.timestamp.slice(0, 10);
+  // pinned posts come back whatever their age; the dates keep them out
+  const inRange = posts.filter((p) => day(p) >= from && day(p) <= to);
+  const before = posts.filter((p) => day(p) >= prev.from && day(p) <= prev.to);
+  const followers = profile?.followersCount ?? null;
+
+  const sum = (list: Post[], f: (p: Post) => number | null | undefined) => list.reduce((n, p) => n + (f(p) ?? 0), 0);
+  const views = (list: Post[]) => sum(list, viewsOf);
+  const videos = (list: Post[]) => list.filter((p) => viewsOf(p) !== null);
+  const avgViews = (list: Post[]) => (videos(list).length ? views(list) / videos(list).length : null);
   // the usual public measure: likes and comments per post, against followers
-  const engagement = (list: Media[]) =>
-    followers && list.length ? (sum(list, "like_count") + sum(list, "comments_count")) / list.length / followers : null;
+  const engagement = (list: Post[]) =>
+    followers && list.length ? (sum(list, (p) => p.likesCount) + sum(list, (p) => p.commentsCount)) / list.length / followers : null;
 
-  const rows: ContentRow[] = inRange.map((m) => ({
-    id: m.id,
-    title: (m.caption ?? "").split("\n")[0].slice(0, 120) || "(no caption)",
-    url: m.permalink ?? `https://www.instagram.com/${username}/`,
-    thumbnail: m.thumbnail_url ?? (m.media_type === "IMAGE" || m.media_type === "CAROUSEL_ALBUM" ? (m.media_url ?? null) : null),
-    published: day(m),
-    kind: m.media_product_type === "REELS" ? "Reel" : (KIND[m.media_type ?? ""] ?? "Post"),
+  const rows: ContentRow[] = inRange.map((p) => ({
+    id: p.id,
+    title: (p.caption ?? "").split("\n")[0].slice(0, 120) || "(no caption)",
+    url: p.url ?? `https://www.instagram.com/${username}/`,
+    // through our own server: Instagram's image host won't serve other sites
+    thumbnail: p.displayUrl ? `/api/analytics/thumb?u=${encodeURIComponent(p.displayUrl)}` : null,
+    published: day(p),
+    kind: kindOf(p),
     stats: {
-      views: hasViews ? (m.view_count ?? null) : null,
-      likes: m.like_count ?? null,
-      comments: m.comments_count ?? null,
-      engagement: followers ? ((m.like_count ?? 0) + (m.comments_count ?? 0)) / followers : null,
+      views: viewsOf(p),
+      likes: p.likesCount ?? null,
+      comments: p.commentsCount ?? null,
+      engagement: followers ? ((p.likesCount ?? 0) + (p.commentsCount ?? 0)) / followers : null,
     },
   }));
 
   const byDay = new Map<string, number>();
-  for (const r of rows) byDay.set(r.published, (byDay.get(r.published) ?? 0) + (hasViews ? (r.stats.views ?? 0) : (r.stats.likes ?? 0)));
+  for (const r of rows) byDay.set(r.published, (byDay.get(r.published) ?? 0) + (r.stats.views ?? 0));
 
   return {
     platform: "instagram",
     account: {
-      name: `@${profile.username}`,
-      image: profile.profile_picture_url ?? null,
-      url: `https://www.instagram.com/${profile.username}/`,
+      name: `@${profile?.username ?? username}`,
+      image: profile?.profilePicUrl ? `/api/analytics/thumb?u=${encodeURIComponent(profile.profilePicUrl)}` : null,
+      url: `https://www.instagram.com/${username}/`,
       followers,
     },
     from,
     to,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt,
     metrics: [
-      hasViews
-        ? { key: "views", label: "Views", value: sum(inRange, "view_count"), previous: sum(before, "view_count"), format: "count", hint: "On the posts published in this range, to date" }
-        : { key: "views", label: "Views", value: null, format: "count", hint: "Instagram didn't share view counts for this account" },
-      { key: "avgReel", label: "Avg views per reel", value: hasViews ? avgViews(inRange) : null, previous: hasViews ? avgViews(before) : null, format: "count" },
+      { key: "views", label: "Views", value: views(inRange), previous: views(before), format: "count", hint: "On the reels and videos published in this range, to date" },
+      { key: "avgReel", label: "Avg views per reel", value: avgViews(inRange), previous: avgViews(before), format: "count" },
       { key: "engagement", label: "Engagement rate", value: engagement(inRange), previous: engagement(before), format: "percent", hint: "Likes and comments per post, against followers" },
       { key: "posts", label: "Posts published", value: inRange.length, previous: before.length, format: "count" },
-      { key: "likes", label: "Likes", value: sum(inRange, "like_count"), previous: sum(before, "like_count"), format: "count" },
-      { key: "comments", label: "Comments", value: sum(inRange, "comments_count"), previous: sum(before, "comments_count"), format: "count" },
+      { key: "likes", label: "Likes", value: sum(inRange, (p) => p.likesCount), previous: sum(before, (p) => p.likesCount), format: "count" },
+      { key: "comments", label: "Comments", value: sum(inRange, (p) => p.commentsCount), previous: sum(before, (p) => p.commentsCount), format: "count" },
       { key: "followers", label: "Followers", value: followers, format: "count", hint: "The account's total now" },
-      { key: "allPosts", label: "Posts, all time", value: profile.media_count ?? null, format: "count" },
+      { key: "allPosts", label: "Posts, all time", value: profile?.postsCount ?? null, format: "count" },
     ],
     series: daysBetween(from, to).map((d) => ({ day: d, value: byDay.get(d) ?? 0 })),
-    seriesLabel: hasViews ? "Views, by the day each post went up" : "Likes, by the day each post went up",
+    seriesLabel: "Views, by the day each post went up",
     columns: [
-      ...(hasViews ? [{ key: "views", label: "Views", format: "count" as const }] : []),
+      { key: "views", label: "Views", format: "count" },
       { key: "likes", label: "Likes", format: "count" },
       { key: "comments", label: "Comments", format: "count" },
       { key: "engagement", label: "Engagement", format: "percent" },
@@ -228,7 +199,6 @@ export async function instagramDashboard(input: string, from: string, to: string
     notes: [
       "Public numbers: each post's views, likes and comments so far, for the posts published in the range — compared with the ones published in the same length of time before.",
       "Reach, saves, shares and watch time are private to the account, so they aren't here.",
-      ...(posts.length >= 400 ? ["Only the latest 400 posts are looked at."] : []),
     ],
   };
 }

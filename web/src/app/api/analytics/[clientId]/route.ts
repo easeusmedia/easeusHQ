@@ -3,8 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { youtubeDashboard } from "@/lib/youtube";
-import { instagramDashboard } from "@/lib/instagram";
-import { socialLink, type Dashboard } from "@/lib/analytics";
+import { instagramDashboard, instagramData } from "@/lib/instagram";
+import { instagramUsername, previousRange, socialLink, type Dashboard } from "@/lib/analytics";
 
 // a channel with years of uploads is a good few calls to page through
 export const maxDuration = 60;
@@ -41,17 +41,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
       : (client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"));
   if (!account) return NextResponse.json({ connected: false });
 
-  const key = `${platform}:${account}:${from}:${to}`;
-  if (url.searchParams.get("refresh") !== "1") {
-    const hit = await prisma.analyticsCache.findUnique({ where: { clientId_key: { clientId, key } } });
-    if (hit && Date.now() - hit.fetchedAt.getTime() < FRESH_MS) {
-      return NextResponse.json({ connected: true, dashboard: hit.data });
-    }
-  }
-
+  const refresh = url.searchParams.get("refresh") === "1";
   try {
-    const dashboard: Dashboard =
-      platform === "youtube" ? await youtubeDashboard(account, from, to) : await instagramDashboard(account, from, to);
+    // Instagram: a background scrape of their profile, kept a few hours and
+    // read for any range it covers (lib/instagram.ts)
+    if (platform === "instagram") {
+      const username = instagramUsername(account);
+      if (!username) return NextResponse.json({ connected: true, error: "That doesn't look like an Instagram account." });
+      const got = await instagramData(clientId, username, previousRange(from, to).from, refresh);
+      if ("pending" in got) return NextResponse.json({ connected: true, pending: true });
+      return NextResponse.json({
+        connected: true,
+        dashboard: instagramDashboard(username, got.profile, got.posts, got.fetchedAt, from, to),
+      });
+    }
+
+    const key = `${platform}:${account}:${from}:${to}`;
+    if (!refresh) {
+      const hit = await prisma.analyticsCache.findUnique({ where: { clientId_key: { clientId, key } } });
+      if (hit && Date.now() - hit.fetchedAt.getTime() < FRESH_MS) {
+        return NextResponse.json({ connected: true, dashboard: hit.data });
+      }
+    }
+    const dashboard: Dashboard = await youtubeDashboard(account, from, to);
     const data = dashboard as unknown as Prisma.InputJsonValue;
     await prisma.analyticsCache.upsert({
       where: { clientId_key: { clientId, key } },

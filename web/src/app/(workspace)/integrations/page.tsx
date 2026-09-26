@@ -9,7 +9,7 @@ import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
-import { META_SETTINGS, metaSettings } from "@/lib/instagram";
+import { apifyToken } from "@/lib/instagram";
 import { YOUTUBE_SETTINGS, youtubeSettings } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ export default async function IntegrationsPage({
     taskDatabaseId(),
     clientDatabaseId(),
   ]);
-  const [meta, yt] = await Promise.all([metaSettings(), youtubeSettings()]);
+  const [apify, yt] = await Promise.all([apifyToken(), youtubeSettings()]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -73,9 +73,7 @@ export default async function IntegrationsPage({
         googleReady={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}
         youtubeAccount={yt[YOUTUBE_SETTINGS.refreshToken] ? yt[YOUTUBE_SETTINGS.account] || "connected" : null}
         youtubeViaServiceAccount={!!process.env.GOOGLE_SERVICE_ACCOUNT_JSON}
-        metaAppId={meta[META_SETTINGS.appId] ?? "1114199917692911"}
-        metaReady={!!meta[META_SETTINGS.appId] && !!meta[META_SETTINGS.appSecret]}
-        instagramAccount={meta[META_SETTINGS.token] ? (meta[META_SETTINGS.igUsername] ?? "connected") : null}
+        apifyReady={!!apify}
         justConnected={analytics ?? null}
         problem={analyticsError ?? null}
       />
