@@ -286,18 +286,72 @@ model Client {
   invoices     Invoice[]
   deliverables Deliverable[]
   onboarding   OnboardingStep[]
+  content      ContentItem[]
+  socialAccounts SocialAccount[]
 }
 
-// One fetched dashboard, kept for a few hours so opening a client's
-// analytics doesn't call YouTube or Instagram every time.
-model AnalyticsCache {
-  clientId  String
-  key       String // platform:account:from:to
-  data      Json
-  fetchedAt DateTime @default(now())
+// One of a client's videos or posts, as last scraped from its public page
+// (lib/contentSync.ts). Kept, so every analytics view opens straight from
+// here — nothing waits on a scrape — and each daily scrape only has to
+// refresh what's recent.
+model ContentItem {
+  id          String   @id @default(uuid())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String
+  platform    String // youtube | instagram
+  externalId  String // the video / post id on that platform
+  title       String
+  url         String
+  thumbnail   String?  @db.Text
+  kind        String // Video, Short, Reel, Post, Carousel
+  publishedAt DateTime
+  views       Int?
+  likes       Int?
+  comments    Int?
+  // when these numbers were read — older posts are read less often
+  scrapedAt   DateTime
 
-  @@id([clientId, key])
+  @@unique([platform, externalId])
+  @@index([clientId, platform, publishedAt])
+  @@index([publishedAt])
 }
+
+// A client's channel or account itself, as last scraped
+model SocialAccount {
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  platform     String // youtube | instagram
+  handle       String // the Instagram username / channel address it was read from
+  name         String?
+  image        String?   @db.Text
+  followers    Int?
+  totalViews   Int?
+  totalPosts   Int?
+  // how far back its posts have been read — a range before this needs a
+  // one-off scrape of its own
+  coveredSince DateTime?
+  scrapedAt    DateTime?
+
+  @@id([clientId, platform])
+}
+
+// A scrape in flight on Apify. Collected when Apify calls back (or the next
+// time anyone looks), then kept briefly as a record.
+model ScrapeRun {
+  id        String    @id // Apify's run id
+  platform  String // youtube | instagram
+  kind      String // posts | details | videos
+  // which of the team's Apify tokens started it (a hash, not the token)
+  account   String
+  // the accounts it covers: address → client id
+  targets   Json
+  since     DateTime
+  status    String    @default("RUNNING")
+  startedAt DateTime  @default(now())
+  checkedAt DateTime?
+  doneAt    DateTime?
+}
+
 
 // The one shape every client gets, held as data so ops can change it
 // without a deploy. Exactly one row (id "default") — Notion enforced this

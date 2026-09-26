@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { channelUrl, youtubeDashboard, youtubeData } from "@/lib/youtube";
-import { instagramDashboard, instagramData } from "@/lib/instagram";
-import { instagramUsername, previousRange, socialLink } from "@/lib/analytics";
-
-// checking on a scrape and reading its results is a few quick calls
-export const maxDuration = 60;
+import { buildDashboard, istDay, previousRange, shiftDay, type Item } from "@/lib/analytics";
+import { addressKey, collect, startSync, syncing, targets } from "@/lib/contentSync";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 // One client's dashboard for one platform and date range, for the Analytics
-// tab — their public numbers, scraped with Apify (lib/apify.ts). Anyone on
-// the team can read it. While a scrape is still running it answers
-// "pending", and the tab asks again shortly.
+// tab — straight from what's stored (lib/contentSync.ts), so it's instant.
+// Only when the range reaches back further than anything read for this
+// account yet (or on Refresh) does it start a scrape; it then answers with
+// what it has plus "syncing", and the tab asks again shortly.
 export async function GET(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
   if (!(await getSessionUserId())) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { clientId } = await params;
@@ -24,39 +21,59 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
   if ((platform !== "youtube" && platform !== "instagram") || !DAY.test(from) || !DAY.test(to) || from > to) {
     return NextResponse.json({ error: "That isn't a date range." }, { status: 400 });
   }
-  if (Date.parse(to) - Date.parse(from) > 400 * 86_400_000) {
-    return NextResponse.json({ error: "Pick a range of a year or less." }, { status: 400 });
-  }
 
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { youtubeChannel: true, instagramHandle: true, socialLinks: true },
-  });
-  if (!client) return NextResponse.json({ error: "No such client." }, { status: 404 });
-  const account =
-    platform === "youtube"
-      ? (client.youtubeChannel ?? socialLink(client.socialLinks, "youtube.com"))
-      : (client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"));
-  if (!account) return NextResponse.json({ connected: false });
+  const target = (await targets([clientId])).find((t) => t.platform === platform);
+  if (!target) return NextResponse.json({ connected: false });
 
-  const refresh = url.searchParams.get("refresh") === "1";
-  const since = previousRange(from, to).from;
   try {
-    if (platform === "instagram") {
-      const username = instagramUsername(account);
-      if (!username) return NextResponse.json({ connected: true, error: "That doesn't look like an Instagram account." });
-      const got = await instagramData(clientId, username, since, refresh);
-      if ("pending" in got) return NextResponse.json({ connected: true, pending: true });
-      return NextResponse.json({
-        connected: true,
-        dashboard: instagramDashboard(username, got.profile, got.posts, got.fetchedAt, from, to),
-      });
+    await collect();
+    const since = previousRange(from, to).from;
+    const account = await prisma.socialAccount.findUnique({ where: { clientId_platform: { clientId, platform } } });
+    const handle = platform === "youtube" ? addressKey(target.handle) : target.handle;
+    const sameAccount = account?.handle === handle;
+    const covered = sameAccount && account?.coveredSince && istDay(account.coveredSince) <= since;
+    let busy = await syncing(clientId, platform);
+    if (!busy && (!covered || url.searchParams.get("refresh") === "1")) {
+      await startSync({ clientIds: [clientId], platforms: [platform], since, origin: url.origin });
+      busy = true;
     }
-    const channel = channelUrl(account);
-    if (!channel) return NextResponse.json({ connected: true, error: "That doesn't look like a YouTube channel." });
-    const got = await youtubeData(clientId, channel, since, refresh);
-    if ("pending" in got) return NextResponse.json({ connected: true, pending: true });
-    return NextResponse.json({ connected: true, dashboard: youtubeDashboard(channel, got.videos, got.fetchedAt, from, to) });
+
+    const rows = await prisma.contentItem.findMany({
+      where: { clientId, platform, publishedAt: { gte: new Date(`${since}T00:00:00+05:30`), lt: new Date(`${shiftDay(to, 1)}T00:00:00+05:30`) } },
+    });
+    const items: Item[] = rows.map((r) => ({
+      externalId: r.externalId,
+      clientId,
+      platform,
+      title: r.title,
+      url: r.url,
+      thumbnail: r.thumbnail,
+      kind: r.kind,
+      published: istDay(r.publishedAt),
+      views: r.views,
+      likes: r.likes,
+      comments: r.comments,
+    }));
+    const fetchedAt = (sameAccount && account?.scrapedAt?.toISOString()) || new Date(0).toISOString();
+    const dashboard =
+      sameAccount || items.length
+        ? buildDashboard(
+            platform,
+            {
+              name: (sameAccount && account?.name) || (platform === "youtube" ? target.handle.replace("https://www.youtube.com/", "") : `@${target.handle}`),
+              image: sameAccount ? (account?.image ?? null) : null,
+              url: platform === "youtube" ? target.handle : `https://www.instagram.com/${target.handle}/`,
+              followers: sameAccount ? (account?.followers ?? null) : null,
+              totalViews: sameAccount ? (account?.totalViews ?? null) : null,
+              totalPosts: sameAccount ? (account?.totalPosts ?? null) : null,
+            },
+            items,
+            fetchedAt,
+            from,
+            to
+          )
+        : undefined;
+    return NextResponse.json({ connected: true, dashboard, pending: busy && !covered, syncing: busy });
   } catch (err) {
     return NextResponse.json({ connected: true, error: err instanceof Error ? err.message : "Couldn't load the numbers." });
   }

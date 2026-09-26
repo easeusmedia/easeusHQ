@@ -973,13 +973,24 @@ export async function saveAnalyticsAccount(
   if (v && (platform === "youtube" ? !youtubeRef(v) : !instagramUsername(v))) {
     return { error: platform === "youtube" ? "That doesn't look like a YouTube channel link or @handle." : "That doesn't look like an Instagram link or @handle." };
   }
+  const before = await prisma.client.findUnique({ where: { id: clientId }, select: { youtubeChannel: true, instagramHandle: true } });
   await prisma.client.update({
     where: { id: clientId },
     data: platform === "youtube" ? { youtubeChannel: v || null } : { instagramHandle: v || null },
   });
-  await prisma.analyticsCache.deleteMany({
-    where: { clientId, key: { startsWith: platform === "youtube" ? "youtube:" : "igraw:" } },
-  });
+  const same =
+    platform === "youtube"
+      ? JSON.stringify(youtubeRef(before?.youtubeChannel)) === JSON.stringify(youtubeRef(v))
+      : instagramUsername(before?.instagramHandle) === instagramUsername(v);
+  if (same) {
+    revalidatePath("/clients/[slug]", "page");
+    return {};
+  }
+  // a different account: what was read from the old one no longer applies
+  await prisma.$transaction([
+    prisma.socialAccount.deleteMany({ where: { clientId, platform } }),
+    prisma.contentItem.deleteMany({ where: { clientId, platform } }),
+  ]);
   revalidatePath("/clients/[slug]", "page");
   return {};
 }

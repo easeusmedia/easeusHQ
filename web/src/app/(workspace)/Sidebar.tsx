@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2 } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
@@ -233,6 +233,8 @@ export function Sidebar({
         { href: "/clients", label: "Clients", hint: "Every client and their projects", Icon: Building2 },
         ...NAV,
         ...(isOps ? [{ href: "/calendar", label: "Calendar", hint: "Workload day by day", Icon: CalendarDays }] : []),
+        // every client's YouTube and Instagram views in one place
+        ...(isOps ? [{ href: "/analytics", label: "Analytics", hint: "Views across every client", Icon: ChartColumn }] : []),
         // core members see their own team here (read-only); admin edits everyone
         ...(isOps ? [{ href: "/team", label: "Team", hint: "Everyone and their roles", Icon: UsersRound }] : []),
       ].map((item) => {

@@ -8,6 +8,7 @@ import { shiftDay } from "@/lib/analytics";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { saveAnalyticsAccount } from "./actions";
+import { InstagramIcon, YoutubeIcon } from "../PlatformIcon";
 
 const RANGES = [
   { value: "7", label: "Last 7 days" },
@@ -17,9 +18,9 @@ const RANGES = [
   { value: "custom", label: "Custom range" },
 ];
 
-const PLATFORM: Record<Platform, { name: string; Logo: () => React.ReactElement; kinds: string[] }> = {
-  youtube: { name: "YouTube", Logo: YoutubeLogo, kinds: ["Video", "Short"] },
-  instagram: { name: "Instagram", Logo: InstagramLogo, kinds: ["Reel", "Post", "Carousel"] },
+const PLATFORM: Record<Platform, { name: string; Logo: typeof YoutubeIcon; kinds: string[] }> = {
+  youtube: { name: "YouTube", Logo: YoutubeIcon, kinds: ["Video", "Short"] },
+  instagram: { name: "Instagram", Logo: InstagramIcon, kinds: ["Reel", "Post", "Carousel"] },
 };
 
 // One client's content performance, per platform: how the channel or
@@ -53,8 +54,9 @@ export function ClientAnalytics({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
-  // pending: an Instagram scrape still running — checked again shortly
-  const [data, setData] = useState<Record<string, { dashboard?: Dashboard; error?: string; pending?: boolean }>>({});
+  // syncing: a scrape for this account is under way — the stored numbers
+  // show meanwhile, and it's asked about again shortly
+  const [data, setData] = useState<Record<string, { dashboard?: Dashboard; error?: string; pending?: boolean; syncing?: boolean }>>({});
   const [poll, setPoll] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -72,7 +74,7 @@ export function ClientAnalytics({
   }, [seen]);
 
   useEffect(() => {
-    if (!seen || !live || (current && !current.pending && !refresh)) return;
+    if (!seen || !live || (current && !current.syncing && !refresh)) return;
     let alive = true;
     // a scrape still running is asked about again in a few seconds
     const wait = setTimeout(
@@ -82,8 +84,11 @@ export function ClientAnalytics({
           .then((r) => r.json())
           .then((body) => {
             if (!alive) return;
-            setData((d) => ({ ...d, [key]: { dashboard: body.dashboard, error: body.error, pending: !!body.pending } }));
-            if (body.pending) setPoll((n) => n + 1);
+            setData((d) => ({
+              ...d,
+              [key]: { dashboard: body.dashboard, error: body.error, pending: !!body.pending, syncing: !!body.syncing },
+            }));
+            if (body.syncing) setPoll((n) => n + 1);
           })
           .catch(() => alive && setData((d) => ({ ...d, [key]: { error: "Couldn't reach the server." } })))
           .finally(() => {
@@ -92,7 +97,7 @@ export function ClientAnalytics({
             setRefresh(0);
           });
       },
-      current?.pending && !refresh ? 5000 : 0
+      current?.syncing && !refresh ? 6000 : 0
     );
     return () => {
       alive = false;
@@ -139,12 +144,12 @@ export function ClientAnalytics({
             <button
               type="button"
               onClick={() => setRefresh(1)}
-              disabled={loading}
-              title="Fetch fresh numbers now"
+              disabled={loading || !!current?.syncing}
+              title="Read fresh numbers now — they're also refreshed every night on their own"
               className="btn btn-sm btn-ghost disabled:opacity-60"
             >
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-              {d ? `Updated ${ago(d.fetchedAt)}` : "Refresh"}
+              <RefreshCw size={13} className={current?.syncing ? "animate-spin" : ""} />
+              {current?.syncing ? "Updating…" : d && Date.parse(d.fetchedAt) > 0 ? `Updated ${ago(d.fetchedAt)}` : "Refresh"}
             </button>
           </div>
         )}
@@ -198,12 +203,13 @@ export function ClientAnalytics({
 
           {current?.error ? (
             <p className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300">{current.error}</p>
-          ) : !d ? (
+          ) : !d || (current?.pending && !d.rows.length) ? (
             <div className="flex flex-col gap-3">
               {current?.pending && (
                 <p className="fade-in flex items-center gap-2 text-sm text-muted">
                   <RefreshCw size={13} className="animate-spin" />
-                  Reading their latest posts from Instagram — about a minute the first time, then kept for a few hours.
+                  Reading their {PLATFORM[platform].name} for the first time — a minute or two. After that it opens
+                  straight away, and it&apos;s kept up to date every night.
                 </p>
               )}
               <Skeleton />
@@ -536,9 +542,7 @@ function Notice({ platform, children }: { platform: Platform; children: React.Re
   const { name, Logo } = PLATFORM[platform];
   return (
     <div className="card-surface flex flex-col items-center gap-2 rounded-2xl px-6 py-12 text-center shadow-sm">
-      <span className="scale-[1.8]">
-        <Logo />
-      </span>
+      <Logo size={26} className="text-muted" />
       <p className="mt-2 text-base font-medium">{name}</p>
       <div className="flex max-w-lg flex-col items-center text-sm text-muted">{children}</div>
     </div>
@@ -581,31 +585,4 @@ function ago(iso: string): string {
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.round(mins / 60);
   return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
-}
-
-function YoutubeLogo() {
-  return (
-    <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden className="shrink-0">
-      <rect width="16" height="12" rx="3" fill="#ff0033" />
-      <path d="M6.4 3.4v5.2L10.8 6z" fill="#fff" />
-    </svg>
-  );
-}
-
-function InstagramLogo() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden className="shrink-0">
-      <defs>
-        <linearGradient id="ig" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="#feda75" />
-          <stop offset="40%" stopColor="#fa7e1e" />
-          <stop offset="70%" stopColor="#d62976" />
-          <stop offset="100%" stopColor="#4f5bd5" />
-        </linearGradient>
-      </defs>
-      <rect width="14" height="14" rx="4" fill="url(#ig)" />
-      <circle cx="7" cy="7" r="2.9" fill="none" stroke="#fff" strokeWidth="1.3" />
-      <circle cx="10.6" cy="3.4" r="0.8" fill="#fff" />
-    </svg>
-  );
 }

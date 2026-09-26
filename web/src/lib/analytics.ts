@@ -91,3 +91,178 @@ export function socialLink(links: unknown, host: string): string | null {
   const hit = (links as { url?: string }[]).find((l) => typeof l?.url === "string" && l.url.includes(host));
   return hit?.url ?? null;
 }
+
+// ---- from stored rows to what the pages show ----
+
+// A stored video or post, as the dashboards read it
+export type Item = {
+  externalId: string;
+  clientId: string;
+  platform: Platform;
+  title: string;
+  url: string;
+  thumbnail: string | null;
+  kind: string;
+  published: string; // yyyy-mm-dd, in India
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+};
+
+export type Account = {
+  name: string;
+  image: string | null;
+  url: string;
+  followers: number | null;
+  totalViews: number | null;
+  totalPosts: number | null;
+};
+
+// the day a moment falls on in India, where the team is
+export const istDay = (d: Date | string) => new Date(new Date(d).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
+
+// Last week, Monday to Sunday, from a day
+export function lastWeek(today: string): { from: string; to: string } {
+  const back = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; // days since Monday
+  const monday = shiftDay(today, -back);
+  return { from: shiftDay(monday, -7), to: shiftDay(monday, -1) };
+}
+
+const total = (list: Item[], k: "views" | "likes" | "comments") => list.reduce((n, i) => n + (i[k] ?? 0), 0);
+const withViews = (list: Item[]) => list.filter((i) => i.views !== null);
+
+// One client's dashboard for one platform, from what's stored.
+export function buildDashboard(
+  platform: Platform,
+  account: Account,
+  items: Item[],
+  fetchedAt: string,
+  from: string,
+  to: string
+): Dashboard {
+  const prev = previousRange(from, to);
+  const inRange = items.filter((i) => i.published >= from && i.published <= to);
+  const before = items.filter((i) => i.published >= prev.from && i.published <= prev.to);
+  const yt = platform === "youtube";
+  const followers = account.followers;
+  const avg = (list: Item[]) => (withViews(list).length ? total(list, "views") / withViews(list).length : null);
+  // YouTube: likes and comments per view. Instagram: per post, against
+  // followers — the usual public measure there, since reach isn't public.
+  const engagement = (list: Item[]) => {
+    const talk = total(list, "likes") + total(list, "comments");
+    if (yt) return total(list, "views") ? talk / total(list, "views") : null;
+    return followers && list.length ? talk / list.length / followers : null;
+  };
+
+  const rows: ContentRow[] = inRange.map((i) => ({
+    id: i.externalId,
+    title: i.title,
+    url: i.url,
+    thumbnail: i.thumbnail,
+    published: i.published,
+    kind: i.kind,
+    stats: {
+      views: i.views,
+      likes: i.likes,
+      comments: i.comments,
+      engagement: yt
+        ? i.views
+          ? ((i.likes ?? 0) + (i.comments ?? 0)) / i.views
+          : null
+        : followers
+          ? ((i.likes ?? 0) + (i.comments ?? 0)) / followers
+          : null,
+    },
+  }));
+  const byDay = new Map<string, number>();
+  for (const r of rows) byDay.set(r.published, (byDay.get(r.published) ?? 0) + (r.stats.views ?? 0));
+  const noun = yt ? "video" : "post";
+
+  return {
+    platform,
+    account: { name: account.name, image: account.image, url: account.url, followers },
+    from,
+    to,
+    fetchedAt,
+    metrics: [
+      { key: "views", label: "Views", value: total(inRange, "views"), previous: total(before, "views"), format: "count", hint: `On the ${noun}s published in this range, to date` },
+      { key: "avgViews", label: yt ? "Avg views per video" : "Avg views per reel", value: avg(inRange), previous: avg(before), format: "count" },
+      { key: "engagement", label: "Engagement rate", value: engagement(inRange), previous: engagement(before), format: "percent", hint: yt ? "Likes and comments per view" : "Likes and comments per post, against followers" },
+      { key: "posts", label: yt ? "Videos published" : "Posts published", value: inRange.length, previous: before.length, format: "count" },
+      { key: "likes", label: "Likes", value: total(inRange, "likes"), previous: total(before, "likes"), format: "count" },
+      { key: "comments", label: "Comments", value: total(inRange, "comments"), previous: total(before, "comments"), format: "count" },
+      { key: "followers", label: yt ? "Subscribers" : "Followers", value: followers, format: "count", hint: "The total now" },
+      yt
+        ? { key: "allViews", label: "Channel views, all time", value: account.totalViews, format: "count" }
+        : { key: "allPosts", label: "Posts, all time", value: account.totalPosts, format: "count" },
+    ],
+    series: daysBetween(from, to).map((d) => ({ day: d, value: byDay.get(d) ?? 0 })),
+    seriesLabel: `Views, by the day each ${noun} went up`,
+    columns: [
+      { key: "views", label: "Views", format: "count" },
+      { key: "likes", label: "Likes", format: "count" },
+      { key: "comments", label: "Comments", format: "count" },
+      { key: "engagement", label: "Engagement", format: "percent" },
+    ],
+    rows,
+    notes: [
+      `Public numbers: each ${noun}'s views, likes and comments so far, for the ${noun}s published in the range — compared with the ones published in the same length of time before.`,
+      yt
+        ? "Impressions, click-through rate and watch time are private to the channel, so they aren't here."
+        : "Reach, saves, shares and watch time are private to the account, so they aren't here.",
+    ],
+  };
+}
+
+export type ClientSummary = {
+  clientId: string;
+  posts: number;
+  views: number;
+  previousViews: number;
+  youtube: { posts: number; views: number };
+  instagram: { posts: number; views: number };
+  top: Item | null;
+};
+
+// Every client at once, for the Analytics page: what went out in the range,
+// the views it's pulled, and how that compares with the period before.
+export function overview(items: Item[], from: string, to: string) {
+  const prev = previousRange(from, to);
+  const inRange = items.filter((i) => i.published >= from && i.published <= to);
+  const before = items.filter((i) => i.published >= prev.from && i.published <= prev.to);
+  const by = (p: Platform, list: Item[]) => list.filter((i) => i.platform === p);
+
+  const clients = [...new Set(items.map((i) => i.clientId))].map((clientId): ClientSummary => {
+    const mine = inRange.filter((i) => i.clientId === clientId);
+    const earlier = before.filter((i) => i.clientId === clientId);
+    return {
+      clientId,
+      posts: mine.length,
+      views: total(mine, "views"),
+      previousViews: total(earlier, "views"),
+      youtube: { posts: by("youtube", mine).length, views: total(by("youtube", mine), "views") },
+      instagram: { posts: by("instagram", mine).length, views: total(by("instagram", mine), "views") },
+      top: [...mine].sort((a, b) => (b.views ?? -1) - (a.views ?? -1))[0] ?? null,
+    };
+  });
+
+  const series = daysBetween(from, to).map((day) => ({
+    day,
+    youtube: total(by("youtube", inRange).filter((i) => i.published === day), "views"),
+    instagram: total(by("instagram", inRange).filter((i) => i.published === day), "views"),
+  }));
+
+  return {
+    views: total(inRange, "views"),
+    previousViews: total(before, "views"),
+    posts: inRange.length,
+    previousPosts: before.length,
+    likes: total(inRange, "likes"),
+    comments: total(inRange, "comments"),
+    youtube: { views: total(by("youtube", inRange), "views"), posts: by("youtube", inRange).length },
+    instagram: { views: total(by("instagram", inRange), "views"), posts: by("instagram", inRange).length },
+    clients: clients.sort((a, b) => b.views - a.views || b.posts - a.posts),
+    top: [...inRange].sort((a, b) => (b.views ?? -1) - (a.views ?? -1)).slice(0, 12),
+    series,
+  };
+}
