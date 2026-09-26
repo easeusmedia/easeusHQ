@@ -69,7 +69,10 @@ export function TaskRow({
             className={`flex shrink-0 items-center transition-opacity duration-150 ease-out ${
               selected
                 ? "opacity-100"
-                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                : // pointer-coarse: a touchscreen has no hover (Tailwind only
+                  // applies hover: where the device can), so there it's simply
+                  // always shown — otherwise a phone or iPad could never select
+                  "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100"
             }`}
           >
             <Checkbox checked={!!selected} onChange={() => onSelect(task.id)} label={`Select ${task.title}`} />
