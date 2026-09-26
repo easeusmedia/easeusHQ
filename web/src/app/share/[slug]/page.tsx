@@ -68,7 +68,7 @@ export default async function SharedClientPage({
   // the plan by day, as the team sees it — only what's made for them
   const dated = await prisma.task.findMany({
     where: { projectId: { in: client.projects.map((p) => p.id) }, dueDate: { not: null }, internal: false },
-    select: { id: true, title: true, status: true, dueDate: true },
+    select: { id: true, title: true, status: true, projectId: true, startDate: true, dueDate: true },
   });
 
   const logo = clientLogoSrc(client);
@@ -142,6 +142,8 @@ export default async function SharedClientPage({
                     id: t.id,
                     title: t.title,
                     status: t.status,
+                    projectId: t.projectId,
+                    start: indiaDay(t.startDate ?? t.dueDate!),
                     due: indiaDay(t.dueDate!),
                     // the team's deadline, not something to flag red at the client
                     overdue: false,

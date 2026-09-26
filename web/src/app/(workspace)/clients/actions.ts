@@ -737,7 +737,10 @@ export async function createProject(
   deliverableTypes: string[] = [],
   // yyyy-mm-dd: lay the project's tasks out on the content calendar from
   // this day, by the client's blueprint. Omitted = no tasks made.
-  planFrom: string | null = null
+  planFrom: string | null = null,
+  // yyyy-mm-dd: the project's deadline — the blueprint's week is fitted
+  // between the start and this. Omitted = a week after the start.
+  planUntil: string | null = null
 ): Promise<{ id?: string; planned?: number; error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a project." };
@@ -771,7 +774,13 @@ export async function createProject(
   // content calendar fills itself in, and each one is on the board, queued.
   const planned =
     planFrom && /^\d{4}-\d{2}-\d{2}$/.test(planFrom)
-      ? planTasks(planFor(client.contentPlan), deliverableTypes, trimmed, planFrom)
+      ? planTasks(
+          planFor(client.contentPlan),
+          deliverableTypes,
+          trimmed,
+          planFrom,
+          planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > planFrom ? planUntil : undefined
+        )
       : [];
   if (planned.length) {
     const tags = await prisma.taskTag.findMany({ select: { id: true, name: true } });
@@ -783,6 +792,7 @@ export async function createProject(
           data: {
             projectId: project.id,
             title: t.title,
+            startDate: new Date(t.start),
             dueDate: new Date(t.due),
             sortOrder: now + i,
             ...(tagFor(t.type) ? { tags: { connect: { id: tagFor(t.type)!.id } } } : {}),
@@ -808,11 +818,20 @@ export async function saveContentPlan(clientId: string, plan: PlanItem[]): Promi
   return {};
 }
 
-// A task dragged to another day on the content calendar: its due date moves.
+// A task dragged to another day on the content calendar: its due date moves
+// there, and its start moves with it, so the span it's worked across keeps
+// its length.
 export async function rescheduleTask(taskId: string, day: string): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can move tasks on the calendar." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "That isn't a date." };
-  await prisma.task.update({ where: { id: taskId }, data: { dueDate: new Date(day) } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { startDate: true, dueDate: true } });
+  if (!task) return { error: "That task no longer exists." };
+  const due = new Date(day);
+  const shift = task.dueDate ? due.getTime() - task.dueDate.getTime() : 0;
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { dueDate: due, ...(task.startDate ? { startDate: new Date(task.startDate.getTime() + shift) } : {}) },
+  });
   revalidatePath("/clients/[slug]", "page");
   revalidatePath("/board");
   return {};

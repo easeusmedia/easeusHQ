@@ -7,7 +7,7 @@ import { createProject } from "./actions";
 import { CoverPicker } from "./CoverPicker";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { DELIVERABLE_TYPES } from "@/lib/deliverableTypes";
-import { DEFAULT_PLAN, planTasks, type PlanItem } from "@/lib/contentPlan";
+import { DEFAULT_PLAN, PLAN_DAYS, addDays, planTasks, type PlanItem } from "@/lib/contentPlan";
 import { DatePicker } from "../DatePicker";
 import { Checkbox } from "../Checkbox";
 
@@ -35,6 +35,8 @@ export function AddProjectCard({
   const [types, setTypes] = useState<string[]>(usual);
   const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const [start, setStart] = useState(today);
+  // when the whole project is due — the blueprint's week is fitted to it
+  const [deadline, setDeadline] = useState(() => addDays(today(), PLAN_DAYS));
   const [planOn, setPlanOn] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export function AddProjectCard({
     setCover(null);
     setTypes(usual);
     setStart(today());
+    setDeadline(addDays(today(), PLAN_DAYS));
     setPlanOn(true);
     setError(null);
     dialogRef.current?.showModal();
@@ -68,7 +71,7 @@ export function AddProjectCard({
     if (!name.trim()) return;
     setSaving(true);
     setError(null);
-    const res = await createProject(clientId, name, cover, types, planOn ? start : null);
+    const res = await createProject(clientId, name, cover, types, planOn ? start : null, planOn ? deadline : null);
     setSaving(false);
     if (res.error) return setError(res.error);
     dialogRef.current?.close();
@@ -166,16 +169,31 @@ export function AddProjectCard({
               Plan its tasks on the content calendar
             </label>
             {planOn && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                Starting
-                <DatePicker pill={{}} value={start} onChange={(v) => setStart(v || today())} placeholder="Start" />
+              <div className="flex flex-col gap-2 text-xs text-muted">
+                <span className="flex flex-wrap items-center gap-2">
+                  From
+                  <DatePicker
+                    pill={{}}
+                    value={start}
+                    onChange={(v) => {
+                      const s = v || today();
+                      setStart(s);
+                      // the deadline keeps its distance, or at least stays after the start
+                      if (deadline <= s) setDeadline(addDays(s, PLAN_DAYS));
+                    }}
+                    placeholder="Start"
+                  />
+                  to deadline
+                  <DatePicker pill={{}} value={deadline} onChange={(v) => v && v > start && setDeadline(v)} placeholder="Deadline" />
+                </span>
                 <span>
                   {(() => {
-                    const tasks = planTasks(plan, types, name.trim() || "Project", start);
-                    if (!tasks.length) return "— pick a deliverable to plan";
+                    const tasks = planTasks(plan, types, name.trim() || "Project", start, deadline);
+                    if (!tasks.length) return "Pick a deliverable to plan.";
                     const fmt = (d: string) =>
                       new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-                    return `— ${tasks.length} task${tasks.length === 1 ? "" : "s"}, due ${fmt(tasks[0].due)} to ${fmt(tasks.at(-1)!.due)}`;
+                    const first = [...tasks].sort((a, b) => a.due.localeCompare(b.due))[0];
+                    return `${tasks.length} task${tasks.length === 1 ? "" : "s"} — the first (${first.title.split(" · ")[0]}) due ${fmt(first.due)}, the last ${fmt(tasks.at(-1)!.due)}.`;
                   })()}
                 </span>
               </div>

@@ -509,6 +509,9 @@ model Task {
   assignedToId String?
   title        String
   status       TaskStatus @default(queued)
+  // the day work on it starts — with dueDate, the span the content calendar
+  // draws it across. Null = just its due day.
+  startDate    DateTime?
   dueDate      DateTime?
   // null = visible immediately. Set = hidden from the assigned editor's
   // board/list until this date; ops/admin always see it regardless, so
