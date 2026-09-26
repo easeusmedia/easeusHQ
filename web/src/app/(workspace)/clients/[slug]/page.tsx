@@ -137,6 +137,7 @@ export default async function ClientDetailPage({
     activeTasks: p._count.tasks,
     taskCount: tasksPerProject.get(p.id) ?? 0,
     invoiceStatus: p.invoiceStatus,
+    invoiceBatch: p.invoiceBatch,
   }));
 
   return (
@@ -256,6 +257,7 @@ export default async function ClientDetailPage({
                   initialShow={show}
                   initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
+                  canMoveInvoices={me.role !== "employee"}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                 />

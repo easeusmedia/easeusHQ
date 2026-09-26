@@ -22,6 +22,8 @@ export type ProjectCardData = {
   taskCount?: number;
   // paid / unpaid, or null when nobody's recorded it
   invoiceStatus: string | null;
+  // the invoice it was moved to by hand, if it was (lib/invoiceBatches)
+  invoiceBatch?: string | null;
 };
 
 // the line under a project's name: what's still being made on it, else when
@@ -37,7 +39,7 @@ function projectLine(project: ProjectCardData) {
 export function ProjectRow({ project, href = `/projects/${project.id}` }: { project: ProjectCardData; href?: string }) {
   const done = project.status === "completed";
   return (
-    <li>
+    <li data-project={project.id}>
       <Link href={href} className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-surface-2/60">
         <span className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
           {project.coverUrl && (
@@ -98,7 +100,7 @@ export function ProjectCard({
   }
 
   return (
-    <div className="group relative">
+    <div data-project={project.id} className="group relative">
       <Link href={href} className="card-surface card-interactive flex flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {project.coverUrl ? (

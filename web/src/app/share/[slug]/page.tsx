@@ -74,6 +74,7 @@ export default async function SharedClientPage({
     assetCount: p._count.assets,
     activeTasks: p._count.tasks,
     invoiceStatus: p.invoiceStatus,
+    invoiceBatch: p.invoiceBatch,
   }));
 
   return (

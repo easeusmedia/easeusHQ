@@ -22,6 +22,7 @@ export function ProjectHeader({
   completedAt,
   completedOn,
   canDelete,
+  invoice,
 }: {
   projectId: string;
   // whose covers the picker offers
@@ -37,6 +38,8 @@ export function ProjectHeader({
   /** yyyy-mm-dd, for the editable date field */
   completedOn: string;
   canDelete: boolean;
+  // the invoice picker, when this project is in one
+  invoice?: React.ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -215,6 +218,7 @@ export function ProjectHeader({
               </span>
               <span className="text-xs text-muted">{type}</span>
               {completedAt && <span className="text-xs text-muted">· {completedAt}</span>}
+              {invoice}
             </div>
             {driveLink && (
               <a

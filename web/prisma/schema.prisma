@@ -401,6 +401,9 @@ model Project {
   coverUrl      String?
   driveLink     String?
   invoiceStatus String? // paid | unpaid | null when not tracked
+  // which invoice it's in when someone's moved it there by hand ("batch-3",
+  // or "2026-09" for monthly billing); null = wherever the rule puts it
+  invoiceBatch  String?
   completedAt   DateTime?
   notionPageId  String?        @unique
   createdAt     DateTime       @default(now())

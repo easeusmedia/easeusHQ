@@ -6,7 +6,8 @@ import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
-import { batchPayment, invoiceBatches, type BillingRule, type Payment } from "@/lib/invoiceBatches";
+import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule, type Payment } from "@/lib/invoiceBatches";
+import { moveProjectToInvoice } from "./actions";
 import { Dropdown } from "../Dropdown";
 import { Reveal } from "../Reveal";
 
@@ -41,6 +42,7 @@ export function ProjectsSection({
   billing,
   today,
   projectBase,
+  canMoveInvoices = false,
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -55,6 +57,8 @@ export function ProjectsSection({
   // the client's own page: where its projects open (…/<id>), and no adding
   // or deleting. A string, not a function — this comes from a server page.
   projectBase?: string;
+  // ops: drag a finished project from one invoice to another
+  canMoveInvoices?: boolean;
 }) {
   // "invoice": every project, in sections, one per invoice
   const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
@@ -81,11 +85,53 @@ export function ProjectsSection({
 
   // an invoice covers finished work, so only finished projects count — which
   // also keeps out the catch-all project each client's tasks live in
+  //
+  // A move shows at once: its pins apply here until the saved ones arrive
+  // with the refreshed projects (a new `projects` array drops them).
+  const [optimistic, setOptimistic] = useState<{ base: ProjectCardData[]; pins: Record<string, string> } | null>(null);
+  const pins = optimistic?.base === projects ? optimistic.pins : {};
   const batches = invoiceBatches(
-    projects.filter((p) => p.completedAt),
+    projects.filter((p) => p.completedAt).map((p) => ({ id: p.id, date: p.date, pin: pins[p.id] ?? p.invoiceBatch })),
     billing,
     today
   );
+  const nextKey = newBatchKey(batches, billing);
+  const canMove = canMoveInvoices && !projectBase;
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  async function moveTo(projectId: string, key: string) {
+    if (batches.find((b) => b.ids.includes(projectId))?.key === key) return;
+    setMoveError(null);
+    setOptimistic({ base: projects, pins: { ...pins, ...pinsAfterMove(batches, billing, projectId, key) } });
+    const res = await moveProjectToInvoice(projectId, key);
+    if (res.error) {
+      setOptimistic(null);
+      setMoveError(res.error);
+    }
+  }
+  // what a drop target needs: accept a dragged project, light up under it
+  const dropTarget = (key: string) =>
+    canMove
+      ? {
+          onDragOver: (e: React.DragEvent) => {
+            if (!dragId) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            if (over !== key) setOver(key);
+          },
+          onDragLeave: (e: React.DragEvent) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null);
+          },
+          onDrop: (e: React.DragEvent) => {
+            e.preventDefault();
+            if (dragId) moveTo(dragId, key);
+            setDragId(null);
+            setOver(null);
+          },
+        }
+      : {};
   const batch = batches.find((b) => b.key === batchKey) ?? null;
   const dateFilterActive = !!(from || to);
   // the By invoice view (the switch beside Filter) — its own way of seeing
@@ -315,11 +361,36 @@ export function ProjectsSection({
       <div key={`${list}-${preset}-${batchKey}-${from}-${to}`} className="fade-in">
       {grouped ? (
         <div className="flex flex-col gap-2">
+          {canMove && batches.length > 0 && (
+            <p className="text-xs text-muted">
+              Drag a finished project onto another invoice to move it there.
+            </p>
+          )}
+          {moveError && <p className="text-xs text-red-300">{moveError}</p>}
+          {/* only while dragging: somewhere to start the next invoice */}
+          {canMove && nextKey && (
+            <Reveal open={!!dragId}>
+              <div
+                {...dropTarget(nextKey)}
+                className={`rounded-xl border px-4 py-3 text-center text-sm transition-colors duration-150 ${
+                  over === nextKey ? "border-blue-400/60 bg-blue-400/[0.08] text-foreground" : "border-border/60 bg-surface/40 text-muted"
+                }`}
+              >
+                Drop here for a new invoice
+              </div>
+            </Reveal>
+          )}
           {groups.map((g, i) => {
             const isOpen = (i === 0) !== flipped.has(g.key);
             const covers = g.items.map((p) => p.coverUrl).filter(Boolean).slice(0, 3) as string[];
             return (
-              <section key={g.key} className="overflow-hidden rounded-xl border border-border/60 bg-surface/40">
+              <section
+                key={g.key}
+                {...(g.key === "unfinished" ? {} : dropTarget(g.key))}
+                className={`overflow-hidden rounded-xl border transition-colors duration-150 ${
+                  over === g.key ? "border-blue-400/60 bg-blue-400/[0.06]" : "border-border/60 bg-surface/40"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => toggleGroup(g.key)}
@@ -362,7 +433,22 @@ export function ProjectsSection({
                   )}
                 </button>
                 <Reveal open={isOpen}>
-                  <div className="border-t border-border/60 p-3">
+                  <div
+                    className="border-t border-border/60 p-3"
+                    // cards and rows are links, which the browser already
+                    // lets you drag; this just notes which project it is
+                    onDragStart={(e) => {
+                      const id =
+                        e.target instanceof Element ? e.target.closest("[data-project]")?.getAttribute("data-project") : null;
+                      if (!canMove || g.key === "unfinished" || !id) return;
+                      e.dataTransfer.effectAllowed = "move";
+                      setDragId(id);
+                    }}
+                    onDragEnd={() => {
+                      setDragId(null);
+                      setOver(null);
+                    }}
+                  >
                     {list ? (
                       <div className="flex flex-col gap-3">
                         {i === 0 && !projectBase && <AddProjectCard clientId={clientId} row />}

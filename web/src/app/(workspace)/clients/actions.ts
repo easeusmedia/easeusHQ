@@ -10,6 +10,7 @@ import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
+import { clientBatches, newBatchKey, pinsAfterMove } from "@/lib/invoiceBatches";
 
 // The two On Hold clients ops is still actively tracking, chosen
 // explicitly (everything else On Hold, and every Previous client, stays
@@ -124,6 +125,42 @@ export async function setBillingRule(
     },
   });
   revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
+// A finished project moved to another invoice — dragged there in the By
+// invoice view, or picked on the project's own page. The move is worked out
+// here again from what's saved, not taken from the browser.
+export async function moveProjectToInvoice(projectId: string, key: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can move projects between invoices." };
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      client: {
+        select: {
+          billingCadence: true,
+          billingDayOfMonth: true,
+          billingMilestoneCount: true,
+          projects: { select: { id: true, completedAt: true, invoiceBatch: true } },
+        },
+      },
+    },
+  });
+  if (!project) return { error: "That project no longer exists." };
+  const c = project.client;
+  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
+  const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
+  if (!batches.some((b) => b.ids.includes(projectId))) return { error: "Only a finished project is in an invoice." };
+  if (key !== newBatchKey(batches, rule) && !batches.some((b) => b.key === key)) return { error: "That invoice doesn't exist." };
+
+  const saved = new Map(c.projects.map((p) => [p.id, p.invoiceBatch]));
+  await prisma.$transaction(
+    Object.entries(pinsAfterMove(batches, rule, projectId, key))
+      .filter(([id, k]) => saved.get(id) !== k)
+      .map(([id, k]) => prisma.project.update({ where: { id }, data: { invoiceBatch: k } }))
+  );
+  revalidatePath("/clients/[slug]", "page");
+  revalidatePath(`/projects/${projectId}`);
   return {};
 }
 

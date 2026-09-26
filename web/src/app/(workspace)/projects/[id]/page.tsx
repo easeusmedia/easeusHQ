@@ -11,6 +11,8 @@ import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
 import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
+import { InvoicePicker } from "../InvoicePicker";
+import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +50,25 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     client: { id: project.client.id, name: project.client.name },
   }));
 
+  // which invoice it's billed in (finished work, on a client with a rule),
+  // and the others it could move to — ops only, like the rule itself
+  const rule = {
+    cadence: project.client.billingCadence,
+    dayOfMonth: project.client.billingDayOfMonth,
+    every: project.client.billingMilestoneCount,
+  };
+  const batches = clientBatches(
+    project.client.projects,
+    rule,
+    new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })
+  );
+  const inBatch = batches.find((b) => b.ids.includes(project.id));
+  const nextKey = newBatchKey(batches, rule);
+  const invoiceOptions = [
+    ...(nextKey ? [{ value: nextKey, label: "New invoice" }] : []),
+    ...batches.map((b) => ({ value: b.key, label: b.label })),
+  ];
+
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
 
@@ -76,6 +97,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         }
         completedOn={project.completedAt ? project.completedAt.toISOString().slice(0, 10) : ""}
         canDelete={project.tasks.length === 0}
+        invoice={
+          inBatch && me.role !== "employee" ? (
+            <InvoicePicker key={inBatch.key} projectId={project.id} value={inBatch.key} options={invoiceOptions} />
+          ) : undefined
+        }
       />
 
       <section className="mt-12">
