@@ -192,7 +192,7 @@ export function DatePicker({
           onClick={() => (open ? setOpen(false) : openPanel())}
           className={`${chip(!!selected)}`}
         >
-          <span className="flex shrink-0 opacity-70">{pill.icon ?? <CalendarDays size={12} />}</span>
+          <span className="flex shrink-0">{pill.icon ?? <CalendarDays size={12} className="text-amber-400" />}</span>
           <span className="whitespace-nowrap">{selected ? shortLabel(selected) : placeholder}</span>
         </button>
       ) : (

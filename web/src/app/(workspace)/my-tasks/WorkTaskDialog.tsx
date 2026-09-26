@@ -183,7 +183,7 @@ export const WorkTaskDialog = forwardRef<
           <div className="flex flex-wrap items-center gap-1.5 px-5 pt-5 pb-4">
             {/* optional: plenty of this work belongs to no client at all */}
             <Dropdown
-              pill={{ icon: <Building2 size={12} /> }}
+              pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
               value={clientId}
               placeholder="Client"
               options={[
@@ -209,7 +209,7 @@ export const WorkTaskDialog = forwardRef<
             {/* only when there's someone else to hand it to */}
             {assignees.length > 1 && (
               <Dropdown
-                pill={{ icon: <User size={12} /> }}
+                pill={{ icon: <User size={12} className="text-emerald-400" /> }}
                 value={assignedToId}
                 placeholder="Assignee"
                 onChange={setAssignedToId}
@@ -289,11 +289,11 @@ export const WorkTaskDialog = forwardRef<
                   onClick={() => setLinks((cur) => [...cur, { label: "", url: "" }])}
                   className={pill(false)}
                 >
-                  <Link2 size={12} /> Link
+                  <Link2 size={12} className="text-blue-400" /> Link
                 </button>
                 <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
                 <button type="button" onClick={() => fileRef.current?.click()} className={pill(false)}>
-                  <Paperclip size={12} /> Image
+                  <Paperclip size={12} className="text-teal-400" /> Image
                 </button>
               </div>
             </div>

@@ -113,7 +113,7 @@ export function Dropdown({
           onClick={() => (open ? setOpen(false) : openList())}
           className={`max-w-56 ${chip(!!current)}`}
         >
-          <span className="flex shrink-0 opacity-70">{pill.icon}</span>
+          <span className="flex shrink-0">{pill.icon}</span>
           <span className="min-w-0 truncate">{current?.label ?? placeholder}</span>
         </button>
       ) : (

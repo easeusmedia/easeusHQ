@@ -38,7 +38,7 @@ export function ProjectChip({
   if (!newProject.naming) {
     return (
       <Dropdown
-        pill={{ icon: <FolderOpen size={12} /> }}
+        pill={{ icon: <FolderOpen size={12} className="text-violet-400" /> }}
         value={value}
         placeholder="Project"
         search={{ recent: 3, placeholder: "Find a project…" }}
@@ -49,7 +49,7 @@ export function ProjectChip({
   }
   return (
     <span className={`${pill(true)} gap-1 py-0.5 pr-1`}>
-      <FolderOpen size={12} className="shrink-0 opacity-70" />
+      <FolderOpen size={12} className="shrink-0 text-violet-400" />
       <input
         autoFocus
         value={newProject.name}
@@ -137,7 +137,7 @@ export function TagPill({
         }}
         className={pill(names.length > 0)}
       >
-        <Hash size={12} className="shrink-0 opacity-70" />
+        <Hash size={12} className="shrink-0 text-rose-400" />
         <span className="max-w-40 truncate">{label}</span>
       </button>
       {open && position && (
