@@ -3,15 +3,16 @@
 // DatePicker's chip modes — it was three copies of a dashed outline, which
 // read as a wireframe rather than something finished.
 //
-// A hairline outline and the barest wash of fill, so each chip reads as a
-// button — rounded, clearly clickable — without the grey pill that looked
-// muddy on a near-black page. Each property's icon carries its own colour
-// (set where the chip is made); the word is muted until it holds a value,
-// then full white with a slightly firmer outline. Tinted from the text
-// colour, so it holds in either theme.
+// A soft rounded fill and no outline: each chip reads as a button — rounded,
+// clearly clickable — without a stroke drawn round it. Kept faint, so it
+// doesn't turn into the heavy grey pill that looked muddy on a near-black
+// page; each property's icon carries its own colour (set where the chip is
+// made). The word is muted until it holds a value, then full white on a
+// slightly firmer fill. Tinted from the text colour, so it holds in either
+// theme.
 export const chip = (set: boolean) =>
-  `flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
+  `flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors duration-150 ${
     set
-      ? "border-foreground/15 bg-foreground/[0.04] text-foreground hover:border-foreground/25"
-      : "border-foreground/10 bg-foreground/[0.02] text-muted hover:border-foreground/20 hover:bg-foreground/[0.05] hover:text-foreground"
+      ? "bg-foreground/[0.08] text-foreground hover:bg-foreground/[0.11]"
+      : "bg-foreground/[0.04] text-muted hover:bg-foreground/[0.07] hover:text-foreground"
   }`;
