@@ -8,26 +8,14 @@ import { saveApifyTokens } from "./actions";
 const field = "min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 
 // Client analytics reads every client's *public* YouTube and Instagram
-// numbers: YouTube through the team's own Google account, Instagram through
-// Apify's scraper — both set up once here, nothing per client. Each client's
+// numbers, scraped with Apify — set up once here with the team's Apify
+// tokens, nothing per client and no Google or Facebook login. Each client's
 // page then only needs their channel link and Instagram handle.
 export function AnalyticsIntegration({
-  googleReady,
-  youtubeAccount,
-  youtubeViaServiceAccount,
   apifyAccounts,
-  justConnected,
-  problem,
 }: {
-  googleReady: boolean;
-  // the Google account the YouTube lookups go through, once connected
-  youtubeAccount: string | null;
-  // no account connected, but the deploy's service account can do it
-  youtubeViaServiceAccount: boolean;
-  // the Apify accounts Instagram is scraped with, in the order they're used
+  // the Apify accounts clients' pages are scraped with, in the order used
   apifyAccounts: { username: string; left: number | null }[];
-  justConnected: string | null;
-  problem: string | null;
 }) {
   const router = useRouter();
   const [token, setToken] = useState("");
@@ -35,7 +23,7 @@ export function AnalyticsIntegration({
   const [editing, setEditing] = useState(!apifyReady);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(problem);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
     setBusy(true);
@@ -62,38 +50,14 @@ export function AnalyticsIntegration({
         <h2 className="text-base font-medium">Client analytics</h2>
       </div>
       <p className="-mt-2 text-sm text-muted">
-        Every client&apos;s public YouTube and Instagram numbers, read through two connections of our own — made once,
-        here. Clients aren&apos;t asked for anything; their page just needs their channel link and Instagram handle.
+        Every client&apos;s public YouTube and Instagram numbers, scraped with Apify — no Google, Instagram or Facebook
+        login, and nothing asked of clients. Their page just needs their channel link and Instagram handle.
       </p>
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm">
-            YouTube
-            {youtubeAccount ? connected(`As ${youtubeAccount}`) : youtubeViaServiceAccount && connected("Service account")}
-          </p>
-          {googleReady && (
-            // a full page trip out to Google's consent screen, not an in-app
-            // navigation
-            <form action="/api/analytics/connect" method="get">
-              <input type="hidden" name="platform" value="youtube" />
-              <button className={`btn btn-sm ${youtubeAccount ? "btn-ghost" : "btn-glow"}`}>
-                {youtubeAccount ? "Reconnect" : "Connect YouTube"}
-              </button>
-            </form>
-          )}
-        </div>
-        <p className="text-xs text-muted">
-          {googleReady
-            ? "Any Google account of ours will do — it only reads what's public. Uses the Google app above, with YouTube Data API v3 switched on in its Cloud project."
-            : "Needs the Google app above first."}
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-border pt-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex items-center gap-2 text-sm">
-            Instagram
+            Apify
             {apifyReady && connected(`${apifyAccounts.length} Apify token${apifyAccounts.length === 1 ? "" : "s"}`)}
           </p>
           {apifyReady && !editing && (
@@ -103,9 +67,9 @@ export function AnalyticsIntegration({
           )}
         </div>
         <p className="text-xs text-muted">
-          Scraped from each client&apos;s public profile with Apify&apos;s Instagram Scraper — no Instagram or Facebook
-          login, nothing asked of the client. About $0.0027 per post read; results are kept for six hours. With several
-          tokens, each scrape uses the first one with credit left, so the next takes over when one runs out.
+          Apify&apos;s YouTube and Instagram scrapers read each client&apos;s public pages — about $0.005 per YouTube video
+          and $0.0027 per Instagram post; results are kept for six hours. With several tokens, each scrape uses the
+          first one with credit left, so the next takes over when one runs out.
         </p>
         {apifyReady && !editing && (
           <ol className="flex flex-col gap-1">
@@ -145,11 +109,7 @@ export function AnalyticsIntegration({
         {note && <p className="text-xs text-emerald-300">{note}</p>}
       </div>
 
-      {(error || justConnected) && (
-        <p className={`fade-in text-xs ${error ? "text-red-300" : "text-emerald-300"}`}>
-          {error ?? "YouTube connected."}
-        </p>
-      )}
+      {error && <p className="fade-in text-xs text-red-300">{error}</p>}
     </section>
   );
 }

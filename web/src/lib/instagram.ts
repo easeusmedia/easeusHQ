@@ -1,34 +1,15 @@
-import { createHash } from "crypto";
-import { prisma } from "./prisma.ts";
 import { daysBetween, previousRange, type ContentRow, type Dashboard } from "./analytics.ts";
+import { scraped } from "./apify.ts";
 
 // Any client's Instagram, from what's public on their profile — followers,
 // and every post's views, likes and comments — scraped by Apify's Instagram
-// Scraper (apify/instagram-scraper). Nothing is connected, per client or
-// otherwise, and the client is never asked for anything; all it takes is
-// the team's Apify API tokens, entered once under Integrations. There can be
-// several: each scrape goes to the first one with credit left, so when one
-// account's monthly credit runs out the next takes over.
-//
-// A scrape takes half a minute or more, longer than a page request should
-// wait, so it runs in the background: the first look starts it, the
-// Analytics tab polls, and the result is kept for a few hours.
+// Scraper (see lib/apify.ts for the tokens, the background runs and the
+// caching). About $0.0027 per post read.
 //
 // What's public can't show reach, saves, shares or watch time — Instagram
 // keeps those for the account itself.
-//
-// Cost: Apify charges per post scraped (about $0.0027 on the free tier).
 
-export const APIFY_SETTINGS = {
-  tokens: "apify.tokens", // a JSON list, used in order
-  token: "apify.token", // the single token an earlier version kept
-} as const;
 const ACTOR = "apify~instagram-scraper";
-const API = "https://api.apify.com/v2";
-// a fresh scrape is kept this long before another is started
-const FRESH_MS = 6 * 60 * 60 * 1000;
-// a scrape still "running" after this is treated as lost and started again
-const STALE_MS = 10 * 60 * 1000;
 
 export type Post = {
   id: string;
@@ -45,119 +26,20 @@ export type Post = {
 };
 export type Profile = { username: string; fullName?: string; followersCount?: number; postsCount?: number; profilePicUrl?: string };
 
-type Raw =
-  | { since: string; fetchedAt: string; posts: Post[]; profile: Profile | null }
-  | { pending: { posts: string; details: string; since: string; startedAt: string; account: string } };
-
-export async function apifyTokens(): Promise<string[]> {
-  const rows = await prisma.appSetting.findMany({ where: { key: { in: [APIFY_SETTINGS.tokens, APIFY_SETTINGS.token] } } });
-  const list = rows.find((r) => r.key === APIFY_SETTINGS.tokens)?.value;
-  const single = rows.find((r) => r.key === APIFY_SETTINGS.token)?.value;
-  return [...new Set([...(list ? (JSON.parse(list) as string[]) : []), ...(single ? [single] : [])])];
-}
-
-// which token a running scrape belongs to, without keeping the token itself
-// in the cache: runs can only be checked with the account that started them
-const tag = (token: string) => createHash("sha256").update(token).digest("hex").slice(0, 12);
-
-// An account's name and what's left of its monthly credit, in dollars
-export async function apifyAccount(token: string): Promise<{ username: string; left: number | null } | null> {
-  const [me, limits] = await Promise.all([
-    fetch(`${API}/users/me?token=${token}`).then((r) => (r.ok ? r.json() : null)),
-    fetch(`${API}/users/me/limits?token=${token}`).then((r) => (r.ok ? r.json() : null)),
-  ]);
-  if (!me) return null;
-  const used = limits?.data?.current?.monthlyUsageUsd;
-  const max = limits?.data?.limits?.maxMonthlyUsageUsd;
-  return { username: me.data.username, left: typeof used === "number" && typeof max === "number" ? max - used : null };
-}
-
-async function apify<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}${path.includes("?") ? "&" : "?"}token=${token}`, init);
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.error?.message ?? `Apify answered ${res.status}.`);
-  return body as T;
-}
-
-async function start(token: string, username: string, input: Record<string, unknown>): Promise<string> {
-  const { data } = await apify<{ data: { id: string } }>(`/acts/${ACTOR}/runs?maxTotalChargeUsd=2`, token, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ directUrls: [`https://www.instagram.com/${username}/`], addParentData: false, ...input }),
-  });
-  return data.id;
-}
-
-async function run(token: string, id: string): Promise<{ status: string; datasetId: string }> {
-  const { data } = await apify<{ data: { status: string; defaultDatasetId: string } }>(`/actor-runs/${id}`, token);
-  return { status: data.status, datasetId: data.defaultDatasetId };
-}
-
-async function items<T>(token: string, datasetId: string): Promise<T[]> {
-  return apify<T[]>(`/datasets/${datasetId}/items?clean=true&format=json`, token);
-}
-
-// The account's posts back to `since` and its profile — from the last
-// scrape if it's recent and reaches back far enough, else a new one (and
-// "pending" until it's done).
+// The account's posts back to `since`, and its profile
 export async function instagramData(
   clientId: string,
   username: string,
   since: string,
   refresh: boolean
 ): Promise<{ pending: true } | { posts: Post[]; profile: Profile | null; fetchedAt: string }> {
-  const tokens = await apifyTokens();
-  if (!tokens.length) throw new Error("Instagram isn't set up yet — an admin adds an Apify token once under Integrations → Client analytics.");
-  const key = `igraw:${username}`;
-  const hit = await prisma.analyticsCache.findUnique({ where: { clientId_key: { clientId, key } } });
-  const raw = hit?.data as Raw | undefined;
-  const save = (data: Raw) =>
-    prisma.analyticsCache.upsert({
-      where: { clientId_key: { clientId, key } },
-      create: { clientId, key, data },
-      update: { data, fetchedAt: new Date() },
-    });
-
-  const owner = raw && "pending" in raw ? tokens.find((t) => tag(t) === raw.pending.account) : undefined;
-  if (raw && "pending" in raw && owner && Date.now() - Date.parse(raw.pending.startedAt) < STALE_MS) {
-    const token = owner;
-    const [p, d] = await Promise.all([run(token, raw.pending.posts), run(token, raw.pending.details)]);
-    const failed = [p, d].find((r) => ["FAILED", "ABORTED", "TIMED-OUT"].includes(r.status));
-    if (failed) {
-      await prisma.analyticsCache.delete({ where: { clientId_key: { clientId, key } } });
-      throw new Error("The Instagram scrape didn't finish — try Refresh in a minute.");
-    }
-    if (p.status !== "SUCCEEDED" || d.status !== "SUCCEEDED") return { pending: true };
-    const [posts, profiles] = await Promise.all([items<Post>(token, p.datasetId), items<Profile>(token, d.datasetId)]);
-    const done = { since: raw.pending.since, fetchedAt: new Date().toISOString(), posts, profile: profiles[0] ?? null };
-    await save(done);
-    return done;
-  }
-
-  if (raw && "posts" in raw && !refresh && raw.since <= since && Date.now() - Date.parse(raw.fetchedAt) < FRESH_MS) {
-    return raw;
-  }
-
-  // the first account with credit left; one that turns out to be spent
-  // when the run is asked for passes it on to the next
-  let lastError: Error | null = null;
-  for (const token of tokens) {
-    const account = await apifyAccount(token).catch(() => null);
-    if (account && account.left !== null && account.left < 0.25) continue;
-    try {
-      const posts = await start(token, username, { resultsType: "posts", resultsLimit: 300, onlyPostsNewerThan: since });
-      const details = await start(token, username, { resultsType: "details", resultsLimit: 1 });
-      await save({ pending: { posts, details, since, startedAt: new Date().toISOString(), account: tag(token) } });
-      return { pending: true };
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-    }
-  }
-  throw new Error(
-    lastError
-      ? `Apify wouldn't start the scrape: ${lastError.message}`
-      : "Every Apify account is out of credit for this month — add another token under Integrations, or wait for the monthly reset."
-  );
+  const url = `https://www.instagram.com/${username}/`;
+  const got = await scraped<Post & Profile>(clientId, `ig:${username}`, since, refresh, ACTOR, {
+    posts: { directUrls: [url], resultsType: "posts", resultsLimit: 300, onlyPostsNewerThan: since, addParentData: false },
+    details: { directUrls: [url], resultsType: "details", resultsLimit: 1 },
+  });
+  if ("pending" in got) return got;
+  return { posts: got.results.posts ?? [], profile: (got.results.details?.[0] as Profile | undefined) ?? null, fetchedAt: got.fetchedAt };
 }
 
 const kindOf = (p: Post) =>

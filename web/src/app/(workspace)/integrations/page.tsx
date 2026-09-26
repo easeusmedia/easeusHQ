@@ -9,8 +9,7 @@ import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
-import { apifyAccount, apifyTokens } from "@/lib/instagram";
-import { YOUTUBE_SETTINGS, youtubeSettings } from "@/lib/youtube";
+import { apifyAccount, apifyTokens } from "@/lib/apify";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +19,9 @@ export const dynamic = "force-dynamic";
 export default async function IntegrationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string; frameio?: string; analytics?: string; analyticsError?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; frameio?: string }>;
 }) {
-  const { connected, error, frameio, analytics, analyticsError } = await searchParams;
+  const { connected, error, frameio } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
   const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
@@ -36,7 +35,7 @@ export default async function IntegrationsPage({
     taskDatabaseId(),
     clientDatabaseId(),
   ]);
-  const [tokens, yt] = await Promise.all([apifyTokens(), youtubeSettings()]);
+  const tokens = await apifyTokens();
   // each Apify account's name and credit left — never the tokens themselves
   const apify = await Promise.all(tokens.map((t) => apifyAccount(t).catch(() => null)));
 
@@ -71,14 +70,7 @@ export default async function IntegrationsPage({
         justConnected={frameio === "1"}
       />
 
-      <AnalyticsIntegration
-        googleReady={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}
-        youtubeAccount={yt[YOUTUBE_SETTINGS.refreshToken] ? yt[YOUTUBE_SETTINGS.account] || "connected" : null}
-        youtubeViaServiceAccount={!!process.env.GOOGLE_SERVICE_ACCOUNT_JSON}
-        apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })}
-        justConnected={analytics ?? null}
-        problem={analyticsError ?? null}
-      />
+      <AnalyticsIntegration apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })} />
 
       <NotionIntegration
         tasks={{ id: taskDb, name: notion[NOTION_SETTINGS.taskDatabaseName] ?? null }}

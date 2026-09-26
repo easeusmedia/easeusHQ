@@ -1,16 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysBetween, instagramUsername, isoSeconds, previousRange, socialLink, youtubeRef } from "./analytics.ts";
+import { daysBetween, instagramUsername, previousRange, socialLink, youtubeRef } from "./analytics.ts";
 
 test("the previous period is the same length, just before", () => {
   assert.deepEqual(previousRange("2026-09-01", "2026-09-28"), { from: "2026-08-04", to: "2026-08-31" });
   assert.equal(daysBetween("2026-09-27", "2026-10-02").length, 6);
-});
-
-test("durations: a Short is a minute, a podcast is an hour", () => {
-  assert.equal(isoSeconds("PT59S"), 59);
-  assert.equal(isoSeconds("PT1H2M3S"), 3723);
-  assert.equal(isoSeconds(undefined), 0);
 });
 
 test("a YouTube channel from however it's pasted", () => {
@@ -45,4 +39,21 @@ test("an Instagram scrape becomes a dashboard: dated, pinned old posts left out,
   assert.deepEqual(m.views, [818, 400]);
   assert.deepEqual(m.posts, [2, 1]);
   assert.equal(m.engagement[0], (11 + 0 + 30 + 2) / 2 / 1000);
+});
+
+test("a YouTube scrape becomes a dashboard: Shorts told apart, the earlier period compared", async () => {
+  const { youtubeDashboard, channelUrl } = await import("./youtube.ts");
+  assert.equal(channelUrl("https://www.youtube.com/@girlnamedrobyn/videos"), "https://www.youtube.com/@girlnamedrobyn");
+  const videos = [
+    { id: "a", type: "video", date: "2026-09-24T15:01:29.000Z", viewCount: 37, likes: 2, commentsCount: 0, duration: "00:04:19", channelName: "Robyn Abou Chedid", numberOfSubscribers: 10600 },
+    { id: "b", type: "shorts", date: "2026-09-20T10:00:00.000Z", viewCount: 1200, likes: 40, commentsCount: 3, duration: "00:00:45" },
+    { id: "c", type: "video", date: "2026-08-15T10:00:00.000Z", viewCount: 500, likes: 10, commentsCount: 1, duration: "00:12:00" },
+  ];
+  const d = youtubeDashboard("https://www.youtube.com/@girlnamedrobyn", videos, "2026-09-26T00:00:00Z", "2026-08-30", "2026-09-26");
+  assert.equal(d.account.name, "Robyn Abou Chedid");
+  assert.equal(d.account.followers, 10600);
+  assert.deepEqual(d.rows.map((r) => [r.id, r.kind]), [["a", "Video"], ["b", "Short"]]);
+  const m = Object.fromEntries(d.metrics.map((x) => [x.key, [x.value, x.previous]]));
+  assert.deepEqual(m.views, [1237, 500]);
+  assert.deepEqual(m.videos, [2, 1]);
 });

@@ -62,13 +62,6 @@ export function daysBetween(from: string, to: string): string[] {
   return out;
 }
 
-// ISO 8601 duration ("PT1M5S") in seconds
-export function isoSeconds(duration: string | null | undefined): number {
-  const m = duration?.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return 0;
-  return Number(m[1] ?? 0) * 86400 + Number(m[2] ?? 0) * 3600 + Number(m[3] ?? 0) * 60 + Number(m[4] ?? 0);
-}
-
 // Which YouTube channel a pasted value means: a channel link, an @handle
 // (bare or in a link), a /user/ name, or the channel id itself.
 export function youtubeRef(input: string | null | undefined): { id: string } | { handle: string } | { username: string } | null {

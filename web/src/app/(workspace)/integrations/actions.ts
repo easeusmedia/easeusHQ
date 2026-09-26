@@ -7,7 +7,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, driveSettings, folder, parentFolderId, saveDriveSettings } from "@/lib/drive";
 import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } from "@/lib/notion";
-import { APIFY_SETTINGS } from "@/lib/instagram";
+import { APIFY_SETTINGS } from "@/lib/apify";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
