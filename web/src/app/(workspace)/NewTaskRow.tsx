@@ -1,23 +1,34 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Plus } from "lucide-react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { Building2, CalendarClock, FolderOpen, Hash, Link2, MoreHorizontal, Plus, User } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
-import { NotesGlyph } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 import { DatePicker } from "./DatePicker";
-import { ProjectField } from "./ProjectField";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
 import { Checkbox } from "./Checkbox";
+import { Reveal } from "./Reveal";
+import { topLayer, useCloseOnScroll, usePopover } from "./popover";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
 
 const initialState: TaskFormState = {};
 
-// A centred modal rather than the old inline <details> drawer: the form has
-// six fields, and unfolding it inside a board column squeezed the column
-// and pushed every card down the page.
+// the chip every optional property is drawn as, set or not
+const pill = (set: boolean) =>
+  `flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
+    set
+      ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
+      : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
+  }`;
+
+// A composer, not a form. What a task almost always is — a title and a
+// client — is the whole of what's asked for up front; every other property
+// is a chip you touch only if it applies, and the rarely-used ones (raw
+// footage, a scheduled reveal, internal-only) wait behind "⋯". It used to
+// lay out nine fields and every tag at once for what is usually "this video,
+// this client, this editor".
 export function NewTaskRow({
   projects,
   editors,
@@ -33,38 +44,74 @@ export function NewTaskRow({
 }) {
   const [state, formAction, pending] = useActionState(createTask, initialState);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  // bumped after a task lands, to start the next one from a blank form —
-  // including the client/project picker and tags, which keep their own state
-  const [formKey, setFormKey] = useState(0);
+  const titleRef = useRef<HTMLInputElement>(null);
 
-  // the form posts as FormData, and DatePicker isn't a form control — it
-  // keeps its value in state and writes it to a hidden input below
-  const [dueDate, setDueDate] = useState("");
-  const [internal, setInternal] = useState(false);
-  const [scheduledFor, setScheduledFor] = useState("");
+  const preset = projects.find((p) => p.id === defaultProjectId);
+  const blank = useCallback(
+    () => ({
+      title: "",
+      notes: "",
+      clientId: preset?.client.id ?? "",
+      projectId: defaultProjectId ?? "",
+      // an editor's only choice is themselves, so it's already made
+      assignedToId: editors.length === 1 ? editors[0].id : "",
+      dueDate: "",
+      scheduledFor: "",
+      rawLink: "",
+      tagIds: [] as string[],
+      internal: false,
+    }),
+    [preset, defaultProjectId, editors]
+  );
+  const [f, setF] = useState(blank);
+  const set = (patch: Partial<ReturnType<typeof blank>>) => setF((cur) => ({ ...cur, ...patch }));
+  const [more, setMore] = useState(false);
+  const [problem, setProblem] = useState<"title" | "client" | null>(null);
+
   const clients = useMemo(() => {
     const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
-    return [...byId.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [projects]);
+  const clientProjects = projects.filter((p) => p.client.id === f.clientId);
 
-  // close once the task actually lands, and clear the form (and the client
-  // filter, so a re-open starts fully blank) so the next open doesn't show
-  // the last thing that was added
+  // once it lands: close, and start the next one from nothing
   useEffect(() => {
-    if (state.success) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the form after a successful submit is a reaction to it landing, not a render-loop
-      setDueDate("");
-      setScheduledFor("");
-      setInternal(false);
-      setFormKey((k) => k + 1);
-      dialogRef.current?.close();
-    }
-  }, [state.success]);
+    if (!state.success) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the composer is a reaction to the task landing, not a render loop
+    setF(blank());
+    setMore(false);
+    dialogRef.current?.close();
+  }, [state.success, blank]);
 
-  const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
+  // Built by hand rather than read off the DOM: most of what's picked lives
+  // in chips and popovers, not form controls, and a popover that has closed
+  // has taken its inputs with it.
+  function submit() {
+    if (!f.title.trim()) {
+      setProblem("title");
+      titleRef.current?.focus();
+      return;
+    }
+    if (!f.clientId) return setProblem("client");
+    setProblem(null);
+    const data = new FormData();
+    data.set("title", f.title);
+    data.set("clientId", f.clientId);
+    data.set("projectId", f.projectId);
+    data.set("assignedToId", f.assignedToId);
+    data.set("dueDate", f.dueDate);
+    data.set("scheduledFor", f.scheduledFor);
+    data.set("rawLink", f.rawLink);
+    data.set("editingNotes", f.notes);
+    data.set("tagsPresent", "1");
+    for (const id of f.tagIds) data.append("tagIds", id);
+    if (f.internal) data.set("internal", "on");
+    startTransition(() => formAction(data));
+  }
+
+  const error =
+    problem === "title" ? "Give it a title." : problem === "client" ? "Pick the client it's for." : state.error ?? null;
+  const hidden = [f.rawLink, f.scheduledFor, f.internal].filter(Boolean).length;
 
   return (
     <>
@@ -79,100 +126,218 @@ export function NewTaskRow({
       <dialog
         ref={dialogRef}
         onClick={(e) => {
-          // click the backdrop (the dialog element itself, outside the
-          // inner panel) to dismiss
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        className="glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] w-[min(37rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-6 text-foreground"
+        // anchored near the top rather than centred, so opening "⋯" grows
+        // it downwards instead of shifting the whole thing up the screen
+        className="glass fixed top-[16vh] left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl p-0 text-foreground"
       >
-        <h2 className="mb-4 text-base font-semibold">New task</h2>
-        {/* two columns, same as the details dialog — nine stacked fields
-            made this a scroll from top to bottom */}
         <form
-          key={formKey}
-          ref={formRef}
-          // submitted by hand rather than through the form's `action`: React
-          // resets an action form on every submit, so one missing field used
-          // to wipe everything already typed. Nothing is cleared until the
-          // task actually lands (the effect above).
           onSubmit={(e) => {
             e.preventDefault();
-            const data = new FormData(e.currentTarget);
-            startTransition(() => formAction(data));
+            submit();
           }}
-          className="grid auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5"
+          onKeyDown={(e) => {
+            // ⌘↵ from anywhere, including the notes
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          className="flex flex-col"
         >
-          {/* client first, then that client's projects — and a project can
-              be created right here, since plenty of tasks are the first
-              task of a project that doesn't exist yet */}
-          <ProjectField projects={projects} defaultProjectId={defaultProjectId} clients={clients} />
-
-          <label className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
-            Video / subject
-            <input name="title" placeholder="What needs editing?" required autoFocus className={field} />
-          </label>
-
-          <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
-            Assign to
-            <Dropdown
-              name="assignedToId"
-              placeholder="Assign to…"
-              // an editor's only choice is themselves, so it's already made
-              defaultValue={editors.length === 1 ? editors[0].id : undefined}
-              options={editors.map((e) => ({ value: e.id, label: e.name }))}
+          {/* borderless, so no focus ring: the caret already says where you
+              are, and a box drawn round a field that has no box looks like a
+              mistake. `outline-none!` because the app's global :focus-visible
+              rule is unlayered and would otherwise win over a utility. */}
+          <div className="flex flex-col gap-1.5 px-5 pt-5">
+            <input
+              ref={titleRef}
+              value={f.title}
+              onChange={(e) => {
+                set({ title: e.target.value });
+                if (problem === "title") setProblem(null);
+              }}
+              placeholder="What needs editing?"
+              aria-label="Title"
+              autoFocus
+              className="w-full bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
             />
-          </label>
-
-          <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
-            Raw footage
-            <input name="rawLink" placeholder="Google Drive link" className={field} />
-          </label>
-
-            <div className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
-              Due date <span className="font-normal normal-case">(for client approval)</span>
-              <input type="hidden" name="dueDate" value={dueDate} />
-              <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-1.5 text-xs text-muted">
-              Schedule for <span className="font-normal normal-case">(hidden from the editor until then)</span>
-              <input type="hidden" name="scheduledFor" value={scheduledFor} />
-              <DatePicker value={scheduledFor} onChange={setScheduledFor} placeholder="Visible immediately" />
-            </div>
-
-          <div className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
-            Type of work
-            <TaskTagPicker tags={taskTags} selected={[]} internal={internal} onInternalHint={setInternal} />
-            <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
-              <Checkbox checked={internal} onChange={setInternal} label="Internal work" size={15} />
-              Internal work — the client never receives this
-            </label>
+            <textarea
+              value={f.notes}
+              onChange={(e) => set({ notes: e.target.value })}
+              placeholder="Notes for the editor…"
+              aria-label="Editing notes"
+              rows={1}
+              className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm text-foreground/90 outline-none! placeholder:text-muted/60"
+            />
           </div>
 
-          <label className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
-            <span className="flex items-center gap-1.5">
-              <NotesGlyph size={12} /> Editing notes
+          <div className="flex flex-wrap items-center gap-1.5 px-5 pt-5 pb-4">
+            <span className={`rounded-full ${problem === "client" ? "ring-1 ring-red-400/60" : ""}`}>
+              <Dropdown
+                pill={{ icon: <Building2 size={12} /> }}
+                value={f.clientId}
+                placeholder="Client"
+                options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={(id) => {
+                  // the old project belonged to the old client
+                  set({ clientId: id, projectId: "" });
+                  if (problem === "client") setProblem(null);
+                }}
+              />
             </span>
-            <textarea
-              name="editingNotes"
-              placeholder="Instructions, references, anything the editor needs…"
-              rows={3}
-              className={field}
-            />
-          </label>
-
-          {state.error && <p className="col-span-2 text-xs text-red-300">{state.error}</p>}
-
-          <div className="col-span-2 mt-1 flex justify-end gap-2">
-            <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-xs">
-              Cancel
+            {/* only when there's a real choice to make — a client with one
+                project, or none, files it on its own */}
+            {clientProjects.length > 1 && (
+              <Dropdown
+                pill={{ icon: <FolderOpen size={12} /> }}
+                value={f.projectId}
+                placeholder="Project"
+                options={clientProjects.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(id) => set({ projectId: id })}
+              />
+            )}
+            {editors.length > 1 && (
+              <Dropdown
+                pill={{ icon: <User size={12} /> }}
+                value={f.assignedToId}
+                placeholder="Assignee"
+                options={editors.map((e) => ({ value: e.id, label: e.name }))}
+                onChange={(id) => set({ assignedToId: id })}
+              />
+            )}
+            <DatePicker pill={{}} value={f.dueDate} onChange={(v) => set({ dueDate: v })} placeholder="Due" />
+            {taskTags.length > 0 && (
+              <TagPill
+                tags={taskTags}
+                picked={f.tagIds}
+                onChange={(ids) => set({ tagIds: ids })}
+                internal={f.internal}
+                onInternalHint={(v) => set({ internal: v })}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setMore((m) => !m)}
+              aria-expanded={more}
+              aria-label="More options"
+              className={`${pill(more || hidden > 0)} px-2`}
+            >
+              <MoreHorizontal size={13} />
+              {/* so something set back there isn't forgotten once it's closed */}
+              {!more && hidden > 0 && <span className="tabular-nums">{hidden}</span>}
             </button>
-            <button disabled={pending} className="btn-glow rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
-              {pending ? "Adding…" : "Add task"}
-            </button>
+          </div>
+
+          <Reveal open={more}>
+            <div className="flex flex-wrap items-center gap-1.5 px-5 pb-4">
+              <label className={`${pill(!!f.rawLink)} min-w-0 cursor-text`}>
+                <Link2 size={12} className="shrink-0 opacity-70" />
+                <input
+                  value={f.rawLink}
+                  onChange={(e) => set({ rawLink: e.target.value })}
+                  placeholder="Raw footage link"
+                  aria-label="Raw footage link"
+                  className="w-40 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
+                />
+              </label>
+              <DatePicker
+                pill={{ icon: <CalendarClock size={12} /> }}
+                value={f.scheduledFor}
+                onChange={(v) => set({ scheduledFor: v })}
+                placeholder="Hide until…"
+              />
+              <label className={`${pill(f.internal)} cursor-pointer`}>
+                <Checkbox checked={f.internal} onChange={(v) => set({ internal: v })} label="Internal work" size={13} />
+                Internal
+              </label>
+            </div>
+          </Reveal>
+
+          <div className="flex items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
+            <p className={`min-w-0 truncate text-xs ${error ? "text-red-300" : "text-muted/70"}`}>
+              {error ?? "⌘↵ to add"}
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-3 py-1.5 text-xs">
+                Cancel
+              </button>
+              <button disabled={pending} className="btn-glow rounded-lg px-4 py-1.5 text-xs font-medium disabled:opacity-60">
+                {pending ? "Adding…" : "Add task"}
+              </button>
+            </div>
           </div>
         </form>
       </dialog>
     </>
+  );
+}
+
+// "Type of work" as a chip: the label is what's picked, and the full list of
+// tags opens beneath it only when asked for — fourteen chips were a third of
+// the old form's height, shown every time whether or not anyone tagged.
+function TagPill({
+  tags,
+  picked,
+  onChange,
+  internal,
+  onInternalHint,
+}: {
+  tags: TaskTagOption[];
+  picked: string[];
+  onChange: (ids: string[]) => void;
+  internal: boolean;
+  onInternalHint: (internal: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const { position, place } = usePopover(260);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const names = tags.filter((t) => picked.includes(t.id)).map((t) => t.name);
+  const label = names.length === 0 ? "Type" : names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          if (open) return setOpen(false);
+          place(triggerRef.current);
+          setOpen(true);
+        }}
+        className={pill(names.length > 0)}
+      >
+        <Hash size={12} className="shrink-0 opacity-70" />
+        <span className="max-w-40 truncate">{label}</span>
+      </button>
+      {open && position && (
+        <div
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: 340 }}
+          className="pop-in fixed z-50 rounded-xl border border-border bg-surface p-3 shadow-2xl"
+        >
+          <TaskTagPicker
+            tags={tags}
+            selected={picked}
+            internal={internal}
+            onInternalHint={onInternalHint}
+            onChange={onChange}
+          />
+        </div>
+      )}
+    </div>
   );
 }

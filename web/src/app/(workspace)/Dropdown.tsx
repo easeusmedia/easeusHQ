@@ -26,6 +26,7 @@ export function Dropdown({
   placeholder = "Select…",
   onChange,
   size = "md",
+  pill,
 }: {
   name?: string;
   defaultValue?: string;
@@ -38,6 +39,11 @@ export function Dropdown({
   placeholder?: string;
   onChange?: (value: string) => void;
   size?: keyof typeof SIZES;
+  // A compact property chip instead of a full-width field: an icon and the
+  // value (or the placeholder, quieter, with a dashed edge so an unset one
+  // reads as "you can set this" rather than as a value). For forms where
+  // most fields are optional and shouldn't each take a row.
+  pill?: { icon: React.ReactNode };
 }) {
   const s = SIZES[size];
   const [own, setOwn] = useState(defaultValue);
@@ -72,25 +78,46 @@ export function Dropdown({
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={pill ? "relative inline-block" : "relative"}>
       {name && <input type="hidden" name={name} value={value} />}
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => (open ? setOpen(false) : openList())}
-        className={`flex w-full items-center justify-between border border-border bg-surface-2 text-left ${s.trigger}`}
-      >
-        <span className={`min-w-0 truncate ${current ? "text-foreground" : "text-muted"}`}>
-          {current?.label ?? placeholder}
-        </span>
-        <ChevronDown size={s.chevron} className="ml-2 shrink-0 text-muted" />
-      </button>
+      {pill ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => (open ? setOpen(false) : openList())}
+          className={`flex max-w-56 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
+            current
+              ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
+              : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
+          }`}
+        >
+          <span className="flex shrink-0 opacity-70">{pill.icon}</span>
+          <span className="min-w-0 truncate">{current?.label ?? placeholder}</span>
+        </button>
+      ) : (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => (open ? setOpen(false) : openList())}
+          className={`flex w-full items-center justify-between border border-border bg-surface-2 text-left ${s.trigger}`}
+        >
+          <span className={`min-w-0 truncate ${current ? "text-foreground" : "text-muted"}`}>
+            {current?.label ?? placeholder}
+          </span>
+          <ChevronDown size={s.chevron} className="ml-2 shrink-0 text-muted" />
+        </button>
+      )}
       {open && position && (
         // fixed, not absolute: an absolute menu is clipped by whichever
         // scrolling ancestor it happens to sit in (see popover.ts)
         <div
           {...topLayer}
-          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
+          style={{
+            top: position.top,
+            bottom: position.bottom,
+            left: position.left,
+            width: pill ? Math.max(position.width, 208) : position.width,
+          }}
           className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg"
         >
           {options.map((o) => (

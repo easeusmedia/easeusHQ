@@ -68,6 +68,14 @@ const ORDINAL = (d: number) => {
 // "Thursday, 9th April" — the long, readable form the reference uses on
 // the closed control, rather than a bare numeric date. The year is added
 // when it isn't this one: a joining date of "5th February" could be any year.
+// "Fri 3 Oct" — what fits in a chip
+function shortLabel(v: Ymd): string {
+  const date = new Date(v.y, v.m - 1, v.d);
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
+  const year = v.y === new Date().getFullYear() ? "" : ` ${v.y}`;
+  return `${weekday} ${v.d} ${MONTHS[v.m - 1].slice(0, 3)}${year}`;
+}
+
 function longLabel(v: Ymd): string {
   const weekday = new Date(v.y, v.m - 1, v.d).toLocaleDateString("en-GB", { weekday: "long" });
   const year = v.y === new Date().getFullYear() ? "" : ` ${v.y}`;
@@ -84,11 +92,14 @@ export function DatePicker({
   onChange,
   placeholder = "Pick a date",
   clearable = true,
+  pill,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   clearable?: boolean;
+  // a compact chip instead of a full-width field — see Dropdown's own pill
+  pill?: { icon?: React.ReactNode };
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -172,22 +183,38 @@ export function DatePicker({
   const today = todayYmd();
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => (open ? setOpen(false) : openPanel())}
-        // py-2, like a text input and a Dropdown, so a date field sits level
-        // with the fields beside it in a form
-        className={`flex w-full items-center gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-sm ${
-          open ? "border-hover" : "border-border"
-        }`}
-      >
-        <CalendarDays size={15} className="shrink-0 text-muted" />
-        <span className={`min-w-0 flex-1 truncate ${selected ? "text-foreground" : "text-muted"}`}>
-          {selected ? longLabel(selected) : placeholder}
-        </span>
-      </button>
+    <div ref={ref} className={pill ? "relative inline-block" : "relative"}>
+      {pill ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => (open ? setOpen(false) : openPanel())}
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
+            selected
+              ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
+              : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
+          }`}
+        >
+          <span className="flex shrink-0 opacity-70">{pill.icon ?? <CalendarDays size={12} />}</span>
+          <span className="whitespace-nowrap">{selected ? shortLabel(selected) : placeholder}</span>
+        </button>
+      ) : (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => (open ? setOpen(false) : openPanel())}
+          // py-2, like a text input and a Dropdown, so a date field sits level
+          // with the fields beside it in a form
+          className={`flex w-full items-center gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-sm ${
+            open ? "border-hover" : "border-border"
+          }`}
+        >
+          <CalendarDays size={15} className="shrink-0 text-muted" />
+          <span className={`min-w-0 flex-1 truncate ${selected ? "text-foreground" : "text-muted"}`}>
+            {selected ? longLabel(selected) : placeholder}
+          </span>
+        </button>
+      )}
 
       {open && position && (
         <div
