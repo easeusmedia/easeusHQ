@@ -34,10 +34,19 @@ export const getAllUsers = cache(async () =>
   })).map((u) => ({ ...u, avatarUrl: userPhotoSrc(u) }))
 );
 
+// Who's still here. A former employee keeps their history — the work they
+// finished, tasks still on them, their name in an activity trail — but stops
+// existing as a colleague: not in chat, not in the sidebar, not online, not
+// someone you can message or hand anything to. The people directory is the
+// one exception (admin and core only): it's where they're reinstated.
+export function onStaff(u: { employment: string }): boolean {
+  return u.employment !== "former";
+}
+
 // Who new editing work can go to. A former employee keeps their history and
 // any task still on them, but never shows up to be handed anything new.
 export function assignableEditors<T extends { role: string; employment: string }>(users: T[]): T[] {
-  return users.filter((u) => u.role === "employee" && u.employment !== "former");
+  return users.filter((u) => u.role === "employee" && onStaff(u));
 }
 
 // Who a person may hand editing work to: an editor only ever to themselves;

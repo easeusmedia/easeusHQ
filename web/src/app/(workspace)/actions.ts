@@ -516,7 +516,8 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
   try {
     const [rows, editors, clients] = await Promise.all([
       fetchTaskRows(),
-      prisma.user.findMany({ where: { role: "employee" } }),
+      // someone who has left can't be handed a task, even by Notion
+      prisma.user.findMany({ where: { role: "employee", employment: { not: "former" } } }),
       prisma.client.findMany({ include: { projects: true } }),
     ]);
 

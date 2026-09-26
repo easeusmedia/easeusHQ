@@ -47,6 +47,10 @@ export async function sendMessage(toUserId: string, body: string): Promise<{ err
   if (!fromUserId) return { error: "Not signed in." };
   const trimmed = body.trim();
   if (!trimmed) return { error: "Message is empty." };
+  // not just hidden from the list — refused, so an old thread left open in a
+  // tab can't keep writing to someone who has left
+  const to = await prisma.user.findUnique({ where: { id: toUserId }, select: { employment: true } });
+  if (!to || to.employment === "former") return { error: "They're no longer on the team." };
 
   await prisma.message.create({ data: { fromId: fromUserId, toId: toUserId, body: trimmed } });
   revalidatePath("/", "layout"); // the unread badge lives in the layout, above every page
@@ -62,7 +66,9 @@ export async function getUnreadBySender(): Promise<Record<string, number>> {
   if (!userId) return {};
   const rows = await prisma.message.groupBy({
     by: ["fromId"],
-    where: { toId: userId, readAt: null },
+    // someone who has left isn't in the chat list any more, so an unread
+    // message from them would sit in the badge with no way to open it
+    where: { toId: userId, readAt: null, from: { employment: { not: "former" } } },
     _count: { _all: true },
   });
   return Object.fromEntries(rows.map((r) => [r.fromId, r._count._all]));

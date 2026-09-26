@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { getAllUsers } from "@/lib/users";
+import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { LiveRefresh } from "./LiveRefresh";
@@ -54,7 +54,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
   const now = Date.now();
-  const online = users.filter((u) => u.lastSeenAt && now - u.lastSeenAt.getTime() < ACTIVE_WINDOW_MS).map((u) => u.name);
+  const online = users
+    .filter((u) => onStaff(u) && u.lastSeenAt && now - u.lastSeenAt.getTime() < ACTIVE_WINDOW_MS)
+    .map((u) => u.name);
 
   return (
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
@@ -65,7 +67,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         isOps={isOps}
         name={sessionUser.name}
         canViewAs={canViewAs && users.length > 0}
-        people={users}
+        people={users.filter(onStaff)}
         sessionUserId={sessionUser.id}
         unreadBySender={unreadBySender}
         logout={logout}

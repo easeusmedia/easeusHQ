@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth";
-import { getAllUsers } from "@/lib/users";
+import { getAllUsers, onStaff } from "@/lib/users";
 import { listConversations } from "../presence/actions";
 import { ChatDashboard, type ChatPerson } from "./ChatDashboard";
 
@@ -17,7 +17,7 @@ export default async function ChatPage() {
   // is the org's directory as much as its inbox, so starting a first
   // conversation is just clicking a name
   const people: ChatPerson[] = users
-    .filter((u) => u.id !== sessionUserId)
+    .filter((u) => u.id !== sessionUserId && onStaff(u))
     .map((u) => {
       const c = byPerson.get(u.id);
       return {
