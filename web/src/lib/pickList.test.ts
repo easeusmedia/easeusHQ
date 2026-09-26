@@ -41,3 +41,11 @@ test("a short list is just the list — no search, nothing hidden", () => {
   // and without a search setting at all, everything shows
   assert.equal(pickList(projects, "", undefined, "").shown.length, 6);
 });
+
+test("Show more reveals the next ones, until there are none left", () => {
+  const r = pickList([NEW, ...projects], "", { recent: 3 }, "", 2);
+  assert.deepEqual(labels(r).slice(1), ["Career Panel", "5 Bad Leadership Behaviours", "Ellie Norman", "Room 101", "Executive Team"]);
+  assert.equal(r.older, 1);
+  // asking for more than exist just shows them all
+  assert.equal(pickList([NEW, ...projects], "", { recent: 3 }, "", 10).older, 0);
+});

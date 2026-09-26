@@ -62,6 +62,8 @@ export function Dropdown({
   };
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // how many past the recent few "Show more" has revealed
+  const [more, setMore] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -77,7 +79,7 @@ export function Dropdown({
 
   // what's listed: everything, or — for a list that grows without end — the
   // newest few and a search for the rest (lib/pickList, tested there)
-  const { shown, matches, searching, older } = pickList(options, value, search, query);
+  const { shown, matches, searching, older } = pickList(options, value, search, query, more);
   const q = query.trim();
   // roughly what the list will render at, for the flip-up check — capped by
   // max-h-80 below
@@ -89,6 +91,7 @@ export function Dropdown({
 
   function openList() {
     setQuery("");
+    setMore(0);
     place(triggerRef.current);
     setOpen(true);
   }
@@ -178,9 +181,15 @@ export function Dropdown({
             <p className={`text-muted ${s.option}`}>Nothing called that</p>
           )}
           {older > 0 && (
-            <p className={`text-xs text-muted/70 ${s.option}`}>
-              {older} older — type to find {older === 1 ? "it" : "them"}
-            </p>
+            // ten more at a time — a client with a thousand projects shouldn't
+            // unfold all of them at once; the search is there for far back
+            <button
+              type="button"
+              onClick={() => setMore((m) => m + 10)}
+              className={`block w-full text-left text-xs text-muted hover:bg-hover hover:text-foreground ${s.option}`}
+            >
+              Show more
+            </button>
           )}
         </div>
       )}
