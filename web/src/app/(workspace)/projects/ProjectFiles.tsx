@@ -7,6 +7,7 @@ import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { Dropdown } from "../Dropdown";
 import { addProjectAsset, updateProjectAsset, deleteProjectAsset } from "../clients/actions";
 import { ConfirmButton } from "../ConfirmButton";
+import { formatDate } from "../TaskCard";
 
 export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null };
 
@@ -18,13 +19,21 @@ const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 tex
 // imported rows are wrong (wrong link, wrong bucket, a placeholder that
 // never got filled), and there was previously no way to fix any of it
 // short of editing the database by hand.
+// A task that's been delivered, as the file it produced.
+export type DeliveredFile = { id: string; title: string; link: string | null; at: string };
+
 export function ProjectFiles({
   projectId,
   assets,
+  delivered = [],
   readOnly = false,
 }: {
   projectId: string;
   assets: ProjectAssetData[];
+  // Finished tasks belong here, not in the task list: once it's delivered a
+  // task *is* its file. Listed first, linked to where it was delivered. Not
+  // editable from here — it's still a task, and it's edited as one.
+  delivered?: DeliveredFile[];
   // the client's own page: the files, without the controls
   readOnly?: boolean;
 }) {
@@ -57,7 +66,9 @@ export function ProjectFiles({
         <div className="mb-4 flex items-baseline justify-between gap-3">
           <h2 className="text-sm font-medium">Files</h2>
           <div className="flex items-center gap-3">
-            {assets.length > 0 && <span className="text-xs text-muted">{assets.length} total</span>}
+            {assets.length + delivered.length > 0 && (
+              <span className="text-xs text-muted">{assets.length + delivered.length} total</span>
+            )}
             <button onClick={() => setAdding(true)} className="btn btn-sm btn-add flex items-center gap-1.5">
               <Plus size={13} /> Add file
             </button>
@@ -82,10 +93,40 @@ export function ProjectFiles({
         </div>
       )}
 
-      {groups.length === 0 && !adding ? (
+      {groups.length === 0 && delivered.length === 0 && !adding ? (
         <p className="text-sm text-muted">No files recorded for this project yet.</p>
       ) : (
         <div className="flex flex-col gap-8">
+          {delivered.length > 0 && (
+            <div>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">
+                Delivered <span className="text-muted/60">{delivered.length}</span>
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {delivered.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center gap-2 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
+                  >
+                    {d.link ? (
+                      <a
+                        href={d.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate">{d.title}</span>
+                        <ExternalLink size={13} className="shrink-0 text-muted" />
+                      </a>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-sm text-muted">{d.title}</span>
+                    )}
+                    <span className="shrink-0 text-xs text-muted">{formatDate(d.at)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {groups.map(([type, rows]) => (
             <div key={type}>
               <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">

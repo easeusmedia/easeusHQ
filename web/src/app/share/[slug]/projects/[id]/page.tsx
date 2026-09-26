@@ -48,10 +48,16 @@ export default async function SharedProjectPage({
             orderBy: { createdAt: "desc" },
             select: { id: true, title: true, status: true, frameioLink: true },
           },
+
         },
       })
     : null;
   if (!client || !project) redirect("/login");
+  const delivered = await prisma.task.findMany({
+    where: { projectId: project.id, status: "delivered_and_uploaded", internal: false },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, driveLink: true, updatedAt: true },
+  });
 
   const folder = project.driveLink ? normalizeUrl(project.driveLink) : null;
   const name = project.name || project.type;
@@ -95,6 +101,14 @@ export default async function SharedProjectPage({
           <ProjectFiles
             projectId={project.id}
             assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null }))}
+            // what's been delivered to them, as the files it produced — their
+            // own finished work, never the team's internal tasks
+            delivered={delivered.map((t) => ({
+              id: t.id,
+              title: t.title,
+              link: t.driveLink ? normalizeUrl(t.driveLink) : null,
+              at: t.updatedAt.toISOString(),
+            }))}
             readOnly
           />
         );
@@ -106,7 +120,7 @@ export default async function SharedProjectPage({
                 initialTab={tab}
                 width=""
                 tabs={[
-                  { key: "files", label: "Files", count: project.assets.length, content: files },
+                  { key: "files", label: "Files", count: project.assets.length + delivered.length, content: files },
                   {
                     key: "work",
                     label: "In progress",

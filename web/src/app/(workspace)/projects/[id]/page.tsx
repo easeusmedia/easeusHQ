@@ -81,14 +81,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="mt-12">
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="text-sm font-medium">Tasks</h2>
-          {project.tasks.length > 0 && (
-            <span className="text-xs text-muted">
-              {active.length} in flight · {done.length} delivered
-            </span>
-          )}
+          {active.length > 0 && <span className="text-xs text-muted">{active.length} in flight</span>}
         </div>
+        {/* Only what's still being worked on. A delivered task is a finished
+            file, so it's listed under Files, below, as one. */}
+        {active.length === 0 && (
+          <p className="mb-3 text-sm text-muted">
+            Nothing in flight{done.length > 0 ? ` — ${done.length} delivered, under Files` : ""}.
+          </p>
+        )}
         <ul className="flex flex-col gap-2">
-          {[...active, ...done].map((t) => (
+          {active.map((t) => (
             <li key={t.id}>
               <TaskRow
                 task={t}
@@ -112,6 +115,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <ProjectFiles
         projectId={project.id}
         assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link }))}
+        delivered={done
+          .filter((t) => t.status === "delivered_and_uploaded")
+          .map((t) => ({ id: t.id, title: t.title, link: t.driveLink, at: t.updatedAt.toISOString() }))}
       />
     </div>
   );
