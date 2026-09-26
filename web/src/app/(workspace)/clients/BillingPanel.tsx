@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Plus, Receipt } from "lucide-react";
+import { CalendarDays, Check, Layers, Minus, Plus, Receipt } from "lucide-react";
 import { setBillingRule, createInvoice, updateInvoiceStatus } from "./actions";
 import { DatePicker } from "../DatePicker";
 import { Reveal } from "../Reveal";
@@ -23,6 +23,47 @@ const STATUS_STYLE: Record<InvoiceStatus, string> = {
 const ROW = "grid grid-cols-[1fr_1fr_auto] items-center gap-4 px-5 sm:grid-cols-[1.2fr_1fr_1fr_auto]";
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const day = (d: Date) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+const RULES = [
+  {
+    key: "monthly_date",
+    title: "Monthly",
+    hint: "One invoice on a fixed day each month",
+    Icon: CalendarDays,
+    tint: "bg-amber-400/15 text-amber-300",
+  },
+  {
+    key: "milestone",
+    title: "By deliverables",
+    hint: "One invoice after every few deliverables",
+    Icon: Layers,
+    tint: "bg-violet-400/15 text-violet-300",
+  },
+] as const;
+
+// − 30 + : no native spinner arrows, and never outside 1…max
+function Stepper({ value, max, onChange }: { value: number; max: number; onChange: (n: number) => void }) {
+  const set = (n: number) => onChange(Math.min(max, Math.max(1, Math.round(n) || 1)));
+  const step = "grid h-8 w-8 place-items-center text-muted transition-colors hover:text-foreground disabled:opacity-30";
+  return (
+    <span className="inline-flex items-center rounded-lg bg-surface-2">
+      <button type="button" aria-label="Less" onClick={() => set(value - 1)} disabled={value <= 1} className={step}>
+        <Minus size={13} />
+      </button>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => set(Number(e.target.value))}
+        onFocus={(e) => e.target.select()}
+        className="w-9 bg-transparent text-center text-sm font-medium tabular-nums outline-none! [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <button type="button" aria-label="More" onClick={() => set(value + 1)} disabled={value >= max} className={step}>
+        <Plus size={13} />
+      </button>
+    </span>
+  );
+}
 
 export function BillingPanel({
   clientId,
@@ -69,6 +110,13 @@ export function BillingPanel({
     }
     setEditingRule(false);
     router.refresh();
+  }
+
+  function closeRule() {
+    setEditingRule(false);
+    setRuleCadence(cadence ?? "monthly_date");
+    setRuleDay(dayOfMonth ?? 30);
+    setRuleCount(milestoneCount ?? 4);
   }
 
   async function submitInvoice(e: React.FormEvent) {
@@ -128,7 +176,10 @@ export function BillingPanel({
         <div className={tile}>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted">Billing rule</p>
-            <button onClick={() => setEditingRule((v) => !v)} className="btn btn-xs btn-ghost -my-1">
+            <button
+              onClick={() => (editingRule ? closeRule() : setEditingRule(true))}
+              className="btn btn-xs btn-ghost -my-1"
+            >
               {editingRule ? "Close" : cadence ? "Edit" : "Set rule"}
             </button>
           </div>
@@ -169,42 +220,58 @@ export function BillingPanel({
       </div>
 
       <Reveal open={editingRule}>
-        <div className="mt-3 card-surface flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl px-5 py-4 shadow-sm">
-          <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
-            {(
-              [
-                ["monthly_date", "Fixed day of month"],
-                ["milestone", "Every N deliverables"],
-              ] as const
-            ).map(([key, text]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setRuleCadence(key)}
-                className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
-                  ruleCadence === key ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"
-                }`}
-              >
-                {text}
-              </button>
-            ))}
+        {/* Two ways to bill, as two cards: pick one, and its number sits
+            right in the sentence it sets. */}
+        <div className="mt-3 card-surface rounded-2xl p-4 shadow-sm">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {RULES.map((r) => {
+              const on = ruleCadence === r.key;
+              const monthly = r.key === "monthly_date";
+              return (
+                <div
+                  key={r.key}
+                  onClick={() => setRuleCadence(r.key)}
+                  className={`flex cursor-pointer flex-col gap-4 rounded-xl p-4 transition-[background-color,box-shadow] duration-200 ${
+                    on ? "bg-foreground/[0.05] ring-1 ring-blue-400/50" : "bg-foreground/[0.02] hover:bg-foreground/[0.04]"
+                  }`}
+                >
+                  <button type="button" aria-pressed={on} className="flex items-start gap-3 text-left outline-none!">
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${r.tint}`}>
+                      <r.Icon size={16} />
+                    </span>
+                    <span className="flex-1">
+                      <span className="block text-sm font-medium">{r.title}</span>
+                      <span className="block text-xs text-muted">{r.hint}</span>
+                    </span>
+                    <span
+                      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full transition-colors duration-200 ${
+                        on ? "bg-blue-500 text-white" : "border border-border"
+                      }`}
+                    >
+                      {on && <Check size={12} strokeWidth={3} />}
+                    </span>
+                  </button>
+                  <div
+                    className={`flex flex-wrap items-center gap-2 text-sm transition-opacity duration-200 ${
+                      on ? "" : "opacity-40"
+                    }`}
+                  >
+                    <span className="text-muted">{monthly ? "On day" : "Every"}</span>
+                    <Stepper
+                      value={monthly ? ruleDay : ruleCount}
+                      max={monthly ? 31 : 99}
+                      onChange={monthly ? setRuleDay : setRuleCount}
+                    />
+                    <span className="text-muted">
+                      {monthly ? (ruleDay >= 28 ? "of each month (month end)" : "of each month") : "deliverables"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <label className="flex items-center gap-2 text-sm text-muted">
-            {ruleCadence === "monthly_date" ? "Invoice on day" : "Invoice every"}
-            <input
-              type="number"
-              min={1}
-              max={ruleCadence === "monthly_date" ? 31 : undefined}
-              value={ruleCadence === "monthly_date" ? ruleDay : ruleCount}
-              onChange={(e) =>
-                ruleCadence === "monthly_date" ? setRuleDay(Number(e.target.value)) : setRuleCount(Number(e.target.value))
-              }
-              className="w-16 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-center text-sm text-foreground"
-            />
-            {ruleCadence === "monthly_date" ? "of every month" : "delivered tasks"}
-          </label>
-          <div className="ml-auto flex gap-2">
-            <button onClick={() => setEditingRule(false)} className="btn btn-sm btn-ghost">
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={closeRule} className="btn btn-sm btn-ghost">
               Cancel
             </button>
             <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
