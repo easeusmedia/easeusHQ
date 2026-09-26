@@ -30,7 +30,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
-      client: { include: { projects: true } },
+      // newest first, for the task form's "latest few" project list
+      client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
       assets: { orderBy: { sortOrder: "asc" } },
       tasks: {
         orderBy: { createdAt: "desc" },

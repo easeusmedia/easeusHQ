@@ -11,7 +11,8 @@ import { createProject } from "./clients/actions";
 // buried under a client's twenty-odd projects, and a project made here is
 // selectable at once, before the page's own list has caught up.
 export const NEW_PROJECT = "__new_project__";
-export const NEW_PROJECT_OPTION = { value: NEW_PROJECT, label: "＋ New project" };
+// pinned: always at the top of the list, never hidden behind its search
+export const NEW_PROJECT_OPTION = { value: NEW_PROJECT, label: "＋ New project", pinned: true };
 
 type Made = { id: string; name: string; client: { id: string; name: string } };
 
@@ -53,8 +54,10 @@ export function useNewProject(clientId: string, onCreated: (id: string) => void)
     create,
     busy,
     error,
-    // the page's projects plus any made here that it doesn't know about yet
+    // any made here that the page doesn't know about yet, then the page's
+    // own — first, because they're the newest, and the list only shows the
+    // latest few before its search
     withMade: <P extends { id: string; client: { id: string } }>(projects: P[]) =>
-      [...projects, ...made.filter((m) => !projects.some((p) => p.id === m.id))] as (P | Made)[],
+      [...made.filter((m) => !projects.some((p) => p.id === m.id)).reverse(), ...projects] as (P | Made)[],
   };
 }

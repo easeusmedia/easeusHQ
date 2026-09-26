@@ -208,6 +208,7 @@ export function NewTaskRow({
                   pill={{ icon: <FolderOpen size={12} /> }}
                   value={f.projectId}
                   placeholder="Project"
+                  search={{ recent: 3, placeholder: "Find a project…" }}
                   // first, not last: under a client's twenty-odd projects the
                   // bottom of the list is below the scroll, i.e. hidden
                   options={[

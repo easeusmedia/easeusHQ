@@ -31,7 +31,9 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: true },
-      orderBy: { client: { name: "asc" } },
+      // newest first within each client: a task form lists a client's
+      // latest few projects and searches for the rest
+      orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
     prisma.workTask.findMany({
       // finished work belongs to History, not to a board

@@ -221,6 +221,7 @@ export const WorkTaskDialog = forwardRef<
                 <Dropdown
                   value={projectId}
                   placeholder="Anything for them"
+                  search={{ recent: 3, placeholder: "Find a project…" }}
                   onChange={(id) => (id === NEW_PROJECT ? newProject.start() : setProjectId(id))}
                   options={[
                     ...(canManageTags ? [NEW_PROJECT_OPTION] : []),
