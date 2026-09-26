@@ -14,9 +14,10 @@ import { useSyncExternalStore } from "react";
 // then snapping shut once an effect runs.
 export const CLIENTS_PANEL_COOKIE = "clients-panel-open";
 
-// Where the panel belongs: the Clients dashboard, and one client's own page
-// (the capture is that client's id).
-export const CLIENTS_SECTION = /^\/clients(?:\/([^/]+))?$/;
+// Where the panel belongs: the Clients dashboard, one client's own page (the
+// capture is that client's id), and any of a client's projects — opening a
+// project shouldn't snatch the roster away.
+export const CLIENTS_SECTION = /^\/(?:clients(?:\/([^/]+))?|projects\/[^/]+)$/;
 
 let open = true;
 const listeners = new Set<() => void>();
@@ -50,5 +51,27 @@ export function useClientsPanelOpen(): boolean {
     subscribe,
     () => open,
     () => open
+  );
+}
+
+// Which client a page belongs to when its address doesn't say — a project's
+// page — so the roster can still show it as the one open. Set by that page
+// (ActiveClient), cleared when it's left.
+let active: string | null = null;
+const activeListeners = new Set<() => void>();
+
+export function setActiveClient(slug: string | null) {
+  active = slug;
+  for (const l of activeListeners) l();
+}
+
+export function useActiveClient(): string | null {
+  return useSyncExternalStore(
+    (l) => {
+      activeListeners.add(l);
+      return () => activeListeners.delete(l);
+    },
+    () => active,
+    () => null
   );
 }

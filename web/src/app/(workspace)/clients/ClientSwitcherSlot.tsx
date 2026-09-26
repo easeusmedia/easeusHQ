@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { ClientSwitcher, type SwitcherClient } from "./ClientSwitcher";
-import { CLIENTS_SECTION, primeClientsPanel, useClientsPanelOpen } from "./clientsPanel";
+import { CLIENTS_SECTION, primeClientsPanel, useActiveClient, useClientsPanelOpen } from "./clientsPanel";
 
 // Lives in the shared workspace layout, as a sibling of the app sidebar rather
 // than inside any one page's own scrolling content — same reasoning as the
@@ -22,11 +22,13 @@ export function ClientSwitcherSlot({ clients, initialOpen }: { clients: Switcher
   const panelOpen = useClientsPanelOpen();
   const pathname = usePathname();
   const section = pathname.match(CLIENTS_SECTION);
+  // a project's page doesn't name its client; the page says which it is
+  const active = useActiveClient();
   if (clients.length === 0) return null;
   return (
     <ClientSwitcher
       clients={clients}
-      current={section?.[1] ?? null}
+      current={section?.[1] ?? active}
       onDashboard={pathname === "/clients"}
       shown={!!section && panelOpen}
     />

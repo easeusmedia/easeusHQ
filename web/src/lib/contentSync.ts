@@ -288,8 +288,8 @@ async function saveAccount(clientId: string, platform: Platform, handle: string,
   const fields = { handle, ...data, coveredSince, scrapedAt: new Date() };
   await prisma.socialAccount.upsert({
     where: { clientId_platform: { clientId, platform } },
-    // a channel is usually one we run; an Instagram, one the client posts on too
-    create: { clientId, platform, allOurs: platform === "youtube", ...fields },
+    // everything counts until someone removes what isn't ours
+    create: { clientId, platform, allOurs: true, ...fields },
     update: fields,
   });
 }

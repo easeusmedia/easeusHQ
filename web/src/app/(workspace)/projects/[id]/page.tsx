@@ -12,6 +12,7 @@ import { ProjectHeader } from "../ProjectHeader";
 import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
 import { InvoicePicker } from "../InvoicePicker";
+import { ActiveClient } from "../../clients/ActiveClient";
 import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +84,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-5xl">
+      {/* the clients roster beside this page shows this project's client as the open one */}
+      <ActiveClient slug={project.client.slug} />
       <Link
         href={clientHref(project.client)}
         className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground"

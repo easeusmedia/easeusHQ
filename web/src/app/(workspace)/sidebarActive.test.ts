@@ -29,6 +29,9 @@ test("the client panel belongs to the Clients dashboard and each client's page, 
   assert.equal(CLIENTS_SECTION.test("/clients"), true);
   assert.equal("/clients/client-courageous-leaders".match(CLIENTS_SECTION)?.[1], "client-courageous-leaders");
   assert.equal(CLIENTS_SECTION.test("/clients/abc/projects"), false);
+  // a project's page keeps the roster, without naming a client in its address
+  assert.equal(CLIENTS_SECTION.test("/projects/e2b2dcd3"), true);
+  assert.equal("/projects/e2b2dcd3".match(CLIENTS_SECTION)?.[1], undefined);
   assert.equal(CLIENTS_SECTION.test("/clientsx"), false);
   assert.equal(CLIENTS_SECTION.test("/board"), false);
 });

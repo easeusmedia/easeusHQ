@@ -42,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
     const rows = await prisma.contentItem.findMany({
       where: { clientId, platform, publishedAt: { gte: new Date(`${since}T00:00:00+05:30`), lt: new Date(`${shiftDay(to, 1)}T00:00:00+05:30`) } },
     });
-    const allOurs = sameAccount ? !!account?.allOurs : platform === "youtube";
+    const allOurs = sameAccount ? !!account?.allOurs : true;
     const toItem = (r: (typeof rows)[number]): Item => ({
       externalId: r.externalId,
       clientId,

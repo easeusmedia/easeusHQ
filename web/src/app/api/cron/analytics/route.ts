@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not allowed." }, { status: 401 });
   }
   const origin = new URL(request.url).origin;
-  await collect();
+  // anything left over from before first; a hiccup there mustn't stop tonight's refresh
+  await collect().catch(() => {});
   return NextResponse.json(await dailySync(origin));
 }

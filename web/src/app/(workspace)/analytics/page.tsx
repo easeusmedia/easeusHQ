@@ -172,7 +172,7 @@ export default async function AnalyticsPage({
   // still waiting to be called ours or not
   const section = (platform: Platform) => {
     const allOurs = (clientId: string) =>
-      accounts.find((a) => a.clientId === clientId && a.platform === platform)?.allOurs ?? platform === "youtube";
+      accounts.find((a) => a.clientId === clientId && a.platform === platform)?.allOurs ?? true;
     const mine = rows.filter((r) => r.platform === platform);
     const toItem = (r: (typeof rows)[number]): Item => ({
       externalId: r.externalId,
