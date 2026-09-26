@@ -994,3 +994,29 @@ export async function saveAnalyticsAccount(
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
+
+// Someone here deciding whether posts are our work — always the last word,
+// over anything matched automatically. null puts them back to undecided.
+export async function markOurWork(
+  clientId: string,
+  platform: "youtube" | "instagram",
+  externalIds: string[],
+  ours: boolean | null
+): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can change this." };
+  await prisma.contentItem.updateMany({
+    where: { clientId, platform, externalId: { in: externalIds } },
+    data: { ours, oursBy: ours === null ? null : "person" },
+  });
+  revalidatePath("/analytics");
+  return {};
+}
+
+// "Everything on this account is ours" — a channel we run — or only what's
+// matched to our tasks or marked.
+export async function setAllOurs(clientId: string, platform: "youtube" | "instagram", value: boolean): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can change this." };
+  await prisma.socialAccount.updateMany({ where: { clientId, platform }, data: { allOurs: value } });
+  revalidatePath("/analytics");
+  return {};
+}

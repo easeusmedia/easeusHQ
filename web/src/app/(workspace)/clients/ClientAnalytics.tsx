@@ -7,8 +7,22 @@ import type { ContentRow, Dashboard, Format, Metric, Platform } from "@/lib/anal
 import { shiftDay } from "@/lib/analytics";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { saveAnalyticsAccount } from "./actions";
+import { markOurWork, saveAnalyticsAccount, setAllOurs } from "./actions";
+import { Checkbox } from "../Checkbox";
 import { InstagramIcon, YoutubeIcon } from "../PlatformIcon";
+
+// a post waiting to be called ours or not, or already called not ours
+type Listed = {
+  id: string;
+  title: string;
+  url: string;
+  thumbnail: string | null;
+  kind: string;
+  published: string;
+  views: number | null;
+  matchedTask: string | null;
+};
+type OurWork = { allOurs: boolean; review: Listed[]; notOurs: Listed[]; matched: Record<string, string> };
 
 const RANGES = [
   { value: "7", label: "Last 7 days" },
@@ -57,11 +71,16 @@ export function ClientAnalytics({
   const [seen, setSeen] = useState(false);
   // syncing: a scrape for this account is under way — the stored numbers
   // show meanwhile, and it's asked about again shortly
-  const [data, setData] = useState<Record<string, { dashboard?: Dashboard; error?: string; pending?: boolean; syncing?: boolean }>>({});
+  const [data, setData] = useState<
+    Record<string, { dashboard?: Dashboard; error?: string; pending?: boolean; syncing?: boolean; work?: OurWork }>
+  >({});
+  // bumped after marking posts, so the numbers are read again (from what's
+  // stored — no scrape)
+  const [version, setVersion] = useState(0);
   const [poll, setPoll] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const key = `${platform}:${account}:${from}:${to}`;
+  const key = `${platform}:${account}:${from}:${to}:${version}`;
   const current = data[key];
   const live = !!account && ready[platform] && !editing;
 
@@ -87,7 +106,13 @@ export function ClientAnalytics({
             if (!alive) return;
             setData((d) => ({
               ...d,
-              [key]: { dashboard: body.dashboard, error: body.error, pending: !!body.pending, syncing: !!body.syncing },
+              [key]: {
+                dashboard: body.dashboard,
+                error: body.error,
+                pending: !!body.pending,
+                syncing: !!body.syncing,
+                work: body.review ? { allOurs: !!body.allOurs, review: body.review, notOurs: body.notOurs, matched: body.matched ?? {} } : undefined,
+              },
             }));
             if (body.syncing) setPoll((n) => n + 1);
           })
@@ -106,9 +131,22 @@ export function ClientAnalytics({
     };
     // `current` is read, not watched: a new key, a refresh or a poll is what fetches
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seen, live, clientId, platform, account, from, to, refresh, poll]);
+  }, [seen, live, clientId, platform, account, from, to, refresh, poll, version]);
 
-  const d = current?.dashboard;
+  // the last answer for this view, while a newer one loads after marking
+  const shownData = current ?? Object.entries(data).find(([k]) => k.startsWith(`${platform}:${account}:${from}:${to}:`))?.[1];
+
+  async function mark(ids: string[], ours: boolean | null) {
+    await markOurWork(clientId, platform, ids, ours);
+    setVersion((v) => v + 1);
+  }
+  async function everything(value: boolean) {
+    await setAllOurs(clientId, platform, value);
+    setVersion((v) => v + 1);
+  }
+
+  const d = shownData?.dashboard;
+  const work = shownData?.work;
 
   return (
     <div ref={rootRef} className="flex flex-col gap-6">
@@ -196,9 +234,17 @@ export function ClientAnalytics({
               </p>
             </div>
             {canEdit && (
-              <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-ghost ml-auto">
-                <Pencil size={11} /> Change
-              </button>
+              <span className="ml-auto flex items-center gap-3">
+                {work && (
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted" title="On: every post counts unless marked not ours (a channel we run). Off: only posts matched to our tasks or marked ours.">
+                    <Checkbox checked={work.allOurs} onChange={everything} label="Everything here is our work" size={14} />
+                    Everything here is our work
+                  </label>
+                )}
+                <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-ghost">
+                  <Pencil size={11} /> Change
+                </button>
+              </span>
             )}
           </div>
 
@@ -216,7 +262,7 @@ export function ClientAnalytics({
               <Skeleton />
             </div>
           ) : (
-            <Board dashboard={d} platform={platform} loading={loading} />
+            <Board dashboard={d} platform={platform} loading={loading} work={work} canEdit={canEdit} mark={mark} />
           )}
         </div>
       )}
@@ -224,7 +270,23 @@ export function ClientAnalytics({
   );
 }
 
-function Board({ dashboard: d, platform, loading }: { dashboard: Dashboard; platform: Platform; loading: boolean }) {
+function Board({
+  dashboard: d,
+  platform,
+  loading,
+  work,
+  canEdit,
+  mark,
+}: {
+  dashboard: Dashboard;
+  platform: Platform;
+  loading: boolean;
+  work?: OurWork;
+  canEdit: boolean;
+  mark: (ids: string[], ours: boolean | null) => Promise<void>;
+}) {
+  // what's counted (ours), what's waiting to be decided, what's been ruled out
+  const [list, setList] = useState<"ours" | "review" | "not">("ours");
   const [kind, setKind] = useState("all");
   const [sort, setSort] = useState(d.columns[0].key);
   // the best few, not every post of the month — more on asking
@@ -274,72 +336,137 @@ function Board({ dashboard: d, platform, loading }: { dashboard: Dashboard; plat
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-medium">
-            {platform === "youtube" ? "Videos" : "Posts"}{" "}
-            <span className="text-muted">
-              · {d.rows.length} published in this range
-            </span>
-          </h3>
-          <div className="flex items-center gap-2">
-            <Dropdown
-              value={kind}
-              onChange={(v) => {
-                setKind(v);
-                setShown(5);
-              }}
-              pill={{ icon: <span className="size-1.5 rounded-full bg-violet-400" /> }}
-              options={[{ value: "all", label: "All" }, ...PLATFORM[platform].kinds.map((k) => ({ value: k, label: `${k}s` }))]}
-            />
-            <Dropdown
-              value={sort}
-              onChange={(v) => {
-                setSort(v);
-                setShown(5);
-              }}
-              pill={{ icon: <span className="size-1.5 rounded-full bg-amber-400" /> }}
-              options={[
-                ...d.columns.map((c) => ({ value: c.key, label: `Most ${c.label.toLowerCase()}` })),
-                { value: "newest", label: "Newest first" },
-              ]}
-            />
+          {/* what counts, what's waiting to be decided, what's ruled out */}
+          <div className="flex gap-0.5 rounded-lg bg-surface-2/60 p-0.5 text-xs">
+            {(
+              [
+                ["ours", "Our work", d.rows.length],
+                ...(work && (work.review.length || !work.allOurs) ? [["review", "To review", work.review.length] as const] : []),
+                ...(work && work.notOurs.length ? [["not", "Not ours", work.notOurs.length] as const] : []),
+              ] as const
+            ).map(([key, text, n]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setList(key)}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 ${
+                  list === key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {text}
+                <span className={`tabular-nums ${key === "review" && n ? "text-amber-300" : "text-muted"}`}>{n}</span>
+              </button>
+            ))}
           </div>
+          {list === "ours" && (
+            <div className="flex items-center gap-2">
+              <Dropdown
+                value={kind}
+                onChange={(v) => {
+                  setKind(v);
+                  setShown(5);
+                }}
+                pill={{ icon: <span className="size-1.5 rounded-full bg-violet-400" /> }}
+                options={[{ value: "all", label: "All" }, ...PLATFORM[platform].kinds.map((k) => ({ value: k, label: `${k}s` }))]}
+              />
+              <Dropdown
+                value={sort}
+                onChange={(v) => {
+                  setSort(v);
+                  setShown(5);
+                }}
+                pill={{ icon: <span className="size-1.5 rounded-full bg-amber-400" /> }}
+                options={[
+                  ...d.columns.map((c) => ({ value: c.key, label: `Most ${c.label.toLowerCase()}` })),
+                  { value: "newest", label: "Newest first" },
+                ]}
+              />
+            </div>
+          )}
+          {list === "review" && canEdit && work && work.review.length > 1 && (
+            <button type="button" onClick={() => mark(work.review.map((r) => r.id), true)} className="btn btn-xs btn-ghost">
+              All of these are ours
+            </button>
+          )}
         </div>
 
-        {rows.length === 0 ? (
-          <p className="rounded-xl bg-surface/40 px-4 py-8 text-center text-sm text-muted">Nothing in this range.</p>
+        {list === "ours" ? (
+          <>
+            {rows.length === 0 ? (
+              <p className="rounded-xl bg-surface/40 px-4 py-8 text-center text-sm text-muted">
+                {work?.review.length ? "Nothing counted as ours yet in this range — see To review." : "Nothing in this range."}
+              </p>
+            ) : (
+              <ol className="card-surface divide-y divide-border/50 overflow-hidden rounded-2xl shadow-sm">
+                {rows.slice(0, shown).map((r, i) => (
+                  <ContentItem
+                    key={r.id}
+                    row={r}
+                    rank={i + 1}
+                    columns={d.columns}
+                    bar={(r.stats[barKey] ?? 0) / top}
+                    barValue={fmt(r.stats[barKey] ?? null, barFormat)}
+                    highlight={barKey}
+                    note={work?.matched[r.id] ? `Matched to “${work.matched[r.id]}”` : undefined}
+                    action={
+                      canEdit ? (
+                        <button type="button" onClick={() => mark([r.id], false)} className="btn btn-xs btn-ghost">
+                          Not ours
+                        </button>
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </ol>
+            )}
+            {rows.length > 5 && (
+              <div className="flex items-center justify-between gap-3 text-xs text-muted">
+                <span>
+                  Showing {Math.min(shown, rows.length)} of {rows.length}
+                </span>
+                <span className="flex gap-1">
+                  {shown > 5 && (
+                    <button type="button" onClick={() => setShown(5)} className="btn btn-xs btn-ghost">
+                      Show less
+                    </button>
+                  )}
+                  {shown < rows.length && (
+                    <button type="button" onClick={() => setShown((n) => n + 10)} className="btn btn-xs btn-ghost">
+                      Show more
+                    </button>
+                  )}
+                </span>
+              </div>
+            )}
+          </>
         ) : (
-          <ol className="card-surface divide-y divide-border/50 overflow-hidden rounded-2xl shadow-sm">
-            {rows.slice(0, shown).map((r, i) => (
-              <ContentItem
-                key={r.id}
-                row={r}
-                rank={i + 1}
-                columns={d.columns}
-                bar={(r.stats[barKey] ?? 0) / top}
-                barValue={fmt(r.stats[barKey] ?? null, barFormat)}
-                highlight={barKey}
-              />
-            ))}
-          </ol>
-        )}
-        {rows.length > 5 && (
-          <div className="flex items-center justify-between gap-3 text-xs text-muted">
-            <span>
-              Showing {Math.min(shown, rows.length)} of {rows.length}
-            </span>
-            <span className="flex gap-1">
-              {shown > 5 && (
-                <button type="button" onClick={() => setShown(5)} className="btn btn-xs btn-ghost">
-                  Show less
-                </button>
-              )}
-              {shown < rows.length && (
-                <button type="button" onClick={() => setShown((n) => n + 10)} className="btn btn-xs btn-ghost">
-                  Show more
-                </button>
-              )}
-            </span>
-          </div>
+          <DecideList
+            items={(list === "review" ? work?.review : work?.notOurs) ?? []}
+            empty={list === "review" ? "Nothing left to decide in this range." : "Nothing ruled out."}
+            hint={
+              list === "review"
+                ? "Posted on their account, but not matched to any task of ours — say which ones we made, and only those count."
+                : "Left out of every number here."
+            }
+            actions={(item) =>
+              canEdit ? (
+                list === "review" ? (
+                  <>
+                    <button type="button" onClick={() => mark([item.id], true)} className="btn btn-xs btn-glow">
+                      Ours
+                    </button>
+                    <button type="button" onClick={() => mark([item.id], false)} className="btn btn-xs btn-ghost">
+                      Not ours
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => mark([item.id], true)} className="btn btn-xs btn-ghost">
+                    It&apos;s ours
+                  </button>
+                )
+              ) : null
+            }
+          />
         )}
       </section>
 
@@ -392,6 +519,8 @@ function ContentItem({
   bar,
   barValue,
   highlight,
+  note,
+  action,
 }: {
   row: ContentRow;
   rank: number;
@@ -399,16 +528,14 @@ function ContentItem({
   bar: number;
   barValue: string;
   highlight: string;
+  // how it came to count as ours, when that was a task match
+  note?: string;
+  action?: React.ReactNode;
 }) {
   const square = r.kind !== "Video";
   return (
-    <li>
-      <a
-        href={r.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-start gap-4 px-4 py-3 transition-colors hover:bg-surface-2/50"
-      >
+    <li className="group flex items-center transition-colors hover:bg-surface-2/50">
+      <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-4 px-4 py-3">
         <span className="w-6 shrink-0 pt-1 text-right text-xs tabular-nums text-muted">{rank}</span>
         <span className={`shrink-0 overflow-hidden rounded-lg bg-surface-2 ${square ? "h-16 w-16" : "aspect-video w-28"}`}>
           {r.thumbnail && (
@@ -436,10 +563,55 @@ function ContentItem({
                   <span className="text-foreground/80 tabular-nums">{fmt(r.stats[c.key], c.format)}</span> {c.label.toLowerCase()}
                 </span>
               ))}
+            {note && <span className="text-emerald-300/80">{note}</span>}
           </span>
         </span>
       </a>
+      {action && <span className="shrink-0 pr-4 opacity-0 transition-opacity group-hover:opacity-100">{action}</span>}
     </li>
+  );
+}
+
+// Posts to say yes or no to — undecided, or already ruled out
+function DecideList({
+  items,
+  empty,
+  hint,
+  actions,
+}: {
+  items: Listed[];
+  empty: string;
+  hint: string;
+  actions: (item: Listed) => React.ReactNode;
+}) {
+  const sorted = [...items].sort((a, b) => b.published.localeCompare(a.published));
+  if (!sorted.length) return <p className="rounded-xl bg-surface/40 px-4 py-8 text-center text-sm text-muted">{empty}</p>;
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted">{hint}</p>
+      <ol className="card-surface divide-y divide-border/50 overflow-hidden rounded-2xl shadow-sm">
+        {sorted.map((item) => (
+          <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+            <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-surface-2">
+                {item.thumbnail && (
+                  // eslint-disable-next-line @next/next/no-img-element -- the platform's own thumbnail
+                  <img src={item.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm">{item.title}</span>
+                <span className="block text-xs text-muted">
+                  {item.kind} · {shortDate(item.published)}
+                  {item.views != null && ` · ${fmt(item.views, "count")} views`}
+                </span>
+              </span>
+            </a>
+            <span className="flex shrink-0 gap-1">{actions(item)}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

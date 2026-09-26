@@ -310,6 +310,13 @@ model ContentItem {
   comments    Int?
   // when these numbers were read — older posts are read less often
   scrapedAt   DateTime
+  // Whether it's our work rather than something the client posted
+  // themselves: true / false once decided, null while nobody has. Decided by
+  // matching one of our tasks (oursBy "task") or by someone here ("person"),
+  // who always has the last word.
+  ours        Boolean?
+  oursBy      String?
+  matchedTask String?
 
   @@unique([platform, externalId])
   @@index([clientId, platform, publishedAt])
@@ -330,6 +337,10 @@ model SocialAccount {
   // how far back its posts have been read — a range before this needs a
   // one-off scrape of its own
   coveredSince DateTime?
+  // everything on it is ours unless marked otherwise (a channel we run), as
+  // opposed to only what's matched or marked (an account the client posts on
+  // too)
+  allOurs      Boolean   @default(false)
   scrapedAt    DateTime?
 
   @@id([clientId, platform])

@@ -1,7 +1,8 @@
 import { randomBytes } from "crypto";
 import { prisma } from "./prisma.ts";
 import { runResult, startRun } from "./apify.ts";
-import { instagramUsername, shiftDay, socialLink, youtubeRef, type Platform } from "./analytics.ts";
+import { istDay, instagramUsername, shiftDay, socialLink, youtubeRef, type Platform } from "./analytics.ts";
+import { matchTask } from "./ourWork.ts";
 
 // Keeping every client's public YouTube and Instagram numbers in our own
 // database, so any analytics view opens instantly and Apify is paid for as
@@ -287,9 +288,37 @@ async function saveAccount(clientId: string, platform: Platform, handle: string,
   const fields = { handle, ...data, coveredSince, scrapedAt: new Date() };
   await prisma.socialAccount.upsert({
     where: { clientId_platform: { clientId, platform } },
-    create: { clientId, platform, ...fields },
+    // a channel is usually one we run; an Instagram, one the client posts on too
+    create: { clientId, platform, allOurs: platform === "youtube", ...fields },
     update: fields,
   });
+}
+
+// Marks as ours whatever of a client's undecided posts matches one of our
+// tasks for them (lib/ourWork.ts). Never touches a post someone here has
+// already decided about.
+export async function matchOurWork(clientId: string): Promise<number> {
+  const [tasks, undecided] = await Promise.all([
+    prisma.task.findMany({
+      where: { project: { clientId }, internal: false },
+      select: { title: true, createdAt: true, handedOffAt: true, updatedAt: true },
+    }),
+    prisma.contentItem.findMany({ where: { clientId, ours: null }, select: { id: true, title: true, publishedAt: true } }),
+  ]);
+  if (!tasks.length || !undecided.length) return 0;
+  const windows = tasks.map((t) => ({
+    title: t.title,
+    from: shiftDay(istDay(t.createdAt), -7),
+    to: shiftDay(istDay(t.handedOffAt ?? t.updatedAt), 45),
+  }));
+  let n = 0;
+  for (const item of undecided) {
+    const task = matchTask({ title: item.title, published: istDay(item.publishedAt) }, windows);
+    if (!task) continue;
+    await prisma.contentItem.update({ where: { id: item.id }, data: { ours: true, oursBy: "task", matchedTask: task } });
+    n++;
+  }
+  return n;
 }
 
 // Collects every run that has finished — its results into the database.
@@ -367,6 +396,7 @@ export async function collect(): Promise<{ pending: number }> {
         });
       }
     }
+    for (const clientId of new Set(Object.values(map))) await matchOurWork(clientId);
     await prisma.scrapeRun.update({ where: { id: run.id }, data: { status: "SUCCEEDED", doneAt: new Date(), checkedAt: new Date() } });
   }
   // the record of finished runs is only needed for a while
