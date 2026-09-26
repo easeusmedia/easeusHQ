@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, Receipt } from "lucide-react";
 import { setBillingRule, createInvoice, updateInvoiceStatus } from "./actions";
 import { DatePicker } from "../DatePicker";
+import { Reveal } from "../Reveal";
 
 type BillingCadence = "monthly_date" | "milestone";
 type InvoiceStatus = "draft" | "ready" | "sent" | "paid" | "overdue";
@@ -18,6 +19,10 @@ const STATUS_STYLE: Record<InvoiceStatus, string> = {
   paid: "bg-green-400/15 text-green-300 border-green-400/30",
   overdue: "bg-red-400/15 text-red-300 border-red-400/30",
 };
+
+const ROW = "grid grid-cols-[1fr_1fr_auto] items-center gap-4 px-5 sm:grid-cols-[1.2fr_1fr_1fr_auto]";
+const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const day = (d: Date) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 export function BillingPanel({
   clientId,
@@ -89,24 +94,83 @@ export function BillingPanel({
 
   const ready = cadence === "milestone" && milestoneCount != null && deliveredSinceInvoice >= milestoneCount;
 
+  const sum = (list: Invoice[]) => list.reduce((n, inv) => n + Number(inv.amount), 0);
+  const owed = invoices.filter((inv) => ["ready", "sent", "overdue"].includes(inv.status));
+  const overdue = invoices.filter((inv) => inv.status === "overdue").length;
+  const paid = invoices.filter((inv) => inv.status === "paid");
+  const tile = "card-surface flex flex-col gap-1 rounded-2xl px-5 py-4 shadow-sm";
+
   return (
-    <section className="card-surface flex flex-col gap-4 rounded-xl p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium">Billing</h2>
-        {!editingRule && (
-          <button onClick={() => setEditingRule(true)} className="btn btn-xs btn-ghost">
-            {cadence ? "Edit rule" : "Set billing rule"}
-          </button>
-        )}
+    // The tab's full width, like the rest of the client page: what's owed,
+    // what's been paid and the rule across the top, the invoices as a table
+    // under it — rather than one narrow card with the page empty beside it.
+    <div className="flex flex-col">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className={tile}>
+          <p className="text-xs text-muted">Outstanding</p>
+          <p className={`text-2xl font-semibold tabular-nums ${owed.length ? "text-foreground" : "text-muted"}`}>
+            {money(sum(owed))}
+          </p>
+          <p className="text-xs text-muted">
+            {owed.length ? `${owed.length} unpaid` : "Nothing owed"}
+            {overdue > 0 && <span className="text-red-300"> · {overdue} overdue</span>}
+          </p>
+        </div>
+        <div className={tile}>
+          <p className="text-xs text-muted">Paid</p>
+          <p className={`text-2xl font-semibold tabular-nums ${paid.length ? "text-foreground" : "text-muted"}`}>
+            {money(sum(paid))}
+          </p>
+          <p className="text-xs text-muted">
+            {paid.length} invoice{paid.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className={tile}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted">Billing rule</p>
+            <button onClick={() => setEditingRule((v) => !v)} className="btn btn-xs btn-ghost -my-1">
+              {editingRule ? "Close" : cadence ? "Edit" : "Set rule"}
+            </button>
+          </div>
+          {cadence === "milestone" && milestoneCount ? (
+            <>
+              <p className="text-2xl font-semibold tabular-nums">
+                {Math.min(deliveredSinceInvoice, milestoneCount)}
+                <span className="text-muted"> / {milestoneCount}</span>
+              </p>
+              <div className="h-1 overflow-hidden rounded-full bg-foreground/[0.06]">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-300 ${ready ? "bg-emerald-400" : "bg-blue-400"}`}
+                  style={{ width: `${Math.min(100, (deliveredSinceInvoice / milestoneCount) * 100)}%` }}
+                />
+              </div>
+              <p className={`flex items-center gap-1 text-xs ${ready ? "text-emerald-300" : "text-muted"}`}>
+                {ready ? (
+                  <>
+                    <Check size={11} /> Ready to invoice
+                  </>
+                ) : (
+                  "delivered since the last invoice"
+                )}
+              </p>
+            </>
+          ) : cadence === "monthly_date" ? (
+            <>
+              <p className="text-2xl font-semibold tabular-nums">Day {dayOfMonth}</p>
+              <p className="text-xs text-muted">of every month</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold text-muted">Not set</p>
+              <p className="text-xs text-muted">When this client gets invoiced</p>
+            </>
+          )}
+        </div>
       </div>
 
-      {editingRule ? (
-        // Sized to its content, not stretched across the page: the two
-        // choices were 850px-wide halves with Save floating off at the far
-        // edge. A switch, the sentence it configures, and the actions right
-        // underneath it.
-        <div className="fade-in flex w-full max-w-md flex-col gap-3 rounded-xl bg-surface-2/60 p-4">
-          <div className="inline-flex w-fit rounded-lg bg-surface p-1 text-xs">
+      <Reveal open={editingRule}>
+        <div className="mt-3 card-surface flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl px-5 py-4 shadow-sm">
+          <div className="inline-flex rounded-lg bg-surface-2 p-1 text-xs">
             {(
               [
                 ["monthly_date", "Fixed day of month"],
@@ -118,7 +182,7 @@ export function BillingPanel({
                 type="button"
                 onClick={() => setRuleCadence(key)}
                 className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
-                  ruleCadence === key ? "bg-surface-2 text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                  ruleCadence === key ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"
                 }`}
               >
                 {text}
@@ -135,94 +199,93 @@ export function BillingPanel({
               onChange={(e) =>
                 ruleCadence === "monthly_date" ? setRuleDay(Number(e.target.value)) : setRuleCount(Number(e.target.value))
               }
-              className="w-16 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-center text-sm text-foreground"
+              className="w-16 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-center text-sm text-foreground"
             />
             {ruleCadence === "monthly_date" ? "of every month" : "delivered tasks"}
           </label>
-          <div className="flex gap-2">
-            <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
-              {savingRule ? "Saving…" : "Save"}
-            </button>
+          <div className="ml-auto flex gap-2">
             <button onClick={() => setEditingRule(false)} className="btn btn-sm btn-ghost">
               Cancel
             </button>
+            <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
+              {savingRule ? "Saving…" : "Save rule"}
+            </button>
           </div>
         </div>
-      ) : cadence === "monthly_date" ? (
-        <p className="text-sm text-muted">Invoices go out on day {dayOfMonth} of every month.</p>
-      ) : cadence === "milestone" ? (
-        <div className="flex items-center gap-2 text-sm">
-          <span className={ready ? "font-medium text-emerald-300" : "text-muted"}>
-            {deliveredSinceInvoice} of {milestoneCount} delivered since last invoice
-          </span>
-          {ready && (
-            <span className="flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs text-emerald-300">
-              <Check size={11} /> Ready to invoice
-            </span>
-          )}
-        </div>
-      ) : (
-        <p className="text-sm text-muted">No billing rule set yet.</p>
-      )}
+      </Reveal>
 
-      <div className="border-t border-border pt-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-medium text-muted">Invoices</h3>
+      <section className="mt-4 card-surface overflow-hidden rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+          <h3 className="text-sm font-medium">
+            Invoices <span className="ml-1 text-muted tabular-nums">{invoices.length || ""}</span>
+          </h3>
           {!showInvoiceForm && (
-            <button onClick={() => setShowInvoiceForm(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
+            <button onClick={() => setShowInvoiceForm(true)} className="btn btn-xs btn-glow flex items-center gap-1">
               <Plus size={13} /> New invoice
             </button>
           )}
         </div>
 
-        {showInvoiceForm && (
+        <Reveal open={showInvoiceForm}>
           <form
             onSubmit={submitInvoice}
-            className="fade-in mb-3 flex w-full max-w-xl flex-wrap items-center gap-2 rounded-xl bg-surface-2/60 p-3"
+            className="flex flex-wrap items-center gap-2 border-t border-border/60 bg-surface-2/40 px-5 py-3"
           >
             <input
-              autoFocus
               type="number"
               min="0"
               step="0.01"
               required
-              placeholder="Amount"
+              placeholder="Amount (₹)"
               aria-label="Amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-32 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-foreground"
+              className="w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-foreground"
             />
             <div className="w-48">
               <DatePicker value={dueDate} onChange={setDueDate} placeholder="Due date" />
             </div>
-            <span className="flex-1" />
-            <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
-              Cancel
-            </button>
-            <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
-              {creating ? "Creating…" : "Create"}
-            </button>
+            <div className="ml-auto flex gap-2">
+              <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
+                Cancel
+              </button>
+              <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
+                {creating ? "Creating…" : "Create invoice"}
+              </button>
+            </div>
           </form>
-        )}
+        </Reveal>
 
-        {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
+        {error && <p className="border-t border-border/60 px-5 py-2 text-xs text-red-300">{error}</p>}
 
         {invoices.length === 0 ? (
-          <p className="text-sm text-muted">No invoices yet.</p>
+          <div className="flex flex-col items-center gap-1.5 border-t border-border/60 px-5 py-10 text-center">
+            <Receipt size={20} className="text-muted/60" />
+            <p className="text-sm text-muted">No invoices yet</p>
+          </div>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <div className="border-t border-border/60 text-sm">
+            <div className={`${ROW} py-2 text-xs text-muted`}>
+              <span>Amount</span>
+              <span>Due</span>
+              <span className="hidden sm:block">Raised</span>
+              <span className="text-right">Status</span>
+            </div>
             {invoices.map((inv) => (
-              <li key={inv.id} className="flex items-center gap-3 rounded-lg bg-surface-2/60 px-3 py-2 text-sm">
-                <span className="w-28 font-medium tabular-nums">₹{inv.amount}</span>
-                <span className="flex-1 text-xs text-muted">
-                  {inv.dueDate
-                    ? `Due ${new Date(inv.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
-                    : "No due date"}
+              <div
+                key={inv.id}
+                className={`${ROW} border-t border-border/40 py-2.5 transition-colors duration-150 hover:bg-foreground/[0.02]`}
+              >
+                <span className="font-medium tabular-nums">{money(Number(inv.amount))}</span>
+                <span className={inv.status === "overdue" ? "text-red-300" : "text-muted"}>
+                  {inv.dueDate ? day(inv.dueDate) : "—"}
                 </span>
+                <span className="hidden text-muted sm:block">{day(inv.createdAt)}</span>
                 <select
                   value={inv.status}
                   onChange={(e) => pickStatus(inv.id, e.target.value as InvoiceStatus)}
-                  className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_STYLE[inv.status]}`}
+                  aria-label="Invoice status"
+                  className={`justify-self-end rounded-full border px-2.5 py-0.5 text-xs capitalize ${STATUS_STYLE[inv.status]}`}
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s} className="bg-surface-2 text-foreground">
@@ -230,11 +293,11 @@ export function BillingPanel({
                     </option>
                   ))}
                 </select>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
