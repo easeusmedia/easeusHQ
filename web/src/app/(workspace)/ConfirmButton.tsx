@@ -41,7 +41,7 @@ export function ConfirmButton({
           <button
             type="button"
             onClick={() => ref.current?.close()}
-            className="rounded-md px-3 py-1 text-xs btn-ghost"
+            className="btn btn-sm btn-ghost"
           >
             Cancel
           </button>
@@ -52,7 +52,7 @@ export function ConfirmButton({
               ref.current?.close();
               onConfirm?.();
             }}
-            className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25"
+            className="btn btn-sm btn-danger"
           >
             Delete
           </button>

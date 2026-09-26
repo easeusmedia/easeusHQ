@@ -76,7 +76,7 @@ export function NotionSyncButton() {
             onClick={() => run(way)}
             disabled={running !== null}
             title={title}
-            className="btn-glow flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="btn btn-glow gap-2 disabled:opacity-60"
           >
             <NotionMark />
             <Icon size={14} className={running === way ? "animate-pulse" : undefined} />

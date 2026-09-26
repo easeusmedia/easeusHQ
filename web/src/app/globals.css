@@ -302,6 +302,50 @@ dialog[open]::backdrop {
   color: var(--foreground);
 }
 
+/* The one irreversible action in a prompt (delete, remove for good). The
+   same shape as the others, tinted — it was the same five utilities copied
+   into five files. */
+.btn-danger {
+  border: 1px solid rgb(239 68 68 / 0.3);
+  background: rgb(239 68 68 / 0.15);
+  color: rgb(252 165 165);
+  transition: background-color 0.12s ease;
+}
+.btn-danger:hover {
+  background-color: rgb(239 68 68 / 0.25);
+}
+
+/* Button sizes. The classes above say what a button *is*; these say how big,
+   and they're the only thing that should. Every Save/Cancel pair used to
+   pick its own padding and corner, so a Cancel (py-1) sat shorter than the
+   Save beside it (py-2), and a 38px-tall button with a 6px corner read as a
+   block rather than a control. Now: 32px with an 8px corner in a dialog's
+   footer, 28px with a 7px one for the small inline actions inside a panel.
+   Same height whether it has a border or not (border-box), so a pair lines
+   up. In the components layer, so a call site can still add w-full or a
+   margin on top. */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    height: 2rem;
+    padding: 0 0.875rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .btn-sm {
+    height: 1.75rem;
+    padding: 0 0.75rem;
+    border-radius: 0.4375rem;
+    font-size: 0.75rem;
+  }
+}
+
 /* Every round picture — a person's photo, a client's logo. The hairline
    edge keeps a dark photo off a dark page (and a light one off a light
    page) from melting into the background. Mixed from the text colour, so

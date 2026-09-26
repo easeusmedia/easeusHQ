@@ -42,7 +42,7 @@ export function ClientMessages({ clientId, items }: { clientId: string; items: I
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={toggle} aria-expanded={open} className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+      <button type="button" onClick={toggle} aria-expanded={open} className="btn btn-sm btn-glow">
         <MessageSquare size={13} />
         Messages
         {unread > 0 && (

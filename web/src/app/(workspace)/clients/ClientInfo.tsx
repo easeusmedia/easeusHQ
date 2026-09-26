@@ -76,10 +76,10 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
                 className="rounded-lg border border-border bg-surface-2 p-3 text-sm leading-relaxed"
               />
               <div className="flex justify-end gap-2">
-                <button onClick={() => { setValue(content ?? ""); setEditing(false); }} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
+                <button onClick={() => { setValue(content ?? ""); setEditing(false); }} className="btn btn-sm btn-ghost">
                   Cancel
                 </button>
-                <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+                <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
@@ -223,10 +223,10 @@ export function ClientInfo({
             <div className="flex items-center justify-between">
               <span />
               <div className="flex gap-2">
-                <button onClick={() => setEditing(false)} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
+                <button onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
                   Cancel
                 </button>
-                <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+                <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
@@ -303,14 +303,14 @@ export function ClientInfo({
 
           {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => deleteRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">
+            <button type="button" onClick={() => deleteRef.current?.close()} className="btn btn-sm btn-ghost">
               Cancel
             </button>
             <button
               type="button"
               onClick={() => (armed ? confirmDelete() : setArmed(true))}
               disabled={deleting}
-              className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
+              className="btn btn-sm btn-danger disabled:opacity-60"
             >
               {deleting ? "Deleting…" : armed ? `Yes, delete ${name}` : "Delete"}
             </button>
@@ -408,10 +408,10 @@ function CustomDocSection({ doc }: { doc: CustomDoc }) {
                   <Trash2 size={13} /> Delete
                 </ConfirmButton>
                 <div className="flex gap-2">
-                  <button onClick={() => { setValue(doc.content ?? ""); setTitle(doc.title); setEditing(false); }} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
+                  <button onClick={() => { setValue(doc.content ?? ""); setTitle(doc.title); setEditing(false); }} className="btn btn-sm btn-ghost">
                     Cancel
                   </button>
-                  <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+                  <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
                     {saving ? "Saving…" : "Save"}
                   </button>
                 </div>
@@ -470,10 +470,10 @@ function NewDocument({ clientId }: { clientId: string }) {
         placeholder="What is it? e.g. Channel strategy, Tone of voice"
         className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
       />
-      <button onClick={add} disabled={saving} className="btn-glow shrink-0 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
+      <button onClick={add} disabled={saving} className="btn btn-sm btn-glow shrink-0 disabled:opacity-60">
         {saving ? "Adding…" : "Add"}
       </button>
-      <button onClick={() => setAdding(false)} className="btn-ghost shrink-0 rounded-lg px-3 py-2 text-xs">
+      <button onClick={() => setAdding(false)} className="btn btn-sm btn-ghost shrink-0">
         Cancel
       </button>
     </div>

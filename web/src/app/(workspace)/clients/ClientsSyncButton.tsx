@@ -38,7 +38,7 @@ export function ClientsSyncButton() {
         type="button"
         onClick={sync}
         disabled={pending}
-        className="btn-glow flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"
+        className="btn btn-glow gap-2 disabled:opacity-60"
       >
         <NotionMark />
         <RefreshCw size={14} className={pending ? "animate-spin" : undefined} />

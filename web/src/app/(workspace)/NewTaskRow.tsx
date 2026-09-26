@@ -128,9 +128,9 @@ export function NewTaskRow({
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        // anchored near the top rather than centred, so opening "⋯" grows
-        // it downwards instead of shifting the whole thing up the screen
-        className="glass fixed top-[16vh] left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl p-0 text-foreground"
+        // centred like every other dialog here; opening "⋯" eases it taller
+        // and it re-centres as it grows, rather than jumping
+        className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
       >
         <form
           onSubmit={(e) => {
@@ -256,14 +256,13 @@ export function NewTaskRow({
           </Reveal>
 
           <div className="flex items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
-            <p className={`min-w-0 truncate text-xs ${error ? "text-red-300" : "text-muted/70"}`}>
-              {error ?? "⌘↵ to add"}
-            </p>
+            {/* only ever says something when something's wrong */}
+            <p className="min-w-0 truncate text-xs text-red-300">{error}</p>
             <div className="flex shrink-0 gap-2">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-3 py-1.5 text-xs">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button disabled={pending} className="btn-glow rounded-lg px-4 py-1.5 text-xs font-medium disabled:opacity-60">
+              <button disabled={pending} className="btn btn-glow disabled:opacity-60">
                 {pending ? "Adding…" : "Add task"}
               </button>
             </div>

@@ -38,7 +38,7 @@ export function ClientOnboarding({ clientId, steps }: { clientId: string; steps:
         <button
           onClick={useTemplate}
           disabled={applying}
-          className="btn-glow flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-60"
+          className="btn btn-sm btn-glow shrink-0 disabled:opacity-60"
         >
           <RotateCcw size={13} /> {applying ? "Applying…" : "Apply template"}
         </button>

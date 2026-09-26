@@ -139,10 +139,10 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
           {error && <p className="text-xs text-red-300">{error}</p>}
 
           <div className="mt-1 flex justify-end gap-2">
-            <button onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-xs">
+            <button onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
               Cancel
             </button>
-            <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
               {saving ? "Creating…" : "Create project"}
             </button>
           </div>

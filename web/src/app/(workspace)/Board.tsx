@@ -335,7 +335,7 @@ export function Board({
               <ShieldAlert size={22} className="text-red-300" />
             </div>
             <p className="text-sm text-foreground">{error}</p>
-            <button onClick={() => setError(null)} className="btn-glow rounded-md px-4 py-2 text-sm font-medium">
+            <button onClick={() => setError(null)} className="btn btn-glow">
               Dismiss
             </button>
           </div>
@@ -384,10 +384,10 @@ export function Board({
               </p>
             )}
             <div className="mt-1 flex justify-end gap-2">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button type="submit" className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
+              <button type="submit" className="btn btn-glow">
                 Confirm
               </button>
             </div>
@@ -405,14 +405,14 @@ export function Board({
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+            className="btn btn-sm btn-ghost"
           >
             <X size={13} /> Clear
           </button>
           <ConfirmButton
             message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? Their history goes too, and this can't be undone.`}
             onConfirm={deleteSelected}
-            className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/25"
+            className="btn btn-sm btn-danger"
           >
             <Trash2 size={13} /> {deleting ? "Deleting…" : "Delete"}
           </ConfirmButton>

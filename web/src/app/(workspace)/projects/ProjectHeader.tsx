@@ -247,7 +247,7 @@ export function ProjectHeader({
           </button>
           <button
             onClick={confirmDelete}
-            className="rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25"
+            className="btn btn-sm btn-danger"
           >
             Delete
           </button>

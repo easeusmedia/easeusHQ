@@ -45,12 +45,12 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
       </button>
       {enabled && (
         <span className="fade-in flex flex-wrap items-center gap-2">
-          <button type="button" onClick={copy} className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+          <button type="button" onClick={copy} className="btn btn-sm btn-glow">
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Copied" : "Copy link"}
           </button>
           {/* the client's view, as they'll see it */}
-          <a href={`/share/${slug}`} target="_blank" rel="noopener" className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+          <a href={`/share/${slug}`} target="_blank" rel="noopener" className="btn btn-sm btn-glow">
             <ExternalLink size={13} /> Client view
           </a>
         </span>

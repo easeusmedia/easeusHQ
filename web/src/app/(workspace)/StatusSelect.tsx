@@ -224,7 +224,7 @@ export function StatusSelect({
                     type="button"
                     onClick={() => copyAndDeliver(f.id)}
                     disabled={!f.ready || fio.state === "copying" || fio.state === "copied"}
-                    className="btn-glow flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium disabled:opacity-60"
+                    className="btn btn-sm btn-glow w-full disabled:opacity-60"
                   >
                     <Copy size={12} />
                     {fio.state === "copying"
@@ -257,14 +257,14 @@ export function StatusSelect({
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
-                className="rounded-md px-3 py-1 text-sm btn-ghost"
+                className="btn btn-ghost"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className={`rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60 ${hasOffer ? "btn-ghost" : "btn-glow"}`}
+                className={`btn disabled:opacity-60 ${hasOffer ? "btn-ghost" : "btn-glow"}`}
               >
                 {submitting ? "Saving…" : "Confirm"}
               </button>
@@ -276,7 +276,7 @@ export function StatusSelect({
             <p className="text-sm font-medium">Couldn&apos;t change the status</p>
             <p className="text-sm text-muted">{error}</p>
             <div className="mt-1 flex justify-end">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="btn-glow rounded-md px-3 py-2 text-sm font-medium">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-glow">
                 OK
               </button>
             </div>

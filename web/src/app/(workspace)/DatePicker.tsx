@@ -283,7 +283,7 @@ export function DatePicker({
                   onChange("");
                   setOpen(false);
                 }}
-                className="btn-ghost rounded-lg px-3 py-2 text-sm"
+                className="btn btn-sm btn-ghost"
               >
                 Clear
               </button>
@@ -303,7 +303,7 @@ export function DatePicker({
                 onChange(format(draft));
                 setOpen(false);
               }}
-              className="btn-glow rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="btn btn-sm btn-glow disabled:opacity-50"
             >
               Choose date
             </button>

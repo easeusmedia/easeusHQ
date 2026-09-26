@@ -132,10 +132,10 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
           {error && <p className="text-xs text-red-300">{error}</p>}
 
           <div className="mt-1 flex flex-wrap justify-end gap-2">
-            <button onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-xs">
+            <button onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
               Cancel
             </button>
-            <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
               {saving ? "Creating…" : "Create client"}
             </button>
           </div>
@@ -150,7 +150,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
                   <input readOnly value={invite} className={`${field} text-xs`} onFocus={(e) => e.currentTarget.select()} />
                   <button
                     onClick={() => copyLink(invite.split("/").pop()!)}
-                    className="btn-glow flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs"
+                    className="btn btn-sm btn-glow shrink-0"
                   >
                     {copied ? <Check size={13} /> : <Copy size={13} />}
                     {copied ? "Copied" : "Copy"}

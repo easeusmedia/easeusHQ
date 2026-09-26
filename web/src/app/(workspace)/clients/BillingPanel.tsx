@@ -142,10 +142,10 @@ export function BillingPanel({
             </label>
           )}
           <div className="mt-1 flex justify-end gap-2">
-            <button onClick={() => setEditingRule(false)} className="btn-ghost rounded-md px-3 py-1 text-xs">
+            <button onClick={() => setEditingRule(false)} className="btn btn-sm btn-ghost">
               Cancel
             </button>
-            <button onClick={saveRule} disabled={savingRule} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+            <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
               {savingRule ? "Saving…" : "Save"}
             </button>
           </div>
@@ -197,10 +197,10 @@ export function BillingPanel({
               className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn-ghost rounded-md px-3 py-1 text-xs">
+              <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
                 Cancel
               </button>
-              <button type="submit" disabled={creating} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+              <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
                 {creating ? "Creating…" : "Create"}
               </button>
             </div>

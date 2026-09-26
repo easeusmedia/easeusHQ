@@ -381,11 +381,11 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             {created && <> by {created.actorName}</>}
           </p>
           <div className="flex shrink-0 gap-2">
-            <button type="button" onClick={() => dialogRef.current?.close()} className="rounded-md px-3 py-1 text-sm btn-ghost">
+            <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
               Close
             </button>
             {(canManage || canEditFrameio) && (
-              <button type="submit" form={formId} disabled={pending} className="btn-glow rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
+              <button type="submit" form={formId} disabled={pending} className="btn btn-glow disabled:opacity-60">
                 {pending ? "Saving…" : "Save"}
               </button>
             )}

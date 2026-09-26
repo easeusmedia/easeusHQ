@@ -166,7 +166,7 @@ export function ProjectCard({
         )}
         {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
         <div className="mt-3 flex justify-end gap-2">
-          <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">
+          <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-sm btn-ghost">
             Cancel
           </button>
           <button
@@ -177,7 +177,7 @@ export function ProjectCard({
             // the count and the consequence are in the warning right above;
             // a button that spells them out again wraps to three lines and
             // stops looking like a button
-            className="shrink-0 whitespace-nowrap rounded-md border border-red-500/30 bg-red-500/15 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/25 disabled:opacity-60"
+            className="btn btn-sm btn-danger shrink-0 disabled:opacity-60"
           >
             {deleting ? "Deleting…" : armed ? "Delete permanently" : "Delete"}
           </button>

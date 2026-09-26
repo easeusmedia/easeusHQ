@@ -63,7 +63,7 @@ export function CoverPicker({ clientId, onPick }: { clientId: string; onPick: (u
         )}
 
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-xs">
+          <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
             Cancel
           </button>
         </div>

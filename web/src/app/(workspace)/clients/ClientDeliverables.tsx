@@ -96,10 +96,10 @@ export function ClientDeliverables({
         />
       </label>
       <div className="flex justify-end gap-2">
-        <button onClick={cancel} className="btn-ghost rounded-md px-3 py-1 text-xs">
+        <button onClick={cancel} className="btn btn-sm btn-ghost">
           Cancel
         </button>
-        <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+        <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
