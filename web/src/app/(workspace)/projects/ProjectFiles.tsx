@@ -6,6 +6,7 @@ import { Check, ExternalLink, Pencil, Plus, Trash2, X } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { Dropdown } from "../Dropdown";
 import { addProjectAsset, updateProjectAsset, deleteProjectAsset } from "../clients/actions";
+import { ConfirmButton } from "../ConfirmButton";
 
 export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null };
 
@@ -124,25 +125,29 @@ export function ProjectFiles({
                       ) : (
                         <span className="min-w-0 flex-1 truncate text-sm text-muted">{a.name}</span>
                       )}
-                      {/* only on hover, so a row of files stays a row of
-                          files rather than a row of controls */}
+                      {/* Always there, not only on hover: hidden until the
+                          pointer found it, nobody knew a file could be edited
+                          at all — and a touchscreen never hovers. Quiet at
+                          rest (muted, no fill) so a row of files still reads
+                          as files. */}
                       {!readOnly && (
-                      <span className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button
-                          onClick={() => setEditingId(a.id)}
-                          title="Edit file"
-                          className="rounded-md p-1.5 text-muted hover:bg-surface hover:text-foreground"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => remove(a.id)}
-                          title="Remove file"
-                          className="rounded-md p-1.5 text-muted hover:bg-surface hover:text-red-400"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </span>
+                        <span className="flex shrink-0 items-center gap-0.5">
+                          <button
+                            onClick={() => setEditingId(a.id)}
+                            title="Edit the name, type or link"
+                            aria-label={`Edit ${a.name}`}
+                            className="btn btn-xs btn-ghost"
+                          >
+                            <Pencil size={12} /> Edit
+                          </button>
+                          <ConfirmButton
+                            message={`Remove "${a.name}" from this project? Only the link is removed — the file itself stays wherever it's stored.`}
+                            onConfirm={() => remove(a.id)}
+                            className="btn btn-xs btn-ghost px-2 hover:text-red-300"
+                          >
+                            <Trash2 size={12} aria-label={`Remove ${a.name}`} />
+                          </ConfirmButton>
+                        </span>
                       )}
                     </div>
                   )
