@@ -617,7 +617,14 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
             : {
                 ...rest,
                 status: notionStatus,
-                handedOffAt: handedOffStamp(handedOffById.get(existingId) ?? null, notionStatus),
+                // stamped with when the row changed in Notion, not when this
+                // sync happened to notice — a sync a day later would
+                // otherwise make an editor who sent it on time look late
+                handedOffAt: handedOffStamp(
+                  handedOffById.get(existingId) ?? null,
+                  notionStatus,
+                  row.last_edited_time ? new Date(row.last_edited_time) : new Date()
+                ),
                 ...(assignedToId ? { assignedToId } : {}),
               },
         });

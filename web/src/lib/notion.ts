@@ -60,7 +60,9 @@ export async function notionPatch(path: string, body: unknown) {
   return notionFetch(path, { method: "PATCH", body: JSON.stringify(body) });
 }
 
-export type NotionRow = { id: string; properties: Record<string, NotionProp> };
+// last_edited_time is when anything on the row last changed — which, for a
+// row whose status just moved, is the best record there is of when it did
+export type NotionRow = { id: string; properties: Record<string, NotionProp>; last_edited_time?: string };
 type NotionProp = { type: string; [key: string]: unknown };
 
 // India has no DST, so a fixed +5:30 offset is enough — same approach as
