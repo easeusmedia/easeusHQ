@@ -11,6 +11,7 @@ import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 import { clientBatches, newBatchKey, pinsAfterMove } from "@/lib/invoiceBatches";
+import { TYPE_TAG, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
 
 // The two On Hold clients ops is still actively tracking, chosen
 // explicitly (everything else On Hold, and every Previous client, stays
@@ -732,8 +733,11 @@ export async function createProject(
   clientId: string,
   name: string,
   coverUrl: string | null = null,
-  deliverableTypes: string[] = []
-): Promise<{ id?: string; error?: string }> {
+  deliverableTypes: string[] = [],
+  // yyyy-mm-dd: lay the project's tasks out on the content calendar from
+  // this day, by the client's blueprint. Omitted = no tasks made.
+  planFrom: string | null = null
+): Promise<{ id?: string; planned?: number; error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a project." };
   const trimmed = name.trim();
@@ -761,8 +765,56 @@ export async function createProject(
       assets: { create: deliverableTypes.map((t, i) => ({ name: t, contentType: t, sortOrder: i })) },
     },
   });
+
+  // Every task the picked deliverables mean, dated by the blueprint — the
+  // content calendar fills itself in, and each one is on the board, queued.
+  const planned =
+    planFrom && /^\d{4}-\d{2}-\d{2}$/.test(planFrom)
+      ? planTasks(planFor(client.contentPlan), deliverableTypes, trimmed, planFrom)
+      : [];
+  if (planned.length) {
+    const tags = await prisma.taskTag.findMany({ select: { id: true, name: true } });
+    const tagFor = (type: string) => tags.find((t) => t.name.toLowerCase() === TYPE_TAG[type]?.toLowerCase());
+    const now = Date.now();
+    const made = await prisma.$transaction(
+      planned.map((t, i) =>
+        prisma.task.create({
+          data: {
+            projectId: project.id,
+            title: t.title,
+            dueDate: new Date(t.due),
+            sortOrder: now + i,
+            ...(tagFor(t.type) ? { tags: { connect: { id: tagFor(t.type)!.id } } } : {}),
+          },
+          select: { id: true },
+        })
+      )
+    );
+    await prisma.activityLog.createMany({
+      data: made.map((t) => ({ actorId: user.id, action: "created", entity: "Task", entityId: t.id })),
+    });
+    revalidatePath("/board");
+  }
   revalidatePath("/clients/[slug]", "page");
-  return { id: project.id };
+  return { id: project.id, planned: planned.length };
+}
+
+// The client's content blueprint, as edited from the content calendar.
+export async function saveContentPlan(clientId: string, plan: PlanItem[]): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can change the blueprint." };
+  await prisma.client.update({ where: { id: clientId }, data: { contentPlan: planFor(plan) } });
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
+// A task dragged to another day on the content calendar: its due date moves.
+export async function rescheduleTask(taskId: string, day: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can move tasks on the calendar." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "That isn't a date." };
+  await prisma.task.update({ where: { id: taskId }, data: { dueDate: new Date(day) } });
+  revalidatePath("/clients/[slug]", "page");
+  revalidatePath("/board");
+  return {};
 }
 
 export async function updateProject(

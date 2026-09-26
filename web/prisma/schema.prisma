@@ -266,6 +266,10 @@ model Client {
   driveFolderId  String?
   driveFolderUrl String?
 
+  // The content blueprint: per deliverable type, how many one project makes
+  // and on which days they're due (lib/contentPlan.ts). Null = the default.
+  contentPlan Json?
+
   // where their audience already is: {youtube, instagram, website, podcast…},
   // as filled in on the onboarding form
   socialLinks Json?

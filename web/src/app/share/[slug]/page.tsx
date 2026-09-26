@@ -13,6 +13,8 @@ import { TagPill } from "../../(workspace)/clients/TagPill";
 import { ProfileHead } from "../../(workspace)/ProfileHead";
 import { FeedbackForm } from "./FeedbackForm";
 import { OngoingList, sharedClient } from "./shared";
+import { ContentCalendar } from "../../(workspace)/clients/ContentCalendar";
+import { indiaDay } from "@/lib/due";
 
 // A client's own page, shown at /clients/<name> to anyone not signed in
 // (see proxy.ts), only while ops has sharing switched on. The same layout
@@ -61,6 +63,12 @@ export default async function SharedClientPage({
     where: { projectId: { in: client.projects.map((p) => p.id) }, status: { in: ACTIVE_STATUSES }, internal: false },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, status: true, frameioLink: true, project: { select: { name: true, type: true } } },
+  });
+
+  // the plan by day, as the team sees it — only what's made for them
+  const dated = await prisma.task.findMany({
+    where: { projectId: { in: client.projects.map((p) => p.id) }, dueDate: { not: null }, internal: false },
+    select: { id: true, title: true, status: true, dueDate: true },
   });
 
   const logo = clientLogoSrc(client);
@@ -129,6 +137,17 @@ export default async function SharedClientPage({
                     tasks={tasks.map((t) => ({ ...t, subtitle: t.project.name || t.project.type }))}
                   />
                 </section>
+                <ContentCalendar
+                  items={dated.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status,
+                    due: indiaDay(t.dueDate!),
+                    // the team's deadline, not something to flag red at the client
+                    overdue: false,
+                  }))}
+                  today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
+                />
                 <ProjectsSection
                   clientId={client.id}
                   projects={projectCards}

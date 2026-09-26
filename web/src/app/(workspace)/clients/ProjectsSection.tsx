@@ -8,6 +8,7 @@ import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
 import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule, type Payment } from "@/lib/invoiceBatches";
 import { moveProjectToInvoice } from "./actions";
+import type { PlanItem } from "@/lib/contentPlan";
 import { Dropdown } from "../Dropdown";
 import { Reveal } from "../Reveal";
 
@@ -43,6 +44,7 @@ export function ProjectsSection({
   today,
   projectBase,
   canMoveInvoices = false,
+  plan,
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -59,6 +61,8 @@ export function ProjectsSection({
   projectBase?: string;
   // ops: drag a finished project from one invoice to another
   canMoveInvoices?: boolean;
+  // the client's content blueprint, for a new project's planned tasks
+  plan?: PlanItem[];
 }) {
   // "invoice": every project, in sections, one per invoice
   const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
@@ -451,12 +455,12 @@ export function ProjectsSection({
                   >
                     {list ? (
                       <div className="flex flex-col gap-3">
-                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} row />}
+                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
                         <ProjectRows projects={g.items} projectBase={projectBase} />
                       </div>
                     ) : (
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
-                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} />}
+                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
                         {g.items.map((p) => (
                           <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
                         ))}
@@ -470,7 +474,7 @@ export function ProjectsSection({
         </div>
       ) : list ? (
         <div className="flex flex-col gap-3">
-          {!projectBase && <AddProjectCard clientId={clientId} row />}
+          {!projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
           <ProjectRows projects={visible} projectBase={projectBase} />
           {!batch && !dateFilterActive && hiddenCount > 0 && (
             <button onClick={() => selectPreset("all")} className="self-start text-xs text-muted hover:text-foreground">
@@ -481,7 +485,7 @@ export function ProjectsSection({
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-          {!projectBase && <AddProjectCard clientId={clientId} />}
+          {!projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
           {visible.map((p) => (
             <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
           ))}

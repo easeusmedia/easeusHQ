@@ -7,25 +7,44 @@ import { createProject } from "./actions";
 import { CoverPicker } from "./CoverPicker";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { DELIVERABLE_TYPES } from "@/lib/deliverableTypes";
+import { DEFAULT_PLAN, planTasks, type PlanItem } from "@/lib/contentPlan";
+import { DatePicker } from "../DatePicker";
+import { Checkbox } from "../Checkbox";
 
 // The same shape every project starts with — name, cover, and which of the
 // agency's deliverable types apply — so a project set up in five minutes on
 // a busy day looks identical to one set up carefully.
 // `row`: a slim bar at the head of the list view instead of a tile
-export function AddProjectCard({ clientId, row = false }: { clientId: string; row?: boolean }) {
+export function AddProjectCard({
+  clientId,
+  row = false,
+  plan = DEFAULT_PLAN,
+}: {
+  clientId: string;
+  row?: boolean;
+  // the client's blueprint: which deliverables a project normally has, how
+  // many, and when — the tasks it lays out on the content calendar
+  plan?: PlanItem[];
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState("");
   const [cover, setCover] = useState<string | null>(null);
-  const [types, setTypes] = useState<string[]>([]);
+  const usual = plan.filter((p) => p.count > 0).map((p) => p.type);
+  const [types, setTypes] = useState<string[]>(usual);
+  const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
+  const [start, setStart] = useState(today);
+  const [planOn, setPlanOn] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function open() {
     setName("");
     setCover(null);
-    setTypes([]);
+    setTypes(usual);
+    setStart(today());
+    setPlanOn(true);
     setError(null);
     dialogRef.current?.showModal();
   }
@@ -49,7 +68,7 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
     if (!name.trim()) return;
     setSaving(true);
     setError(null);
-    const res = await createProject(clientId, name, cover, types);
+    const res = await createProject(clientId, name, cover, types, planOn ? start : null);
     setSaving(false);
     if (res.error) return setError(res.error);
     dialogRef.current?.close();
@@ -131,9 +150,36 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
                   }`}
                 >
                   {t}
+                  {/* how many the blueprint makes of it, when it's more than one */}
+                  {(plan.find((p) => p.type === t)?.count ?? 0) > 1 && (
+                    <span className="ml-1 opacity-70">×{plan.find((p) => p.type === t)!.count}</span>
+                  )}
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* what creating it will put on the content calendar */}
+          <div className="flex flex-col gap-2 rounded-xl bg-surface-2/60 p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox checked={planOn} onChange={setPlanOn} label="Plan tasks on the content calendar" size={15} />
+              Plan its tasks on the content calendar
+            </label>
+            {planOn && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                Starting
+                <DatePicker pill={{}} value={start} onChange={(v) => setStart(v || today())} placeholder="Start" />
+                <span>
+                  {(() => {
+                    const tasks = planTasks(plan, types, name.trim() || "Project", start);
+                    if (!tasks.length) return "— pick a deliverable to plan";
+                    const fmt = (d: string) =>
+                      new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+                    return `— ${tasks.length} task${tasks.length === 1 ? "" : "s"}, due ${fmt(tasks[0].due)} to ${fmt(tasks.at(-1)!.due)}`;
+                  })()}
+                </span>
+              </div>
+            )}
           </div>
 
           {error && <p className="text-xs text-red-300">{error}</p>}

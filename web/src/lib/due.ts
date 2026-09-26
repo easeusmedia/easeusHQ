@@ -38,6 +38,8 @@ export type DueState =
 
 // the calendar day in India (fixed +5:30, no DST there)
 const day = (d: Date | string) => new Date(new Date(d).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
+// the same, for pages that lay dates out by day (the content calendar)
+export const indiaDay = day;
 
 // A due date is a day in India, not a moment, so everything compares days.
 export function dueState(
