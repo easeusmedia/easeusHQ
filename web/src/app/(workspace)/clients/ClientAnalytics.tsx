@@ -12,7 +12,7 @@ import { InstagramIcon, YoutubeIcon } from "../PlatformIcon";
 
 const RANGES = [
   { value: "7", label: "Last 7 days" },
-  { value: "28", label: "Last 28 days" },
+  { value: "30", label: "Last 30 days" },
   { value: "90", label: "Last 90 days" },
   { value: "365", label: "Last 12 months" },
   { value: "custom", label: "Custom range" },
@@ -46,8 +46,9 @@ export function ClientAnalytics({
 }) {
   const router = useRouter();
   const [platform, setPlatform] = useState<Platform>("youtube");
-  const [range, setRange] = useState("28");
-  const [custom, setCustom] = useState({ from: shiftDay(today, -27), to: today });
+  // the past month, unless asked otherwise
+  const [range, setRange] = useState("30");
+  const [custom, setCustom] = useState({ from: shiftDay(today, -29), to: today });
   const { from, to } = range === "custom" ? custom : { from: shiftDay(today, -(Number(range) - 1)), to: today };
   const account = accounts[platform];
   const [editing, setEditing] = useState(false);
@@ -226,6 +227,8 @@ export function ClientAnalytics({
 function Board({ dashboard: d, platform, loading }: { dashboard: Dashboard; platform: Platform; loading: boolean }) {
   const [kind, setKind] = useState("all");
   const [sort, setSort] = useState(d.columns[0].key);
+  // the best few, not every post of the month — more on asking
+  const [shown, setShown] = useState(5);
   const headline = d.metrics.slice(0, 4);
   const rest = d.metrics.slice(4);
   const days = Math.round((Date.parse(d.to) - Date.parse(d.from)) / 86_400_000) + 1;
@@ -274,19 +277,25 @@ function Board({ dashboard: d, platform, loading }: { dashboard: Dashboard; plat
           <h3 className="text-sm font-medium">
             {platform === "youtube" ? "Videos" : "Posts"}{" "}
             <span className="text-muted">
-              · {d.rows.length} {platform === "youtube" ? "watched or uploaded in this range" : "published in this range"}
+              · {d.rows.length} published in this range
             </span>
           </h3>
           <div className="flex items-center gap-2">
             <Dropdown
               value={kind}
-              onChange={setKind}
+              onChange={(v) => {
+                setKind(v);
+                setShown(5);
+              }}
               pill={{ icon: <span className="size-1.5 rounded-full bg-violet-400" /> }}
               options={[{ value: "all", label: "All" }, ...PLATFORM[platform].kinds.map((k) => ({ value: k, label: `${k}s` }))]}
             />
             <Dropdown
               value={sort}
-              onChange={setSort}
+              onChange={(v) => {
+                setSort(v);
+                setShown(5);
+              }}
               pill={{ icon: <span className="size-1.5 rounded-full bg-amber-400" /> }}
               options={[
                 ...d.columns.map((c) => ({ value: c.key, label: `Most ${c.label.toLowerCase()}` })),
@@ -300,7 +309,7 @@ function Board({ dashboard: d, platform, loading }: { dashboard: Dashboard; plat
           <p className="rounded-xl bg-surface/40 px-4 py-8 text-center text-sm text-muted">Nothing in this range.</p>
         ) : (
           <ol className="card-surface divide-y divide-border/50 overflow-hidden rounded-2xl shadow-sm">
-            {rows.map((r, i) => (
+            {rows.slice(0, shown).map((r, i) => (
               <ContentItem
                 key={r.id}
                 row={r}
@@ -312,6 +321,25 @@ function Board({ dashboard: d, platform, loading }: { dashboard: Dashboard; plat
               />
             ))}
           </ol>
+        )}
+        {rows.length > 5 && (
+          <div className="flex items-center justify-between gap-3 text-xs text-muted">
+            <span>
+              Showing {Math.min(shown, rows.length)} of {rows.length}
+            </span>
+            <span className="flex gap-1">
+              {shown > 5 && (
+                <button type="button" onClick={() => setShown(5)} className="btn btn-xs btn-ghost">
+                  Show less
+                </button>
+              )}
+              {shown < rows.length && (
+                <button type="button" onClick={() => setShown((n) => n + 10)} className="btn btn-xs btn-ghost">
+                  Show more
+                </button>
+              )}
+            </span>
+          </div>
         )}
       </section>
 
