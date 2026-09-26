@@ -14,12 +14,12 @@ export async function sharedClient(slug: string) {
 // The editing stages, in the client's words
 const STAGE: Partial<Record<TaskStatus, { label: string; className: string }>> = {
   queued: { label: "Up next", className: "border-border bg-surface text-muted" },
-  editing: { label: "In production", className: "border-blue-400/30 bg-blue-400/15 text-blue-300" },
-  revision_requested: { label: "In production", className: "border-blue-400/30 bg-blue-400/15 text-blue-300" },
-  sent_for_approval: { label: "In our review", className: "border-purple-400/30 bg-purple-400/15 text-purple-300" },
-  sent_for_client_approval: { label: "Ready for your review", className: "border-cyan-400/30 bg-cyan-400/15 text-cyan-300" },
-  final_export_ready: { label: "Finalising", className: "border-green-400/30 bg-green-400/15 text-green-300" },
-  delivered_and_uploaded: { label: "Delivered", className: "border-green-400/30 bg-green-400/15 text-green-300" },
+  editing: { label: "In production", className: "border-transparent bg-blue-400/15 text-blue-300" },
+  revision_requested: { label: "In production", className: "border-transparent bg-blue-400/15 text-blue-300" },
+  sent_for_approval: { label: "In our review", className: "border-transparent bg-purple-400/15 text-purple-300" },
+  sent_for_client_approval: { label: "Ready for your review", className: "border-transparent bg-cyan-400/15 text-cyan-300" },
+  final_export_ready: { label: "Finalising", className: "border-transparent bg-green-400/15 text-green-300" },
+  delivered_and_uploaded: { label: "Delivered", className: "border-transparent bg-green-400/15 text-green-300" },
 };
 
 type OngoingTask = { id: string; title: string; status: TaskStatus; frameioLink: string | null; subtitle: string };
@@ -29,7 +29,7 @@ type OngoingTask = { id: string; title: string; status: TaskStatus; frameioLink:
 export function OngoingList({ tasks, empty = "Nothing in production right now." }: { tasks: OngoingTask[]; empty?: string }) {
   if (tasks.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border px-5 py-10 text-center">
+      <div className="rounded-2xl bg-foreground/[0.02] px-5 py-10 text-center">
         <p className="text-sm text-muted">{empty}</p>
       </div>
     );
@@ -46,7 +46,7 @@ export function OngoingList({ tasks, empty = "Nothing in production right now." 
               <span className="block truncate text-xs text-muted">{t.subtitle}</span>
             </span>
             {review && (
-              <a href={review} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 whitespace-nowrap text-xs text-blue-400 hover:underline">
+              <a href={review} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 whitespace-nowrap text-xs text-sky-300 hover:underline">
                 Review on Frame.io <ExternalLink size={11} />
               </a>
             )}

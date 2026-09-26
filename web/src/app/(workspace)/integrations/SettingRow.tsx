@@ -75,7 +75,7 @@ export function SettingRow({
               href={href}
               target="_blank"
               rel="noreferrer"
-              className="flex w-fit max-w-full items-center gap-1.5 truncate text-xs text-blue-400 hover:underline"
+              className="flex w-fit max-w-full items-center gap-1.5 truncate text-xs text-sky-300 hover:underline"
             >
               {value} <ExternalLink size={11} className="shrink-0" />
             </a>
@@ -106,7 +106,7 @@ export function SettingRow({
             type="button"
             onClick={save}
             disabled={busy || !input.trim()}
-            className="btn btn-sm btn-glow shrink-0 disabled:opacity-60"
+            className="btn btn-sm btn-primary shrink-0 disabled:opacity-60"
           >
             {busy ? "Checking…" : "Save"}
           </button>

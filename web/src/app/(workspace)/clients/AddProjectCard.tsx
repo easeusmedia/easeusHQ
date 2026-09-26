@@ -81,7 +81,7 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="relative aspect-video w-full overflow-hidden rounded-xl border border-dashed border-border bg-surface-2"
+            className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface-2"
           >
             {cover ? (
               // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
@@ -126,7 +126,7 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
                   onClick={() => toggleType(t)}
                   className={`rounded-full border px-2.5 py-1 text-xs ${
                     types.includes(t)
-                      ? "border-blue-400/40 bg-blue-400/15 text-blue-200"
+                      ? "border-transparent bg-blue-400/15 text-blue-200"
                       : "border-border text-muted hover:text-foreground"
                   }`}
                 >
@@ -142,7 +142,7 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
             <button onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
               Cancel
             </button>
-            <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="btn btn-primary disabled:opacity-60">
               {saving ? "Creating…" : "Create project"}
             </button>
           </div>

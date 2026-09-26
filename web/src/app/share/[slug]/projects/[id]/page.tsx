@@ -81,14 +81,14 @@ export default async function SharedProjectPage({
           <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
           <div className="flex flex-wrap items-center gap-2">
             {project.status === "completed" ? (
-              <span className="rounded-full border border-green-400/30 bg-green-400/15 px-2 py-0.5 text-xs font-medium text-green-300">
+              <span className="rounded-full border border-transparent bg-green-400/15 px-2 py-0.5 text-xs font-medium text-green-300">
                 Delivered{project.completedAt ? ` · ${project.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
               </span>
             ) : (
-              <span className="rounded-full border border-blue-400/30 bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-300">In progress</span>
+              <span className="rounded-full border border-transparent bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-300">In progress</span>
             )}
             {folder && (
-              <a href={folder} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-400 hover:underline">
+              <a href={folder} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-sky-300 hover:underline">
                 Open folder <ExternalLink size={11} />
               </a>
             )}

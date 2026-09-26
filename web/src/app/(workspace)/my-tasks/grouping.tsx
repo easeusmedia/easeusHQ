@@ -29,16 +29,14 @@ export type Group = WorkGroup<WorkTaskCardData, QueueCardData>;
 
 export function GroupHeader({ group, count, className = "" }: { group: Group; count: number; className?: string }) {
   const stage = group.status && WORK_TASK_STAGE[group.status];
+  // the same quiet header the editing board's columns have: dot (or face),
+  // name, count
   return (
-    <div
-      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${
-        stage ? `status-pop ${stage.pill}` : "border-border bg-surface"
-      } ${className}`}
-    >
+    <div className={`flex items-center gap-2 px-1 py-1.5 text-sm font-medium ${className}`}>
       {stage && <span className={`h-2 w-2 rounded-full ${stage.dot}`} />}
       {group.person && <Avatar name={group.person} size={20} />}
       <span className="truncate whitespace-nowrap">{group.label}</span>
-      <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{count}</span>
+      <span className="ml-auto text-xs tabular-nums text-muted">{count}</span>
     </div>
   );
 }

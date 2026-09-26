@@ -39,7 +39,7 @@ export function FeedbackForm({ slug }: { slug: string }) {
       {/* only a bot fills this in — hidden from people and screen readers */}
       <input value={trap} onChange={(e) => setTrap(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden className="hidden" />
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={state.sending} className="btn-glow flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
+        <button type="submit" disabled={state.sending} className="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
           <Send size={14} /> {state.sending ? "Sending…" : "Send to the team"}
         </button>
         {state.sent && <span className="text-sm text-green-300">Thanks — the team will see this.</span>}

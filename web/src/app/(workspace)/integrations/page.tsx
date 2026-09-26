@@ -8,6 +8,7 @@ import { NotionIntegration } from "./NotionIntegration";
 import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
+import { PageHeader } from "../PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +37,11 @@ export default async function IntegrationsPage({
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Integrations</h1>
-        <p className="mt-1 text-sm text-muted">What Easeus HQ is connected to outside itself.</p>
-      </div>
+      <PageHeader
+        title="Integrations"
+        description="What Easeus HQ is connected to — Google Drive, Frame.io and Notion — and where each one points."
+        className=""
+      />
 
       <DriveIntegration
         hasApp={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}

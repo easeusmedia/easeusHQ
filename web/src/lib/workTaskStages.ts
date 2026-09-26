@@ -8,23 +8,23 @@ import type { TaskStatus } from "./workflow";
 export const WORK_TASK_STAGE: Record<WorkTaskStatus, { label: string; dot: string; pill: string }> = {
   todo: {
     label: "Up next",
-    dot: "bg-neutral-400",
-    pill: "bg-surface text-muted border-border",
+    dot: "bg-zinc-400",
+    pill: "bg-zinc-400/15 text-zinc-300 border-transparent",
   },
   in_progress: {
     label: "In progress",
     dot: "bg-blue-400",
-    pill: "bg-blue-400/15 text-blue-300 border-blue-400/30",
+    pill: "bg-blue-400/15 text-blue-300 border-transparent",
   },
   in_review: {
     label: "In review",
-    dot: "bg-purple-400",
-    pill: "bg-purple-400/15 text-purple-300 border-purple-400/30",
+    dot: "bg-violet-400",
+    pill: "bg-violet-400/15 text-violet-300 border-transparent",
   },
   done: {
     label: "Completed",
-    dot: "bg-green-400",
-    pill: "bg-green-400/15 text-green-300 border-green-400/30",
+    dot: "bg-emerald-400",
+    pill: "bg-emerald-400/15 text-emerald-300 border-transparent",
   },
 };
 

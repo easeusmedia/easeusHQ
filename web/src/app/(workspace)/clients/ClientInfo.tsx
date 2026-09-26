@@ -79,7 +79,7 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
                 <button onClick={() => { setValue(content ?? ""); setEditing(false); }} className="btn btn-sm btn-ghost">
                   Cancel
                 </button>
-                <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
+                <button onClick={save} disabled={saving} className="btn btn-sm btn-primary disabled:opacity-60">
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
@@ -226,7 +226,7 @@ export function ClientInfo({
                 <button onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
                   Cancel
                 </button>
-                <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
+                <button onClick={save} disabled={saving} className="btn btn-sm btn-primary disabled:opacity-60">
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
@@ -411,7 +411,7 @@ function CustomDocSection({ doc }: { doc: CustomDoc }) {
                   <button onClick={() => { setValue(doc.content ?? ""); setTitle(doc.title); setEditing(false); }} className="btn btn-sm btn-ghost">
                     Cancel
                   </button>
-                  <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
+                  <button onClick={save} disabled={saving} className="btn btn-sm btn-primary disabled:opacity-60">
                     {saving ? "Saving…" : "Save"}
                   </button>
                 </div>
@@ -470,7 +470,7 @@ function NewDocument({ clientId }: { clientId: string }) {
         placeholder="What is it? e.g. Channel strategy, Tone of voice"
         className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
       />
-      <button onClick={add} disabled={saving} className="btn btn-sm btn-glow shrink-0 disabled:opacity-60">
+      <button onClick={add} disabled={saving} className="btn btn-sm btn-primary shrink-0 disabled:opacity-60">
         {saving ? "Adding…" : "Add"}
       </button>
       <button onClick={() => setAdding(false)} className="btn btn-sm btn-ghost shrink-0">

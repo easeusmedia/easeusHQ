@@ -99,7 +99,7 @@ export function ClientDeliverables({
         <button onClick={cancel} className="btn btn-sm btn-ghost">
           Cancel
         </button>
-        <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
+        <button onClick={save} disabled={saving} className="btn btn-sm btn-primary disabled:opacity-60">
           {saving ? "Saving…" : "Save"}
         </button>
       </div>

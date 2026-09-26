@@ -37,7 +37,7 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
         role="switch"
         aria-checked={enabled}
         className={`btn btn-sm flex items-center gap-2 border disabled:opacity-60 ${
-          enabled ? "border-green-400/30 bg-green-400/15 text-green-300" : "border-border bg-surface-2 text-muted hover:text-foreground"
+          enabled ? "border-transparent bg-green-400/15 text-green-300" : "border-border bg-surface-2 text-muted hover:text-foreground"
         }`}
       >
         <Globe size={13} />

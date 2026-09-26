@@ -80,7 +80,7 @@ export function FrameioIntegration({
         <Film size={18} className="text-muted" />
         <h2 className="text-base font-medium">Frame.io</h2>
         {connected && (
-          <span className="flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2 py-0.5 text-xs text-emerald-300">
+          <span className="flex items-center gap-1 rounded-full border border-transparent bg-emerald-400/15 px-2 py-0.5 text-xs text-emerald-300">
             <Check size={11} /> Connected
           </span>
         )}
@@ -95,7 +95,7 @@ export function FrameioIntegration({
           The Frame.io app details are missing. They&apos;re set once, from the server.
         </p>
       ) : !connected ? (
-        <button type="button" onClick={connect} className="btn btn-glow w-fit">
+        <button type="button" onClick={connect} className="btn btn-primary w-fit">
           Connect Frame.io
         </button>
       ) : (

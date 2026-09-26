@@ -315,7 +315,7 @@ export const WorkTaskDialog = forwardRef<
               <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button disabled={saving} className="btn btn-glow disabled:opacity-60">
+              <button disabled={saving} className="btn btn-primary disabled:opacity-60">
                 {saving ? "Saving…" : mode === "create" ? "Add task" : "Save"}
               </button>
             </div>

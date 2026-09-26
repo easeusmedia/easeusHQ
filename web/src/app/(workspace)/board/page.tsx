@@ -10,6 +10,7 @@ import { seesEveryTeam, visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
 import { loadWork } from "../workData";
+import { PageHeader } from "../PageHeader";
 
 export const dynamic = "force-dynamic"; // always hits the DB, never statically cached
 
@@ -109,6 +110,15 @@ export default async function TasksPage({
     : [];
 
   return (
+    <>
+    <PageHeader
+      title="Board"
+      description={
+        isEditor
+          ? "Your editing work, stage by stage. Drag a card to move it on; click one for its brief and links."
+          : "Everything being made, stage by stage — queued, in the edit, with the client, delivered. Drag a card to move it on; click one for its details."
+      }
+    />
     <BoardViews
       scopes={scopes.length ? scopes : [{ key: "mine", label: "Mine" }]}
       initialScope={initialScope}
@@ -134,5 +144,6 @@ export default async function TasksPage({
       }
       canSyncNotion={canSyncNotion}
     />
+    </>
   );
 }

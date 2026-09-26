@@ -98,7 +98,7 @@ export function TaskRow({
             rel="noreferrer"
             // the row itself opens the task; this opens the file instead
             onClick={(e) => e.stopPropagation()}
-            className="flex shrink-0 items-center gap-1 text-xs text-blue-400 hover:underline"
+            className="flex shrink-0 items-center gap-1 text-xs text-sky-300 hover:underline"
           >
             {spec.label} <ExternalLink size={11} />
           </a>

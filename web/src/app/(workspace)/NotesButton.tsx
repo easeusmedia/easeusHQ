@@ -16,7 +16,7 @@ export function linkify(text: string) {
     const href = normalizeUrl(part);
     if (!href) return part; // matched the pattern but isn't actually a safe http(s) link — leave as plain text
     return (
-      <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline underline-offset-2">
+      <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300">
         {part}
       </a>
     );

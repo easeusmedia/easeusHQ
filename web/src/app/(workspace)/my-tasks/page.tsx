@@ -4,6 +4,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { loadWork } from "../workData";
 import { WorkTaskView } from "./WorkTaskView";
 import { WorkNotionSyncButton } from "./WorkNotionSyncButton";
+import { PageHeader } from "../PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export default async function MyTasksPage() {
   const work = await loadWork({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }, "mine", { withQueue: false });
 
   return (
+    <>
+    <PageHeader
+      title="My tasks"
+      description="Your own to-dos, apart from the editing queue. Add one, then move it along as you go — finished ones move to History."
+    />
     <WorkTaskView
       tasks={work.tasks}
       queueTasks={[]}
@@ -48,5 +54,6 @@ export default async function MyTasksPage() {
         (!!me.notionWorkbookDbId || me.team?.slug === "operations") && <WorkNotionSyncButton />
       }
     />
+    </>
   );
 }

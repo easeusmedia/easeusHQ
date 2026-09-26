@@ -14,7 +14,7 @@ export function ScopeToggle({
   onSelect: (key: string) => void;
 }) {
   return (
-    <div className="flex w-fit gap-1 rounded-xl border border-border bg-surface/60 p-1">
+    <div className="segmented">
       {options.map((o) => (
         <button
           key={o.key}

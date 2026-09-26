@@ -15,7 +15,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
         <h1 className="mt-1 text-lg font-semibold">This page hit a snag</h1>
         <p className="mt-2 text-sm text-muted">Try again, or head back to the board.</p>
         <div className="mt-4 flex justify-center gap-2">
-          <button type="button" onClick={reset} className="btn btn-glow">
+          <button type="button" onClick={reset} className="btn btn-primary">
             Try again
           </button>
           <Link href="/board" className="rounded-md px-4 py-2 text-sm text-muted hover:bg-hover">

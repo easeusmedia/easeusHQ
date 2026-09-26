@@ -151,7 +151,7 @@ export function HistoryExplorer({
           </div>
         }
         center={
-          <div className="flex w-fit flex-wrap gap-1 rounded-xl border border-border bg-surface/60 p-1">
+          <div className="segmented flex-wrap">
             {VIEWS.map((v) => (
               <button
                 key={v.key}
@@ -245,7 +245,7 @@ export function HistoryExplorer({
       )}
 
       {shown.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-5 py-10 text-center text-sm text-muted">
+        <p className="rounded-xl bg-foreground/[0.02] px-5 py-10 text-center text-sm text-muted">
           Nothing finished matches that.
         </p>
       ) : view === "list" ? (
@@ -304,7 +304,7 @@ export function HistoryExplorer({
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-blue-400 underline underline-offset-2"
+                          className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300"
                         >
                           Drive ↗
                         </a>

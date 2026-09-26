@@ -46,7 +46,7 @@ export default async function Home() {
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Link href="/login" className="btn-glow rounded-xl px-5 py-2.5 text-sm font-medium">
+        <Link href="/login" className="btn-primary rounded-xl px-5 py-2.5 text-sm font-medium">
           Team sign in
         </Link>
         <Link href="/privacy" className="btn-ghost rounded-xl px-4 py-2.5 text-sm">

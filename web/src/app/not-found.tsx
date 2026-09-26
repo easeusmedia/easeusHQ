@@ -14,7 +14,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/board"
-          className="btn btn-glow mt-4"
+          className="btn btn-primary mt-4"
         >
           Back to Board
         </Link>

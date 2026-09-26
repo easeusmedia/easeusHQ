@@ -123,7 +123,7 @@ export function WorkTaskCard({
             complete();
           }}
           disabled={saving}
-          className="btn btn-sm status-pop flex w-full items-center justify-center gap-1.5 border border-emerald-400/30 bg-emerald-400/15 text-emerald-300 disabled:opacity-60"
+          className="btn btn-sm status-pop flex w-full items-center justify-center gap-1.5 border border-transparent bg-emerald-400/15 text-emerald-300 disabled:opacity-60"
         >
           <CheckCircle2 size={13} className="shrink-0" /> {saving ? "Completing…" : "Mark complete"}
         </button>

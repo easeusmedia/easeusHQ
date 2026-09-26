@@ -375,7 +375,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <div>
                   <p className="mb-1 text-xs text-muted">Raw footage</p>
                   {task.rawLink ? (
-                    <a href={task.rawLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 underline underline-offset-2">
+                    <a href={task.rawLink} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300">
                       {task.rawLink}
                     </a>
                   ) : (
@@ -407,7 +407,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                             href={task.frameioLink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="min-w-0 truncate text-sm text-blue-400 underline underline-offset-2"
+                            className="min-w-0 truncate text-sm text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300"
                           >
                             {task.frameioLink}
                           </a>
@@ -484,7 +484,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               Close
             </button>
             {(canManage || canEditFrameio) && (
-              <button type="submit" form={formId} disabled={pending} className="btn btn-glow disabled:opacity-60">
+              <button type="submit" form={formId} disabled={pending} className="btn btn-primary disabled:opacity-60">
                 {pending ? "Saving…" : "Save"}
               </button>
             )}
