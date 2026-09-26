@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Plus } from "lucide-react";
 import { setBillingRule, createInvoice, updateInvoiceStatus } from "./actions";
+import { DatePicker } from "../DatePicker";
 
 type BillingCadence = "monthly_date" | "milestone";
 type InvoiceStatus = "draft" | "ready" | "sent" | "paid" | "overdue";
@@ -100,53 +101,50 @@ export function BillingPanel({
       </div>
 
       {editingRule ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2 p-3">
-          <div className="flex gap-2 text-xs">
-            <button
-              onClick={() => setRuleCadence("monthly_date")}
-              className={`flex-1 rounded-md px-2 py-1.5 ${ruleCadence === "monthly_date" ? "bg-surface text-foreground" : "text-muted"}`}
-            >
-              Fixed day of month
-            </button>
-            <button
-              onClick={() => setRuleCadence("milestone")}
-              className={`flex-1 rounded-md px-2 py-1.5 ${ruleCadence === "milestone" ? "bg-surface text-foreground" : "text-muted"}`}
-            >
-              Every N deliverables
-            </button>
+        // Sized to its content, not stretched across the page: the two
+        // choices were 850px-wide halves with Save floating off at the far
+        // edge. A switch, the sentence it configures, and the actions right
+        // underneath it.
+        <div className="fade-in flex w-full max-w-md flex-col gap-3 rounded-xl bg-surface-2/60 p-4">
+          <div className="inline-flex w-fit rounded-lg bg-surface p-1 text-xs">
+            {(
+              [
+                ["monthly_date", "Fixed day of month"],
+                ["milestone", "Every N deliverables"],
+              ] as const
+            ).map(([key, text]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setRuleCadence(key)}
+                className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
+                  ruleCadence === key ? "bg-surface-2 text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {text}
+              </button>
+            ))}
           </div>
-          {ruleCadence === "monthly_date" ? (
-            <label className="flex items-center gap-2 text-xs text-muted">
-              Invoice on day
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={ruleDay}
-                onChange={(e) => setRuleDay(Number(e.target.value))}
-                className="w-16 rounded-md border border-border bg-surface px-2 py-1 text-foreground"
-              />
-              of every month
-            </label>
-          ) : (
-            <label className="flex items-center gap-2 text-xs text-muted">
-              Invoice every
-              <input
-                type="number"
-                min={1}
-                value={ruleCount}
-                onChange={(e) => setRuleCount(Number(e.target.value))}
-                className="w-16 rounded-md border border-border bg-surface px-2 py-1 text-foreground"
-              />
-              delivered tasks
-            </label>
-          )}
-          <div className="mt-1 flex justify-end gap-2">
-            <button onClick={() => setEditingRule(false)} className="btn btn-sm btn-ghost">
-              Cancel
-            </button>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            {ruleCadence === "monthly_date" ? "Invoice on day" : "Invoice every"}
+            <input
+              type="number"
+              min={1}
+              max={ruleCadence === "monthly_date" ? 31 : undefined}
+              value={ruleCadence === "monthly_date" ? ruleDay : ruleCount}
+              onChange={(e) =>
+                ruleCadence === "monthly_date" ? setRuleDay(Number(e.target.value)) : setRuleCount(Number(e.target.value))
+              }
+              className="w-16 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-center text-sm text-foreground"
+            />
+            {ruleCadence === "monthly_date" ? "of every month" : "delivered tasks"}
+          </label>
+          <div className="flex gap-2">
             <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
               {savingRule ? "Saving…" : "Save"}
+            </button>
+            <button onClick={() => setEditingRule(false)} className="btn btn-sm btn-ghost">
+              Cancel
             </button>
           </div>
         </div>
@@ -178,7 +176,10 @@ export function BillingPanel({
         </div>
 
         {showInvoiceForm && (
-          <form onSubmit={submitInvoice} className="fade-in mb-3 flex flex-col gap-2 rounded-lg border border-border bg-surface-2 p-3">
+          <form
+            onSubmit={submitInvoice}
+            className="fade-in mb-3 flex w-full max-w-xl flex-wrap items-center gap-2 rounded-xl bg-surface-2/60 p-3"
+          >
             <input
               autoFocus
               type="number"
@@ -186,37 +187,38 @@ export function BillingPanel({
               step="0.01"
               required
               placeholder="Amount"
+              aria-label="Amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
+              className="w-32 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-foreground"
             />
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm"
-            />
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
-                Cancel
-              </button>
-              <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
-                {creating ? "Creating…" : "Create"}
-              </button>
+            <div className="w-48">
+              <DatePicker value={dueDate} onChange={setDueDate} placeholder="Due date" />
             </div>
+            <span className="flex-1" />
+            <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
+              Cancel
+            </button>
+            <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
+              {creating ? "Creating…" : "Create"}
+            </button>
           </form>
         )}
 
         {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
 
         {invoices.length === 0 ? (
-          <p className="text-xs text-muted">No invoices yet.</p>
+          <p className="text-sm text-muted">No invoices yet.</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {invoices.map((inv) => (
-              <li key={inv.id} className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-xs">
-                <span className="font-medium">₹{inv.amount}</span>
-                <span className="text-muted">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "no due date"}</span>
+              <li key={inv.id} className="flex items-center gap-3 rounded-lg bg-surface-2/60 px-3 py-2 text-sm">
+                <span className="w-28 font-medium tabular-nums">₹{inv.amount}</span>
+                <span className="flex-1 text-xs text-muted">
+                  {inv.dueDate
+                    ? `Due ${new Date(inv.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+                    : "No due date"}
+                </span>
                 <select
                   value={inv.status}
                   onChange={(e) => pickStatus(inv.id, e.target.value as InvoiceStatus)}

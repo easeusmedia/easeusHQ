@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Filter, LayoutGrid, List, Receipt } from "lucide-react";
+import { ChevronRight, Filter, LayoutGrid, List, Receipt } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
 import { batchPayment, invoiceBatches, type BillingRule, type Payment } from "@/lib/invoiceBatches";
 import { Dropdown } from "../Dropdown";
+import { Reveal } from "../Reveal";
 
 const PRESETS = [4, 8, 12] as const;
 
@@ -103,6 +104,19 @@ export function ProjectsSection({
         }),
       ]
     : [];
+  // By invoice is a ledger, not a wall of cards: one row per invoice, closed,
+  // opened on a click. Only the first starts open — what's in hand right
+  // now (the unfinished work, else the current invoice).
+  // Stored as what's been flipped from that default rather than what's open,
+  // so switching into this view later still opens the first one.
+  const [flipped, setFlipped] = useState<Set<string>>(() => new Set());
+  const toggleGroup = (key: string) =>
+    setFlipped((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
   // the picker's own yyyy-mm-dd values is already a correct date compare
   const dateFiltered = projects.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
@@ -300,33 +314,73 @@ export function ProjectsSection({
 
       <div key={`${list}-${preset}-${batchKey}-${from}-${to}`} className="fade-in">
       {grouped ? (
-        <div className="flex flex-col gap-8">
-          {groups.map((g, i) => (
-            <section key={g.key} className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 border-b border-border pb-2">
-                <h3 className="text-sm font-medium">{g.label}</h3>
-                <span className="text-xs text-muted">{g.detail}</span>
-                {g.payment && (
-                  <span className={`ml-auto rounded-full border px-2 py-0.5 text-xs font-medium ${PAYMENT[g.payment].className}`}>
-                    {PAYMENT[g.payment].label}
+        <div className="flex flex-col gap-2">
+          {groups.map((g, i) => {
+            const isOpen = (i === 0) !== flipped.has(g.key);
+            const covers = g.items.map((p) => p.coverUrl).filter(Boolean).slice(0, 3) as string[];
+            return (
+              <section key={g.key} className="overflow-hidden rounded-xl border border-border/60 bg-surface/40">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60"
+                >
+                  <ChevronRight
+                    size={14}
+                    className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{g.label}</span>
+                    <span className="block truncate text-xs text-muted">
+                      {g.detail}
+                      {g.key !== "unfinished" && ` · ${g.items.length} project${g.items.length === 1 ? "" : "s"}`}
+                    </span>
                   </span>
-                )}
-              </div>
-              {list ? (
-                <>
-                  {i === 0 && !projectBase && <AddProjectCard clientId={clientId} row />}
-                  <ProjectRows projects={g.items} projectBase={projectBase} />
-                </>
-              ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-                  {i === 0 && !projectBase && <AddProjectCard clientId={clientId} />}
-                  {g.items.map((p) => (
-                    <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
+                  {/* a glance at what's in it, without opening it */}
+                  {covers.length > 0 && (
+                    <span className="ml-auto hidden shrink-0 -space-x-3 sm:flex">
+                      {covers.map((c, j) => (
+                        // eslint-disable-next-line @next/next/no-img-element -- small local thumbnails
+                        <img
+                          key={j}
+                          src={c}
+                          alt=""
+                          className="h-8 w-14 rounded-md border-2 border-background object-cover"
+                        />
+                      ))}
+                    </span>
+                  )}
+                  {g.payment ? (
+                    <span
+                      className={`${covers.length ? "" : "ml-auto"} shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${PAYMENT[g.payment].className}`}
+                    >
+                      {PAYMENT[g.payment].label}
+                    </span>
+                  ) : (
+                    !covers.length && <span className="ml-auto" />
+                  )}
+                </button>
+                <Reveal open={isOpen}>
+                  <div className="border-t border-border/60 p-3">
+                    {list ? (
+                      <div className="flex flex-col gap-3">
+                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} row />}
+                        <ProjectRows projects={g.items} projectBase={projectBase} />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} />}
+                        {g.items.map((p) => (
+                          <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Reveal>
+              </section>
+            );
+          })}
         </div>
       ) : list ? (
         <div className="flex flex-col gap-3">
