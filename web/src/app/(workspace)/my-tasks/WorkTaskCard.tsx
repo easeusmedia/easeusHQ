@@ -12,6 +12,7 @@ import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
+import { dueState } from "@/lib/due";
 
 export type WorkTaskCardData = {
   id: string;
@@ -76,7 +77,10 @@ export function WorkTaskCard({
     else router.refresh();
   }
 
-  const overdue = !!task.dueDate && task.status !== "done" && task.dueDate < new Date().toISOString().slice(0, 10);
+  // judged in India's day, not UTC's — the old string compare against
+  // toISOString() turned a task red at midnight UTC, 5:30am here
+  const due = task.status === "done" ? null : dueState(task.dueDate, null);
+  const dueTone = due === "overdue" ? "font-medium text-red-300" : due === "today" ? "font-medium text-amber-300" : "";
   const hasFooter = task.dueDate || task.links.length > 0 || task.attachments.length > 0 || showAssignee;
 
   return (
@@ -119,7 +123,7 @@ export function WorkTaskCard({
             complete();
           }}
           disabled={saving}
-          className="status-pop flex w-full items-center justify-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1.5 text-xs font-medium text-emerald-300 disabled:opacity-60"
+          className="btn btn-sm status-pop flex w-full items-center justify-center gap-1.5 border border-emerald-400/30 bg-emerald-400/15 text-emerald-300 disabled:opacity-60"
         >
           <CheckCircle2 size={13} className="shrink-0" /> {saving ? "Completing…" : "Mark complete"}
         </button>
@@ -157,7 +161,7 @@ export function WorkTaskCard({
             )}
             <div className="flex shrink-0 items-center gap-3 text-xs text-muted">
               {task.dueDate && (
-                <span className={`flex items-center gap-1 ${overdue ? "font-medium text-red-300" : ""}`}>
+                <span className={`flex items-center gap-1 ${dueTone}`}>
                   <CalendarClock size={13} /> {shortDate(task.dueDate)}
                 </span>
               )}

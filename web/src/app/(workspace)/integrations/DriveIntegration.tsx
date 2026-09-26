@@ -116,7 +116,7 @@ export function DriveIntegration({
               <input value={app.id} onChange={(e) => setApp((a) => ({ ...a, id: e.target.value }))} placeholder="Client ID" className={field} />
               <input value={app.secret} onChange={(e) => setApp((a) => ({ ...a, secret: e.target.value }))} placeholder="Client secret" className={field} />
             </div>
-            <button onClick={saveApp} disabled={busy === "app"} className="btn-glow w-fit rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60">
+            <button onClick={saveApp} disabled={busy === "app"} className="btn btn-glow w-fit disabled:opacity-60">
               {busy === "app" ? "Saving…" : "Save"}
             </button>
           </li>
@@ -130,7 +130,7 @@ export function DriveIntegration({
             <button
               onClick={connect}
               disabled={!hasApp && !app.id}
-              className="btn-glow flex w-fit items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60"
+              className="btn btn-glow flex w-fit items-center gap-1.5 disabled:opacity-60"
             >
               <Link2 size={13} /> Connect Google Drive
             </button>
@@ -164,7 +164,7 @@ export function DriveIntegration({
           <button
             onClick={saveFolder}
             disabled={busy === "folder" || !folder.trim()}
-            className="btn-glow shrink-0 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-60"
+            className="btn btn-glow shrink-0 disabled:opacity-60"
           >
             {busy === "folder" ? "Checking…" : "Use this folder"}
           </button>
@@ -177,10 +177,10 @@ export function DriveIntegration({
 
       {connected && (
         <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-          <button onClick={test} disabled={busy === "test"} className="btn-ghost rounded-lg px-4 py-2 text-xs disabled:opacity-60">
+          <button onClick={test} disabled={busy === "test"} className="btn btn-ghost disabled:opacity-60">
             {busy === "test" ? "Testing…" : "Test it"}
           </button>
-          <button onClick={disconnect} disabled={busy === "off"} className="btn-ghost flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs text-red-300 disabled:opacity-60">
+          <button onClick={disconnect} disabled={busy === "off"} className="btn btn-ghost flex items-center gap-1.5 text-red-300 disabled:opacity-60">
             <Unplug size={13} /> Disconnect
           </button>
         </div>

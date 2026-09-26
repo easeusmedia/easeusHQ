@@ -106,7 +106,7 @@ export function TaskRow({
 
         {/* a fixed slot, so due dates line up down the list */}
         <span className="flex w-16 shrink-0 justify-end">
-          {task.dueDate && <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />}
+          {task.dueDate && <DueDate date={task.dueDate} handedOffAt={task.handedOffAt} />}
         </span>
         {task.assignedTo && <AssigneeLabel name={task.assignedTo.name} />}
         {/* the stage is changed here, in place — it used to be a static

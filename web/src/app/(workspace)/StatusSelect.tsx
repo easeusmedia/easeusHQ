@@ -346,7 +346,7 @@ export function StatusSelect({
         <button
           type="button"
           onClick={() => pick("delivered_and_uploaded")}
-          className="status-pop flex w-full min-w-0 items-center justify-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-2 text-center text-xs font-medium text-emerald-300"
+          className="btn btn-sm status-pop flex w-full min-w-0 items-center justify-center gap-1.5 border border-emerald-400/30 bg-emerald-400/15 text-center text-emerald-300"
         >
           <CheckCircle2 size={13} className="shrink-0" /> Mark delivered
         </button>
@@ -355,7 +355,7 @@ export function StatusSelect({
         ref={triggerRef}
         type="button"
         onClick={toggle}
-        className="btn-glow flex w-full min-w-0 items-center justify-between gap-1 rounded-md px-3 py-2 text-xs font-medium"
+        className="btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1"
       >
         <span className="truncate">{STATUS_LABEL[optimisticStatus]}</span>
         <ChevronDown size={13} className="shrink-0" />

@@ -118,7 +118,7 @@ export function NewTaskRow({
       <button
         type="button"
         onClick={() => dialogRef.current?.showModal()}
-        className="btn-add flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm"
+        className="btn btn-add flex w-full items-center justify-center gap-1.5"
       >
         <Plus size={15} /> New task
       </button>

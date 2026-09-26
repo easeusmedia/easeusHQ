@@ -88,7 +88,7 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
             <>
               {!readOnly && (
                 <div className="mb-2 flex justify-end">
-                  <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+                  <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
                     <Pencil size={12} /> Edit
                   </button>
                 </div>
@@ -236,7 +236,7 @@ export function ClientInfo({
           <>
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-sm font-medium">Details</h2>
-              <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+              <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
                 <Pencil size={12} /> Edit
               </button>
             </div>
@@ -334,7 +334,7 @@ export function ClientInfo({
         <button
           type="button"
           onClick={openDelete}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-muted hover:bg-red-500/10 hover:text-red-300"
+          className="btn btn-sm flex items-center gap-1.5 text-muted hover:bg-red-500/10 hover:text-red-300"
         >
           <Trash2 size={13} /> Delete client
         </button>
@@ -402,7 +402,7 @@ function CustomDocSection({ doc }: { doc: CustomDoc }) {
               <div className="flex justify-between gap-2">
                 <ConfirmButton
                   message={`Delete "${doc.title}"? This can't be undone.`}
-                  className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                  className="btn btn-xs flex items-center gap-1 text-red-300 hover:bg-red-500/10"
                   onConfirm={remove}
                 >
                   <Trash2 size={13} /> Delete
@@ -420,7 +420,7 @@ function CustomDocSection({ doc }: { doc: CustomDoc }) {
           ) : (
             <>
               <div className="mb-2 flex justify-end">
-                <button onClick={() => setEditing(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+                <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
                   <Pencil size={12} /> Edit
                 </button>
               </div>
@@ -451,7 +451,7 @@ function NewDocument({ clientId }: { clientId: string }) {
 
   if (!adding) {
     return (
-      <button onClick={() => setAdding(true)} className="btn-add flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm">
+      <button onClick={() => setAdding(true)} className="btn btn-add flex items-center justify-center gap-1.5">
         <Plus size={15} /> New document
       </button>
     );

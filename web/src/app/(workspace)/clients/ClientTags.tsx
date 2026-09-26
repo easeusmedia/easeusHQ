@@ -121,13 +121,13 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
               </div>
               {error && <p className="text-xs text-red-300">{error}</p>}
               <div className="flex justify-end gap-2">
-                <button onClick={() => setCreating(false)} className="btn-ghost rounded-md px-2 py-1 text-xs">
+                <button onClick={() => setCreating(false)} className="btn btn-xs btn-ghost">
                   <X size={12} />
                 </button>
                 <button
                   onClick={submitNewTag}
                   disabled={saving}
-                  className="btn-glow rounded-md px-2 py-1 text-xs font-medium disabled:opacity-60"
+                  className="btn btn-xs btn-glow disabled:opacity-60"
                 >
                   {saving ? "Adding…" : "Add"}
                 </button>

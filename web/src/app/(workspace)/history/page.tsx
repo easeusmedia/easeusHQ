@@ -105,6 +105,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       startedAt: startedAt(t.id),
       completedAt: t.updatedAt,
       dueDate: t.dueDate,
+      handedOffAt: t.handedOffAt,
       revisions: t.revisionCount,
     })),
     ...workTasks.map((t) => ({
@@ -122,6 +123,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       startedAt: null,
       completedAt: t.completedAt ?? t.updatedAt,
       dueDate: t.dueDate,
+      handedOffAt: null,
       revisions: 0,
     })),
   ].sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime());

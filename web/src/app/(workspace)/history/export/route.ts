@@ -90,6 +90,7 @@ export async function GET(request: Request) {
     startedAt: kind === "client" ? startedAt(t.id) : null,
     completedAt: ("completedAt" in t ? t.completedAt : null) ?? t.updatedAt,
     dueDate: t.dueDate,
+    handedOffAt: "handedOffAt" in t ? t.handedOffAt : null,
     revisions: "revisionCount" in t ? t.revisionCount : 0,
   });
 

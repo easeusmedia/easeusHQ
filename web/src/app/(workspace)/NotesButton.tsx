@@ -63,7 +63,7 @@ export function NotesButton({ notes }: { notes: string }) {
         <button
           type="button"
           onClick={() => ref.current?.close()}
-          className="btn-glow mt-4 w-full rounded-md px-3 py-2 text-sm font-medium"
+          className="btn btn-glow mt-4 w-full"
         >
           Close
         </button>

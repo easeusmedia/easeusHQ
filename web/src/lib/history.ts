@@ -26,6 +26,10 @@ export type HistoryItem = {
   startedAt: Date | null;
   completedAt: Date;
   dueDate: Date | null;
+  // client work: when it first reached the client, which is what its due
+  // date is a deadline for (lib/due.ts). Null for someone's own work, which
+  // is judged on when it was done.
+  handedOffAt: Date | null;
   revisions: number;
 };
 
@@ -47,9 +51,13 @@ export function activeHours(item: HistoryItem): number | null {
 
 // Against its due date, in India — a date-only comparison, since a due date
 // is a day, not a moment. Null when nothing was due.
+//
+// Client work is judged on the day it first reached the client, not the day
+// it was delivered: the due date is the editor's deadline, and scoring it
+// against delivery counted the client's review time against the editor.
 export function onTime(item: HistoryItem): boolean | null {
   if (!item.dueDate) return null;
-  return istDay(item.completedAt) <= istDay(item.dueDate);
+  return istDay(item.handedOffAt ?? item.completedAt) <= istDay(item.dueDate);
 }
 
 export function istDay(d: Date): string {

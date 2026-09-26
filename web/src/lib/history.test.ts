@@ -17,6 +17,7 @@ const item = (over: Partial<HistoryItem> = {}): HistoryItem => ({
   startedAt: h(2),
   completedAt: h(10),
   dueDate: null,
+  handedOffAt: null,
   revisions: 0,
   ...over,
 });
@@ -81,4 +82,14 @@ test("totals cover the whole filtered set", () => {
   assert.equal(t.people, 2);
   assert.equal(t.revisionsPerTask, 1);
   assert.equal(t.onTimePct, 50);
+});
+
+test("client work is on time if it reached the client by the due date, however long the client took", () => {
+  // due on the 2nd, with the client on the 1st, delivered on the 5th
+  const reachedOnTime = item({ dueDate: h(30), handedOffAt: h(10), completedAt: h(100) });
+  assert.equal(onTime(reachedOnTime), true);
+  // reached the client after the due day: late, even if delivery was quick after
+  assert.equal(onTime(item({ dueDate: h(10), handedOffAt: h(48), completedAt: h(50) })), false);
+  // someone's own work has no client stage, so it's judged on completion
+  assert.equal(onTime(item({ kind: "internal", dueDate: h(10), handedOffAt: null, completedAt: h(48) })), false);
 });

@@ -95,7 +95,7 @@ export function FrameioIntegration({
           The Frame.io app details are missing. They&apos;re set once, from the server.
         </p>
       ) : !connected ? (
-        <button type="button" onClick={connect} className="btn-glow w-fit rounded-lg px-4 py-2 text-sm font-medium">
+        <button type="button" onClick={connect} className="btn btn-glow w-fit">
           Connect Frame.io
         </button>
       ) : (
@@ -115,7 +115,7 @@ export function FrameioIntegration({
                 This login has more than one Frame.io account. Pick the one the editors&apos; review links belong to.
               </p>
               {options === null ? (
-                <button type="button" onClick={loadAccounts} disabled={busy === "accounts"} className="btn-ghost w-fit rounded-lg px-3 py-1.5 text-xs">
+                <button type="button" onClick={loadAccounts} disabled={busy === "accounts"} className="btn btn-sm btn-ghost w-fit">
                   {busy === "accounts" ? "Looking…" : "Show accounts"}
                 </button>
               ) : (
@@ -126,7 +126,7 @@ export function FrameioIntegration({
                       type="button"
                       onClick={() => choose(a.id)}
                       disabled={!!busy}
-                      className="btn-ghost rounded-lg px-3 py-1.5 text-xs disabled:opacity-60"
+                      className="btn btn-sm btn-ghost disabled:opacity-60"
                     >
                       {busy === a.id ? "Saving…" : a.name}
                     </button>
@@ -137,14 +137,14 @@ export function FrameioIntegration({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={test} disabled={!!busy} className="btn-ghost rounded-lg px-3 py-2 text-sm disabled:opacity-60">
+            <button type="button" onClick={test} disabled={!!busy} className="btn btn-ghost disabled:opacity-60">
               {busy === "test" ? "Checking…" : "Test it"}
             </button>
             <button
               type="button"
               onClick={disconnect}
               disabled={!!busy}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted hover:bg-red-500/10 hover:text-red-300 disabled:opacity-60"
+              className="btn flex items-center gap-1.5 text-muted hover:bg-red-500/10 hover:text-red-300 disabled:opacity-60"
             >
               <Unplug size={14} /> Disconnect
             </button>

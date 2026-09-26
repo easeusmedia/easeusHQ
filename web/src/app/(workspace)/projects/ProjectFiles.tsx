@@ -57,7 +57,7 @@ export function ProjectFiles({
           <h2 className="text-sm font-medium">Files</h2>
           <div className="flex items-center gap-3">
             {assets.length > 0 && <span className="text-xs text-muted">{assets.length} total</span>}
-            <button onClick={() => setAdding(true)} className="btn-add flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+            <button onClick={() => setAdding(true)} className="btn btn-sm btn-add flex items-center gap-1.5">
               <Plus size={13} /> Add file
             </button>
           </div>
@@ -196,13 +196,13 @@ function AssetForm({
       <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={field} />
       {error && <p className="text-xs text-red-300">{error}</p>}
       <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+        <button onClick={onCancel} className="btn btn-sm btn-ghost flex items-center gap-1.5">
           <X size={13} /> Cancel
         </button>
         <button
           onClick={submit}
           disabled={saving}
-          className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+          className="btn btn-sm btn-glow flex items-center gap-1.5 disabled:opacity-60"
         >
           <Check size={13} /> {saving ? "Saving…" : "Save"}
         </button>

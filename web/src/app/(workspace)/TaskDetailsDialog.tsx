@@ -8,7 +8,8 @@ import { NotesGlyph, linkify } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
 import { ProjectField } from "./ProjectField";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
-import { Avatar, DueDate, formatDateTime, istDay } from "./TaskCard";
+import { Avatar, DueDate, formatDate, formatDateTime, istDay } from "./TaskCard";
+import { daysLate } from "@/lib/due";
 import { DatePicker } from "./DatePicker";
 import type { Role } from "@/lib/workflow";
 import { StageTrail } from "./StageTrail";
@@ -202,6 +203,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <Field label="Due date">
                   <input type="hidden" name="dueDate" value={due} />
                   <DatePicker value={due} onChange={setDue} placeholder="No due date" />
+                  <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} />
                 </Field>
                 <Field label="Schedule for">
                   <input type="hidden" name="scheduledFor" value={scheduled} />
@@ -268,11 +270,12 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     )}
                     {task.dueDate && (
                       <span className="ml-auto">
-                        <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />
+                        <DueDate date={task.dueDate} handedOffAt={task.handedOffAt} />
                       </span>
                     )}
                   </div>
                 )}
+                <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} />
                 <div>
                   <p className="mb-1 text-xs text-muted">Raw footage</p>
                   {task.rawLink ? (
@@ -395,4 +398,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   );
 });
 
-
+// Once it's reached the client the chip on the card is gone — the deadline
+// has done its job — but how it went is still worth reading here: the day it
+// got there, and whether that was in time.
+function HandoffNote({ dueDate, handedOffAt }: { dueDate: Date | null; handedOffAt: Date | null }) {
+  if (!dueDate || !handedOffAt) return null;
+  const late = daysLate(dueDate, handedOffAt);
+  return (
+    <p className="text-xs text-muted">
+      Reached the client {formatDate(handedOffAt)} —{" "}
+      {late ? <span className="text-red-300">{late} day{late === 1 ? "" : "s"} late</span> : "on time"}
+    </p>
+  );
+}

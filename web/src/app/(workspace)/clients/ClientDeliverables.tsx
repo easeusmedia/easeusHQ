@@ -111,7 +111,7 @@ export function ClientDeliverables({
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Deliverables</h2>
         {!adding && !readOnly && (
-          <button onClick={startAdd} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+          <button onClick={startAdd} className="btn btn-xs btn-ghost flex items-center gap-1">
             <Plus size={13} /> Add deliverable
           </button>
         )}

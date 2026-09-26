@@ -126,7 +126,7 @@ export const WorkTaskDialog = forwardRef<
       {mode === "create" && (
         <button
           onClick={open}
-          className="btn-add flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm"
+          className="btn btn-add flex w-full items-center justify-center gap-1.5"
         >
           <Plus size={16} /> New task
         </button>
@@ -309,7 +309,7 @@ export const WorkTaskDialog = forwardRef<
                 type="button"
                 onClick={remove}
                 disabled={saving}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-surface-2 hover:text-red-400 disabled:opacity-60"
+                className="btn flex items-center gap-1.5 text-muted hover:bg-surface-2 hover:text-red-400 disabled:opacity-60"
               >
                 <Trash2 size={15} /> Delete
               </button>
@@ -320,7 +320,7 @@ export const WorkTaskDialog = forwardRef<
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
-                className="btn-ghost rounded-lg px-4 py-2.5 text-sm"
+                className="btn btn-ghost"
               >
                 Cancel
               </button>
@@ -328,7 +328,7 @@ export const WorkTaskDialog = forwardRef<
                 type="button"
                 onClick={save}
                 disabled={saving}
-                className="btn-glow rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+                className="btn btn-glow disabled:opacity-60"
               >
                 {saving ? "Saving…" : mode === "create" ? "Add task" : "Save"}
               </button>

@@ -156,7 +156,7 @@ export function PersonDetail({
     <>
       {error && <p className="text-sm text-red-300">{error}</p>}
       <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving} className="btn-glow rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
+        <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
           {saving ? "Saving…" : "Save changes"}
         </button>
         {saved && <span className="text-xs text-muted">Saved.</span>}

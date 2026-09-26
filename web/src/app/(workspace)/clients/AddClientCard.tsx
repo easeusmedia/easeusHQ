@@ -79,7 +79,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
       {variant === "row" ? (
         <button
           onClick={open}
-          className="btn-add flex items-center gap-2 rounded-xl px-4 py-3 text-sm"
+          className="btn btn-add flex items-center gap-2"
         >
           <Plus size={15} /> Add client
         </button>
@@ -168,9 +168,12 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
                 <p className="text-xs font-medium text-muted">Links waiting to be filled in</p>
                 {pending.map((p) => (
                   <div key={p.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
+                    {/* A link made before anyone typed a name isn't a client
+                        yet — it's a link, so that's what it's called. The
+                        time it went out is what tells two of them apart. */}
                     <span className="min-w-0 flex-1 truncate text-xs">
-                      {p.name || "Unnamed client"}
-                      <span className="text-muted"> · sent {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                      {p.name || "Onboarding link"}
+                      <span className="text-muted"> · sent {sentAt(p.createdAt)}</span>
                     </span>
                     <button onClick={() => copyLink(p.token)} className="shrink-0 text-xs text-blue-400 hover:underline">
                       {copied === p.token ? "Copied" : "Copy link"}
@@ -186,7 +189,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
             <button
               onClick={makeInvite}
               disabled={saving}
-              className="btn-ghost flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs disabled:opacity-60"
+              className="btn btn-ghost flex w-full items-center justify-center gap-1.5 disabled:opacity-60"
             >
               <Link2 size={13} /> {pending.length > 0 ? "New onboarding link" : "Send them an onboarding form instead"}
             </button>
@@ -195,4 +198,15 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
       </dialog>
     </>
   );
+}
+
+// "21 Sept, 3:40 pm" in India — the day alone can't tell apart two links
+// made the same afternoon
+function sentAt(at: Date | string) {
+  const d = new Date(at);
+  const day = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+  const time = d
+    .toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })
+    .replace(" ", "\u00a0");
+  return `${day}, ${time}`;
 }

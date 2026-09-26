@@ -14,6 +14,7 @@ import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
 import { GroupHeader, QueueRow, type Group, type QueueEnv } from "./grouping";
+import { dueState } from "@/lib/due";
 
 
 function shortDate(iso: string) {
@@ -141,7 +142,10 @@ export function ListRow({
   onChangeStatus: (status: WorkTaskStatus) => void;
 }) {
   const dialogRef = useRef<{ open: () => void }>(null);
-  const overdue = !!task.dueDate && task.status !== "done" && task.dueDate < new Date().toISOString().slice(0, 10);
+  // judged in India's day, not UTC's — the old string compare against
+  // toISOString() turned a task red at midnight UTC, 5:30am here
+  const due = task.status === "done" ? null : dueState(task.dueDate, null);
+  const dueTone = due === "overdue" ? "font-medium text-red-300" : due === "today" ? "font-medium text-amber-300" : "";
 
   return (
     <>
@@ -170,7 +174,7 @@ export function ListRow({
         )}
         <span className="flex shrink-0 items-center gap-3 text-xs text-muted">
           {task.dueDate && (
-            <span className={`flex items-center gap-1 ${overdue ? "font-medium text-red-300" : ""}`}>
+            <span className={`flex items-center gap-1 ${dueTone}`}>
               <CalendarClock size={13} /> {shortDate(task.dueDate)}
             </span>
           )}

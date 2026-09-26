@@ -36,7 +36,7 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
         disabled={pending}
         role="switch"
         aria-checked={enabled}
-        className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-60 ${
+        className={`btn btn-sm flex items-center gap-2 border disabled:opacity-60 ${
           enabled ? "border-green-400/30 bg-green-400/15 text-green-300" : "border-border bg-surface-2 text-muted hover:text-foreground"
         }`}
       >

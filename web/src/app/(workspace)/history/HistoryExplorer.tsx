@@ -137,7 +137,7 @@ export function HistoryExplorer({
             <button
               type="button"
               onClick={() => setFiltersOpen((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${
+              className={`btn flex items-center gap-1.5 border ${
                 activeFilters ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted hover:text-foreground"
               }`}
             >
@@ -170,7 +170,7 @@ export function HistoryExplorer({
             href={exportHref()}
             download
             title="A spreadsheet of exactly what's on screen — with each task's timings, revisions and full stage trail"
-            className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium"
+            className="btn btn-glow flex items-center gap-1.5"
           >
             <Download size={14} /> Export
           </a>
@@ -422,7 +422,7 @@ export function HistoryExplorer({
                       href={l.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+                      className="btn btn-sm btn-ghost flex items-center gap-1.5"
                     >
                       {l.label} <ExternalLink size={11} />
                     </a>
@@ -453,7 +453,7 @@ export function HistoryExplorer({
               </div>
             )}
             <div className="mt-5 flex justify-end">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="btn-ghost rounded-lg px-4 py-2 text-sm">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Close
               </button>
             </div>

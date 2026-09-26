@@ -21,7 +21,7 @@ export function CoverPicker({ clientId, onPick }: { clientId: string; onPick: (u
 
   return (
     <>
-      <button type="button" onClick={open} className="btn-ghost flex items-center gap-1.5 rounded-md px-2 py-1 text-xs">
+      <button type="button" onClick={open} className="btn btn-xs btn-ghost flex items-center gap-1.5">
         <Images size={13} /> Use an existing cover
       </button>
 

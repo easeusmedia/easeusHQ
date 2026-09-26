@@ -9,6 +9,7 @@ import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
 import { frameioConnected, shareFiles, shareIdFrom } from "@/lib/frameio";
+import { handedOffStamp } from "@/lib/due";
 import { exportFolder, uploadFromUrl } from "@/lib/drive";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
@@ -170,6 +171,8 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
       where: { id: taskId },
       data: {
         status: to,
+        // the first time it reaches the client is the editor's deadline met
+        handedOffAt: handedOffStamp(task.handedOffAt, to),
         ...(extras.sortOrder !== undefined ? { sortOrder: extras.sortOrder } : {}),
         ...(frameioLink ? { frameioLink } : {}),
         ...(driveLink ? { driveLink } : {}),
@@ -522,9 +525,10 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
     // reason to make it N queries when it's this easy to make it one
     const mirrored = await prisma.task.findMany({
       where: { notionPageId: { in: rows.map((r) => r.id) } },
-      select: { id: true, notionPageId: true, status: true },
+      select: { id: true, notionPageId: true, status: true, handedOffAt: true },
     });
     const statusById = new Map(mirrored.map((t) => [t.id, t.status]));
+    const handedOffById = new Map(mirrored.map((t) => [t.id, t.handedOffAt]));
     const existingByNotionId = new Map(mirrored.map((t) => [t.notionPageId, t.id]));
 
     // Which of those the team has since moved themselves. Notion's column is
@@ -608,7 +612,14 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         const { status: notionStatus, assignedToId, ...rest } = sharedData;
         await prisma.task.update({
           where: { id: existingId },
-          data: ours ? rest : { ...rest, status: notionStatus, ...(assignedToId ? { assignedToId } : {}) },
+          data: ours
+            ? rest
+            : {
+                ...rest,
+                status: notionStatus,
+                handedOffAt: handedOffStamp(handedOffById.get(existingId) ?? null, notionStatus),
+                ...(assignedToId ? { assignedToId } : {}),
+              },
         });
         // a stage change made in Notion goes in the log like any other, so
         // History and the editor export see it — marked as Notion's, so a
@@ -643,6 +654,7 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       await prisma.task.create({
         data: {
           ...sharedData,
+          handedOffAt: handedOffStamp(null, sharedData.status),
           projectId: project.id,
           dueDate: queuedOn ?? new Date(),
           // newest at the top of its column, same as the board's own order

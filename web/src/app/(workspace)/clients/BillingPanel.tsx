@@ -93,7 +93,7 @@ export function BillingPanel({
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Billing</h2>
         {!editingRule && (
-          <button onClick={() => setEditingRule(true)} className="btn-ghost rounded-md px-2 py-1 text-xs">
+          <button onClick={() => setEditingRule(true)} className="btn btn-xs btn-ghost">
             {cadence ? "Edit rule" : "Set billing rule"}
           </button>
         )}
@@ -171,7 +171,7 @@ export function BillingPanel({
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted">Invoices</h3>
           {!showInvoiceForm && (
-            <button onClick={() => setShowInvoiceForm(true)} className="btn-ghost flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+            <button onClick={() => setShowInvoiceForm(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
               <Plus size={13} /> New invoice
             </button>
           )}

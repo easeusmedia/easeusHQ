@@ -450,6 +450,11 @@ model Task {
   // every transition into revision_requested, never reset; a quick signal
   // for "this one's eaten a lot of back-and-forth"
   revisionCount Int     @default(0)
+  // The first time this task reached the client (or went past that point —
+  // internal work skips straight to export). Set once and never moved: the
+  // due date is the editor's deadline for exactly this, so a client
+  // revision afterwards doesn't reopen it. See lib/due.ts.
+  handedOffAt   DateTime?
 
   // The work this task is: thumbnail, audio engineering, reel, and so on.
   tags     TaskTag[]

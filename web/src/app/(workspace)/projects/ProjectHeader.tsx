@@ -129,7 +129,7 @@ export function ProjectHeader({
                 than tracking the file down again */}
             <CoverPicker clientId={clientId} onPick={setCover} />
             {shownCover && (
-              <button onClick={() => setCover(null)} className="btn-ghost rounded-md px-2 py-1 text-xs">
+              <button onClick={() => setCover(null)} className="btn btn-xs btn-ghost">
                 Remove cover
               </button>
             )}
@@ -180,16 +180,16 @@ export function ProjectHeader({
               {canDelete && (
                 <button
                   onClick={() => deleteRef.current?.showModal()}
-                  className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+                  className="btn btn-xs flex items-center gap-1 text-red-300 hover:bg-red-500/10"
                 >
                   <Trash2 size={13} /> Delete
                 </button>
               )}
               <div className="ml-auto flex gap-2">
-                <button onClick={() => setEditing(false)} className="btn-ghost rounded-md px-3 py-1.5 text-xs">
+                <button onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
                   Cancel
                 </button>
-                <button onClick={save} disabled={saving} className="btn-glow rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60">
+                <button onClick={save} disabled={saving} className="btn btn-sm btn-glow disabled:opacity-60">
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
@@ -199,7 +199,7 @@ export function ProjectHeader({
           <>
             <div className="flex items-start gap-3">
               <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">{name}</h1>
-              <button onClick={startEditing} className="btn-ghost mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-xs">
+              <button onClick={startEditing} className="btn btn-xs btn-ghost mt-1 flex items-center gap-1">
                 <Pencil size={12} /> Edit
               </button>
             </div>
@@ -242,7 +242,7 @@ export function ProjectHeader({
           Delete <strong>{name}</strong>? Its file links go with it. This can&apos;t be undone.
         </p>
         <div className="mt-3 flex justify-end gap-2">
-          <button onClick={() => deleteRef.current?.close()} className="btn-ghost rounded-md px-3 py-1 text-xs">
+          <button onClick={() => deleteRef.current?.close()} className="btn btn-sm btn-ghost">
             Cancel
           </button>
           <button

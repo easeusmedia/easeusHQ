@@ -98,7 +98,7 @@ export function AddProjectCard({ clientId, row = false }: { clientId: string; ro
           <div className="-mt-2 flex flex-wrap items-center gap-1">
             <CoverPicker clientId={clientId} onPick={setCover} />
             {cover && (
-              <button type="button" onClick={() => setCover(null)} className="btn-ghost rounded-md px-2 py-1 text-xs">
+              <button type="button" onClick={() => setCover(null)} className="btn btn-xs btn-ghost">
                 Remove cover
               </button>
             )}

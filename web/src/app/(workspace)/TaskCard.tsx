@@ -10,6 +10,7 @@ import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
 import { CalendarClock, RotateCcw, EyeOff } from "lucide-react";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
+import { dueState } from "@/lib/due";
 
 // kept as re-exports so the existing call sites don't all have to change —
 // STAGE in @/lib/stages is the single definition
@@ -71,16 +72,37 @@ const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 
 // "20 Sep" (plus the year when it isn't this one), red once it has passed
 // on anything not yet finished.
-export function DueDate({ date, done = false }: { date: Date | string; done?: boolean }) {
+// The editor's deadline: the day it has to reach the client (lib/due.ts).
+// Muted while it's still to come, amber on the day, red once the day has
+// gone and it still isn't with the client — and gone altogether once it has
+// reached them, because from then on the deadline has done its job and the
+// wait is the client's, not the editor's.
+export function DueDate({
+  date,
+  handedOffAt = null,
+  done = false,
+}: {
+  date: Date | string;
+  // when it first reached the client — client tasks
+  handedOffAt?: Date | string | null;
+  // finished, for work that never goes to a client (a work task at "done")
+  done?: boolean;
+}) {
+  const state = done ? "met" : dueState(date, handedOffAt);
+  if (!state || state === "met" || state === "late") return null;
   const due = istDay(date);
   const today = istDay(new Date());
   const [y, m, d] = due.split("-").map(Number);
-  const overdue = !done && due < today;
+  const tone =
+    state === "overdue" ? "font-medium text-red-300" : state === "today" ? "font-medium text-amber-300" : "text-muted";
+  const title =
+    state === "overdue"
+      ? `Overdue — was due to reach the client by ${formatDate(date)}`
+      : state === "today"
+        ? "Due today — needs to reach the client today"
+        : `Due ${formatDate(date)} — to reach the client by then`;
   return (
-    <span
-      title={`${overdue ? "Overdue — was due" : "Due"} ${formatDate(date)}`}
-      className={`flex shrink-0 items-center gap-1 whitespace-nowrap text-xs ${overdue ? "font-medium text-red-300" : "text-muted"}`}
-    >
+    <span title={title} className={`flex shrink-0 items-center gap-1 whitespace-nowrap text-xs ${tone}`}>
       <CalendarClock size={12} className="shrink-0" />
       {d} {MONTH_SHORT[m - 1]}
       {y !== Number(today.slice(0, 4)) && ` ${y}`}
@@ -124,6 +146,8 @@ export type TaskCardData = {
   editingNotes: string | null;
   revisionCount: number;
   dueDate: Date | null;
+  // first reached the client — what the due date is judged against
+  handedOffAt: Date | null;
   scheduledFor: Date | null;
   createdAt: Date;
   sortOrder: number;
@@ -294,7 +318,7 @@ export function TaskCard({
           )}
           {task.dueDate && (
             <span className="ml-auto">
-              <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />
+              <DueDate date={task.dueDate} handedOffAt={task.handedOffAt} />
             </span>
           )}
         </div>
