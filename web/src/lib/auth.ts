@@ -1,15 +1,24 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
+import { onStaff } from "./users";
 import { COOKIE_NAME, sign, unsign } from "./sessionToken";
 import { seesClientFeedback } from "./scope";
 
 export { hashPassword, verifyPassword } from "./password";
 
-export async function getSessionUserId(): Promise<string | null> {
+// Who's signed in — and only while they're still on staff. Marking someone
+// former ends their access at once, cookie or not: every page, action and
+// route asks here, so their next click or live refresh lands on the login
+// page. cache(): one lookup per request however many callers ask.
+export const getSessionUserId = cache(async (): Promise<string | null> => {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
-  return token ? unsign(token) : null;
-}
+  const id = token ? unsign(token) : null;
+  if (!id) return null;
+  const user = await prisma.user.findUnique({ where: { id }, select: { employment: true } });
+  return user && onStaff(user) ? id : null;
+});
 
 export async function createSession(userId: string) {
   const store = await cookies();
