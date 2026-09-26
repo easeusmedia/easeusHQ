@@ -7,6 +7,7 @@ import { PeopleDirectory, type HistoryEntry, type PersonRecord, type TaskEntry }
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
+import { displayTeam } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -132,7 +133,9 @@ export default async function PeoplePage() {
     role: p.role,
     employment: p.employment,
     teamId: p.teamId,
-    teamName: p.team?.name ?? null,
+    // shown under Editors / Operations / … as the rest of the app shows them
+    teamName: displayTeam(p)?.name ?? null,
+    shownTeam: displayTeam(p)?.slug ?? null,
     jobTitleId: p.jobTitleId,
     jobTitleName: p.jobTitle?.name ?? null,
     joinedAt: p.joinedAt ? p.joinedAt.toISOString().slice(0, 10) : null,

@@ -33,6 +33,9 @@ export type PersonRecord = {
   id: string;
   name: string;
   email: string;
+  // the team they're shown under (lib/teams) — an Operations editor under
+  // Editors — as opposed to teamId, the team their access comes from
+  shownTeam: string | null;
   phone: string | null;
   avatarUrl: string | null;
   role: Role;
@@ -96,12 +99,20 @@ export function PeopleDirectory({
     const q = query.trim().toLowerCase();
     return people.filter(
       (p) =>
-        (team === "all" || (team === "former" ? p.employment === "former" : p.teamId === team && p.employment !== "former")) &&
+        (team === "all" || (team === "former" ? p.employment === "former" : p.shownTeam === team && p.employment !== "former")) &&
         (!q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || (p.jobTitleName ?? "").toLowerCase().includes(q))
     );
   }, [people, query, team]);
 
   const open = people.find((p) => p.id === openId) ?? null;
+
+  // the filter chips are the teams people are shown under, not the teams
+  // in the data — so Editors is its own chip and Operations is only its core
+  const shownTeams = [
+    ...new Map(
+      people.filter((p) => p.employment !== "former" && p.shownTeam).map((p) => [p.shownTeam!, p.teamName ?? p.shownTeam!])
+    ).entries(),
+  ].map(([id, name]) => ({ id, name }));
 
   // Grouped by team, because that's the question this page is usually
   // answering — "who's on Operations right now". Former employees are their
@@ -131,9 +142,9 @@ export function PeopleDirectory({
               className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
             />
           </div>
-          {teams.length > 1 && (
+          {shownTeams.length > 1 && (
             <div className="flex flex-wrap gap-1">
-              {[{ id: "all", name: "All" }, ...teams, ...(people.some((p) => p.employment === "former") ? [{ id: "former", name: "Former" }] : [])].map((t) => (
+              {[{ id: "all", name: "All" }, ...shownTeams, ...(people.some((p) => p.employment === "former") ? [{ id: "former", name: "Former" }] : [])].map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setTeam(t.id)}

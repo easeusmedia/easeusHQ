@@ -7,6 +7,7 @@ import type { TaskStatus } from "@/lib/workflow";
 import { assigneeWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { HistoryItem } from "@/lib/history";
+import { displayTeam } from "@/lib/teams";
 import { parseStageChange } from "@/lib/stages";
 import { HistoryExplorer } from "./HistoryExplorer";
 
@@ -39,7 +40,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       where: { ...scope, status: { in: COMPLETED_STATUSES }, project: { client: { status: "current" } } },
       orderBy: { updatedAt: "desc" },
       include: {
-        assignedTo: { select: { ...PUBLIC_USER_SELECT, team: { select: { name: true } } } },
+        assignedTo: { select: { ...PUBLIC_USER_SELECT, role: true, team: { select: { slug: true, name: true } } } },
         tags: true,
         project: { include: { client: true } },
       },
@@ -48,7 +49,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       where: { ...scope, status: "done" },
       orderBy: { completedAt: "desc" },
       include: {
-        assignedTo: { select: { ...PUBLIC_USER_SELECT, team: { select: { name: true } } } },
+        assignedTo: { select: { ...PUBLIC_USER_SELECT, role: true, team: { select: { slug: true, name: true } } } },
         createdBy: { select: { name: true } },
         tags: true,
         project: { include: { client: true } },
@@ -97,7 +98,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       title: t.title,
       personId: t.assignedTo?.id ?? "unassigned",
       person: t.assignedTo?.name ?? "Unassigned",
-      team: t.assignedTo?.team?.name ?? null,
+      team: t.assignedTo ? displayTeam(t.assignedTo)?.name ?? null : null,
       client: t.project.client.name,
       project: t.project.name || t.project.type,
       tags: t.tags.map((tag) => tag.name),
@@ -114,7 +115,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       title: t.title,
       personId: t.assignedTo.id,
       person: t.assignedTo.name,
-      team: t.assignedTo.team?.name ?? null,
+      team: displayTeam(t.assignedTo)?.name ?? null,
       client: t.project?.client.name ?? null,
       project: t.project ? t.project.name || t.project.type : null,
       tags: t.tags.map((tag) => tag.name),

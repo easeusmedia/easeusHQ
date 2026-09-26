@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { displayTeam } from "@/lib/teams";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { WorkTaskLink, WorkTaskAttachment } from "./my-tasks/actions";
 
@@ -14,12 +15,16 @@ export type WorkScope = string;
 const assignee = {
   select: {
     ...PUBLIC_USER_SELECT,
+    role: true,
     team: { select: { slug: true, name: true } },
   },
 };
 
-type Assignee = { id: string; name: string; team: { slug: string; name: string } | null };
-const person = (u: Assignee) => ({ id: u.id, name: u.name, team: u.team });
+type Assignee = { id: string; name: string; role: string; team: { slug: string; name: string } | null };
+// shown under the team they belong to on screen: an Operations editor under
+// Editors, the admin under none (lib/teams) — so the Operations tab is only
+// Operations. What this person may *see* is unchanged; that's lib/scope.
+const person = (u: Assignee) => ({ id: u.id, name: u.name, team: displayTeam(u) });
 
 export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: { withQueue: boolean }) {
   const everyTeam = seesEveryTeam(viewer);
