@@ -49,3 +49,9 @@ test("Show more reveals the next ones, until there are none left", () => {
   // asking for more than exist just shows them all
   assert.equal(pickList([NEW, ...projects], "", { recent: 3 }, "", 10).older, 0);
 });
+
+test("always: a short list still gets its search box", () => {
+  const opts = [{ value: "a", label: "Podcast" }];
+  assert.equal(pickList(opts, "", { recent: 8 }, "", 0).searching, false);
+  assert.equal(pickList(opts, "", { recent: 8, always: true }, "", 0).searching, true);
+});

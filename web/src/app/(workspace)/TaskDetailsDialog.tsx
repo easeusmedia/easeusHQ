@@ -1,14 +1,30 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useActionState } from "react";
-import { ChevronRight, Pencil, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  CalendarClock,
+  ChevronRight,
+  Clapperboard,
+  ExternalLink,
+  FolderCheck,
+  Link2,
+  MoreHorizontal,
+  Package,
+  Pencil,
+  Trash2,
+  User,
+} from "lucide-react";
 import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesGlyph, linkify } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
-import { ProjectField } from "./ProjectField";
-import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
-import { Avatar, DueDate, formatDate, formatDateTime, istDay } from "./TaskCard";
+import { type TaskTagOption } from "./TaskTagPicker";
+import { Avatar, DueDate, STATUS_LABEL, formatDate, formatDateTime, istDay } from "./TaskCard";
+import { ProjectChip, TagPill, pill } from "./composer";
+import { useNewProject } from "./useNewProject";
+import { Reveal } from "./Reveal";
 import { daysLate, handoffUnknown } from "@/lib/due";
 import { DatePicker } from "./DatePicker";
 import type { Role } from "@/lib/workflow";
@@ -18,17 +34,42 @@ import { Checkbox } from "./Checkbox";
 
 const initialState: TaskFormState = {};
 
-// same radius/padding/type-size the Dropdown's "md" uses, so a text row and
-// a select row in this form are the same height and shape
-const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm";
-
-// a labelled row — the fields were bare boxes, so a URL sitting in one gave
-// no clue which link it was
-function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+// One link: what it is, the address, and a way to open it. Borderless inside
+// the links block, so five of them read as one list, not five boxes.
+function LinkRow({
+  icon,
+  label,
+  name,
+  value,
+  placeholder,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  name: string;
+  value: string | null;
+  placeholder?: string;
+}) {
   return (
-    <label className={`flex min-w-0 flex-col gap-1 text-xs text-muted ${wide ? "col-span-2" : ""}`}>
-      {label}
-      {children}
+    <label className="flex items-center gap-2.5 px-3 py-2 not-first:border-t not-first:border-border/40">
+      <span className="flex shrink-0">{icon}</span>
+      <span className="w-24 shrink-0 text-xs text-muted">{label}</span>
+      <input
+        name={name}
+        defaultValue={value ?? ""}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none! placeholder:text-muted/50"
+      />
+      {value && (
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Open ${label}`}
+          className="shrink-0 text-muted transition-colors hover:text-foreground"
+        >
+          <ExternalLink size={13} />
+        </a>
+      )}
     </label>
   );
 }
@@ -59,6 +100,19 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const [internal, setInternal] = useState(task.internal);
   const [due, setDue] = useState(task.dueDate ? istDay(task.dueDate) : "");
   const [scheduled, setScheduled] = useState(task.scheduledFor ? istDay(task.scheduledFor) : "");
+  const clientOf = (id: string | null) => projects.find((p) => p.id === id)?.client.id ?? "";
+  const [clientId, setClientId] = useState(clientOf(task.projectId));
+  const [projectId, setProjectId] = useState(task.projectId ?? "");
+  const [assignee, setAssignee] = useState(task.assignedTo?.id ?? "");
+  const [tagIds, setTagIds] = useState(task.tags.map((t) => t.id));
+  const [more, setMore] = useState(false);
+  const newProject = useNewProject(clientId, setProjectId);
+  const clientProjects = newProject.withMade(projects).filter((p) => p.client.id === clientId);
+  const clients = [...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+  // set behind "⋯", counted on it so it isn't forgotten
+  const tucked = [scheduled, internal].filter(Boolean).length;
 
   const canManage = actingRole === "admin" || actingRole === "core";
   const isAssignee = task.assignedTo?.id === actingUserId;
@@ -72,6 +126,13 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
     // what's saved now, not what was typed before a Cancel
     setDue(task.dueDate ? istDay(task.dueDate) : "");
     setScheduled(task.scheduledFor ? istDay(task.scheduledFor) : "");
+    setClientId(clientOf(task.projectId));
+    setProjectId(task.projectId ?? "");
+    setAssignee(task.assignedTo?.id ?? "");
+    setTagIds(task.tags.map((t) => t.id));
+    setInternal(task.internal);
+    setMore(false);
+    newProject.cancel();
     // always refetch, not just once — the trail changes every time the
     // task's status changes elsewhere on the board, and this component
     // instance can stay mounted (and its state cached) across many of
@@ -124,10 +185,15 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
         }`}
       >
         <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{task.title}</p>
-            <p className="text-xs text-muted">{clientName}</p>
-          </div>
+          {canManage ? (
+            // the title's the first field below; up here, just where it stands
+            <p className="pt-1 text-xs text-muted">{STATUS_LABEL[task.status]}</p>
+          ) : (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{task.title}</p>
+              <p className="text-xs text-muted">{clientName}</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => setHistoryOpen((v) => !v)}
@@ -158,104 +224,134 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             <input type="hidden" name="actingUserId" value={actingUserId} />
 
             {canManage ? (
-              <>
-                <Field label="Title" wide>
-                  <input name="title" defaultValue={task.title} required className={inputCls} />
-                </Field>
-                {/* client first, then that client's projects, and a new
-                    project can be created inline — same control the create
-                    form uses, instead of one flat list of every project */}
-                <ProjectField
-                  projects={projects}
-                  defaultProjectId={task.projectId}
-                  clients={[...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
-                    a.name.localeCompare(b.name)
-                  )}
-                />
-                <Field label="Assigned to">
-                  <Dropdown
-                    name="assignedToId"
-                    defaultValue={task.assignedTo?.id ?? ""}
-                    // the list is only people who can take new work; a task
-                    // still on someone who's left keeps showing their name
-                    options={[
-                      { value: "", label: "Unassigned" },
-                      ...editors.map((e) => ({ value: e.id, label: e.name })),
-                      ...(task.assignedTo && !editors.some((e) => e.id === task.assignedTo!.id)
-                        ? [{ value: task.assignedTo.id, label: task.assignedTo.name }]
-                        : []),
-                    ]}
+              // The composer's layout, not a form: the title and notes as
+              // plain text, every property a chip, the links in one quiet
+              // block. It used to be eleven labelled boxes and every tag at
+              // once — the whole task shouted at you on open.
+              <div className="col-span-2 flex flex-col gap-4">
+                <input type="hidden" name="clientId" value={clientId} />
+                <input type="hidden" name="projectId" value={projectId} />
+                <input type="hidden" name="dueDate" value={due} />
+                <input type="hidden" name="scheduledFor" value={scheduled} />
+                <input type="hidden" name="tagsPresent" value="1" />
+                {tagIds.map((id) => (
+                  <input key={id} type="hidden" name="tagIds" value={id} />
+                ))}
+                <input type="hidden" name="internal" value={internal ? "on" : ""} />
+
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    name="title"
+                    defaultValue={task.title}
+                    required
+                    placeholder="Title"
+                    aria-label="Title"
+                    className="w-full bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
                   />
-                </Field>
-
-                {/* Every link, at every stage. These used to appear only
-                    while the task sat at the status each one belonged to,
-                    which meant a Frame.io link you could see on the card was
-                    not editable — or even visible — from here the moment the
-                    task moved on. Ops can edit anything anyway, and a
-                    per-status list is one more thing to forget when a stage
-                    is added, which is exactly what happened. */}
-                <Field label="Raw footage">
-                  <input name="rawLink" defaultValue={task.rawLink ?? ""} placeholder="Google Drive link" className={inputCls} />
-                </Field>
-                {/* ops set when it's due and when the editor sees it;
-                    an editor's own save never carries these */}
-                <Field label="Due date">
-                  <input type="hidden" name="dueDate" value={due} />
-                  <DatePicker value={due} onChange={setDue} placeholder="No due date" />
-                  <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} createdAt={task.createdAt} />
-                </Field>
-                <Field label="Schedule for">
-                  <input type="hidden" name="scheduledFor" value={scheduled} />
-                  <DatePicker value={scheduled} onChange={setScheduled} placeholder="Visible immediately" />
-                </Field>
-                <Field label="Frame.io">
-                  <input name="frameioLink" defaultValue={task.frameioLink ?? ""} placeholder="https://f.io/…" className={inputCls} />
-                </Field>
-                <Field label="Final Drive">
-                  <input name="driveLink" defaultValue={task.driveLink ?? ""} placeholder="Google Drive link" className={inputCls} />
-                </Field>
-                {/* only for tasks that actually carry them — these come in
-                    from Notion and would otherwise be invisible here */}
-                {task.referenceLink !== null && (
-                  <Field label="Reference">
-                    <input name="referenceLink" defaultValue={task.referenceLink} className={inputCls} />
-                  </Field>
-                )}
-                {task.assetLink !== null && (
-                  <Field label="Assets">
-                    <input name="assetLink" defaultValue={task.assetLink} className={inputCls} />
-                  </Field>
-                )}
-
-                <div className="col-span-2 flex flex-col gap-1.5 text-xs text-muted">
-                  Type of work
-                  <TaskTagPicker
-                    tags={taskTags}
-                    selected={task.tags.map((t) => t.id)}
-                    internal={internal}
-                    onInternalHint={setInternal}
-                  />
-                  <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
-                    <Checkbox checked={internal} onChange={setInternal} label="Internal work" size={15} />
-                    Internal work — the client never receives this
-                  </label>
-                </div>
-
-                <div className="col-span-2 flex flex-col gap-1.5">
-                  <span className="flex items-center gap-1.5 text-sm text-muted">
-                    <NotesGlyph size={14} />
-                    Editing notes
-                  </span>
                   <textarea
                     name="editingNotes"
                     defaultValue={task.editingNotes ?? ""}
-                    placeholder="Instructions, references, anything the editor needs…"
-                    rows={3}
-                    className={inputCls}
+                    placeholder="Notes for the editor…"
+                    aria-label="Editing notes"
+                    rows={1}
+                    className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm text-foreground/90 outline-none! placeholder:text-muted/60"
                   />
                 </div>
-              </>
+
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Dropdown
+                      pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
+                      value={clientId}
+                      placeholder="Client"
+                      options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                      onChange={(id) => {
+                        // the old project belonged to the old client
+                        setClientId(id);
+                        setProjectId("");
+                        newProject.cancel();
+                      }}
+                    />
+                    {clientId && (
+                      <ProjectChip
+                        value={projectId}
+                        onChange={setProjectId}
+                        projects={clientProjects}
+                        newProject={newProject}
+                        canCreate
+                      />
+                    )}
+                    <Dropdown
+                      name="assignedToId"
+                      pill={{ icon: <User size={12} className="text-emerald-400" /> }}
+                      value={assignee}
+                      placeholder="Assignee"
+                      onChange={setAssignee}
+                      // only people who can take new work; a task still on
+                      // someone who's left keeps showing their name
+                      options={[
+                        { value: "", label: "Unassigned" },
+                        ...editors.map((e) => ({ value: e.id, label: e.name })),
+                        ...(task.assignedTo && !editors.some((e) => e.id === task.assignedTo!.id)
+                          ? [{ value: task.assignedTo.id, label: task.assignedTo.name }]
+                          : []),
+                      ]}
+                    />
+                    <DatePicker pill={{}} value={due} onChange={setDue} placeholder="Due" />
+                    {taskTags.length > 0 && (
+                      <TagPill
+                        tags={taskTags}
+                        picked={tagIds}
+                        onChange={setTagIds}
+                        internal={internal}
+                        onInternalHint={setInternal}
+                        canManage
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMore((m) => !m)}
+                      aria-expanded={more}
+                      aria-label="More options"
+                      className={`${pill(more || tucked > 0)} px-2`}
+                    >
+                      <MoreHorizontal size={13} />
+                      {!more && tucked > 0 && <span className="tabular-nums">{tucked}</span>}
+                    </button>
+                  </div>
+                  <Reveal open={more}>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <DatePicker
+                        pill={{ icon: <CalendarClock size={12} className="text-orange-400" /> }}
+                        value={scheduled}
+                        onChange={setScheduled}
+                        placeholder="Hide until…"
+                      />
+                      <label className={`${pill(internal)} cursor-pointer`}>
+                        <Checkbox checked={internal} onChange={setInternal} label="Internal work" size={13} />
+                        Internal
+                      </label>
+                    </div>
+                  </Reveal>
+                  <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} createdAt={task.createdAt} />
+                </div>
+
+                {/* Every link, at every stage — they used to appear only
+                    while the task sat at the stage each belonged to. Ops can
+                    edit anything, so all of them are always here. Reference
+                    and Assets only when the task has one (from Notion). */}
+                <div className="overflow-hidden rounded-xl bg-foreground/[0.03]">
+                  <LinkRow icon={<Link2 size={13} className="text-blue-400" />} label="Raw footage" name="rawLink" value={task.rawLink} placeholder="Google Drive link" />
+                  <LinkRow icon={<Clapperboard size={13} className="text-violet-400" />} label="Frame.io" name="frameioLink" value={task.frameioLink} placeholder="https://f.io/…" />
+                  <LinkRow icon={<FolderCheck size={13} className="text-emerald-400" />} label="Final Drive" name="driveLink" value={task.driveLink} placeholder="Google Drive link" />
+                  {task.referenceLink !== null && (
+                    <LinkRow icon={<BookOpen size={13} className="text-amber-400" />} label="Reference" name="referenceLink" value={task.referenceLink} />
+                  )}
+                  {task.assetLink !== null && (
+                    <LinkRow icon={<Package size={13} className="text-rose-400" />} label="Assets" name="assetLink" value={task.assetLink} />
+                  )}
+                </div>
+              </div>
             ) : (
               // an editor sees everything but can only ever change the
               // Frame.io link — the rest is ops' input, read-only here

@@ -30,6 +30,7 @@ export function Dropdown({
   size = "md",
   pill,
   search,
+  create = false,
 }: {
   name?: string;
   defaultValue?: string;
@@ -54,6 +55,10 @@ export function Dropdown({
   // wanted is one of the last few; the list shouldn't make you scroll past
   // years of others to prove it.
   search?: { recent: number; placeholder?: string };
+  // A list you can add to (a project's type): whatever's typed in the search
+  // that isn't already an option can be picked as a new one, and onChange
+  // gets the typed text as the value.
+  create?: boolean;
 }) {
   const s = SIZES[size];
   const [own, setOwn] = useState(defaultValue);
@@ -80,8 +85,15 @@ export function Dropdown({
 
   // what's listed: everything, or — for a list that grows without end — the
   // newest few and a search for the rest (lib/pickList, tested there)
-  const { shown, matches, searching, older } = pickList(options, value, search, query, more);
+  const { shown, matches, searching, older } = pickList(
+    options,
+    value,
+    create ? { recent: 8, ...search, always: true } : search,
+    query,
+    more
+  );
   const q = query.trim();
+  const addable = create && q && !options.some((o) => o.label.toLowerCase() === q.toLowerCase());
   // roughly what the list will render at, for the flip-up check — capped by
   // max-h-80 below
   const listHeight = Math.min(320, (shown.length + (searching ? 2 : 0)) * (size === "sm" ? 28 : 36) + 8);
@@ -154,6 +166,7 @@ export function Dropdown({
                   if (e.key === "Enter") {
                     e.preventDefault();
                     if (matches[0]) pick(matches[0].value);
+                    else if (addable) pick(q);
                   } else if (e.key === "Escape") {
                     e.preventDefault();
                     setOpen(false);
@@ -174,7 +187,16 @@ export function Dropdown({
               {o.label}
             </button>
           ))}
-          {searching && q && matches.length === 0 && (
+          {addable && (
+            <button
+              type="button"
+              onClick={() => pick(q)}
+              className={`block w-full truncate text-left text-foreground hover:bg-hover ${s.option}`}
+            >
+              <span className="text-muted">＋ Add</span> “{q}”
+            </button>
+          )}
+          {searching && q && matches.length === 0 && !addable && (
             <p className={`text-muted ${s.option}`}>Nothing called that</p>
           )}
           {older > 0 && (

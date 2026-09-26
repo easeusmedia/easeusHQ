@@ -12,7 +12,9 @@ export type PickOption = { value: string; label: string; pinned?: boolean };
 export function pickList(
   options: PickOption[],
   value: string,
-  search: { recent: number } | undefined,
+  // always: the search box shows however short the list (a list you can
+  // also add to needs somewhere to type the new one)
+  search: { recent: number; always?: boolean } | undefined,
   query: string,
   more = 0
 ): { shown: PickOption[]; matches: PickOption[]; searching: boolean; older: number } {
@@ -20,7 +22,7 @@ export function pickList(
   const rest = options.filter((o) => !o.pinned);
   // a short list is just the list; the search only earns its place when
   // there's more than the recent few
-  const searching = !!search && rest.length > search.recent;
+  const searching = !!search && (!!search.always || rest.length > search.recent);
   if (!searching) return { shown: [...pinned, ...rest], matches: rest, searching, older: 0 };
 
   const q = query.trim().toLowerCase();

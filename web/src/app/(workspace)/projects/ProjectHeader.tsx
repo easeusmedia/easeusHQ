@@ -2,14 +2,16 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, ImagePlus, Pencil, Trash2 } from "lucide-react";
+import { CalendarCheck, CircleDot, FolderOpen, Hash, ImagePlus, Pencil, Trash2 } from "lucide-react";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { DatePicker } from "../DatePicker";
+import { Dropdown } from "../Dropdown";
+import { chip } from "../chip";
 import { updateProject, deleteProject } from "../clients/actions";
 import { CoverPicker } from "../clients/CoverPicker";
 
 // Cover left, the few facts that matter right. Editing swaps the right-hand
-// column in place rather than opening a dialog — it's three fields.
+// column in place rather than opening a dialog.
 export function ProjectHeader({
   projectId,
   clientId,
@@ -23,6 +25,8 @@ export function ProjectHeader({
   completedOn,
   canDelete,
   invoice,
+  types,
+  stats,
 }: {
   projectId: string;
   // whose covers the picker offers
@@ -40,6 +44,10 @@ export function ProjectHeader({
   canDelete: boolean;
   // the invoice picker, when this project is in one
   invoice?: React.ReactNode;
+  // every project type in use, most used first — the Type picker's list
+  types: string[];
+  // what's in it, for the three numbers under the facts
+  stats: { active: number; delivered: number; files: number };
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -104,11 +112,17 @@ export function ProjectHeader({
   }
 
   const done = status === "completed";
+  const typeOptions = [...new Set([form.type, ...types].filter(Boolean))].map((t) => ({ value: t, label: t }));
+  const fact = "flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-xs";
 
   return (
-    <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-      <div className="w-full shrink-0 sm:w-72">
-        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-surface-2">
+    // One card: the cover, then everything about the project beside it —
+    // name, its facts as chips, and what's in it — rather than a few loose
+    // lines floating next to a picture. Editing happens in the same place,
+    // the same shapes turned into controls.
+    <div className="card-surface flex flex-col gap-6 rounded-2xl p-5 shadow-sm sm:flex-row">
+      <div className="w-full shrink-0 sm:w-80">
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface-2">
           {shownCover ? (
             // eslint-disable-next-line @next/next/no-img-element -- a data: URI or a local file under public/, already downscaled
             <img src={shownCover} alt="" className="h-full w-full object-cover" />
@@ -127,7 +141,7 @@ export function ProjectHeader({
         </div>
         <input ref={fileRef} type="file" accept="image/*" onChange={onPickCover} className="hidden" />
         {editing && (
-          <div className="mt-2 flex flex-wrap items-center gap-1">
+          <div className="fade-in mt-2 flex flex-wrap items-center gap-1">
             {/* the same picture as another of this client's projects, rather
                 than tracking the file down again */}
             <CoverPicker clientId={clientId} onPick={setCover} />
@@ -140,55 +154,76 @@ export function ProjectHeader({
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <div className="flex min-w-0 flex-1 flex-col">
         {editing ? (
-          <>
+          <div className="fade-in flex flex-1 flex-col">
             <input
+              autoFocus
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
+              placeholder="Project name"
+              aria-label="Project name"
+              className="w-full bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none! placeholder:text-muted/60"
             />
-            <select
-              value={form.status}
-              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
-            >
-              <option value="in_progress">In progress</option>
-              <option value="completed">Completed</option>
-            </select>
-            <input
-              placeholder="Type (Podcast, Short-form…)"
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
-            />
-            <input
-              placeholder="Drive folder link"
-              value={form.driveLink}
-              onChange={(e) => setForm((f) => ({ ...f, driveLink: e.target.value }))}
-              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
-            />
-            {form.status === "completed" && (
-              <label className="flex flex-col gap-1.5 text-xs text-muted">
-                Delivered on
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <Dropdown
+                pill={{
+                  icon: (
+                    <CircleDot
+                      size={12}
+                      className={form.status === "completed" ? "text-green-400" : "text-blue-400"}
+                    />
+                  ),
+                }}
+                value={form.status}
+                options={[
+                  { value: "in_progress", label: "In progress" },
+                  { value: "completed", label: "Completed" },
+                ]}
+                onChange={(v) => setForm((f) => ({ ...f, status: v }))}
+              />
+              {/* the types already in use, or a new one typed in */}
+              <Dropdown
+                pill={{ icon: <Hash size={12} className="text-rose-400" /> }}
+                value={form.type}
+                placeholder="Type"
+                create
+                search={{ recent: 8, placeholder: "Find or add a type…" }}
+                options={typeOptions}
+                onChange={(v) => setForm((f) => ({ ...f, type: v }))}
+              />
+              {form.status === "completed" && (
                 <DatePicker
+                  pill={{ icon: <CalendarCheck size={12} className="text-amber-400" /> }}
                   value={form.completedAt}
                   onChange={(v) => setForm((f) => ({ ...f, completedAt: v }))}
-                  placeholder="No date set"
+                  placeholder="Delivered on"
+                />
+              )}
+              <label className={`${chip(!!form.driveLink)} min-w-0 cursor-text`}>
+                <FolderOpen size={12} className="shrink-0 text-blue-400" />
+                <input
+                  value={form.driveLink}
+                  onChange={(e) => setForm((f) => ({ ...f, driveLink: e.target.value }))}
+                  placeholder="Drive folder link"
+                  aria-label="Drive folder link"
+                  className="w-48 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
                 />
               </label>
-            )}
-            {error && <p className="text-xs text-red-300">{error}</p>}
-            <div className="flex items-center justify-between">
-              {canDelete && (
+            </div>
+            {error && <p className="mt-3 text-xs text-red-300">{error}</p>}
+            <div className="mt-auto flex items-center justify-between gap-2 pt-6">
+              {canDelete ? (
                 <button
                   onClick={() => deleteRef.current?.showModal()}
-                  className="btn btn-xs flex items-center gap-1 text-red-300 hover:bg-red-500/10"
+                  className="btn btn-sm btn-ghost flex items-center gap-1.5 text-red-300 hover:bg-red-500/10"
                 >
                   <Trash2 size={13} /> Delete
                 </button>
+              ) : (
+                <span />
               )}
-              <div className="ml-auto flex gap-2">
+              <div className="flex gap-2">
                 <button onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
                   Cancel
                 </button>
@@ -197,41 +232,64 @@ export function ProjectHeader({
                 </button>
               </div>
             </div>
-          </>
+          </div>
         ) : (
-          <>
+          <div className="fade-in flex flex-1 flex-col">
             <div className="flex items-start gap-3">
               <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">{name}</h1>
-              <button onClick={startEditing} className="btn btn-xs btn-ghost mt-1 flex items-center gap-1">
-                <Pencil size={12} /> Edit
-              </button>
+              <div className="flex shrink-0 gap-1.5">
+                {driveLink && (
+                  <a
+                    href={driveLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm btn-ghost flex items-center gap-1.5"
+                  >
+                    <FolderOpen size={14} /> Drive
+                  </a>
+                )}
+                <button onClick={startEditing} className="btn btn-sm btn-ghost flex items-center gap-1.5">
+                  <Pencil size={13} /> Edit
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span
-                className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                  done
-                    ? "border-green-400/30 bg-green-400/15 text-green-300"
-                    : "border-blue-400/30 bg-blue-400/15 text-blue-300"
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                  done ? "bg-green-400/15 text-green-300" : "bg-blue-400/15 text-blue-300"
                 }`}
               >
                 {done ? "Completed" : "In progress"}
               </span>
-              <span className="text-xs text-muted">{type}</span>
-              {completedAt && <span className="text-xs text-muted">· {completedAt}</span>}
+              {type && (
+                <span className={fact}>
+                  <Hash size={12} className="text-rose-400" /> {type}
+                </span>
+              )}
+              {completedAt && (
+                <span className={fact}>
+                  <CalendarCheck size={12} className="text-amber-400" /> {completedAt}
+                </span>
+              )}
               {invoice}
             </div>
-            {driveLink && (
-              <a
-                href={driveLink}
-                target="_blank"
-                rel="noreferrer"
-                className="flex w-fit items-center gap-1.5 text-sm text-muted hover:text-foreground"
-              >
-                Drive folder <ExternalLink size={13} />
-              </a>
-            )}
-            {error && <p className="text-xs text-red-300">{error}</p>}
-          </>
+            {/* what's in it, at a glance */}
+            <div className="mt-auto grid grid-cols-3 gap-2 pt-6">
+              {(
+                [
+                  ["In flight", stats.active],
+                  ["Delivered", stats.delivered],
+                  ["Files", stats.files],
+                ] as const
+              ).map(([label, n]) => (
+                <div key={label} className="rounded-xl bg-foreground/[0.03] px-4 py-3">
+                  <p className={`text-xl font-semibold tabular-nums ${n ? "text-foreground" : "text-muted"}`}>{n}</p>
+                  <p className="text-xs text-muted">{label}</p>
+                </div>
+              ))}
+            </div>
+            {error && <p className="mt-3 text-xs text-red-300">{error}</p>}
+          </div>
         )}
       </div>
 

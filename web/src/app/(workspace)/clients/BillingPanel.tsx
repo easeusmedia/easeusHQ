@@ -6,18 +6,21 @@ import { CalendarDays, Check, Layers, Minus, Plus, Receipt } from "lucide-react"
 import { setBillingRule, createInvoice, updateInvoiceStatus } from "./actions";
 import { DatePicker } from "../DatePicker";
 import { Reveal } from "../Reveal";
+import { Dropdown } from "../Dropdown";
 
 type BillingCadence = "monthly_date" | "milestone";
 type InvoiceStatus = "draft" | "ready" | "sent" | "paid" | "overdue";
 type Invoice = { id: string; amount: string; status: InvoiceStatus; dueDate: Date | null; createdAt: Date };
 
 const STATUS_OPTIONS: InvoiceStatus[] = ["draft", "ready", "sent", "paid", "overdue"];
-const STATUS_STYLE: Record<InvoiceStatus, string> = {
-  draft: "bg-surface text-muted border-border",
-  ready: "bg-blue-400/15 text-blue-300 border-blue-400/30",
-  sent: "bg-purple-400/15 text-purple-300 border-purple-400/30",
-  paid: "bg-green-400/15 text-green-300 border-green-400/30",
-  overdue: "bg-red-400/15 text-red-300 border-red-400/30",
+// a coloured dot on the status chip, rather than a native <select> — its
+// options are drawn by the OS, blue hover and all
+const STATUS_DOT: Record<InvoiceStatus, string> = {
+  draft: "bg-muted",
+  ready: "bg-blue-400",
+  sent: "bg-purple-400",
+  paid: "bg-green-400",
+  overdue: "bg-red-400",
 };
 
 const ROW = "grid grid-cols-[1fr_1fr_auto] items-center gap-4 px-5 sm:grid-cols-[1.2fr_1fr_1fr_auto]";
@@ -348,18 +351,14 @@ export function BillingPanel({
                   {inv.dueDate ? day(inv.dueDate) : "—"}
                 </span>
                 <span className="hidden text-muted sm:block">{day(inv.createdAt)}</span>
-                <select
-                  value={inv.status}
-                  onChange={(e) => pickStatus(inv.id, e.target.value as InvoiceStatus)}
-                  aria-label="Invoice status"
-                  className={`justify-self-end rounded-full border px-2.5 py-0.5 text-xs capitalize ${STATUS_STYLE[inv.status]}`}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s} className="bg-surface-2 text-foreground">
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                <span className="justify-self-end">
+                  <Dropdown
+                    value={inv.status}
+                    pill={{ icon: <span className={`size-2 rounded-full ${STATUS_DOT[inv.status]}`} /> }}
+                    options={STATUS_OPTIONS.map((st) => ({ value: st, label: st[0].toUpperCase() + st.slice(1) }))}
+                    onChange={(v) => pickStatus(inv.id, v as InvoiceStatus)}
+                  />
+                </span>
               </div>
             ))}
           </div>

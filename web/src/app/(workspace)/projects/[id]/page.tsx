@@ -69,6 +69,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     ...batches.map((b) => ({ value: b.key, label: b.label })),
   ];
 
+  // every type in use, most common first, for the header's Type picker
+  const types = (
+    await prisma.project.groupBy({ by: ["type"], _count: { type: true }, orderBy: { _count: { type: "desc" } } })
+  ).map((r) => r.type);
+
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
 
@@ -97,6 +102,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         }
         completedOn={project.completedAt ? project.completedAt.toISOString().slice(0, 10) : ""}
         canDelete={project.tasks.length === 0}
+        types={types}
+        stats={{
+          active: active.length,
+          delivered: done.filter((t) => t.status === "delivered_and_uploaded").length,
+          files: project.assets.length,
+        }}
         invoice={
           inBatch && me.role !== "employee" ? (
             <InvoicePicker key={inBatch.key} projectId={project.id} value={inBatch.key} options={invoiceOptions} />
