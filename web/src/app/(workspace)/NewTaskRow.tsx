@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Building2, CalendarClock, FolderOpen, Hash, Link2, MoreHorizontal, Plus, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Building2, CalendarClock, Check, FolderOpen, Hash, Link2, MoreHorizontal, Plus, User, X } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
+import { createProject } from "./clients/actions";
 import { Dropdown } from "./Dropdown";
 import { DatePicker } from "./DatePicker";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
@@ -14,6 +16,10 @@ type Project = { id: string; name: string; client: { id: string; name: string } 
 type Editor = { id: string; name: string };
 
 const initialState: TaskFormState = {};
+
+// the Project list's last entry, which opens the name field instead of
+// selecting anything
+const NEW_PROJECT = "__new_project__";
 
 // the chip every optional property is drawn as, set or not
 const pill = (set: boolean) =>
@@ -67,12 +73,37 @@ export function NewTaskRow({
   const set = (patch: Partial<ReturnType<typeof blank>>) => setF((cur) => ({ ...cur, ...patch }));
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState<"title" | "client" | null>(null);
+  const router = useRouter();
+  // a project made from here: plenty of tasks are the first task of a project
+  // that doesn't exist yet. null = not making one; a string = its name so far.
+  const [newProject, setNewProject] = useState<string | null>(null);
+  const [projectBusy, setProjectBusy] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  // held here until the page's own list catches up after the refresh
+  const [madeHere, setMadeHere] = useState<Project[]>([]);
 
   const clients = useMemo(() => {
     const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
     return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [projects]);
-  const clientProjects = projects.filter((p) => p.client.id === f.clientId);
+  const clientProjects = [...projects, ...madeHere.filter((m) => !projects.some((p) => p.id === m.id))].filter(
+    (p) => p.client.id === f.clientId
+  );
+
+  async function addProject() {
+    const name = newProject?.trim();
+    if (!name || !f.clientId || projectBusy) return;
+    setProjectBusy(true);
+    const res = await createProject(f.clientId, name);
+    setProjectBusy(false);
+    if (res.error || !res.id) return setProjectError(res.error ?? "Couldn't create that project.");
+    const id = res.id;
+    setMadeHere((m) => [...m, { id, name, client: { id: f.clientId, name: "" } }]);
+    set({ projectId: id });
+    setNewProject(null);
+    setProjectError(null);
+    router.refresh();
+  }
 
   // once it lands: close, and start the next one from nothing
   useEffect(() => {
@@ -80,6 +111,7 @@ export function NewTaskRow({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the composer is a reaction to the task landing, not a render loop
     setF(blank());
     setMore(false);
+    setNewProject(null);
     dialogRef.current?.close();
   }, [state.success, blank]);
 
@@ -110,7 +142,11 @@ export function NewTaskRow({
   }
 
   const error =
-    problem === "title" ? "Give it a title." : problem === "client" ? "Pick the client it's for." : state.error ?? null;
+    problem === "title"
+      ? "Give it a title."
+      : problem === "client"
+        ? "Pick the client it's for."
+        : projectError ?? state.error ?? null;
   const hidden = [f.rawLink, f.scheduledFor, f.internal].filter(Boolean).length;
 
   return (
@@ -183,21 +219,73 @@ export function NewTaskRow({
                 onChange={(id) => {
                   // the old project belonged to the old client
                   set({ clientId: id, projectId: "" });
+                  setNewProject(null);
+                  setProjectError(null);
                   if (problem === "client") setProblem(null);
                 }}
               />
             </span>
-            {/* only when there's a real choice to make — a client with one
-                project, or none, files it on its own */}
-            {clientProjects.length > 1 && (
-              <Dropdown
-                pill={{ icon: <FolderOpen size={12} /> }}
-                value={f.projectId}
-                placeholder="Project"
-                options={clientProjects.map((p) => ({ value: p.id, label: p.name }))}
-                onChange={(id) => set({ projectId: id })}
-              />
-            )}
+            {/* Once there's a client: pick one of theirs, or start a new one
+                right here. Left alone, the task files under the client's
+                catch-all project. */}
+            {f.clientId &&
+              (newProject === null ? (
+                <Dropdown
+                  pill={{ icon: <FolderOpen size={12} /> }}
+                  value={f.projectId}
+                  placeholder="Project"
+                  options={[
+                    ...clientProjects.map((p) => ({ value: p.id, label: p.name })),
+                    { value: NEW_PROJECT, label: "＋ New project" },
+                  ]}
+                  onChange={(id) => {
+                    if (id === NEW_PROJECT) {
+                      setNewProject("");
+                      setProjectError(null);
+                    } else set({ projectId: id });
+                  }}
+                />
+              ) : (
+                <span className={`${pill(true)} gap-1 py-0.5 pr-1`}>
+                  <FolderOpen size={12} className="shrink-0 opacity-70" />
+                  <input
+                    autoFocus
+                    value={newProject}
+                    onChange={(e) => setNewProject(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter makes the project, not the task; Escape backs
+                      // out of the name without closing the whole dialog
+                      if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
+                        e.preventDefault();
+                        addProject();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        setNewProject(null);
+                      }
+                    }}
+                    placeholder="New project name"
+                    aria-label="New project name"
+                    className="w-36 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
+                  />
+                  <button
+                    type="button"
+                    onClick={addProject}
+                    disabled={projectBusy || !newProject.trim()}
+                    aria-label="Create project"
+                    className="btn-ghost flex size-5 items-center justify-center rounded-full disabled:opacity-40"
+                  >
+                    <Check size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewProject(null)}
+                    aria-label="Cancel new project"
+                    className="btn-ghost flex size-5 items-center justify-center rounded-full"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
             {editors.length > 1 && (
               <Dropdown
                 pill={{ icon: <User size={12} /> }}
