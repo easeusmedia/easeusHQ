@@ -3,13 +3,15 @@
 // DatePicker's chip modes — it was three copies of a dashed outline, which
 // read as a wireframe rather than something finished.
 //
-// No border and no grey fill: a grey pill on a near-black page reads as
-// muddy. At rest a chip is just its icon — each property its own colour, so
-// the row can be read at a glance — and its word, muted until it holds a
-// value and then full white. A faint highlight comes up on hover only, to
-// say it can be clicked. Tinted from the text colour, so it holds in either
-// theme; the icon colours are set where each chip is made.
+// A hairline outline and the barest wash of fill, so each chip reads as a
+// button — rounded, clearly clickable — without the grey pill that looked
+// muddy on a near-black page. Each property's icon carries its own colour
+// (set where the chip is made); the word is muted until it holds a value,
+// then full white with a slightly firmer outline. Tinted from the text
+// colour, so it holds in either theme.
 export const chip = (set: boolean) =>
-  `flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors duration-150 hover:bg-foreground/[0.07] ${
-    set ? "text-foreground" : "text-muted hover:text-foreground"
+  `flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
+    set
+      ? "border-foreground/15 bg-foreground/[0.04] text-foreground hover:border-foreground/25"
+      : "border-foreground/10 bg-foreground/[0.02] text-muted hover:border-foreground/20 hover:bg-foreground/[0.05] hover:text-foreground"
   }`;
