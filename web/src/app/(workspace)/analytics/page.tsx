@@ -10,7 +10,7 @@ import { addressKey, collect, startSync, targets } from "@/lib/contentSync";
 import { counts } from "@/lib/ourWork";
 import { Avatar } from "../TaskCard";
 import { InstagramIcon, YoutubeIcon } from "../PlatformIcon";
-import { RangeControls, RefreshButton } from "./AnalyticsControls";
+import { RangeControls, RefreshButton, RemoveButton } from "./AnalyticsControls";
 
 export const dynamic = "force-dynamic";
 
@@ -68,16 +68,21 @@ function Top({ item, rank, tall, client }: { item: Item; rank: number; tall: boo
     </span>
   );
   return (
-    <a
-      href={item.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={item.title}
-      className={`card-surface card-interactive group flex gap-4 rounded-2xl p-3 shadow-sm ${tall ? "items-center" : "flex-col"}`}
-    >
-      {picture}
-      {facts}
-    </a>
+    <div className="group relative">
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={item.title}
+        className={`card-surface card-interactive flex h-full gap-4 rounded-2xl p-3 shadow-sm ${tall ? "items-center" : "flex-col"}`}
+      >
+        {picture}
+        {facts}
+      </a>
+      <span className="absolute top-4 right-4">
+        <RemoveButton clientId={item.clientId} platform={item.platform} id={item.externalId} />
+      </span>
+    </div>
   );
 }
 

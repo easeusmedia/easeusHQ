@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Pencil, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { ExternalLink, Pencil, RefreshCw, TrendingDown, TrendingUp, X } from "lucide-react";
 import type { ContentRow, Dashboard, Format, Metric, Platform } from "@/lib/analytics";
 import { shiftDay } from "@/lib/analytics";
 import { Dropdown } from "../Dropdown";
@@ -410,8 +410,13 @@ function Board({
                     note={work?.matched[r.id] ? `Matched to “${work.matched[r.id]}”` : undefined}
                     action={
                       canEdit ? (
-                        <button type="button" onClick={() => mark([r.id], false)} className="btn btn-xs btn-ghost">
-                          Not ours
+                        <button
+                          type="button"
+                          onClick={() => mark([r.id], false)}
+                          title="Remove — leave it out of the numbers (it moves to Not ours, where it can be put back)"
+                          className="btn btn-xs btn-ghost"
+                        >
+                          <X size={12} /> Remove
                         </button>
                       ) : undefined
                     }
@@ -446,7 +451,7 @@ function Board({
             hint={
               list === "review"
                 ? "Posted on their account, but not matched to any task of ours — say which ones we made, and only those count."
-                : "Left out of every number here."
+                : "Removed — left out of every number here. Put one back if it was ours after all."
             }
             actions={(item) =>
               canEdit ? (
@@ -461,7 +466,7 @@ function Board({
                   </>
                 ) : (
                   <button type="button" onClick={() => mark([item.id], true)} className="btn btn-xs btn-ghost">
-                    It&apos;s ours
+                    Put back
                   </button>
                 )
               ) : null

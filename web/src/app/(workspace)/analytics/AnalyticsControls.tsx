@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
 import { lastWeek, shiftDay } from "@/lib/analytics";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { refreshAnalytics } from "./actions";
+import { markOurWork } from "../clients/actions";
 
 const days = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
 
@@ -109,5 +110,29 @@ export function RefreshButton({ from, to, syncing, updated }: { from: string; to
         {syncing ? "Updating…" : updated ? `Updated ${updated}` : "Refresh"}
       </button>
     </span>
+  );
+}
+
+// Takes a video or post out of every number here — it wasn't ours, or it
+// shouldn't count. It can be put back from the client's Analytics tab, under
+// "Not ours".
+export function RemoveButton({ clientId, platform, id }: { clientId: string; platform: "youtube" | "instagram"; id: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        await markOurWork(clientId, platform, [id], false);
+        router.refresh();
+      }}
+      title="Remove — leave it out of the numbers (it can be put back from the client's Analytics tab)"
+      aria-label="Remove from analytics"
+      className="grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white/80 opacity-0 backdrop-blur transition-opacity duration-150 group-hover:opacity-100 hover:text-white focus-visible:opacity-100 disabled:opacity-60"
+    >
+      {busy ? <RefreshCw size={12} className="animate-spin" /> : <X size={14} />}
+    </button>
   );
 }
