@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { Avatar, DueDate, StageColumn, type TaskCardData } from "./TaskCard";
+import { AssigneeLabel, DueDate, StageColumn, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { Checkbox } from "./Checkbox";
 import { StatusSelect } from "./StatusSelect";
@@ -59,6 +59,22 @@ export function TaskRow({
           selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
         }`}
       >
+        {onSelect && (
+          // The slot is always here, holding its width — so a row doesn't
+          // shuffle sideways the moment the pointer touches it. Only the
+          // checkbox itself fades in, and pointer events follow the fade so
+          // an invisible one never swallows a click meant to open the task.
+          <span
+            onClick={(e) => e.stopPropagation()}
+            className={`flex shrink-0 items-center transition-opacity duration-150 ease-out ${
+              selected
+                ? "opacity-100"
+                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+            }`}
+          >
+            <Checkbox checked={!!selected} onChange={() => onSelect(task.id)} label={`Select ${task.title}`} />
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm">{task.title}</span>
           <span className="block truncate text-xs text-muted">{subtitle}</span>
@@ -89,47 +105,7 @@ export function TaskRow({
         <span className="flex w-16 shrink-0 justify-end">
           {task.dueDate && <DueDate date={task.dueDate} done={task.status === "delivered_and_uploaded"} />}
         </span>
-        {/* Who it's on — and, where selecting is allowed, the same square
-            becomes the checkbox as soon as the pointer is on the row. A
-            column of checkboxes down a list nobody is selecting in is just
-            clutter, and the face is the thing worth seeing until then. An
-            unassigned task still gets the slot, or it couldn't be picked. */}
-        {(task.assignedTo || onSelect) && (
-          <span className="flex shrink-0 items-center gap-2 text-xs sm:w-36" title={task.assignedTo?.name}>
-            <span className="relative flex size-[22px] shrink-0 items-center justify-center">
-              {task.assignedTo && (
-                <span
-                  className={`transition-opacity duration-150 ease-out ${
-                    onSelect ? (selected ? "opacity-0" : "group-hover:opacity-0 group-focus-within:opacity-0") : ""
-                  }`}
-                >
-                  <Avatar name={task.assignedTo.name} size={22} />
-                </span>
-              )}
-              {onSelect && (
-                // the row itself opens the task; ticking it must not.
-                // pointer-events follow the fade, so an invisible checkbox
-                // never swallows a click meant for the row.
-                <span
-                  onClick={(e) => e.stopPropagation()}
-                  className={`absolute inset-0 flex items-center justify-center transition-opacity duration-150 ease-out ${
-                    selected
-                      ? "opacity-100"
-                      : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-                  }`}
-                >
-                  <Checkbox
-                    checked={!!selected}
-                    onChange={() => onSelect(task.id)}
-                    label={`Select ${task.title}`}
-                    size={18}
-                  />
-                </span>
-              )}
-            </span>
-            <span className="hidden truncate text-foreground sm:inline">{task.assignedTo?.name ?? ""}</span>
-          </span>
-        )}
+        {task.assignedTo && <AssigneeLabel name={task.assignedTo.name} />}
         {/* the stage is changed here, in place — it used to be a static
             badge, so moving a task on from this list meant opening it or
             going to the board. Same moveTask() and the same permission
