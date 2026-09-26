@@ -19,7 +19,7 @@ import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
 import { ContentCalendar } from "../ContentCalendar";
 import { ClientAnalytics } from "../ClientAnalytics";
-import { apifyToken } from "@/lib/instagram";
+import { apifyTokens } from "@/lib/instagram";
 import { youtubeReady } from "@/lib/youtube";
 import { socialLink } from "@/lib/analytics";
 import { planFor } from "@/lib/contentPlan";
@@ -149,7 +149,7 @@ export default async function ClientDetailPage({
 
   // whether the team's own YouTube / Instagram lookups are set up
   // (Integrations) — the Analytics tab reads clients' public numbers through them
-  const [ytReady, apify] = await Promise.all([youtubeReady(), apifyToken()]);
+  const [ytReady, apify] = await Promise.all([youtubeReady(), apifyTokens()]);
   const canPlan = me.role !== "employee";
 
   const projectCards = client.projects.map((p) => ({
@@ -345,7 +345,7 @@ export default async function ClientDetailPage({
                   youtube: client.youtubeChannel ?? socialLink(client.socialLinks, "youtube.com"),
                   instagram: client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"),
                 }}
-                ready={{ youtube: ytReady, instagram: !!apify }}
+                ready={{ youtube: ytReady, instagram: apify.length > 0 }}
                 canEdit={me.role !== "employee"}
                 today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
               />

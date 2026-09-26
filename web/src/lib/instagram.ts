@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { prisma } from "./prisma.ts";
 import { daysBetween, previousRange, type ContentRow, type Dashboard } from "./analytics.ts";
 
@@ -5,7 +6,9 @@ import { daysBetween, previousRange, type ContentRow, type Dashboard } from "./a
 // and every post's views, likes and comments — scraped by Apify's Instagram
 // Scraper (apify/instagram-scraper). Nothing is connected, per client or
 // otherwise, and the client is never asked for anything; all it takes is
-// the team's Apify API token, entered once under Integrations.
+// the team's Apify API tokens, entered once under Integrations. There can be
+// several: each scrape goes to the first one with credit left, so when one
+// account's monthly credit runs out the next takes over.
 //
 // A scrape takes half a minute or more, longer than a page request should
 // wait, so it runs in the background: the first look starts it, the
@@ -16,7 +19,10 @@ import { daysBetween, previousRange, type ContentRow, type Dashboard } from "./a
 //
 // Cost: Apify charges per post scraped (about $0.0027 on the free tier).
 
-export const APIFY_SETTINGS = { token: "apify.token" } as const;
+export const APIFY_SETTINGS = {
+  tokens: "apify.tokens", // a JSON list, used in order
+  token: "apify.token", // the single token an earlier version kept
+} as const;
 const ACTOR = "apify~instagram-scraper";
 const API = "https://api.apify.com/v2";
 // a fresh scrape is kept this long before another is started
@@ -41,10 +47,29 @@ export type Profile = { username: string; fullName?: string; followersCount?: nu
 
 type Raw =
   | { since: string; fetchedAt: string; posts: Post[]; profile: Profile | null }
-  | { pending: { posts: string; details: string; since: string; startedAt: string } };
+  | { pending: { posts: string; details: string; since: string; startedAt: string; account: string } };
 
-export async function apifyToken(): Promise<string | null> {
-  return (await prisma.appSetting.findUnique({ where: { key: APIFY_SETTINGS.token } }))?.value ?? null;
+export async function apifyTokens(): Promise<string[]> {
+  const rows = await prisma.appSetting.findMany({ where: { key: { in: [APIFY_SETTINGS.tokens, APIFY_SETTINGS.token] } } });
+  const list = rows.find((r) => r.key === APIFY_SETTINGS.tokens)?.value;
+  const single = rows.find((r) => r.key === APIFY_SETTINGS.token)?.value;
+  return [...new Set([...(list ? (JSON.parse(list) as string[]) : []), ...(single ? [single] : [])])];
+}
+
+// which token a running scrape belongs to, without keeping the token itself
+// in the cache: runs can only be checked with the account that started them
+const tag = (token: string) => createHash("sha256").update(token).digest("hex").slice(0, 12);
+
+// An account's name and what's left of its monthly credit, in dollars
+export async function apifyAccount(token: string): Promise<{ username: string; left: number | null } | null> {
+  const [me, limits] = await Promise.all([
+    fetch(`${API}/users/me?token=${token}`).then((r) => (r.ok ? r.json() : null)),
+    fetch(`${API}/users/me/limits?token=${token}`).then((r) => (r.ok ? r.json() : null)),
+  ]);
+  if (!me) return null;
+  const used = limits?.data?.current?.monthlyUsageUsd;
+  const max = limits?.data?.limits?.maxMonthlyUsageUsd;
+  return { username: me.data.username, left: typeof used === "number" && typeof max === "number" ? max - used : null };
 }
 
 async function apify<T>(path: string, token: string, init?: RequestInit): Promise<T> {
@@ -81,8 +106,8 @@ export async function instagramData(
   since: string,
   refresh: boolean
 ): Promise<{ pending: true } | { posts: Post[]; profile: Profile | null; fetchedAt: string }> {
-  const token = await apifyToken();
-  if (!token) throw new Error("Instagram isn't set up yet — an admin adds the Apify token once under Integrations → Client analytics.");
+  const tokens = await apifyTokens();
+  if (!tokens.length) throw new Error("Instagram isn't set up yet — an admin adds an Apify token once under Integrations → Client analytics.");
   const key = `igraw:${username}`;
   const hit = await prisma.analyticsCache.findUnique({ where: { clientId_key: { clientId, key } } });
   const raw = hit?.data as Raw | undefined;
@@ -93,7 +118,9 @@ export async function instagramData(
       update: { data, fetchedAt: new Date() },
     });
 
-  if (raw && "pending" in raw && Date.now() - Date.parse(raw.pending.startedAt) < STALE_MS) {
+  const owner = raw && "pending" in raw ? tokens.find((t) => tag(t) === raw.pending.account) : undefined;
+  if (raw && "pending" in raw && owner && Date.now() - Date.parse(raw.pending.startedAt) < STALE_MS) {
+    const token = owner;
     const [p, d] = await Promise.all([run(token, raw.pending.posts), run(token, raw.pending.details)]);
     const failed = [p, d].find((r) => ["FAILED", "ABORTED", "TIMED-OUT"].includes(r.status));
     if (failed) {
@@ -111,12 +138,26 @@ export async function instagramData(
     return raw;
   }
 
-  const [posts, details] = await Promise.all([
-    start(token, username, { resultsType: "posts", resultsLimit: 300, onlyPostsNewerThan: since }),
-    start(token, username, { resultsType: "details", resultsLimit: 1 }),
-  ]);
-  await save({ pending: { posts, details, since, startedAt: new Date().toISOString() } });
-  return { pending: true };
+  // the first account with credit left; one that turns out to be spent
+  // when the run is asked for passes it on to the next
+  let lastError: Error | null = null;
+  for (const token of tokens) {
+    const account = await apifyAccount(token).catch(() => null);
+    if (account && account.left !== null && account.left < 0.25) continue;
+    try {
+      const posts = await start(token, username, { resultsType: "posts", resultsLimit: 300, onlyPostsNewerThan: since });
+      const details = await start(token, username, { resultsType: "details", resultsLimit: 1 });
+      await save({ pending: { posts, details, since, startedAt: new Date().toISOString(), account: tag(token) } });
+      return { pending: true };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw new Error(
+    lastError
+      ? `Apify wouldn't start the scrape: ${lastError.message}`
+      : "Every Apify account is out of credit for this month — add another token under Integrations, or wait for the monthly reset."
+  );
 }
 
 const kindOf = (p: Post) =>

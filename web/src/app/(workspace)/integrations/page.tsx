@@ -9,7 +9,7 @@ import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
-import { apifyToken } from "@/lib/instagram";
+import { apifyAccount, apifyTokens } from "@/lib/instagram";
 import { YOUTUBE_SETTINGS, youtubeSettings } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,9 @@ export default async function IntegrationsPage({
     taskDatabaseId(),
     clientDatabaseId(),
   ]);
-  const [apify, yt] = await Promise.all([apifyToken(), youtubeSettings()]);
+  const [tokens, yt] = await Promise.all([apifyTokens(), youtubeSettings()]);
+  // each Apify account's name and credit left — never the tokens themselves
+  const apify = await Promise.all(tokens.map((t) => apifyAccount(t).catch(() => null)));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -73,7 +75,7 @@ export default async function IntegrationsPage({
         googleReady={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}
         youtubeAccount={yt[YOUTUBE_SETTINGS.refreshToken] ? yt[YOUTUBE_SETTINGS.account] || "connected" : null}
         youtubeViaServiceAccount={!!process.env.GOOGLE_SERVICE_ACCOUNT_JSON}
-        apifyReady={!!apify}
+        apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })}
         justConnected={analytics ?? null}
         problem={analyticsError ?? null}
       />

@@ -29,25 +29,27 @@ export async function saveGoogleApp(clientId: string, clientSecret: string): Pro
   return {};
 }
 
-// The Apify API token clients' public Instagram numbers are scraped with
-// (Apify console → Settings → API & Integrations). Empty removes it.
-export async function saveApifyToken(token: string): Promise<{ error?: string }> {
+// The Apify API tokens clients' public Instagram numbers are scraped with
+// (Apify console → Settings → API & Integrations), pasted as a list and used
+// in that order — each scrape goes to the first with credit left. Each is
+// checked before it's kept; the list replaces the one before.
+export async function saveApifyTokens(text: string): Promise<{ error?: string; saved?: number; rejected?: number }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
-  const value = token.trim();
-  if (!value) {
-    await prisma.appSetting.deleteMany({ where: { key: APIFY_SETTINGS.token } });
-  } else {
-    // checked before it's kept: a bad paste never replaces a working token
-    const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`);
-    if (!res.ok) return { error: "Apify didn't accept that token." };
-    await prisma.appSetting.upsert({
-      where: { key: APIFY_SETTINGS.token },
-      create: { key: APIFY_SETTINGS.token, value },
-      update: { value },
-    });
-  }
+  const found = [...new Set(text.match(/apify_api_[A-Za-z0-9]+/g) ?? [])];
+  if (!found.length) return { error: "No Apify tokens in that — they start with apify_api_." };
+  const ok = await Promise.all(
+    found.map((t) => fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(t)}`).then((r) => r.ok, () => false))
+  );
+  const valid = found.filter((_, i) => ok[i]);
+  if (!valid.length) return { error: "Apify didn't accept any of those tokens." };
+  await prisma.appSetting.upsert({
+    where: { key: APIFY_SETTINGS.tokens },
+    create: { key: APIFY_SETTINGS.tokens, value: JSON.stringify(valid) },
+    update: { value: JSON.stringify(valid) },
+  });
+  await prisma.appSetting.deleteMany({ where: { key: APIFY_SETTINGS.token } });
   revalidatePath("/integrations");
-  return {};
+  return { saved: valid.length, rejected: found.length - valid.length };
 }
 
 // The folder client folders are created in — pasted as a Drive link, which
