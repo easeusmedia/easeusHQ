@@ -18,6 +18,7 @@ export function RangeControls({ from, to, today, platform }: { from: string; to:
   const week = lastWeek(today);
   const monday = shiftDay(week.to, 1);
   const presets: Record<string, { from: string; to: string }> = {
+    two: lastWeek(today, 2),
     last: week,
     this: { from: monday, to: today },
     four: { from: shiftDay(week.to, -27), to: week.to },
@@ -52,6 +53,7 @@ export function RangeControls({ from, to, today, platform }: { from: string; to:
         value={custom ? "custom" : current}
         pill={{ icon: <span className="size-1.5 rounded-full bg-sky-400" /> }}
         options={[
+          { value: "two", label: "Last 2 weeks" },
           { value: "last", label: "Last week" },
           { value: "this", label: "This week so far" },
           { value: "four", label: "Last 4 weeks" },

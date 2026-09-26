@@ -107,7 +107,7 @@ function TopRow({ title, items, tall, clientName }: { title: string; items: Item
 }
 
 // Every client's content at once, one platform at a time (YouTube or
-// Instagram) — by default last week, Monday to Sunday. Deliberately little:
+// Instagram) — by default the last two weeks, Monday to Sunday. Deliberately little:
 // how many views our work pulled and how that moved, the week's top four
 // (long-form and Shorts in rows of their own), and which clients it came
 // from. Only our work counts (lib/ourWork.ts). Straight from what's stored
@@ -125,7 +125,8 @@ export default async function AnalyticsPage({
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const q = await searchParams;
   const valid = q.from && q.to && DAY.test(q.from) && DAY.test(q.to) && q.from <= q.to;
-  const { from, to } = valid ? { from: q.from!, to: q.to! } : lastWeek(today);
+  // the last two whole weeks, Monday to Sunday, unless asked otherwise
+  const { from, to } = valid ? { from: q.from!, to: q.to! } : lastWeek(today, 2);
   const prev = previousRange(from, to);
   const platform: Platform = q.platform === "instagram" ? "instagram" : "youtube";
   const href = (p: Platform) => `/analytics?platform=${p}&from=${from}&to=${to}`;
@@ -159,6 +160,7 @@ export default async function AnalyticsPage({
 
   const lastRead = accounts.reduce<Date | null>((m, a) => (a.scrapedAt && (!m || a.scrapedAt > m) ? a.scrapedAt : m), null);
   const isLastWeek = from === lastWeek(today).from && to === lastWeek(today).to;
+  const isLastTwo = from === lastWeek(today, 2).from && to === lastWeek(today, 2).to;
   const clientName = (cid: string) => clients.find((c) => c.id === cid)?.name ?? "";
 
   // one platform: our work in the range and the period before, and what's
@@ -227,7 +229,7 @@ export default async function AnalyticsPage({
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Analytics</h1>
             <p className="mt-0.5 text-sm text-muted">
-              {isLastWeek ? "Last week" : "Showing"} · {short(from)} – {short(to)}
+              {isLastTwo ? "Last 2 weeks" : isLastWeek ? "Last week" : "Showing"} · {short(from)} – {short(to)}
             </p>
           </div>
           {/* one platform at a time */}
@@ -266,7 +268,7 @@ export default async function AnalyticsPage({
               <p className="text-xs text-muted">Views pulled</p>
               <p className="flex items-baseline gap-3">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums">{count(total)}</span>
-                <Change now={total} before={views(before)} label={isLastWeek ? "vs the week before" : "vs the period before"} />
+                <Change now={total} before={views(before)} label={isLastTwo ? "vs the 2 weeks before" : isLastWeek ? "vs the week before" : "vs the period before"} />
               </p>
             </div>
             {stats.map(([label, value]) => (

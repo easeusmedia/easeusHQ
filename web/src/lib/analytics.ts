@@ -121,11 +121,11 @@ export type Account = {
 // the day a moment falls on in India, where the team is
 export const istDay = (d: Date | string) => new Date(new Date(d).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
-// Last week, Monday to Sunday, from a day
-export function lastWeek(today: string): { from: string; to: string } {
+// The last `weeks` whole weeks, Monday to Sunday, before the one a day is in
+export function lastWeek(today: string, weeks = 1): { from: string; to: string } {
   const back = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; // days since Monday
   const monday = shiftDay(today, -back);
-  return { from: shiftDay(monday, -7), to: shiftDay(monday, -1) };
+  return { from: shiftDay(monday, -7 * weeks), to: shiftDay(monday, -1) };
 }
 
 const total = (list: Item[], k: "views" | "likes" | "comments") => list.reduce((n, i) => n + (i[k] ?? 0), 0);

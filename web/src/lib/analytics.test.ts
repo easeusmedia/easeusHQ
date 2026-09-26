@@ -28,6 +28,7 @@ test("last week is Monday to Sunday, whatever day it is now", () => {
   assert.deepEqual(lastWeek("2026-09-26"), { from: "2026-09-14", to: "2026-09-20" }); // a Saturday
   assert.deepEqual(lastWeek("2026-09-28"), { from: "2026-09-21", to: "2026-09-27" }); // a Monday
   assert.deepEqual(lastWeek("2026-09-27"), { from: "2026-09-14", to: "2026-09-20" }); // a Sunday
+  assert.deepEqual(lastWeek("2026-09-28", 2), { from: "2026-09-14", to: "2026-09-27" }); // two, from a Monday
 });
 
 const item = (o: Partial<Item>): Item => ({
