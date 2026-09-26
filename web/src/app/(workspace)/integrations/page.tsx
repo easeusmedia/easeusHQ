@@ -8,6 +8,8 @@ import { NotionIntegration } from "./NotionIntegration";
 import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
+import { AnalyticsIntegration } from "./AnalyticsIntegration";
+import { INSTAGRAM_SETTINGS, instagramSettings } from "@/lib/instagram";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,7 @@ export default async function IntegrationsPage({
     taskDatabaseId(),
     clientDatabaseId(),
   ]);
+  const insta = await instagramSettings();
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -63,6 +66,12 @@ export default async function IntegrationsPage({
         accountName={fio[FRAMEIO_SETTINGS.accountName] ?? null}
         clientId={fio[FRAMEIO_SETTINGS.clientId] ?? ""}
         justConnected={frameio === "1"}
+      />
+
+      <AnalyticsIntegration
+        googleReady={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}
+        instagramAppId={insta[INSTAGRAM_SETTINGS.appId] ?? ""}
+        instagramReady={!!insta[INSTAGRAM_SETTINGS.appId] && !!insta[INSTAGRAM_SETTINGS.appSecret]}
       />
 
       <NotionIntegration

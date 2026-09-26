@@ -959,3 +959,16 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
   revalidatePath("/history");
   return {};
 }
+
+// Unhooks a client's YouTube or Instagram from their Analytics tab. The
+// account itself is untouched; its numbers just stop being read here.
+export async function disconnectSocial(clientId: string, platform: "youtube" | "instagram"): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can change this." };
+  await prisma.$transaction([
+    prisma.socialConnection.deleteMany({ where: { clientId, platform } }),
+    prisma.analyticsCache.deleteMany({ where: { clientId, key: { startsWith: `${platform}:` } } }),
+    ...(platform === "youtube" ? [prisma.youtubeReach.deleteMany({ where: { clientId } })] : []),
+  ]);
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}

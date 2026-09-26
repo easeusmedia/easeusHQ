@@ -7,6 +7,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, driveSettings, folder, parentFolderId, saveDriveSettings } from "@/lib/drive";
 import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } from "@/lib/notion";
+import { INSTAGRAM_SETTINGS } from "@/lib/instagram";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -24,6 +25,21 @@ export async function saveGoogleApp(clientId: string, clientSecret: string): Pro
     [DRIVE_SETTINGS.clientId]: clientId.trim(),
     [DRIVE_SETTINGS.clientSecret]: clientSecret.trim(),
   });
+  revalidatePath("/integrations");
+  return {};
+}
+
+// The Meta app client Instagram accounts are connected through — its id and
+// secret, from the app's dashboard (Instagram → API setup with Instagram login).
+export async function saveInstagramApp(appId: string, appSecret: string): Promise<{ error?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  if (!appId.trim() || !appSecret.trim()) return { error: "Both the app ID and secret are needed." };
+  for (const [key, value] of [
+    [INSTAGRAM_SETTINGS.appId, appId.trim()],
+    [INSTAGRAM_SETTINGS.appSecret, appSecret.trim()],
+  ]) {
+    await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  }
   revalidatePath("/integrations");
   return {};
 }

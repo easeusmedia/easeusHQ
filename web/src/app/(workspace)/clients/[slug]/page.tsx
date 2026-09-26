@@ -18,6 +18,9 @@ import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
 import { ContentCalendar } from "../ContentCalendar";
+import { ClientAnalytics } from "../ClientAnalytics";
+import { DRIVE_SETTINGS, driveSettings } from "@/lib/drive";
+import { INSTAGRAM_SETTINGS, instagramSettings } from "@/lib/instagram";
 import { planFor } from "@/lib/contentPlan";
 import { dueState, indiaDay } from "@/lib/due";
 
@@ -42,10 +45,10 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; show?: string; layout?: string }>;
+  searchParams: Promise<{ tab?: string; show?: string; layout?: string; platform?: string; analyticsError?: string }>;
 }) {
   const { slug } = await params;
-  const { tab, show, layout } = await searchParams;
+  const { tab, show, layout, platform, analyticsError } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -142,6 +145,17 @@ export default async function ClientDetailPage({
     overdue: dueState(t.dueDate, t.handedOffAt) === "overdue",
   }));
   const plan = planFor(client.contentPlan);
+
+  // which of their accounts are connected for the Analytics tab (never the
+  // tokens), and whether the apps they connect through are set up at all
+  const [connections, google, insta] = await Promise.all([
+    prisma.socialConnection.findMany({
+      where: { clientId: client.id },
+      select: { platform: true, accountName: true, accountImage: true },
+    }),
+    driveSettings(),
+    instagramSettings(),
+  ]);
   const canPlan = me.role !== "employee";
 
   const projectCards = client.projects.map((p) => ({
@@ -326,6 +340,24 @@ export default async function ClientDetailPage({
             key: "deliverables",
             label: "Deliverables",
             content: <ClientDeliverables clientId={client.id} deliverables={client.deliverables} />,
+          },
+          {
+            key: "analytics",
+            label: "Analytics",
+            content: (
+              <ClientAnalytics
+                clientId={client.id}
+                connections={connections.map((c) => ({ ...c, platform: c.platform as "youtube" | "instagram" }))}
+                ready={{
+                  youtube: !!google[DRIVE_SETTINGS.clientId] && !!google[DRIVE_SETTINGS.clientSecret],
+                  instagram: !!insta[INSTAGRAM_SETTINGS.appId] && !!insta[INSTAGRAM_SETTINGS.appSecret],
+                }}
+                canConnect={me.role !== "employee"}
+                today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
+                initialPlatform={platform}
+                initialError={analyticsError}
+              />
+            ),
           },
           // Billing is money: invoice amounts, the billing rule, what's owed.
           // Every core member could open it; it's admin + Abhishek (dev)
