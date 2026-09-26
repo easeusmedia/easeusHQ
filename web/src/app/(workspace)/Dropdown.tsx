@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { topLayer, usePopover, useCloseOnScroll } from "./popover";
 import { ChevronDown } from "lucide-react";
 import { pickList, type PickOption } from "@/lib/pickList";
+import { chip } from "./chip";
 
 // Native <select> option lists are OS-rendered and can't be restyled (that
 // blue hover highlight is Chrome/macOS, not us) — this is a plain button +
@@ -110,11 +111,7 @@ export function Dropdown({
           ref={triggerRef}
           type="button"
           onClick={() => (open ? setOpen(false) : openList())}
-          className={`flex max-w-56 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
-            current
-              ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
-              : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
-          }`}
+          className={`max-w-56 ${chip(!!current)}`}
         >
           <span className="flex shrink-0 opacity-70">{pill.icon}</span>
           <span className="min-w-0 truncate">{current?.label ?? placeholder}</span>

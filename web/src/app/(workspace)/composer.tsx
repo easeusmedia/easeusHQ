@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, FolderOpen, Hash, X } from "lucide-react";
 import { Dropdown } from "./Dropdown";
+import { chip } from "./chip";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
 import { topLayer, useCloseOnScroll, usePopover } from "./popover";
 import { NEW_PROJECT, NEW_PROJECT_OPTION, type useNewProject } from "./useNewProject";
@@ -12,14 +13,9 @@ import { NEW_PROJECT, NEW_PROJECT_OPTION, type useNewProject } from "./useNewPro
 // one thing: a title, a notes line, and a row of chips you touch only if
 // they apply.
 
-// the chip every optional property is drawn as: dashed while unset (so it
-// reads as "you can set this"), solid once it holds a value
-export const pill = (set: boolean) =>
-  `flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
-    set
-      ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
-      : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
-  }`;
+// the chip every optional property is drawn as (chip.ts, shared with
+// Dropdown and DatePicker so all of them look the same)
+export const pill = chip;
 
 // The Project chip: the client's newest few and a search for the rest, with
 // "＋ New project" pinned first; picking that turns the chip into a name

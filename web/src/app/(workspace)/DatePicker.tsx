@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { topLayer, useCloseOnScroll, usePopover } from "./popover";
+import { chip } from "./chip";
 
 const MONTHS = [
   "January",
@@ -189,11 +190,7 @@ export function DatePicker({
           ref={triggerRef}
           type="button"
           onClick={() => (open ? setOpen(false) : openPanel())}
-          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
-            selected
-              ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
-              : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
-          }`}
+          className={`${chip(!!selected)}`}
         >
           <span className="flex shrink-0 opacity-70">{pill.icon ?? <CalendarDays size={12} />}</span>
           <span className="whitespace-nowrap">{selected ? shortLabel(selected) : placeholder}</span>
