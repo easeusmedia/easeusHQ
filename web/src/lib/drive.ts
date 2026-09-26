@@ -34,7 +34,13 @@ export const DRIVE_SETTINGS = {
   // where finished work goes, as opposed to what clients send in
   exportsFolderId: "google.exportsFolderId",
   exportsFolderName: "google.exportsFolderName",
+  // the folder inside each client's own that their onboarding uploads go in
+  brandAssetsName: "google.brandAssetsName",
 } as const;
+
+export async function brandAssetsName(): Promise<string> {
+  return (await driveSettings())[DRIVE_SETTINGS.brandAssetsName] || "Brand assets";
+}
 
 export async function driveSettings(): Promise<Record<string, string>> {
   const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: "google." } } });

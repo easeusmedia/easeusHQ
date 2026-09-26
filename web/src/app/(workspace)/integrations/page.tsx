@@ -2,15 +2,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { DRIVE_SETTINGS, driveSettings } from "@/lib/drive";
+import { DRIVE_SETTINGS, brandAssetsName, driveSettings } from "@/lib/drive";
+import { NOTION_SETTINGS, clientDatabaseId, notionSettings, taskDatabaseId } from "@/lib/notion";
+import { NotionIntegration } from "./NotionIntegration";
 import { DriveIntegration } from "./DriveIntegration";
 import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 
 export const dynamic = "force-dynamic";
 
-// Where the app is joined up to everything outside it. Google Drive is the
-// first: onboarding uploads go straight into the team's own Drive.
+// Where the app is joined up to everything outside it, and every value that
+// connection depends on — folders, databases, the Frame.io account — so any
+// of them can be pointed somewhere new from here rather than in code.
 export default async function IntegrationsPage({
   searchParams,
 }: {
@@ -22,7 +25,14 @@ export default async function IntegrationsPage({
   const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
   if (!user || !isAbhishekOrAdmin(user)) redirect("/board");
 
-  const [settings, fio] = await Promise.all([driveSettings(), frameioSettings()]);
+  const [settings, fio, notion, brandAssets, taskDb, clientDb] = await Promise.all([
+    driveSettings(),
+    frameioSettings(),
+    notionSettings(),
+    brandAssetsName(),
+    taskDatabaseId(),
+    clientDatabaseId(),
+  ]);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -37,6 +47,9 @@ export default async function IntegrationsPage({
         connected={!!settings[DRIVE_SETTINGS.refreshToken]}
         folderName={settings[DRIVE_SETTINGS.folderName] ?? null}
         folderId={settings[DRIVE_SETTINGS.folderId] ?? null}
+        exportsName={settings[DRIVE_SETTINGS.exportsFolderName] ?? null}
+        exportsId={settings[DRIVE_SETTINGS.exportsFolderId] ?? null}
+        brandAssets={brandAssets}
         clientId={settings[DRIVE_SETTINGS.clientId] ?? ""}
         justConnected={connected === "1"}
         problem={error ?? null}
@@ -47,9 +60,14 @@ export default async function IntegrationsPage({
         connected={!!fio[FRAMEIO_SETTINGS.refreshToken]}
         account={fio[FRAMEIO_SETTINGS.account] ?? null}
         accountId={fio[FRAMEIO_SETTINGS.accountId] ?? null}
-        accountName={null}
+        accountName={fio[FRAMEIO_SETTINGS.accountName] ?? null}
         clientId={fio[FRAMEIO_SETTINGS.clientId] ?? ""}
         justConnected={frameio === "1"}
+      />
+
+      <NotionIntegration
+        tasks={{ id: taskDb, name: notion[NOTION_SETTINGS.taskDatabaseName] ?? null }}
+        clients={{ id: clientDb, name: notion[NOTION_SETTINGS.clientDatabaseName] ?? null }}
       />
     </div>
   );

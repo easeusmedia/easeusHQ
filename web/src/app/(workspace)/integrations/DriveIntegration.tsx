@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, ExternalLink, FolderOpen, Link2, Unplug } from "lucide-react";
+import { Check, Link2, Unplug } from "lucide-react";
 import { consentUrl, redirectUri } from "@/lib/driveClient";
-import { disconnectGoogle, saveDriveFolder, saveGoogleApp, testDrive } from "./actions";
+import { disconnectGoogle, saveBrandAssetsName, saveDriveFolder, saveGoogleApp, testDrive } from "./actions";
+import { SettingRow } from "./SettingRow";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 
@@ -18,6 +19,9 @@ export function DriveIntegration({
   account,
   folderName,
   folderId,
+  exportsName,
+  exportsId,
+  brandAssets,
   clientId,
   justConnected,
   problem,
@@ -27,13 +31,15 @@ export function DriveIntegration({
   account: string | null;
   folderName: string | null;
   folderId: string | null;
+  exportsName: string | null;
+  exportsId: string | null;
+  brandAssets: string;
   clientId: string;
   justConnected: boolean;
   problem: string | null;
 }) {
   const router = useRouter();
   const [app, setApp] = useState({ id: clientId, secret: "" });
-  const [folder, setFolder] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(problem);
   const [ok, setOk] = useState<string | null>(justConnected ? "Connected." : null);
@@ -51,17 +57,6 @@ export function DriveIntegration({
   function connect() {
     // straight to Google's own consent screen; it comes back to the callback
     window.location.href = consentUrl(app.id || clientId, window.location.origin, "drive");
-  }
-
-  async function saveFolder() {
-    setBusy("folder");
-    setError(null);
-    const res = await saveDriveFolder(folder);
-    setBusy(null);
-    if (res.error) return setError(res.error);
-    setOk(`Client folders will be made in ${res.name}.`);
-    setFolder("");
-    router.refresh();
   }
 
   async function test() {
@@ -138,38 +133,35 @@ export function DriveIntegration({
         </ol>
       )}
 
-      <div className="flex flex-col gap-2 border-t border-border pt-4">
-        <p className="text-sm font-medium">Where client folders go</p>
-        {folderId && (
-          <a
-            href={`https://drive.google.com/drive/folders/${folderId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex w-fit items-center gap-1.5 text-xs text-blue-400 hover:underline"
-          >
-            <FolderOpen size={13} /> {folderName ?? "Chosen folder"} <ExternalLink size={11} />
-          </a>
-        )}
-        <p className="text-xs text-muted">
-          Each client gets their own folder here, with a Brand assets folder inside it — so a client&apos;s uploads land
-          at {folderName ?? "that folder"} / Client name / Brand assets.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-            placeholder="Paste the folder's link — e.g. your Raw Files folder"
-            className={`${field} min-w-0 flex-1`}
+      {/* Everything the app files into, each changeable in place. A new
+          folder is checked before it replaces the old one. */}
+      {connected && (
+        <div className="flex flex-col divide-y divide-border/60 border-t border-border pt-4">
+          <SettingRow
+            label="Raw Files"
+            hint="Where each new client's folder is made when they onboard."
+            value={folderName ?? (folderId ? "Chosen folder" : null)}
+            href={folderId ? `https://drive.google.com/drive/folders/${folderId}` : null}
+            placeholder="Paste the folder's Drive link"
+            onSave={(link) => saveDriveFolder("raw", link)}
           />
-          <button
-            onClick={saveFolder}
-            disabled={busy === "folder" || !folder.trim()}
-            className="btn btn-glow shrink-0 disabled:opacity-60"
-          >
-            {busy === "folder" ? "Checking…" : "Use this folder"}
-          </button>
+          <SettingRow
+            label="Brand assets folder name"
+            hint={`Inside each client's folder — their uploads land at ${folderName ?? "Raw Files"} / Client / ${brandAssets}.`}
+            value={brandAssets}
+            placeholder="e.g. Brand assets"
+            onSave={saveBrandAssetsName}
+          />
+          <SettingRow
+            label="Creative Exports"
+            hint="Where a delivered file is copied from Frame.io — into Client / Project inside it."
+            value={exportsName ?? (exportsId ? "Chosen folder" : null)}
+            href={exportsId ? `https://drive.google.com/drive/folders/${exportsId}` : null}
+            placeholder="Paste the folder's Drive link"
+            onSave={(link) => saveDriveFolder("exports", link)}
+          />
         </div>
-      </div>
+      )}
 
       {(ok || error) && (
         <p className={`fade-in text-xs ${error ? "text-red-300" : "text-emerald-300"}`}>{error ?? ok}</p>

@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { notionGet, notionPatch, notionPost, TASK_DATABASE_ID } from "./notion";
+import { notionGet, notionPatch, notionPost, taskDatabaseId } from "./notion";
 import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, exportedLinkFor } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
@@ -56,7 +56,7 @@ export async function createInNotion(taskId: string): Promise<{ pageId?: string;
 
   try {
     const page = await notionPost("/pages", {
-      parent: { database_id: TASK_DATABASE_ID },
+      parent: { database_id: await taskDatabaseId() },
       properties: propertiesFor(task),
     });
     await prisma.task.update({
@@ -168,7 +168,7 @@ export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?
     const properties = workbook
       ? await workbookProperties(workbook, t)
       : editingQueueProperties(t);
-    const databaseId = workbook ?? TASK_DATABASE_ID;
+    const databaseId = workbook ?? (await taskDatabaseId());
 
     if (t.notionPageId) {
       await notionPatch(`/pages/${t.notionPageId}`, { properties });

@@ -120,3 +120,17 @@ export function exportedLinkFor(task: {
   // at. Falls back to whatever exists if only one of them is set.
   return task.frameioLink ?? task.driveLink;
 }
+
+// A database's id from however it was pasted: a notion.so link (the id is the
+// 32 hex characters at the end of its path) or the id itself, dashed or not.
+//
+// Anchored to the end of the path, not the first 32 hex characters found: a
+// title's own letters can be hex ("Editing-Queue-c8fe…" — the "e" of Queue),
+// and reading from there shifts the whole id by one.
+export function databaseIdFrom(input: string): string | null {
+  const dashed = input.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
+  const hex = dashed ? dashed.replace(/-/g, "") : input.trim().split(/[?#]/)[0].match(/([0-9a-f]{32})\/?$/i)?.[1];
+  if (!hex) return null;
+  const h = hex.toLowerCase();
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}

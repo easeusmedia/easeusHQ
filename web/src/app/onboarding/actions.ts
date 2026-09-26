@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { firstFree, slugify } from "@/lib/slug";
 import { isStorablePicture } from "@/lib/photos";
 import { normalizeUrl } from "@/lib/links";
-import { clientFolder, driveConfigured, resumableUploadUrl } from "@/lib/drive";
+import { brandAssetsName, clientFolder, driveConfigured, resumableUploadUrl } from "@/lib/drive";
 
 // Onboarding a new client: ops makes a link, the client fills it in, and
 // their record here is created from what they wrote. No account for them, no
@@ -116,7 +116,7 @@ export async function submitOnboarding(input: OnboardingInput): Promise<Onboardi
       warning = "We've saved your details. Our team will be in touch about the files.";
     } else {
       try {
-        const { client: folder, target } = await clientFolder(name, "Brand assets");
+        const { client: folder, target } = await clientFolder(name, await brandAssetsName());
         uploads = await Promise.all(
           files.map(async (f) => ({ name: f.name, url: await resumableUploadUrl(f, target.id) }))
         );

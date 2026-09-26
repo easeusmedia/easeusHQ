@@ -1,3 +1,6 @@
+import { prisma } from "./prisma";
+export { databaseIdFrom } from "./notionMapping";
+
 // Two things live in this file:
 //  1. Task sync — temporary, for testing only, while the team is still
 //     creating tasks in Notion during the transition. Delete this half,
@@ -22,7 +25,44 @@ const NOTION_VERSION = "2022-06-28";
 // pages. This is that duplicate's ID. If the team starts a truly new
 // database later, update this one ID and the mapping below still applies
 // as long as the property names match.
-export const TASK_DATABASE_ID = "c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b";
+// The default; Integrations can point it at another database (see below).
+const DEFAULT_TASK_DATABASE_ID = "c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b";
+
+// Which Notion databases the app reads and writes — settable from the
+// Integrations page, so a new Editing Queue or Clients Dashboard is a paste
+// rather than a code change. Unset, they fall back to the ones the team has
+// always used.
+export const NOTION_SETTINGS = {
+  taskDatabaseId: "notion.taskDatabaseId",
+  taskDatabaseName: "notion.taskDatabaseName",
+  clientDatabaseId: "notion.clientDatabaseId",
+  clientDatabaseName: "notion.clientDatabaseName",
+} as const;
+
+export async function notionSettings(): Promise<Record<string, string>> {
+  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: "notion." } } });
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+export async function saveNotionSettings(values: Record<string, string>) {
+  for (const [key, value] of Object.entries(values)) {
+    await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  }
+}
+
+export async function taskDatabaseId(): Promise<string> {
+  return (await notionSettings())[NOTION_SETTINGS.taskDatabaseId] ?? DEFAULT_TASK_DATABASE_ID;
+}
+
+export async function clientDatabaseId(): Promise<string> {
+  return (await notionSettings())[NOTION_SETTINGS.clientDatabaseId] ?? DEFAULT_CLIENT_DATABASE_ID;
+}
+
+// What a database is called — the check that a pasted link is one we can read.
+export async function databaseTitle(id: string): Promise<string> {
+  const db = await notionFetch(`/databases/${id}`);
+  return ((db?.title ?? []) as { plain_text: string }[]).map((t) => t.plain_text).join("") || "Untitled database";
+}
 
 function token(): string {
   const t = process.env.NOTION_TOKEN;
@@ -84,8 +124,9 @@ export async function fetchTaskRows(): Promise<NotionRow[]> {
   const rows: NotionRow[] = [];
   let cursor: string | undefined;
   const filter = { property: "Editor Queu Date", date: { on_or_before: todayInIST() } };
+  const databaseId = await taskDatabaseId();
   do {
-    const body = await notionFetch(`/databases/${TASK_DATABASE_ID}/query`, {
+    const body = await notionFetch(`/databases/${databaseId}/query`, {
       method: "POST",
       body: JSON.stringify({ filter, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
     });
@@ -144,13 +185,14 @@ export function getSelectName(properties: Record<string, NotionProp>, name: stri
 // (title, the client's name), "Status" (select: Current | On Hold |
 // Previous), "Type" (select: Subscription | Project). No contact info, no
 // billing — that's all managed natively once a client is pulled in here.
-const CLIENT_DATABASE_ID = "8f704748-5866-4f64-882a-bbf01c7a846c";
+const DEFAULT_CLIENT_DATABASE_ID = "8f704748-5866-4f64-882a-bbf01c7a846c";
 
 export async function fetchClientRows(): Promise<NotionRow[]> {
   const rows: NotionRow[] = [];
+  const databaseId = await clientDatabaseId();
   let cursor: string | undefined;
   do {
-    const body = await notionFetch(`/databases/${CLIENT_DATABASE_ID}/query`, {
+    const body = await notionFetch(`/databases/${databaseId}/query`, {
       method: "POST",
       body: JSON.stringify({ page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
     });

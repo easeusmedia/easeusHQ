@@ -19,6 +19,7 @@ export const FRAMEIO_SETTINGS = {
   refreshToken: "frameio.refreshToken",
   account: "frameio.account", // who consented, for the Integrations page
   accountId: "frameio.accountId", // the Frame.io account the shares live in
+  accountName: "frameio.accountName", // its name, for the Integrations page
 } as const;
 
 const IMS = "https://ims-na1.adobelogin.com/ims";

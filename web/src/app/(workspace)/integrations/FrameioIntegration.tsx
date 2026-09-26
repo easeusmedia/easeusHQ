@@ -102,17 +102,31 @@ export function FrameioIntegration({
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
             Connected as <span className="text-foreground">{account || "—"}</span>
-            {accountId && (
-              <>
-                {" · "}account <span className="text-foreground">{accountName ?? accountId}</span>
-              </>
-            )}
           </p>
 
-          {!accountId && (
+          {/* Which account review links are looked up in first — changeable
+              any time, not only the once. Every other account this login can
+              reach is still tried after it, so this is a speed choice more
+              than a correctness one. */}
+          {accountId && options === null && (
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm">Account</p>
+                <p className="text-xs text-muted">Where review links are looked up first; the others are tried after it.</p>
+                <p className="mt-1.5 text-xs text-foreground">{accountName ?? accountId}</p>
+              </div>
+              <button type="button" onClick={loadAccounts} disabled={busy === "accounts"} className="btn btn-xs btn-ghost shrink-0">
+                {busy === "accounts" ? "Looking…" : "Change"}
+              </button>
+            </div>
+          )}
+
+          {(!accountId || options !== null) && (
             <div className="flex flex-col gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3">
               <p className="text-xs text-amber-200">
-                This login has more than one Frame.io account. Pick the one the editors&apos; review links belong to.
+                {accountId
+                  ? "Pick the account the editors' review links belong to."
+                  : "This login has more than one Frame.io account. Pick the one the editors' review links belong to."}
               </p>
               {options === null ? (
                 <button type="button" onClick={loadAccounts} disabled={busy === "accounts"} className="btn btn-sm btn-ghost w-fit">
