@@ -95,7 +95,10 @@ export function ProjectsSection({
   const [optimistic, setOptimistic] = useState<{ base: ProjectCardData[]; pins: Record<string, string> } | null>(null);
   const pins = optimistic?.base === projects ? optimistic.pins : {};
   const batches = invoiceBatches(
-    projects.filter((p) => p.completedAt).map((p) => ({ id: p.id, date: p.date, pin: pins[p.id] ?? p.invoiceBatch })),
+    // finished work, and anything already put in an invoice by hand
+    projects
+      .filter((p) => p.completedAt || pins[p.id] || p.invoiceBatch)
+      .map((p) => ({ id: p.id, date: p.date, pin: pins[p.id] ?? p.invoiceBatch, open: !p.completedAt })),
     billing,
     today
   );
@@ -142,7 +145,7 @@ export function ProjectsSection({
   // everything, so the filters step aside while it's on
   const grouped = preset === "invoice" && batches.length > 0;
   // what isn't finished yet belongs to no invoice, so it leads, on its own
-  const unfinished = projects.filter((p) => !p.completedAt);
+  const unfinished = projects.filter((p) => !p.completedAt && !batches.some((b) => b.ids.includes(p.id)));
   const groups = grouped
     ? [
         ...(unfinished.length

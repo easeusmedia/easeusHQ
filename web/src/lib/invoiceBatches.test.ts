@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove } from "./invoiceBatches.ts";
+import { batchPayment, clientBatches, invoiceBatches, newBatchKey, pinsAfterMove } from "./invoiceBatches.ts";
 
 const p = (id: string, date: string) => ({ id, date });
 
@@ -85,4 +85,29 @@ test("a monthly pin moves only that project, and keys must fit the rule", () => 
   assert.deepEqual(after.map((b) => [b.key, b.ids.join()]), [["2026-09", "a,b"]]);
   assert.equal(newBatchKey(after, rule), "2026-10");
   assert.deepEqual(pinsAfterMove(after, rule, "a", "batch-2"), {});
+});
+
+test("with no billing rule, the invoices are the numbers given by hand", () => {
+  const rule = { cadence: null, dayOfMonth: null, every: null };
+  const items = [p("a", "2026-09-01"), { ...p("b", "2026-09-05"), pin: "batch-3" }, { ...p("c", "2026-09-10"), pin: "batch-3" }, { ...p("d", "2026-09-12"), pin: "batch-4" }];
+  const b = invoiceBatches(items, rule, "2026-09-17");
+  assert.deepEqual(b.map((x) => [x.label, x.ids.join()]), [["Invoice 4", "d"], ["Invoice 3", "b,c"]]);
+  assert.equal(newBatchKey(b, rule), "batch-5");
+  assert.equal(newBatchKey([], rule), "batch-1");
+  assert.deepEqual(pinsAfterMove(b, rule, "a", "batch-7"), { a: "batch-7" });
+});
+
+test("a project given an invoice number is in it before it's finished", () => {
+  const rule = { cadence: "milestone" as const, dayOfMonth: null, every: 4 };
+  const at = (d: string) => new Date(`${d}T00:00:00Z`);
+  const b = clientBatches(
+    [
+      { id: "done", completedAt: at("2026-09-01"), createdAt: at("2026-08-20"), invoiceBatch: null },
+      { id: "pip", completedAt: null, createdAt: at("2026-09-18"), invoiceBatch: "batch-2" },
+      { id: "later", completedAt: null, createdAt: at("2026-09-19"), invoiceBatch: null },
+    ],
+    rule,
+    "2026-09-20"
+  );
+  assert.deepEqual(b.map((x) => [x.key, x.ids.join()]), [["batch-2", "pip"], ["batch-1", "done"]]);
 });

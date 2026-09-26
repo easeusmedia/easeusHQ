@@ -38,6 +38,8 @@ export function AddProjectCard({
   // when the whole project is due — the blueprint's week is fitted to it
   const [deadline, setDeadline] = useState(() => addDays(today(), PLAN_DAYS));
   const [planOn, setPlanOn] = useState(true);
+  // optional: the invoice it's billed in, if that's already known
+  const [invoice, setInvoice] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +50,7 @@ export function AddProjectCard({
     setStart(today());
     setDeadline(addDays(today(), PLAN_DAYS));
     setPlanOn(true);
+    setInvoice("");
     setError(null);
     dialogRef.current?.showModal();
   }
@@ -71,7 +74,15 @@ export function AddProjectCard({
     if (!name.trim()) return;
     setSaving(true);
     setError(null);
-    const res = await createProject(clientId, name, cover, types, planOn ? start : null, planOn ? deadline : null);
+    const res = await createProject(
+      clientId,
+      name,
+      cover,
+      types,
+      planOn ? start : null,
+      planOn ? deadline : null,
+      Number(invoice) > 0 ? Math.floor(Number(invoice)) : null
+    );
     setSaving(false);
     if (res.error) return setError(res.error);
     dialogRef.current?.close();
@@ -135,6 +146,21 @@ export function AddProjectCard({
               onKeyDown={(e) => e.key === "Enter" && save()}
               placeholder="Episode or project name"
               className={field}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-xs text-muted">
+            <span>
+              Invoice number <span className="text-muted/70">(optional)</span>
+            </span>
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={invoice}
+              onChange={(e) => setInvoice(e.target.value)}
+              placeholder="e.g. 7"
+              className={`${field} w-32 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
             />
           </label>
 

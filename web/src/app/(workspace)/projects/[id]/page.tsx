@@ -50,8 +50,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     client: { id: project.client.id, name: project.client.name },
   }));
 
-  // which invoice it's billed in (finished work, on a client with a rule),
-  // and the others it could move to — ops only, like the rule itself
+  // which invoice it's billed in — on any project, finished or not, with or
+  // without a billing rule — and the others it could go in. Ops only.
   const rule = {
     cadence: project.client.billingCadence,
     dayOfMonth: project.client.billingDayOfMonth,
@@ -64,8 +64,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   );
   const inBatch = batches.find((b) => b.ids.includes(project.id));
   const nextKey = newBatchKey(batches, rule);
+  const monthly = rule.cadence === "monthly_date";
   const invoiceOptions = [
-    ...(nextKey ? [{ value: nextKey, label: "New invoice" }] : []),
+    { value: "none", label: "No invoice" },
+    ...(nextKey && !batches.some((b) => b.key === nextKey)
+      ? [{ value: nextKey, label: monthly ? "New invoice" : `Invoice ${nextKey.replace("batch-", "")} (next)` }]
+      : []),
     ...batches.map((b) => ({ value: b.key, label: b.label })),
   ];
 
@@ -109,8 +113,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           files: project.assets.length,
         }}
         invoice={
-          inBatch && me.role !== "employee" ? (
-            <InvoicePicker key={inBatch.key} projectId={project.id} value={inBatch.key} options={invoiceOptions} />
+          me.role !== "employee" ? (
+            <InvoicePicker
+              key={inBatch?.key ?? "none"}
+              projectId={project.id}
+              value={inBatch?.key ?? "none"}
+              options={invoiceOptions}
+              numbered={!monthly}
+            />
           ) : undefined
         }
       />

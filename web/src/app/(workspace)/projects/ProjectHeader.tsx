@@ -210,6 +210,8 @@ export function ProjectHeader({
                   className="w-48 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
                 />
               </label>
+              {/* saved as soon as it's picked, like everywhere else it shows */}
+              {invoice}
             </div>
             {error && <p className="mt-3 text-xs text-red-300">{error}</p>}
             <div className="mt-auto flex items-center justify-between gap-2 pt-6">

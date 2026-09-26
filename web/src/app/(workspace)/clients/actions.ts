@@ -133,8 +133,19 @@ export async function setBillingRule(
 // A finished project moved to another invoice — dragged there in the By
 // invoice view, or picked on the project's own page. The move is worked out
 // here again from what's saved, not taken from the browser.
-export async function moveProjectToInvoice(projectId: string, key: string): Promise<{ error?: string }> {
+export async function moveProjectToInvoice(projectId: string, key: string | null): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can move projects between invoices." };
+  const res = await setInvoice(projectId, key);
+  revalidatePath("/clients/[slug]", "page");
+  revalidatePath(`/projects/${projectId}`);
+  return res;
+}
+
+// Puts a project in an invoice — any project, finished or not — or, with
+// null, takes it back out to wherever the billing rule puts it. The key is an
+// invoice number ("batch-7"), or a month ("2026-09") for a client billed
+// monthly.
+async function setInvoice(projectId: string, key: string | null): Promise<{ error?: string }> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
@@ -143,26 +154,29 @@ export async function moveProjectToInvoice(projectId: string, key: string): Prom
           billingCadence: true,
           billingDayOfMonth: true,
           billingMilestoneCount: true,
-          projects: { select: { id: true, completedAt: true, invoiceBatch: true } },
+          projects: { select: { id: true, completedAt: true, createdAt: true, invoiceBatch: true } },
         },
       },
     },
   });
   if (!project) return { error: "That project no longer exists." };
+  if (key === null) {
+    await prisma.project.update({ where: { id: projectId }, data: { invoiceBatch: null } });
+    return {};
+  }
   const c = project.client;
   const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
-  const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
-  if (!batches.some((b) => b.ids.includes(projectId))) return { error: "Only a finished project is in an invoice." };
-  if (key !== newBatchKey(batches, rule) && !batches.some((b) => b.key === key)) return { error: "That invoice doesn't exist." };
+  const n = Number(key.match(/^batch-(\d+)$/)?.[1]);
+  const valid = rule.cadence === "monthly_date" ? /^\d{4}-(0[1-9]|1[0-2])$/.test(key) : n >= 1 && n <= 9999;
+  if (!valid) return { error: rule.cadence === "monthly_date" ? "Pick the month it's invoiced in." : "An invoice number is a whole number, like 7." };
 
+  const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
   const saved = new Map(c.projects.map((p) => [p.id, p.invoiceBatch]));
   await prisma.$transaction(
     Object.entries(pinsAfterMove(batches, rule, projectId, key))
       .filter(([id, k]) => saved.get(id) !== k)
       .map(([id, k]) => prisma.project.update({ where: { id }, data: { invoiceBatch: k } }))
   );
-  revalidatePath("/clients/[slug]", "page");
-  revalidatePath(`/projects/${projectId}`);
   return {};
 }
 
@@ -740,7 +754,9 @@ export async function createProject(
   planFrom: string | null = null,
   // yyyy-mm-dd: the project's deadline — the blueprint's week is fitted
   // between the start and this. Omitted = a week after the start.
-  planUntil: string | null = null
+  planUntil: string | null = null,
+  // the invoice it's billed in, if that's already known
+  invoiceNumber: number | null = null
 ): Promise<{ id?: string; planned?: number; error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only ops team members can add a project." };
@@ -805,6 +821,9 @@ export async function createProject(
       data: made.map((t) => ({ actorId: user.id, action: "created", entity: "Task", entityId: t.id })),
     });
     revalidatePath("/board");
+  }
+  if (invoiceNumber && Number.isInteger(invoiceNumber) && invoiceNumber > 0) {
+    await setInvoice(project.id, `batch-${invoiceNumber}`);
   }
   revalidatePath("/clients/[slug]", "page");
   return { id: project.id, planned: planned.length };

@@ -44,7 +44,8 @@ function shortDate(iso: string, thisYear: string): string {
 const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m is 1-based
 const pad = (n: number) => String(n).padStart(2, "0");
 
-type Item = { id: string; date: string; pin?: string | null };
+// open: not finished yet — in an invoice only because someone put it there
+type Item = { id: string; date: string; pin?: string | null; open?: boolean };
 
 const MILESTONE_KEY = /^batch-(\d+)$/;
 const MONTH_KEY = /^\d{4}-\d{2}$/;
@@ -69,7 +70,9 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
       const m = p.pin?.match(MILESTONE_KEY);
       if (m) add(p.id, Number(m[1]));
     }
-    let k = Math.max(1, ...size.keys());
+    // from the newest invoice with finished work in it — an unfinished
+    // project put in a later one ahead of time mustn't drag everything after it
+    let k = Math.max(1, ...oldestFirst.filter((p) => !p.open && at.has(p.id)).map((p) => at.get(p.id)!));
     for (const p of oldestFirst) {
       if (at.has(p.id)) continue;
       while ((size.get(k) ?? 0) >= n) k++;
@@ -127,7 +130,23 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
       });
   }
 
-  return [];
+  // No rule to group by: the invoices are just the numbers someone gave
+  // projects by hand.
+  const byNumber = new Map<number, Item[]>();
+  for (const p of oldestFirst) {
+    const m = p.pin?.match(MILESTONE_KEY);
+    if (m) byNumber.set(Number(m[1]), [...(byNumber.get(Number(m[1])) ?? []), p]);
+  }
+  const thisYear = today.slice(0, 4);
+  return [...byNumber.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([k, list]) => ({
+      key: `batch-${k}`,
+      label: `Invoice ${k}`,
+      detail: `${shortDate(list[0].date, thisYear)} – ${shortDate(list.at(-1)!.date, thisYear)}`,
+      ids: list.map((p) => p.id),
+      complete: true,
+    }));
 }
 
 // Whether an invoice's been paid, from what's recorded on its projects
@@ -144,16 +163,19 @@ export function batchPayment(statuses: (string | null)[], complete: boolean): Pa
   return "not_marked";
 }
 
-// A client's invoices straight from its project rows (server side) — only
-// finished work is invoiced.
+// A client's invoices straight from its project rows (server side): its
+// finished work, and anything someone has already put in an invoice by hand,
+// finished or not.
 export function clientBatches(
-  projects: { id: string; completedAt: Date | null; invoiceBatch: string | null }[],
+  projects: { id: string; completedAt: Date | null; createdAt: Date; invoiceBatch: string | null }[],
   rule: BillingRule,
   today: string
 ): Batch[] {
   return invoiceBatches(
     projects.flatMap((p) =>
-      p.completedAt ? [{ id: p.id, date: p.completedAt.toISOString().slice(0, 10), pin: p.invoiceBatch }] : []
+      p.completedAt || p.invoiceBatch
+        ? [{ id: p.id, date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10), pin: p.invoiceBatch, open: !p.completedAt }]
+        : []
     ),
     rule,
     today
@@ -163,9 +185,11 @@ export function clientBatches(
 // Where a project can be moved: the invoices there are, plus one more after
 // the newest (the next month, or the next number).
 export function newBatchKey(batches: Batch[], rule: BillingRule): string | null {
+  if (rule.cadence !== "monthly_date") {
+    return `batch-${Math.max(0, ...batches.map((b) => Number(b.key.match(MILESTONE_KEY)?.[1] ?? 0))) + 1}`;
+  }
   if (!batches.length) return null;
   const newest = batches[0].key;
-  if (rule.cadence === "milestone") return `batch-${Number(newest.match(MILESTONE_KEY)?.[1] ?? 0) + 1}`;
   const [y, m] = newest.split("-").map(Number);
   return m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`;
 }
@@ -180,7 +204,7 @@ export function pinsAfterMove(
   projectId: string,
   key: string
 ): Record<string, string> {
-  const valid = rule.cadence === "milestone" ? MILESTONE_KEY.test(key) : MONTH_KEY.test(key);
+  const valid = rule.cadence === "monthly_date" ? MONTH_KEY.test(key) : MILESTONE_KEY.test(key);
   if (!valid) return {};
   const frozen =
     rule.cadence === "milestone" ? Object.fromEntries(batches.flatMap((b) => b.ids.map((id) => [id, b.key]))) : {};
