@@ -9,6 +9,7 @@ import { resizeToJpegMaxDim } from "@/lib/imageResize";
 import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type WorkTaskAttachment } from "./actions";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import { TaskTagPicker, type TaskTagOption } from "../TaskTagPicker";
+import { NEW_PROJECT, NEW_PROJECT_OPTION, useNewProject } from "../useNewProject";
 
 // one definition, imported by the board, the list and the card — it was
 // copied into all four, so widening it in one place broke the other three
@@ -59,7 +60,8 @@ export const WorkTaskDialog = forwardRef<
   const clients = [...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const clientProjects = projects.filter((p) => p.client.id === clientId);
+  const newProject = useNewProject(clientId, setProjectId);
+  const clientProjects = newProject.withMade(projects).filter((p) => p.client.id === clientId);
 
   function open() {
     setTitle(task?.title ?? "");
@@ -200,23 +202,65 @@ export const WorkTaskDialog = forwardRef<
                 setClientId(id);
                 // the old project belonged to the old client
                 setProjectId("");
+                newProject.cancel();
               }}
               options={clients.map((c) => ({ value: c.id, label: c.name }))}
             />
           </label>
 
-          {/* only worth asking once they've said which client, and only when
-              that client has more than one thing on the go */}
-          {clientProjects.length > 1 && (
-            <label className={label}>
-              Which project <span className="font-normal normal-case text-muted/70">(optional)</span>
-              <Dropdown
-                value={projectId}
-                placeholder="Anything for them"
-                onChange={setProjectId}
-                options={clientProjects.map((p) => ({ value: p.id, label: p.name }))}
-              />
-            </label>
+          {/* Once there's a client: pick one of theirs or start a new one
+              here. "＋ New project" is first, not last, so it isn't buried
+              below a long list — and only offered to the people allowed to
+              make projects (the same people who curate the tags). */}
+          {clientId && (
+            <div className={label}>
+              <span>
+                Which project <span className="font-normal normal-case text-muted/70">(optional)</span>
+              </span>
+              {!newProject.naming ? (
+                <Dropdown
+                  value={projectId}
+                  placeholder="Anything for them"
+                  onChange={(id) => (id === NEW_PROJECT ? newProject.start() : setProjectId(id))}
+                  options={[
+                    ...(canManageTags ? [NEW_PROJECT_OPTION] : []),
+                    ...clientProjects.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                />
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={newProject.name}
+                    onChange={(e) => newProject.setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        newProject.create();
+                      } else if (e.key === "Escape") {
+                        // back out of the name, not the whole dialog
+                        e.preventDefault();
+                        newProject.cancel();
+                      }
+                    }}
+                    placeholder="New project name"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground"
+                  />
+                  <button type="button" onClick={newProject.cancel} className="btn btn-ghost shrink-0">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={newProject.create}
+                    disabled={newProject.busy || !newProject.name.trim()}
+                    className="btn btn-glow shrink-0 disabled:opacity-60"
+                  >
+                    {newProject.busy ? "Creating…" : "Create"}
+                  </button>
+                </div>
+              )}
+              {newProject.error && <p className="text-xs text-red-300">{newProject.error}</p>}
+            </div>
           )}
 
           <label className={label}>

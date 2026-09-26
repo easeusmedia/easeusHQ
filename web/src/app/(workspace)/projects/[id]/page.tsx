@@ -103,7 +103,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {/* every task made here is pre-scoped to this project — no
               hunting it back out of a list of every project on the board */}
           <li>
-            <NewTaskRow projects={boardProjects} editors={editors} defaultProjectId={project.id} />
+            <NewTaskRow projects={boardProjects} editors={editors} defaultProjectId={project.id} canCreateProject={me?.role !== "employee"} />
           </li>
         </ul>
       </section>

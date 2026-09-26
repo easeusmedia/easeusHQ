@@ -430,7 +430,7 @@ export function Board({
             header: stageHeader(col),
             body: (
               <section className="flex min-w-0 flex-1 flex-col gap-3">
-                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
+                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
                 {dropZone(col)}
               </section>
             ),
@@ -445,7 +445,7 @@ export function Board({
               <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
                 <div className="w-fit">{stageHeader(col)}</div>
               </div>
-              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} />}
+              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
               {dropZone(col)}
             </section>
           ))}
