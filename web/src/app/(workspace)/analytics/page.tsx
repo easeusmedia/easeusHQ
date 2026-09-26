@@ -42,71 +42,81 @@ function Change({ now, before, label }: { now: number; before: number; label?: s
   );
 }
 
-// A piece of content as its picture, with the one number that matters on it
-function Card({ item, tall, client }: { item: Item; tall: boolean; client: string }) {
+// One of the week's best: where it ranks, its picture, and its views
+function Top({ item, rank, tall, client }: { item: Item; rank: number; tall: boolean; client: string }) {
+  const facts = (
+    <span className="flex min-w-0 flex-col gap-1">
+      <span className="flex items-baseline gap-2">
+        <span className="text-2xl font-semibold leading-none tracking-tight tabular-nums">{count(item.views ?? 0)}</span>
+        <span className="text-xs text-muted">views</span>
+      </span>
+      <span className="line-clamp-2 text-sm leading-snug text-foreground/90">{item.title}</span>
+      <span className="truncate text-xs text-muted">
+        {client} · {short(item.published)}
+      </span>
+    </span>
+  );
+  const picture = (
+    <span className={`relative block shrink-0 overflow-hidden rounded-xl bg-surface-2 ${tall ? "aspect-[9/16] w-24" : "aspect-video w-full"}`}>
+      {item.thumbnail && (
+        // eslint-disable-next-line @next/next/no-img-element -- the platform's own thumbnail
+        <img src={item.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+      )}
+      <span className="absolute top-2 left-2 grid h-6 min-w-6 place-items-center rounded-full bg-black/60 px-1.5 text-xs font-medium text-white backdrop-blur">
+        {rank}
+      </span>
+    </span>
+  );
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      title={`${item.title} — ${client}, ${short(item.published)}`}
-      className={`group relative block overflow-hidden rounded-xl bg-surface-2 ${tall ? "aspect-[9/16]" : "aspect-video"}`}
+      title={item.title}
+      className={`card-surface card-interactive group flex gap-4 rounded-2xl p-3 shadow-sm ${tall ? "items-center" : "flex-col"}`}
     >
-      {item.thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element -- the platform's own thumbnail
-        <img src={item.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
-      )}
-      <span className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3 pt-10 pb-2.5">
-        <span className="text-lg font-semibold leading-none tabular-nums text-white">{count(item.views ?? 0)}</span>
-        <span className="truncate text-xs text-white/70">{client}</span>
-      </span>
+      {picture}
+      {facts}
     </a>
   );
 }
 
-// One kind of content — long-form, Shorts, Reels — with its own count and its best
-function Group({
-  title,
-  items,
-  tall,
-  show,
-  clientName,
-}: {
-  title: string;
-  items: Item[];
-  tall: boolean;
-  show: number;
-  clientName: (id: string) => string;
-}) {
-  const best = [...items].sort((a, b) => (b.views ?? 0) - (a.views ?? 0)).slice(0, show);
+// A row of the week's best of one kind — long-form, Shorts or Reels —
+// across the full width
+function TopRow({ title, items, tall, clientName }: { title: string; items: Item[]; tall: boolean; clientName: (id: string) => string }) {
+  const best = [...items].sort((a, b) => (b.views ?? 0) - (a.views ?? 0)).slice(0, 4);
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <p className="flex items-baseline gap-2 text-sm">
-        <span className="font-medium">{title}</span>
+        <span className="font-medium">Top {title}</span>
         <span className="text-muted">
-          {items.length} · {count(views(items))} views
+          of {items.length} · {count(views(items))} views
         </span>
       </p>
       {best.length ? (
-        <div className={`grid gap-2.5 ${tall ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2"}`}>
-          {best.map((i) => (
-            <Card key={i.externalId} item={i} tall={tall} client={clientName(i.clientId)} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {best.map((i, n) => (
+            <Top key={i.externalId} item={i} rank={n + 1} tall={tall} client={clientName(i.clientId)} />
           ))}
         </div>
       ) : (
-        <p className="rounded-xl bg-surface/40 px-4 py-8 text-center text-xs text-muted">None in this range</p>
+        <p className="rounded-2xl bg-surface/40 px-4 py-8 text-center text-sm text-muted">None in this range</p>
       )}
     </div>
   );
 }
 
-// Every client's content at once — YouTube, then Instagram — by default last
-// week, Monday to Sunday. Deliberately little per section: how many views our
-// work pulled and how that moved, the best of it (long-form and Shorts kept
-// apart), and which clients it came from. Only our work counts
-// (lib/ourWork.ts). Straight from what's stored (lib/contentSync.ts),
-// refreshed every night.
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
+// Every client's content at once, one platform at a time (YouTube or
+// Instagram) — by default last week, Monday to Sunday. Deliberately little:
+// how many views our work pulled and how that moved, the week's top four
+// (long-form and Shorts in rows of their own), and which clients it came
+// from. Only our work counts (lib/ourWork.ts). Straight from what's stored
+// (lib/contentSync.ts), refreshed every night.
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; platform?: string }>;
+}) {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
   if (!me) redirect("/login");
@@ -117,6 +127,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const valid = q.from && q.to && DAY.test(q.from) && DAY.test(q.to) && q.from <= q.to;
   const { from, to } = valid ? { from: q.from!, to: q.to! } : lastWeek(today);
   const prev = previousRange(from, to);
+  const platform: Platform = q.platform === "instagram" ? "instagram" : "youtube";
+  const href = (p: Platform) => `/analytics?platform=${p}&from=${from}&to=${to}`;
 
   await collect().catch(() => {});
   const all = await targets();
@@ -187,76 +199,103 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     return { ids, now, before, review, byClient };
   };
 
+  const { ids, now, before, review, byClient } = section(platform);
+  const yt = platform === "youtube";
+  const longForm = now.filter((i) => i.kind === "Video");
+  const shorts = now.filter((i) => i.kind === "Short");
+  const reels = now.filter((i) => i.kind === "Reel" || i.kind === "Video");
+  const total = views(now);
+  const top = Math.max(1, ...byClient.map((c) => c.views));
+  const stats = yt
+    ? [
+        ["Videos", now.length],
+        ["Long-form", longForm.length],
+        ["Shorts", shorts.length],
+        ["Avg views", now.length ? count(total / now.length) : "—"],
+      ]
+    : [
+        ["Posts", now.length],
+        ["Reels", reels.length],
+        ["Avg views per reel", reels.length ? count(views(reels) / reels.length) : "—"],
+        ["Likes and comments", count(now.reduce((n, i) => n + (i.likes ?? 0) + (i.comments ?? 0), 0))],
+      ];
+
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Analytics</h1>
-          <p className="mt-1 text-sm text-muted">
-            {isLastWeek ? "Last week" : "Showing"} · {short(from)} – {short(to)}
-          </p>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-5">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Analytics</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              {isLastWeek ? "Last week" : "Showing"} · {short(from)} – {short(to)}
+            </p>
+          </div>
+          {/* one platform at a time */}
+          <div className="flex gap-1 rounded-xl border border-border bg-surface/60 p-1">
+            {(["youtube", "instagram"] as const).map((p) => {
+              const Icon = p === "youtube" ? YoutubeIcon : InstagramIcon;
+              return (
+                <Link
+                  key={p}
+                  href={href(p)}
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium ${
+                    platform === p ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon size={15} /> {p === "youtube" ? "YouTube" : "Instagram"}
+                </Link>
+              );
+            })}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <RangeControls from={from} to={to} today={today} />
+          <RangeControls from={from} to={to} today={today} platform={platform} />
           <RefreshButton from={from} to={to} syncing={syncing} updated={lastRead ? ago(lastRead) : null} />
         </div>
       </div>
 
-      {clientIds.length === 0 && (
+      {!ids.length ? (
         <p className="card-surface rounded-2xl px-6 py-12 text-center text-sm text-muted shadow-sm">
-          No client has a YouTube channel or Instagram handle set yet — add them on each client&apos;s Analytics tab.
+          No client has {yt ? "a YouTube channel" : "an Instagram handle"} set yet — add it on each client&apos;s Analytics tab.
         </p>
-      )}
-
-      {(["youtube", "instagram"] as const).map((platform) => {
-        const { ids, now, before, review, byClient } = section(platform);
-        if (!ids.length) return null;
-        const yt = platform === "youtube";
-        const Icon = yt ? YoutubeIcon : InstagramIcon;
-        const longForm = now.filter((i) => i.kind === "Video");
-        const shorts = now.filter((i) => i.kind === "Short");
-        const reels = now.filter((i) => i.kind === "Reel" || i.kind === "Video");
-        const total = views(now);
-        const top = Math.max(1, ...byClient.map((c) => c.views));
-        return (
-          <section key={platform} className="flex flex-col gap-6">
-            {/* the headline: what our work pulled, and how that moved */}
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div className="flex flex-col gap-2">
-                <p className="flex items-center gap-2 text-sm text-muted">
-                  <Icon size={16} /> {yt ? "YouTube" : "Instagram"}
-                </p>
-                <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-4xl font-semibold tracking-tight tabular-nums">{count(total)}</span>
-                  <span className="text-sm text-muted">views</span>
-                  <Change now={total} before={views(before)} label={isLastWeek ? "vs the week before" : "vs the period before"} />
-                </p>
-                <p className="text-sm text-muted">
-                  {yt
-                    ? `${plural(now.length, "video")} · ${longForm.length} long-form · ${plural(shorts.length, "Short")}`
-                    : `${plural(now.length, "post")} · ${plural(reels.length, "reel")}`}
-                </p>
-              </div>
-              {review > 0 && (
-                <p className="text-xs text-amber-300">
-                  {plural(review, "post")} not yet marked ours — left out until someone does
-                </p>
-              )}
-            </div>
-
-            {/* the best of it, long-form and Shorts never in one row */}
-            {yt ? (
-              <div className="grid gap-8 lg:grid-cols-2">
-                <Group title="Long-form" items={longForm} tall={false} show={4} clientName={clientName} />
-                <Group title="Shorts" items={shorts} tall show={4} clientName={clientName} />
-              </div>
-            ) : (
-              <Group title="Reels" items={reels} tall show={8} clientName={clientName} />
-            )}
-
-            {/* where it came from */}
+      ) : (
+        <div key={platform} className="fade-in flex flex-col gap-8">
+          {/* the headline, across the full width */}
+          <div className="card-surface flex flex-wrap items-center gap-x-14 gap-y-5 rounded-2xl px-6 py-5 shadow-sm">
             <div className="flex flex-col gap-1">
-              <p className="mb-1 text-sm font-medium">By client</p>
+              <p className="text-xs text-muted">Views pulled</p>
+              <p className="flex items-baseline gap-3">
+                <span className="text-4xl font-semibold tracking-tight tabular-nums">{count(total)}</span>
+                <Change now={total} before={views(before)} label={isLastWeek ? "vs the week before" : "vs the period before"} />
+              </p>
+            </div>
+            {stats.map(([label, value]) => (
+              <div key={label} className="flex flex-col gap-1">
+                <p className="text-xs text-muted">{label}</p>
+                <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+              </div>
+            ))}
+            {review > 0 && (
+              <p className="ml-auto max-w-56 text-xs text-amber-300">
+                {plural(review, "post")} not yet marked ours — left out until someone does
+              </p>
+            )}
+          </div>
+
+          {/* the week's best — long-form and Shorts in rows of their own */}
+          {yt ? (
+            <>
+              <TopRow title="long-form" items={longForm} tall={false} clientName={clientName} />
+              <TopRow title="Shorts" items={shorts} tall clientName={clientName} />
+            </>
+          ) : (
+            <TopRow title="reels" items={reels} tall clientName={clientName} />
+          )}
+
+          {/* where it came from */}
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">By client</p>
+            <div className="card-surface overflow-hidden rounded-2xl shadow-sm">
               {byClient.map((c) => {
                 const cl = clients.find((x) => x.id === c.cid);
                 if (!cl) return null;
@@ -265,16 +304,16 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                   <Link
                     key={c.cid}
                     href={`${clientHref(cl)}?tab=analytics`}
-                    className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto] items-center gap-4 rounded-lg px-2 py-2 transition-colors hover:bg-surface-2/50"
+                    className="grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_6rem_5rem_6rem] items-center gap-5 px-5 py-3 transition-colors not-first:border-t not-first:border-border/50 hover:bg-surface-2/50"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
                       {logo ? (
                         // eslint-disable-next-line @next/next/no-img-element -- a small stored logo
-                        <img src={logo} alt="" className="photo h-6 w-6" />
+                        <img src={logo} alt="" className="photo h-7 w-7" />
                       ) : (
-                        <Avatar name={cl.name} size={24} presence={false} />
+                        <Avatar name={cl.name} size={28} presence={false} />
                       )}
-                      <span className="truncate text-sm">{cl.name}</span>
+                      <span className="truncate text-sm font-medium">{cl.name}</span>
                     </span>
                     <span className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.05]">
                       <span
@@ -282,23 +321,22 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                         style={{ width: `${c.views ? Math.max(2, (c.views / top) * 100) : 0}%` }}
                       />
                     </span>
-                    <span className="flex w-40 items-center justify-end gap-2 text-sm">
-                      <span className="text-xs text-muted">{plural(c.posts, yt ? "video" : "post")}</span>
-                      <span className="w-12 text-right font-medium tabular-nums">{count(c.views)}</span>
+                    <span className="text-right text-xs text-muted">{plural(c.posts, yt ? "video" : "post")}</span>
+                    <span className="text-right text-sm font-semibold tabular-nums">{count(c.views)}</span>
+                    <span className="text-right">
+                      <Change now={c.views} before={c.before} />
                     </span>
                   </Link>
                 );
               })}
             </div>
-          </section>
-        );
-      })}
+          </div>
 
-      {clientIds.length > 0 && (
-        <p className="text-xs text-muted">
-          Only what we made — matched to our tasks, marked ours, or on channels we run. Views so far, refreshed every night.
-          {syncing && " Reading the latest now; this page updates when it's done."}
-        </p>
+          <p className="text-xs text-muted">
+            Only what we made — matched to our tasks, marked ours, or on channels we run. Views so far, refreshed every night.
+            {syncing && " Reading the latest now; this page updates when it's done."}
+          </p>
+        </div>
       )}
     </div>
   );

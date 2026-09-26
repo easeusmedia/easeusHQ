@@ -12,9 +12,9 @@ const days = (from: string, to: string) => Math.round((Date.parse(to) - Date.par
 
 // Which stretch of time the page covers — last week unless asked otherwise —
 // stepped a range at a time, or picked outright.
-export function RangeControls({ from, to, today }: { from: string; to: string; today: string }) {
+export function RangeControls({ from, to, today, platform }: { from: string; to: string; today: string; platform: string }) {
   const router = useRouter();
-  const go = (f: string, t: string) => router.push(`/analytics?from=${f}&to=${t}`);
+  const go = (f: string, t: string) => router.push(`/analytics?platform=${platform}&from=${f}&to=${t}`);
   const week = lastWeek(today);
   const monday = shiftDay(week.to, 1);
   const presets: Record<string, { from: string; to: string }> = {
