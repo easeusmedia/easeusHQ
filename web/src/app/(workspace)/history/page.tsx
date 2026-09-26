@@ -10,7 +10,6 @@ import type { HistoryItem } from "@/lib/history";
 import { displayTeam } from "@/lib/teams";
 import { parseStageChange } from "@/lib/stages";
 import { HistoryExplorer } from "./HistoryExplorer";
-import { PageHeader } from "../PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -162,17 +161,11 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   ]);
 
   return (
-    <>
-    <PageHeader
-      title="History"
-      description="Everything finished and delivered, newest first. Search it, filter it, or export it."
-    />
     <HistoryExplorer
       items={items}
       details={details}
       logsByTask={logsByTask}
       canDelete={canDelete}
     />
-    </>
   );
 }

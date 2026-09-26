@@ -12,8 +12,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  current: "bg-green-400/15 text-green-300 border-transparent",
-  on_hold: "bg-orange-400/15 text-orange-300 border-transparent",
+  current: "bg-green-400/15 text-green-300 border-green-400/30",
+  on_hold: "bg-orange-400/15 text-orange-300 border-orange-400/30",
   previous: "bg-surface text-muted border-border",
 };
 

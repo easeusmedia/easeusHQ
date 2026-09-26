@@ -277,7 +277,7 @@ export function BillingPanel({
             <button onClick={closeRule} className="btn btn-sm btn-ghost">
               Cancel
             </button>
-            <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-primary disabled:opacity-60">
+            <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
               {savingRule ? "Saving…" : "Save rule"}
             </button>
           </div>
@@ -319,7 +319,7 @@ export function BillingPanel({
               <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
                 Cancel
               </button>
-              <button type="submit" disabled={creating} className="btn btn-sm btn-primary disabled:opacity-60">
+              <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
                 {creating ? "Creating…" : "Create invoice"}
               </button>
             </div>

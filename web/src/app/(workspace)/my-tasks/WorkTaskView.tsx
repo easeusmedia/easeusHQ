@@ -69,7 +69,7 @@ export function WorkTaskView({
             <ViewToggle view={view} onChange={setView} />
             {/* how the work is laid out — by stage, or by who's doing it */}
             {groupOptions.length > 1 && (
-              <div className="segmented items-center">
+              <div className="flex w-fit items-center gap-1 rounded-xl border border-border bg-surface/60 p-1">
                 <span className="px-2 text-xs text-muted">Group by</span>
                 {groupOptions.map((key) => (
                   <button

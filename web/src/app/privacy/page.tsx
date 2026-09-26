@@ -64,7 +64,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-2 text-base font-medium">Contact</h2>
           <p>
-            Questions about any of this: <a className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300" href="mailto:team.easeusnow@gmail.com">team.easeusnow@gmail.com</a>.
+            Questions about any of this: <a className="text-blue-400 underline underline-offset-2" href="mailto:team.easeusnow@gmail.com">team.easeusnow@gmail.com</a>.
           </p>
         </section>
       </div>

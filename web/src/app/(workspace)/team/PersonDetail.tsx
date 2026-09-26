@@ -156,7 +156,7 @@ export function PersonDetail({
     <>
       {error && <p className="text-sm text-red-300">{error}</p>}
       <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving} className="btn btn-primary disabled:opacity-60">
+        <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
           {saving ? "Saving…" : "Save changes"}
         </button>
         {saved && <span className="text-xs text-muted">Saved.</span>}
@@ -224,7 +224,7 @@ export function PersonDetail({
           </div>
 
           {person.current.length === 0 ? (
-            <p className="rounded-xl bg-foreground/[0.02] px-4 py-6 text-center text-sm text-muted">
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
               Nothing in flight.
             </p>
           ) : (
@@ -429,7 +429,7 @@ export function PersonDetail({
           aside={`${person.history.length} completed`}
         >
           {person.history.length === 0 ? (
-            <p className="rounded-xl bg-foreground/[0.02] px-4 py-6 text-center text-sm text-muted">
+            <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
               Nothing finished yet.
             </p>
           ) : (

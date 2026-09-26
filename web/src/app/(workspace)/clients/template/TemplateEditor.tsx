@@ -183,7 +183,7 @@ export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
       <div className="sticky bottom-0 flex items-center justify-end gap-3 rounded-2xl border border-border bg-surface/90 px-5 py-3 backdrop-blur">
         {error && <p className="mr-auto text-xs text-red-300">{error}</p>}
         {saved && !error && <p className="mr-auto text-xs text-muted">Saved. New clients will use this.</p>}
-        <button onClick={save} disabled={saving} className="btn btn-primary disabled:opacity-60">
+        <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
           {saving ? "Saving…" : "Save template"}
         </button>
       </div>

@@ -8,7 +8,7 @@ import { StatusSelect } from "./StatusSelect";
 import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
-import { CalendarClock, RotateCcw, EyeOff, ExternalLink } from "lucide-react";
+import { CalendarClock, RotateCcw, EyeOff } from "lucide-react";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { dueState } from "@/lib/due";
 
@@ -220,17 +220,10 @@ export function StageColumn({ children }: { children: React.ReactNode }) {
   return <span className="flex shrink-0 justify-end sm:w-48">{children}</span>;
 }
 
-// the one link that matters at this stage, as a small quiet button rather
-// than an underlined blue word
 function Link({ href, label }: { href: string; label: string }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="-mx-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted hover:bg-foreground/[0.06] hover:text-foreground"
-    >
-      <ExternalLink size={12} /> {label}
+    <a href={href} target="_blank" className="text-xs text-blue-400 underline underline-offset-2">
+      {label} ↗
     </a>
   );
 }
@@ -304,9 +297,9 @@ export function TaskCard({
           {task.internal && (
             <span
               title="Internal work — not delivered to the client"
-              className="flex items-center gap-1 whitespace-nowrap rounded-md bg-foreground/[0.06] px-1.5 text-xs leading-5 text-muted"
+              className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted"
             >
-              <EyeOff size={11} /> Internal
+              <EyeOff size={9} /> Internal
             </span>
           )}
           {task.tags.map((t) => (

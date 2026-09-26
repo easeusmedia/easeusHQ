@@ -35,7 +35,7 @@ function Inline({ text }: { text: string }) {
       );
     } else {
       parts.push(
-        <a key={key++} href={token} target="_blank" rel="noreferrer" className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300">
+        <a key={key++} href={token} target="_blank" rel="noreferrer" className="text-blue-400 underline underline-offset-2">
           {token.replace(/^https?:\/\/(www\.)?/, "").slice(0, 42)}
           {token.length > 50 ? "…" : ""}
         </a>

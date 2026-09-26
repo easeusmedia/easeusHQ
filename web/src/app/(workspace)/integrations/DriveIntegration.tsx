@@ -90,7 +90,7 @@ export function DriveIntegration({
           </p>
         </div>
         {connected && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full border border-transparent bg-emerald-400/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
             <Check size={12} /> Connected
           </span>
         )}
@@ -111,7 +111,7 @@ export function DriveIntegration({
               <input value={app.id} onChange={(e) => setApp((a) => ({ ...a, id: e.target.value }))} placeholder="Client ID" className={field} />
               <input value={app.secret} onChange={(e) => setApp((a) => ({ ...a, secret: e.target.value }))} placeholder="Client secret" className={field} />
             </div>
-            <button onClick={saveApp} disabled={busy === "app"} className="btn btn-primary w-fit disabled:opacity-60">
+            <button onClick={saveApp} disabled={busy === "app"} className="btn btn-glow w-fit disabled:opacity-60">
               {busy === "app" ? "Saving…" : "Save"}
             </button>
           </li>
@@ -125,7 +125,7 @@ export function DriveIntegration({
             <button
               onClick={connect}
               disabled={!hasApp && !app.id}
-              className="btn btn-primary flex w-fit items-center gap-1.5 disabled:opacity-60"
+              className="btn btn-glow flex w-fit items-center gap-1.5 disabled:opacity-60"
             >
               <Link2 size={13} /> Connect Google Drive
             </button>

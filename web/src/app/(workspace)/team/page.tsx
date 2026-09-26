@@ -8,7 +8,6 @@ import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
-import { PageHeader } from "../PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -153,12 +152,7 @@ export default async function PeoplePage() {
   }));
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader
-        title="Team"
-        description="Everyone at Easeus — what they do, which team they're on, and how to reach them."
-      />
-      <div className="min-h-0 flex-1">
+    <div className="h-full">
       <PeopleDirectory
         people={records}
         teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug }))}
@@ -166,7 +160,6 @@ export default async function PeoplePage() {
         canEdit={canEdit}
         meId={me.id}
       />
-      </div>
     </div>
   );
 }

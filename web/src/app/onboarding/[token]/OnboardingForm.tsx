@@ -141,7 +141,7 @@ export function OnboardingForm({
             <button
               type="button"
               onClick={() => logoRef.current?.click()}
-              className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 text-muted"
+              className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-dashed border-border bg-surface-2 text-muted"
             >
               {logo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- a data: URI the browser just made
@@ -261,7 +261,7 @@ export function OnboardingForm({
 
         {error && <p className="text-sm text-red-300">{error}</p>}
 
-        <button type="submit" disabled={saving} className="btn-primary rounded-xl px-5 py-3 text-sm font-medium disabled:opacity-60">
+        <button type="submit" disabled={saving} className="btn-glow rounded-xl px-5 py-3 text-sm font-medium disabled:opacity-60">
           {!saving ? "Send to Easeus" : sent > 0 ? "Uploading your files…" : "Sending…"}
         </button>
         <p className="pb-6 text-center text-xs text-muted">Only the Easeus team sees this.</p>

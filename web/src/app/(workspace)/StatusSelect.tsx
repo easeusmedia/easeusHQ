@@ -9,12 +9,6 @@ import { linkProblem, pickLink } from "@/lib/links";
 import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
 import { copyFrameioFileToDrive, frameioFileForTask, type DeliverableFile } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
-import { STAGE } from "@/lib/stages";
-
-// every stage, wherever it's listed, carries its colour
-const Dot = ({ status }: { status: TaskStatus }) => (
-  <span className={`size-2 shrink-0 rounded-full ${STAGE[status].dot}`} />
-);
 
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
 // picking a status calls the exact same moveTask() that dragging the card
@@ -230,7 +224,7 @@ export function StatusSelect({
                     type="button"
                     onClick={() => copyAndDeliver(f.id)}
                     disabled={!f.ready || fio.state === "copying" || fio.state === "copied"}
-                    className="btn btn-sm btn-primary w-full disabled:opacity-60"
+                    className="btn btn-sm btn-glow w-full disabled:opacity-60"
                   >
                     <Copy size={12} />
                     {fio.state === "copying"
@@ -270,7 +264,7 @@ export function StatusSelect({
               <button
                 type="submit"
                 disabled={submitting}
-                className={`btn disabled:opacity-60 ${hasOffer ? "btn-ghost" : "btn-primary"}`}
+                className={`btn disabled:opacity-60 ${hasOffer ? "btn-ghost" : "btn-glow"}`}
               >
                 {submitting ? "Saving…" : "Confirm"}
               </button>
@@ -328,9 +322,8 @@ export function StatusSelect({
                 key={to}
                 type="button"
                 onClick={() => pick(to)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+                className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
               >
-                <Dot status={to} />
                 {STATUS_LABEL[to]}
               </button>
             ))}
@@ -353,7 +346,7 @@ export function StatusSelect({
         <button
           type="button"
           onClick={() => pick("delivered_and_uploaded")}
-          className="btn btn-sm status-pop flex w-full min-w-0 items-center justify-center gap-1.5 border border-transparent bg-emerald-400/15 text-center text-emerald-300"
+          className="btn btn-sm status-pop flex w-full min-w-0 items-center justify-center gap-1.5 border border-emerald-400/30 bg-emerald-400/15 text-center text-emerald-300"
         >
           <CheckCircle2 size={13} className="shrink-0" /> Mark delivered
         </button>
@@ -364,12 +357,8 @@ export function StatusSelect({
         onClick={toggle}
         className="btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1"
       >
-        {/* where it is now, in its colour — the button is how it moves on */}
-        <span className="flex min-w-0 items-center gap-2">
-          <Dot status={optimisticStatus} />
-          <span className="truncate">{STATUS_LABEL[optimisticStatus]}</span>
-        </span>
-        <ChevronDown size={13} className="shrink-0 text-muted" />
+        <span className="truncate">{STATUS_LABEL[optimisticStatus]}</span>
+        <ChevronDown size={13} className="shrink-0" />
       </button>
       {open && position && (
         <div
@@ -388,9 +377,8 @@ export function StatusSelect({
               key={to}
               type="button"
               onClick={() => pick(to)}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+              className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
             >
-              <Dot status={to} />
               {STATUS_LABEL[to]}
             </button>
           ))}

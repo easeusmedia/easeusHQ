@@ -269,7 +269,7 @@ export function NewTaskRow({
               <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button disabled={pending} className="btn btn-primary disabled:opacity-60">
+              <button disabled={pending} className="btn btn-glow disabled:opacity-60">
                 {pending ? "Adding…" : "Add task"}
               </button>
             </div>

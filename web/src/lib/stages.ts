@@ -8,9 +8,6 @@ import type { TaskStatus } from "./workflow";
 // `link` is the one link worth surfacing on the card at that stage — raw
 // footage while it's being worked on, the Frame.io cut while it's under
 // review (ours, then the client's), the final Drive folder once it ships.
-// Seven stages, seven hues far enough apart to tell at a glance (final
-// export used to be green right beside delivered's emerald). Pills are a
-// soft fill with no outline — the colour is the signal, the ring was noise.
 // Required, not optional: a new stage that forgets it silently drops the
 // link off every card in that column, which is exactly what happened when
 // sent_for_client_approval was added.
@@ -20,44 +17,44 @@ export const STAGE: Record<
 > = {
   queued: {
     label: "Queued",
-    dot: "bg-zinc-400",
-    pill: "bg-zinc-400/15 text-zinc-300 border-transparent",
-    link: { field: "rawLink", label: "Raw footage" },
+    dot: "bg-neutral-400",
+    pill: "bg-surface text-muted border-border",
+    link: { field: "rawLink", label: "Raw" },
   },
   editing: {
     label: "Editing",
     dot: "bg-blue-400",
-    pill: "bg-blue-400/15 text-blue-300 border-transparent",
-    link: { field: "rawLink", label: "Raw footage" },
+    pill: "bg-blue-400/15 text-blue-300 border-blue-400/30",
+    link: { field: "rawLink", label: "Raw" },
   },
   sent_for_approval: {
     label: "Sent for approval",
-    dot: "bg-violet-400",
-    pill: "bg-violet-400/15 text-violet-300 border-transparent",
+    dot: "bg-purple-400",
+    pill: "bg-purple-400/15 text-purple-300 border-purple-400/30",
     link: { field: "frameioLink", label: "Frame.io" },
   },
   sent_for_client_approval: {
     label: "Sent for client approval",
     dot: "bg-cyan-400",
-    pill: "bg-cyan-400/15 text-cyan-300 border-transparent",
+    pill: "bg-cyan-400/15 text-cyan-300 border-cyan-400/30",
     link: { field: "frameioLink", label: "Frame.io" },
   },
   revision_requested: {
     label: "Revision requested",
     dot: "bg-orange-400",
-    pill: "bg-orange-400/15 text-orange-300 border-transparent",
+    pill: "bg-orange-400/15 text-orange-300 border-orange-400/30",
     link: { field: "frameioLink", label: "Frame.io" },
   },
   final_export_ready: {
     label: "Final export ready",
-    dot: "bg-lime-400",
-    pill: "bg-lime-400/15 text-lime-300 border-transparent",
+    dot: "bg-green-400",
+    pill: "bg-green-400/15 text-green-300 border-green-400/30",
     link: { field: "driveLink", label: "Drive" },
   },
   delivered_and_uploaded: {
     label: "Delivered and uploaded",
     dot: "bg-emerald-400",
-    pill: "bg-emerald-400/15 text-emerald-300 border-transparent",
+    pill: "bg-emerald-400/15 text-emerald-300 border-emerald-400/30",
     link: { field: "driveLink", label: "Drive" },
   },
 };

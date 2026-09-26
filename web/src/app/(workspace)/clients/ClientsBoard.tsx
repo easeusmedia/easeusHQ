@@ -94,7 +94,7 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
-        <div className="segmented">
+        <div className="flex gap-1 rounded-xl border border-border bg-surface/60 p-1">
           {GROUPS.map((g) => (
             <button
               key={g.status}
@@ -127,7 +127,7 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
           ))}
         </div>
 
-        <div className="segmented">
+        <div className="flex gap-1 rounded-xl border border-border bg-surface/60 p-1">
           {([["grid", LayoutGrid, "Grid"], ["list", List, "List"]] as const).map(([key, Icon, label]) => (
             <button
               key={key}

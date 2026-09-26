@@ -248,7 +248,7 @@ function AssetForm({
         <button
           onClick={submit}
           disabled={saving}
-          className="btn btn-sm btn-primary flex items-center gap-1.5 disabled:opacity-60"
+          className="btn btn-sm btn-glow flex items-center gap-1.5 disabled:opacity-60"
         >
           <Check size={13} /> {saving ? "Saving…" : "Save"}
         </button>

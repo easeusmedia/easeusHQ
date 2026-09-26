@@ -14,7 +14,7 @@ export type TaskTagOption = { id: string; name: string; clientFacing: boolean };
 // one thing on a card that genuinely needs to catch the eye.
 export function TaskTagChip({ name }: { name: string }) {
   return (
-    <span className="whitespace-nowrap rounded-md bg-foreground/[0.06] px-1.5 text-xs leading-5 text-muted">{name}</span>
+    <span className="whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted">{name}</span>
   );
 }
 

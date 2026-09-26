@@ -40,14 +40,14 @@ export default function TermsPage() {
           <h2 className="mb-2 text-base font-medium">Your material</h2>
           <p>
             What a client uploads stays theirs. We use it only to do the work they have engaged us for. How we handle it
-            is set out in our <a className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300" href="/privacy">privacy statement</a>.
+            is set out in our <a className="text-blue-400 underline underline-offset-2" href="/privacy">privacy statement</a>.
           </p>
         </section>
 
         <section>
           <h2 className="mb-2 text-base font-medium">Contact</h2>
           <p>
-            <a className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:decoration-sky-300" href="mailto:team.easeusnow@gmail.com">team.easeusnow@gmail.com</a>
+            <a className="text-blue-400 underline underline-offset-2" href="mailto:team.easeusnow@gmail.com">team.easeusnow@gmail.com</a>
           </p>
         </section>
       </div>

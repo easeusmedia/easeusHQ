@@ -3,7 +3,7 @@
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Trash2, X } from "lucide-react";
-import { TaskCard, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
+import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { StickyColumns, scrollPageNearEdge } from "./StickyColumns";
 import { TaskRow } from "./TaskRow";
@@ -249,13 +249,13 @@ export function Board({
 
   function stageHeader(col: Column) {
     return (
-      // Quiet: the stage's colour as a dot, its name, how many. Seven
-      // filled, outlined pills in a row made the headers the loudest thing
-      // on the board — louder than the work under them.
-      <div key={col.status} className="flex items-center gap-2 px-1 py-1.5 text-sm font-medium">
+      <div
+        key={col.status}
+        className={`status-pop flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium ${STATUS_STYLE[col.status]}`}
+      >
         <span className={`h-2 w-2 shrink-0 rounded-full ${col.dot}`} />
         <span className="truncate whitespace-nowrap">{col.label}</span>
-        <span className="ml-auto text-xs tabular-nums text-muted">{columnOf(col.status).length}</span>
+        <span className="ml-auto rounded-full bg-black/20 px-2 text-xs">{columnOf(col.status).length}</span>
       </div>
     );
   }
@@ -314,11 +314,7 @@ export function Board({
         ))}
         {list ? (
           columnTasks.length === 0 && (
-            <p
-              className={`rounded-xl px-4 py-3 text-xs text-muted transition-colors duration-150 ${
-                draggingId ? "bg-foreground/[0.06] text-foreground" : "bg-foreground/[0.02]"
-              }`}
-            >
+            <p className={`rounded-xl border border-dashed px-4 py-3 text-xs text-muted ${draggingId ? "border-foreground/30" : "border-border"}`}>
               {draggingId ? "Drop here" : "Nothing here"}
             </p>
           )
@@ -391,7 +387,7 @@ export function Board({
               <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary">
+              <button type="submit" className="btn btn-glow">
                 Confirm
               </button>
             </div>

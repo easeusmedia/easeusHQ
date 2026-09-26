@@ -53,7 +53,7 @@ export function ProjectRow({ project, href = `/projects/${project.id}` }: { proj
         </span>
         <span
           className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${
-            done ? "border-transparent bg-green-400/15 text-green-300" : "border-transparent bg-blue-400/15 text-blue-300"
+            done ? "border-green-400/30 bg-green-400/15 text-green-300" : "border-blue-400/30 bg-blue-400/15 text-blue-300"
           }`}
         >
           {done ? "Delivered" : "In progress"}
@@ -114,7 +114,7 @@ export function ProjectCard({
             <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
           )}
           {!done && (
-            <span className="absolute top-1.5 right-1.5 rounded-full border border-transparent bg-blue-400/20 px-1.5 py-0.5 text-xs font-medium text-blue-200 backdrop-blur">
+            <span className="absolute top-1.5 right-1.5 rounded-full border border-blue-400/30 bg-blue-400/20 px-1.5 py-0.5 text-xs font-medium text-blue-200 backdrop-blur">
               In progress
             </span>
           )}

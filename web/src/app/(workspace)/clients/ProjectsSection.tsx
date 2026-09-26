@@ -14,9 +14,9 @@ import { Reveal } from "../Reveal";
 const PRESETS = [4, 8, 12] as const;
 
 const PAYMENT: Record<Payment, { label: string; className: string }> = {
-  paid: { label: "Paid", className: "border-transparent bg-green-400/15 text-green-300" },
-  unpaid: { label: "Unpaid", className: "border-transparent bg-amber-400/15 text-amber-300" },
-  part_paid: { label: "Part paid", className: "border-transparent bg-amber-400/10 text-amber-300" },
+  paid: { label: "Paid", className: "border-green-400/30 bg-green-400/15 text-green-300" },
+  unpaid: { label: "Unpaid", className: "border-amber-400/30 bg-amber-400/15 text-amber-300" },
+  part_paid: { label: "Part paid", className: "border-amber-400/30 bg-amber-400/10 text-amber-300" },
   not_sent: { label: "Not invoiced yet", className: "border-border bg-surface text-muted" },
   not_marked: { label: "Payment not marked", className: "border-border bg-surface text-muted" },
 };
@@ -347,7 +347,7 @@ export function ProjectsSection({
                       ]}
                     />
                   ) : (
-                    <p className="rounded-lg bg-foreground/[0.02] px-3 py-2 text-sm text-muted">
+                    <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted">
                       {billing.cadence ? "No finished projects to invoice yet" : "No invoicing rule set for this client"}
                     </p>
                   )}

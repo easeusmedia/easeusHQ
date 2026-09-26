@@ -6,8 +6,6 @@ import { getAllUsers } from "@/lib/users";
 import { STAGE } from "@/lib/stages";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
-import { PageHeader } from "../PageHeader";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -79,29 +77,23 @@ export default async function CalendarPage({
 
   return (
     <>
-      <PageHeader
-        title="Calendar"
-        description="How much work was open on each day. A task counts from the day it's added until the day it's delivered."
-        actions={
-          <div className="segmented items-center">
-            <Link
-              href={`/calendar?month=${toParam(prev)}`}
-              aria-label="Previous month"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-foreground/[0.06] hover:text-foreground"
-            >
-              <ChevronLeft size={15} />
-            </Link>
-            <span className="min-w-28 text-center text-sm font-medium">{monthLabel}</span>
-            <Link
-              href={`/calendar?month=${toParam(next)}`}
-              aria-label="Next month"
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-foreground/[0.06] hover:text-foreground"
-            >
-              <ChevronRight size={15} />
-            </Link>
-          </div>
-        }
-      />
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted">
+            How many tasks were sitting in the dashboard on a given day. A task stops counting the day it&apos;s
+            delivered to the client, not before.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          <Link href={`/calendar?month=${toParam(prev)}`} className="text-muted hover:text-foreground">
+            ← Prev
+          </Link>
+          <span className="font-medium">{monthLabel}</span>
+          <Link href={`/calendar?month=${toParam(next)}`} className="text-muted hover:text-foreground">
+            Next →
+          </Link>
+        </div>
+      </div>
 
       <CalendarGrid year={year} month={monthIndex} days={days} />
     </>

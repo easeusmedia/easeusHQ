@@ -7,7 +7,6 @@ import { ClientsSyncButton } from "./ClientsSyncButton";
 import { ClientsBoard } from "./ClientsBoard";
 import type { ClientCardData } from "./ClientCard";
 import { clientLogoSrc } from "@/lib/photos";
-import { PageHeader } from "../PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +48,6 @@ export default async function ClientsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Clients"
-        description="Everyone we make work for — current, on hold and past. Open a client for their projects, brief and files."
-      />
       <ClientsBoard clients={cards} canArrange={!!me && me.role !== "employee"} />
       <ClientsSyncButton />
     </>

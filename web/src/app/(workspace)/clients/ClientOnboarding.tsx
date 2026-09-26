@@ -33,7 +33,7 @@ export function ClientOnboarding({ clientId, steps }: { clientId: string; steps:
 
   if (total === 0) {
     return (
-      <div className="flex items-center justify-between gap-4 rounded-2xl bg-foreground/[0.02] px-5 py-4">
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-dashed border-border px-5 py-4">
         <p className="text-sm text-muted">This client was set up before the onboarding template existed.</p>
         <button
           onClick={useTemplate}
@@ -75,7 +75,7 @@ export function ClientOnboarding({ clientId, steps }: { clientId: string; steps:
             >
               <span
                 className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                  step.done ? "border-transparent bg-green-400/20 text-green-300" : "border-border"
+                  step.done ? "border-green-400/40 bg-green-400/20 text-green-300" : "border-border"
                 }`}
               >
                 {step.done && <Check size={11} strokeWidth={3} />}

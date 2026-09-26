@@ -135,7 +135,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
             <button onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
               Cancel
             </button>
-            <button onClick={save} disabled={saving} className="btn btn-primary disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="btn btn-glow disabled:opacity-60">
               {saving ? "Creating…" : "Create client"}
             </button>
           </div>
@@ -175,7 +175,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
                       {p.name || "Onboarding link"}
                       <span className="text-muted"> · sent {sentAt(p.createdAt)}</span>
                     </span>
-                    <button onClick={() => copyLink(p.token)} className="shrink-0 text-xs text-sky-300 hover:underline">
+                    <button onClick={() => copyLink(p.token)} className="shrink-0 text-xs text-blue-400 hover:underline">
                       {copied === p.token ? "Copied" : "Copy link"}
                     </button>
                     <button onClick={() => revoke(p.id)} title="Cancel this link" className="btn-ghost shrink-0 rounded-md p-1">
