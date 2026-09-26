@@ -2,28 +2,29 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Link2, Paperclip, Trash2 } from "lucide-react";
+import { Building2, Link2, MoreHorizontal, Paperclip, Plus, Trash2, User, X } from "lucide-react";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { resizeToJpegMaxDim } from "@/lib/imageResize";
 import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type WorkTaskAttachment } from "./actions";
 import type { WorkTaskCardData } from "./WorkTaskCard";
-import { TaskTagPicker, type TaskTagOption } from "../TaskTagPicker";
-import { NEW_PROJECT, NEW_PROJECT_OPTION, useNewProject } from "../useNewProject";
+import type { TaskTagOption } from "../TaskTagPicker";
+import { useNewProject } from "../useNewProject";
+import { ProjectChip, TagPill, pill } from "../composer";
+import { Reveal } from "../Reveal";
+import { ConfirmButton } from "../ConfirmButton";
 
 // one definition, imported by the board, the list and the card — it was
 // copied into all four, so widening it in one place broke the other three
 export type Project = { id: string; name: string; client: { id: string; name: string } };
 
-const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground";
-const label = "flex flex-col gap-1.5 text-sm text-muted";
-// a real button, not a bare text link — "+ Add a link"/"+ Add an image"
-// used to be plain underline-less text with no padding at all, which read
-// as inert and was genuinely fiddly to hit
-const addBtn = "btn-add flex w-fit items-center gap-1.5 rounded-lg px-3 py-2 text-sm";
 
 // One dialog handles both creating and editing — the fields are identical,
 // only what happens on save (and whether a delete button shows) differs.
+//
+// A composer, the same as the board's: a title, a notes line, and a row of
+// chips you touch only if they apply. Links and images wait behind "⋯",
+// which opens by itself when a task being edited already has some.
 // Create mode renders its own "+ New task" trigger; edit mode has none of
 // its own (the card it's attached to opens it via the ref, same pattern as
 // TaskDetailsDialog on the client task board).
@@ -56,7 +57,9 @@ export const WorkTaskDialog = forwardRef<
   const [attachments, setAttachments] = useState<WorkTaskAttachment[]>(task?.attachments ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
 
+  const hidden = links.filter((l) => l.url.trim()).length + attachments.length;
   const clients = [...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
@@ -74,6 +77,9 @@ export const WorkTaskDialog = forwardRef<
     setLinks(task?.links ?? []);
     setAttachments(task?.attachments ?? []);
     setError(null);
+    // what's behind "⋯" shouldn't be hidden when there's something there
+    setMore(!!task?.links?.length || !!task?.attachments?.length);
+    newProject.cancel();
     dialogRef.current?.showModal();
   }
 
@@ -139,38 +145,73 @@ export const WorkTaskDialog = forwardRef<
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
-        className="glass fixed top-1/2 left-1/2 m-0 max-h-[85vh] w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-6 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
       >
-        <h2 className="mb-5 text-lg font-semibold">{mode === "create" ? "New task" : "Edit task"}</h2>
-        <div className="flex flex-col gap-4">
-          <label className={label}>
-            Title
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              save();
+            }
+          }}
+          className="flex flex-col"
+        >
+          {/* borderless, so no focus ring — the caret says where you are */}
+          <div className="flex flex-col gap-1.5 px-5 pt-5">
             <input
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs doing?"
-              className={field}
+              aria-label="Title"
+              className="w-full bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
             />
-          </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notes…"
+              aria-label="Notes"
+              rows={1}
+              className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm text-foreground/90 outline-none! placeholder:text-muted/60"
+            />
+          </div>
 
-          {/* the same tags the client pipeline uses, filtered to this
-              person's own team — Sales never sees "Colour correction" */}
-          {taskTags.length > 0 && (
-            <div className={label}>
-              Type of work
-              <TaskTagPicker tags={taskTags} selected={tagIds} internal={false} onChange={setTagIds} canManage={canManageTags} />
-            </div>
-          )}
-
-          {/* only shown when there's actually someone else to pick: an
-              employee's work is their own, so the row would be a dropdown
-              with one option */}
-          {assignees.length > 1 && (
-            <label className={label}>
-              Assigned to
+          <div className="flex flex-wrap items-center gap-1.5 px-5 pt-5 pb-4">
+            {/* optional: plenty of this work belongs to no client at all */}
+            <Dropdown
+              pill={{ icon: <Building2 size={12} /> }}
+              value={clientId}
+              placeholder="Client"
+              options={[
+                ...(clientId ? [{ value: "", label: "Not client work", pinned: true }] : []),
+                ...clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              onChange={(id) => {
+                setClientId(id);
+                // the old project belonged to the old client
+                setProjectId("");
+                newProject.cancel();
+              }}
+            />
+            {clientId && (
+              <ProjectChip
+                value={projectId}
+                onChange={setProjectId}
+                projects={clientProjects}
+                newProject={newProject}
+                canCreate={canManageTags}
+              />
+            )}
+            {/* only when there's someone else to hand it to */}
+            {assignees.length > 1 && (
               <Dropdown
-                defaultValue={assignedToId}
+                pill={{ icon: <User size={12} /> }}
+                value={assignedToId}
+                placeholder="Assignee"
                 onChange={setAssignedToId}
                 options={[
                   ...assignees.map((a) => ({ value: a.id, label: a.name })),
@@ -181,205 +222,105 @@ export const WorkTaskDialog = forwardRef<
                     : []),
                 ]}
               />
-            </label>
-          )}
-
-          <div className={label}>
-            Due date
-            <DatePicker value={dueDate} onChange={setDueDate} placeholder="No due date" />
+            )}
+            <DatePicker pill={{}} value={dueDate} onChange={setDueDate} placeholder="Due" />
+            {taskTags.length > 0 && (
+              <TagPill tags={taskTags} picked={tagIds} onChange={setTagIds} internal={false} canManage={canManageTags} />
+            )}
+            <button
+              type="button"
+              onClick={() => setMore((m) => !m)}
+              aria-expanded={more}
+              aria-label="Links and images"
+              className={`${pill(more || hidden > 0)} px-2`}
+            >
+              <MoreHorizontal size={13} />
+              {!more && hidden > 0 && <span className="tabular-nums">{hidden}</span>}
+            </button>
           </div>
 
-          {/* Optional on purpose: plenty of this team's work — reviewing
-              someone's edit, chasing a supplier — belongs to no client at
-              all. Client first, because that's the answer people have;
-              which project it was is often a detail they don't. */}
-          <label className={label}>
-            For a client <span className="font-normal normal-case text-muted/70">(optional)</span>
-            <Dropdown
-              value={clientId}
-              placeholder="Not client work"
-              onChange={(id) => {
-                setClientId(id);
-                // the old project belonged to the old client
-                setProjectId("");
-                newProject.cancel();
-              }}
-              options={clients.map((c) => ({ value: c.id, label: c.name }))}
-            />
-          </label>
-
-          {/* Once there's a client: pick one of theirs or start a new one
-              here. "＋ New project" is first, not last, so it isn't buried
-              below a long list — and only offered to the people allowed to
-              make projects (the same people who curate the tags). */}
-          {clientId && (
-            <div className={label}>
-              <span>
-                Which project <span className="font-normal normal-case text-muted/70">(optional)</span>
-              </span>
-              {!newProject.naming ? (
-                <Dropdown
-                  value={projectId}
-                  placeholder="Anything for them"
-                  search={{ recent: 3, placeholder: "Find a project…" }}
-                  onChange={(id) => (id === NEW_PROJECT ? newProject.start() : setProjectId(id))}
-                  options={[
-                    ...(canManageTags ? [NEW_PROJECT_OPTION] : []),
-                    ...clientProjects.map((p) => ({ value: p.id, label: p.name })),
-                  ]}
-                />
-              ) : (
-                <div className="flex gap-2">
+          <Reveal open={more}>
+            <div className="flex flex-col gap-3 px-5 pb-4">
+              {links.map((l, i) => (
+                <div key={i} className="flex gap-2">
                   <input
-                    autoFocus
-                    value={newProject.name}
-                    onChange={(e) => newProject.setName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        newProject.create();
-                      } else if (e.key === "Escape") {
-                        // back out of the name, not the whole dialog
-                        e.preventDefault();
-                        newProject.cancel();
-                      }
-                    }}
-                    placeholder="New project name"
-                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground"
+                    value={l.label}
+                    onChange={(e) => setLinks((cur) => cur.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                    placeholder="Label"
+                    className="w-24 shrink-0 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-foreground"
                   />
-                  <button type="button" onClick={newProject.cancel} className="btn btn-ghost shrink-0">
-                    Cancel
-                  </button>
+                  <input
+                    value={l.url}
+                    onChange={(e) => setLinks((cur) => cur.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
+                    placeholder="https://…"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-foreground"
+                  />
                   <button
                     type="button"
-                    onClick={newProject.create}
-                    disabled={newProject.busy || !newProject.name.trim()}
-                    className="btn btn-glow shrink-0 disabled:opacity-60"
+                    onClick={() => setLinks((cur) => cur.filter((_, j) => j !== i))}
+                    aria-label="Remove link"
+                    className="btn btn-xs btn-ghost px-2 hover:text-red-300"
                   >
-                    {newProject.busy ? "Creating…" : "Create"}
+                    <X size={12} />
                   </button>
                 </div>
+              ))}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((a, i) => (
+                    <div key={i} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset */}
+                      <img src={a.dataUrl} alt={a.name} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setAttachments((cur) => cur.filter((_, j) => j !== i))}
+                        aria-label={`Remove ${a.name}`}
+                        className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
-              {newProject.error && <p className="text-xs text-red-300">{newProject.error}</p>}
-            </div>
-          )}
-
-          <label className={label}>
-            Notes
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Whatever the next person picking this up needs to know…"
-              rows={3}
-              className={field}
-            />
-          </label>
-
-          <div className={label}>
-            <span className="flex items-center gap-1.5">
-              <Link2 size={14} /> Links
-            </span>
-            {links.map((l, i) => (
-              <div key={i} className="flex gap-2">
-                {/* not `field` here — it bakes in w-full, and a later w-24/
-                    flex-1 in the same class list doesn't reliably beat it
-                    (both are "width" utilities; Tailwind's own internal
-                    ordering decides the tie, not source order — it went to
-                    w-full, which is exactly what broke this row) */}
-                <input
-                  value={l.label}
-                  onChange={(e) => setLinks((cur) => cur.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
-                  placeholder="Label"
-                  className="w-24 shrink-0 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground"
-                />
-                <input
-                  value={l.url}
-                  onChange={(e) => setLinks((cur) => cur.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
-                  placeholder="https://…"
-                  // min-w-0: a flex item's default min-width is its content's
-                  // intrinsic width, not 0 — without it this still refuses
-                  // to shrink and pushes the row past the dialog's edge
-                  className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground"
-                />
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setLinks((cur) => cur.filter((_, j) => j !== i))}
-                  title="Remove link"
-                  className="flex shrink-0 items-center justify-center rounded-lg border border-transparent p-2.5 text-muted hover:border-border hover:bg-surface-2 hover:text-red-400"
+                  onClick={() => setLinks((cur) => [...cur, { label: "", url: "" }])}
+                  className={pill(false)}
                 >
-                  <X size={16} />
+                  <Link2 size={12} /> Link
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
+                <button type="button" onClick={() => fileRef.current?.click()} className={pill(false)}>
+                  <Paperclip size={12} /> Image
                 </button>
               </div>
-            ))}
-            <button type="button" onClick={() => setLinks((cur) => [...cur, { label: "", url: "" }])} className={addBtn}>
-              <Plus size={14} /> Add a link
-            </button>
-          </div>
+            </div>
+          </Reveal>
 
-          <div className={label}>
-            <span className="flex items-center gap-1.5">
-              <Paperclip size={14} /> Attachments
-            </span>
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((a, i) => (
-                  <div key={i} className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset */}
-                    <img src={a.dataUrl} alt={a.name} className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setAttachments((cur) => cur.filter((_, j) => j !== i))}
-                      title="Remove attachment"
-                      className="absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 group-hover:opacity-100"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
-            <button type="button" onClick={() => fileRef.current?.click()} className={addBtn}>
-              <Plus size={14} /> Add an image
-            </button>
-          </div>
-
-          {error && <p className="text-sm text-red-300">{error}</p>}
-
-          {/* sticky: the dialog scrolls, and "Add task" was below the fold
-              on a full form — the one button everybody came here to press */}
-          <div className="sticky bottom-0 -mx-6 -mb-6 mt-1 flex items-center justify-between gap-2 border-t border-border/60 bg-surface/80 px-6 py-4 backdrop-blur">
-            {mode === "edit" ? (
-              <button
-                type="button"
-                onClick={remove}
-                disabled={saving}
-                className="btn flex items-center gap-1.5 text-muted hover:bg-surface-2 hover:text-red-400 disabled:opacity-60"
+          <div className="flex items-center gap-3 border-t border-border/60 px-5 py-3">
+            {mode === "edit" && (
+              <ConfirmButton
+                message="Delete this task? It can't be undone."
+                onConfirm={remove}
+                className="btn btn-sm btn-ghost px-2 hover:text-red-300"
               >
-                <Trash2 size={15} /> Delete
-              </button>
-            ) : (
-              <span />
+                <Trash2 size={13} aria-label="Delete task" />
+              </ConfirmButton>
             )}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => dialogRef.current?.close()}
-                className="btn btn-ghost"
-              >
+            {/* only ever says something when something's wrong */}
+            <p className="min-w-0 flex-1 truncate text-xs text-red-300">{error ?? newProject.error}</p>
+            <div className="flex shrink-0 gap-2">
+              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={saving}
-                className="btn btn-glow disabled:opacity-60"
-              >
+              <button disabled={saving} className="btn btn-glow disabled:opacity-60">
                 {saving ? "Saving…" : mode === "create" ? "Add task" : "Save"}
               </button>
             </div>
           </div>
-        </div>
+        </form>
       </dialog>
     </>
   );

@@ -1,29 +1,21 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Building2, CalendarClock, Check, FolderOpen, Hash, Link2, MoreHorizontal, Plus, User, X } from "lucide-react";
+import { Building2, CalendarClock, Link2, MoreHorizontal, Plus, User } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
-import { NEW_PROJECT, NEW_PROJECT_OPTION, useNewProject } from "./useNewProject";
+import { useNewProject } from "./useNewProject";
+import { ProjectChip, TagPill, pill } from "./composer";
 import { Dropdown } from "./Dropdown";
 import { DatePicker } from "./DatePicker";
-import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
+import type { TaskTagOption } from "./TaskTagPicker";
 import { Checkbox } from "./Checkbox";
 import { Reveal } from "./Reveal";
-import { topLayer, useCloseOnScroll, usePopover } from "./popover";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
 
 const initialState: TaskFormState = {};
 
-
-// the chip every optional property is drawn as, set or not
-const pill = (set: boolean) =>
-  `flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 ${
-    set
-      ? "border-border bg-surface-2 text-foreground hover:border-foreground/30"
-      : "border-dashed border-border text-muted hover:border-foreground/30 hover:text-foreground"
-  }`;
 
 // A composer, not a form. What a task almost always is — a title and a
 // client — is the whole of what's asked for up front; every other property
@@ -88,6 +80,8 @@ export function NewTaskRow({
     setMore(false);
     newProject.cancel();
     dialogRef.current?.close();
+    // only when a task lands — newProject is a fresh object every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.success, blank]);
 
   // Built by hand rather than read off the DOM: most of what's picked lives
@@ -202,62 +196,15 @@ export function NewTaskRow({
             {/* Once there's a client: pick one of theirs, or start a new one
                 right here. Left alone, the task files under the client's
                 catch-all project. */}
-            {f.clientId &&
-              (!newProject.naming ? (
-                <Dropdown
-                  pill={{ icon: <FolderOpen size={12} /> }}
-                  value={f.projectId}
-                  placeholder="Project"
-                  search={{ recent: 3, placeholder: "Find a project…" }}
-                  // first, not last: under a client's twenty-odd projects the
-                  // bottom of the list is below the scroll, i.e. hidden
-                  options={[
-                    ...(canCreateProject ? [NEW_PROJECT_OPTION] : []),
-                    ...clientProjects.map((p) => ({ value: p.id, label: p.name })),
-                  ]}
-                  onChange={(id) => (id === NEW_PROJECT ? newProject.start() : set({ projectId: id }))}
-                />
-              ) : (
-                <span className={`${pill(true)} gap-1 py-0.5 pr-1`}>
-                  <FolderOpen size={12} className="shrink-0 opacity-70" />
-                  <input
-                    autoFocus
-                    value={newProject.name}
-                    onChange={(e) => newProject.setName(e.target.value)}
-                    onKeyDown={(e) => {
-                      // Enter makes the project, not the task; Escape backs
-                      // out of the name without closing the whole dialog
-                      if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
-                        e.preventDefault();
-                        newProject.create();
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        newProject.cancel();
-                      }
-                    }}
-                    placeholder="New project name"
-                    aria-label="New project name"
-                    className="w-36 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
-                  />
-                  <button
-                    type="button"
-                    onClick={newProject.create}
-                    disabled={newProject.busy || !newProject.name.trim()}
-                    aria-label="Create project"
-                    className="btn-ghost flex size-5 items-center justify-center rounded-full disabled:opacity-40"
-                  >
-                    <Check size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={newProject.cancel}
-                    aria-label="Cancel new project"
-                    className="btn-ghost flex size-5 items-center justify-center rounded-full"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
+            {f.clientId && (
+              <ProjectChip
+                value={f.projectId}
+                onChange={(id) => set({ projectId: id })}
+                projects={clientProjects}
+                newProject={newProject}
+                canCreate={canCreateProject}
+              />
+            )}
             {editors.length > 1 && (
               <Dropdown
                 pill={{ icon: <User size={12} /> }}
@@ -330,73 +277,5 @@ export function NewTaskRow({
         </form>
       </dialog>
     </>
-  );
-}
-
-// "Type of work" as a chip: the label is what's picked, and the full list of
-// tags opens beneath it only when asked for — fourteen chips were a third of
-// the old form's height, shown every time whether or not anyone tagged.
-function TagPill({
-  tags,
-  picked,
-  onChange,
-  internal,
-  onInternalHint,
-}: {
-  tags: TaskTagOption[];
-  picked: string[];
-  onChange: (ids: string[]) => void;
-  internal: boolean;
-  onInternalHint: (internal: boolean) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const { position, place } = usePopover(260);
-  const close = useCallback(() => setOpen(false), []);
-  useCloseOnScroll(open, close);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
-
-  const names = tags.filter((t) => picked.includes(t.id)).map((t) => t.name);
-  const label = names.length === 0 ? "Type" : names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
-
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => {
-          if (open) return setOpen(false);
-          place(triggerRef.current);
-          setOpen(true);
-        }}
-        className={pill(names.length > 0)}
-      >
-        <Hash size={12} className="shrink-0 opacity-70" />
-        <span className="max-w-40 truncate">{label}</span>
-      </button>
-      {open && position && (
-        <div
-          {...topLayer}
-          style={{ top: position.top, bottom: position.bottom, left: position.left, width: 340 }}
-          className="pop-in fixed z-50 rounded-xl border border-border bg-surface p-3 shadow-2xl"
-        >
-          <TaskTagPicker
-            tags={tags}
-            selected={picked}
-            internal={internal}
-            onInternalHint={onInternalHint}
-            onChange={onChange}
-          />
-        </div>
-      )}
-    </div>
   );
 }
