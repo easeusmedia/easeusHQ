@@ -93,3 +93,8 @@ test("client work is on time if it reached the client by the due date, however l
   // someone's own work has no client stage, so it's judged on completion
   assert.equal(onTime(item({ kind: "internal", dueDate: h(10), handedOffAt: null, completedAt: h(48) })), false);
 });
+
+test("an import that arrived already with the client isn't scored either way", () => {
+  // stamped with its own creation instant: nobody saw it reach the client
+  assert.equal(onTime(item({ dueDate: h(10), createdAt: h(50), handedOffAt: h(50), completedAt: h(60) })), null);
+});

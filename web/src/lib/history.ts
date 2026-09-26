@@ -10,6 +10,8 @@
 // HistoryItem and everything below (turnaround, on-time, grouping, the
 // per-person numbers) is arithmetic that can be tested on its own.
 
+import { handoffUnknown } from "./due.ts";
+
 export type HistoryItem = {
   id: string;
   // the client pipeline, or someone's own work
@@ -57,6 +59,9 @@ export function activeHours(item: HistoryItem): number | null {
 // against delivery counted the client's review time against the editor.
 export function onTime(item: HistoryItem): boolean | null {
   if (!item.dueDate) return null;
+  // arrived from Notion already with the client: when it got there is
+  // unknown, so it isn't scored either way
+  if (handoffUnknown(item.createdAt, item.handedOffAt)) return null;
   return istDay(item.handedOffAt ?? item.completedAt) <= istDay(item.dueDate);
 }
 

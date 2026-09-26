@@ -1,5 +1,4 @@
 import type { TaskStatus } from "./workflow";
-import { istDay as istDayOf } from "./history.ts";
 
 // What a due date means: the editor's deadline. The day the work has to
 // *reach the client* — not the day the client signs it off.
@@ -37,7 +36,8 @@ export type DueState =
   | "met" // reached the client on or before the day
   | "late"; // reached the client, but after the day
 
-const day = (d: Date | string) => istDayOf(new Date(d));
+// the calendar day in India (fixed +5:30, no DST there)
+const day = (d: Date | string) => new Date(new Date(d).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
 // A due date is a day in India, not a moment, so everything compares days.
 export function dueState(
@@ -57,4 +57,15 @@ export function dueState(
 export function daysLate(dueDate: Date | string, handedOffAt: Date | string): number {
   const diff = (Date.parse(day(handedOffAt)) - Date.parse(day(dueDate))) / 86_400_000;
   return Math.max(0, Math.round(diff));
+}
+
+// When a task arrived here already past the client — imported from Notion at
+// that stage — nobody saw it get there, so its handoff is recorded as the
+// moment it was created, and treated as unknown rather than as a date to be
+// judged by. Stamping the import time and scoring it would call every task
+// that came over from Notion late, and drag down the on-time rate of editors
+// who had in fact delivered on time.
+export function handoffUnknown(createdAt: Date | string, handedOffAt: Date | string | null): boolean {
+  if (!handedOffAt) return false;
+  return new Date(handedOffAt).getTime() - new Date(createdAt).getTime() < 1000;
 }

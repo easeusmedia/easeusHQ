@@ -9,7 +9,7 @@ import { Dropdown } from "./Dropdown";
 import { ProjectField } from "./ProjectField";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
 import { Avatar, DueDate, formatDate, formatDateTime, istDay } from "./TaskCard";
-import { daysLate } from "@/lib/due";
+import { daysLate, handoffUnknown } from "@/lib/due";
 import { DatePicker } from "./DatePicker";
 import type { Role } from "@/lib/workflow";
 import { StageTrail } from "./StageTrail";
@@ -203,7 +203,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <Field label="Due date">
                   <input type="hidden" name="dueDate" value={due} />
                   <DatePicker value={due} onChange={setDue} placeholder="No due date" />
-                  <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} />
+                  <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} createdAt={task.createdAt} />
                 </Field>
                 <Field label="Schedule for">
                   <input type="hidden" name="scheduledFor" value={scheduled} />
@@ -275,7 +275,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     )}
                   </div>
                 )}
-                <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} />
+                <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} createdAt={task.createdAt} />
                 <div>
                   <p className="mb-1 text-xs text-muted">Raw footage</p>
                   {task.rawLink ? (
@@ -401,8 +401,21 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
 // Once it's reached the client the chip on the card is gone — the deadline
 // has done its job — but how it went is still worth reading here: the day it
 // got there, and whether that was in time.
-function HandoffNote({ dueDate, handedOffAt }: { dueDate: Date | null; handedOffAt: Date | null }) {
+function HandoffNote({
+  dueDate,
+  handedOffAt,
+  createdAt,
+}: {
+  dueDate: Date | null;
+  handedOffAt: Date | null;
+  createdAt: Date;
+}) {
   if (!dueDate || !handedOffAt) return null;
+  // came in from Notion already with the client: when it got there is
+  // unknown, and guessing would call it late
+  if (handoffUnknown(createdAt, handedOffAt)) {
+    return <p className="text-xs text-muted">Was already with the client when it came in from Notion.</p>;
+  }
   const late = daysLate(dueDate, handedOffAt);
   return (
     <p className="text-xs text-muted">

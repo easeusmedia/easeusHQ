@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysLate, dueState, handedOffStamp, reachesClient } from "./due.ts";
+import { daysLate, dueState, handedOffStamp, handoffUnknown, reachesClient } from "./due.ts";
 
 // 26 September, the way a due date is stored: midnight UTC on the day
 const DUE = new Date("2026-09-26");
@@ -62,4 +62,13 @@ test("a client revision afterwards never moves or clears the record", () => {
   assert.equal(handedOffStamp(first, "sent_for_client_approval", later), first);
   // so a task delivered long after its due date still counts as met
   assert.equal(dueState(DUE, handedOffStamp(first, "delivered_and_uploaded", later)), "met");
+});
+
+test("a task that arrived already with the client has an unknown handoff, not a late one", () => {
+  const created = new Date("2026-09-26T02:13:00Z");
+  // imported at "Sent for client approval": stamped with its own creation
+  assert.equal(handoffUnknown(created, created), true);
+  // moved to the client here, a day later: that's a real, judgeable moment
+  assert.equal(handoffUnknown(created, new Date("2026-09-27T10:00:00Z")), false);
+  assert.equal(handoffUnknown(created, null), false);
 });

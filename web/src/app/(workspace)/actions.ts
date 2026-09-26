@@ -651,10 +651,15 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
       }
 
       const queuedOn = getDate(row.properties, "Editor Queu Date");
+      const importedAt = new Date();
       await prisma.task.create({
         data: {
           ...sharedData,
-          handedOffAt: handedOffStamp(null, sharedData.status),
+          // Already with the client when it arrived: nobody saw it get there,
+          // so it's stamped with the same instant as its creation, which is
+          // how lib/due's handoffUnknown tells it apart from a real handoff.
+          createdAt: importedAt,
+          handedOffAt: handedOffStamp(null, sharedData.status, importedAt),
           projectId: project.id,
           dueDate: queuedOn ?? new Date(),
           // newest at the top of its column, same as the board's own order
