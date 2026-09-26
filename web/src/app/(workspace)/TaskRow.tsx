@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
 import { AssigneeLabel, DueDate, StageColumn, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
+import { Checkbox } from "./Checkbox";
 import { StatusSelect } from "./StatusSelect";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { STAGE } from "@/lib/stages";
@@ -59,15 +60,10 @@ export function TaskRow({
         }`}
       >
         {onSelect && (
-          <input
-            type="checkbox"
-            checked={!!selected}
-            aria-label={`Select ${task.title}`}
-            // the row itself opens the task; ticking it must not
-            onClick={(e) => e.stopPropagation()}
-            onChange={() => onSelect(task.id)}
-            className="size-4 shrink-0 accent-foreground"
-          />
+          // the row itself opens the task; ticking it must not
+          <span onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center">
+            <Checkbox checked={!!selected} onChange={() => onSelect(task.id)} label={`Select ${task.title}`} />
+          </span>
         )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm">{task.title}</span>

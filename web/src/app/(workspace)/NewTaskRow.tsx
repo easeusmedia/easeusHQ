@@ -8,6 +8,7 @@ import { Dropdown } from "./Dropdown";
 import { DatePicker } from "./DatePicker";
 import { ProjectField } from "./ProjectField";
 import { TaskTagPicker, type TaskTagOption } from "./TaskTagPicker";
+import { Checkbox } from "./Checkbox";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
@@ -143,12 +144,7 @@ export function NewTaskRow({
             Type of work
             <TaskTagPicker tags={taskTags} selected={[]} internal={internal} onInternalHint={setInternal} />
             <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={internal}
-                onChange={(e) => setInternal(e.target.checked)}
-                className="h-3.5 w-3.5 accent-current"
-              />
+              <Checkbox checked={internal} onChange={setInternal} label="Internal work" size={15} />
               Internal work — the client never receives this
             </label>
           </div>

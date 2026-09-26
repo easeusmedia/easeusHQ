@@ -13,6 +13,7 @@ import { DatePicker } from "./DatePicker";
 import type { Role } from "@/lib/workflow";
 import { StageTrail } from "./StageTrail";
 import type { TaskCardData } from "./TaskCard";
+import { Checkbox } from "./Checkbox";
 
 const initialState: TaskFormState = {};
 
@@ -234,12 +235,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     onInternalHint={setInternal}
                   />
                   <label className="mt-1 flex cursor-pointer items-center gap-2 text-xs text-muted">
-                    <input
-                      type="checkbox"
-                      checked={internal}
-                      onChange={(e) => setInternal(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-current"
-                    />
+                    <Checkbox checked={internal} onChange={setInternal} label="Internal work" size={15} />
                     Internal work — the client never receives this
                   </label>
                 </div>
