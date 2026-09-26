@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, Workflow } from "lucide-react";
 import { STAGE } from "@/lib/stages";
-import { monthGrid, type PlanItem } from "@/lib/contentPlan";
+import { addDays, monthGrid, type PlanItem } from "@/lib/contentPlan";
 import type { Role, TaskStatus } from "@/lib/workflow";
 import { rescheduleTask, saveContentPlan } from "./actions";
 import { Stepper } from "../Stepper";
@@ -36,6 +36,11 @@ type DialogEnv = {
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// the Monday of the week a day falls in
+const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7));
+const short = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
 // The client's work laid out by day — every task on the day it's due, so the
 // month reads as the plan it is: which edit, which reel, which thumbnail,
 // when. New projects fill it in from the blueprint; dragging a task to
@@ -57,7 +62,12 @@ export function ContentCalendar({
   dialog?: DialogEnv;
 }) {
   const canEdit = !!clientId;
+  // Two weeks by default — this one and the next, what's actually in hand —
+  // with the whole month a click away. A month of mostly empty squares was
+  // the biggest thing on the page and said the least.
+  const [span, setSpan] = useState<"weeks" | "month">("weeks");
   const [month, setMonth] = useState(() => ({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }));
+  const [weekOf, setWeekOf] = useState(() => mondayOf(today));
   // a move shows at once; the saved date arrives with the refreshed items
   const [optimistic, setOptimistic] = useState<{ base: CalendarItem[]; days: Record<string, string> } | null>(null);
   const moved = optimistic?.base === items ? optimistic.days : {};
@@ -77,11 +87,24 @@ export function ContentCalendar({
     byDay.set(day, [...(byDay.get(day) ?? []), it]);
   }
 
-  const weeks = monthGrid(month.y, month.m);
-  const inMonth = (day: string) => Number(day.slice(5, 7)) - 1 === month.m;
-  const isThisMonth = month.y === Number(today.slice(0, 4)) && month.m === Number(today.slice(5, 7)) - 1;
+  const weeks =
+    span === "month"
+      ? monthGrid(month.y, month.m)
+      : [0, 1].map((w) => Array.from({ length: 7 }, (_, d) => addDays(weekOf, w * 7 + d)));
+  const inMonth = (day: string) => span === "weeks" || Number(day.slice(5, 7)) - 1 === month.m;
+  const atToday =
+    span === "month"
+      ? month.y === Number(today.slice(0, 4)) && month.m === Number(today.slice(5, 7)) - 1
+      : weekOf === mondayOf(today);
   const step = (n: number) =>
-    setMonth(({ y, m }) => ({ y: y + Math.floor((m + n) / 12), m: (((m + n) % 12) + 12) % 12 }));
+    span === "month"
+      ? setMonth(({ y, m }) => ({ y: y + Math.floor((m + n) / 12), m: (((m + n) % 12) + 12) % 12 }))
+      : setWeekOf((w) => addDays(w, n * 7));
+  const toToday = () => {
+    setMonth({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 });
+    setWeekOf(mondayOf(today));
+  };
+  const label = span === "month" ? `${MONTHS[month.m]} ${month.y}` : `${short(weeks[0][0])} – ${short(weeks[1][6])}`;
 
   async function move(id: string, day: string) {
     const item = items.find((i) => i.id === id);
@@ -155,8 +178,7 @@ export function ContentCalendar({
         }
       : {};
 
-  const monthDays = weeks.flat().filter(inMonth);
-  const planned = monthDays.filter((d) => byDay.has(d));
+  const planned = weeks.flat().filter(inMonth).filter((d) => byDay.has(d));
 
   return (
     <section>
@@ -164,37 +186,47 @@ export function ContentCalendar({
         <div>
           <h2 className="text-sm font-medium">Content calendar</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Every task on the day it&apos;s due.
-            {canEdit && " New projects are laid out here from the blueprint — drag a task to another day to move it."}
+            Every task on the day it&apos;s due{canEdit && " — drag one to move it"}.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {canEdit && plan && <BlueprintButton clientId={clientId} plan={plan} />}
-          {!isThisMonth && (
-            <button
-              type="button"
-              onClick={() => setMonth({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 })}
-              className="btn btn-xs btn-ghost"
-            >
+          {!atToday && (
+            <button type="button" onClick={toToday} className="btn btn-xs btn-ghost">
               Today
             </button>
           )}
+          <div className="flex gap-0.5 rounded-lg bg-surface-2/60 p-0.5 text-xs">
+            {(
+              [
+                ["weeks", "2 weeks"],
+                ["month", "Month"],
+              ] as const
+            ).map(([key, text]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSpan(key)}
+                className={`rounded-md px-2.5 py-1.5 ${span === key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-0.5 rounded-lg bg-surface-2/60 p-0.5">
             <button
               type="button"
               onClick={() => step(-1)}
-              aria-label="Previous month"
+              aria-label={span === "month" ? "Previous month" : "Previous week"}
               className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-foreground"
             >
               <ChevronLeft size={15} />
             </button>
-            <span className="min-w-32 text-center text-sm font-medium">
-              {MONTHS[month.m]} {month.y}
-            </span>
+            <span className="min-w-32 text-center text-sm font-medium">{label}</span>
             <button
               type="button"
               onClick={() => step(1)}
-              aria-label="Next month"
+              aria-label={span === "month" ? "Next month" : "Next week"}
               className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-foreground"
             >
               <ChevronRight size={15} />
@@ -206,7 +238,7 @@ export function ContentCalendar({
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
 
       {/* the month as a grid, wide screens */}
-      <div key={`${month.y}-${month.m}`} className="fade-in hidden overflow-hidden rounded-xl border border-border/60 sm:block">
+      <div key={`${span}-${label}`} className="fade-in hidden overflow-hidden rounded-xl border border-border/60 sm:block">
         <div className="grid grid-cols-7 bg-surface/60 text-xs text-muted">
           {WEEKDAYS.map((d) => (
             <span key={d} className="px-2 py-1.5">
@@ -222,7 +254,8 @@ export function ContentCalendar({
                 <div
                   key={day}
                   {...dropTarget(day)}
-                  className={`flex min-h-28 min-w-0 flex-col gap-1 p-1.5 transition-colors duration-150 not-first:border-l not-first:border-border/40 ${
+                  // short rows: a day with nothing on it is a date, not a box
+                  className={`flex min-h-16 min-w-0 flex-col gap-1 p-1.5 transition-colors duration-150 not-first:border-l not-first:border-border/40 ${
                     over === day ? "bg-blue-400/[0.08]" : inMonth(day) ? "" : "bg-background/50"
                   }`}
                 >
@@ -244,7 +277,7 @@ export function ContentCalendar({
       {/* phones: just the days that have something on them */}
       <div className="flex flex-col gap-3 sm:hidden">
         {planned.length === 0 ? (
-          <p className="rounded-xl bg-surface/40 px-4 py-6 text-center text-sm text-muted">Nothing planned this month.</p>
+          <p className="rounded-xl bg-surface/40 px-4 py-6 text-center text-sm text-muted">Nothing planned {span === "month" ? "this month" : "these two weeks"}.</p>
         ) : (
           planned.map((day) => (
             <div key={day} className="flex flex-col gap-1">
