@@ -514,30 +514,37 @@ export function runs(text: string): { text: string; bold?: boolean; italic?: boo
 
 // ---- the assistant's questions ----
 
-// What the contract assistant asks, in order, before anything else — every
-// detail the contract is built from, a topic at a time (see
-// contracts/assistant.ts, which has Claude work through them).
+// What the contract assistant asks, one at a time, before anything else —
+// every detail the contract is built from (see contracts/assistant.ts, which
+// has Claude work through them, each with a few answers to pick from).
 export const QUESTIONS = [
-  "Term: how long is the contract — a one-month trial, or how many months? If it's a trial, should it roll on for more months automatically unless either side stops it?",
-  "Fee: the monthly fee and currency; paid in full upfront each month, or a 50/50 split; any discount or note on the fee.",
-  "Deliverables: what we deliver each month, with quantities (e.g. 2 long-form episodes a month, 4 reels per episode, thumbnails for every episode).",
-  "Content: the podcast or brand name to show (if any); the platforms we'll need access to; whether the term starts when the first episode, YouTube video or piece of content goes live.",
-  "Client: confirm what the client gave — legal name, address, country, who signs (name and email). Any trading name, or a second person who signs?",
-  "Dates: dated the day it's sent (the default) or a set date; any start date to name in it.",
-  "Legal: the four-week termination clause and the governing law/courts as they stand for these terms — keep or change? Does it replace an earlier agreement?",
-  "Anything else: any further obligation for the client, or anything to add — a custom clause, a detail, different wording.",
+  "Term: how many months — a one-month trial, or longer?",
+  "Only for a one-month trial: does it roll on automatically afterwards unless either side stops it — and for how many months?",
+  "The monthly fee, and its currency.",
+  "Payment: in full upfront each month, or a 50/50 split?",
+  "Any discount or note on the fee (e.g. a reduced first month)?",
+  "What we deliver each month, with quantities.",
+  "The podcast or brand name to show on it, if any.",
+  "The platforms we'll need access to.",
+  "Does the term start when the first episode, YouTube video, or piece of content goes live?",
+  "The client's details as they gave them — legal name, address, country, who signs. All correct? Any trading name or second signatory?",
+  "Dated the day it's sent, or on a set date? Any start date to name in it?",
+  "The four-week termination clause: keep it as the rules have it for this term, or change it?",
+  "Governing law and courts (skip for a one-month trial — it has no dispute clause).",
+  "Does it replace an earlier agreement?",
+  "Anything else to add — an obligation for the client, a custom clause, other wording?",
 ];
 
+export type Question = { question: string; options: string[] };
+
 // The chat's opening message — fixed, so it's there the moment the chat
-// opens: the first of the questions, showing the answer already there if
-// there is one.
-export function opener(d: ContractDetails): string {
+// opens: the first question, with the answer already there offered first.
+export function opener(d: ContractDetails): { text: string } & Question {
   const who = d.contactName.split(/\s+/)[0] || d.entity;
-  const start = `${who ? `${who} sent their details, so I've started the contract from them.` : "Let's put this contract together."} I'll go through a few quick questions — answer in your own words, as briefly as you like, and add anything else you want at any point.`;
-  const term = d.termMonths
-    ? `First, the term: it's **${termLength(d.termMonths)}${d.termMonths === 1 ? " — a trial" : ""}**. Keep that, or change it?${
-        d.termMonths === 1 ? " And when the trial ends, should it roll on automatically unless either side stops it?" : ""
-      }`
-    : "First: **how long is the contract** — a one-month trial, or how many months?";
-  return `${start}\n\n${term}`;
+  const n = d.termMonths;
+  return {
+    text: `${who ? `${who} sent their details, so I've started the contract from them.` : "Let's put this contract together."} A few quick questions — pick an answer or type your own.`,
+    question: n ? `How long is the contract? It's ${termLength(n)} now.` : "How long is the contract?",
+    options: [...new Set([n ? `Keep ${n === 1 ? "the one-month trial" : `${n} months`}` : "One-month trial", "3 months", "6 months"])].slice(0, 3),
+  };
 }

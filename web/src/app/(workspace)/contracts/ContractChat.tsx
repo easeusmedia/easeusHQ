@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ArrowUp, RotateCcw, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, ArrowUp, PenLine, RotateCcw, Sparkles } from "lucide-react";
 import { opener, runs, type Clause, type ContractDetails } from "@/lib/contract";
 import { chatContract, clearContractChat } from "./actions";
 import type { ChatMessage } from "./assistant";
@@ -39,6 +39,65 @@ function Avatar() {
   );
 }
 
+// One question from the assistant: its options to pick, and a field for
+// any other answer. Only the latest is live; earlier ones just show the
+// question (the answer is the reply beneath it). 1–3 on the keyboard picks.
+function QuestionCard({ question, options, live, onAnswer }: { question: string; options: string[]; live: boolean; onAnswer: (a: string) => void }) {
+  const [own, setOwn] = useState("");
+  useEffect(() => {
+    if (!live) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("input, textarea, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;
+      const pick = options[Number(e.key) - 1];
+      if (pick) onAnswer(pick);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [live, options, onAnswer]);
+
+  if (!live) return <p className="mt-2 rounded-xl border border-white/[0.05] px-3.5 py-2.5 text-[13px] text-muted">{question}</p>;
+  return (
+    <div className="fade-in mt-2 overflow-hidden rounded-2xl border border-accent/20 bg-accent/[0.04]">
+      <p className="px-4 pb-2 pt-3.5 text-[13.5px] font-medium leading-snug text-foreground">{question}</p>
+      <div className="flex flex-col gap-0.5 px-2 pb-2">
+        {options.map((o, i) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onAnswer(o)}
+            className="group flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-foreground/85 transition-colors duration-150 hover:bg-accent/10 hover:text-foreground"
+          >
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-accent/25 text-[11px] tabular-nums text-accent transition-colors group-hover:border-accent group-hover:bg-accent group-hover:text-[#0b1215]">
+              {i + 1}
+            </span>
+            <span className="min-w-0 flex-1">{o}</span>
+            <ArrowRight size={14} className="shrink-0 text-accent opacity-0 transition-opacity group-hover:opacity-100" />
+          </button>
+        ))}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (own.trim()) onAnswer(own);
+          }}
+          className="mt-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-surface-2/70 py-1 pl-3 pr-1 transition-colors focus-within:border-accent/40"
+        >
+          <PenLine size={13} className="shrink-0 text-muted" />
+          <input
+            value={own}
+            onChange={(e) => setOwn(e.target.value)}
+            placeholder="Type your own answer…"
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-[13.5px] outline-none! placeholder:text-muted/70"
+          />
+          <button type="submit" disabled={!own.trim()} aria-label="Send" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[#0b1215] transition-opacity disabled:opacity-25">
+            <ArrowUp size={14} />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function ContractChat({
   id,
   initial,
@@ -59,38 +118,43 @@ export function ContractChat({
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [chat, thinking, error]);
 
-  async function send(text = draft) {
-    const t = text.trim();
-    if (!t || thinking) return;
-    setDraft("");
-    setError(null);
-    setChat((c) => [...c, { role: "user", text: t, at: new Date().toISOString() }]);
-    setThinking(true);
-    const res = await chatContract(id, t);
-    setThinking(false);
-    if (res.error) return setError(res.error);
-    if (res.chat) setChat(res.chat);
-    if (res.details && res.clauses && res.status) onUpdate({ details: res.details, clauses: res.clauses, status: res.status });
-  }
+  const send = useCallback(
+    async (text: string) => {
+      const t = text.trim();
+      if (!t || thinking) return;
+      setDraft("");
+      setError(null);
+      setChat((c) => [...c, { role: "user", text: t, at: new Date().toISOString() }]);
+      setThinking(true);
+      const res = await chatContract(id, t);
+      setThinking(false);
+      if (res.error) return setError(res.error);
+      if (res.chat) setChat(res.chat);
+      if (res.details && res.clauses && res.status) onUpdate({ details: res.details, clauses: res.clauses, status: res.status });
+    },
+    [id, thinking, onUpdate]
+  );
 
-  // the opening message is fixed — the first of the assistant's questions —
-  // until the conversation starts, when it's saved as part of it
-  const intro = locked ? "This contract has gone out for signature, so it can't change now. You can still ask me about it." : opener(details);
+  // The conversation opens with the first question, fixed — until it's
+  // saved as part of the conversation when the first answer goes in.
+  const shown: ChatMessage[] = locked
+    ? [{ role: "assistant", text: "This contract has gone out for signature, so it can't change now. You can still ask me about it.", at: "" }, ...chat]
+    : chat[0]?.role === "assistant"
+      ? chat
+      : [{ role: "assistant", ...opener(details), at: "" }, ...chat];
+  const last = shown[shown.length - 1];
+  const pending = !locked && !thinking && last.role === "assistant" && !!last.question && !!last.options?.length;
 
-  // quick answers to the first question, then a few ideas once it's complete
   const ideas = locked
     ? ["Summarise this contract"]
-    : chat.length === 0
-      ? [...(details.termMonths ? ["Yes, keep it"] : ["One-month trial"]), "3 months", "6 months"]
-      : missing.length === 0
-        ? ["Add a confidentiality clause", "Make the payment a 50/50 split", "Summarise this contract"]
-        : [];
+    : missing.length === 0
+      ? ["Add a confidentiality clause", "Make the payment a 50/50 split", "Summarise this contract"]
+      : [];
 
   return (
     <div className="flex h-full min-h-[480px] flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-surface/90 to-surface/50 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)]">
@@ -98,7 +162,7 @@ export function ContractChat({
         <Avatar />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Contract assistant</p>
-          <p className="text-xs text-muted">Tell me what to change — I&apos;ll edit the contract</p>
+          <p className="text-xs text-muted">A few questions, then ask me for anything</p>
         </div>
         {chat.length > 0 && (
           <button
@@ -108,7 +172,7 @@ export function ContractChat({
               setChat([]);
               setError(null);
             }}
-            title="Start a new conversation (the contract stays as it is)"
+            title="Start again from the first question (the contract stays as it is)"
             className="flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground"
           >
             <RotateCcw size={14} />
@@ -117,16 +181,7 @@ export function ContractChat({
       </div>
 
       <div ref={scroller} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-5 text-sm leading-relaxed">
-        {/* until the saved conversation carries the opener itself */}
-        {(chat[0]?.role !== "assistant" || locked) && (
-          <div className="flex gap-3">
-            <Avatar />
-            <div className="min-w-0 pt-0.5 text-foreground/85">
-              <Text text={intro} />
-            </div>
-          </div>
-        )}
-        {chat.map((m, i) =>
+        {shown.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="fade-in flex justify-end">
               <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/[0.1] px-3.5 py-2 text-foreground">
@@ -136,8 +191,11 @@ export function ContractChat({
           ) : (
             <div key={i} className="fade-in flex gap-3">
               <Avatar />
-              <div className="min-w-0 pt-0.5 text-foreground/85">
-                <Text text={m.text} />
+              <div className="min-w-0 flex-1 pt-0.5 text-foreground/85">
+                {m.text && <Text text={m.text} />}
+                {m.question && m.options?.length ? (
+                  <QuestionCard question={m.question} options={m.options} live={pending && i === shown.length - 1} onAnswer={send} />
+                ) : null}
               </div>
             </div>
           )
@@ -155,47 +213,49 @@ export function ContractChat({
         {error && <p className="fade-in rounded-xl border border-accent/25 bg-accent/[0.08] px-3.5 py-2 text-foreground/85">{error}</p>}
       </div>
 
-      <div className="flex flex-col gap-2.5 px-4 pb-4">
-        {!draft && !thinking && ideas.length > 0 && (
-          <div className="fade-in flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-            {ideas.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => send(s)}
-                className="shrink-0 rounded-full border border-accent/25 px-3 py-1 text-xs text-accent/90 transition-colors hover:bg-accent/10"
-              >
-                {s}
-              </button>
-            ))}
+      {/* free-form, once there's no question waiting — the question card has its own field */}
+      {!pending && (
+        <div className="fade-in flex flex-col gap-2.5 px-4 pb-4">
+          {!draft && !thinking && ideas.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+              {ideas.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => send(s)}
+                  className="shrink-0 rounded-full border border-accent/25 px-3 py-1 text-xs text-accent/90 transition-colors hover:bg-accent/10"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(111,179,189,0.1)]">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send(draft);
+                }
+              }}
+              rows={1}
+              placeholder={locked ? "Ask about this contract…" : "Change anything — terms, clauses, wording…"}
+              className="field-sizing-content max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm outline-none! placeholder:text-muted/70"
+            />
+            <button
+              type="button"
+              onClick={() => send(draft)}
+              disabled={!draft.trim() || thinking}
+              aria-label="Send"
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1215] transition-opacity disabled:opacity-30"
+            >
+              <ArrowUp size={16} />
+            </button>
           </div>
-        )}
-        <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(111,179,189,0.1)]">
-          <textarea
-            ref={input}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={1}
-            placeholder={locked ? "Ask about this contract…" : "Change anything — terms, clauses, wording…"}
-            className="field-sizing-content max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm outline-none! placeholder:text-muted/70"
-          />
-          <button
-            type="button"
-            onClick={() => send()}
-            disabled={!draft.trim() || thinking}
-            aria-label="Send"
-            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1215] transition-opacity disabled:opacity-30"
-          >
-            <ArrowUp size={16} />
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
