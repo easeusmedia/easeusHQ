@@ -205,7 +205,7 @@ export function ContractForm({
       <Row
         label="Client"
         needed={needs("CLIENT_ENTITY", "CLIENT_ADDRESS", "CLIENT_COUNTRY", "CLIENT_SIGNATORY_1", "CLIENT_EMAIL_1", "CLIENT_SIGNATORY_2", "CLIENT_EMAIL_2")}
-        sub={[v.CLIENT_ENTITY || "No name yet", v.CLIENT_COUNTRY, d.signatories[0]?.email].filter(Boolean).join(" · ")}
+        sub={[v.CLIENT_ENTITY || "No name yet", v.CLIENT_COUNTRY, d.signatories[0]?.email, d.whatsapp && `WhatsApp ${d.whatsapp}`].filter(Boolean).join(" · ")}
       >
         {other("Client", "Correct or add…")}
       </Row>

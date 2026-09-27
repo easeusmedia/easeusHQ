@@ -11,6 +11,7 @@ import { EMAIL, withDefaults } from "@/lib/contract";
 export type IntakeInput = {
   contactName: string;
   contactEmail: string;
+  whatsapp: string;
   entity: string;
   country: string;
   address: string;
@@ -27,6 +28,7 @@ export async function submitIntake(token: string, input: IntakeInput): Promise<{
   const form = {
     contactName: text(input.contactName, 120),
     contactEmail: text(input.contactEmail, 200),
+    whatsapp: text(input.whatsapp, 40),
     entity: text(input.entity, 200),
     country: text(input.country, 80),
     address: text(input.address, 500),
@@ -42,6 +44,7 @@ export async function submitIntake(token: string, input: IntakeInput): Promise<{
     ...withDefaults(contract.details),
     contactName: form.contactName,
     contactEmail: form.contactEmail,
+    whatsapp: form.whatsapp,
     entity: form.entity,
     country: form.country,
     address: form.address,

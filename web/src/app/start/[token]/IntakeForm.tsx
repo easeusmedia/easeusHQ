@@ -6,13 +6,14 @@ import { EMAIL } from "@/lib/contract";
 import { submitIntake } from "../actions";
 
 // The first thing a new client fills in — one short page, only what the
-// contract can't be written without: who they are, their business, and who
-// signs. Everything else is ours to fill in. A half-filled form survives a
+// contract can't be written without: who they are (and their WhatsApp, the
+// quickest way to reach them), their business, and who signs. Everything else is ours to fill in. A half-filled form survives a
 // reload (kept in this browser only).
 
 const BLANK = {
   contactName: "",
   contactEmail: "",
+  whatsapp: "",
   entity: "",
   country: "",
   address: "",
@@ -27,6 +28,8 @@ function check(f: Form): Errors {
   const email = (v: string) => (!v.trim() ? "Add an email." : !EMAIL.test(v.trim()) ? "That email doesn't look right." : undefined);
   if (!f.contactName.trim()) e.contactName = "Add your name.";
   e.contactEmail = email(f.contactEmail);
+  // optional, but a real number if given
+  if (f.whatsapp.trim() && (f.whatsapp.replace(/\D/g, "").length < 7 || /[^\d\s+()-]/.test(f.whatsapp))) e.whatsapp = "That number doesn't look right.";
   if (!f.entity.trim()) e.entity = "Add your business name.";
   if (!f.country.trim()) e.country = "Choose your country.";
   if (!f.address.trim()) e.address = "Add your address.";
@@ -78,6 +81,7 @@ export function IntakeForm({ token }: { token: string }) {
     const res = await submitIntake(token, {
       contactName: f.contactName,
       contactEmail: f.contactEmail,
+      whatsapp: f.whatsapp,
       entity: f.entity,
       country: f.country,
       address: f.address,
@@ -120,6 +124,9 @@ export function IntakeForm({ token }: { token: string }) {
             <Input value={f.contactEmail} onChange={(v) => set({ contactEmail: v })} placeholder="andrew@example.com" type="email" autoComplete="email" invalid={!!errors.contactEmail} />
           </Field>
         </div>
+        <Field label="WhatsApp number" error={errors.whatsapp}>
+          <Input value={f.whatsapp} onChange={(v) => set({ whatsapp: v })} placeholder="+44 7700 900123" type="tel" autoComplete="tel" invalid={!!errors.whatsapp} />
+        </Field>
         <Field label="Business name" required error={errors.entity}>
           <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name — or yours, if there's no company" autoComplete="organization" invalid={!!errors.entity} />
         </Field>
