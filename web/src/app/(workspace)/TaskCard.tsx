@@ -1,6 +1,9 @@
 "use client";
 
 import { useRef } from "react";
+import { useRouter } from "next/navigation";
+import { HoverDelete } from "./HoverDelete";
+import { deleteTasks } from "./actions";
 import { NotesButton } from "./NotesButton";
 import { useOnline, usePhoto } from "./photos";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
@@ -255,6 +258,7 @@ export function TaskCard({
   const cardLinkSpec = STATUS_LINK[task.status];
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
   const detailsRef = useRef<{ open: () => void }>(null);
+  const router = useRouter();
 
   // every interactive element inside the card below stops the click from
   // bubbling here — the card itself is now one big "open the details
@@ -266,11 +270,18 @@ export function TaskCard({
       onClick={() => detailsRef.current?.open()}
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
     >
-      {/* No Edit/Delete on hover any more. The whole card already opens the
-          details dialog on click, so "Edit" was a second button for what a
-          click already did, and Delete — the one destructive action here —
-          sat one stray click away on every card. Both live in that dialog
-          now, which keeps the card to just the task. */}
+      {/* Delete on hover, for the people who can delete in the task's own
+          dialog (admin and core), asking first; the rest of editing lives
+          in that dialog, which the card opens on click. */}
+      {canManage && (
+        <HoverDelete
+          title={task.title}
+          onDelete={async () => {
+            const res = await deleteTasks([task.id]);
+            if (!res.error) router.refresh();
+          }}
+        />
+      )}
       <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
 
       <div className="flex items-start justify-between gap-2">

@@ -6,7 +6,8 @@ import { CalendarClock, CheckCircle2, Link2, Paperclip } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
 import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { Dropdown } from "../Dropdown";
-import { moveWorkTask } from "./actions";
+import { deleteWorkTask, moveWorkTask } from "./actions";
+import { HoverDelete } from "../HoverDelete";
 import { Avatar } from "../TaskCard";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
@@ -82,6 +83,9 @@ export function WorkTaskCard({
   const due = task.status === "done" ? null : dueState(task.dueDate, null);
   const dueTone = due === "overdue" ? "font-medium text-red-300" : due === "today" ? "font-medium text-amber-300" : "";
   const hasFooter = task.dueDate || task.links.length > 0 || task.attachments.length > 0 || showAssignee;
+  // the same people the task's own dialog lets delete it: whoever it's for or
+  // from, and the operations side (canManageTags is that same bar)
+  const canDelete = task.assignedTo.id === actingUserId || task.createdBy.id === actingUserId || canManageTags;
 
   return (
     <>
@@ -92,8 +96,18 @@ export function WorkTaskCard({
         tabIndex={0}
         onClick={() => dialogRef.current?.open()}
         onKeyDown={(e) => e.key === "Enter" && dialogRef.current?.open()}
-        className="card-surface card-interactive flex w-full cursor-pointer flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
+        className="card-surface card-interactive group relative flex w-full cursor-pointer flex-col gap-2.5 rounded-xl p-4 text-left shadow-sm"
       >
+        {canDelete && (
+          <HoverDelete
+            title={task.title}
+            onDelete={async () => {
+              const res = await deleteWorkTask(task.id);
+              if (res.error) setError(res.error);
+              else router.refresh();
+            }}
+          />
+        )}
         {showStatus && (
           <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="w-full max-w-40">
             {/* keyed on status so it shows the saved stage after a refresh */}

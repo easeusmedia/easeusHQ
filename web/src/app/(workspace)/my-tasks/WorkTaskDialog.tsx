@@ -2,7 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Link2, MoreHorizontal, Paperclip, Plus, Trash2, User, X } from "lucide-react";
+import { Building2, Link2, Paperclip, Plus, Trash2, User, X } from "lucide-react";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { resizeToJpegMaxDim } from "@/lib/imageResize";
@@ -23,8 +23,8 @@ export type Project = { id: string; name: string; client: { id: string; name: st
 // only what happens on save (and whether a delete button shows) differs.
 //
 // A composer, the same as the board's: a title, a notes line, and a row of
-// chips you touch only if they apply. Links and images wait behind "⋯",
-// which opens by itself when a task being edited already has some.
+// chips you touch only if they apply — links and images among them; what's
+// been added shows under the row.
 // Create mode renders its own "+ New task" trigger; edit mode has none of
 // its own (the card it's attached to opens it via the ref, same pattern as
 // TaskDetailsDialog on the client task board).
@@ -57,9 +57,7 @@ export const WorkTaskDialog = forwardRef<
   const [attachments, setAttachments] = useState<WorkTaskAttachment[]>(task?.attachments ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [more, setMore] = useState(false);
 
-  const hidden = links.filter((l) => l.url.trim()).length + attachments.length;
   const clients = [...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
@@ -77,8 +75,6 @@ export const WorkTaskDialog = forwardRef<
     setLinks(task?.links ?? []);
     setAttachments(task?.attachments ?? []);
     setError(null);
-    // what's behind "⋯" shouldn't be hidden when there's something there
-    setMore(!!task?.links?.length || !!task?.attachments?.length);
     newProject.cancel();
     dialogRef.current?.showModal();
   }
@@ -160,30 +156,41 @@ export const WorkTaskDialog = forwardRef<
           }}
           className="flex flex-col"
         >
+          <div className="flex items-center justify-between px-5 pt-4">
+            <p className="text-xs font-medium text-muted">{mode === "create" ? "New task" : "Edit task"}</p>
+            <button
+              type="button"
+              onClick={() => dialogRef.current?.close()}
+              aria-label="Close"
+              className="-mr-1.5 flex size-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            >
+              <X size={15} />
+            </button>
+          </div>
           {/* borderless, so no focus ring — the caret says where you are */}
-          <div className="flex flex-col gap-1.5 px-5 pt-5">
+          <div className="flex flex-col gap-2 px-5 pt-2">
             <input
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs doing?"
               aria-label="Title"
-              className="w-full bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
+              className="w-full bg-transparent text-xl font-medium tracking-tight text-foreground outline-none! placeholder:text-muted/50"
             />
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notes…"
+              placeholder="Add notes…"
               aria-label="Notes"
               rows={1}
-              className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm text-foreground/90 outline-none! placeholder:text-muted/60"
+              className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm leading-relaxed text-foreground/90 outline-none! placeholder:text-muted/50"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 px-5 pt-5 pb-4">
+          <div className="flex flex-wrap items-center gap-2 px-5 pt-6 pb-5">
             {/* optional: plenty of this work belongs to no client at all */}
             <Dropdown
-              pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
+              pill={{ icon: <Building2 size={12} /> }}
               value={clientId}
               placeholder="Client"
               options={[
@@ -209,7 +216,7 @@ export const WorkTaskDialog = forwardRef<
             {/* only when there's someone else to hand it to */}
             {assignees.length > 1 && (
               <Dropdown
-                pill={{ icon: <User size={12} className="text-emerald-400" /> }}
+                pill={{ icon: <User size={12} /> }}
                 value={assignedToId}
                 placeholder="Assignee"
                 onChange={setAssignedToId}
@@ -227,19 +234,17 @@ export const WorkTaskDialog = forwardRef<
             {taskTags.length > 0 && (
               <TagPill tags={taskTags} picked={tagIds} onChange={setTagIds} internal={false} canManage={canManageTags} />
             )}
-            <button
-              type="button"
-              onClick={() => setMore((m) => !m)}
-              aria-expanded={more}
-              aria-label="Links and images"
-              className={`${pill(more || hidden > 0)} px-2`}
-            >
-              <MoreHorizontal size={13} />
-              {!more && hidden > 0 && <span className="tabular-nums">{hidden}</span>}
+            <span className="mx-0.5 h-4 w-px bg-white/[0.08]" aria-hidden />
+            <button type="button" onClick={() => setLinks((cur) => [...cur, { label: "", url: "" }])} className={pill(links.length > 0)}>
+              <Link2 size={12} /> Link
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
+            <button type="button" onClick={() => fileRef.current?.click()} className={pill(attachments.length > 0)}>
+              <Paperclip size={12} /> Image
             </button>
           </div>
 
-          <Reveal open={more}>
+          <Reveal open={links.length > 0 || attachments.length > 0}>
             <div className="flex flex-col gap-3 px-5 pb-4">
               {links.map((l, i) => (
                 <div key={i} className="flex gap-2">
@@ -283,23 +288,10 @@ export const WorkTaskDialog = forwardRef<
                   ))}
                 </div>
               )}
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setLinks((cur) => [...cur, { label: "", url: "" }])}
-                  className={pill(false)}
-                >
-                  <Link2 size={12} className="text-blue-400" /> Link
-                </button>
-                <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
-                <button type="button" onClick={() => fileRef.current?.click()} className={pill(false)}>
-                  <Paperclip size={12} className="text-teal-400" /> Image
-                </button>
-              </div>
             </div>
           </Reveal>
 
-          <div className="flex items-center gap-3 border-t border-border/60 px-5 py-3">
+          <div className="flex items-center gap-3 border-t border-white/[0.06] px-5 py-3.5">
             {mode === "edit" && (
               <ConfirmButton
                 message="Delete this task? It can't be undone."
@@ -309,13 +301,19 @@ export const WorkTaskDialog = forwardRef<
                 <Trash2 size={13} aria-label="Delete task" />
               </ConfirmButton>
             )}
-            {/* only ever says something when something's wrong */}
-            <p className="min-w-0 flex-1 truncate text-xs text-red-300">{error ?? newProject.error}</p>
+            {/* the shortcut, until something's wrong — then what's wrong */}
+            {error || newProject.error ? (
+              <p className="min-w-0 flex-1 truncate text-xs text-red-300">{error ?? newProject.error}</p>
+            ) : (
+              <p className="min-w-0 flex-1 truncate text-xs text-muted/70">
+                Press Enter to {mode === "create" ? "add it" : "save"}
+              </p>
+            )}
             <div className="flex shrink-0 gap-2">
               <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button disabled={saving} className="btn btn-glow disabled:opacity-60">
+              <button disabled={saving} className="btn btn-primary disabled:opacity-60">
                 {saving ? "Saving…" : mode === "create" ? "Add task" : "Save"}
               </button>
             </div>

@@ -11,8 +11,8 @@
 // slightly firmer fill. Tinted from the text colour, so it holds in either
 // theme.
 export const chip = (set: boolean) =>
-  `flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors duration-150 ${
+  `flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors duration-200 ${
     set
-      ? "bg-foreground/[0.08] text-foreground hover:bg-foreground/[0.11]"
-      : "bg-foreground/[0.04] text-muted hover:bg-foreground/[0.07] hover:text-foreground"
+      ? "border-white/[0.12] bg-white/[0.07] text-foreground hover:bg-white/[0.1]"
+      : "border-white/[0.06] bg-white/[0.02] text-muted hover:border-white/[0.12] hover:text-foreground"
   }`;
