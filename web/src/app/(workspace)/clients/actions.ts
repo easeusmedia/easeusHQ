@@ -879,7 +879,7 @@ export async function updateProject(
 // Whatever the Notion import pulled in is a starting point, not gospel:
 // names, types and links all get corrected by hand from the project page.
 
-export type ProjectAssetInput = { name: string; contentType: string; link: string };
+export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[] };
 
 async function revalidateProject(projectId: string) {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { clientId: true } });
@@ -906,6 +906,7 @@ export async function addProjectAsset(projectId: string, input: ProjectAssetInpu
       contentType: input.contentType.trim() || "Misc.",
       link,
       sortOrder: (last?.sortOrder ?? 0) + 1,
+      tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
     },
   });
   await revalidateProject(projectId);
@@ -925,7 +926,12 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
 
   const asset = await prisma.projectAsset.update({
     where: { id: assetId },
-    data: { name: input.name.trim(), contentType: input.contentType.trim() || "Misc.", link },
+    data: {
+      name: input.name.trim(),
+      contentType: input.contentType.trim() || "Misc.",
+      link,
+      ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
+    },
   });
   await revalidateProject(asset.projectId);
   return {};

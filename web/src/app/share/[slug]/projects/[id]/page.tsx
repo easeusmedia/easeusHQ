@@ -37,14 +37,22 @@ export default async function SharedProjectPage({
   const project = client
     ? await prisma.project.findFirst({
         where: { id, clientId: client.id },
-        include: { assets: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          assets: { orderBy: { sortOrder: "asc" }, include: { tags: { where: { clientFacing: true }, select: { id: true, name: true } } } },
+        },
       })
     : null;
   if (!client || !project) redirect("/login");
   const delivered = await prisma.task.findMany({
     where: { projectId: project.id, status: "delivered_and_uploaded", internal: false },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, driveLink: true, updatedAt: true },
+    select: {
+      id: true,
+      title: true,
+      driveLink: true,
+      updatedAt: true,
+      tags: { where: { clientFacing: true }, select: { id: true, name: true } },
+    },
   });
 
   // what's still being made for them (never the team's internal work),
@@ -107,7 +115,7 @@ export default async function SharedProjectPage({
         </h2>
         <ProjectFiles
           projectId={project.id}
-          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null }))}
+          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null, tags: a.tags }))}
           // what's been delivered to them, as the files it produced — their
           // own finished work, never the team's internal tasks
           delivered={delivered.map((t) => ({
@@ -115,6 +123,7 @@ export default async function SharedProjectPage({
             title: t.title,
             link: t.driveLink ? normalizeUrl(t.driveLink) : null,
             at: t.updatedAt.toISOString(),
+            tags: t.tags,
           }))}
           readOnly
         />

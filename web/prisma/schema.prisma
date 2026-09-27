@@ -103,6 +103,9 @@ model ProjectAsset {
 
   notionPageId String? @unique
 
+  // what kind of work it is — the same tags a task carries (Reel, Trailer…)
+  tags TaskTag[]
+
   @@index([projectId])
 }
 
@@ -447,6 +450,7 @@ model TaskTag {
   teamId       String?
   tasks        Task[]
   workTasks    WorkTask[]
+  assets       ProjectAsset[]
 }
 
 // The contracted scope, one line per deliverable — e.g. "Podcast episodes"

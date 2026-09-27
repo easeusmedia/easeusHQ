@@ -8,8 +8,10 @@ import { Dropdown } from "../Dropdown";
 import { addProjectAsset, updateProjectAsset, deleteProjectAsset } from "../clients/actions";
 import { ConfirmButton } from "../ConfirmButton";
 import { formatDate } from "../TaskCard";
+import { TaskTagChip } from "../TaskTagPicker";
 
-export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null };
+type Tag = { id: string; name: string };
+export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null; tags?: Tag[] };
 
 const TYPE_OPTIONS = TYPE_ORDER.map((t) => ({ value: t, label: t === "Misc." ? "Other" : t }));
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
@@ -20,30 +22,25 @@ const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 tex
 // never got filled), and there was previously no way to fix any of it
 // short of editing the database by hand.
 // A task that's been delivered, as the file it produced.
-export type DeliveredFile = { id: string; title: string; link: string | null; at: string };
+export type DeliveredFile = { id: string; title: string; link: string | null; at: string; tags?: Tag[] };
 
-// How a type reads on screen — the stored names stay as they are. Tabs name
-// the collection; a row names the one file.
-const TAB: Record<string, string> = {
-  "YouTube Long-Form": "Long-form",
-  "Reel Trailer": "Trailers",
-  Reel: "Reels",
-  "Bonus Reel": "Bonus reels",
-  Thumbnails: "Thumbnails",
-  "Misc.": "Other",
-};
-const ONE: Record<string, string> = {
-  "YouTube Long-Form": "YouTube long-form",
-  "Reel Trailer": "Trailer",
-  Reel: "Reel",
-  "Bonus Reel": "Bonus reel",
-  Thumbnails: "Thumbnail",
-  "Misc.": "Other",
-};
+// A file's type when it has no tag yet, in the same words the tags use —
+// the Notion import spelled the types a dozen ways ("Reels", "TRAILER"…).
+function typeKind(type: string) {
+  const t = type.toLowerCase();
+  if (t.includes("long")) return "Long-form";
+  if (t.includes("trailer")) return "Trailer";
+  if (t.includes("bonus")) return "Bonus reel";
+  if (t.includes("reel")) return "Reel";
+  if (t.includes("thumb")) return "Thumbnail";
+  if (t.includes("carousel")) return "Carousel";
+  if (t === "misc.") return "Other";
+  return type;
+}
 
 // what the file is, at a glance
 function iconFor(type: string, name: string) {
-  if (type === "Thumbnails") return ImageIcon;
+  if (/thumb/i.test(type) || /thumb/i.test(name)) return ImageIcon;
   if (type === "Misc.") {
     if (/audio|\.(mp3|wav|m4a)$/i.test(name)) return AudioLines;
     if (/copy|script|caption|doc|brief/i.test(name)) return FileText;
@@ -67,16 +64,19 @@ function source(link: string | null) {
   }
 }
 
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; asset?: ProjectAssetData };
+// kinds: its tags, or its type when it has none; tagged: which of those are tags
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData };
 
-// A project's files as one quiet list: a tab per kind of file (All first), a
-// row per file — what it is, where it lives, and a click opens it. The same
-// list on the team's page and the client's; the client's has no controls.
+// A project's files as one quiet list: a tab per kind of work (All first),
+// a row per file — what it is, its tags, where it lives, and a click opens
+// it. The same list on the team's page and the client's; the client's has
+// no controls.
 export function ProjectFiles({
   projectId,
   assets,
   delivered = [],
   readOnly = false,
+  tagOptions = [],
 }: {
   projectId: string;
   assets: ProjectAssetData[];
@@ -86,6 +86,8 @@ export function ProjectFiles({
   delivered?: DeliveredFile[];
   // the client's own page: the files, without the controls
   readOnly?: boolean;
+  // the tags a file can be given (the same as a task's kinds of work)
+  tagOptions?: Tag[];
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -93,16 +95,31 @@ export function ProjectFiles({
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("all");
 
-  const rank = (t: string) => (t === "delivered" ? -1 : TYPE_ORDER.indexOf(t) === -1 ? 99 : TYPE_ORDER.indexOf(t));
+  const kindsOf = (tags: Tag[] | undefined, fallback: string) =>
+    tags?.length ? { kinds: tags.map((t) => t.name), tagged: true } : { kinds: [fallback], tagged: false };
   const rows: Row[] = [
-    ...delivered.map((d) => ({ id: d.id, name: d.title, type: "delivered", link: d.link, sub: `Delivered ${formatDate(d.at)}` })),
-    ...assets.map((a) => ({ id: a.id, name: a.name, type: a.contentType, link: a.link, sub: source(a.link), asset: a })),
-  ].sort((x, y) => rank(x.type) - rank(y.type));
-  const counts = rows.reduce<Record<string, number>>((acc, r) => ((acc[r.type] = (acc[r.type] ?? 0) + 1), acc), {});
-  const types = Object.keys(counts).sort((a, b) => rank(a) - rank(b));
+    ...delivered.map((d) => ({
+      id: d.id,
+      name: d.title,
+      type: "delivered",
+      link: d.link,
+      sub: `Delivered ${formatDate(d.at)}`,
+      ...kindsOf(d.tags, "Delivered"),
+    })),
+    ...assets.map((a) => ({ id: a.id, name: a.name, type: a.contentType, link: a.link, sub: source(a.link), asset: a, ...kindsOf(a.tags, typeKind(a.contentType)) })),
+  ];
+  // tabs: the tags in their own order, then any types without a tag, Other last
+  const tagOrder = tagOptions.map((t) => t.name);
+  const rank = (k: string) => (k === "Other" ? 999 : tagOrder.includes(k) ? tagOrder.indexOf(k) : 500);
+  const counts = rows.reduce<Record<string, number>>((acc, r) => {
+    for (const k of r.kinds) acc[k] = (acc[k] ?? 0) + 1;
+    return acc;
+  }, {});
+  const kinds = Object.keys(counts).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  rows.sort((x, y) => rank(x.kinds[0]) - rank(y.kinds[0]) || x.kinds[0].localeCompare(y.kinds[0]));
   // a tab whose last file was just removed falls back to All
   const shown = tab !== "all" && counts[tab] ? tab : "all";
-  const visible = shown === "all" ? rows : rows.filter((r) => r.type === shown);
+  const visible = shown === "all" ? rows : rows.filter((r) => r.kinds.includes(shown));
 
   async function remove(id: string) {
     const res = await deleteProjectAsset(id);
@@ -129,6 +146,7 @@ export function ProjectFiles({
       {adding && (
         <div className="fade-in panel mb-4 rounded-2xl">
           <AssetForm
+            tagOptions={tagOptions}
             onCancel={() => setAdding(false)}
             onSubmit={async (input) => {
               const res = await addProjectAsset(projectId, input);
@@ -145,9 +163,9 @@ export function ProjectFiles({
         !adding && <p className="text-sm text-muted">No files yet.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {types.length > 1 && (
+          {kinds.length > 1 && (
             <div role="tablist" aria-label="File types" className="panel-soft flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl p-1">
-              {["all", ...types].map((t) => {
+              {["all", ...kinds].map((t) => {
                 const on = shown === t;
                 return (
                   <button
@@ -160,7 +178,7 @@ export function ProjectFiles({
                       on ? "selected" : "border border-transparent text-muted hover:text-foreground"
                     }`}
                   >
-                    {t === "all" ? "All" : t === "delivered" ? "Delivered" : (TAB[t] ?? t)}
+                    {t === "all" ? "All" : t}
                     <span className="text-xs tabular-nums text-muted/70">{t === "all" ? rows.length : counts[t]}</span>
                   </button>
                 );
@@ -176,6 +194,7 @@ export function ProjectFiles({
                   <li key={r.id} className="p-3">
                     <AssetForm
                       initial={a}
+                      tagOptions={tagOptions}
                       onCancel={() => setEditingId(null)}
                       onSubmit={async (input) => {
                         const res = await updateProjectAsset(a.id, input);
@@ -189,8 +208,7 @@ export function ProjectFiles({
                 );
               }
               const Icon = r.type === "delivered" ? Film : iconFor(r.type, r.name);
-              // in All, say what kind of file each one is; a tab already says
-              const sub = shown === "all" && r.type !== "delivered" ? `${ONE[r.type] ?? r.type} · ${r.sub}` : r.sub;
+              // its tags as chips; a file with none says its type, quietly
               return (
                 <li key={r.id} className="group relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-white/[0.03]">
                   <span className="badge flex size-9 shrink-0 items-center justify-center rounded-xl">
@@ -210,7 +228,10 @@ export function ProjectFiles({
                     ) : (
                       <span className="block truncate text-sm text-muted">{r.name}</span>
                     )}
-                    <span className="block truncate text-xs text-muted">{sub}</span>
+                    <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                      {r.tagged ? r.kinds.map((k) => <TaskTagChip key={k} name={k} />) : <span className="shrink-0">{r.kinds[0]}</span>}
+                      <span className="truncate">· {r.sub}</span>
+                    </span>
                   </span>
                   {r.link && (
                     <ArrowUpRight
@@ -253,23 +274,26 @@ export function ProjectFiles({
 
 function AssetForm({
   initial,
+  tagOptions,
   onCancel,
   onSubmit,
 }: {
   initial?: ProjectAssetData;
+  tagOptions: Tag[];
   onCancel: () => void;
-  onSubmit: (input: { name: string; contentType: string; link: string }) => Promise<string | null>;
+  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[] }) => Promise<string | null>;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [contentType, setContentType] = useState(initial?.contentType ?? TYPE_ORDER[0]);
   const [link, setLink] = useState(initial?.link ?? "");
+  const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setSaving(true);
     setError(null);
-    const err = await onSubmit({ name, contentType, link });
+    const err = await onSubmit({ name, contentType, link, tagIds });
     setSaving(false);
     if (err) setError(err);
   }
@@ -289,6 +313,28 @@ function AssetForm({
         </div>
       </div>
       <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={field} />
+      {tagOptions.length > 0 && (
+        // the same kinds of work a task is tagged with
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs text-muted">Tags</span>
+          {tagOptions.map((t) => {
+            const on = tagIds.includes(t.id);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setTagIds((ids) => (on ? ids.filter((i) => i !== t.id) : [...ids, t.id]))}
+                className={`rounded-lg px-2.5 py-1 text-xs transition-colors duration-200 ${
+                  on ? "selected" : "border border-white/[0.08] text-muted hover:text-foreground"
+                }`}
+              >
+                {t.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {error && <p className="text-xs text-red-300">{error}</p>}
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="btn btn-sm btn-ghost flex items-center gap-1.5">

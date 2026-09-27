@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { seesEveryTeam } from "@/lib/scope";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // one round: none of these needs another's answer
-  const [sessionUserId, users, project, typeCounts] = await Promise.all([
+  const [sessionUserId, users, project, typeCounts, allTags] = await Promise.all([
     getSessionUserId(),
     getAllUsers(),
     prisma.project.findUnique({
@@ -28,7 +29,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       include: {
         // newest first, for the task form's "latest few" project list
         client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
-        assets: { orderBy: { sortOrder: "asc" } },
+        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
           include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
@@ -37,6 +38,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     }),
     // every type in use, most common first, for the header's Type picker
     prisma.project.groupBy({ by: ["type"], _count: { type: true }, orderBy: { _count: { type: "desc" } } }),
+    prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, teamId: true } }),
   ]);
   if (!sessionUserId) redirect("/login");
   const me = users.find((u) => u.id === sessionUserId);
@@ -160,10 +162,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <ProjectFiles
         projectId={project.id}
-        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link }))}
+        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link, tags: a.tags }))}
         delivered={done
           .filter((t) => t.status === "delivered_and_uploaded")
-          .map((t) => ({ id: t.id, title: t.title, link: t.driveLink, at: t.updatedAt.toISOString() }))}
+          .map((t) => ({ id: t.id, title: t.title, link: t.driveLink, at: t.updatedAt.toISOString(), tags: t.tags.map((g) => ({ id: g.id, name: g.name })) }))}
+        // the kinds of work this person picks from on a task: their team's, and shared ones
+        tagOptions={allTags
+          .filter((t) => seesEveryTeam(me) || !t.teamId || t.teamId === me.teamId)
+          .map((t) => ({ id: t.id, name: t.name }))}
       />
     </div>
   );
