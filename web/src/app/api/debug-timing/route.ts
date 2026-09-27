@@ -18,6 +18,6 @@ export async function GET() {
   const clientsFull = await ms(() =>
     prisma.client.findMany({ include: { tags: true, deliverables: true, projects: { include: { _count: { select: { assets: true, tasks: true } } } } } })
   );
-  const tasks = await ms(() => prisma.task.findMany({ include: { project: { include: { client: true } }, assignee: true } }));
+  const tasks = await ms(() => prisma.task.findMany({ include: { project: { include: { client: true } } } }));
   return NextResponse.json({ region: process.env.VERCEL_REGION ?? null, first, seq, par5, users, clientsFull, tasks });
 }
