@@ -9,7 +9,9 @@ const nextConfig: NextConfig = {
     // A page you've just been on opens straight from memory for 30s rather
     // than asking the server again; the pulse still refreshes the page in
     // front of you the moment anything changes (see Pulse.tsx).
-    staleTimes: { dynamic: 30 },
+    // A page loaded ahead on hover (PrefetchLink) is kept as long — not the
+    // default five minutes, which would show a busy board out of date.
+    staleTimes: { dynamic: 30, static: 30 },
   },
 };
 

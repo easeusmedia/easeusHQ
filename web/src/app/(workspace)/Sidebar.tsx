@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown } from "lucide-react";
@@ -13,6 +13,7 @@ import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
 import { clientHref } from "@/lib/slug";
+import { readConsent } from "@/lib/consent";
 
 // logo: the logo's own address (see clientLogoSrc), not the image itself
 export type SidebarClient = { id: string; slug: string; name: string; logo: string | null };
@@ -89,7 +90,7 @@ function ClientTree({ clients, current }: { clients: SidebarClient[]; current: s
       {clients.map((c, i) => {
         const on = i === at;
         return (
-          <li key={c.id} className="relative">
+          <li key={c.id} className="relative pb-1">
             {/* the line down to this row, curving into it on the 32px row's centre line */}
             <span
               className={`absolute left-0 top-0 h-4 w-3 rounded-bl-lg border-b border-l transition-colors duration-300 ${
@@ -99,14 +100,14 @@ function ClientTree({ clients, current }: { clients: SidebarClient[]; current: s
             {i < clients.length - 1 && (
               <span className={`absolute bottom-0 left-0 top-4 w-px transition-colors duration-300 ${at > i ? "bg-accent/70" : "bg-white/10"}`} />
             )}
-            <Link
+            <PrefetchLink
               href={clientHref(c)}
               onClick={(e) => e.stopPropagation()}
               className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${ROW} ${on ? "selected font-medium" : IDLE}`}
             >
               <ClientFace client={c} size={18} />
               <span className="truncate">{c.name}</span>
-            </Link>
+            </PrefetchLink>
           </li>
         );
       })}
@@ -193,7 +194,8 @@ export function Sidebar({
       const next = !v;
       // a cookie, not localStorage — the server needs to read this on the
       // very next request to render the right state from the start
-      document.cookie = `${COOKIE_NAME}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
+      // a preference cookie: kept only if they accepted all cookies
+      if (readConsent() === "all") document.cookie = `${COOKIE_NAME}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
       return next;
     });
   }
@@ -350,7 +352,7 @@ export function Sidebar({
         const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
         const waiting = item.href === "/chat" ? `${unreadCount} unread` : `${count} waiting on you`;
         const row = (
-          <Link
+          <PrefetchLink
             key={item.href}
             href={qs ? `${item.href}?${qs}` : item.href}
             onClick={(e) => e.stopPropagation()} // don't also open the rail — this click already has its own job
@@ -364,7 +366,7 @@ export function Sidebar({
           >
             {/* fixed-size slot, same position whether collapsed or open */}
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-              <item.Icon size={18} className={active ? "icon-glow" : ""} />
+              <item.Icon size={18} className={active ? "icon-glow" : "icon-soft"} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-[#15181c]" />}
@@ -382,7 +384,7 @@ export function Sidebar({
               label={item.label}
               hint={count > 0 ? waiting : item.hint}
             />
-          </Link>
+          </PrefetchLink>
           );
           if (!isClients) return row;
           return (
@@ -416,12 +418,12 @@ export function Sidebar({
               {!open && clients.length > 0 && (
                 <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
                   <div onClick={(e) => e.stopPropagation()} className="panel w-60 rounded-2xl p-2">
-                    <Link
+                    <PrefetchLink
                       href={qs ? `/clients?${qs}` : "/clients"}
                       className="mb-1 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground hover:bg-white/[0.05]"
                     >
                       <Building2 size={15} /> All clients
-                    </Link>
+                    </PrefetchLink>
                     <div className="ml-[13px]">
                       <ClientTree clients={clients} current={currentClient} />
                     </div>
@@ -493,14 +495,14 @@ export function Sidebar({
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
             {/* admin-only: what the app is joined up to outside itself */}
             {canViewAs && (
-              <Link
+              <PrefetchLink
                 href="/integrations"
                 onClick={() => setProfileOpen(false)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
               >
                 <Plug size={15} />
                 Integrations
-              </Link>
+              </PrefetchLink>
             )}
             <form action={logout}>
               <button

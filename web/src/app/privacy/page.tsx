@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-14">
       <h1 className="text-2xl font-semibold tracking-tight">Privacy</h1>
-      <p className="mt-2 text-sm text-muted">Easeus HQ · app.easeus.media · last updated 20 September 2026</p>
+      <p className="mt-2 text-sm text-muted">Easeus HQ · app.easeus.media · last updated 28 September 2026</p>
 
       <div className="mt-8 flex flex-col gap-6 text-sm leading-relaxed">
         <section>
@@ -39,6 +39,27 @@ export default function PrivacyPage() {
             It cannot see, read or change anything else in that Google Drive. Files a client uploads on the onboarding
             form are placed in that client&apos;s folder. We don&apos;t use Google data for advertising, we don&apos;t
             sell it, and we don&apos;t transfer it to anyone except as described here.
+          </p>
+        </section>
+
+        <section id="cookies">
+          <h2 className="mb-2 text-base font-medium">Cookies and storage on your device</h2>
+          <p>We use a small number of cookies, and never for advertising or tracking.</p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+            <li>
+              <b className="font-medium">Sign-in</b> (essential, 30 days): keeps a team member signed in securely.
+            </li>
+            <li>
+              <b className="font-medium">Cookie choice</b> (essential, 1 year): remembers the choice you made on our cookie notice.
+            </li>
+            <li>
+              <b className="font-medium">Sidebar layout</b> (preference, 1 year): remembers whether the sidebar is open.
+              Set only if you choose Accept all.
+            </li>
+          </ul>
+          <p className="mt-2">
+            The app also keeps a few small notes in your browser&apos;s own storage, such as where you were on a page and
+            which notifications you have already seen. They never leave your device.
           </p>
         </section>
 

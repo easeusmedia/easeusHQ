@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PrefetchLink } from "../PrefetchLink";
 import { ArrowUpRight, Clapperboard, ListChecks, type LucideIcon } from "lucide-react";
 import { clientHref } from "@/lib/slug";
 import { Avatar } from "../TaskCard";
@@ -56,7 +56,7 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
     // drag image — without this, dragging the card (the outer div in
     // ClientsBoard actually holds the draggable=true) showed a "you're
     // dragging a link" ghost instead of the card itself.
-    <Link
+    <PrefetchLink
       href={clientHref(client)}
       draggable={false}
       className="group relative flex min-w-0 flex-col gap-3 overflow-hidden panel panel-hover rounded-2xl p-5 hover:-translate-y-px"
@@ -85,13 +85,13 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
         <Stat n={client.activeProjects} label={client.activeProjects === 1 ? "active project" : "active projects"} Icon={Clapperboard} />
         <Stat n={client.activeTasks} label={client.activeTasks === 1 ? "active task" : "active tasks"} Icon={ListChecks} />
       </div>
-    </Link>
+    </PrefetchLink>
   );
 }
 
 export function ClientRow({ client, onStatusChange }: { client: ClientCardData; onStatusChange?: (id: string, next: string) => void }) {
   return (
-    <Link
+    <PrefetchLink
       href={clientHref(client)}
       draggable={false}
       className="group flex items-center gap-4 rounded-2xl panel-soft panel-hover px-4 py-3 hover:-translate-y-px"
@@ -116,6 +116,6 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
       </span>
       <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
       <ArrowUpRight size={15} className="hidden shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 sm:block" />
-    </Link>
+    </PrefetchLink>
   );
 }

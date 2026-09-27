@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
+import { PrefetchLink } from "../PrefetchLink";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { deleteProject } from "./actions";
@@ -40,7 +40,7 @@ export function ProjectRow({ project, href = `/projects/${project.id}` }: { proj
   const done = project.status === "completed";
   return (
     <li data-project={project.id}>
-      <Link href={href} className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-surface-2/60">
+      <PrefetchLink href={href} className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-surface-2/60">
         <span className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
           {project.coverUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
@@ -58,7 +58,7 @@ export function ProjectRow({ project, href = `/projects/${project.id}` }: { proj
         >
           {done ? "Delivered" : "In progress"}
         </span>
-      </Link>
+      </PrefetchLink>
     </li>
   );
 }
@@ -101,7 +101,7 @@ export function ProjectCard({
 
   return (
     <div data-project={project.id} className="group relative">
-      <Link href={href} className="card-surface card-interactive flex flex-col overflow-hidden rounded-xl shadow-sm">
+      <PrefetchLink href={href} className="card-surface card-interactive flex flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {project.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
@@ -124,7 +124,7 @@ export function ProjectCard({
           <p className="truncate text-[13px] font-medium">{project.name}</p>
           <p className="text-xs text-muted">{projectLine(project)}</p>
         </div>
-      </Link>
+      </PrefetchLink>
 
       {!readOnly && (
       <button

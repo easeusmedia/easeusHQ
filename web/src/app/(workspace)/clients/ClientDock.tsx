@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PrefetchLink } from "../PrefetchLink";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { clientHref } from "@/lib/slug";
@@ -38,7 +38,7 @@ export function ClientDock({ clients }: { clients: SidebarClient[] }) {
         {clients.map((c) => {
           const on = c.slug === current;
           return (
-            <Link
+            <PrefetchLink
               key={c.id}
               href={clientHref(c)}
               onClick={() => setPicked(c.slug)}
@@ -66,7 +66,7 @@ export function ClientDock({ clients }: { clients: SidebarClient[] }) {
                   {c.name}
                 </span>
               )}
-            </Link>
+            </PrefetchLink>
           );
         })}
       </nav>
