@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/stylesheet";
 import { PROVIDER, runs, type ContractDetails, type Section } from "./contract.ts";
 
@@ -77,7 +77,8 @@ function Lines({ lines }: { lines: string[] }) {
 }
 
 // A signature box. `signer` is its Acrobat Sign signer number when tagged.
-function SignatureBox({ label, lines, signer }: { label: string; lines: string[]; signer?: number }) {
+// `signed`: already signed — the signature image on the line, and the date
+function SignatureBox({ label, lines, signer, signed }: { label: string; lines: string[]; signer?: number; signed?: { image: string; date: string } }) {
   return (
     <View style={s.sigBox}>
       <Text style={s.sigLabel}>{label}</Text>
@@ -89,17 +90,25 @@ function SignatureBox({ label, lines, signer }: { label: string; lines: string[]
       ))}
       <View style={s.sigLine}>
         <Text>Signature:</Text>
-        <View style={s.sigBlank}>{signer && <Text style={s.tag}>{`{{Sig${signer}_es_:signer${signer}:signature}}`}</Text>}</View>
+        <View style={s.sigBlank}>
+          {/* sits on the line, like a pen signature does */}
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- a PDF image, which has no alt */}
+          {signed && <Image src={signed.image} style={{ position: "absolute", left: 4, bottom: 1, height: 32, width: 120, objectFit: "contain", objectPosition: "left bottom" }} />}
+          {signer && <Text style={s.tag}>{`{{Sig${signer}_es_:signer${signer}:signature}}`}</Text>}
+        </View>
       </View>
       <View style={{ ...s.sigLine, marginTop: 10 }}>
         <Text>Date:</Text>
-        <View style={s.sigBlank}>{signer && <Text style={s.tag}>{`{{Dte${signer}_es_:signer${signer}:date}}`}</Text>}</View>
+        <View style={s.sigBlank}>
+          {signed && <Text style={{ fontSize: 9, marginLeft: 4, marginBottom: 2 }}>{signed.date}</Text>}
+          {signer && <Text style={s.tag}>{`{{Dte${signer}_es_:signer${signer}:date}}`}</Text>}
+        </View>
       </View>
     </View>
   );
 }
 
-function Table({ name, v, d, tags }: { name: string; v: Record<string, string>; d: ContractDetails; tags: boolean }) {
+function Table({ name, v, d, tags, signature }: { name: string; v: Record<string, string>; d: ContractDetails; tags: boolean; signature: string | null }) {
   if (name === "parties") {
     return (
       <View style={s.table} wrap={false}>
@@ -154,23 +163,30 @@ function Table({ name, v, d, tags }: { name: string; v: Record<string, string>; 
       </View>
     );
   }
-  // signatures: we sign first, as signer 1; then the client(s), 2 (and 3)
+  // signatures: with Ashmit's signature on file it's already signed and
+  // dated on our side, and the client(s) are signer 1 (and 2); without it
+  // we sign first, as signer 1, then the client(s), 2 (and 3)
   const clients = d.signatories.filter((x) => x.name.trim());
-  const us = 1;
+  const first = signature ? 1 : 2;
   return (
     <View wrap={false}>
       <View style={s.sigRow}>
         <View style={s.sigCol}>
-          <SignatureBox label="SERVICE PROVIDER" lines={[PROVIDER.name, `Name: ${PROVIDER.person}`]} signer={tags ? us : undefined} />
+          <SignatureBox
+            label="SERVICE PROVIDER"
+            lines={[PROVIDER.name, `Name: ${PROVIDER.person}`]}
+            signer={tags && !signature ? 1 : undefined}
+            signed={signature ? { image: signature, date: v.SIGNING_DATE } : undefined}
+          />
         </View>
         <View style={{ ...s.sigCol, alignItems: "flex-end" }}>
-          <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[0]?.name.trim() ?? ""}`]} signer={tags ? 2 : undefined} />
+          <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[0]?.name.trim() ?? ""}`]} signer={tags ? first : undefined} />
         </View>
       </View>
       {clients[1] && (
         <View style={{ ...s.sigRow, justifyContent: "flex-end", marginTop: 12 }}>
           <View style={{ ...s.sigCol, alignItems: "flex-end" }}>
-            <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[1].name.trim()}`]} signer={tags ? 3 : undefined} />
+            <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[1].name.trim()}`]} signer={tags ? first + 1 : undefined} />
           </View>
         </View>
       )}
@@ -183,10 +199,13 @@ export async function contractPdf({
   values: v,
   details: d,
   tags,
+  signature = null,
 }: {
   sections: Section[];
   values: Record<string, string>;
   details: ContractDetails;
+  // Ashmit's signature image, to sign our side with
+  signature?: string | null;
   tags: boolean;
 }): Promise<Uint8Array> {
   const doc = (
@@ -224,7 +243,7 @@ export async function contractPdf({
                   ))}
                 </View>
               ) : (
-                <Table key={i} name={b.name} v={v} d={d} tags={tags} />
+                <Table key={i} name={b.name} v={v} d={d} tags={tags} signature={signature} />
               )
             )}
           </View>

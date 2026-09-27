@@ -52,7 +52,7 @@ function Rich({ text, missing }: { text: string; missing: boolean }) {
 const cell = "px-3 py-2 align-top";
 const th = "bg-[#f5f5f5] px-3 py-2 text-left text-[10.5px] font-semibold tracking-wide text-black";
 
-function Table({ name, v, d }: { name: string; v: Record<string, string>; d: ContractDetails }) {
+function Table({ name, v, d, signature }: { name: string; v: Record<string, string>; d: ContractDetails; signature?: string | null }) {
   const or = (x: string, key: string) => x || `{{${key}}}`;
   if (name === "parties") {
     return (
@@ -144,7 +144,7 @@ function Table({ name, v, d }: { name: string; v: Record<string, string>; d: Con
     );
   }
   const clients = d.signatories.filter((s) => s.name.trim());
-  const box = (label: string, org: string, person: string) => (
+  const box = (label: string, org: string, person: string, signed?: boolean) => (
     <div className="w-[87.5%] border border-[#ccc] p-3 text-[12px]">
       <p className="text-[10.5px] font-semibold text-[#888]">{label}</p>
       <p className="mt-1 font-semibold text-black">
@@ -154,17 +154,23 @@ function Table({ name, v, d }: { name: string; v: Record<string, string>; d: Con
         Name: <Rich text={person} missing />
       </p>
       <p className="mt-6 flex gap-1">
-        Signature: <span className="flex-1 border-b border-black" />
+        Signature:{" "}
+        <span className="relative flex-1 border-b border-black">
+          {signed && signature && (
+            // eslint-disable-next-line @next/next/no-img-element -- a small data: image
+            <img src={signature} alt="Ashmit's signature" className="absolute bottom-0 left-1 h-9 max-w-[75%] object-contain object-left-bottom" />
+          )}
+        </span>
       </p>
       <p className="mt-3 flex gap-1">
-        Date: <span className="flex-1 border-b border-black" />
+        Date: <span className="flex-1 border-b border-black pl-1">{signed && signature ? v.SIGNING_DATE : ""}</span>
       </p>
     </div>
   );
   return (
     <div className="my-3 flex flex-col gap-3">
       <div className="flex justify-between">
-        <div className="w-[48%]">{box("SERVICE PROVIDER", PROVIDER.name, PROVIDER.person)}</div>
+        <div className="w-[48%]">{box("SERVICE PROVIDER", PROVIDER.name, PROVIDER.person, true)}</div>
         <div className="flex w-[48%] justify-end">
           {box("CLIENT", or(v.CLIENT_ENTITY, "CLIENT_ENTITY"), clients[0]?.name.trim() || "{{CLIENT_SIGNATORY_1}}")}
         </div>
@@ -309,12 +315,15 @@ export function ContractPaper({
   onChange,
   contract,
   readOnly = false,
+  signature = null,
 }: {
   clauses: Clause[];
   onChange: (next: Clause[]) => void;
   // a real contract: the composed text; left out for the master template
   contract?: { sections: Section[]; values: Record<string, string>; details: ContractDetails; hidden: { id: string; title: string }[] };
   readOnly?: boolean;
+  // Ashmit's signature, shown on our side as it'll be in the PDF
+  signature?: string | null;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState<{ at: number; clause: Clause } | null>(null);
@@ -422,7 +431,7 @@ export function ContractPaper({
                           ))}
                         </ul>
                       ) : (
-                        <Table key={k} name={b.name} v={contract!.values} d={contract!.details} />
+                        <Table key={k} name={b.name} v={contract!.values} d={contract!.details} signature={signature} />
                       )
                     )
                   : clause.body.split(/\n\s*\n/).map((para, k) => {

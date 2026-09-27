@@ -7,6 +7,8 @@ import { indiaDay } from "@/lib/due";
 import { compose, withDefaults, type Clause } from "@/lib/contract";
 import { STEPS, contractStage, stepOf } from "./status";
 import { NewContract } from "./NewContract";
+import { SignatureCard } from "./SignatureCard";
+import { providerSignature } from "./masterTemplate";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,8 @@ export default async function ContractsPage() {
           </div>
         ))}
       </div>
+
+      <SignatureCard image={await providerSignature()} />
 
       {contracts.length === 0 ? (
         <div className="flex flex-col items-center rounded-3xl border border-dashed border-white/10 px-6 py-16 text-center">

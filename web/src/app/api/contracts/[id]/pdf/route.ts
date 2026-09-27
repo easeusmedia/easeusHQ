@@ -4,6 +4,7 @@ import { indiaDay } from "@/lib/due";
 import { compose, withDefaults, type Clause } from "@/lib/contract";
 import { contractPdf } from "@/lib/contractPdf";
 import { signedPdf } from "@/lib/adobeSign";
+import { providerSignature } from "../../../../(workspace)/contracts/masterTemplate";
 
 // A contract as a PDF, for ops: as it stands now, (?sign) ready to upload
 // to Acrobat for e-signing, or (?signed=1) the copy everyone has signed,
@@ -23,7 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // ?sign: the copy to upload to Acrobat's Request e-signatures — its
     // signature and date lines carry Acrobat Sign's field tags
     const { sections, values } = compose(contract.clauses as Clause[], details, indiaDay(new Date()));
-    pdf = await contractPdf({ sections, values, details, tags: query.has("sign") });
+    pdf = await contractPdf({ sections, values, details, tags: query.has("sign"), signature: await providerSignature() });
   }
   return new Response(pdf as BodyInit, {
     headers: {

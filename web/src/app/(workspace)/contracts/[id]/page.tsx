@@ -6,6 +6,7 @@ import { withDefaults, type Clause } from "@/lib/contract";
 import type { ChatMessage } from "../assistant";
 import { ADOBE_SETTINGS, agreementStatus } from "@/lib/adobeSign";
 import { ContractEditor } from "../ContractEditor";
+import { providerSignature } from "../masterTemplate";
 
 export const dynamic = "force-dynamic";
 // a message to the contract assistant can take Claude a few rounds
@@ -40,6 +41,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
       adobeConnected={adobeConnected}
       agreementStatus={adobe}
       sentByApi={!!contract.agreementId}
+      signature={await providerSignature()}
       sentAt={contract.sentAt ? contract.sentAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : null}
     />
   );

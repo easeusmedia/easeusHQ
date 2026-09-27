@@ -41,6 +41,7 @@ export function ContractEditor({
   agreementStatus,
   sentAt,
   sentByApi,
+  signature,
 }: {
   id: string;
   token: string;
@@ -55,6 +56,8 @@ export function ContractEditor({
   sentAt: string | null;
   // sent through the Adobe API, rather than by hand in Acrobat
   sentByApi: boolean;
+  // Ashmit's signature, already on our side of the PDF when there is one
+  signature: string | null;
 }) {
   const router = useRouter();
   const [d, setD] = useState(initialDetails);
@@ -194,17 +197,32 @@ export function ContractEditor({
       );
       return {
         title: "Approved — send it for signing in Acrobat",
-        body: (
+        body: signature ? (
           <ol className="flex list-decimal flex-col gap-1 pl-4">
-            <li>Download it — the signature and date spots are already marked.</li>
+            <li>Download it — Ashmit&apos;s signature and the date are already on it.</li>
             <li>
-              In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b> and drop it in.
+              In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b>, drop it in, and add {to}.
             </li>
             <li>
-              Add yourself ({PROVIDER.email}) first, then {to} — in that order — and send.
+              Click <b className="font-medium text-foreground">Auto-place fields</b> — or drag <b className="font-medium text-foreground">E-signature</b> and{" "}
+              <b className="font-medium text-foreground">Date of signing</b> onto the client&apos;s Signature and Date lines — then send.
             </li>
             <li>
               Come back and press <b className="font-medium text-foreground">I&apos;ve sent it</b>.
+            </li>
+          </ol>
+        ) : (
+          <ol className="flex list-decimal flex-col gap-1 pl-4">
+            <li>
+              Easiest: upload Ashmit&apos;s signature once on the{" "}
+              <Link href="/contracts" className="text-accent underline-offset-2 hover:underline">
+                Contracts page
+              </Link>{" "}
+              — then every contract comes signed on our side.
+            </li>
+            <li>
+              Or: download it, click <b className="font-medium text-foreground">Request e-signatures</b> in Acrobat, add {PROVIDER.email} first and {to}{" "}
+              second, put a signature and date for each on their own box, and send.
             </li>
           </ol>
         ),
@@ -246,7 +264,9 @@ export function ContractEditor({
       );
       return {
         title: "Out for signature in Acrobat",
-        body: `Sent ${sentAt ?? "today"}. You sign first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`,
+        body: signature
+          ? `Sent ${sentAt ?? "today"}. ${to} gets Acrobat's email to sign. Mark it signed once they have.`
+          : `Sent ${sentAt ?? "today"}. You sign first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`,
         primary: signed,
         action: (
           <div className="flex flex-wrap gap-2">
@@ -415,7 +435,7 @@ export function ContractEditor({
           </div>
           {/* the contract — scrolls on its own */}
           <div className="p-3 sm:p-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
-            <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} />
+            <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} signature={signature} />
           </div>
         </div>
       </div>
