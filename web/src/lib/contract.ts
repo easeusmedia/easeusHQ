@@ -528,14 +528,16 @@ export const QUESTIONS = [
   "Anything else: any further obligation for the client, or anything to add — a custom clause, a detail, different wording.",
 ];
 
-// The chat's opening message — fixed, so it's there the moment the contract
-// opens, and asking the first question straight away.
-export function opener(d: ContractDetails, missing: number): string {
+// The chat's opening message — fixed, so it's there the moment the chat
+// opens: the first of the questions, showing the answer already there if
+// there is one.
+export function opener(d: ContractDetails): string {
   const who = d.contactName.split(/\s+/)[0] || d.entity;
-  if (d.termMonths == null) {
-    return `${who ? `${who} sent their details, so I've started the contract from them.` : "Let's put this contract together."} I'll ask a few quick questions to fill in the rest — answer in your own words, as briefly as you like, and add anything else you want at any point.\n\nFirst: **how long is the contract** — a one-month trial, or how many months?`;
-  }
-  return missing
-    ? "Let's finish this contract — tell me what's still needed, or anything you'd like to change or add."
-    : "Everything's in place. Ask me to change anything — a figure, a clause, the whole structure — or to add something new.";
+  const start = `${who ? `${who} sent their details, so I've started the contract from them.` : "Let's put this contract together."} I'll go through a few quick questions — answer in your own words, as briefly as you like, and add anything else you want at any point.`;
+  const term = d.termMonths
+    ? `First, the term: it's **${termLength(d.termMonths)}${d.termMonths === 1 ? " — a trial" : ""}**. Keep that, or change it?${
+        d.termMonths === 1 ? " And when the trial ends, should it roll on automatically unless either side stops it?" : ""
+      }`
+    : "First: **how long is the contract** — a one-month trial, or how many months?";
+  return `${start}\n\n${term}`;
 }

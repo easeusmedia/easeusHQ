@@ -81,13 +81,13 @@ export function ContractChat({
 
   // the opening message is fixed — the first of the assistant's questions —
   // until the conversation starts, when it's saved as part of it
-  const intro = locked ? "This contract has gone out for signature, so it can't change now. You can still ask me about it." : opener(details, missing.length);
+  const intro = locked ? "This contract has gone out for signature, so it can't change now. You can still ask me about it." : opener(details);
 
   // quick answers to the first question, then a few ideas once it's complete
   const ideas = locked
     ? ["Summarise this contract"]
-    : chat.length === 0 && details.termMonths == null
-      ? ["One-month trial", "3 months", "6 months"]
+    : chat.length === 0
+      ? [...(details.termMonths ? ["Yes, keep it"] : ["One-month trial"]), "3 months", "6 months"]
       : missing.length === 0
         ? ["Add a confidentiality clause", "Make the payment a 50/50 split", "Summarise this contract"]
         : [];
