@@ -838,33 +838,6 @@ export async function saveContentPlan(clientId: string, plan: PlanItem[]): Promi
   return {};
 }
 
-// A task dragged to another day on the content calendar: its due date moves
-// there, and its start moves with it, so the span it's worked across keeps
-// its length.
-export async function rescheduleTask(taskId: string, day: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can move tasks on the calendar." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "That isn't a date." };
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { startDate: true, dueDate: true, deliveryDate: true },
-  });
-  if (!task) return { error: "That task no longer exists." };
-  // `day` is where its last day (delivery, else due) was dropped; its other
-  // dates move by the same amount
-  const end = task.deliveryDate ?? task.dueDate;
-  const shift = end ? new Date(day).getTime() - end.getTime() : 0;
-  const moved = (d: Date | null) => (d ? new Date(d.getTime() + shift) : null);
-  await prisma.task.update({
-    where: { id: taskId },
-    data: end
-      ? { startDate: moved(task.startDate), dueDate: moved(task.dueDate), deliveryDate: moved(task.deliveryDate) }
-      : { dueDate: new Date(day) },
-  });
-  revalidatePath("/clients/[slug]", "page");
-  revalidatePath("/board");
-  return {};
-}
-
 export async function updateProject(
   projectId: string,
   // every field on the header is editable, not just the first three it

@@ -4,9 +4,8 @@ import { DELIVERABLE_TYPES } from "./deliverableTypes.ts";
 // have, how many of it one project makes and when they're worked on and due
 // — laid out over a one-week project. A project with a longer or shorter
 // deadline gets the same shape stretched or squeezed to fit. Creating a
-// project lays its tasks out on the content calendar from this, so nobody
-// writes nine tasks by hand for every episode; the calendar is where they're
-// moved about afterwards.
+// project lays its tasks out from this, so nobody writes nine tasks by hand
+// for every episode.
 //
 // Pure (no database, no clock) so the arithmetic is testable on its own.
 
@@ -102,41 +101,4 @@ export function planTasks(
       }));
     })
     .sort((a, b) => a.due.localeCompare(b.due) || a.start.localeCompare(b.start));
-}
-
-// A month as the calendar draws it: whole weeks, Monday first, as yyyy-mm-dd
-// — the days either side of the month fill out the first and last week.
-export function monthGrid(year: number, month: number): string[][] {
-  const first = new Date(Date.UTC(year, month, 1));
-  const lead = (first.getUTCDay() + 6) % 7; // days back to Monday
-  const start = addDays(first.toISOString().slice(0, 10), -lead);
-  const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const weeks = Math.ceil((lead + days) / 7);
-  return Array.from({ length: weeks }, (_, w) => Array.from({ length: 7 }, (_, d) => addDays(start, w * 7 + d)));
-}
-
-// For one week (seven days, Monday first): every item that falls in it, as a
-// bar — which column it starts in, how many days it runs, whether it really
-// starts or ends inside this week — and the row it sits on, so no two bars
-// overlap. Earlier starts and longer spans get the upper rows.
-export function weekLanes<T extends { start: string; due: string }>(
-  week: string[],
-  items: T[]
-): { placed: { item: T; col: number; span: number; lane: number; startsHere: boolean; endsHere: boolean }[]; lanes: number } {
-  const [first, last] = [week[0], week[6]];
-  const hits = items
-    .map((item) => ({ item, start: item.start <= item.due ? item.start : item.due, due: item.due }))
-    .filter((x) => x.start <= last && x.due >= first)
-    .sort((a, b) => a.start.localeCompare(b.start) || b.due.localeCompare(a.due));
-  const ends: string[] = []; // the last day taken in each row
-  const placed = hits.map((x) => {
-    const s = x.start < first ? first : x.start;
-    const e = x.due > last ? last : x.due;
-    let lane = ends.findIndex((end) => end < s);
-    if (lane === -1) lane = ends.push(e) - 1;
-    else ends[lane] = e;
-    const col = week.indexOf(s);
-    return { item: x.item, col, span: week.indexOf(e) - col + 1, lane, startsHere: x.start >= first, endsHere: x.due <= last };
-  });
-  return { placed, lanes: ends.length };
 }

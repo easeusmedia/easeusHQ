@@ -17,12 +17,11 @@ import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
-import { ContentCalendar } from "../ContentCalendar";
+import { BlueprintButton } from "../Blueprint";
 import { ClientAnalytics } from "../ClientAnalytics";
 import { apifyTokens } from "@/lib/apify";
 import { socialLink } from "@/lib/analytics";
 import { planFor } from "@/lib/contentPlan";
-import { dueState, indiaDay } from "@/lib/due";
 
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientShare } from "../ClientShare";
@@ -132,22 +131,6 @@ export default async function ClientDetailPage({
       await prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } })
     ).map((r) => [r.projectId, r._count._all])
   );
-  // every dated task of theirs, finished ones included, for the calendar
-  const dated = await prisma.task.findMany({
-    where: { projectId: { in: projectIds }, OR: [{ dueDate: { not: null } }, { deliveryDate: { not: null } }] },
-    select: { id: true, title: true, status: true, projectId: true, startDate: true, dueDate: true, deliveryDate: true, handedOffAt: true },
-  });
-  const calendarItems = dated.map((t) => ({
-    id: t.id,
-    title: t.title,
-    status: t.status,
-    projectId: t.projectId,
-    // drawn from its start to the day it goes to the client (just its due
-    // day for internal work); no start given, just that day
-    start: indiaDay(t.startDate ?? (t.deliveryDate ?? t.dueDate)!),
-    due: indiaDay((t.deliveryDate ?? t.dueDate)!),
-    overdue: dueState(t.dueDate, t.handedOffAt) === "overdue",
-  }));
   const plan = planFor(client.contentPlan);
 
   // whether the Apify tokens the Analytics tab scrapes with are set up
@@ -255,23 +238,6 @@ export default async function ClientDetailPage({
                   />
                 </section>
 
-                {/* the plan, by day — right under what's in hand now */}
-                <ContentCalendar
-                  items={calendarItems}
-                  today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
-                  clientId={canPlan ? client.id : undefined}
-                  plan={plan}
-                  dialog={{
-                    tasks,
-                    clientName: client.name,
-                    editors,
-                    projects: boardProjects,
-                    actingUserId: me.id,
-                    actingRole: me.role as Role,
-                    taskTags,
-                  }}
-                />
-
                 {/* The other half of the client's work: real work done for
                     them that never leaves the studio — audio engineering,
                     colour correction, channel management. It belongs to the
@@ -305,6 +271,8 @@ export default async function ClientDetailPage({
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
                   canMoveInvoices={me.role !== "employee"}
                   plan={plan}
+                  // what a new project's tasks are, and when — beside Projects
+                  blueprint={canPlan ? <BlueprintButton clientId={client.id} plan={plan} /> : undefined}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                 />

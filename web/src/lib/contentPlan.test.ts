@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PLAN, monthGrid, planFor, planTasks, weekLanes } from "./contentPlan.ts";
+import { DEFAULT_PLAN, planFor, planTasks } from "./contentPlan.ts";
 
 test("a week's project: the trailer in two days, the reels through the rest of the week", () => {
   const tasks = planTasks(DEFAULT_PLAN, ["Reel Trailer", "Reel"], "Podcast 30", "2026-09-22");
@@ -39,30 +39,4 @@ test("a saved plan is cleaned up, and an older one read as ranges", () => {
     startDay: 5,
     endDay: 15,
   });
-});
-
-test("a month is whole weeks, Monday first", () => {
-  const sep = monthGrid(2026, 8); // September 2026 starts on a Tuesday
-  assert.equal(sep[0][0], "2026-08-31");
-  assert.equal(sep[0][1], "2026-09-01");
-  assert.equal(sep.at(-1)!.at(-1), "2026-10-04");
-  assert.ok(sep.every((w) => w.length === 7));
-});
-
-test("a week's bars: clipped to the week, stacked so none overlap", () => {
-  const week = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"];
-  const { placed, lanes } = weekLanes(week, [
-    { id: "trailer", start: "2026-09-22", due: "2026-09-24" },
-    { id: "reel1", start: "2026-09-24", due: "2026-09-25" },
-    { id: "long", start: "2026-09-15", due: "2026-09-23" }, // began the week before
-    { id: "next", start: "2026-09-26", due: "2026-10-02" }, // runs into next week
-    { id: "gone", start: "2026-09-01", due: "2026-09-10" },
-  ]);
-  const at = (id: string) => placed.find((p) => p.item.id === id)!;
-  assert.equal(placed.length, 4);
-  assert.deepEqual([at("long").col, at("long").span, at("long").startsHere, at("long").endsHere], [0, 3, false, true]);
-  assert.deepEqual([at("trailer").col, at("trailer").span], [1, 3]);
-  assert.notEqual(at("trailer").lane, at("long").lane); // they share Tue and Wed
-  assert.deepEqual([at("next").col, at("next").span, at("next").endsHere], [5, 2, false]);
-  assert.ok(lanes >= 2);
 });

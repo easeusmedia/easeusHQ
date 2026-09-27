@@ -45,6 +45,7 @@ export function ProjectsSection({
   projectBase,
   canMoveInvoices = false,
   plan,
+  blueprint,
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -63,6 +64,8 @@ export function ProjectsSection({
   canMoveInvoices?: boolean;
   // the client's content blueprint, for a new project's planned tasks
   plan?: PlanItem[];
+  // the button that edits it, beside the heading (the team's page only)
+  blueprint?: React.ReactNode;
 }) {
   // "invoice": every project, in sections, one per invoice
   const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
@@ -208,7 +211,10 @@ export function ProjectsSection({
     <div className="flex flex-col gap-4">
       {/* title · how to view, centred · what to show */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <h2 className="text-sm font-medium">Projects</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-medium">Projects</h2>
+          {blueprint}
+        </div>
         <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
           {(
             [
