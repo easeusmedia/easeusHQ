@@ -16,7 +16,12 @@ import {
 // — the same data the review page draws, so every change shows at once.
 
 // An assistant message can end in a question with answers to pick from
-export type ChatMessage = { role: "user" | "assistant"; text: string; at: string; question?: string; options?: string[] };
+// (files: the names of what was attached — the files themselves go to Claude
+// with that one message and aren't kept)
+export type ChatMessage = { role: "user" | "assistant"; text: string; at: string; question?: string; options?: string[]; files?: string[] };
+
+// A file attached to a message, ready for Claude
+export type Attachment = { name: string } & ({ kind: "image"; mediaType: string; data: string } | { kind: "pdf"; data: string } | { kind: "text"; data: string });
 
 // What doesn't change between turns: who it is, the rules it works to, how
 // clauses are written.
@@ -46,6 +51,9 @@ The house rules (Easeus contract SOP)
 
 The form
 Ops fills most details in a form beside you. When a message starts with a field in brackets — [Monthly fee] 2500 AED, 20% off the first month — it came from that field's box: work out what they mean, save it (details, a note, a clause — whatever it takes), and reply in a few words. Ask back only if it's genuinely unclear.
+A message from a field's box changes only what it asks for — "[Deliverables] same as the attached" means the deliverables (and anything else it names), nothing more.
+Files may come attached — an earlier contract, a brief, a rate card, a screenshot. Read them and take only what the message asks for (with no instruction, fill in what's missing). Taking terms from an attached contract — fee, deliverables, term, clauses, wording — is exactly what it's for: do it straight away, no need to ask. Its client is someone else, so leave this contract's client (name, address, signatories) exactly as it is; the app keeps those anyway.
+Say only what your tools confirmed. If a tool result says something was kept, don't claim it changed.
 
 Behaviour
 - Never invent facts about the client (names, emails, addresses, fees). If something needed is unclear, ask one short question instead of guessing.
@@ -160,10 +168,18 @@ const clean = (c: Clause): Clause => ({
 });
 
 // Carries out one tool call on the working copy; what it says back to Claude
-function apply(name: string, input: Record<string, unknown>, work: { d: ContractDetails; clauses: Clause[] }): string {
+// Who the client is — kept as it is when files are attached, unless the
+// message came from the Client box: an old contract attached for its terms
+// carries some other client's name and address.
+const IDENTITY = ["entity", "tradingName", "address", "country", "signatories", "contactName", "contactEmail", "whatsapp"];
+
+function apply(name: string, input: Record<string, unknown>, work: { d: ContractDetails; clauses: Clause[] }, guardIdentity = false): string {
   const at = (id: unknown) => work.clauses.findIndex((c) => c.id === id);
+  let kept = "";
   if (name === "update_details") {
-    work.d = withDefaults({ ...work.d, ...input });
+    const blocked = guardIdentity ? IDENTITY.filter((k) => k in input) : [];
+    if (blocked.length) kept = ` Kept the client's own ${blocked.join(", ")} — they only change when asked for in the Client box.`;
+    work.d = withDefaults({ ...work.d, ...Object.fromEntries(Object.entries(input).filter(([k]) => !blocked.includes(k))) });
   } else if (name === "edit_clause") {
     const i = at(input.id);
     if (i < 0) return `No clause with id ${input.id}.`;
@@ -192,10 +208,10 @@ function apply(name: string, input: Record<string, unknown>, work: { d: Contract
     work.clauses.splice(after + 1, 0, c);
   } else return `Unknown tool ${name}.`;
   const { missing } = compose(work.clauses, work.d, indiaDay(new Date()));
-  return `Done.${missing.length ? ` Still needed: ${missing.map((m) => m.label).join(", ")}.` : " Nothing missing."}`;
+  return `Done.${kept}${missing.length ? ` Still needed: ${missing.map((m) => m.label).join(", ")}.` : " Nothing missing."}`;
 }
 
-export async function askAboutContract(id: string, text: string) {
+export async function askAboutContract(id: string, text: string, attached: Attachment[] = []) {
   const contract = await prisma.contract.findUnique({ where: { id } });
   if (!contract) throw new Error("That contract no longer exists.");
   const locked = contract.status === "sent" || contract.status === "signed";
@@ -215,7 +231,7 @@ export async function askAboutContract(id: string, text: string) {
   });
   past.forEach((m, i) => {
     if (m.role === "user") {
-      messages.push(answer(m.text));
+      messages.push(answer(m.files?.length ? `${m.text}\n\n(Attached then: ${m.files.join(", ")})` : m.text));
       open = null;
       return;
     }
@@ -224,7 +240,17 @@ export async function askAboutContract(id: string, text: string) {
     if (m.question) blocks.push({ type: "tool_use", id: `q${i}`, name: "ask_question", input: { question: m.question, options: m.options ?? [] } });
     messages.push({ role: "assistant", content: blocks.length ? blocks : "(nothing)" });
   });
-  messages.push(answer(text));
+  // this message, with anything attached to it (files first, as Claude reads best)
+  const files: Block[] = attached.map((a) =>
+    a.kind === "image"
+      ? { type: "image", source: { type: "base64", media_type: a.mediaType, data: a.data } }
+      : a.kind === "pdf"
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: a.data }, title: a.name }
+        : { type: "text", text: `Attached file "${a.name}":\n${a.data}` }
+  );
+  const now = answer(text);
+  if (files.length) now.content = typeof now.content === "string" ? [...files, { type: "text", text: now.content }] : [...now.content, ...files];
+  messages.push(now);
   let changed = false;
   let reply = "";
   let asked: { question: string; options: string[] } | null = null;
@@ -249,7 +275,7 @@ export async function askAboutContract(id: string, text: string) {
         return { type: "tool_result" as const, tool_use_id: c.id, content: "Shown to ops." };
       }
       if (locked) return { type: "tool_result" as const, tool_use_id: c.id, content: "The contract is locked — it's already out for signature.", is_error: true };
-      const out = apply(c.name, c.input, work);
+      const out = apply(c.name, c.input, work, attached.length > 0 && !text.startsWith("[Client]"));
       if (out.startsWith("Done")) changed = true;
       return { type: "tool_result" as const, tool_use_id: c.id, content: out };
     });
@@ -259,11 +285,11 @@ export async function askAboutContract(id: string, text: string) {
     messages.push({ role: "user", content: results });
   }
 
-  const now = new Date().toISOString();
+  const at = new Date().toISOString();
   const chat: ChatMessage[] = [
     ...history,
-    { role: "user", text, at: now },
-    { role: "assistant", text: reply || (asked ? "" : "Done."), at: now, ...(asked ?? {}) },
+    { role: "user", text, at, ...(attached.length ? { files: attached.map((a) => a.name) } : {}) },
+    { role: "assistant", text: reply || (asked ? "" : "Done."), at, ...(asked ?? {}) },
   ];
   // a change to an approved contract takes it back to draft, as any edit does
   const status = changed && contract.status === "approved" ? "draft" : contract.status;

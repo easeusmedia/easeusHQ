@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ArrowUp, PenLine, RotateCcw, Sparkles } from "lucide-react";
 import { runs } from "@/lib/contract";
 import type { ChatMessage } from "./assistant";
+import { AttachButton, FileChips, useAttachments } from "./Attach";
 
 // Claude, under the form: for anything the form doesn't cover — a clause,
 // different wording, a special term. What's typed into a form field's own
@@ -40,8 +41,9 @@ export function Avatar() {
 
 // A question Claude asks back when something's unclear: options to pick,
 // or type anything
-function QuestionCard({ question, options, live, onAnswer }: { question: string; options: string[]; live: boolean; onAnswer: (a: string) => void }) {
+function QuestionCard({ question, options, live, onAnswer }: { question: string; options: string[]; live: boolean; onAnswer: (a: string, files?: File[]) => void }) {
   const [own, setOwn] = useState("");
+  const att = useAttachments();
   if (!live) return <p className="mt-2 rounded-xl border border-white/[0.05] px-3.5 py-2.5 text-[13px] text-muted">{question}</p>;
   return (
     <div className="fade-in mt-2 overflow-hidden rounded-2xl border border-accent/20 bg-accent/[0.04]">
@@ -64,16 +66,23 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (own.trim()) onAnswer(own);
+            if (own.trim() || att.files.length) onAnswer(own, att.files);
           }}
           className="mt-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-surface-2/70 py-1 pl-3 pr-1 transition-colors focus-within:border-accent/40"
         >
           <PenLine size={13} className="shrink-0 text-muted" />
           <input value={own} onChange={(e) => setOwn(e.target.value)} placeholder="Type your own answer…" className="min-w-0 flex-1 bg-transparent py-1.5 text-[13.5px] outline-none! placeholder:text-muted/70" />
-          <button type="submit" disabled={!own.trim()} aria-label="Send" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[#0b1215] transition-opacity disabled:opacity-25">
+          <AttachButton onPick={att.add} />
+          <button type="submit" disabled={!own.trim() && !att.files.length} aria-label="Send" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[#0b1215] transition-opacity disabled:opacity-25">
             <ArrowUp size={14} />
           </button>
         </form>
+        {(att.files.length > 0 || att.problem) && (
+          <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
+            <FileChips names={att.files.map((f) => f.name)} onRemove={att.remove} />
+            {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -91,20 +100,22 @@ export function ContractChat({
   thinking: boolean;
   error: string | null;
   locked: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string, files?: File[]) => void;
   onClear: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const att = useAttachments();
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [chat, thinking, error]);
 
-  const send = (text: string) => {
-    if (!text.trim() || thinking) return;
+  const send = (text: string, files: File[] = []) => {
+    if ((!text.trim() && !files.length) || thinking) return;
     setDraft("");
-    onSend(text);
+    att.clear();
+    onSend(text, files);
   };
   const last = chat[chat.length - 1];
   const pending = !locked && !thinking && last?.role === "assistant" && !!last.question && !!last.options?.length;
@@ -150,6 +161,11 @@ export function ContractChat({
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/[0.1] px-3.5 py-2 text-foreground">
                   {field && <span className="mb-0.5 block text-[11px] text-accent">{field[1]}</span>}
                   {field ? m.text.slice(field[0].length) : m.text}
+                  {m.files?.length ? (
+                    <span className="mt-1.5 block">
+                      <FileChips names={m.files} />
+                    </span>
+                  ) : null}
                 </div>
               </div>
             );
@@ -188,14 +204,23 @@ export function ContractChat({
               ))}
             </div>
           )}
-          <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(111,179,189,0.1)]">
+          {(att.files.length > 0 || att.problem) && (
+            <div className="flex flex-wrap items-center gap-1 px-1">
+              <FileChips names={att.files.map((f) => f.name)} onRemove={att.remove} />
+              {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
+            </div>
+          )}
+          <div className="flex items-end gap-1 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-2 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(111,179,189,0.1)]">
+            <span className="mb-1.5">
+              <AttachButton onPick={att.add} disabled={thinking} size={16} />
+            </span>
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  send(draft);
+                  send(draft, att.files);
                 }
               }}
               rows={1}
@@ -204,8 +229,8 @@ export function ContractChat({
             />
             <button
               type="button"
-              onClick={() => send(draft)}
-              disabled={!draft.trim() || thinking}
+              onClick={() => send(draft, att.files)}
+              disabled={(!draft.trim() && !att.files.length) || thinking}
               aria-label="Send"
               className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1215] transition-opacity disabled:opacity-30"
             >

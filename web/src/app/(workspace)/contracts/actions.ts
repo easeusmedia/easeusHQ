@@ -9,7 +9,7 @@ import { DEFAULT_CLAUSES, EMAIL, PROVIDER, compose, withDefaults, type Clause, t
 import { contractPdf } from "@/lib/contractPdf";
 import { sendForSignature, signingUrl } from "@/lib/adobeSign";
 import { TEMPLATE, masterClauses } from "./masterTemplate";
-import { askAboutContract, type ChatMessage } from "./assistant";
+import { askAboutContract, type Attachment, type ChatMessage } from "./assistant";
 
 // Every step of a contract after the client's form: ops fills in the terms,
 // edits the clauses, approves, sends. Ops only. See lib/contract.ts.
@@ -192,12 +192,25 @@ export async function resetTemplate(): Promise<{ error?: string; clauses?: Claus
 // and what it now is comes back with its reply.
 export async function chatContract(
   id: string,
-  text: string
+  text: string,
+  // files attached to the message, as "files"
+  form: FormData | null = null
 ): Promise<{ error?: string; chat?: ChatMessage[]; details?: ContractDetails; clauses?: Clause[]; status?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
-  if (!text.trim()) return {};
+  const files = (form?.getAll("files") ?? []).filter((f): f is File => f instanceof File);
+  if (!text.trim() && !files.length) return {};
+  if (files.length > 5) return { error: "Attach up to five files at a time." };
+  if (files.reduce((n, f) => n + f.size, 0) > 4 * 1024 * 1024) return { error: "Those files come to more than 4MB — attach fewer or smaller ones." };
+  const attached: Attachment[] = [];
+  for (const f of files) {
+    const bytes = Buffer.from(await f.arrayBuffer());
+    if (/^image\/(jpeg|png|gif|webp)$/.test(f.type)) attached.push({ name: f.name, kind: "image", mediaType: f.type, data: bytes.toString("base64") });
+    else if (f.type === "application/pdf") attached.push({ name: f.name, kind: "pdf", data: bytes.toString("base64") });
+    else if (f.type.startsWith("text/") || /\.(txt|md|csv)$/i.test(f.name)) attached.push({ name: f.name, kind: "text", data: bytes.toString("utf8").slice(0, 100_000) });
+    else return { error: `${f.name} can't be read — attach PDFs, images or text files.` };
+  }
   try {
-    const res = await askAboutContract(id, text.trim().slice(0, 8000));
+    const res = await askAboutContract(id, (text.trim() || "(see attached)").slice(0, 8000), attached);
     done();
     return res;
   } catch (err) {

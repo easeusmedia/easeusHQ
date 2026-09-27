@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { ArrowUp, Check, Loader2, PenLine } from "lucide-react";
+import { AttachButton, FileChips, useAttachments } from "./Attach";
 import { CONTENT_UNITS, CURRENCIES, PLATFORMS, conditions, longDate, money, values, type ContractDetails, type Deliverable } from "@/lib/contract";
 
 // Every question the contract needs, in one place. Each has answers to
-// click — saved at once — and its own box for anything else, which Claude
-// reads and turns into the right change. Plain amounts and term lengths
+// click — saved at once — and its own box for anything else (words or
+// files), which Claude reads and turns into the right change. Plain amounts and term lengths
 // typed there are saved straight away, without waiting for Claude.
 
 type Option = { label: string; patch: Partial<ContractDetails>; on: boolean };
@@ -66,33 +67,45 @@ function Chip({ on, children, onClick, disabled }: { on: boolean; children: Reac
   );
 }
 
-// The box for anything else: grows from a small chip when it's used
-function Custom({ placeholder, busy, disabled, onSubmit }: { placeholder: string; busy: boolean; disabled: boolean; onSubmit: (text: string) => void }) {
+// The box for anything else — words, files, or both — which Claude reads
+function Custom({ placeholder, busy, disabled, onSubmit }: { placeholder: string; busy: boolean; disabled: boolean; onSubmit: (text: string, files: File[]) => void }) {
   const [text, setText] = useState("");
+  const att = useAttachments();
+  const ready = !busy && (!!text.trim() || att.files.length > 0);
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!text.trim() || busy) return;
-        onSubmit(text.trim());
-        setText("");
-      }}
-      className="flex min-w-[9rem] flex-1 items-center gap-1.5 rounded-full border border-dashed border-white/[0.12] py-0.5 pl-3 pr-0.5 transition-colors focus-within:border-solid focus-within:border-accent/50 focus-within:bg-surface-2/60"
-    >
-      {busy ? <Loader2 size={12} className="shrink-0 animate-spin text-accent" /> : <PenLine size={12} className="shrink-0 text-muted" />}
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        disabled={disabled}
-        placeholder={busy ? "Claude's on it…" : placeholder}
-        className="min-w-0 flex-1 bg-transparent py-1 text-[12.5px] outline-none! placeholder:text-muted/60"
-      />
-      {text.trim() && !busy && (
-        <button type="submit" aria-label="Send" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[#0b1215]">
-          <ArrowUp size={12} />
-        </button>
+    <div className="flex min-w-[9rem] flex-1 flex-col gap-1">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!ready) return;
+          onSubmit(text.trim(), att.files);
+          setText("");
+          att.clear();
+        }}
+        className="flex items-center gap-1.5 rounded-full border border-dashed border-white/[0.12] py-0.5 pl-3 pr-0.5 transition-colors focus-within:border-solid focus-within:border-accent/50 focus-within:bg-surface-2/60"
+      >
+        {busy ? <Loader2 size={12} className="shrink-0 animate-spin text-accent" /> : <PenLine size={12} className="shrink-0 text-muted" />}
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={disabled}
+          placeholder={busy ? "Claude's on it…" : placeholder}
+          className="min-w-0 flex-1 bg-transparent py-1 text-[12.5px] outline-none! placeholder:text-muted/60"
+        />
+        <AttachButton onPick={att.add} disabled={disabled || busy} size={13} />
+        {ready && (
+          <button type="submit" aria-label="Send" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[#0b1215]">
+            <ArrowUp size={12} />
+          </button>
+        )}
+      </form>
+      {(att.files.length > 0 || att.problem) && (
+        <div className="flex flex-wrap items-center gap-1 pl-2">
+          <FileChips names={att.files.map((f) => f.name)} onRemove={att.remove} />
+          {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
+        </div>
       )}
-    </form>
+    </div>
   );
 }
 
@@ -128,7 +141,7 @@ export function ContractForm({
   // the field whose box Claude is working on
   busy: string | null;
   onSet: (patch: Partial<ContractDetails>) => void;
-  onAsk: (field: string, text: string) => void;
+  onAsk: (field: string, text: string, files: File[]) => void;
 }) {
   const c = conditions(d);
   const v = values(d, today);
@@ -144,10 +157,11 @@ export function ContractForm({
       placeholder={placeholder}
       busy={busy === field}
       disabled={locked || (busy !== null && busy !== field)}
-      onSubmit={(text) => {
-        const quick = local?.(text);
+      onSubmit={(text, files) => {
+        // a plain amount or length saves at once; anything more is Claude's
+        const quick = files.length ? null : local?.(text);
         if (quick) onSet(quick);
-        else onAsk(field, text);
+        else onAsk(field, text, files);
       }}
     />
   );

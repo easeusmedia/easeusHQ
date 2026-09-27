@@ -18,7 +18,9 @@ export async function claudeKey(): Promise<string | null> {
 export type Block =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
+  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string };
 export type Message = { role: "user" | "assistant"; content: string | Block[] };
 export type Tool = { name: string; description: string; input_schema: Record<string, unknown> };
 

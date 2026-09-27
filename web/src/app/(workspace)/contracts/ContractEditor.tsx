@@ -79,15 +79,21 @@ export function ContractEditor({
     });
   }
 
-  // anything for Claude — from the chat, or a form field's own box
-  async function ask(text: string, field: string | null = null) {
+  // anything for Claude — from the chat, or a form field's own box —
+  // with whatever files came with it
+  async function ask(text: string, field: string | null = null, files: File[] = []) {
     if (thinking) return;
     setThinking(true);
     setBusyField(field);
     setChatError(null);
     const message = field ? `[${field}] ${text}` : text;
-    setChat((c) => [...c, { role: "user", text: message, at: new Date().toISOString() }]);
-    const res = await chatContract(id, message);
+    setChat((c) => [...c, { role: "user", text: message, at: new Date().toISOString(), ...(files.length ? { files: files.map((f) => f.name) } : {}) }]);
+    let form: FormData | null = null;
+    if (files.length) {
+      form = new FormData();
+      for (const f of files) form.append("files", f);
+    }
+    const res = await chatContract(id, message, form);
     setThinking(false);
     setBusyField(null);
     if (res.error) return setChatError(res.error);
@@ -231,24 +237,24 @@ export function ContractEditor({
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-5">
-          {/* the next step, always in view at the top */}
+          <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
+
+          {/* after the last question: what to do now */}
           <div className="relative overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
             <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
             <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
             <p className="mt-1.5 text-base font-medium">{next.title}</p>
             <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
             {next.action && <div className="mt-4 flex">{next.action}</div>}
-            {(error || note) && <p className="fade-in mt-3 text-sm text-foreground/85">{error ?? note}</p>}
           </div>
 
-          <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text) => ask(text, field)} />
 
           <ContractChat
             chat={chat}
             thinking={thinking}
             error={chatError}
             locked={locked}
-            onSend={(text) => ask(text)}
+            onSend={(text, files) => ask(text, null, files)}
             onClear={async () => {
               await clearContractChat(id);
               setChat([]);
@@ -258,9 +264,17 @@ export function ContractEditor({
         </div>
 
         <div className="flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(111,179,189,0.06),transparent_60%)] p-3 sm:p-8 lg:sticky lg:top-2 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
+          {/* the one next step, on top of the contract it's about */}
+          <div className="flex flex-wrap items-center gap-3 px-1">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{next.title}</p>
+              {!locked && <p className="text-xs text-muted">Live preview · hover a clause to tweak it by hand</p>}
+            </div>
+            {next.action}
+          </div>
+          {(error || note) && <p className="fade-in px-1 text-sm text-foreground/85">{error ?? note}</p>}
           {!locked && (
-            <div className="flex items-center justify-between px-1 text-xs text-muted">
-              <span>Live preview · hover a clause to tweak it by hand</span>
+            <div className="flex items-center justify-end px-1 text-xs text-muted">
               <ConfirmButton
                 message="Put the clauses back to the master template's? Changes made to this contract's clauses are lost."
                 onConfirm={() =>
