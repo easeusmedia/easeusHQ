@@ -3,12 +3,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
-import { sharedClient } from "../../shared";
+import { OngoingList, sharedClient } from "../../shared";
 
 // One project on a client's shared page — the team's project page, read-only:
-// its cover and where it stands, then every file it produced. Its links stay on the client's own
+// its cover and where it stands, what's still being made for it (with the day
+// each piece is due to reach them), then every file it produced. Its links stay on the client's own
 // pages (/share/…), so they never lead into the team app, even in a browser
 // that also happens to be signed in to it.
 
@@ -43,6 +45,14 @@ export default async function SharedProjectPage({
     where: { projectId: project.id, status: "delivered_and_uploaded", internal: false },
     orderBy: { updatedAt: "desc" },
     select: { id: true, title: true, driveLink: true, updatedAt: true },
+  });
+
+  // what's still being made for them (never the team's internal work),
+  // soonest delivery first
+  const active = await prisma.task.findMany({
+    where: { projectId: project.id, status: { in: ACTIVE_STATUSES }, internal: false },
+    orderBy: [{ deliveryDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+    select: { id: true, title: true, status: true, frameioLink: true, deliveryDate: true },
   });
 
   const folder = project.driveLink ? normalizeUrl(project.driveLink) : null;
@@ -81,6 +91,15 @@ export default async function SharedProjectPage({
           </div>
         </div>
       </div>
+
+      {active.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-4 text-sm font-medium">
+            In progress <span className="font-normal text-muted">{active.length}</span>
+          </h2>
+          <OngoingList tasks={active} />
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="mb-4 text-sm font-medium">
