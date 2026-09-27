@@ -32,8 +32,8 @@ function Artwork() {
         className="absolute inset-0"
         style={{
           background: [
-            "radial-gradient(95% 55% at 50% 108%, rgba(91,168,212,0.62) 0%, rgba(91,168,212,0.16) 48%, transparent 72%)",
-            "radial-gradient(70% 45% at 88% -5%, rgba(212,232,243,0.20) 0%, transparent 62%)",
+            "radial-gradient(95% 55% at 50% 108%, rgba(75,149,230,0.62) 0%, rgba(75,149,230,0.16) 48%, transparent 72%)",
+            "radial-gradient(70% 45% at 88% -5%, rgba(212,226,246,0.20) 0%, transparent 62%)",
             "linear-gradient(180deg, #1a1d23 0%, #0d0f13 100%)",
           ].join(","),
         }}

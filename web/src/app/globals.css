@@ -12,7 +12,7 @@
   --muted: #8b939c;
   /* the app's own accent: a soft, muted blue, for highlights and
      notification counts instead of alarm red or plain blue */
-  --accent: #5ba8d4;
+  --accent: #4b95e6;
   /* Tells the browser itself to render its own native chrome — the
      <input type="date"> calendar popup, scrollbars, form-control
      highlights — in the dark variant it already ships. Those aren't

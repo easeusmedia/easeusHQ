@@ -36,7 +36,7 @@ function Rich({ text, missing }: { text: string; missing: boolean }) {
               <span
                 key={j}
                 className={`mx-px rounded px-1 py-px text-[0.92em] font-medium not-italic ${
-                  missing ? "bg-[#e5f1f8] text-[#225c80] ring-1 ring-[#b3d6ea]" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                  missing ? "bg-[#e6effc] text-[#1f5595] ring-1 ring-[#b4cff2]" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
                 }`}
               >
                 {labelOf(key)}
@@ -289,15 +289,15 @@ function Tools({ onEdit, onUp, onDown, onRemove }: { onEdit: () => void; onUp?: 
 function AddHere({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="group/add relative flex h-6 items-center">
-      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-[#98c9e5]" />
+      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-[#9cc0ee]" />
       <button
         type="button"
         onClick={onAdd}
-        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#aaa] opacity-0 transition-opacity hover:text-[#225c80] group-hover/add:opacity-100 focus:opacity-100"
+        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#aaa] opacity-0 transition-opacity hover:text-[#1f5595] group-hover/add:opacity-100 focus:opacity-100"
       >
         <Plus size={11} /> Add clause
       </button>
-      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-[#98c9e5]" />
+      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-[#9cc0ee]" />
     </div>
   );
 }
@@ -432,7 +432,7 @@ export function ContractPaper({
                       return (
                         <div key={k} className="mb-2 whitespace-pre-line">
                           {cond && (
-                            <span className="mr-1.5 rounded bg-[#edf6fb] px-1.5 py-px text-[10.5px] font-medium text-[#225c80] ring-1 ring-[#c6e1f0]">
+                            <span className="mr-1.5 rounded bg-[#eef4fd] px-1.5 py-px text-[10.5px] font-medium text-[#1f5595] ring-1 ring-[#c8dbf5]">
                               {CONDITIONS.find((c) => c.value === cond[1].trim())?.label ?? cond[1]}
                             </span>
                           )}

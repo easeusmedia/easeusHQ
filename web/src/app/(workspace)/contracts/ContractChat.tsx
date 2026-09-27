@@ -210,7 +210,7 @@ export function ContractChat({
               {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
             </div>
           )}
-          <div className="flex items-end gap-1 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-2 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(91,168,212,0.1)]">
+          <div className="flex items-end gap-1 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-2 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(75,149,230,0.1)]">
             <span className="mb-1.5">
               <AttachButton onPick={att.add} disabled={thinking} size={16} />
             </span>
