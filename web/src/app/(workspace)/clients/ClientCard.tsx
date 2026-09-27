@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowUpRight, Clapperboard, ListChecks, type LucideIcon } from "lucide-react";
 import { clientHref } from "@/lib/slug";
 import { Avatar } from "../TaskCard";
 import { TagPill } from "./TagPill";
@@ -32,11 +33,18 @@ function Face({ client, size }: { client: ClientCardData; size: number }) {
 // leading-6 rather than leading-tight: `truncate` clips the overflow box,
 // and a tight line box cut the descenders off names like "Courageous
 // Leaders" and "Robyn".
-function Stat({ n, label }: { n: number; label: string }) {
+// A count with its small icon badge — lit when there's something there, the
+// way the Contracts tiles are
+function Stat({ n, label, Icon }: { n: number; label: string; Icon: LucideIcon }) {
   return (
-    <span className="flex flex-col">
-      <span className={`text-lg font-semibold leading-6 tabular-nums ${n > 0 ? "" : "text-muted"}`}>{n}</span>
-      <span className="text-xs leading-4 text-muted">{label}</span>
+    <span className="flex items-center gap-2.5">
+      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${n > 0 ? "bg-accent/15 text-accent" : "bg-white/[0.04] text-muted"}`}>
+        <Icon size={14} />
+      </span>
+      <span className="flex flex-col">
+        <span className={`text-base font-semibold leading-5 tabular-nums ${n > 0 ? "" : "text-muted"}`}>{n}</span>
+        <span className="text-[11px] leading-4 text-muted">{label}</span>
+      </span>
     </span>
   );
 }
@@ -51,9 +59,14 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
     <Link
       href={clientHref(client)}
       draggable={false}
-      className="card-surface card-interactive flex min-w-0 flex-col gap-3 rounded-2xl p-5 shadow-sm"
+      className="group relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-white/[0.06] bg-surface/50 p-5 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12] hover:bg-surface/70"
     >
-      <div className="flex items-center gap-3">
+      {/* a soft glow on the ones with work in hand */}
+      {client.activeTasks > 0 && (
+        <div className="pointer-events-none absolute -right-10 -top-12 size-32 rounded-full bg-gradient-to-br from-accent/20 to-transparent blur-2xl" />
+      )}
+      <ArrowUpRight size={15} className="absolute right-4 top-4 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+      <div className="flex items-center gap-3 pr-5">
         <Face client={client} size={42} />
         {/* full width to itself — the status dropdown used to sit in this
             row and ate into it, truncating names that didn't need to be */}
@@ -72,9 +85,9 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
         <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
       </div>
 
-      <div className="mt-auto flex items-center gap-6 border-t border-border/60 pt-3">
-        <Stat n={client.activeProjects} label={client.activeProjects === 1 ? "active project" : "active projects"} />
-        <Stat n={client.activeTasks} label={client.activeTasks === 1 ? "active task" : "active tasks"} />
+      <div className="mt-auto flex items-center gap-5 border-t border-white/[0.06] pt-3.5">
+        <Stat n={client.activeProjects} label={client.activeProjects === 1 ? "active project" : "active projects"} Icon={Clapperboard} />
+        <Stat n={client.activeTasks} label={client.activeTasks === 1 ? "active task" : "active tasks"} Icon={ListChecks} />
       </div>
     </Link>
   );
@@ -85,7 +98,7 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
     <Link
       href={clientHref(client)}
       draggable={false}
-      className="flex items-center gap-4 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 hover:bg-surface-2"
+      className="group flex items-center gap-4 rounded-2xl border border-white/[0.05] bg-surface/40 px-4 py-3 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.1] hover:bg-surface/70"
     >
       <Face client={client} size={32} />
       <div className="min-w-0 flex-1">
@@ -97,15 +110,16 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
           <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
         ))}
       </div>
-      <span className="w-28 shrink-0 text-right text-xs text-muted">
-        <span className={client.activeProjects > 0 ? "text-foreground" : ""}>{client.activeProjects}</span> active
-        {client.activeProjects === 1 ? " project" : " projects"}
+      <span className="flex w-16 shrink-0 items-center justify-end gap-1.5 text-xs" title={`${client.activeProjects} active project${client.activeProjects === 1 ? "" : "s"}`}>
+        <Clapperboard size={13} className={client.activeProjects > 0 ? "text-accent" : "text-muted"} />
+        <span className={`tabular-nums ${client.activeProjects > 0 ? "text-foreground" : "text-muted"}`}>{client.activeProjects}</span>
       </span>
-      <span className="hidden w-24 shrink-0 text-right text-xs text-muted md:block">
-        <span className={client.activeTasks > 0 ? "text-foreground" : ""}>{client.activeTasks}</span> active
-        {client.activeTasks === 1 ? " task" : " tasks"}
+      <span className="hidden w-16 shrink-0 items-center justify-end gap-1.5 text-xs md:flex" title={`${client.activeTasks} active task${client.activeTasks === 1 ? "" : "s"}`}>
+        <ListChecks size={13} className={client.activeTasks > 0 ? "text-accent" : "text-muted"} />
+        <span className={`tabular-nums ${client.activeTasks > 0 ? "text-foreground" : "text-muted"}`}>{client.activeTasks}</span>
       </span>
       <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} />
+      <ArrowUpRight size={15} className="hidden shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 sm:block" />
     </Link>
   );
 }

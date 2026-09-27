@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, FileSignature, ScrollText } from "lucide-react";
+import { ArrowUpRight, CircleCheck, Clock, FileSignature, PenLine, ScrollText, Send } from "lucide-react";
+import { StatTile } from "../StatTile";
 import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
@@ -31,13 +32,6 @@ export default async function ContractsPage() {
     return { c, d, missing, stage: contractStage(c.status, missing) };
   });
   const count = (...statuses: string[]) => contracts.filter((x) => statuses.includes(x.c.status)).length;
-  const tiles = [
-    { label: "Waiting for client", value: count("invited"), glow: "from-slate-400/20" },
-    { label: "Needs you", value: count("draft", "approved"), glow: "from-accent/30" },
-    { label: "Out for signature", value: count("sent"), glow: "from-accent/15" },
-    { label: "Signed", value: count("signed"), glow: "from-emerald-400/25" },
-  ];
-
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -54,13 +48,10 @@ export default async function ContractsPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <div key={t.label} className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-surface/50 px-5 py-4">
-            <div className={`pointer-events-none absolute -right-8 -top-10 size-28 rounded-full bg-gradient-to-br ${t.glow} to-transparent blur-2xl`} />
-            <p className="text-3xl font-semibold tabular-nums tracking-tight">{t.value}</p>
-            <p className="mt-1 text-xs text-muted">{t.label}</p>
-          </div>
-        ))}
+        <StatTile label="Waiting for client" value={count("invited")} Icon={Clock} />
+        <StatTile label="Needs you" value={count("draft", "approved")} Icon={PenLine} />
+        <StatTile label="Out for signature" value={count("sent")} Icon={Send} />
+        <StatTile label="Signed" value={count("signed")} Icon={CircleCheck} tone="emerald" />
       </div>
 
       {contracts.length === 0 ? (
