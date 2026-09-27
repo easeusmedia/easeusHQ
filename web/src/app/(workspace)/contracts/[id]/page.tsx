@@ -3,10 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { withDefaults, type Clause } from "@/lib/contract";
+import type { ChatMessage } from "../assistant";
 import { ADOBE_SETTINGS, agreementStatus } from "@/lib/adobeSign";
 import { ContractEditor } from "../ContractEditor";
 
 export const dynamic = "force-dynamic";
+// a message to the contract assistant can take Claude a few rounds
+export const maxDuration = 60;
 
 export default async function ContractPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await requireOps())) redirect("/board");
@@ -32,6 +35,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
       status={contract.status}
       details={withDefaults(contract.details)}
       clauses={contract.clauses as Clause[]}
+      chat={(contract.chat as ChatMessage[] | null) ?? []}
       today={indiaDay(new Date())}
       adobeConnected={adobeConnected}
       agreementStatus={adobe}

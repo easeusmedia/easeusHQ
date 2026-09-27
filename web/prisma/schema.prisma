@@ -765,6 +765,8 @@ model Contract {
   details     Json
   // this contract's own copy of the master template's clauses, edited freely
   clauses     Json
+  // the conversation with Claude about it: [{ role, text, at }]
+  chat        Json?
   // the Adobe Acrobat Sign agreement, once sent
   agreementId String?
   createdById String?

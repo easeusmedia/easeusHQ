@@ -9,6 +9,7 @@ import { DEFAULT_CLAUSES, EMAIL, PROVIDER, compose, withDefaults, type Clause, t
 import { contractPdf } from "@/lib/contractPdf";
 import { sendForSignature } from "@/lib/adobeSign";
 import { TEMPLATE, masterClauses } from "./masterTemplate";
+import { askAboutContract, type ChatMessage } from "./assistant";
 
 // Every step of a contract after the client's form: ops fills in the terms,
 // edits the clauses, approves, sends. Ops only. See lib/contract.ts.
@@ -53,17 +54,6 @@ async function editable(id: string) {
   if (!c) return { error: "That contract no longer exists." };
   if (c.status === "sent" || c.status === "signed") return { error: "It's already gone out for signing — it can't change now." };
   return { status: c.status === "approved" ? "draft" : c.status };
-}
-
-export async function saveContractDetails(id: string, details: ContractDetails): Promise<{ error?: string; status?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
-  const e = await editable(id);
-  if (e.error) return e;
-  const clean = withDefaults(details);
-  if (JSON.stringify(clean).length > 50_000) return { error: "That's too much to keep." };
-  await prisma.contract.update({ where: { id }, data: { details: clean, status: e.status } });
-  done();
-  return { status: e.status };
 }
 
 export async function saveContractClauses(id: string, clauses: Clause[]): Promise<{ error?: string; status?: string }> {
@@ -169,4 +159,29 @@ export async function resetTemplate(): Promise<{ error?: string; clauses?: Claus
   await prisma.appSetting.deleteMany({ where: { key: TEMPLATE } });
   done();
   return { clauses: DEFAULT_CLAUSES };
+}
+
+// ---- the assistant ----
+
+// One message to Claude about this contract; it may change the contract,
+// and what it now is comes back with its reply.
+export async function chatContract(
+  id: string,
+  text: string
+): Promise<{ error?: string; chat?: ChatMessage[]; details?: ContractDetails; clauses?: Clause[]; status?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
+  if (!text.trim()) return {};
+  try {
+    const res = await askAboutContract(id, text.trim().slice(0, 8000));
+    done();
+    return res;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Claude couldn't answer just now." };
+  }
+}
+
+export async function clearContractChat(id: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  await prisma.contract.update({ where: { id }, data: { chat: [] } });
+  return {};
 }

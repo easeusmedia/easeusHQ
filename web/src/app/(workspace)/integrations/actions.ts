@@ -9,6 +9,7 @@ import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFro
 import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } from "@/lib/notion";
 import { APIFY_SETTINGS } from "@/lib/apify";
 import { connectAdobe } from "@/lib/adobeSign";
+import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -211,6 +212,17 @@ export async function saveAdobeKey(key: string): Promise<{ error?: string }> {
   } catch (err) {
     return { error: `Acrobat Sign didn't accept that key: ${err instanceof Error ? err.message : "unknown error"}` };
   }
+  revalidatePath("/integrations");
+  return {};
+}
+
+// The Anthropic API key the contract assistant runs on, checked first
+export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  const k = key.trim();
+  if (!k.startsWith("sk-ant-")) return { error: "That isn't an Anthropic API key — they start with sk-ant-." };
+  if (!(await checkClaudeKey(k))) return { error: "Anthropic didn't accept that key." };
+  await prisma.appSetting.upsert({ where: { key: CLAUDE_SETTINGS.key }, create: { key: CLAUDE_SETTINGS.key, value: k }, update: { value: k } });
   revalidatePath("/integrations");
   return {};
 }

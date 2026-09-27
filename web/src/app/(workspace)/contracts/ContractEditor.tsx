@@ -1,26 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Copy, Download, FileDown, RotateCcw, Send, Trash2 } from "lucide-react";
-import { compose, conditions, values as valuesOf, type Clause, type ContractDetails } from "@/lib/contract";
+import { compose, type Clause, type ContractDetails } from "@/lib/contract";
 import { ConfirmButton } from "../ConfirmButton";
-import { DetailsPanel } from "./DetailsPanel";
 import { ContractPaper } from "./ContractPaper";
-import { contractStage } from "./status";
-import {
-  approveContract,
-  deleteContract,
-  resetContractClauses,
-  saveContractClauses,
-  saveContractDetails,
-  sendContract,
-} from "./actions";
+import { ContractChat } from "./ContractChat";
+import { Stepper, stepOf } from "./status";
+import type { ChatMessage } from "./assistant";
+import { approveContract, deleteContract, resetContractClauses, saveContractClauses, sendContract } from "./actions";
 
-// One contract, start to finish: the details on the left (the missing ones
-// called out first), the contract on the right exactly as it will read, and
-// the one next step at the top — approve, then send.
+// One contract, start to finish: Claude on the left to change anything by
+// asking, the contract on the right exactly as it will read, and the one
+// next step at the top — approve, then send.
 export function ContractEditor({
   id,
   token,
@@ -28,6 +22,7 @@ export function ContractEditor({
   status: initialStatus,
   details: initialDetails,
   clauses: initialClauses,
+  chat,
   today,
   adobeConnected,
   agreementStatus,
@@ -39,6 +34,7 @@ export function ContractEditor({
   status: string;
   details: ContractDetails;
   clauses: Clause[];
+  chat: ChatMessage[];
   today: string;
   adobeConnected: boolean;
   agreementStatus: string | null;
@@ -48,56 +44,21 @@ export function ContractEditor({
   const [d, setD] = useState(initialDetails);
   const [clauses, setClauses] = useState(initialClauses);
   const [status, setStatus] = useState(initialStatus);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const locked = status === "sent" || status === "signed";
 
   const composed = useMemo(() => compose(clauses, d, today), [clauses, d, today]);
-  const c = conditions(d);
-  const byCountry = valuesOf({ ...d, governingLaw: "", jurisdiction: "" }, today);
-  const stage = contractStage(status, composed.missing.length);
   const title = d.entity || name || d.contactName || "New contract";
+  const signers = d.signatories.filter((s) => s.name.trim()).map((s) => s.email.trim());
 
-  // details save themselves a moment after the last change
-  const first = useRef(true);
-  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
-  async function saveDetails(next: ContractDetails) {
-    pending.current = null;
-    const res = await saveContractDetails(id, next);
-    if (res.error) setError(res.error);
-    if (res.status) setStatus(res.status);
-    setSaving("saved");
-  }
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    setSaving("saving");
-    pending.current = setTimeout(() => saveDetails(d), 600);
-    return () => {
-      if (pending.current) clearTimeout(pending.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- saves on a change of details only
-  }, [d]);
-  // a save still waiting, done now — so approving never races it
-  async function flush() {
-    if (!pending.current) return;
-    clearTimeout(pending.current);
-    await saveDetails(d);
-  }
-
-  const set = (patch: Partial<ContractDetails>) => setD((cur) => ({ ...cur, ...patch }));
-
+  // a clause edited by hand on the paper
   async function changeClauses(next: Clause[]) {
     setClauses(next);
-    setSaving("saving");
     const res = await saveContractClauses(id, next);
     if (res.error) setError(res.error);
     if (res.status) setStatus(res.status);
-    setSaving("saved");
   }
 
   async function run(what: string, fn: () => Promise<{ error?: string }>, after?: () => void) {
@@ -110,29 +71,18 @@ export function ContractEditor({
     router.refresh();
   }
 
-  function jump(key: string) {
-    const el = document.getElementById(`f-${key}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    el?.querySelector<HTMLElement>("input:not([readonly]),textarea,button")?.focus({ preventScroll: true });
-  }
-
-  const signers = d.signatories.filter((s) => s.name.trim()).map((s) => s.email.trim());
-
   return (
-    <div className="flex flex-col gap-6">
-      {/* the bar: where it stands, and the one next step */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/contracts" aria-label="All contracts" className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-start gap-3">
+        <Link href="/contracts" aria-label="All contracts" className="mt-0.5 flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground">
           <ArrowLeft size={16} />
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-          <p className="text-xs text-muted">
-            Service agreement
-            {saving !== "idle" && !locked && <span className="fade-in"> · {saving === "saving" ? "Saving…" : "Saved"}</span>}
+          <h1 className="truncate text-xl font-semibold tracking-tight">{title}</h1>
+          <p className="mt-0.5 text-xs text-muted">
+            Service agreement{d.contactEmail && <> · from {d.contactName || d.contactEmail}</>}
           </p>
         </div>
-        <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-xs ${stage.tone}`}>{stage.label}</span>
 
         <div className="flex flex-wrap items-center gap-2">
           {status === "invited" && (
@@ -157,21 +107,12 @@ export function ContractEditor({
           )}
           {(status === "invited" || status === "draft") && (
             <button
-              onClick={() =>
-                run(
-                  "approve",
-                  async () => {
-                    await flush();
-                    return approveContract(id);
-                  },
-                  () => setStatus("approved")
-                )
-              }
+              onClick={() => run("approve", () => approveContract(id), () => setStatus("approved"))}
               disabled={composed.missing.length > 0 || busy !== null}
-              title={composed.missing.length ? "Fill in what's missing first" : undefined}
-              className="btn btn-glow flex items-center gap-1.5 disabled:opacity-50"
+              title={composed.missing.length ? "Fill in what's missing first — just tell the assistant" : undefined}
+              className="btn btn-glow flex items-center gap-1.5 disabled:opacity-40"
             >
-              <Check size={14} /> {busy === "approve" ? "Approving…" : "Approve contract"}
+              <Check size={14} /> {busy === "approve" ? "Approving…" : "Approve"}
             </button>
           )}
           {status === "approved" &&
@@ -191,58 +132,53 @@ export function ContractEditor({
         </div>
       </div>
 
-      {error && <p className="fade-in -mt-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+      <Stepper at={stepOf(status)} />
+
+      {error && <p className="fade-in rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-2.5 text-sm text-red-200">{error}</p>}
+      {status === "approved" && (
+        <p className="fade-in rounded-xl border border-violet-400/20 bg-violet-400/[0.07] px-4 py-2.5 text-sm text-violet-200">
+          Approved — send it when you&apos;re ready. Any change takes it back for another look.
+        </p>
+      )}
       {status === "sent" && (
-        <p className="-mt-2 rounded-lg bg-blue-400/10 px-3 py-2 text-sm text-blue-200">
+        <p className="fade-in rounded-xl border border-blue-400/20 bg-blue-400/[0.07] px-4 py-2.5 text-sm text-blue-200">
           Sent {sentAt} through Adobe Acrobat Sign to {signers.join(" and ")} — you sign after them.
           {agreementStatus && <span className="text-blue-200/70"> Adobe says: {agreementStatus.toLowerCase().replace(/_/g, " ")}.</span>}
         </p>
       )}
 
-      <div className="grid items-start gap-8 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-5 lg:sticky lg:top-2 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-3">
-          {!locked && composed.missing.length > 0 && (
-            <div className="fade-in rounded-xl border border-amber-400/25 bg-amber-400/[0.07] p-4">
-              <p className="text-sm text-amber-200">
-                {composed.missing.length} detail{composed.missing.length === 1 ? "" : "s"} needed before it can be approved
-              </p>
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {composed.missing.map((m) => (
-                  <button key={m.key} onClick={() => jump(m.key)} className="rounded-full border border-amber-400/30 px-2.5 py-0.5 text-xs text-amber-200 transition-colors hover:bg-amber-400/15">
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {status === "approved" && (
-            <p className="rounded-xl border border-violet-400/25 bg-violet-400/[0.07] px-4 py-3 text-sm text-violet-200">
-              Approved. Any change takes it back to draft for another look.
-            </p>
-          )}
-          <DetailsPanel
-            d={d}
-            set={set}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="lg:sticky lg:top-2 lg:h-[calc(100dvh-13rem)]">
+          <ContractChat
+            id={id}
+            initial={chat}
             missing={composed.missing}
-            rules={{ termination: c.termination, disputes: c.disputes, law: byCountry.GOVERNING_LAW, courts: byCountry.JURISDICTION_CLAUSE }}
-            readOnly={locked}
+            locked={locked}
+            who={d.contactName.split(/\s+/)[0] || d.entity || "the client"}
+            onUpdate={(next) => {
+              setD(next.details);
+              setClauses(next.clauses);
+              setStatus(next.status);
+            }}
           />
-        </aside>
+        </div>
 
-        <div className="flex min-w-0 flex-col gap-3 rounded-2xl bg-black/25 p-3 sm:p-8">
+        <div className="relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(139,147,255,0.07),transparent_60%)] p-3 sm:p-8">
           {!locked && (
             <div className="flex items-center justify-between px-1 text-xs text-muted">
-              <span>Hover a clause to edit, move or remove it.</span>
+              <span>Live preview · hover a clause to tweak it by hand</span>
               <ConfirmButton
-                message="Put the clauses back to the master template's? Edits made to this contract's clauses are lost."
-                onConfirm={() => run("reset", async () => {
-                  const res = await resetContractClauses(id);
-                  if (res.clauses) setClauses(res.clauses);
-                  return res;
-                })}
-                className="flex items-center gap-1 hover:text-foreground"
+                message="Put the clauses back to the master template's? Changes made to this contract's clauses are lost."
+                onConfirm={() =>
+                  run("reset", async () => {
+                    const res = await resetContractClauses(id);
+                    if (res.clauses) setClauses(res.clauses);
+                    return res;
+                  })
+                }
+                className="flex items-center gap-1 transition-colors hover:text-foreground"
               >
-                <RotateCcw size={12} /> Master template&apos;s clauses
+                <RotateCcw size={12} /> Template clauses
               </ConfirmButton>
             </div>
           )}
