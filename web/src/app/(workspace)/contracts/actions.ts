@@ -7,7 +7,7 @@ import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { DEFAULT_CLAUSES, EMAIL, PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { contractPdf } from "@/lib/contractPdf";
-import { sendForSignature } from "@/lib/adobeSign";
+import { sendForSignature, signingUrl } from "@/lib/adobeSign";
 import { TEMPLATE, masterClauses } from "./masterTemplate";
 import { askAboutContract, type ChatMessage } from "./assistant";
 
@@ -56,6 +56,33 @@ async function editable(id: string) {
   return { status: c.status === "approved" ? "draft" : c.status };
 }
 
+// A change from the form — only the fields it touches, merged into what's
+// saved, so it never undoes an edit Claude made a moment before
+export async function saveContractDetails(id: string, patch: Partial<ContractDetails>): Promise<{ error?: string; status?: string; details?: ContractDetails }> {
+  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
+  const e = await editable(id);
+  if (e.error) return e;
+  const c = await prisma.contract.findUnique({ where: { id }, select: { details: true } });
+  const details = withDefaults({ ...withDefaults(c?.details), ...patch });
+  if (JSON.stringify(details).length > 50_000) return { error: "That's too much to keep." };
+  await prisma.contract.update({ where: { id }, data: { details, status: e.status } });
+  done();
+  return { status: e.status, details };
+}
+
+// Where to sign it ourselves, once Adobe has it waiting on us
+export async function contractSigningLink(id: string): Promise<{ error?: string; url?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  const c = await prisma.contract.findUnique({ where: { id }, select: { agreementId: true } });
+  if (!c?.agreementId) return { error: "It hasn't been sent yet." };
+  try {
+    const url = await signingUrl(c.agreementId, PROVIDER.email);
+    return url ? { url } : { error: "It isn't waiting on your signature — check Adobe's email, or it's with the client now." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Adobe didn't answer." };
+  }
+}
+
 export async function saveContractClauses(id: string, clauses: Clause[]): Promise<{ error?: string; status?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
   const e = await editable(id);
@@ -91,7 +118,7 @@ export async function approveContract(id: string): Promise<{ error?: string }> {
 }
 
 // The one step that reaches the client: the approved contract, as a PDF, to
-// Adobe Acrobat Sign — the client signs first, then us.
+// Adobe Acrobat Sign — we sign first, then the client.
 export async function sendContract(id: string): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can send a contract." };
   const c = await prisma.contract.findUnique({ where: { id } });
@@ -116,11 +143,9 @@ export async function sendContract(id: string): Promise<{ error?: string }> {
       fileName: `Service Agreement - ${values.CLIENT_ENTITY}.pdf`.replace(/[\\/:*?"<>|]/g, ""),
       name: `Service Agreement · Easeus Media · ${values.CLIENT_ENTITY}`,
       message: `Hi ${clients.map((s) => s.name.trim().split(/\s+/)[0]).join(" & ")}, here's your service agreement with Easeus Media — please review and sign. Thank you!`,
-      signers: [
-        // the order here is the PDF's signer1, signer2, … (lib/contractPdf.tsx)
-        ...clients.map((s) => ({ email: s.email.trim(), order: 1 })),
-        { email: PROVIDER.email, order: 2 },
-      ],
+      // we sign first, then it goes to the client(s) — the order here is
+      // the PDF's signer1, signer2, … (lib/contractPdf.tsx)
+      signers: [{ email: PROVIDER.email, order: 1 }, ...clients.map((s) => ({ email: s.email.trim(), order: 2 }))],
     });
     await prisma.contract.update({
       where: { id },

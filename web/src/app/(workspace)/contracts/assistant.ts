@@ -5,9 +5,7 @@ import { claude, type Block, type Message, type Tool } from "@/lib/claude";
 import {
   CONDITIONS,
   CURRENCIES,
-  QUESTIONS,
   compose,
-  opener,
   withDefaults,
   type Clause,
   type ContractDetails,
@@ -18,8 +16,7 @@ import {
 // — the same data the review page draws, so every change shows at once.
 
 // An assistant message can end in a question with answers to pick from
-// (n: the question's number in QUESTIONS, 0 for any other question)
-export type ChatMessage = { role: "user" | "assistant"; text: string; at: string; question?: string; options?: string[]; n?: number };
+export type ChatMessage = { role: "user" | "assistant"; text: string; at: string; question?: string; options?: string[] };
 
 // What doesn't change between turns: who it is, the rules it works to, how
 // clauses are written.
@@ -27,7 +24,7 @@ const GUIDE = `You are the contract assistant inside Easeus HQ, the ops app of E
 
 The one rule above all: the contract only changes through your tools. Whenever ops gives you any information or asks for any change — an answer to your question, a figure, a list of deliverables, a new clause — you MUST call the tool that records it in that same turn, before replying or asking anything else. Never acknowledge an answer or move on without saving it, and never say something is set unless it's in the details or you just saved it. A plain "yes" confirming what's already there needs no tool. After saving, say what you set (e.g. "Platforms: YouTube and Instagram.") — not that it was "already there".
 
-Asking: every question goes through the ask_question tool — never write a question in your text. One question per turn, with two or three options. Each option is a complete, concrete answer that can be picked as it is — "£2,500 GBP", "YouTube + Instagram", "2 long-form + 8 reels a month", "Keep $200 USD" — never a placeholder that needs more input ("Custom amount", "Custom list", "Set a date", "Change it", "Yes, name it", "Other"): the app always adds a field for typing any other answer. When the details already hold an answer, the first option keeps it. With nothing to go on, offer typical values (fees: £1,500 / £2,500 / $3,000; a name to show: the client's legal or trading name).
+Asking: only ask when something is genuinely unclear, and then through the ask_question tool — never write a question in your text. One question per turn, with two or three options. Each option is a complete, concrete answer that can be picked as it is — "£2,500 GBP", "YouTube + Instagram", "2 long-form + 8 reels a month", "Keep $200 USD" — never a placeholder that needs more input ("Custom amount", "Custom list", "Set a date", "Change it", "Yes, name it", "Other"): the app always adds a field for typing any other answer. When the details already hold an answer, the first option keeps it. With nothing to go on, offer typical values (fees: £1,500 / £2,500 / $3,000; a name to show: the client's legal or trading name).
 
 Your text is only a few words confirming what you just saved — "Fee: £2,500 GBP a month." — or nothing at all. Never repeat, introduce or hint at the question in your text; it's shown right below in its own card. Don't start with "Done", and don't justify anything by the rules unless asked. Save the answer and ask the next question in the same response, calling both tools together. No preamble, no markdown headings.
 
@@ -47,14 +44,8 @@ The house rules (Easeus contract SOP)
 - Every client signatory is labelled CLIENT, never "Co-Signatory". At most two client signatories.
 - Keep the formal, plain register of the existing clauses. Refer to "the Agency"/"the Service Provider" and "the Client".
 
-Guided setup
-A new contract has only the client's own details. You walk ops through these questions, in order, one at a time — the conversation opened with the first:
-${QUESTIONS.map((q, i) => `${i + 1}. ${q}`).join("\n")}
-- Ask exactly one numbered question per turn, in this order — never merge two, never jump ahead. Make each a complete, friendly question of five to twelve words ("Which platforms will we be posting to?", not "Platforms?") that fills in what you already know (e.g. "Termination's in for a 3-month term — keep it?").
-- Skip a question only when it was answered earlier in this conversation, or it doesn't apply (the trial ones on a longer term; governing law on a trial). When the details already hold an answer, still ask — offering to keep it.
-- Any reply is a valid answer — a picked option or their own words. If it doesn't fit the question, it's an instruction or an answer to something else: act on it, then ask the question still open. Never tell them it wasn't one of the options.
-- They may answer several at once, or ask for something else mid-way: save it all, then ask the next question not yet covered.
-- After the last question, don't ask anything more: say the contract is ready to review and approve, and that they can ask for any other change. From then on, just help with whatever they ask — and when something they ask is unclear, ask_question with options works there too.
+The form
+Ops fills most details in a form beside you. When a message starts with a field in brackets — [Monthly fee] 2500 AED, 20% off the first month — it came from that field's box: work out what they mean, save it (details, a note, a clause — whatever it takes), and reply in a few words. Ask back only if it's genuinely unclear.
 
 Behaviour
 - Never invent facts about the client (names, emails, addresses, fees). If something needed is unclear, ask one short question instead of guessing.
@@ -74,9 +65,8 @@ const TOOLS: Tool[] = [
       properties: {
         question: { type: "string", description: "One short question" },
         options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 3, description: "The likeliest answers, a few words each" },
-        number: { type: "integer", description: "Always set: the question's number in the guided-setup list (1–15). 0 only for a question that isn't on the list" },
       },
-      required: ["question", "options", "number"],
+      required: ["question", "options"],
     },
   },
   {
@@ -145,12 +135,9 @@ const TOOLS: Tool[] = [
 ];
 
 // The contract as it stands, for Claude to read each turn
-function state(d: ContractDetails, clauses: Clause[], status: string, today: string, lastAsked: number) {
+function state(d: ContractDetails, clauses: Clause[], status: string, today: string) {
   const { sections, missing, hidden } = compose(clauses, d, today);
   return [
-    lastAsked < QUESTIONS.length
-      ? `Guided setup: question ${lastAsked} was asked last. Next is ${lastAsked + 1}: ${QUESTIONS[lastAsked]} (skip it only if it doesn't apply, then take the one after).`
-      : "Guided setup: all questions have been asked — just help with whatever they ask.",
     `Today: ${today}. Contract status: ${status}${status === "sent" || status === "signed" ? " (locked)" : ""}.`,
     `Details: ${JSON.stringify(d)}`,
     `Clauses, in order:\n${clauses
@@ -216,11 +203,8 @@ export async function askAboutContract(id: string, text: string) {
   const history = (contract.chat as ChatMessage[] | null) ?? [];
   const work = { d: withDefaults(contract.details), clauses: structuredClone(contract.clauses as Clause[]) };
 
-  // the conversation opens with our fixed first question, not a user message
-  const opening: ChatMessage[] = history.length ? [] : [{ role: "assistant", ...opener(work.d), n: 1, at: new Date().toISOString() }];
-  // how far through the guided questions the conversation has got
-  const lastAsked = Math.max(0, ...[...opening, ...history].map((m) => m.n ?? 0));
-  const past = [...opening, ...history].slice(-24);
+  const before = structuredClone(work.d);
+  const past = history.slice(-24);
   // Past questions go back to Claude as the tool calls they were, each
   // answered by the reply that followed — so it keeps asking that way.
   const messages: Message[] = past[0]?.role === "assistant" ? [{ role: "user", content: "(I've opened this contract.)" }] : [];
@@ -243,13 +227,13 @@ export async function askAboutContract(id: string, text: string) {
   messages.push(answer(text));
   let changed = false;
   let reply = "";
-  let asked: { question: string; options: string[]; n: number } | null = null;
+  let asked: { question: string; options: string[] } | null = null;
   // ponytail: a fixed number of rounds is enough for any one request
   for (let round = 0; round < 8; round++) {
     const res = await claude({
       system: [
         { type: "text", text: GUIDE, cache_control: { type: "ephemeral" } },
-        { type: "text", text: state(work.d, work.clauses, contract.status, today, lastAsked) },
+        { type: "text", text: state(work.d, work.clauses, contract.status, today) },
       ],
       messages,
       tools: TOOLS,
@@ -261,7 +245,7 @@ export async function askAboutContract(id: string, text: string) {
       if (c.name === "ask_question") {
         // "Custom…"/"Other" options are what the answer field is for
         const options = (Array.isArray(c.input.options) ? c.input.options : []).map(String).filter((o) => !/^(custom|other|something else|different|change it|set a date|one thing)\b/i.test(o.trim()));
-        asked = { question: String(c.input.question ?? ""), options: options.slice(0, 3), n: Number(c.input.number) || 0 };
+        asked = { question: String(c.input.question ?? ""), options: options.slice(0, 3) };
         return { type: "tool_result" as const, tool_use_id: c.id, content: "Shown to ops." };
       }
       if (locked) return { type: "tool_result" as const, tool_use_id: c.id, content: "The contract is locked — it's already out for signature.", is_error: true };
@@ -277,16 +261,24 @@ export async function askAboutContract(id: string, text: string) {
 
   const now = new Date().toISOString();
   const chat: ChatMessage[] = [
-    ...opening,
     ...history,
     { role: "user", text, at: now },
     { role: "assistant", text: reply || (asked ? "" : "Done."), at: now, ...(asked ?? {}) },
   ];
   // a change to an approved contract takes it back to draft, as any edit does
   const status = changed && contract.status === "approved" ? "draft" : contract.status;
+  // Only what Claude changed goes over what's saved now — the form may have
+  // saved something else while it was thinking.
+  const fresh = withDefaults((await prisma.contract.findUnique({ where: { id }, select: { details: true } }))?.details);
+  const details = withDefaults({
+    ...fresh,
+    ...Object.fromEntries(
+      Object.entries(work.d).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k as keyof ContractDetails]))
+    ),
+  });
   await prisma.contract.update({
     where: { id },
-    data: { chat, ...(changed ? { details: work.d, clauses: work.clauses, status } : {}) },
+    data: { chat, ...(changed ? { details, clauses: work.clauses, status } : {}) },
   });
-  return { chat, details: work.d, clauses: work.clauses, status };
+  return { chat, details, clauses: work.clauses, status };
 }

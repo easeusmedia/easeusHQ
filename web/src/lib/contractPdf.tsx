@@ -154,9 +154,9 @@ function Table({ name, v, d, tags }: { name: string; v: Record<string, string>; 
       </View>
     );
   }
-  // signatures: the client(s) sign first, as signer 1 (and 2); we sign last
+  // signatures: we sign first, as signer 1; then the client(s), 2 (and 3)
   const clients = d.signatories.filter((x) => x.name.trim());
-  const us = clients.length + 1;
+  const us = 1;
   return (
     <View wrap={false}>
       <View style={s.sigRow}>
@@ -164,13 +164,13 @@ function Table({ name, v, d, tags }: { name: string; v: Record<string, string>; 
           <SignatureBox label="SERVICE PROVIDER" lines={[PROVIDER.name, `Name: ${PROVIDER.person}`]} signer={tags ? us : undefined} />
         </View>
         <View style={{ ...s.sigCol, alignItems: "flex-end" }}>
-          <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[0]?.name.trim() ?? ""}`]} signer={tags ? 1 : undefined} />
+          <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[0]?.name.trim() ?? ""}`]} signer={tags ? 2 : undefined} />
         </View>
       </View>
       {clients[1] && (
         <View style={{ ...s.sigRow, justifyContent: "flex-end", marginTop: 12 }}>
           <View style={{ ...s.sigCol, alignItems: "flex-end" }}>
-            <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[1].name.trim()}`]} signer={tags ? 2 : undefined} />
+            <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[1].name.trim()}`]} signer={tags ? 3 : undefined} />
           </View>
         </View>
       )}

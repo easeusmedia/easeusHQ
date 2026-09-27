@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ArrowUp, PenLine, RotateCcw, Sparkles } from "lucide-react";
-import { opener, runs, type Clause, type ContractDetails } from "@/lib/contract";
-import { chatContract, clearContractChat } from "./actions";
+import { runs } from "@/lib/contract";
 import type { ChatMessage } from "./assistant";
 
-// Talking the contract into shape: say what should change — a figure, a
-// clause, the whole structure — and Claude changes it; the page beside this
-// redraws with every reply.
+// Claude, under the form: for anything the form doesn't cover — a clause,
+// different wording, a special term. What's typed into a form field's own
+// box lands here too, tagged with the field it came from.
 
 function Text({ text }: { text: string }) {
   const lines = text.split("\n").filter((l) => l.trim());
@@ -31,7 +30,7 @@ function Text({ text }: { text: string }) {
   );
 }
 
-function Avatar() {
+export function Avatar() {
   return (
     <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent ring-1 ring-accent/30">
       <Sparkles size={13} />
@@ -39,23 +38,10 @@ function Avatar() {
   );
 }
 
-// One question from the assistant: its options to pick, and a field for
-// any other answer. Only the latest is live; earlier ones just show the
-// question (the answer is the reply beneath it). 1–3 on the keyboard picks.
+// A question Claude asks back when something's unclear: options to pick,
+// or type anything
 function QuestionCard({ question, options, live, onAnswer }: { question: string; options: string[]; live: boolean; onAnswer: (a: string) => void }) {
   const [own, setOwn] = useState("");
-  useEffect(() => {
-    if (!live) return;
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.closest("input, textarea, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;
-      const pick = options[Number(e.key) - 1];
-      if (pick) onAnswer(pick);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [live, options, onAnswer]);
-
   if (!live) return <p className="mt-2 rounded-xl border border-white/[0.05] px-3.5 py-2.5 text-[13px] text-muted">{question}</p>;
   return (
     <div className="fade-in mt-2 overflow-hidden rounded-2xl border border-accent/20 bg-accent/[0.04]">
@@ -66,7 +52,7 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
             key={o}
             type="button"
             onClick={() => onAnswer(o)}
-            className="group flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-foreground/85 transition-colors duration-150 hover:bg-accent/10 hover:text-foreground"
+            className="group flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-foreground/85 transition-colors hover:bg-accent/10 hover:text-foreground"
           >
             <span className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-accent/25 text-[11px] tabular-nums text-accent transition-colors group-hover:border-accent group-hover:bg-accent group-hover:text-[#0b1215]">
               {i + 1}
@@ -83,12 +69,7 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
           className="mt-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-surface-2/70 py-1 pl-3 pr-1 transition-colors focus-within:border-accent/40"
         >
           <PenLine size={13} className="shrink-0 text-muted" />
-          <input
-            value={own}
-            onChange={(e) => setOwn(e.target.value)}
-            placeholder="Type your own answer…"
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-[13.5px] outline-none! placeholder:text-muted/70"
-          />
+          <input value={own} onChange={(e) => setOwn(e.target.value)} placeholder="Type your own answer…" className="min-w-0 flex-1 bg-transparent py-1.5 text-[13.5px] outline-none! placeholder:text-muted/70" />
           <button type="submit" disabled={!own.trim()} aria-label="Send" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[#0b1215] transition-opacity disabled:opacity-25">
             <ArrowUp size={14} />
           </button>
@@ -99,80 +80,49 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
 }
 
 export function ContractChat({
-  id,
-  initial,
-  details,
-  missing,
+  chat,
+  thinking,
+  error,
   locked,
-  onUpdate,
+  onSend,
+  onClear,
 }: {
-  id: string;
-  initial: ChatMessage[];
-  details: ContractDetails;
-  missing: { key: string; label: string }[];
+  chat: ChatMessage[];
+  thinking: boolean;
+  error: string | null;
   locked: boolean;
-  onUpdate: (next: { details: ContractDetails; clauses: Clause[]; status: string }) => void;
+  onSend: (text: string) => void;
+  onClear: () => void;
 }) {
-  const [chat, setChat] = useState(initial);
   const [draft, setDraft] = useState("");
-  const [thinking, setThinking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [chat, thinking, error]);
 
-  const send = useCallback(
-    async (text: string) => {
-      const t = text.trim();
-      if (!t || thinking) return;
-      setDraft("");
-      setError(null);
-      setChat((c) => [...c, { role: "user", text: t, at: new Date().toISOString() }]);
-      setThinking(true);
-      const res = await chatContract(id, t);
-      setThinking(false);
-      if (res.error) return setError(res.error);
-      if (res.chat) setChat(res.chat);
-      if (res.details && res.clauses && res.status) onUpdate({ details: res.details, clauses: res.clauses, status: res.status });
-    },
-    [id, thinking, onUpdate]
-  );
-
-  // The conversation opens with the first question, fixed — until it's
-  // saved as part of the conversation when the first answer goes in.
-  const shown: ChatMessage[] = locked
-    ? [{ role: "assistant", text: "This contract has gone out for signature, so it can't change now. You can still ask me about it.", at: "" }, ...chat]
-    : chat[0]?.role === "assistant"
-      ? chat
-      : [{ role: "assistant", ...opener(details), at: "" }, ...chat];
-  const last = shown[shown.length - 1];
-  const pending = !locked && !thinking && last.role === "assistant" && !!last.question && !!last.options?.length;
-
-  const ideas = locked
-    ? ["Summarise this contract"]
-    : missing.length === 0
-      ? ["Add a confidentiality clause", "Make the payment a 50/50 split", "Summarise this contract"]
-      : [];
+  const send = (text: string) => {
+    if (!text.trim() || thinking) return;
+    setDraft("");
+    onSend(text);
+  };
+  const last = chat[chat.length - 1];
+  const pending = !locked && !thinking && last?.role === "assistant" && !!last.question && !!last.options?.length;
+  const ideas = locked ? ["Summarise this contract"] : ["Add a confidentiality clause", "Summarise this contract", "Add a 10% discount for month one"];
 
   return (
-    <div className="flex h-full min-h-[480px] flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-surface/90 to-surface/50 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)]">
-      <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3.5">
+    <div className="flex h-[440px] flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-surface/90 to-surface/50">
+      <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3">
         <Avatar />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Contract assistant</p>
-          <p className="text-xs text-muted">A few questions, then ask me for anything</p>
+          <p className="text-sm font-medium">Ask Claude</p>
+          <p className="text-xs text-muted">Anything the form doesn&apos;t cover — clauses, wording, special terms</p>
         </div>
         {chat.length > 0 && (
           <button
             type="button"
-            onClick={async () => {
-              await clearContractChat(id);
-              setChat([]);
-              setError(null);
-            }}
-            title="Start again from the first question (the contract stays as it is)"
+            onClick={onClear}
+            title="Clear the conversation (the contract stays as it is)"
             className="flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground"
           >
             <RotateCcw size={14} />
@@ -180,26 +130,40 @@ export function ContractChat({
         )}
       </div>
 
-      <div ref={scroller} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-5 text-sm leading-relaxed">
-        {shown.map((m, i) =>
-          m.role === "user" ? (
-            <div key={i} className="fade-in flex justify-end">
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/[0.1] px-3.5 py-2 text-foreground">
-                {m.text}
+      <div ref={scroller} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 text-sm leading-relaxed">
+        {chat.length === 0 && !thinking && (
+          <div className="flex gap-3">
+            <Avatar />
+            <p className="pt-0.5 text-foreground/80">
+              {locked
+                ? "This contract has gone out for signature, so it can't change now. You can still ask me about it."
+                : "Tell me anything to add or change — I'll edit the contract and it updates on the right."}
+            </p>
+          </div>
+        )}
+        {chat.map((m, i) => {
+          if (m.role === "user") {
+            // from a form field's box: [Monthly fee] 2500 AED
+            const field = m.text.match(/^\[([^\]]+)\]\s*/);
+            return (
+              <div key={i} className="fade-in flex justify-end">
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/[0.1] px-3.5 py-2 text-foreground">
+                  {field && <span className="mb-0.5 block text-[11px] text-accent">{field[1]}</span>}
+                  {field ? m.text.slice(field[0].length) : m.text}
+                </div>
               </div>
-            </div>
-          ) : (
+            );
+          }
+          return (
             <div key={i} className="fade-in flex gap-3">
               <Avatar />
               <div className="min-w-0 flex-1 pt-0.5 text-foreground/85">
                 {m.text && <Text text={m.text} />}
-                {m.question && m.options?.length ? (
-                  <QuestionCard question={m.question} options={m.options} live={pending && i === shown.length - 1} onAnswer={send} />
-                ) : null}
+                {m.question && m.options?.length ? <QuestionCard question={m.question} options={m.options} live={pending && i === chat.length - 1} onAnswer={send} /> : null}
               </div>
             </div>
-          )
-        )}
+          );
+        })}
         {thinking && (
           <div className="fade-in flex items-center gap-3">
             <Avatar />
@@ -213,18 +177,12 @@ export function ContractChat({
         {error && <p className="fade-in rounded-xl border border-accent/25 bg-accent/[0.08] px-3.5 py-2 text-foreground/85">{error}</p>}
       </div>
 
-      {/* free-form, once there's no question waiting — the question card has its own field */}
       {!pending && (
-        <div className="fade-in flex flex-col gap-2.5 px-4 pb-4">
-          {!draft && !thinking && ideas.length > 0 && (
+        <div className="flex flex-col gap-2 px-4 pb-4">
+          {!draft && !thinking && chat.length === 0 && (
             <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
               {ideas.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => send(s)}
-                  className="shrink-0 rounded-full border border-accent/25 px-3 py-1 text-xs text-accent/90 transition-colors hover:bg-accent/10"
-                >
+                <button key={s} type="button" onClick={() => send(s)} className="shrink-0 rounded-full border border-accent/25 px-3 py-1 text-xs text-accent/90 transition-colors hover:bg-accent/10">
                   {s}
                 </button>
               ))}
@@ -241,8 +199,8 @@ export function ContractChat({
                 }
               }}
               rows={1}
-              placeholder={locked ? "Ask about this contract…" : "Change anything — terms, clauses, wording…"}
-              className="field-sizing-content max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm outline-none! placeholder:text-muted/70"
+              placeholder={locked ? "Ask about this contract…" : "Add or change anything…"}
+              className="field-sizing-content max-h-32 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm outline-none! placeholder:text-muted/70"
             />
             <button
               type="button"

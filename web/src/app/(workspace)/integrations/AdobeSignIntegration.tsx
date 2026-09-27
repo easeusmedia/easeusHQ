@@ -44,8 +44,8 @@ export function AdobeSignIntegration({ account }: { account: string | null }) {
         )}
       </div>
       <p className="-mt-2 text-sm text-muted">
-        Approved contracts go out from here for e-signature: the client signs first, then easeus.media@gmail.com. The
-        signature and date fields are placed automatically.
+        Approved contracts go out from here for e-signature: you sign first as easeus.media@gmail.com, then it goes
+        to the client by email. The signature and date fields are placed automatically.
       </p>
       {editing && (
         <div className="fade-in flex flex-col gap-2">

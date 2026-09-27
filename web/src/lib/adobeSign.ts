@@ -103,3 +103,14 @@ export async function signedPdf(id: string): Promise<ArrayBuffer> {
   const { key, api } = await connection();
   return (await call(`${api}/agreements/${id}/combinedDocument`, key)).arrayBuffer();
 }
+
+// The link where `email` signs now, if the agreement is waiting on them
+export async function signingUrl(id: string, email: string): Promise<string | null> {
+  const { key, api } = await connection();
+  const res = await fetch(`${api}/agreements/${id}/signingUrls`, { headers: { Authorization: `Bearer ${key}` } });
+  if (!res.ok) return null; // not signable by anyone yet, or not by us
+  const body = await res.json();
+  for (const set of body.signingUrlSetInfos ?? [])
+    for (const u of set.signingUrls ?? []) if (String(u.email).toLowerCase() === email.toLowerCase()) return u.esignUrl;
+  return null;
+}
