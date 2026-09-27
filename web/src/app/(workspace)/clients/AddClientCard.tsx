@@ -16,15 +16,15 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
   const [form, setForm] = useState({ name: "", niche: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // the onboarding link, once it's been made
-  const [invite, setInvite] = useState<string | null>(null);
+  // the link just made, so its row in the list can say so
+  const [fresh, setFresh] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [pending, setPending] = useState<Awaited<ReturnType<typeof pendingInvites>>>([]);
 
   function open() {
     setForm({ name: "", niche: "" });
     setError(null);
-    setInvite(null);
+    setFresh(null);
     setCopied(null);
     setPending([]);
     dialogRef.current?.showModal();
@@ -44,16 +44,24 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
     setError(null);
     const res = await createClientInvite(form.name);
     setSaving(false);
-    if (res.error || !res.token) return setError(res.error ?? "Couldn't make that link.");
-    setInvite(`${window.location.origin}/onboarding/${res.token}`);
-    loadPending();
+    if (res.error || !res.token) return setError(res.error ?? "That link couldn't be created. Please try again.");
+    // One link, shown once: it joins the list below (at the top, marked new)
+    // and is already on the clipboard. It used to show twice — in a box of
+    // its own and again in the list — which read as two links being made.
+    setFresh(res.token);
+    await loadPending();
+    copyLink(res.token);
     router.refresh();
   }
 
   async function copyLink(token: string) {
-    await navigator.clipboard.writeText(`${window.location.origin}/onboarding/${token}`);
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/onboarding/${token}`);
+    } catch {
+      return; // the browser refused the clipboard — the Copy button is still there
+    }
     setCopied(token);
-    setTimeout(() => setCopied(null), 1500);
+    setTimeout(() => setCopied((c) => (c === token ? null : c)), 1800);
   }
 
   async function revoke(id: string) {
@@ -119,7 +127,9 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
           </label>
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
-            Niche <span className="font-normal normal-case">(optional)</span>
+            <span>
+              Niche <span className="text-muted/60">(optional)</span>
+            </span>
             <input
               value={form.niche}
               onChange={(e) => setForm((f) => ({ ...f, niche: e.target.value }))}
@@ -143,46 +153,42 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
           {/* or let them fill it in: their logo, contacts, channels and brand
               files land here as a finished client record */}
           <div className="mt-2 border-t border-border pt-4">
-            {invite && (
-              <div className="fade-in mb-3 flex flex-col gap-2">
-                <p className="text-xs text-muted">Send this link to your client. It can be used once.</p>
-                <div className="flex items-center gap-2">
-                  <input readOnly value={invite} className={`${field} text-xs`} onFocus={(e) => e.currentTarget.select()} />
-                  <button
-                    onClick={() => copyLink(invite.split("/").pop()!)}
-                    className="btn btn-sm btn-glow shrink-0"
-                  >
-                    {copied ? <Check size={13} /> : <Copy size={13} />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Every link already waiting to be filled in. Copy one of these
-                again rather than making a second link for the same client —
-                each link only works once, so two links means whichever they
-                open second tells them it's already done. */}
+            {/* Every link still waiting for the client, newest first. Copy
+                one of these again rather than making a second link for the
+                same client — each works once, so a second link means
+                whichever they open later says it's already done. */}
             {pending.length > 0 && (
               <div className="mb-3 flex flex-col gap-1.5">
-                <p className="text-xs font-medium text-muted">Links awaiting a reply</p>
-                {pending.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
-                    {/* A link made before anyone typed a name isn't a client
-                        yet — it's a link, so that's what it's called. The
-                        time it went out is what tells two of them apart. */}
-                    <span className="min-w-0 flex-1 truncate text-xs">
-                      {p.name || "Onboarding link"}
-                      <span className="text-muted"> · sent {sentAt(p.createdAt)}</span>
-                    </span>
-                    <button onClick={() => copyLink(p.token)} className="shrink-0 text-xs text-blue-400 hover:underline">
-                      {copied === p.token ? "Copied" : "Copy link"}
-                    </button>
-                    <button onClick={() => revoke(p.id)} title="Cancel this link" className="btn-ghost shrink-0 rounded-md p-1">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                <p className="text-xs font-medium text-muted">Onboarding links awaiting a reply</p>
+                {[...pending]
+                  .sort((x, y) => +new Date(y.createdAt) - +new Date(x.createdAt))
+                  .map((p) => {
+                    const isNew = p.token === fresh;
+                    return (
+                      <div
+                        key={p.id}
+                        className={`fade-in flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors duration-300 ${
+                          isNew ? "border-accent/40 bg-accent/[0.06]" : "border-border bg-surface-2"
+                        }`}
+                      >
+                        {/* A link made before anyone typed a name isn't a client
+                            yet — it's a link, so that's what it's called. The
+                            time it was made is what tells two of them apart. */}
+                        <span className="min-w-0 flex-1 truncate text-xs">
+                          {p.name || "Onboarding link"}
+                          <span className="text-muted"> · {isNew ? "Just created" : `Created ${sentAt(p.createdAt)}`}</span>
+                        </span>
+                        <button onClick={() => copyLink(p.token)} className="flex shrink-0 items-center gap-1 text-xs text-accent hover:underline">
+                          {copied === p.token ? <Check size={12} /> : <Copy size={12} />}
+                          {copied === p.token ? "Copied" : "Copy link"}
+                        </button>
+                        <button onClick={() => revoke(p.id)} title="Cancel this link" aria-label="Cancel this link" className="btn-ghost shrink-0 rounded-md p-1">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                <p className="text-xs text-muted/70">Each link can be used once. Send it to your client to fill in their details.</p>
               </div>
             )}
 
@@ -191,7 +197,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
               disabled={saving}
               className="btn btn-ghost flex w-full items-center justify-center gap-1.5 disabled:opacity-60"
             >
-              <Link2 size={13} /> {pending.length > 0 ? "New onboarding link" : "Send them an onboarding form instead"}
+              <Link2 size={13} /> {pending.length > 0 ? "Create another link" : "Send an onboarding form instead"}
             </button>
           </div>
         </div>
