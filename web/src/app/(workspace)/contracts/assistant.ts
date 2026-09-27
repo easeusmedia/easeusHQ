@@ -5,7 +5,9 @@ import { claude, type Block, type Message, type Tool } from "@/lib/claude";
 import {
   CONDITIONS,
   CURRENCIES,
+  QUESTIONS,
   compose,
+  opener,
   withDefaults,
   type Clause,
   type ContractDetails,
@@ -19,7 +21,7 @@ export type ChatMessage = { role: "user" | "assistant"; text: string; at: string
 
 // What doesn't change between turns: who it is, the rules it works to, how
 // clauses are written.
-const GUIDE = `You are the contract assistant inside Easeus HQ, the ops app of Easeus Media — a video editing agency (podcasts, long-form, reels) run by Ashmit Shahi, operating from India. You edit client Service Agreements with the ops team, who talk to you in plain, often brief language. Make the changes they ask for using your tools, then reply in one to three short sentences saying what you changed — plainly, without starting with "Done" and without justifying it by the rules unless asked. No preamble, no markdown headings. Use **bold** sparingly.
+const GUIDE = `You are the contract assistant inside Easeus HQ, the ops app of Easeus Media — a video editing agency (podcasts, long-form, reels) run by Ashmit Shahi, operating from India. You edit client Service Agreements with the ops team, who talk to you in plain, often brief language. Make the changes they ask for using your tools, then reply briefly: a short sentence on what you changed (plainly — don't start with "Done", don't justify it by the rules unless asked), then the next question if there is one. No preamble, no markdown headings. Use **bold** for the question itself.
 
 How a contract is built
 - "Details" hold the facts (client, term, fee, deliverables…). Clauses read them through {{PLACEHOLDERS}} like {{CLIENT_ENTITY}}, {{TERM_LENGTH}}, {{MONTHLY_FEE}}, {{TOTAL_VALUE}}, {{PLATFORM_LIST}}. Change a fact with update_details, not by typing the value into a clause, so everything that uses it stays consistent.
@@ -36,6 +38,14 @@ The house rules (Easeus contract SOP)
 - Money: GBP, USD, EUR, AUD, CAD, AED, SAR, INR — amounts are numbers; formatting is automatic.
 - Every client signatory is labelled CLIENT, never "Co-Signatory". At most two client signatories.
 - Keep the formal, plain register of the existing clauses. Refer to "the Agency"/"the Service Provider" and "the Client".
+
+Guided setup
+A new contract has only the client's own details. You walk ops through these questions, in order, one topic per message — this conversation opened with the first:
+${QUESTIONS.map((q, i) => `${i + 1}. ${q}`).join("\n")}
+- Keep each question to one short line — never list every option (no currency lists). Phrase it as a friendly question, filling in what you already know (e.g. "Termination is in by default for 3 months, and disputes go to UK courts — keep both?"). Offer the default so they can just say "yes".
+- Skip any question already answered — in the details or earlier in the conversation. Several answers at once: apply them all and move on to the first question still open.
+- If they ask for something else mid-way, do it, then carry on with the next open question.
+- After the last one, say the contract is complete (or name what's still missing) and that they can review it and approve, or keep asking for changes. From then on, just help with whatever they ask.
 
 Behaviour
 - Never invent facts about the client (names, emails, addresses, fees). If something needed is unclear, ask one short question instead of guessing.
@@ -180,8 +190,15 @@ export async function askAboutContract(id: string, text: string) {
   const history = (contract.chat as ChatMessage[] | null) ?? [];
   const work = { d: withDefaults(contract.details), clauses: structuredClone(contract.clauses as Clause[]) };
 
+  // the conversation opens with our fixed first question, not a user message
+  const opening: ChatMessage[] = history.length
+    ? []
+    : [{ role: "assistant", text: opener(withDefaults(contract.details), compose(work.clauses, work.d, today).missing.length), at: new Date().toISOString() }];
+  const past = [...opening, ...history].slice(-20);
   const messages: Message[] = [
-    ...history.slice(-20).map((m) => ({ role: m.role, content: m.text })),
+    // the API wants a user message first
+    ...(past[0]?.role === "assistant" ? [{ role: "user" as const, content: "(I've opened this contract.)" }] : []),
+    ...past.map((m) => ({ role: m.role, content: m.text })),
     { role: "user" as const, content: text },
   ];
   let changed = false;
@@ -212,7 +229,7 @@ export async function askAboutContract(id: string, text: string) {
   }
 
   const now = new Date().toISOString();
-  const chat: ChatMessage[] = [...history, { role: "user", text, at: now }, { role: "assistant", text: reply || "Done.", at: now }];
+  const chat: ChatMessage[] = [...opening, ...history, { role: "user", text, at: now }, { role: "assistant", text: reply || "Done.", at: now }];
   // a change to an approved contract takes it back to draft, as any edit does
   const status = changed && contract.status === "approved" ? "draft" : contract.status;
   await prisma.contract.update({

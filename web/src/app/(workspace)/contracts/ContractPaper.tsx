@@ -23,7 +23,7 @@ import { Dropdown } from "../Dropdown";
 const PLACEHOLDER = /(\{\{\s*[A-Z0-9_]+\s*\}\})/;
 
 // text with **bold**, *italic*, and any {{PLACEHOLDER}} still in it shown as
-// a tag: amber when it's a detail still missing, grey in the template
+// a tag: teal when it's a detail still missing, grey in the template
 function Rich({ text, missing }: { text: string; missing: boolean }) {
   return (
     <>
@@ -36,7 +36,7 @@ function Rich({ text, missing }: { text: string; missing: boolean }) {
               <span
                 key={j}
                 className={`mx-px rounded px-1 py-px text-[0.92em] font-medium not-italic ${
-                  missing ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300/60" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                  missing ? "bg-[#e4f2f4] text-[#2d6a73] ring-1 ring-[#b3dbe1]" : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
                 }`}
               >
                 {labelOf(key)}
@@ -289,15 +289,15 @@ function Tools({ onEdit, onUp, onDown, onRemove }: { onEdit: () => void; onUp?: 
 function AddHere({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="group/add relative flex h-6 items-center">
-      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-sky-300" />
+      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-[#9fd0d7]" />
       <button
         type="button"
         onClick={onAdd}
-        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#aaa] opacity-0 transition-opacity hover:text-sky-700 group-hover/add:opacity-100 focus:opacity-100"
+        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#aaa] opacity-0 transition-opacity hover:text-[#2d6a73] group-hover/add:opacity-100 focus:opacity-100"
       >
         <Plus size={11} /> Add clause
       </button>
-      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-sky-300" />
+      <span className="h-px flex-1 bg-transparent transition-colors group-hover/add:bg-[#9fd0d7]" />
     </div>
   );
 }
@@ -432,7 +432,7 @@ export function ContractPaper({
                       return (
                         <div key={k} className="mb-2 whitespace-pre-line">
                           {cond && (
-                            <span className="mr-1.5 rounded bg-sky-50 px-1.5 py-px text-[10.5px] font-medium text-sky-700 ring-1 ring-sky-200">
+                            <span className="mr-1.5 rounded bg-[#eef7f8] px-1.5 py-px text-[10.5px] font-medium text-[#2d6a73] ring-1 ring-[#c5e4e8]">
                               {CONDITIONS.find((c) => c.value === cond[1].trim())?.label ?? cond[1]}
                             </span>
                           )}

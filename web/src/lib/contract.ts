@@ -511,3 +511,31 @@ export function runs(text: string): { text: string; bold?: boolean; italic?: boo
           : { text: t }
     );
 }
+
+// ---- the assistant's questions ----
+
+// What the contract assistant asks, in order, before anything else — every
+// detail the contract is built from, a topic at a time (see
+// contracts/assistant.ts, which has Claude work through them).
+export const QUESTIONS = [
+  "Term: how long is the contract — a one-month trial, or how many months? If it's a trial, should it roll on for more months automatically unless either side stops it?",
+  "Fee: the monthly fee and currency; paid in full upfront each month, or a 50/50 split; any discount or note on the fee.",
+  "Deliverables: what we deliver each month, with quantities (e.g. 2 long-form episodes a month, 4 reels per episode, thumbnails for every episode).",
+  "Content: the podcast or brand name to show (if any); the platforms we'll need access to; whether the term starts when the first episode, YouTube video or piece of content goes live.",
+  "Client: confirm what the client gave — legal name, address, country, who signs (name and email). Any trading name, or a second person who signs?",
+  "Dates: dated the day it's sent (the default) or a set date; any start date to name in it.",
+  "Legal: the four-week termination clause and the governing law/courts as they stand for these terms — keep or change? Does it replace an earlier agreement?",
+  "Anything else: any further obligation for the client, or anything to add — a custom clause, a detail, different wording.",
+];
+
+// The chat's opening message — fixed, so it's there the moment the contract
+// opens, and asking the first question straight away.
+export function opener(d: ContractDetails, missing: number): string {
+  const who = d.contactName.split(/\s+/)[0] || d.entity;
+  if (d.termMonths == null) {
+    return `${who ? `${who} sent their details, so I've started the contract from them.` : "Let's put this contract together."} I'll ask a few quick questions to fill in the rest — answer in your own words, as briefly as you like, and add anything else you want at any point.\n\nFirst: **how long is the contract** — a one-month trial, or how many months?`;
+  }
+  return missing
+    ? "Let's finish this contract — tell me what's still needed, or anything you'd like to change or add."
+    : "Everything's in place. Ask me to change anything — a figure, a clause, the whole structure — or to add something new.";
+}

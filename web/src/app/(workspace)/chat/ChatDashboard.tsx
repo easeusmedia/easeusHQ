@@ -152,7 +152,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                       {p.lastBody ? `${p.lastFromMe ? "You: " : ""}${p.lastBody}` : isActive(p) ? "Active now" : "No messages yet"}
                     </span>
                     {p.unread > 0 && (
-                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-medium text-white">
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-medium text-accent">
                         {p.unread > 9 ? "9+" : p.unread}
                       </span>
                     )}

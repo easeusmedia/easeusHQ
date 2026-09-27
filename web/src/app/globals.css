@@ -10,6 +10,9 @@
   --hover-surface: #363c45; /* clearly lighter than surface/surface-2 — an obvious hover pop */
   --foreground: #eef0f2;
   --muted: #8b939c;
+  /* the app's own accent: a muted teal-blue, for highlights and
+     notification counts instead of alarm red or plain blue */
+  --accent: #6fb3bd;
   /* Tells the browser itself to render its own native chrome — the
      <input type="date"> calendar popup, scrollbars, form-control
      highlights — in the dark variant it already ships. Those aren't
@@ -30,6 +33,7 @@
   --color-hover: var(--hover-surface);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

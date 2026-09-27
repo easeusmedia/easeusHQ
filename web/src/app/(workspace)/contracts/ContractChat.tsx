@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, RotateCcw, Sparkles } from "lucide-react";
-import { runs, type Clause, type ContractDetails } from "@/lib/contract";
+import { opener, runs, type Clause, type ContractDetails } from "@/lib/contract";
 import { chatContract, clearContractChat } from "./actions";
 import type { ChatMessage } from "./assistant";
 
@@ -33,7 +33,7 @@ function Text({ text }: { text: string }) {
 
 function Avatar() {
   return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400/90 via-fuchsia-400/80 to-sky-400/90 text-white shadow-[0_0_20px_-4px_rgba(167,139,250,0.6)]">
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent ring-1 ring-accent/30">
       <Sparkles size={13} />
     </span>
   );
@@ -42,16 +42,16 @@ function Avatar() {
 export function ContractChat({
   id,
   initial,
+  details,
   missing,
   locked,
-  who,
   onUpdate,
 }: {
   id: string;
   initial: ChatMessage[];
+  details: ContractDetails;
   missing: { key: string; label: string }[];
   locked: boolean;
-  who: string;
   onUpdate: (next: { details: ContractDetails; clauses: Clause[]; status: string }) => void;
 }) {
   const [chat, setChat] = useState(initial);
@@ -79,27 +79,18 @@ export function ContractChat({
     if (res.details && res.clauses && res.status) onUpdate({ details: res.details, clauses: res.clauses, status: res.status });
   }
 
-  function suggest(text: string) {
-    setDraft(text);
-    requestAnimationFrame(() => {
-      input.current?.focus();
-      input.current?.setSelectionRange(text.length, text.length);
-    });
-  }
+  // the opening message is fixed — the first of the assistant's questions —
+  // until the conversation starts, when it's saved as part of it
+  const intro = locked ? "This contract has gone out for signature, so it can't change now. You can still ask me about it." : opener(details, missing.length);
 
-  // the opening line isn't Claude's — it's what the contract needs, said plainly
-  const intro = locked
-    ? "This contract has gone out for signature, so it can't change now. You can still ask me about it."
-    : missing.length
-      ? `I've drafted this from ${who}'s details. To finish it I still need: **${missing.map((m) => m.label.toLowerCase()).join(", ")}**. Tell me in your own words — e.g. “£2,500 a month for 3 months, 2 long-form episodes and 4 reels per episode, on YouTube and Instagram.”`
-      : "It's complete and ready for your review. Ask me to change anything — a figure, a clause, the whole structure — or to add something new.";
-
+  // quick answers to the first question, then a few ideas once it's complete
   const ideas = locked
     ? ["Summarise this contract"]
-    : [
-        ...missing.slice(0, 4).map((m) => `${m.label}: `),
-        ...(missing.length ? [] : ["Add a confidentiality clause", "Make the payment a 50/50 split", "Summarise this contract"]),
-      ];
+    : chat.length === 0 && details.termMonths == null
+      ? ["One-month trial", "3 months", "6 months"]
+      : missing.length === 0
+        ? ["Add a confidentiality clause", "Make the payment a 50/50 split", "Summarise this contract"]
+        : [];
 
   return (
     <div className="flex h-full min-h-[480px] flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-surface/90 to-surface/50 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)]">
@@ -126,16 +117,19 @@ export function ContractChat({
       </div>
 
       <div ref={scroller} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-5 text-sm leading-relaxed">
-        <div className="flex gap-3">
-          <Avatar />
-          <div className="min-w-0 pt-0.5 text-foreground/85">
-            <Text text={intro} />
+        {/* until the saved conversation carries the opener itself */}
+        {(chat[0]?.role !== "assistant" || locked) && (
+          <div className="flex gap-3">
+            <Avatar />
+            <div className="min-w-0 pt-0.5 text-foreground/85">
+              <Text text={intro} />
+            </div>
           </div>
-        </div>
+        )}
         {chat.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="fade-in flex justify-end">
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-white/[0.08] bg-gradient-to-br from-sky-500/[0.16] to-violet-500/[0.16] px-3.5 py-2 text-foreground">
+              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/[0.1] px-3.5 py-2 text-foreground">
                 {m.text}
               </div>
             </div>
@@ -153,12 +147,12 @@ export function ContractChat({
             <Avatar />
             <span className="flex gap-1">
               {[0, 150, 300].map((d) => (
-                <span key={d} className="size-1.5 animate-bounce rounded-full bg-violet-300/70" style={{ animationDelay: `${d}ms` }} />
+                <span key={d} className="size-1.5 animate-bounce rounded-full bg-accent/70" style={{ animationDelay: `${d}ms` }} />
               ))}
             </span>
           </div>
         )}
-        {error && <p className="fade-in rounded-xl border border-red-400/25 bg-red-400/[0.08] px-3.5 py-2 text-red-200">{error}</p>}
+        {error && <p className="fade-in rounded-xl border border-accent/25 bg-accent/[0.08] px-3.5 py-2 text-foreground/85">{error}</p>}
       </div>
 
       <div className="flex flex-col gap-2.5 px-4 pb-4">
@@ -168,19 +162,15 @@ export function ContractChat({
               <button
                 key={s}
                 type="button"
-                onClick={() => (s.endsWith(": ") ? suggest(s) : send(s))}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs transition-colors ${
-                  s.endsWith(": ")
-                    ? "border-amber-400/30 text-amber-200 hover:bg-amber-400/10"
-                    : "border-white/[0.08] text-muted hover:border-white/20 hover:text-foreground"
-                }`}
+                onClick={() => send(s)}
+                className="shrink-0 rounded-full border border-accent/25 px-3 py-1 text-xs text-accent/90 transition-colors hover:bg-accent/10"
               >
-                {s.endsWith(": ") ? s.slice(0, -2) : s}
+                {s}
               </button>
             ))}
           </div>
         )}
-        <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-violet-400/40 focus-within:shadow-[0_0_0_4px_rgba(167,139,250,0.08)]">
+        <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(111,179,189,0.1)]">
           <textarea
             ref={input}
             value={draft}
@@ -200,7 +190,7 @@ export function ContractChat({
             onClick={() => send()}
             disabled={!draft.trim() || thinking}
             aria-label="Send"
-            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400 to-sky-400 text-white transition-opacity disabled:opacity-30"
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1215] transition-opacity disabled:opacity-30"
           >
             <ArrowUp size={16} />
           </button>

@@ -134,16 +134,16 @@ export function ContractEditor({
 
       <Stepper at={stepOf(status)} />
 
-      {error && <p className="fade-in rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-2.5 text-sm text-red-200">{error}</p>}
+      {error && <p className="fade-in rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm text-foreground/90">{error}</p>}
       {status === "approved" && (
-        <p className="fade-in rounded-xl border border-violet-400/20 bg-violet-400/[0.07] px-4 py-2.5 text-sm text-violet-200">
+        <p className="fade-in rounded-xl border border-accent/20 bg-accent/[0.07] px-4 py-2.5 text-sm text-foreground/85">
           Approved — send it when you&apos;re ready. Any change takes it back for another look.
         </p>
       )}
       {status === "sent" && (
-        <p className="fade-in rounded-xl border border-blue-400/20 bg-blue-400/[0.07] px-4 py-2.5 text-sm text-blue-200">
+        <p className="fade-in rounded-xl border border-accent/20 bg-accent/[0.07] px-4 py-2.5 text-sm text-foreground/85">
           Sent {sentAt} through Adobe Acrobat Sign to {signers.join(" and ")} — you sign after them.
-          {agreementStatus && <span className="text-blue-200/70"> Adobe says: {agreementStatus.toLowerCase().replace(/_/g, " ")}.</span>}
+          {agreementStatus && <span className="text-muted"> Adobe says: {agreementStatus.toLowerCase().replace(/_/g, " ")}.</span>}
         </p>
       )}
 
@@ -152,9 +152,9 @@ export function ContractEditor({
           <ContractChat
             id={id}
             initial={chat}
+            details={d}
             missing={composed.missing}
             locked={locked}
-            who={d.contactName.split(/\s+/)[0] || d.entity || "the client"}
             onUpdate={(next) => {
               setD(next.details);
               setClauses(next.clauses);
@@ -163,7 +163,7 @@ export function ContractEditor({
           />
         </div>
 
-        <div className="relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(139,147,255,0.07),transparent_60%)] p-3 sm:p-8">
+        <div className="relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(111,179,189,0.06),transparent_60%)] p-3 sm:p-8">
           {!locked && (
             <div className="flex items-center justify-between px-1 text-xs text-muted">
               <span>Live preview · hover a clause to tweak it by hand</span>

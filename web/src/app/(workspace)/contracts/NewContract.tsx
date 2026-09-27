@@ -91,7 +91,7 @@ export function NewContract() {
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground"
               />
             </label>
-            {error && <p className="text-xs text-red-300">{error}</p>}
+            {error && <p className="text-xs text-accent">{error}</p>}
             <div className="flex justify-end gap-2">
               <button onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
                 Cancel

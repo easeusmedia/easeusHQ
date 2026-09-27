@@ -30,8 +30,8 @@ export default async function ContractsPage() {
   const count = (...statuses: string[]) => contracts.filter((x) => statuses.includes(x.c.status)).length;
   const tiles = [
     { label: "Waiting for client", value: count("invited"), glow: "from-slate-400/20" },
-    { label: "Needs you", value: count("draft", "approved"), glow: "from-amber-400/25" },
-    { label: "Out for signature", value: count("sent"), glow: "from-blue-400/25" },
+    { label: "Needs you", value: count("draft", "approved"), glow: "from-accent/30" },
+    { label: "Out for signature", value: count("sent"), glow: "from-accent/15" },
     { label: "Signed", value: count("signed"), glow: "from-emerald-400/25" },
   ];
 
@@ -62,7 +62,7 @@ export default async function ContractsPage() {
 
       {contracts.length === 0 ? (
         <div className="flex flex-col items-center rounded-3xl border border-dashed border-white/10 px-6 py-16 text-center">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-400/20 to-sky-400/20 text-violet-200">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
             <FileSignature size={20} />
           </span>
           <p className="mt-4 text-sm">No contracts yet</p>
@@ -82,7 +82,7 @@ export default async function ContractsPage() {
                   href={`/contracts/${c.id}`}
                   className="group flex items-center gap-4 rounded-2xl border border-white/[0.05] bg-surface/40 px-4 py-3.5 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.1] hover:bg-surface/70 sm:px-5"
                 >
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400/25 to-sky-400/20 text-sm font-semibold text-violet-100">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-sm font-semibold text-accent">
                     {title.trim().charAt(0).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -92,7 +92,7 @@ export default async function ContractsPage() {
                   {/* how far along, at a glance */}
                   <span className="hidden items-center gap-1 md:flex" title={STEPS[Math.min(at, STEPS.length - 1)]}>
                     {STEPS.map((s, i) => (
-                      <span key={s} className={`h-1 w-5 rounded-full ${i < at ? "bg-gradient-to-r from-violet-400 to-sky-400" : i === at ? "bg-violet-300/50" : "bg-white/10"}`} />
+                      <span key={s} className={`h-1 w-5 rounded-full ${i < at ? "bg-accent" : i === at ? "bg-accent/40" : "bg-white/10"}`} />
                     ))}
                   </span>
                   <span className="hidden w-16 text-right text-xs text-muted sm:block">{ago(c.updatedAt)}</span>

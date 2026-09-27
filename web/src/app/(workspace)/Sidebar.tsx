@@ -285,11 +285,11 @@ export function Sidebar({
               <item.Icon size={18} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
-              {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />}
+              {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-background" />}
             </span>
             <FadeLabel open={open}>{item.label}</FadeLabel>
             {count > 0 && open && (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-medium text-white">
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-medium text-accent">
                 {count > 9 ? "9+" : count}
               </span>
             )}

@@ -4,10 +4,10 @@ import { Check } from "lucide-react";
 export function contractStage(status: string, missing: number): { label: string; tone: string; dot: string } {
   if (status === "invited") return { label: "Waiting for client", tone: "border-white/10 bg-white/[0.04] text-muted", dot: "bg-slate-400" };
   if (status === "draft" && missing > 0)
-    return { label: `Needs ${missing} detail${missing === 1 ? "" : "s"}`, tone: "border-amber-400/25 bg-amber-400/[0.08] text-amber-200", dot: "bg-amber-400" };
-  if (status === "draft") return { label: "Ready for review", tone: "border-sky-400/25 bg-sky-400/[0.08] text-sky-200", dot: "bg-sky-400" };
-  if (status === "approved") return { label: "Ready to send", tone: "border-violet-400/25 bg-violet-400/[0.08] text-violet-200", dot: "bg-violet-400" };
-  if (status === "sent") return { label: "Out for signature", tone: "border-blue-400/25 bg-blue-400/[0.08] text-blue-200", dot: "bg-blue-400" };
+    return { label: `Needs ${missing} detail${missing === 1 ? "" : "s"}`, tone: "border-accent/40 bg-accent/15 text-accent", dot: "bg-accent" };
+  if (status === "draft") return { label: "Ready for review", tone: "border-accent/25 bg-accent/[0.07] text-foreground/85", dot: "bg-accent" };
+  if (status === "approved") return { label: "Ready to send", tone: "border-accent/25 bg-accent/[0.07] text-foreground/85", dot: "bg-accent" };
+  if (status === "sent") return { label: "Out for signature", tone: "border-accent/25 bg-accent/[0.07] text-foreground/85", dot: "bg-accent/60" };
   return { label: "Signed", tone: "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-200", dot: "bg-emerald-400" };
 }
 
@@ -30,17 +30,17 @@ export function Stepper({ at }: { at: number }) {
             <span
               className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] transition-colors ${
                 done
-                  ? "bg-gradient-to-br from-violet-400 to-sky-400 text-white"
+                  ? "bg-accent text-[#0b1215]"
                   : current
-                    ? "bg-violet-400/15 ring-1 ring-violet-300/60"
+                    ? "bg-accent/15 ring-1 ring-accent/60"
                     : "ring-1 ring-white/15"
               }`}
             >
-              {done ? <Check size={11} strokeWidth={3} /> : current ? <span className="size-1.5 animate-pulse rounded-full bg-violet-300" /> : null}
+              {done ? <Check size={11} strokeWidth={3} /> : current ? <span className="size-1.5 animate-pulse rounded-full bg-accent" /> : null}
             </span>
             <span className={`whitespace-nowrap text-xs ${done || current ? "text-foreground" : "text-muted"}`}>{label}</span>
             {i < STEPS.length - 1 && (
-              <span className={`mx-1 h-px min-w-6 flex-1 ${done ? "bg-gradient-to-r from-violet-400/70 to-sky-400/70" : "bg-white/10"}`} />
+              <span className={`mx-1 h-px min-w-6 flex-1 ${done ? "bg-accent/60" : "bg-white/10"}`} />
             )}
           </li>
         );
