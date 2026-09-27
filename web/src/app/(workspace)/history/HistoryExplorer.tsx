@@ -461,7 +461,9 @@ export function HistoryExplorer({
             {openLogs.length > 0 && (
               <div className="mt-5">
                 <p className="mb-2 text-xs font-medium text-muted">Every stage it went through</p>
-                <StageTrail logs={openLogs} />
+                <div className="panel-soft rounded-xl p-4">
+                  <StageTrail logs={openLogs} />
+                </div>
               </div>
             )}
             <div className="mt-5 flex justify-end">

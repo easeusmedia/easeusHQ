@@ -371,9 +371,15 @@ dialog[open]::backdrop {
     display 0.18s ease allow-discrete,
     width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* The direction is set whether open or not: while the dialog fades out it
+   keeps display:flex (held by allow-discrete) but loses [open] — with the
+   direction only under [open], its contents flipped into a row for the
+   length of the fade, which flashed as a scrambled copy of the task. */
+.dialog-grow {
+  flex-direction: column;
+}
 .dialog-grow[open] {
   display: flex;
-  flex-direction: column;
 }
 
 /* --- The one hover rule, four cases. Don't hand-roll a fifth. ---

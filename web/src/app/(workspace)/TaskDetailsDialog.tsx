@@ -123,6 +123,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const canEditFrameio = !canManage && isAssignee && task.status === "sent_for_approval";
 
   function open() {
+    // History starts shut each time — reset here, on the way in, not on
+    // close: shutting it on close shrank the dialog while it was fading out
+    setHistoryOpen(false);
     dialogRef.current?.showModal();
     setEditingFrameio(false);
     // what's saved now, not what was typed before a Cancel
@@ -176,7 +179,6 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   return (
       <dialog
         ref={dialogRef}
-        onClose={() => setHistoryOpen(false)}
         onClick={(e) => {
           if (e.target === dialogRef.current) dialogRef.current?.close();
         }}
@@ -460,7 +462,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           >
             <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
               <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has been through</p>
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border p-3">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl panel-soft p-4">
                 <StageTrail logs={logs} />
               </div>
             </div>
