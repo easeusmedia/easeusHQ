@@ -39,6 +39,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
       today={indiaDay(new Date())}
       adobeConnected={adobeConnected}
       agreementStatus={adobe}
+      sentByApi={!!contract.agreementId}
       sentAt={contract.sentAt ? contract.sentAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : null}
     />
   );

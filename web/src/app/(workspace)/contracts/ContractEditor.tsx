@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Copy, Download, FileDown, ListChecks, PenLine, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, Copy, Download, FileDown, ListChecks, PenLine, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { ConfirmButton } from "../ConfirmButton";
 import { ContractPaper } from "./ContractPaper";
@@ -17,6 +17,8 @@ import {
   clearContractChat,
   contractSigningLink,
   deleteContract,
+  markContractSent,
+  markContractSigned,
   resetContractClauses,
   saveContractClauses,
   saveContractDetails,
@@ -38,6 +40,7 @@ export function ContractEditor({
   adobeConnected,
   agreementStatus,
   sentAt,
+  sentByApi,
 }: {
   id: string;
   token: string;
@@ -50,6 +53,8 @@ export function ContractEditor({
   adobeConnected: boolean;
   agreementStatus: string | null;
   sentAt: string | null;
+  // sent through the Adobe API, rather than by hand in Acrobat
+  sentByApi: boolean;
 }) {
   const router = useRouter();
   const [d, setD] = useState(initialDetails);
@@ -174,16 +179,85 @@ export function ContractEditor({
           </button>
         ),
       };
-    if (status === "approved" && !adobeConnected)
+    // No Adobe API on the plan: sent through Acrobat's own (free) Request
+    // e-signatures, with the PDF's signature and date spots already tagged
+    const acrobat = (
+      <a href="https://acrobat.adobe.com/" target="_blank" rel="noopener noreferrer" className="btn btn-ghost flex items-center gap-1.5">
+        Open Acrobat <ArrowUpRight size={14} />
+      </a>
+    );
+    if (status === "approved" && !adobeConnected) {
+      const download = (
+        <a href={`/api/contracts/${id}/pdf?sign`} className="btn btn-glow flex items-center gap-1.5">
+          <Download size={14} /> Download for signing
+        </a>
+      );
       return {
-        title: "Approved — connect Adobe Sign to send it",
-        body: "Sending goes through Adobe Acrobat Sign, which isn't connected yet. Add its integration key once under Integrations.",
+        title: "Approved — send it for signing in Acrobat",
+        body: (
+          <ol className="flex list-decimal flex-col gap-1 pl-4">
+            <li>Download it — the signature and date spots are already marked.</li>
+            <li>
+              In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b> and drop it in.
+            </li>
+            <li>
+              Add yourself ({PROVIDER.email}) first, then {to} — in that order — and send.
+            </li>
+            <li>
+              Come back and press <b className="font-medium text-foreground">I&apos;ve sent it</b>.
+            </li>
+          </ol>
+        ),
+        primary: download,
         action: (
-          <Link href="/integrations" className="btn btn-glow flex items-center gap-1.5">
-            Connect Adobe Sign <ArrowRight size={14} />
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {download}
+            {acrobat}
+            <button
+              onClick={async () => {
+                await navigator.clipboard.writeText(clients.map((c) => c.email.trim()).join(", "));
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="btn btn-ghost flex items-center gap-1.5"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Client's email"}
+            </button>
+            <ConfirmButton
+              message="Sent it through Acrobat? The contract is locked from here on."
+              onConfirm={() => run("sent", () => markContractSent(id), () => setStatus("sent"))}
+              className="btn btn-ghost flex items-center gap-1.5"
+            >
+              <Send size={14} /> I&apos;ve sent it
+            </ConfirmButton>
+          </div>
         ),
       };
+    }
+    if (status === "sent" && !sentByApi) {
+      const signed = (
+        <ConfirmButton
+          message="Has everyone signed it in Acrobat?"
+          onConfirm={() => run("signed", () => markContractSigned(id), () => setStatus("signed"))}
+          className="btn btn-glow flex items-center gap-1.5"
+        >
+          <Check size={14} /> Mark as signed
+        </ConfirmButton>
+      );
+      return {
+        title: "Out for signature in Acrobat",
+        body: `Sent ${sentAt ?? "today"}. You sign first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`,
+        primary: signed,
+        action: (
+          <div className="flex flex-wrap gap-2">
+            {signed}
+            {acrobat}
+          </div>
+        ),
+      };
+    }
+    if (status === "signed" && !sentByApi)
+      return { title: "Signed by everyone", body: "The signed copy is in Acrobat, under Agreements.", action: acrobat };
     if (status === "approved")
       return {
         title: "Approved — send it for signing",
@@ -291,7 +365,7 @@ export function ContractEditor({
               <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
               <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
               <p className="mt-1.5 text-base font-medium">{next.title}</p>
-              <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
+              <div className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</div>
               {next.action && <div className="mt-4 flex">{next.action}</div>}
             </div>
           </div>
@@ -335,7 +409,7 @@ export function ContractEditor({
                   <RotateCcw size={12} /> Template clauses
                 </ConfirmButton>
               )}
-              {next.action}
+              {"primary" in next && next.primary ? next.primary : next.action}
             </div>
             {(error || note) && <p className="fade-in text-sm text-foreground/85">{error ?? note}</p>}
           </div>

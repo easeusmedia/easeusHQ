@@ -158,6 +158,29 @@ export async function sendContract(id: string): Promise<{ error?: string }> {
   return {};
 }
 
+// Sent by hand through Acrobat's own Request e-signatures (no Adobe API on
+// the plan): the contract is dated today if it had no set date, and locked.
+export async function markContractSent(id: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  const c = await prisma.contract.findUnique({ where: { id } });
+  if (!c) return { error: "That contract no longer exists." };
+  if (c.status !== "approved") return { error: "Approve it first — only an approved contract goes out." };
+  const details = withDefaults(c.details);
+  if (!details.signingDate) details.signingDate = indiaDay(new Date());
+  await prisma.contract.update({ where: { id }, data: { status: "sent", sentAt: new Date(), details } });
+  done();
+  return {};
+}
+
+export async function markContractSigned(id: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
+  if (c?.status !== "sent") return { error: "It hasn't gone out for signing yet." };
+  await prisma.contract.update({ where: { id }, data: { status: "signed", signedAt: new Date() } });
+  done();
+  return {};
+}
+
 export async function deleteContract(id: string): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can do that." };
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
