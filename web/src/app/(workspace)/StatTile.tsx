@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 
 // One number, the way every page shows it: big, with a small icon badge —
-// lit when there's something there (green for what's done), muted at zero.
+// lit when there's something there, with a soft glow in its corner — blue, or
+// green for what's done. Muted at zero.
 export function StatTile({
   label,
   value,
@@ -19,7 +20,8 @@ export function StatTile({
   note?: React.ReactNode;
 }) {
   return (
-    <div className="relative panel rounded-2xl px-5 py-4">
+    <div className="relative overflow-hidden panel rounded-2xl px-5 py-4">
+      {lit && <div className={`glass-glow ${tone === "emerald" ? "emerald" : ""}`} />}
       <span
         className={`absolute right-4 top-4 flex size-7 items-center justify-center rounded-lg ${
           !lit ? "badge" : tone === "emerald" ? "badge-lit emerald" : "badge-lit"
@@ -27,9 +29,9 @@ export function StatTile({
       >
         <Icon size={14} />
       </span>
-      <p className={`text-3xl font-semibold tabular-nums tracking-tight ${lit ? "text-foreground" : "text-muted"}`}>{value}</p>
-      <p className="mt-1 truncate pr-8 text-xs text-muted">{label}</p>
-      {note && <div className="mt-2">{note}</div>}
+      <p className={`relative text-3xl font-semibold tabular-nums tracking-tight ${lit ? "text-foreground" : "text-muted"}`}>{value}</p>
+      <p className="relative mt-1 truncate pr-8 text-xs text-muted">{label}</p>
+      {note && <div className="relative mt-2">{note}</div>}
     </div>
   );
 }

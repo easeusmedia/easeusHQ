@@ -126,40 +126,41 @@ body {
     linear-gradient(90deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) border-box;
   color: var(--foreground);
 }
-/* a small icon tile: the same stroked material. Lit, it takes a faint wash
-   of its colour and the glyph glows — a glow held tight to the icon's own
-   strokes, not a blurred patch of colour behind it */
+/* a small icon tile: quiet grey at rest; lit, a wash of its colour (blue,
+   or green for what's done). The glow lives in the card's corner (.glass-glow),
+   not on the icon. */
 .badge {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(180deg, #1a1d22, #141619) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)) border-box;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
 }
 .badge-lit {
   --tint: 75, 149, 230;
-  border: 1px solid transparent;
-  background:
-    linear-gradient(180deg, rgba(var(--tint), 0.16), rgba(var(--tint), 0.04)) padding-box,
-    linear-gradient(180deg, #1c2128, #15181d) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)) border-box;
+  background: rgba(var(--tint), 0.15);
   color: rgb(var(--tint));
 }
 .badge-lit.emerald {
   --tint: 110, 231, 183;
 }
-.badge-lit svg {
-  filter: drop-shadow(0 0 1.5px rgba(var(--tint), 0.75)) drop-shadow(0 0 7px rgba(var(--tint), 0.45));
+/* the soft glassy glow in a lit card's top corner: a wash of the card's
+   colour, blurred into the dark */
+.glass-glow {
+  --tint: 75, 149, 230;
+  position: absolute;
+  right: -2rem;
+  top: -2.5rem;
+  width: 7rem;
+  height: 7rem;
+  border-radius: 9999px;
+  background: linear-gradient(to bottom right, rgba(var(--tint), 0.25), transparent);
+  filter: blur(40px);
+  pointer-events: none;
 }
-/* a resting icon: a faint halo, just enough to lift it off the dark */
-.badge svg,
-.icon-soft {
-  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.25)) drop-shadow(0 0 5px rgba(255, 255, 255, 0.12));
+.glass-glow.emerald {
+  --tint: 52, 211, 153;
 }
-/* an icon that's lit: the accent with a soft glow held tight to it */
+/* an icon that's lit: the accent */
 .icon-glow {
   color: var(--accent);
-  filter: drop-shadow(0 0 1.5px rgba(75, 149, 230, 0.75)) drop-shadow(0 0 7px rgba(75, 149, 230, 0.45));
 }
 
 /* Replace the browser's default focus ring (too thick, doubles up with our

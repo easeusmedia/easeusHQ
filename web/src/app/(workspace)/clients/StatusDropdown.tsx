@@ -19,8 +19,8 @@ const STATUS_STYLE: Record<string, string> = {
 
 // the quiet version's dot: green for current, amber on hold, grey before
 const STATUS_DOT: Record<string, string> = {
-  current: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]",
-  on_hold: "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]",
+  current: "bg-emerald-400",
+  on_hold: "bg-amber-400",
   previous: "bg-white/30",
 };
 

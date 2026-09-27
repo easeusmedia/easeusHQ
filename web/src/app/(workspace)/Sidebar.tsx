@@ -366,7 +366,7 @@ export function Sidebar({
           >
             {/* fixed-size slot, same position whether collapsed or open */}
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-              <item.Icon size={18} className={active ? "icon-glow" : "icon-soft"} />
+              <item.Icon size={18} className={active ? "icon-glow" : ""} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-[#15181c]" />}

@@ -30,12 +30,12 @@ function Face({ client, size }: { client: ClientCardData; size: number }) {
   );
 }
 
-// A count in one line: its icon (lit and softly glowing when there's
-// something there), the number, and what it counts.
+// A count in one line: its icon (lit when there's something there), the
+// number, and what it counts.
 function Stat({ n, one, many, Icon }: { n: number; one: string; many: string; Icon: LucideIcon }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
-      <Icon size={15} className={n > 0 ? "icon-glow" : "icon-soft text-muted/70"} />
+      <Icon size={15} className={n > 0 ? "text-accent" : "text-muted/70"} />
       <span className={`text-[15px] font-semibold tabular-nums ${n > 0 ? "text-foreground" : "text-muted"}`}>{n}</span>
       <span className="text-xs text-muted">{n === 1 ? one : many}</span>
     </span>
@@ -54,9 +54,11 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
     <PrefetchLink
       href={clientHref(client)}
       draggable={false}
-      className="group relative flex min-w-0 flex-col gap-6 panel panel-hover rounded-3xl p-5 hover:-translate-y-0.5"
+      className="group relative flex min-w-0 flex-col gap-6 overflow-hidden panel panel-hover rounded-3xl p-5 hover:-translate-y-0.5"
     >
-      <div className="flex items-start gap-3.5">
+      {/* the soft glow on the ones with work in hand */}
+      {client.activeProjects + client.activeTasks > 0 && <div className="glass-glow" />}
+      <div className="relative flex items-start gap-3.5">
         <span className="shrink-0 rounded-full ring-1 ring-white/10 ring-offset-2 ring-offset-[#15181c]">
           <Face client={client} size={44} />
         </span>
@@ -69,7 +71,7 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
         <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-3">
+      <div className="relative mt-auto flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Stat n={client.activeProjects} one="active project" many="active projects" Icon={Clapperboard} />
           <Stat n={client.activeTasks} one="open task" many="open tasks" Icon={ListChecks} />
@@ -104,11 +106,11 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
         ))}
       </div>
       <span className="flex w-16 shrink-0 items-center justify-end gap-1.5 text-xs" title={`${client.activeProjects} active project${client.activeProjects === 1 ? "" : "s"}`}>
-        <Clapperboard size={13} className={client.activeProjects > 0 ? "icon-glow" : "icon-soft text-muted"} />
+        <Clapperboard size={13} className={client.activeProjects > 0 ? "text-accent" : "text-muted"} />
         <span className={`tabular-nums ${client.activeProjects > 0 ? "text-foreground" : "text-muted"}`}>{client.activeProjects}</span>
       </span>
       <span className="hidden w-16 shrink-0 items-center justify-end gap-1.5 text-xs md:flex" title={`${client.activeTasks} open task${client.activeTasks === 1 ? "" : "s"}`}>
-        <ListChecks size={13} className={client.activeTasks > 0 ? "icon-glow" : "icon-soft text-muted"} />
+        <ListChecks size={13} className={client.activeTasks > 0 ? "text-accent" : "text-muted"} />
         <span className={`tabular-nums ${client.activeTasks > 0 ? "text-foreground" : "text-muted"}`}>{client.activeTasks}</span>
       </span>
       <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
