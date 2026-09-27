@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, ensureAppFolder, exchangeCode, saveDriveSettings } from "@/lib/drive";
+import { GMAIL_SETTINGS } from "@/lib/gmail";
 
 // Where Google sends the admin back after they approve the Drive connection.
 // The code in the address is one-time and useless on its own; it's traded
@@ -21,6 +22,11 @@ export async function GET(request: Request) {
 
   try {
     const { refreshToken, email } = await exchangeCode(code, url.origin);
+    // the Gmail connection (contract tracking), kept apart from Drive's
+    if (url.searchParams.get("state") === "gmail") {
+      await saveDriveSettings({ [GMAIL_SETTINGS.refreshToken]: refreshToken, [GMAIL_SETTINGS.account]: email });
+      return NextResponse.redirect(new URL("/integrations?gmail=1", url.origin));
+    }
     await saveDriveSettings({ [DRIVE_SETTINGS.refreshToken]: refreshToken, [DRIVE_SETTINGS.account]: email });
     // and give it somewhere to put things, straight away
     const folder = await ensureAppFolder();

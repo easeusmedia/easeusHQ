@@ -13,6 +13,8 @@ import { apifyAccount, apifyTokens } from "@/lib/apify";
 import { adobeAccount } from "@/lib/adobeSign";
 import { AdobeSignIntegration } from "./AdobeSignIntegration";
 import { ClaudeIntegration } from "./ClaudeIntegration";
+import { GmailIntegration } from "./GmailIntegration";
+import { gmailAccount } from "@/lib/gmail";
 import { claudeKey } from "@/lib/claude";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +79,8 @@ export default async function IntegrationsPage({
       <AdobeSignIntegration account={(await adobeAccount()) || null} />
 
       <ClaudeIntegration ending={(await claudeKey())?.slice(-4) ?? null} />
+
+      <GmailIntegration account={await gmailAccount()} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 
       <AnalyticsIntegration apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })} />
 

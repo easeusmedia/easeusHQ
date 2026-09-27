@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
-import { compose, withDefaults, type Clause } from "@/lib/contract";
+import { agreementName, compose, withDefaults, type Clause } from "@/lib/contract";
 import { contractPdf } from "@/lib/contractPdf";
 import { signedPdf } from "@/lib/adobeSign";
 
@@ -14,10 +14,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!contract) return new Response("Not found", { status: 404 });
 
   const details = withDefaults(contract.details);
-  const name = `Service Agreement - ${details.entity || contract.name || "Draft"}`.replace(/[\\/:*?"<>|]/g, "");
+  // the name Acrobat then gives the agreement, which its emails carry
+  const name = agreementName(details, contract.name);
   let pdf: Uint8Array;
   const query = new URL(request.url).searchParams;
-  if (query.has("signed") && contract.agreementId) {
+  if (query.has("signed") && contract.signedPdf) {
+    // the copy Adobe emailed once everyone had signed
+    pdf = new Uint8Array(contract.signedPdf);
+  } else if (query.has("signed") && contract.agreementId) {
     pdf = new Uint8Array(await signedPdf(contract.agreementId));
   } else {
     // ?sign: the copy to upload to Acrobat's Request e-signatures — its

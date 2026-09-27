@@ -10,6 +10,7 @@ import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } fr
 import { APIFY_SETTINGS } from "@/lib/apify";
 import { connectAdobe } from "@/lib/adobeSign";
 import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
+import { GMAIL_SETTINGS } from "@/lib/gmail";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -223,6 +224,14 @@ export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
   if (!k.startsWith("sk-ant-")) return { error: "That isn't an Anthropic API key — they start with sk-ant-." };
   if (!(await checkClaudeKey(k))) return { error: "Anthropic didn't accept that key." };
   await prisma.appSetting.upsert({ where: { key: CLAUDE_SETTINGS.key }, create: { key: CLAUDE_SETTINGS.key, value: k }, update: { value: k } });
+  revalidatePath("/integrations");
+  return {};
+}
+
+// Drops the Gmail connection contract tracking reads with
+export async function disconnectGmail(): Promise<{ error?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  await prisma.appSetting.deleteMany({ where: { key: { in: [GMAIL_SETTINGS.refreshToken, GMAIL_SETTINGS.account] } } });
   revalidatePath("/integrations");
   return {};
 }

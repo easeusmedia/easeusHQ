@@ -7,6 +7,7 @@ import { indiaDay } from "@/lib/due";
 import { compose, withDefaults, type Clause } from "@/lib/contract";
 import { STEPS, contractStage, stepOf } from "./status";
 import { NewContract } from "./NewContract";
+import { trackContracts } from "./tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ const ago = (d: Date) => {
 // activity first, with how far it's got.
 export default async function ContractsPage() {
   if (!(await requireOps())) redirect("/board");
+  // anything out for signature: catch up on Adobe's emails first
+  await trackContracts().catch(() => {});
   const today = indiaDay(new Date());
   const contracts = (await prisma.contract.findMany({ orderBy: { updatedAt: "desc" } })).map((c) => {
     const d = withDefaults(c.details);

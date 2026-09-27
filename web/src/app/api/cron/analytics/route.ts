@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { collect, dailySync } from "@/lib/contentSync";
+import { trackContracts } from "@/app/(workspace)/contracts/tracking";
 
 // The daily refresh of every client's public YouTube and Instagram numbers
 // (vercel.json runs it at 2am India time). Safe to call any time by anyone:
@@ -16,5 +17,7 @@ export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
   // anything left over from before first; a hiccup there mustn't stop tonight's refresh
   await collect().catch(() => {});
+  // and catch up on contracts out for signature (Adobe's emails in Gmail)
+  await trackContracts().catch(() => {});
   return NextResponse.json(await dailySync(origin));
 }

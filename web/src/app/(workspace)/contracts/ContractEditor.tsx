@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Check, Copy, Download, FileDown, ListChecks, PenLine, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, RefreshCw, Copy, Download, FileDown, ListChecks, PenLine, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { ConfirmButton } from "../ConfirmButton";
 import { ContractPaper } from "./ContractPaper";
@@ -11,11 +11,13 @@ import { ContractChat } from "./ContractChat";
 import { ContractForm } from "./ContractForm";
 import { Stepper, stepOf } from "./status";
 import type { ChatMessage } from "./assistant";
+import type { TrackedEvent } from "./tracking";
 import {
   approveContract,
   chatContract,
   clearContractChat,
   contractSigningLink,
+  checkContractMail,
   deleteContract,
   markContractSent,
   markContractSigned,
@@ -45,6 +47,9 @@ export function ContractEditor({
   agreementStatus,
   sentAt,
   sentByApi,
+  events,
+  tracking,
+  hasSignedCopy,
 }: {
   id: string;
   token: string;
@@ -59,6 +64,12 @@ export function ContractEditor({
   sentAt: string | null;
   // sent through the Adobe API, rather than by hand in Acrobat
   sentByApi: boolean;
+  // what Adobe's emails have said about it, oldest first
+  events: (TrackedEvent & { when: string })[];
+  // Gmail's connected, so it follows along by itself
+  tracking: boolean;
+  // the signed copy came with Adobe's "Signed and Filed" email
+  hasSignedCopy: boolean;
 }) {
   const router = useRouter();
   const [d, setD] = useState(initialDetails);
@@ -150,6 +161,23 @@ export function ContractEditor({
     else setNote(res.error ?? null);
   }
 
+  // Adobe's emails so far, as a line of steps
+  const timeline = events.length > 0 && (
+    <ol className="mt-3 flex flex-col gap-2 border-l border-accent/30 pl-4">
+      {events.map((e) => (
+        <li key={e.id} className="relative text-sm text-foreground/85">
+          <span className={`absolute -left-[21px] top-[7px] size-2 rounded-full ${e.kind === "completed" ? "bg-emerald-400" : "bg-accent"}`} />
+          {e.text} <span className="text-xs text-muted">· {e.when}</span>
+        </li>
+      ))}
+    </ol>
+  );
+  const check = (
+    <button onClick={() => run("check", () => checkContractMail(id))} disabled={busy !== null} className="btn btn-ghost flex items-center gap-1.5">
+      <RefreshCw size={14} className={busy === "check" ? "animate-spin" : ""} /> {busy === "check" ? "Checking…" : "Check now"}
+    </button>
+  );
+
   // what to do now — always one clear next step
   const next = (() => {
     const to = clients.map((s) => s.email.trim()).join(" and ");
@@ -235,16 +263,23 @@ export function ContractEditor({
               then <b className="font-medium text-foreground">Send</b>. Acrobat asks Ashmit to sign first, then emails the client.
             </li>
             <li>
-              Back here: <b className="font-medium text-foreground">I&apos;ve sent it</b>.
+              {tracking ? (
+                <>That&apos;s it — this page updates by itself when Adobe&apos;s email says it&apos;s out.</>
+              ) : (
+                <>
+                  Back here: <b className="font-medium text-foreground">I&apos;ve sent it</b>.
+                </>
+              )}
             </li>
           </ol>
         ) : (
           `One click downloads it, copies ${to}, and opens Acrobat — Ashmit signs first there, then the client.`
         ),
-        primary: prepared ? sent : send,
+        primary: prepared ? (tracking ? check : sent) : send,
         action: (
           <div className="flex flex-wrap gap-2">
             {send}
+            {prepared && tracking && check}
             {sent}
           </div>
         ),
@@ -263,18 +298,44 @@ export function ContractEditor({
       );
       return {
         title: "Out for signature in Acrobat",
-        body: `Sent ${sentAt ?? "today"}. Ashmit signs first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`,
-        primary: signed,
+        body: (
+          <>
+            {tracking
+              ? `Sent ${sentAt ?? "today"}. This follows Adobe's emails by itself — it turns Signed, with the signed copy, once everyone has.`
+              : `Sent ${sentAt ?? "today"}. Ashmit signs first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`}
+            {timeline}
+          </>
+        ),
+        primary: tracking ? check : signed,
         action: (
           <div className="flex flex-wrap gap-2">
+            {tracking && check}
             {signed}
             {acrobat}
           </div>
         ),
       };
     }
-    if (status === "signed" && !sentByApi)
-      return { title: "Signed by everyone", body: "The signed copy is in Acrobat, under Agreements.", action: acrobat };
+    if (status === "signed" && !sentByApi) {
+      const copy = hasSignedCopy ? (
+        <a href={`/api/contracts/${id}/pdf?signed=1`} className="btn btn-glow flex items-center gap-1.5">
+          <Download size={14} /> Signed copy
+        </a>
+      ) : (
+        acrobat
+      );
+      return {
+        title: "Signed by everyone",
+        body: (
+          <>
+            {hasSignedCopy ? "The signed copy, as Adobe filed it, is saved here." : "The signed copy is in Acrobat, under Agreements."}
+            {timeline}
+          </>
+        ),
+        primary: copy,
+        action: copy,
+      };
+    }
     if (status === "approved")
       return {
         title: "Approved — send it for signing",

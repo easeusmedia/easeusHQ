@@ -511,3 +511,40 @@ export function runs(text: string): { text: string; bold?: boolean; italic?: boo
           : { text: t }
     );
 }
+
+// ---- following it through Adobe ----
+
+// What Acrobat calls the agreement: the downloaded file's name, which its
+// emails then carry in their subjects
+export const agreementName = (d: ContractDetails, fallback?: string | null) =>
+  `Service Agreement - ${d.entity.trim() || fallback?.trim() || "Draft"}`.replace(/[\\/:*?"<>|]/g, "");
+
+export type SignEvent = {
+  kind: "sent" | "requested" | "viewed" | "signed-by" | "completed" | "declined" | "cancelled" | "expired";
+  text: string;
+};
+
+// One of Adobe Sign's email subjects, read for what it says about this
+// agreement — "Service Agreement - Demo has been sent out for signature to
+// x@y.com", "… between Easeus Media and Jane is Signed and Filed!" — or
+// null when it's about something else.
+export function readAdobeSubject(subject: string, agreement: string): SignEvent | null {
+  const norm = (t: string) => t.replace(/[“”"']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const s = norm(subject);
+  const name = norm(agreement);
+  const at = s.indexOf(name);
+  if (at < 0) return null;
+  // "… - Demo" isn't "… - Demo Studios"
+  if (!/^(\s+(has|have|between|is|was|signed|and)\b|\s*$|[!.,:])/.test(s.slice(at + name.length))) return null;
+  if (/signed and filed/.test(s)) return { kind: "completed", text: "Signed by everyone and filed" };
+  let m = subject.match(/sent out for signature to (.+?)[.!]?$/i);
+  if (m) return { kind: "sent", text: `Sent to ${m[1].trim()}` };
+  if (/signature requested on/.test(s)) return { kind: "requested", text: "Waiting for Ashmit's signature" };
+  m = subject.match(/signed by (.+?)[.!]?$/i);
+  if (m) return { kind: "signed-by", text: `Signed by ${m[1].trim()}` };
+  if (/viewed/.test(s)) return { kind: "viewed", text: "Viewed" };
+  if (/declined|rejected/.test(s)) return { kind: "declined", text: "Declined" };
+  if (/cancel/.test(s)) return { kind: "cancelled", text: "Cancelled" };
+  if (/expired/.test(s)) return { kind: "expired", text: "Expired" };
+  return null;
+}

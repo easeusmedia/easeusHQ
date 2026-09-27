@@ -9,6 +9,7 @@ import { DEFAULT_CLAUSES, EMAIL, PROVIDER, compose, withDefaults, type Clause, t
 import { contractPdf } from "@/lib/contractPdf";
 import { sendForSignature, signingUrl } from "@/lib/adobeSign";
 import { TEMPLATE, masterClauses } from "./masterTemplate";
+import { trackContracts } from "./tracking";
 import { askAboutContract, type Attachment, type ChatMessage } from "./assistant";
 
 // Every step of a contract after the client's form: ops fills in the terms,
@@ -177,6 +178,18 @@ export async function markContractSigned(id: string): Promise<{ error?: string }
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
   if (c?.status !== "sent") return { error: "It hasn't gone out for signing yet." };
   await prisma.contract.update({ where: { id }, data: { status: "signed", signedAt: new Date() } });
+  done();
+  return {};
+}
+
+// "Check now": read Adobe's latest emails about it straight away
+export async function checkContractMail(id: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  try {
+    await trackContracts(id, true);
+  } catch (err) {
+    return { error: err instanceof Error ? `Couldn't read Gmail: ${err.message}` : "Couldn't read Gmail." };
+  }
   done();
   return {};
 }

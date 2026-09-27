@@ -82,3 +82,18 @@ test("what's missing is found from the template itself", () => {
   const filled = { ...ready, extra: [{ key: "Retainer hours", value: "10" }] };
   assert.deepEqual(compose(extra, filled, "2026-04-27").missing, []);
 });
+
+test("Adobe's emails are read for the right agreement", async () => {
+  const { readAdobeSubject } = await import("./contract.ts");
+  const name = "Service Agreement - Demo";
+  assert.deepEqual(readAdobeSubject("Service Agreement - Demo has been sent out for signature to akraj618@gmail.com", name), {
+    kind: "sent",
+    text: "Sent to akraj618@gmail.com",
+  });
+  assert.equal(readAdobeSubject("Service Agreement - Demo between Easeus Media and Abhishek is Signed and Filed!", name)?.kind, "completed");
+  assert.equal(readAdobeSubject('Signature requested on "Service Agreement - Demo"', name)?.kind, "requested");
+  assert.equal(readAdobeSubject("Service Agreement - Demo has been signed by Ashmit Shahi", name)?.text, "Signed by Ashmit Shahi");
+  // another contract, or not about one at all
+  assert.equal(readAdobeSubject("Service Agreement - Demo Studios has been sent out for signature to a@b.com", name), null);
+  assert.equal(readAdobeSubject("Your account was credited", name), null);
+});
