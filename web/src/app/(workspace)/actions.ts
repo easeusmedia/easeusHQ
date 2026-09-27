@@ -765,14 +765,6 @@ export async function pushToNotion(): Promise<NotionSyncResult> {
   }
 }
 
-export async function getMyActiveTaskSnapshot() {
-  const userId = await getSessionUserId();
-  if (!userId) return [];
-  return prisma.task.findMany({
-    where: { assignedToId: userId, status: { not: "delivered_and_uploaded" } },
-    select: { id: true, title: true, status: true },
-  });
-}
 
 // on-demand, not preloaded onto every task in a board fetch — most cards'
 // trails never get opened, so fetching all of them up front would be pure

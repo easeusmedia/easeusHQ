@@ -238,18 +238,6 @@ export async function markClientFeedbackRead(clientId: string): Promise<{ error?
   return {};
 }
 
-// Messages nobody has read yet, across every client — for the bottom-right
-// notice (FeedbackWatcher). Empty for anyone who doesn't see feedback.
-export async function unreadClientFeedback() {
-  if (!(await requireFeedbackViewer())) return [];
-  const rows = await prisma.clientFeedback.findMany({
-    where: { readAt: null },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: { id: true, name: true, message: true, client: { select: { name: true, slug: true } } },
-  });
-  return rows.map((r) => ({ id: r.id, from: r.name, message: r.message.slice(0, 140), client: r.client.name, slug: r.client.slug }));
-}
 
 // Dragging a client into place on the dashboard. One shared order for the
 // whole team — it's the agency's queue, not a personal view.

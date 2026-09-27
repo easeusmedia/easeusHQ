@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageSquare, X } from "lucide-react";
-import { unreadClientFeedback } from "./clients/actions";
+import { onPulse, type PulseData } from "./pulseStore";
 
-type Note = Awaited<ReturnType<typeof unreadClientFeedback>>[number];
+type Note = NonNullable<PulseData["feedback"]>[number];
 
 const KEY = "client-feedback-seen";
 
@@ -18,7 +18,6 @@ export function FeedbackWatcher() {
   const seen = useRef<Set<string> | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
     if (!seen.current) {
       try {
         seen.current = new Set(JSON.parse(localStorage.getItem(KEY) ?? "[]"));
@@ -27,14 +26,9 @@ export function FeedbackWatcher() {
       }
     }
 
-    async function poll() {
-      let rows: Note[];
-      try {
-        rows = await unreadClientFeedback();
-      } catch {
-        return; // network hiccup — the next tick tries again
-      }
-      if (cancelled) return;
+    // each pulse (see Pulse.tsx) carries the unread client messages
+    return onPulse(({ feedback: rows }) => {
+      if (!rows) return;
       const known = seen.current!;
       const fresh = rows.filter((r) => !known.has(r.id));
       if (fresh.length === 0) return;
@@ -45,20 +39,7 @@ export function FeedbackWatcher() {
       } catch {
         // private window: remembered for this visit only
       }
-    }
-
-    // same cadence rules as ApprovalWatcher: skip hidden tabs, catch up on return
-    const tick = () => {
-      if (document.visibilityState === "visible") poll();
-    };
-    tick();
-    const id = setInterval(tick, 30000);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
-    };
+    });
   }, []);
 
   if (notes.length === 0) return null;

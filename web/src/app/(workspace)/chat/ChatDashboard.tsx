@@ -82,11 +82,17 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
     if (!openId) return;
     let cancelled = false;
     async function load() {
-      const msgs = await getThreadMessages(openId!);
-      if (!cancelled) setMessages(msgs);
+      if (document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch(`/api/chat/${openId}`, { cache: "no-store" });
+        const msgs: ThreadMessage[] = await res.json();
+        if (!cancelled && res.ok) setMessages(msgs);
+      } catch {
+        // offline for a moment: the next tick tries again
+      }
     }
-    // same cheap poll as the old panel's thread — no websockets wired up,
-    // and an 8s tick on one open conversation is nothing
+    // a cheap poll of the one open conversation — a GET, not a server
+    // action, so it never holds up a click (see api/pulse)
     load();
     const id = setInterval(load, 8000);
     return () => {

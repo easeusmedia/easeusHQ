@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PartyPopper, X } from "lucide-react";
-import { getMyActiveTaskSnapshot } from "./actions";
+import { onPulse } from "./pulseStore";
 
 // short synthesized chime (no audio asset to host/license) — a quick
 // upward two-note ding. Browsers block audio with no prior user gesture
@@ -36,73 +36,49 @@ type Seen = { status: string; title: string };
 
 // Mounted once in the workspace layout for every employee, on every
 // page — not just Board — so a delivery that happens while an editor is
-// looking at History or Calendar still gets caught. Polls independently
-// of LiveRefresh/router.refresh() for exactly that reason: this has to
-// keep running regardless of which page's data happens to be loaded.
+// looking at History or Calendar still gets caught. Fed by the pulse, which
+// runs regardless of which page's data happens to be loaded.
 export function ApprovalWatcher({ userId }: { userId: string }) {
   const [celebration, setCelebration] = useState<string | null>(null);
   const seenKey = `approval-seen:${userId}`;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      let tasks;
-      try {
-        tasks = await getMyActiveTaskSnapshot();
-      } catch {
-        return; // network hiccup — next tick tries again
-      }
-      if (cancelled) return;
-
-      let prev: Record<string, Seen> | null = null;
-      try {
-        const raw = localStorage.getItem(seenKey);
-        prev = raw ? JSON.parse(raw) : null;
-      } catch {
-        prev = null;
-      }
-
-      if (prev) {
-        const currentIds = new Set(tasks.map((t) => t.id));
-        const delivered = Object.entries(prev)
-          .filter(([id, entry]) => entry.status === "final_export_ready" && !currentIds.has(id))
-          .map(([, entry]) => entry.title);
-        if (delivered.length === 1) {
-          setCelebration(`"${delivered[0]}" was delivered to the client. Nice work!`);
-          playChime();
-        } else if (delivered.length > 1) {
-          setCelebration(`${delivered.length} of your tasks were delivered to the client. Nice work!`);
-          playChime();
+  useEffect(
+    () =>
+      // each pulse (see Pulse.tsx) carries this editor's open tasks
+      onPulse(({ approvals: tasks }) => {
+        if (!tasks) return;
+        let prev: Record<string, Seen> | null = null;
+        try {
+          const raw = localStorage.getItem(seenKey);
+          prev = raw ? JSON.parse(raw) : null;
+        } catch {
+          prev = null;
         }
-      }
 
-      try {
-        const next: Record<string, Seen> = {};
-        for (const t of tasks) next[t.id] = { status: t.status, title: t.title };
-        localStorage.setItem(seenKey, JSON.stringify(next));
-      } catch {
-        // ignore — worst case, a fresh localStorage means we just re-bootstrap silently
-      }
-    }
+        if (prev) {
+          const currentIds = new Set(tasks.map((t) => t.id));
+          const delivered = Object.entries(prev)
+            .filter(([id, entry]) => entry.status === "final_export_ready" && !currentIds.has(id))
+            .map(([, entry]) => entry.title);
+          if (delivered.length === 1) {
+            setCelebration(`"${delivered[0]}" was delivered to the client. Nice work!`);
+            playChime();
+          } else if (delivered.length > 1) {
+            setCelebration(`${delivered.length} of your tasks were delivered to the client. Nice work!`);
+            playChime();
+          }
+        }
 
-    // 15s, not 5s — same reasoning as LiveRefresh: this is a second,
-    // independent server round-trip running continuously on every editor's
-    // browser, and it doesn't need sub-15s latency to still feel live.
-    // Also skips ticks while the tab is hidden and catches up once on
-    // return, instead of polling a tab nobody's looking at.
-    function tick() {
-      if (document.visibilityState === "visible") poll();
-    }
-    tick();
-    const id = setInterval(tick, 15000);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
-    };
-  }, [userId, seenKey]);
+        try {
+          const next: Record<string, Seen> = {};
+          for (const t of tasks) next[t.id] = { status: t.status, title: t.title };
+          localStorage.setItem(seenKey, JSON.stringify(next));
+        } catch {
+          // ignore — worst case, a fresh localStorage means we just re-bootstrap silently
+        }
+      }),
+    [seenKey]
+  );
 
   if (!celebration) return null;
 

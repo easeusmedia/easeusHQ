@@ -5,11 +5,10 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
-import { LiveRefresh } from "./LiveRefresh";
+import { Pulse } from "./Pulse";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
 import { seesClientFeedback } from "@/lib/scope";
-import { PresenceHeartbeat } from "./presence/PresenceHeartbeat";
 import { getUnreadBySender } from "./presence/actions";
 import { MainScroll } from "./MainScroll";
 import { ClientDock } from "./clients/ClientDock";
@@ -18,9 +17,6 @@ import { ACTIVE_WINDOW_MS } from "./presence/constants";
 import { clientLogoSrc } from "@/lib/photos";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
-  const sessionUserId = await getSessionUserId();
-  if (!sessionUserId) redirect("/login");
-
   // read server-side so the very first paint already matches the user's
   // saved preference — a client-only localStorage read meant every reload
   // rendered open by default, then snapped collapsed a moment later once
@@ -28,7 +24,25 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const jar = await cookies();
   const sidebarOpen = jar.get("tasks-sidebar-open")?.value !== "0";
 
-  const users = await getAllUsers().catch(() => []);
+  // Everything the frame needs, asked for at once: this renders on every
+  // page, so its queries running one after another was a fixed cost on
+  // every click.
+  const [sessionUserId, users, unreadBySender, opsTeam, clientRows, draftContracts] = await Promise.all([
+    getSessionUserId(),
+    getAllUsers().catch(() => []),
+    getUnreadBySender().catch(() => ({})),
+    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
+    // the current clients: the sidebar's tree and the client bar — everyone sees them
+    prisma.client.findMany({
+      where: { status: "current" },
+      select: { id: true, slug: true, name: true, avatarUrl: true },
+      // the same order as the Clients dashboard
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    // clients who've sent their contract form, waiting on us for the terms
+    prisma.contract.count({ where: { status: "draft" } }).catch(() => 0),
+  ]);
+  if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
   if (!sessionUser) redirect("/login"); // stale/deleted-user cookie
 
@@ -36,20 +50,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const isOps = isAdmin || sessionUser.role === "core"; // Calendar access — unchanged, still every core member
   // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
   const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
-  const unreadBySender = await getUnreadBySender().catch(() => ({}));
-  // clients who've sent their contract form, waiting on us for the terms
-  const contractsWaiting = isOps ? await prisma.contract.count({ where: { status: "draft" } }).catch(() => 0) : 0;
-  const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
+  const contractsWaiting = isOps ? draftContracts : 0;
   const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
-  // the current clients: the sidebar's tree and the client bar — everyone sees them
-  const currentClients = (
-    await prisma.client.findMany({
-      where: { status: "current" },
-      select: { id: true, slug: true, name: true, avatarUrl: true },
-      // the same order as the Clients dashboard
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    })
-  ).map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
+  const currentClients = clientRows.map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
@@ -61,8 +64,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   return (
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
     <div className="flex h-screen bg-background text-foreground">
-      <LiveRefresh />
-      <PresenceHeartbeat />
+      <Pulse />
       <Sidebar
         isOps={isOps}
         name={sessionUser.name}

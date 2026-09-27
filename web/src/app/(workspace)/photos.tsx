@@ -6,7 +6,7 @@ import { createContext, useContext } from "react";
 // in the workspace layout — so any avatar anywhere can show both without
 // every list having to carry them. Keyed by name because that's all an
 // avatar is given; names on the team are unique. It's refreshed with the
-// rest of the page every few seconds (LiveRefresh), which is what keeps the
+// rest of the page whenever it changes (Pulse), which is what keeps the
 // online dots current.
 // `self`: the signed-in person — you know you're online, so your own
 // avatars never carry the dot; only other people see it.

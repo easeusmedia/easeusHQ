@@ -4,15 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
-// Called every ~60s by PresenceHeartbeat while a tab is open. Re-derives
-// who's pinging from the session rather than trusting a client-passed id —
-// same reasoning as every other action here that actually mutates data.
-export async function pingPresence(): Promise<void> {
-  const userId = await getSessionUserId();
-  if (!userId) return;
-  await prisma.user.update({ where: { id: userId }, data: { lastSeenAt: new Date() } });
-}
-
 export type ThreadMessage = { id: string; fromId: string; body: string; createdAt: Date };
 
 // Every message either direction between me and one other person, oldest

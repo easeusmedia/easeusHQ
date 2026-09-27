@@ -9,7 +9,13 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // past it, new connections are refused and the page throws P1001 ("can't
 // reach database server"), which is what surfaces as the intermittent
 // "this page hit a snag". A serverless function handles one request at a
-// time, so one connection each is all it can actually use.
+// time, so one connection each seemed all it could use.
+//
+// It wasn't: a page's independent queries (Promise.all) then queued behind
+// one connection — five took 5 × 14ms, measured on the server — and with
+// Fluid compute an instance serves several requests at once, which queued
+// behind each other too. A handful each lets them run side by side while
+// staying well inside the pooler's limits.
 //
 // Only in production, and only on a pgbouncer URL: capping local dev to a
 // single connection would serialise every query behind the slowest one.
@@ -19,7 +25,7 @@ function datasourceUrl(): string | undefined {
   try {
     const parsed = new URL(url);
     if (!parsed.searchParams.has("pgbouncer")) return undefined;
-    if (!parsed.searchParams.has("connection_limit")) parsed.searchParams.set("connection_limit", "1");
+    if (!parsed.searchParams.has("connection_limit")) parsed.searchParams.set("connection_limit", "5");
     return parsed.toString();
   } catch {
     return undefined; // malformed URL — let Prisma report it rather than masking it here

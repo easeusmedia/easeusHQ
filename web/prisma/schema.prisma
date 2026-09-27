@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // A read with its relations (a client with its tags and projects) as one
+  // SQL query rather than one per relation — each round trip to the
+  // database is ~14ms from the server, so this is most of a page's wait.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
