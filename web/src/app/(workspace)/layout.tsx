@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
@@ -81,7 +82,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           with no offset math to fake that position from inside a padded,
           scrolling child. It only renders on a client's own page (checks
           the URL itself), so every other page is unaffected. */}
-      <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} />
+      <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} canSeeBilling={isAbhishekOrAdmin(sessionUser)} />
       <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)]">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
       {hearsFromClients && <FeedbackWatcher />}

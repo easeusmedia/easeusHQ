@@ -17,7 +17,15 @@ import { CLIENTS_SECTION, primeClientsPanel, useActiveClient, useClientsPanelOpe
 // It stays mounted on every page and is only *shown* in the Clients
 // section — the dashboard and each client's own page — so arriving there
 // slides it in and leaving slides it away, rather than it appearing whole.
-export function ClientSwitcherSlot({ clients, initialOpen }: { clients: SwitcherClient[]; initialOpen: boolean }) {
+export function ClientSwitcherSlot({
+  clients,
+  initialOpen,
+  canSeeBilling,
+}: {
+  clients: SwitcherClient[];
+  initialOpen: boolean;
+  canSeeBilling: boolean;
+}) {
   primeClientsPanel(initialOpen);
   const panelOpen = useClientsPanelOpen();
   const pathname = usePathname();
@@ -31,6 +39,8 @@ export function ClientSwitcherSlot({ clients, initialOpen }: { clients: Switcher
       current={section?.[1] ?? active}
       onDashboard={pathname === "/clients"}
       shown={!!section && panelOpen}
+      onClientPage={!!section?.[1]}
+      canSeeBilling={canSeeBilling}
     />
   );
 }

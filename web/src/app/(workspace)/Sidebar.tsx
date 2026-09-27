@@ -277,12 +277,12 @@ export function Sidebar({
             // here — see that rule's own comment for why a Tailwind
             // transition utility on gap silently never worked.
             className={`group/tip relative flex items-center rounded-md text-sm ${open ? "w-full gap-2" : "gap-0"} ${
-              active ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-2"
+              active ? "bg-accent/[0.12] text-foreground" : "text-muted hover:bg-white/[0.04] hover:text-foreground"
             }`}
           >
             {/* fixed-size slot, same position whether collapsed or open */}
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-              <item.Icon size={18} />
+              <item.Icon size={18} className={active ? "text-accent" : ""} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-background" />}

@@ -203,6 +203,9 @@ export default async function ClientDetailPage({
       </div>
 
       <ClientTabs
+        // a section picked in the client sidebar arrives as a new ?tab= —
+        // the tabs start afresh on it (their own clicks don't navigate)
+        key={tab ?? "overview"}
         initialTab={tab}
         width=""
         tabs={[
