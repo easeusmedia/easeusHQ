@@ -26,6 +26,9 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
 
   return (
     <ContractEditor
+      // a new status (tracking found it signed) starts the page afresh, rather
+      // than it holding on to the status it opened with
+      key={contract.status}
       id={contract.id}
       token={contract.token}
       name={contract.name}

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Check, RefreshCw, TriangleAlert, Copy, Download, FileDown, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, CheckCheck, Eye, PenLine, RefreshCw, TriangleAlert, Copy, Download, FileDown, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { ConfirmButton } from "../ConfirmButton";
 import { ContractPaper } from "./ContractPaper";
@@ -143,16 +143,39 @@ export function ContractEditor({
     router.refresh();
   }
 
-  // Adobe's emails so far, as a line of steps
-  const timeline = events.length > 0 && (
-    <ol className="mt-3 flex flex-col gap-2 border-l border-accent/30 pl-4">
-      {/* Adobe sometimes says the same thing twice (a bounce, retried) */}
-      {events.filter((e, i) => e.text !== events[i - 1]?.text).map((e) => (
-        <li key={e.id} className="relative text-sm text-foreground/85">
-          <span className={`absolute -left-[21px] top-[7px] size-2 rounded-full ${e.kind === "completed" ? "bg-emerald-400" : "bg-accent"}`} />
-          {e.text} <span className="text-xs text-muted">· {e.when}</span>
-        </li>
-      ))}
+  // Adobe's emails so far, as a line of steps: an icon for each on one
+  // continuous line, then what happened and when. Adobe sometimes says the
+  // same thing twice (a bounce, retried) — shown once.
+  const steps = events.filter((e, i) => e.text !== events[i - 1]?.text);
+  const stepLook = (kind: string) =>
+    kind === "completed"
+      ? { Icon: CheckCheck, tone: "bg-emerald-400/15 text-emerald-300 ring-emerald-400/30" }
+      : kind === "undeliverable" || kind === "declined" || kind === "cancelled" || kind === "expired"
+        ? { Icon: TriangleAlert, tone: "bg-accent/20 text-accent ring-accent/50" }
+        : kind === "viewed"
+          ? { Icon: Eye, tone: "bg-white/[0.05] text-foreground/70 ring-white/10" }
+          : kind === "sent"
+            ? { Icon: Send, tone: "bg-accent/10 text-accent ring-accent/25" }
+            : { Icon: PenLine, tone: "bg-accent/10 text-accent ring-accent/25" };
+  const timeline = steps.length > 0 && (
+    <ol className="mt-4 flex flex-col">
+      {steps.map((e, i) => {
+        const { Icon, tone } = stepLook(e.kind);
+        return (
+          <li key={e.id} className="flex gap-3">
+            <div className="flex w-6 shrink-0 flex-col items-center">
+              <span className={`flex size-6 items-center justify-center rounded-full ring-1 ${tone}`}>
+                <Icon size={12} />
+              </span>
+              {i < steps.length - 1 && <span className="my-1 w-px flex-1 bg-white/10" />}
+            </div>
+            <div className={`min-w-0 pt-0.5 ${i < steps.length - 1 ? "pb-4" : ""}`}>
+              <p className="text-sm leading-5 text-foreground/90">{e.text}</p>
+              <p className="text-xs text-muted">{e.when}</p>
+            </div>
+          </li>
+        );
+      })}
     </ol>
   );
   // Did it reach the right person? The latest send's address against the
