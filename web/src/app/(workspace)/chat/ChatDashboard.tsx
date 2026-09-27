@@ -263,7 +263,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                   onClick={send}
                   disabled={sending || !draft.trim()}
                   aria-label="Send message"
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1220] transition-opacity hover:opacity-90 disabled:opacity-30"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition-colors duration-200 hover:brightness-110 disabled:bg-accent/35 disabled:text-white/75"
                 >
                   <Send size={15} />
                 </button>
