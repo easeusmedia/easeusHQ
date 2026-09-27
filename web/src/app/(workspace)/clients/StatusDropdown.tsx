@@ -17,6 +17,13 @@ const STATUS_STYLE: Record<string, string> = {
   previous: "bg-surface text-muted border-border",
 };
 
+// the quiet version's dot: green for current, amber on hold, grey before
+const STATUS_DOT: Record<string, string> = {
+  current: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]",
+  on_hold: "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]",
+  previous: "bg-white/30",
+};
+
 const OPTIONS = ["current", "on_hold", "previous"];
 
 // One dropdown, used both in the client list (change status without
@@ -26,11 +33,14 @@ export function StatusDropdown({
   clientId,
   status,
   size = "sm",
+  quiet = false,
   onChange,
 }: {
   clientId: string;
   status: string;
   size?: "sm" | "md";
+  // a dot and a word instead of a coloured pill — for the client cards
+  quiet?: boolean;
   // the client list already has its own optimistic state (shared with
   // drag-and-drop) — when given, this drives that instead of calling
   // updateClientStatus/router.refresh() itself, so a pick from the
@@ -80,13 +90,21 @@ export function StatusDropdown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={pending}
-        className={`status-pop flex items-center gap-1 rounded-full border font-medium disabled:opacity-60 ${pad} ${STATUS_STYLE[status]}`}
+        className={
+          quiet
+            ? "group/status flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-muted transition-colors duration-200 hover:bg-white/[0.05] hover:text-foreground disabled:opacity-60"
+            : `status-pop flex items-center gap-1 rounded-full border font-medium disabled:opacity-60 ${pad} ${STATUS_STYLE[status]}`
+        }
       >
+        {quiet && <span className={`size-1.5 rounded-full ${STATUS_DOT[status] ?? STATUS_DOT.previous}`} />}
         {STATUS_LABEL[status] ?? status}
-        <ChevronDown size={size === "sm" ? 11 : 13} />
+        <ChevronDown
+          size={size === "sm" ? 11 : 13}
+          className={quiet ? "opacity-0 transition-opacity duration-200 group-hover/status:opacity-100" : undefined}
+        />
       </button>
       {open && (
-        <div className="pop-in absolute left-0 top-full z-20 mt-1 w-36 rounded-md popover p-1 shadow-lg">
+        <div className={`pop-in absolute top-full z-20 mt-1 w-36 rounded-xl popover p-1 ${quiet ? "right-0" : "left-0"}`}>
           {OPTIONS.map((o) => (
             <button
               key={o}

@@ -94,7 +94,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
       ) : (
         <button
           onClick={open}
-          className="btn-add flex h-full min-h-[160px] flex-col items-center justify-center gap-2 rounded-2xl"
+          className="btn-add flex h-full min-h-[130px] flex-col items-center justify-center gap-2 rounded-3xl"
         >
           <Plus size={22} />
           <span className="text-xs">Add client</span>

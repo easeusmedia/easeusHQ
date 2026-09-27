@@ -149,17 +149,17 @@ body {
   --tint: 110, 231, 183;
 }
 .badge-lit svg {
-  filter: drop-shadow(0 0 4px rgba(var(--tint), 0.45));
+  filter: drop-shadow(0 0 1.5px rgba(var(--tint), 0.75)) drop-shadow(0 0 7px rgba(var(--tint), 0.45));
 }
-/* a resting icon: the faintest halo, just enough to lift it off the dark */
+/* a resting icon: a faint halo, just enough to lift it off the dark */
 .badge svg,
 .icon-soft {
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.14));
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.25)) drop-shadow(0 0 5px rgba(255, 255, 255, 0.12));
 }
 /* an icon that's lit: the accent with a soft glow held tight to it */
 .icon-glow {
   color: var(--accent);
-  filter: drop-shadow(0 0 5px rgba(75, 149, 230, 0.45));
+  filter: drop-shadow(0 0 1.5px rgba(75, 149, 230, 0.75)) drop-shadow(0 0 7px rgba(75, 149, 230, 0.45));
 }
 
 /* Replace the browser's default focus ring (too thick, doubles up with our
