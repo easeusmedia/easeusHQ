@@ -25,6 +25,10 @@ import {
   sendContract,
 } from "./actions";
 
+// Acrobat's E-sign page — its Request e-signatures card takes a dropped file
+// straight away. (There's no address that opens the request itself.)
+const ACROBAT_ESIGN = "https://acrobat.adobe.com/link/tools/?group=group-sign";
+
 // One contract, start to finish. On the left: what to do next, the form
 // (click an answer, or type one for Claude), and Claude for anything else.
 // On the right: the contract exactly as it will read.
@@ -184,7 +188,7 @@ export function ContractEditor({
     // No Adobe API on the plan: sent through Acrobat's own (free) Request
     // e-signatures, with the PDF's signature and date spots already tagged
     const acrobat = (
-      <a href="https://acrobat.adobe.com/" target="_blank" rel="noopener noreferrer" className="btn btn-ghost flex items-center gap-1.5">
+      <a href={ACROBAT_ESIGN} target="_blank" rel="noopener noreferrer" className="btn btn-ghost flex items-center gap-1.5">
         Open Acrobat <ArrowUpRight size={14} />
       </a>
     );
@@ -198,7 +202,7 @@ export function ContractEditor({
         a.href = `/api/contracts/${id}/pdf?sign`;
         a.download = "";
         a.click();
-        window.open("https://acrobat.adobe.com/", "_blank", "noopener");
+        window.open(ACROBAT_ESIGN, "_blank", "noopener");
         setPrepared(true);
       };
       const send = (
@@ -221,7 +225,7 @@ export function ContractEditor({
         body: prepared ? (
           <ol className="flex list-decimal flex-col gap-1 pl-4">
             <li>
-              In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b> and drop in the file that just downloaded.
+              Drag the file that just downloaded onto <b className="font-medium text-foreground">Request e-signatures</b> in the Acrobat tab.
             </li>
             <li>
               Add <b className="font-medium text-foreground">{PROVIDER.email}</b> first, then paste the client&apos;s email (it&apos;s copied).
