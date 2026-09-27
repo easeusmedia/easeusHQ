@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Copy, Download, FileDown, PenLine, RotateCcw, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Download, FileDown, ListChecks, PenLine, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { ConfirmButton } from "../ConfirmButton";
 import { ContractPaper } from "./ContractPaper";
@@ -59,6 +59,10 @@ export function ContractEditor({
   const [thinking, setThinking] = useState(false);
   const [busyField, setBusyField] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+  // the left column shows one at a time: the form, or Claude
+  const [tab, setTab] = useState<"form" | "chat">("form");
+  // Claude answered something sent from the form while the chat was hidden
+  const [unseen, setUnseen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -97,7 +101,12 @@ export function ContractEditor({
     setThinking(false);
     setBusyField(null);
     if (res.error) return setChatError(res.error);
-    if (res.chat) setChat(res.chat);
+    if (res.chat) {
+      setChat(res.chat);
+      // a question back needs answering where it can be seen
+      if (res.chat[res.chat.length - 1]?.question) setTab("chat");
+      else setUnseen(true);
+    }
     // only what Claude changed — anything clicked while it was thinking stays
     if (res.changes) setD((cur) => withDefaults({ ...cur, ...res.changes }));
     if (res.clauses) setClauses(res.clauses);
@@ -213,8 +222,8 @@ export function ContractEditor({
   })();
 
   // On a large screen the page itself never scrolls: the header and the
-  // stepper stay put; the left column (form, next step, Claude) scrolls as
-  // one, and on the right the action bar stays while the contract scrolls.
+  // stepper stay put; the left column shows the form (which scrolls) or
+  // Claude, and on the right the action bar stays while the contract scrolls.
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))] lg:overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start gap-3">
@@ -242,20 +251,52 @@ export function ContractEditor({
       </div>
 
       <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
-        {/* the left column scrolls as one: form, next step, Claude */}
-        <div className="flex min-w-0 flex-col gap-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-          <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
-
-          {/* after the last question: what to do now */}
-          <div className="relative shrink-0 overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
-            <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
-            <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
-            <p className="mt-1.5 text-base font-medium">{next.title}</p>
-            <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
-            {next.action && <div className="mt-4 flex">{next.action}</div>}
+        {/* the left column: the form or Claude, one at a time, each given the whole height */}
+        <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
+          <div className="flex shrink-0 gap-1 rounded-2xl border border-white/[0.06] bg-surface/60 p-1">
+            {(
+              [
+                { key: "form", label: "Form", Icon: ListChecks },
+                { key: "chat", label: "Ask Claude", Icon: Sparkles },
+              ] as const
+            ).map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setTab(key);
+                  // leaving the chat means its replies were seen; opening it sees them
+                  setUnseen(false);
+                }}
+                aria-pressed={tab === key}
+                className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-sm transition-colors duration-200 ${
+                  tab === key ? "bg-surface-2 text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Icon size={15} className={tab === key ? "text-accent" : ""} />
+                {label}
+                {key === "chat" && (thinking || (unseen && tab !== "chat")) && (
+                  <span className={`size-1.5 rounded-full bg-accent ${thinking ? "animate-pulse" : ""}`} />
+                )}
+              </button>
+            ))}
           </div>
 
-          <div className="h-[420px] shrink-0">
+          {/* both stay mounted, so nothing typed is lost switching between them */}
+          <div className={`${tab === "form" ? "flex" : "hidden"} flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1`}>
+            <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
+
+            {/* after the last question: what to do now */}
+            <div className="relative shrink-0 overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
+              <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
+              <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
+              <p className="mt-1.5 text-base font-medium">{next.title}</p>
+              <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
+              {next.action && <div className="mt-4 flex">{next.action}</div>}
+            </div>
+          </div>
+
+          <div className={`${tab === "chat" ? "block" : "hidden"} h-[560px] lg:h-auto lg:min-h-0 lg:flex-1`}>
             <ContractChat
               chat={chat}
               thinking={thinking}

@@ -126,8 +126,8 @@ export function ContractChat({
       <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3">
         <Avatar />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Ask Claude</p>
-          <p className="text-xs text-muted">Anything the form doesn&apos;t cover — clauses, wording, special terms</p>
+          <p className="text-sm font-medium">Claude</p>
+          <p className="text-xs text-muted">Add or change anything — clauses, wording, terms</p>
         </div>
         {chat.length > 0 && (
           <button
