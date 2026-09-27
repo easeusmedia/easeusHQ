@@ -75,7 +75,7 @@ export function OnboardingForm({
     try {
       setLogo(await resizeToJpeg(file, 320, 320));
     } catch {
-      setError("That image couldn't be read — a JPEG or PNG works best.");
+      setError("That image couldn't be read. Please try a JPEG or PNG.");
     }
   }
 
@@ -264,7 +264,7 @@ export function OnboardingForm({
         <button type="submit" disabled={saving} className="btn-glow rounded-xl px-5 py-3 text-sm font-medium disabled:opacity-60">
           {!saving ? "Send to Easeus" : sent > 0 ? "Uploading your files…" : "Sending…"}
         </button>
-        <p className="pb-6 text-center text-xs text-muted">Only the Easeus team sees this.</p>
+        <p className="pb-6 text-center text-xs text-muted">Only the Easeus Media team will see this.</p>
       </form>
     </main>
   );

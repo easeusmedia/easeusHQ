@@ -54,7 +54,7 @@ export async function startRun(
   callback?: string
 ): Promise<{ id: string; account: string }> {
   const tokens = await apifyTokens();
-  if (!tokens.length) throw new Error("Analytics isn't set up yet — an admin adds an Apify token under Integrations → Client analytics.");
+  if (!tokens.length) throw new Error("Analytics isn't set up yet. An admin can add an Apify token under Integrations → Client analytics.");
   const hook = callback
     ? `&webhooks=${Buffer.from(
         JSON.stringify([

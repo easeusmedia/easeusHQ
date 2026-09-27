@@ -86,8 +86,7 @@ export function FrameioIntegration({
         )}
       </div>
       <p className="-mt-2 text-sm text-muted">
-        So a delivered task can offer to copy its finished file straight from the review link into Creative Exports.
-        Read-only: nothing is ever written back to Frame.io.
+        Lets a delivered task copy its final file from the review link straight into Creative Exports. Read-only — nothing is ever written back to Frame.io.
       </p>
 
       {!hasApp ? (

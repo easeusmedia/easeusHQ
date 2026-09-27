@@ -326,7 +326,7 @@ function CountryPicker({ value, onChange, invalid }: { value: string; onChange: 
           role="listbox"
           className="fade-in absolute inset-x-0 top-full z-20 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-white/[0.08] bg-[#141414] p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.8)]"
         >
-          {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No match</li>}
+          {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No matches</li>}
           {shown.map((n, i) => (
             <li
               key={n}
@@ -453,7 +453,7 @@ function DialPicker({ iso, onChange }: { iso: string; onChange: (iso: string) =>
             className="w-full border-b border-white/[0.06] bg-transparent px-3.5 py-3 text-[13px] text-white/90 outline-none! placeholder:text-white/30"
           />
           <ul ref={listRef} role="listbox" className="max-h-64 overflow-y-auto p-1">
-            {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No match</li>}
+            {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No matches</li>}
             {shown.map((c, i) => (
               <li
                 key={c.iso}

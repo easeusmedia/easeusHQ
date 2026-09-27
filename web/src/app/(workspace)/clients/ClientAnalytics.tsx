@@ -193,7 +193,7 @@ export function ClientAnalytics({
               type="button"
               onClick={() => setRefresh(1)}
               disabled={loading || !!current?.syncing}
-              title="Read fresh numbers now — they're also refreshed every night on their own"
+              title="Refresh the numbers now. They also update automatically every night."
               className="btn btn-sm btn-ghost disabled:opacity-60"
             >
               <RefreshCw size={13} className={current?.syncing ? "animate-spin" : ""} />
@@ -206,7 +206,7 @@ export function ClientAnalytics({
 
       {!ready[platform] ? (
         <Notice platform={platform}>
-          The team&apos;s {PLATFORM[platform].name} connection isn&apos;t made yet — an admin makes it once, under
+          {PLATFORM[platform].name} isn&apos;t connected yet. An admin can connect it once, under
           Integrations → Client analytics.
         </Notice>
       ) : !account || editing ? (
@@ -246,7 +246,7 @@ export function ClientAnalytics({
             {canEdit && (
               <span className="ml-auto flex items-center gap-3">
                 {work && (
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted" title="On: every post counts unless marked not ours (a channel we run). Off: only posts matched to our tasks or marked ours.">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted" title="On: every post counts unless it's marked as not ours, for channels we run. Off: only posts matched to our tasks or marked as ours count.">
                     <Checkbox checked={work.allOurs} onChange={everything} label="Everything here is our work" size={14} />
                     Everything here is our work
                   </label>
@@ -268,8 +268,8 @@ export function ClientAnalytics({
               {current?.pending && (
                 <p className="fade-in flex items-center gap-2 text-sm text-muted">
                   <RefreshCw size={13} className="animate-spin" />
-                  Reading their {PLATFORM[platform].name} for the first time — a minute or two. After that it opens
-                  straight away, and it&apos;s kept up to date every night.
+                  Fetching their {PLATFORM[platform].name} numbers for the first time. This takes a minute or two; after
+                  that, they load instantly and update every night.
                 </p>
               )}
               <Skeleton />
@@ -407,7 +407,7 @@ function Board({
           <>
             {rows.length === 0 ? (
               <p className="rounded-xl bg-surface/40 px-4 py-8 text-center text-sm text-muted">
-                {work?.review.length ? "Nothing counted as ours yet in this range — see To review." : "Nothing in this range."}
+                {work?.review.length ? "Nothing is counted as ours in this period yet. Check To review." : "Nothing in this period."}
               </p>
             ) : (
               <ol className="card-surface divide-y divide-border/50 overflow-hidden rounded-2xl shadow-sm">
@@ -426,7 +426,7 @@ function Board({
                         <button
                           type="button"
                           onClick={() => mark([r.id], false)}
-                          title="Remove — leave it out of the numbers (it moves to Not ours, where it can be put back)"
+                          title="Leave this out of the numbers. It moves to Not ours, where you can restore it."
                           className="btn btn-xs btn-ghost"
                         >
                           <X size={12} /> Remove
@@ -460,11 +460,11 @@ function Board({
         ) : (
           <DecideList
             items={(list === "review" ? work?.review : work?.notOurs) ?? []}
-            empty={list === "review" ? "Nothing left to decide in this range." : "Nothing ruled out."}
+            empty={list === "review" ? "Nothing left to review in this period." : "Nothing ruled out."}
             hint={
               list === "review"
-                ? "Posted on their account, but not matched to any task of ours — say which ones we made, and only those count."
-                : "Removed — left out of every number here. Put one back if it was ours after all."
+                ? "Posted on their account but not matched to any of our tasks. Mark the ones we made, and only those will count."
+                : "Excluded from every number here. Restore any that turn out to be ours."
             }
             actions={(item) =>
               canEdit ? (
@@ -682,7 +682,7 @@ function Chart({ series }: { series: { day: string; value: number }[] }) {
       </div>
       <div className="mt-2 flex justify-between text-xs text-muted">
         <span>{series[0] && shortDate(series[0].day)}</span>
-        <span>peak {compact(max)}</span>
+        <span>Peak {compact(max)}</span>
         <span>{series.at(-1) && shortDate(series.at(-1)!.day)}</span>
       </div>
     </div>
@@ -726,8 +726,8 @@ function AccountForm({
       {canEdit ? (
         <>
           <span className="block">
-            Their {name} {platform === "youtube" ? "channel link or @handle" : "@handle or profile link"} — their public
-            numbers show here from then on.
+            Their {name} {platform === "youtube" ? "channel link or @handle" : "@handle or profile link"}. Their public
+            numbers will appear here from then on.
           </span>
           <span className="mt-4 flex w-full max-w-md gap-2">
             <input
@@ -744,7 +744,7 @@ function AccountForm({
               </button>
             )}
             <button type="button" onClick={save} disabled={busy || !input.trim()} className="btn btn-glow shrink-0 disabled:opacity-60">
-              {busy ? "Saving…" : "Show"}
+              {busy ? "Saving…" : "Save"}
             </button>
           </span>
           {error && <span className="mt-2 block text-xs text-red-300">{error}</span>}

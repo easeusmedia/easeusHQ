@@ -169,7 +169,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
               </button>
             );
           })}
-          {filtered.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted">Nobody by that name.</p>}
+          {filtered.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted">No one by that name.</p>}
         </div>
       </aside>
 
@@ -195,7 +195,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
               ) : messages.length === 0 ? (
                 <div className="m-auto flex flex-col items-center gap-3 text-center">
                   <Face person={open} size={48} />
-                  <p className="text-sm text-muted">No messages yet — say hello to {open.name.split(" ")[0]}.</p>
+                  <p className="text-sm text-muted">No messages yet. Say hello to {open.name.split(" ")[0]}.</p>
                 </div>
               ) : (
                 messages.map((m, i) => {
@@ -265,7 +265,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
             </div>
           </div>
         ) : (
-          <p className="relative m-auto text-sm text-muted">Pick someone to start a conversation.</p>
+          <p className="relative m-auto text-sm text-muted">Choose a teammate to start a conversation.</p>
         )}
       </section>
     </div>

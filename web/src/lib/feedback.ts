@@ -8,7 +8,7 @@ export const FEEDBACK_PER_HOUR = 20;
 export type FeedbackInput = { name: string; message: string; trap: string };
 
 export function checkFeedback(input: FeedbackInput): { name: string | null; message: string } | { error: string } {
-  if (input.trap) return { error: "Couldn't send that." };
+  if (input.trap) return { error: "That couldn't be sent. Please try again." };
   const message = input.message.trim();
   if (!message) return { error: "Write something first." };
   if (message.length > FEEDBACK_MAX) return { error: `Keep it under ${FEEDBACK_MAX} characters.` };

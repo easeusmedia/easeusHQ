@@ -45,8 +45,7 @@ export function GmailIntegration({ account, clientId }: { account: string | null
         )}
       </div>
       <p className="text-sm text-muted">
-        Read-only. Adobe emails easeus.media@gmail.com when a contract goes out, when it&apos;s signed, and when it&apos;s filed — so
-        each contract updates by itself and keeps the signed copy.
+        Read-only. Adobe emails easeus.media@gmail.com when a contract is sent, signed and filed, so each contract updates automatically and keeps its signed copy.
         {!clientId && " Set up the Google app under Google Drive first."}
       </p>
     </section>

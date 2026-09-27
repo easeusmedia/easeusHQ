@@ -32,7 +32,7 @@ const done = () => revalidatePath("/contracts", "layout");
 // A new contract and the link its client fills in
 export async function createContract(name: string): Promise<{ id?: string; token?: string; error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can start a contract." };
+  if (!user) return { error: "Only the operations team can start a contract." };
   const contract = await prisma.contract.create({
     data: {
       token: randomBytes(24).toString("base64url"),
@@ -51,26 +51,26 @@ export async function createContract(name: string): Promise<{ id?: string; token
 async function editable(id: string) {
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
   if (!c) return { error: "That contract no longer exists." };
-  if (c.status === "sent" || c.status === "signed") return { error: "It's already gone out for signing — it can't change now." };
+  if (c.status === "sent" || c.status === "signed") return { error: "This contract is already out for signature and can no longer be changed." };
   return { status: c.status === "approved" ? "draft" : c.status };
 }
 
 // A change from the form — only the fields it touches, merged into what's
 // saved, so it never undoes an edit Claude made a moment before
 export async function saveContractDetails(id: string, patch: Partial<ContractDetails>): Promise<{ error?: string; status?: string; details?: ContractDetails }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
+  if (!(await requireOps())) return { error: "Only the operations team can edit a contract." };
   const e = await editable(id);
   if (e.error) return e;
   const c = await prisma.contract.findUnique({ where: { id }, select: { details: true } });
   const details = withDefaults({ ...withDefaults(c?.details), ...patch });
-  if (JSON.stringify(details).length > 50_000) return { error: "That's too much to keep." };
+  if (JSON.stringify(details).length > 50_000) return { error: "That's too long to save." };
   await prisma.contract.update({ where: { id }, data: { details, status: e.status } });
   done();
   return { status: e.status, details };
 }
 
 export async function saveContractClauses(id: string, clauses: Clause[]): Promise<{ error?: string; status?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
+  if (!(await requireOps())) return { error: "Only the operations team can edit a contract." };
   const e = await editable(id);
   if (e.error) return e;
   const clean = cleanClauses(clauses);
@@ -82,7 +82,7 @@ export async function saveContractClauses(id: string, clauses: Clause[]): Promis
 
 // Back to the master template's current clauses
 export async function resetContractClauses(id: string): Promise<{ error?: string; clauses?: Clause[] }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
+  if (!(await requireOps())) return { error: "Only the operations team can edit a contract." };
   const e = await editable(id);
   if (e.error) return e;
   const clauses = await masterClauses();
@@ -92,10 +92,10 @@ export async function resetContractClauses(id: string): Promise<{ error?: string
 }
 
 export async function approveContract(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can approve a contract." };
+  if (!(await requireOps())) return { error: "Only the operations team can approve a contract." };
   const c = await prisma.contract.findUnique({ where: { id } });
   if (!c) return { error: "That contract no longer exists." };
-  if (c.status === "sent" || c.status === "signed") return { error: "It's already gone out." };
+  if (c.status === "sent" || c.status === "signed") return { error: "This contract has already been sent." };
   const { missing } = compose(c.clauses as Clause[], withDefaults(c.details), indiaDay(new Date()));
   if (missing.length) return { error: `Still needed: ${missing.map((m) => m.label).join(", ")}.` };
   await prisma.contract.update({ where: { id }, data: { status: "approved", approvedAt: new Date() } });
@@ -106,10 +106,10 @@ export async function approveContract(id: string): Promise<{ error?: string }> {
 // Sent by hand through Acrobat's own Request e-signatures (no Adobe API on
 // the plan): the contract is dated today if it had no set date, and locked.
 export async function markContractSent(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  if (!(await requireOps())) return { error: "Only the operations team can do that." };
   const c = await prisma.contract.findUnique({ where: { id } });
   if (!c) return { error: "That contract no longer exists." };
-  if (c.status !== "approved") return { error: "Approve it first — only an approved contract goes out." };
+  if (c.status !== "approved") return { error: "Please approve the contract first. Only approved contracts can be sent." };
   const details = withDefaults(c.details);
   if (!details.signingDate) details.signingDate = indiaDay(new Date());
   await prisma.contract.update({ where: { id }, data: { status: "sent", sentAt: new Date(), details } });
@@ -118,9 +118,9 @@ export async function markContractSent(id: string): Promise<{ error?: string }> 
 }
 
 export async function markContractSigned(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  if (!(await requireOps())) return { error: "Only the operations team can do that." };
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
-  if (c?.status !== "sent") return { error: "It hasn't gone out for signing yet." };
+  if (c?.status !== "sent") return { error: "This contract hasn't been sent for signature yet." };
   await prisma.contract.update({ where: { id }, data: { status: "signed", signedAt: new Date() } });
   done();
   return {};
@@ -128,7 +128,7 @@ export async function markContractSigned(id: string): Promise<{ error?: string }
 
 // "Check now": read Adobe's latest emails about it straight away
 export async function checkContractMail(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  if (!(await requireOps())) return { error: "Only the operations team can do that." };
   try {
     await trackContracts(id, true);
   } catch (err) {
@@ -139,9 +139,9 @@ export async function checkContractMail(id: string): Promise<{ error?: string }>
 }
 
 export async function deleteContract(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  if (!(await requireOps())) return { error: "Only the operations team can do that." };
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
-  if (c?.status === "sent" || c?.status === "signed") return { error: "A contract that's gone out stays on record." };
+  if (c?.status === "sent" || c?.status === "signed") return { error: "Contracts that have been sent stay on record." };
   await prisma.contract.deleteMany({ where: { id } });
   done();
   return {};
@@ -150,7 +150,7 @@ export async function deleteContract(id: string): Promise<{ error?: string }> {
 // ---- the master template ----
 
 export async function saveTemplate(clauses: Clause[]): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit the template." };
+  if (!(await requireOps())) return { error: "Only the operations team can edit the template." };
   const clean = cleanClauses(clauses);
   if (!clean) return { error: "Those clauses couldn't be saved." };
   const value = JSON.stringify(clean);
@@ -160,7 +160,7 @@ export async function saveTemplate(clauses: Clause[]): Promise<{ error?: string 
 }
 
 export async function resetTemplate(): Promise<{ error?: string; clauses?: Clause[] }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit the template." };
+  if (!(await requireOps())) return { error: "Only the operations team can edit the template." };
   await prisma.appSetting.deleteMany({ where: { key: TEMPLATE } });
   done();
   return { clauses: DEFAULT_CLAUSES };
@@ -176,18 +176,18 @@ export async function chatContract(
   // files attached to the message, as "files"
   form: FormData | null = null
 ): Promise<{ error?: string; chat?: ChatMessage[]; details?: ContractDetails; changes?: Partial<ContractDetails>; clauses?: Clause[]; status?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
+  if (!(await requireOps())) return { error: "Only the operations team can edit a contract." };
   const files = (form?.getAll("files") ?? []).filter((f): f is File => f instanceof File);
   if (!text.trim() && !files.length) return {};
   if (files.length > 5) return { error: "Attach up to five files at a time." };
-  if (files.reduce((n, f) => n + f.size, 0) > 4 * 1024 * 1024) return { error: "Those files come to more than 4MB — attach fewer or smaller ones." };
+  if (files.reduce((n, f) => n + f.size, 0) > 4 * 1024 * 1024) return { error: "Those files total more than 4 MB. Please attach fewer or smaller files." };
   const attached: Attachment[] = [];
   for (const f of files) {
     const bytes = Buffer.from(await f.arrayBuffer());
     if (/^image\/(jpeg|png|gif|webp)$/.test(f.type)) attached.push({ name: f.name, kind: "image", mediaType: f.type, data: bytes.toString("base64") });
     else if (f.type === "application/pdf") attached.push({ name: f.name, kind: "pdf", data: bytes.toString("base64") });
     else if (f.type.startsWith("text/") || /\.(txt|md|csv)$/i.test(f.name)) attached.push({ name: f.name, kind: "text", data: bytes.toString("utf8").slice(0, 100_000) });
-    else return { error: `${f.name} can't be read — attach PDFs, images or text files.` };
+    else return { error: `${f.name} can't be read. Please attach a PDF, image or text file.` };
   }
   try {
     const res = await askAboutContract(id, (text.trim() || "(see attached)").slice(0, 8000), attached);
@@ -199,7 +199,7 @@ export async function chatContract(
 }
 
 export async function clearContractChat(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can do that." };
+  if (!(await requireOps())) return { error: "Only the operations team can do that." };
   await prisma.contract.update({ where: { id }, data: { chat: [] } });
   return {};
 }

@@ -107,7 +107,7 @@ function TopRow({ title, items, tall, clientName }: { title: string; items: Item
           ))}
         </div>
       ) : (
-        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted">None in this range</p>
+        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted">Nothing in this period</p>
       )}
     </div>
   );
@@ -278,7 +278,7 @@ export default async function AnalyticsPage({
 
       {!ids.length ? (
         <p className="rounded-3xl border border-dashed border-white/10 px-6 py-14 text-center text-sm text-muted">
-          No client has {yt ? "a YouTube channel" : "an Instagram handle"} set yet — add it on each client&apos;s Analytics tab.
+          No client has {yt ? "a YouTube channel" : "an Instagram handle"} yet. Add one from each client&apos;s Analytics tab.
         </p>
       ) : (
         <div key={platform} className="fade-in flex flex-col gap-8">
@@ -286,7 +286,7 @@ export default async function AnalyticsPage({
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
               <StatTile
-                label="Views pulled"
+                label="Total views"
                 value={count(total)}
                 lit={total > 0}
                 Icon={Eye}
@@ -298,7 +298,7 @@ export default async function AnalyticsPage({
             </div>
             {review > 0 && (
               <p className="self-start rounded-full border border-accent/25 bg-accent/[0.08] px-3 py-1 text-xs text-accent">
-                {plural(review, "post")} not yet marked ours — left out until someone does
+                {plural(review, "post")} not yet marked as ours, and left out until they are
               </p>
             )}
           </div>
@@ -306,11 +306,11 @@ export default async function AnalyticsPage({
           {/* the week's best — long-form and Shorts in rows of their own */}
           {yt ? (
             <>
-              <TopRow title="long-form" items={longForm} tall={false} clientName={clientName} />
+              <TopRow title="Long-form" items={longForm} tall={false} clientName={clientName} />
               <TopRow title="Shorts" items={shorts} tall clientName={clientName} />
             </>
           ) : (
-            <TopRow title="reels" items={reels} tall clientName={clientName} />
+            <TopRow title="Reels" items={reels} tall clientName={clientName} />
           )}
 
           {/* where it came from */}
@@ -352,7 +352,7 @@ export default async function AnalyticsPage({
           </div>
 
           <p className="text-xs text-muted">
-            Only what we made — matched to our tasks, marked ours, or on channels we run. Views so far, refreshed every night.
+            Only content we produced: posts matched to our tasks, marked as ours, or published on channels we run. Views to date, refreshed nightly.
             {syncing && " Reading the latest now; this page updates when it's done."}
           </p>
         </div>

@@ -14,9 +14,9 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-    return { error: "Wrong email or password." };
+    return { error: "That email and password don't match. Please try again." };
   }
-  if (!onStaff(user)) return { error: "This account no longer has access." };
+  if (!onStaff(user)) return { error: "This account no longer has access. Please speak to your admin." };
 
   await createSession(user.id);
   redirect("/board");

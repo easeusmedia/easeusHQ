@@ -52,7 +52,7 @@ export type TaskFormState = { error?: string; success?: boolean };
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const actor = await sessionActor();
-  if (!actor) return { error: "You're not signed in." };
+  if (!actor) return { error: "Your session has ended. Please sign in again." };
   const title = String(formData.get("title"));
   const clientId = String(formData.get("clientId") ?? "");
   const assignedToId = String(formData.get("assignedToId") ?? "");
@@ -95,7 +95,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       })
     : null;
   if (assignedToId && (!assignee || assignee.employment === "former")) {
-    return { error: "That person is no longer with the team — pick someone else." };
+    return { error: "That person is no longer on the team. Please choose someone else." };
   }
 
   const task = await prisma.task.create({
@@ -146,7 +146,7 @@ type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNote
 async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChangeExtras): Promise<TaskFormState> {
   try {
     const actor = await sessionActor();
-    if (!actor) return { error: "You're not signed in." };
+    if (!actor) return { error: "Your session has ended. Please sign in again." };
     const actingUserId = actor.id;
     const actingRole = actor.role as Role;
     const frameioLink = extras.frameioLink ? requireLinkOrNull(extras.frameioLink, "Frame.io link") : null;
@@ -156,7 +156,7 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     const isAssignee = task.assignedToId === actingUserId;
 
     if (!canTransition(task.status, to, { role: actingRole, isAssignee })) {
-      return { error: `${actingRole} cannot move a task from ${task.status} to ${to}` };
+      return { error: "You can't move this task to that stage." };
     }
 
     // hard rule, not just a UI nicety: a task can't be marked delivered
@@ -209,7 +209,7 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
   try {
     // ops arrange anything; an editor only their own cards
     const actor = await sessionActor();
-    if (!actor) return { error: "You're not signed in." };
+    if (!actor) return { error: "Your session has ended. Please sign in again." };
     const where = actor.role === "employee" ? { id: taskId, assignedToId: actor.id } : { id: taskId };
     const { count } = await prisma.task.updateMany({ where, data: { sortOrder } });
     if (count === 0) return { error: "You can only move your own tasks." };
@@ -228,7 +228,7 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
 export async function updateTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const taskId = String(formData.get("taskId"));
   const actor = await sessionActor();
-  if (!actor) return { error: "You're not signed in." };
+  if (!actor) return { error: "Your session has ended. Please sign in again." };
 
   if (actor.role === "employee") {
     const actingUserId = actor.id;
@@ -267,7 +267,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       select: { id: true },
     }))
   ) {
-    return { error: "That person is no longer with the team — pick someone else." };
+    return { error: "That person is no longer on the team. Please choose someone else." };
   }
   // .has() rather than .get() so "field wasn't in the form" (leave it
   // untouched) stays distinct from "field was shown and cleared" (null it).
@@ -286,7 +286,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: err instanceof Error ? err.message : "That link isn't valid." };
   }
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
-  if (!title) return { error: "Title is required" };
+  if (!title) return { error: "Please give the task a title." };
 
   // reference/asset links only get an input when the task already has one
   // (they arrive from Notion), so the same has()-not-get() rule applies:
@@ -358,7 +358,7 @@ export async function listTaskTags() {
 // client-facing — the common case — and can be flipped later.
 export async function createTaskTag(name: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can add a tag." };
+  if (!user) return { error: "Only the operations team can add a tag." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the tag a name." };
 
@@ -380,7 +380,7 @@ export async function createTaskTag(name: string): Promise<{ error?: string }> {
 // they're grouped.
 export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can remove a tag." };
+  if (!user) return { error: "Only the operations team can remove a tag." };
 
   const tag = await prisma.taskTag.findUnique({ where: { id: tagId }, select: { teamId: true } });
   if (!tag) return { error: "That tag is already gone." };
@@ -397,7 +397,7 @@ export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> 
 export async function deleteTask(formData: FormData) {
   const taskId = String(formData.get("taskId"));
   const actor = await sessionActor();
-  if (!actor || actor.role === "employee") throw new Error("Only admin/core can delete a task");
+  if (!actor || actor.role === "employee") throw new Error("Only admins and core team members can delete tasks.");
 
   await prisma.task.delete({ where: { id: taskId } });
   revalidatePath("/board");
@@ -408,7 +408,7 @@ export async function deleteTask(formData: FormData) {
 // and deleting them one at a time is exactly what the selection is for.
 export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number; error?: string }> {
   const actor = await sessionActor();
-  if (!actor || actor.role === "employee") return { error: "Only admin or core can delete tasks." };
+  if (!actor || actor.role === "employee") return { error: "Only admins and core team members can delete tasks." };
   const ids = taskIds.filter(Boolean);
   if (ids.length === 0) return { deleted: 0 };
 
@@ -810,19 +810,19 @@ export async function frameioFileForTask(
   taskId: string
 ): Promise<{ files?: DeliverableFile[]; error?: string }> {
   const actor = await sessionActor();
-  if (!actor) return { error: "You're not signed in." };
+  if (!actor) return { error: "Your session has ended. Please sign in again." };
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     select: { frameioLink: true, project: { select: { name: true, type: true, client: { select: { name: true } } } } },
   });
-  if (!task) return { error: "That task doesn't exist any more." };
+  if (!task) return { error: "This task no longer exists." };
   if (!task.frameioLink) return { error: "This task has no Frame.io link." };
-  if (!(await frameioConnected())) return { error: "Frame.io isn't connected yet — an admin can do that in Integrations." };
+  if (!(await frameioConnected())) return { error: "Frame.io isn't connected yet. An admin can connect it under Integrations." };
 
   try {
     const shareId = await shareIdFrom(task.frameioLink);
-    if (!shareId) return { error: "That Frame.io link doesn't point at a share." };
+    if (!shareId) return { error: "That Frame.io link doesn't lead to a share." };
     const files = await shareFiles(shareId);
     if (files.length === 0) return { error: "That Frame.io share has no files in it." };
 
@@ -839,7 +839,7 @@ export async function copyFrameioFileToDrive(
   fileId: string
 ): Promise<{ url?: string; path?: string; error?: string }> {
   const actor = await sessionActor();
-  if (!actor) return { error: "You're not signed in." };
+  if (!actor) return { error: "Your session has ended. Please sign in again." };
   if (actor.role === "employee") return { error: "Only the core team can deliver a file." };
 
   const task = await prisma.task.findUnique({
@@ -850,11 +850,11 @@ export async function copyFrameioFileToDrive(
 
   try {
     const shareId = await shareIdFrom(task.frameioLink);
-    if (!shareId) return { error: "That Frame.io link doesn't point at a share." };
+    if (!shareId) return { error: "That Frame.io link doesn't lead to a share." };
     // re-listed rather than trusting what the prompt was showing: these
     // download addresses are signed and short-lived
     const file = (await shareFiles(shareId)).find((f) => f.id === fileId);
-    if (!file) return { error: "That file isn't in the share any more." };
+    if (!file) return { error: "That file is no longer in the share." };
     if (!file.downloadUrl || !file.ready) return { error: "Frame.io hasn't finished processing that file yet." };
 
     const folder = await exportFolder(task.project.client.name, task.project.name || task.project.type);

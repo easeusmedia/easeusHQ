@@ -56,7 +56,7 @@ export function NewContract() {
             <div>
               <h2 className="text-base font-semibold">Send this to the client</h2>
               <p className="mt-1 text-xs text-muted">
-                They fill in who they are and who signs. You&apos;ll see it under Contracts, ready for the terms.
+                They&apos;ll tell you who they are and who will sign. It then appears under Contracts, ready for you to set the terms.
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 py-1.5 pl-3 pr-1.5">
@@ -78,10 +78,10 @@ export function NewContract() {
           <div className="flex flex-col gap-4">
             <div>
               <h2 className="text-base font-semibold">New contract</h2>
-              <p className="mt-1 text-xs text-muted">You&apos;ll get a link to the client&apos;s form — their details fill in the contract.</p>
+              <p className="mt-1 text-xs text-muted">You&apos;ll get a link to a short form. The client&apos;s answers fill in the contract.</p>
             </div>
             <label className="flex flex-col gap-1.5 text-xs text-muted">
-              Who it&apos;s for <span className="-mt-1 font-normal">(just for you — optional)</span>
+              Who it&apos;s for <span className="-mt-1 font-normal">(optional, only visible to you)</span>
               <input
                 autoFocus
                 value={name}
@@ -97,7 +97,7 @@ export function NewContract() {
                 Cancel
               </button>
               <button onClick={make} disabled={busy} className="btn btn-glow disabled:opacity-60">
-                {busy ? "Making…" : "Make link"}
+                {busy ? "Creating…" : "Create link"}
               </button>
             </div>
           </div>

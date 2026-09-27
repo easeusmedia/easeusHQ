@@ -459,7 +459,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             }`}
           >
             <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
-              <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has gone through</p>
+              <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has been through</p>
               <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border p-3">
                 <StageTrail logs={logs} />
               </div>
@@ -523,7 +523,7 @@ function HandoffNote({
   // came in from Notion already with the client: when it got there is
   // unknown, and guessing would call it late
   if (handoffUnknown(createdAt, handedOffAt)) {
-    return <p className="text-xs text-muted">Was already with the client when it came in from Notion.</p>;
+    return <p className="text-xs text-muted">Already with the client when it was imported from Notion.</p>;
   }
   const late = daysLate(dueDate, handedOffAt);
   return (

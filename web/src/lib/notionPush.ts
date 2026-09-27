@@ -80,7 +80,7 @@ export async function createInNotion(taskId: string): Promise<{ pageId?: string;
 // a row that's gone for good is replaced by a fresh one.
 export async function updateInNotion(taskId: string): Promise<{ error?: string; restored?: boolean; recreated?: boolean }> {
   const task = await loadTask(taskId);
-  if (!task?.notionPageId) return { error: "Not mirrored in Notion." };
+  if (!task?.notionPageId) return { error: "This task isn't linked to Notion." };
   const properties = propertiesFor(task);
   try {
     await notionPatch(`/pages/${task.notionPageId}`, { properties });

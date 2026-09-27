@@ -114,7 +114,7 @@ export function NewTaskRow({
 
   const error =
     problem === "title"
-      ? "Give it a title."
+      ? "Please give it a title."
       : problem === "client"
         ? "Pick the client it's for."
         : newProject.error ?? state.error ?? null;

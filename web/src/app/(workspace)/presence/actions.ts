@@ -44,9 +44,9 @@ export async function getThreadMessages(otherUserId: string): Promise<ThreadMess
 
 export async function sendMessage(toUserId: string, body: string): Promise<{ error?: string }> {
   const fromUserId = await getSessionUserId();
-  if (!fromUserId) return { error: "Not signed in." };
+  if (!fromUserId) return { error: "Your session has ended. Please sign in again." };
   const trimmed = body.trim();
-  if (!trimmed) return { error: "Message is empty." };
+  if (!trimmed) return { error: "Write a message first." };
   // not just hidden from the list — refused, so an old thread left open in a
   // tab can't keep writing to someone who has left
   const to = await prisma.user.findUnique({ where: { id: toUserId }, select: { employment: true } });

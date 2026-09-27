@@ -25,7 +25,7 @@ export default async function ClientTemplatePage() {
       </Link>
 
       <p className="mb-8 text-sm text-muted">
-        The structure every new client is created with: their deliverables, the onboarding steps ops works through,
+        The structure every new client is created with: their deliverables, the onboarding steps the team completes,
         and the starting text for each of their documents. Changing it here changes what the next client gets;
         clients already on the roster keep what they have.
       </p>

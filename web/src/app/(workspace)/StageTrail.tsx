@@ -17,7 +17,7 @@ const stageName = (s: string) => STAGE[s as TaskStatus]?.label ?? s;
 // question in both places and it read as a bare list in one of them.
 export function StageTrail({ logs }: { logs: TrailEntry[] | null }) {
   if (logs === null) return <p className="text-xs text-muted">Loading…</p>;
-  if (logs.length === 0) return <p className="text-xs text-muted">No recorded activity.</p>;
+  if (logs.length === 0) return <p className="text-xs text-muted">No activity recorded yet.</p>;
   return (
     <ol>
       {logs.map((log, i) => {

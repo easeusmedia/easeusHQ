@@ -25,15 +25,15 @@ export type SidebarClient = { id: string; slug: string; name: string; logo: stri
 const MAIN = [
   // clients first: everyone sees them — what the agency is working on
   // isn't privileged information inside the agency
-  { href: "/clients", label: "Clients", hint: "Every client and their projects", Icon: Building2 },
+  { href: "/clients", label: "Clients", hint: "All clients and their projects", Icon: Building2 },
   // a kanban board, because that is literally what it is
-  { href: "/board", label: "Board", hint: "Editing queue and the team's work", Icon: SquareKanban },
+  { href: "/board", label: "Board", hint: "The editing queue and the team's work", Icon: SquareKanban },
   // your own tasks only — the whole team's work is on the Board
-  { href: "/my-tasks", label: "My tasks", hint: "Your own to-dos", Icon: ListChecks },
-  { href: "/history", label: "History", hint: "Everything finished", Icon: History },
+  { href: "/my-tasks", label: "My tasks", hint: "Everything assigned to you", Icon: ListChecks },
+  { href: "/history", label: "History", hint: "Completed work, all in one place", Icon: History },
   // the team's own chat — a real page now, not the avatar stack that used
   // to float over the bottom-right corner of every other page
-  { href: "/chat", label: "Chat", hint: "Message the team", Icon: MessagesSquare },
+  { href: "/chat", label: "Chat", hint: "Message your teammates", Icon: MessagesSquare },
 ];
 
 // the rows' own shape; `selected` (globals.css) is the dark gradient pill.
@@ -174,7 +174,7 @@ export function Sidebar({
       setPhotoState(res.error ?? null);
       if (!res.error) router.refresh();
     } catch {
-      setPhotoState("Couldn't read that picture.");
+      setPhotoState("That image couldn't be read. Please try a JPEG or PNG.");
     }
   }
   const profileRef = useRef<HTMLDivElement>(null);
@@ -220,13 +220,13 @@ export function Sidebar({
       label: "Manage",
       items: isOps
         ? [
-            { href: "/calendar", label: "Calendar", hint: "Workload day by day", Icon: CalendarDays },
+            { href: "/calendar", label: "Calendar", hint: "The team's workload, day by day", Icon: CalendarDays },
             // every client's YouTube and Instagram views in one place
-            { href: "/analytics", label: "Analytics", hint: "Views across every client", Icon: ChartColumn },
+            { href: "/analytics", label: "Analytics", hint: "Performance across every client", Icon: ChartColumn },
             // client contracts, from the form to the signed copy
-            { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signing", Icon: FileSignature, count: contractsWaiting },
+            { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting },
             // core members see their own team here (read-only); admin edits everyone
-            { href: "/team", label: "Team", hint: "Everyone and their roles", Icon: UsersRound },
+            { href: "/team", label: "Team", hint: "Your people and their roles", Icon: UsersRound },
           ]
         : [],
     },
@@ -508,7 +508,7 @@ export function Sidebar({
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
               >
                 <LogOut size={15} />
-                Log out
+                Sign out
               </button>
             </form>
           </div>
@@ -529,7 +529,7 @@ export function Sidebar({
           <FadeLabel open={open}>
             <span className="text-sm">{name}</span>
           </FadeLabel>
-          <Tip show={!open && !profileOpen} label={name} hint="Photo, account and log out" />
+          <Tip show={!open && !profileOpen} label={name} hint="Your photo, account and sign-out" />
         </button>
         </div>
       </div>

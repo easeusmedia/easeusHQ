@@ -23,7 +23,7 @@ const text = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
 
 export async function submitIntake(token: string, input: IntakeInput): Promise<{ error?: string }> {
   const contract = await prisma.contract.findUnique({ where: { token } });
-  if (!contract || contract.status !== "invited") return { error: "This link has already been used — ask your contact at Easeus for a new one." };
+  if (!contract || contract.status !== "invited") return { error: "This link has already been used. Please ask your contact at Easeus Media for a new one." };
 
   const form = {
     contactName: text(input.contactName, 120),
@@ -34,10 +34,10 @@ export async function submitIntake(token: string, input: IntakeInput): Promise<{
     address: text(input.address, 500),
     signatory: input.signatory ? { name: text(input.signatory.name, 120), email: text(input.signatory.email, 200) } : null,
   };
-  if (!form.contactName || !EMAIL.test(form.contactEmail)) return { error: "Your name and a valid email are needed." };
-  if (!form.entity || !form.country || !form.address) return { error: "Your business name, country and address are needed." };
+  if (!form.contactName || !EMAIL.test(form.contactEmail)) return { error: "Please enter your name and a valid email." };
+  if (!form.entity || !form.country || !form.address) return { error: "Please enter your business name, country and address." };
   if (form.signatory && (!form.signatory.name || !EMAIL.test(form.signatory.email))) {
-    return { error: "The person signing needs a name and a valid email." };
+    return { error: "Please enter the signer's name and a valid email." };
   }
 
   const details = withDefaults({

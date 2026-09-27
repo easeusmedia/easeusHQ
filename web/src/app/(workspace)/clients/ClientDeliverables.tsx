@@ -119,7 +119,7 @@ export function ClientDeliverables({
 
       {deliverables.length === 0 && !adding ? (
         <p className="text-sm text-muted">
-          {readOnly ? "No deliverables listed yet." : <>No deliverables listed yet. This is the contracted scope, e.g. &ldquo;2 podcast episodes/cycle&rdquo;.</>}
+          {readOnly ? "No deliverables listed yet." : <>No deliverables yet. List the contracted scope here, for example &ldquo;2 podcast episodes per cycle&rdquo;.</>}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">

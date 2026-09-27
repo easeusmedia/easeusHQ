@@ -185,13 +185,13 @@ export function buildDashboard(
     to,
     fetchedAt,
     metrics: [
-      { key: "views", label: "Views", value: total(inRange, "views"), previous: total(before, "views"), format: "count", hint: `On the ${noun}s published in this range, to date` },
+      { key: "views", label: "Views", value: total(inRange, "views"), previous: total(before, "views"), format: "count", hint: `Views to date on ${noun}s published in this period` },
       { key: "avgViews", label: yt ? "Avg views per video" : "Avg views per reel", value: avg(inRange), previous: avg(before), format: "count" },
       { key: "engagement", label: "Engagement rate", value: engagement(inRange), previous: engagement(before), format: "percent", hint: yt ? "Likes and comments per view" : "Likes and comments per post, against followers" },
       { key: "posts", label: yt ? "Videos published" : "Posts published", value: inRange.length, previous: before.length, format: "count" },
       { key: "likes", label: "Likes", value: total(inRange, "likes"), previous: total(before, "likes"), format: "count" },
       { key: "comments", label: "Comments", value: total(inRange, "comments"), previous: total(before, "comments"), format: "count" },
-      { key: "followers", label: yt ? "Subscribers" : "Followers", value: followers, format: "count", hint: "The total now" },
+      { key: "followers", label: yt ? "Subscribers" : "Followers", value: followers, format: "count", hint: "Current total" },
       yt
         ? { key: "allViews", label: "Channel views, all time", value: account.totalViews, format: "count" }
         : { key: "allPosts", label: "Posts, all time", value: account.totalPosts, format: "count" },

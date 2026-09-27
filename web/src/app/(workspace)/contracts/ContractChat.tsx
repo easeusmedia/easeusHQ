@@ -147,8 +147,8 @@ export function ContractChat({
             <Avatar />
             <p className="pt-0.5 text-foreground/80">
               {locked
-                ? "This contract has gone out for signature, so it can't change now. You can still ask me about it."
-                : "Tell me anything to add or change — I'll edit the contract and it updates on the right."}
+                ? "This contract is out for signature, so it can no longer be changed. You can still ask me about it."
+                : "Tell me what to add or change. I'll edit the contract, and you'll see it update on the right."}
             </p>
           </div>
         )}

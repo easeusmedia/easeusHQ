@@ -98,7 +98,7 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<{
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error_description ?? "Adobe wouldn't complete the connection.");
-  if (!body.refresh_token) throw new Error("Adobe didn't return a lasting connection — try again.");
+  if (!body.refresh_token) throw new Error("Adobe didn't return a lasting connection. Please try again.");
 
   const me = await fetch(`${API}/me`, { headers: { Authorization: `Bearer ${body.access_token}` } })
     .then((r) => r.json())

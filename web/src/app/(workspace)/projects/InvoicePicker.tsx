@@ -27,7 +27,7 @@ export function InvoicePicker({
   async function pick(picked: string) {
     // typed in: "7" or "Invoice 7" is invoice 7
     const typed = picked.match(/^\s*(?:invoice\s*)?#?\s*(\d+)\s*$/i);
-    if (!options.some((o) => o.value === picked) && !typed) return setError("An invoice number is a whole number, like 7.");
+    if (!options.some((o) => o.value === picked) && !typed) return setError("An invoice number must be a whole number, such as 7.");
     const key = typed ? `batch-${Number(typed[1])}` : picked;
     if (key === current) return;
     const before = current;

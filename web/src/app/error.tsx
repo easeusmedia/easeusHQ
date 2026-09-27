@@ -12,14 +12,14 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
     <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
       <div className="glass w-full max-w-sm rounded-xl p-6 text-center">
         <p className="text-sm font-medium text-muted">Something went wrong</p>
-        <h1 className="mt-1 text-lg font-semibold">This page hit a snag</h1>
-        <p className="mt-2 text-sm text-muted">Try again, or head back to the board.</p>
+        <h1 className="mt-1 text-lg font-semibold">This page couldn&apos;t load</h1>
+        <p className="mt-2 text-sm text-muted">Please try again, or return to the Board.</p>
         <div className="mt-4 flex justify-center gap-2">
           <button type="button" onClick={reset} className="btn btn-glow">
             Try again
           </button>
           <Link href="/board" className="rounded-md px-4 py-2 text-sm text-muted hover:bg-hover">
-            Back to Board
+            Back to the Board
           </Link>
         </div>
       </div>

@@ -197,7 +197,7 @@ export function Dropdown({
             </button>
           )}
           {searching && q && matches.length === 0 && !addable && (
-            <p className={`text-muted ${s.option}`}>Nothing called that</p>
+            <p className={`text-muted ${s.option}`}>No matches</p>
           )}
           {older > 0 && (
             // ten more at a time — a client with a thousand projects shouldn't

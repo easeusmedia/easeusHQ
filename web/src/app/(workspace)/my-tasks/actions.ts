@@ -21,7 +21,7 @@ export type WorkTaskFormState = { error?: string; success?: boolean };
 async function requireRealUser() {
   const sessionUserId = await getSessionUserId();
   const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
-  if (!user) throw new Error("Not signed in.");
+  if (!user) throw new Error("Your session has ended. Please sign in again.");
   return user;
 }
 
@@ -72,7 +72,7 @@ export async function createWorkTask(input: {
   attachments: WorkTaskAttachment[];
 }): Promise<WorkTaskFormState> {
   const me = await requireRealUser();
-  if (!input.title.trim()) return { error: "Give it a title." };
+  if (!input.title.trim()) return { error: "Please give it a title." };
 
   const assignedToId = await resolveAssignee(me, input.assignedToId);
 
@@ -121,7 +121,7 @@ async function mirrorIfOperations(userId: string, workTaskId: string) {
 // there's nothing in Notion to pull back down over the top of them.
 export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped: number; error?: string }> {
   const me = await requireRealUser().catch(() => null);
-  if (!me || me.role === "employee") return { pushed: 0, skipped: 0, error: "Only ops team members can sync." };
+  if (!me || me.role === "employee") return { pushed: 0, skipped: 0, error: "Only the operations team can sync." };
 
   // their own team's work, or everyone's for whoever sees every team
   const viewer = { id: me.id, role: me.role, email: me.email, teamId: me.teamId };
@@ -161,13 +161,13 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
 async function assertCanTouch(taskId: string) {
   const me = await requireRealUser();
   const task = await prisma.workTask.findUnique({ where: { id: taskId }, include: { assignedTo: { select: { id: true, teamId: true } } } });
-  if (!task) throw new Error("That task doesn't exist any more.");
+  if (!task) throw new Error("This task no longer exists.");
   // yours, one you handed out, or — for a core member — anything in the
   // team they can see on the Board (admin and Abhishek: any team)
   const mine = task.assignedToId === me.id || task.createdById === me.id;
   const teamLead = me.role !== "employee" && canSeeMember(me, task.assignedTo);
   if (!mine && !teamLead && !isAbhishekOrAdmin(me)) {
-    throw new Error("Not your task to change.");
+    throw new Error("Only the person assigned to this task can change it.");
   }
   return task;
 }
@@ -192,7 +192,7 @@ export async function updateWorkTask(input: {
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't update that task." };
   }
-  if (!input.title.trim()) return { error: "Give it a title." };
+  if (!input.title.trim()) return { error: "Please give it a title." };
 
   await prisma.workTask.update({
     where: { id: input.id },

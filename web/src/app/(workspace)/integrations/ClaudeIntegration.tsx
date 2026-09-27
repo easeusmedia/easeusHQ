@@ -43,7 +43,7 @@ export function ClaudeIntegration({ ending }: { ending: string | null }) {
           </button>
         )}
       </div>
-      <p className="-mt-2 text-sm text-muted">The contract assistant — edits contracts from what you tell it. Runs on Claude Haiku 4.5.</p>
+      <p className="-mt-2 text-sm text-muted">Powers the contract assistant, which edits contracts from your instructions. Runs on Claude Haiku 4.5.</p>
       {editing && (
         <div className="fade-in flex gap-2">
           <input

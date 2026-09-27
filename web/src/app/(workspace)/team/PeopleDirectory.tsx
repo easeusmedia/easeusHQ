@@ -198,7 +198,7 @@ export function PeopleDirectory({
               </div>
             </div>
           ))}
-          {filtered.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted">Nobody by that name.</p>}
+          {filtered.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted">No one by that name.</p>}
         </div>
       </aside>
 
@@ -214,7 +214,7 @@ export function PeopleDirectory({
           />
         ) : (
           <p className="m-auto flex items-center gap-2 text-sm text-muted">
-            <Users2 size={15} /> Pick someone to see their record.
+            <Users2 size={15} /> Choose someone to see their profile.
           </p>
         )}
       </section>

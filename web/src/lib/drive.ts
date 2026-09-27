@@ -316,7 +316,7 @@ export async function exchangeCode(code: string, origin: string): Promise<{ refr
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error_description ?? "Google wouldn't complete the connection.");
-  if (!body.refresh_token) throw new Error("Google didn't return a lasting connection — try again.");
+  if (!body.refresh_token) throw new Error("Google didn't return a lasting connection. Please try again.");
 
   const who = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${body.access_token}` },

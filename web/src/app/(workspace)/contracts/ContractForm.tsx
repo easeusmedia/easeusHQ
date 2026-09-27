@@ -91,7 +91,7 @@ function Other({ placeholder = "Other…", busy, disabled, onSubmit }: { placeho
           value={text}
           onChange={(e) => setText(e.target.value)}
           disabled={disabled}
-          placeholder={busy ? "Claude's on it…" : placeholder}
+          placeholder={busy ? "Claude is working on it…" : placeholder}
           className="min-w-0 flex-1 bg-transparent text-xs outline-none! placeholder:text-muted/60"
         />
         {(focus || att.files.length > 0) && <AttachButton onPick={att.add} disabled={disabled || busy} size={12} />}

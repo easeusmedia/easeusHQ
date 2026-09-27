@@ -116,7 +116,7 @@ export function RefreshButton({
           if (res.error) setError(res.error);
           router.refresh();
         }}
-        title={`${exact ? `Numbers as of ${exact} IST. ` : ""}They refresh by themselves when you open this and they're a few hours old — or read them now.`}
+        title={`${exact ? `Numbers as of ${exact} IST. ` : ""}They refresh automatically once they're a few hours old, or you can refresh them now.`}
         className="btn btn-sm btn-ghost disabled:opacity-60"
       >
         <RefreshCw size={13} className={busy || syncing ? "animate-spin" : ""} />
@@ -141,7 +141,7 @@ export function RemoveButton({ clientId, platform, id }: { clientId: string; pla
         await markOurWork(clientId, platform, [id], false);
         router.refresh();
       }}
-      title="Remove — leave it out of the numbers (it can be put back from the client's Analytics tab)"
+      title="Leave this out of the numbers. You can restore it from the client's Analytics tab."
       aria-label="Remove from analytics"
       className="grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white/80 opacity-0 backdrop-blur transition-opacity duration-150 group-hover:opacity-100 hover:text-white focus-visible:opacity-100 disabled:opacity-60"
     >

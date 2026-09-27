@@ -9,11 +9,11 @@ import { Reveal } from "../../Reveal";
 type ListKey = "deliverables" | "onboarding";
 
 const DOCS: { key: keyof ClientTemplateData; label: string; hint: string }[] = [
-  { key: "brandGuidelines", label: "Client information", hint: "Who they are, language, fonts, brand colours" },
-  { key: "sop", label: "Editing SOP", hint: "How their work gets edited, start to export" },
-  { key: "qualityChecklist", label: "Quality checklist", hint: "Final pass before anything is uploaded" },
-  { key: "meetingNotes", label: "Meeting notes", hint: "Starting shape for call notes" },
-  { key: "resources", label: "Resources", hint: "Asset folders, templates, anything else" },
+  { key: "brandGuidelines", label: "Client information", hint: "Who they are, their language, fonts and brand colours" },
+  { key: "sop", label: "Editing SOP", hint: "How their work is edited, from start to export" },
+  { key: "qualityChecklist", label: "Quality checklist", hint: "The final check before anything is uploaded" },
+  { key: "meetingNotes", label: "Meeting notes", hint: "A starting structure for call notes" },
+  { key: "resources", label: "Resources", hint: "Asset folders, templates and everything else" },
 ];
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -136,7 +136,7 @@ export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
         </div>
       </Section>
 
-      <Section title="Onboarding checklist" hint="The steps ops works through for every new client.">
+      <Section title="Onboarding checklist" hint="The steps the team completes for every new client.">
         <div className="flex flex-col gap-2">
           {form.onboarding.map((s, i) => (
             <div key={i} className="flex items-start gap-2">
@@ -166,7 +166,7 @@ export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
         </div>
       </Section>
 
-      <Section title="Documents" hint="Starter text copied onto every new client, so nobody begins from a blank page.">
+      <Section title="Documents" hint="Starter text for every new client, so no one begins with a blank page.">
         <div className="flex flex-col gap-2">
           {DOCS.map((d) => (
             <DocBlock

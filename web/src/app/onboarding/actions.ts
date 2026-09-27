@@ -16,7 +16,7 @@ import { brandAssetsName, clientFolder, driveConfigured, resumableUploadUrl } fr
 
 export async function createClientInvite(name: string): Promise<{ token?: string; error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can onboard a client." };
+  if (!user) return { error: "Only the operations team can onboard a client." };
   const invite = await prisma.clientInvite.create({
     data: { token: randomBytes(24).toString("base64url"), name: name.trim() || null, createdById: user.id },
   });
@@ -26,7 +26,7 @@ export async function createClientInvite(name: string): Promise<{ token?: string
 
 export async function deleteClientInvite(id: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can do that." };
+  if (!user) return { error: "Only the operations team can do that." };
   await prisma.clientInvite.delete({ where: { id } });
   revalidatePath("/clients");
   return {};
@@ -68,8 +68,8 @@ export type OnboardingResult = {
 
 export async function submitOnboarding(input: OnboardingInput): Promise<OnboardingResult> {
   const invite = await prisma.clientInvite.findUnique({ where: { token: String(input.token ?? "") } });
-  if (!invite) return { error: "This link isn't valid. Ask your contact at Easeus for a new one." };
-  if (invite.usedAt) return { error: "This form has already been filled in. Get in touch if something needs changing." };
+  if (!invite) return { error: "This link isn't valid. Please ask your contact at Easeus Media for a new one." };
+  if (invite.usedAt) return { error: "This form has already been completed. Get in touch if anything needs changing." };
 
   const name = input.name?.trim();
   if (!name) return { error: "Please give your brand or business name." };

@@ -102,7 +102,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
       >
         <h2 className="text-base font-semibold">New client</h2>
         <p className="mt-1 mb-5 text-xs text-muted">
-          They&apos;ll be set up from the client template: deliverables, documents and the onboarding checklist.
+          They&apos;ll start from the client template, with their deliverables, documents and onboarding checklist ready.
         </p>
 
         <div className="flex flex-col gap-3">
@@ -145,7 +145,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
           <div className="mt-2 border-t border-border pt-4">
             {invite && (
               <div className="fade-in mb-3 flex flex-col gap-2">
-                <p className="text-xs text-muted">Send this to your client. It works once, then stops.</p>
+                <p className="text-xs text-muted">Send this link to your client. It can be used once.</p>
                 <div className="flex items-center gap-2">
                   <input readOnly value={invite} className={`${field} text-xs`} onFocus={(e) => e.currentTarget.select()} />
                   <button
@@ -165,7 +165,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
                 open second tells them it's already done. */}
             {pending.length > 0 && (
               <div className="mb-3 flex flex-col gap-1.5">
-                <p className="text-xs font-medium text-muted">Links waiting to be filled in</p>
+                <p className="text-xs font-medium text-muted">Links awaiting a reply</p>
                 {pending.map((p) => (
                   <div key={p.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
                     {/* A link made before anyone typed a name isn't a client

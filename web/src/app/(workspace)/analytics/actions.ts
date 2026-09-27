@@ -10,7 +10,7 @@ import { startSync } from "@/lib/contentSync";
 // (and the period before, for the comparison) now, rather than waiting for
 // the nightly refresh.
 export async function refreshAnalytics(from: string, to: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can refresh this." };
+  if (!(await requireOps())) return { error: "Only the operations team can refresh this." };
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const origin = host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : undefined;

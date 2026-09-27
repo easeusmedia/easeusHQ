@@ -50,8 +50,7 @@ export function AnalyticsIntegration({
         <h2 className="text-base font-medium">Client analytics</h2>
       </div>
       <p className="-mt-2 text-sm text-muted">
-        Every client&apos;s public YouTube and Instagram numbers, scraped with Apify — no Google, Instagram or Facebook
-        login, and nothing asked of clients. Their page just needs their channel link and Instagram handle.
+        Public YouTube and Instagram numbers for every client, collected through Apify. No logins are needed and nothing is asked of clients — just their channel link and Instagram handle.
       </p>
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
@@ -67,9 +66,7 @@ export function AnalyticsIntegration({
           )}
         </div>
         <p className="text-xs text-muted">
-          Apify&apos;s YouTube and Instagram scrapers read each client&apos;s public pages — about $0.005 per YouTube video
-          and $0.0027 per Instagram post; results are kept for six hours. With several tokens, each scrape uses the
-          first one with credit left, so the next takes over when one runs out.
+          Apify reads each client&apos;s public pages, at about $0.005 per YouTube video and $0.0027 per Instagram post. Results are cached for six hours. With several tokens, each run uses the first one with credit remaining, so the next takes over when one runs out.
         </p>
         {apifyReady && !editing && (
           <ol className="flex flex-col gap-1">

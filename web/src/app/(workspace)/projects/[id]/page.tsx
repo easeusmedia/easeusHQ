@@ -131,13 +131,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="mt-12">
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="text-sm font-medium">Tasks</h2>
-          {active.length > 0 && <span className="text-xs text-muted">{active.length} in flight</span>}
+          {active.length > 0 && <span className="text-xs text-muted">{active.length} in progress</span>}
         </div>
         {/* Only what's still being worked on. A delivered task is a finished
             file, so it's listed under Files, below, as one. */}
         {active.length === 0 && (
           <p className="mb-3 text-sm text-muted">
-            Nothing in flight{done.length > 0 ? ` — ${done.length} delivered, under Files` : ""}.
+            Nothing in progress{done.length > 0 ? `. ${done.length} delivered, listed under Files` : ""}.
           </p>
         )}
         <ul className="flex flex-col gap-2">

@@ -193,7 +193,7 @@ export function BillingPanel({
           ) : (
             <>
               <p className="text-2xl font-semibold text-muted">Not set</p>
-              <p className="text-xs text-muted">When this client gets invoiced</p>
+              <p className="text-xs text-muted">When this client is invoiced</p>
             </>
           )}
         </div>

@@ -183,7 +183,7 @@ export default async function SharedClientPage({
 
       <section id="feedback" className="panel mt-14 rounded-2xl p-5 sm:p-6">
         <h2 className="text-base font-semibold">Feedback</h2>
-        <p className="mb-4 mt-1 text-sm text-muted">Anything you&apos;d like us to know or change — it goes straight to the team.</p>
+        <p className="mb-4 mt-1 text-sm text-muted">Anything you&apos;d like us to know or change? It goes straight to the team.</p>
         <FeedbackForm slug={client.slug} />
       </section>
     </div>

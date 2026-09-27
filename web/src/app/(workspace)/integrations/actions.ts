@@ -190,7 +190,7 @@ export async function testFrameio(): Promise<{ ok?: string; error?: string }> {
     if (!task?.frameioLink) return { error: "No task here has a Frame.io link to test with." };
 
     const shareId = await shareIdFrom(task.frameioLink);
-    if (!shareId) return { error: `Couldn't resolve ${task.frameioLink} to a share.` };
+    if (!shareId) return { error: `Couldn't find a share for ${task.frameioLink}.` };
 
     const files = await shareFiles(shareId);
     if (files.length === 0) return { error: `Reached Frame.io, but "${task.title}" has no files in its share.` };

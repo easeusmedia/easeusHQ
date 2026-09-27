@@ -225,7 +225,7 @@ export function PersonDetail({
 
           {person.current.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
-              Nothing in flight.
+              Nothing in progress.
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
@@ -255,7 +255,7 @@ export function PersonDetail({
           {/* first, because it's what decides everything else about how
               this person uses the app — and it's the thing admin comes
               here to change most */}
-          <Section title="Team & access" subtitle="Decides whose work they see on the Board.">
+          <Section title="Team & access" subtitle="Determines whose work they see on the Board.">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-x-3 gap-y-3">
               <div className={labelCls}>
@@ -466,7 +466,7 @@ export function PersonDetail({
         {canEdit && jobTitles.length > 0 && (
           <Section
             title="Roles"
-            subtitle="Shared across everyone. Removing one only takes the label away — nobody's access changes."
+            subtitle="Shared across everyone. Removing one only removes the label; no one's access changes."
             aside={
               <button
                 type="button"
@@ -486,7 +486,7 @@ export function PersonDetail({
                   {j.name}
                   <ConfirmButton
                     confirm="Remove"
-                    message={`Remove the role "${j.name}"? Anyone holding it keeps their access — they just lose the label.`}
+                    message={`Remove the role "${j.name}"? Everyone keeps their access; only the label is removed.`}
                     className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
                     onConfirm={() => removeTitle(j.id)}
                   >

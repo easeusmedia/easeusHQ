@@ -165,7 +165,7 @@ export function WorkTaskBoard({
         {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
         {list ? (
           columnTasks.length + group.queue.length === 0 && (
-            <p className="px-4 py-3 text-xs text-muted">{draggingId ? "Drop here" : "Nothing here"}</p>
+            <p className="px-4 py-3 text-xs text-muted">{draggingId ? "Drop to move here" : "No tasks here"}</p>
           )
         ) : (
           <div className="h-6 shrink-0" />

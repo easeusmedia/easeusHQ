@@ -559,7 +559,7 @@ function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: str
             />
           )}
           <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-            <span className="text-sm font-medium text-white">More Projects</span>
+            <span className="text-sm font-medium text-white">More projects</span>
           </div>
         </div>
         <div className="flex flex-col gap-0.5 px-3 py-2.5">

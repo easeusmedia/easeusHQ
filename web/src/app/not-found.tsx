@@ -10,13 +10,13 @@ export default function NotFound() {
         <p className="text-sm font-medium text-muted">404</p>
         <h1 className="mt-1 text-lg font-semibold">This page doesn&apos;t exist</h1>
         <p className="mt-2 text-sm text-muted">
-          The link may be old or mistyped. Head back to the board.
+          The link may be outdated or mistyped.
         </p>
         <Link
           href="/board"
           className="btn btn-glow mt-4"
         >
-          Back to Board
+          Back to the Board
         </Link>
       </div>
     </div>

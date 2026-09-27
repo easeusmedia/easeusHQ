@@ -23,11 +23,11 @@ type Doc = { key: ClientDocType; label: string; icon: typeof Palette; hint: stri
 // The four documents every client has. Same four everywhere — this is the
 // one template, whatever shape the client's Notion page happened to grow in.
 const DOCS: Doc[] = [
-  { key: "brandGuidelines", label: "Client information", icon: Palette, hint: "Who they are, language, fonts, brand colours" },
-  { key: "sop", label: "Editing SOP", icon: ClipboardList, hint: "How their work gets edited, start to export" },
-  { key: "qualityChecklist", label: "Quality checklist", icon: ClipboardCheck, hint: "Final pass before anything is uploaded" },
-  { key: "meetingNotes", label: "Meeting notes", icon: MessagesSquare, hint: "What was agreed on calls with this client" },
-  { key: "resources", label: "Resources", icon: FolderOpen, hint: "Asset folders, templates, anything else" },
+  { key: "brandGuidelines", label: "Client information", icon: Palette, hint: "Who they are, their language, fonts and brand colours" },
+  { key: "sop", label: "Editing SOP", icon: ClipboardList, hint: "How their work is edited, from start to export" },
+  { key: "qualityChecklist", label: "Quality checklist", icon: ClipboardCheck, hint: "The final check before anything is uploaded" },
+  { key: "meetingNotes", label: "Meeting notes", icon: MessagesSquare, hint: "What was agreed on calls" },
+  { key: "resources", label: "Resources", icon: FolderOpen, hint: "Asset folders, templates and everything else" },
 ];
 
 // Collapsed by default — the complaint about the old version was being
@@ -213,7 +213,7 @@ export function ClientInfo({
               Relationship notes
               <textarea
                 rows={3}
-                placeholder="How's this account going, anything ops should remember…"
+                placeholder="How the account is going, and anything the team should remember…"
                 value={form.notes}
                 onChange={(e) => field("notes", e.target.value)}
                 className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-foreground"
@@ -267,7 +267,7 @@ export function ClientInfo({
           className="glass fixed top-1/2 left-1/2 m-0 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"
         >
           <p className="text-sm">
-            Delete <strong>{name}</strong>? Everything of theirs goes with them, and it can&apos;t be undone.
+            Delete <strong>{name}</strong>? Everything connected to them will be deleted too. This can&apos;t be undone.
           </p>
 
           {/* what "everything" actually means, counted from their record */}
@@ -287,7 +287,7 @@ export function ClientInfo({
                     <strong className="text-foreground">{n as number}</strong> {label as string}
                   </li>
                 ))}
-              {Object.values(footprint).every((n) => n === 0) && <li>Nothing else is attached to them.</li>}
+              {Object.values(footprint).every((n) => n === 0) && <li>Nothing else is connected to them.</li>}
             </ul>
           )}
 
@@ -295,8 +295,7 @@ export function ClientInfo({
             <div className="fade-in mt-3 flex gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
               <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-300" />
               <p className="text-xs text-red-200">
-                Last check: this removes {name} and everything listed above from Easeus HQ for good. Their files in
-                Google Drive are left alone.
+                Final check: this permanently removes {name} and everything listed above from Easeus HQ. Their files in Google Drive won&apos;t be touched.
               </p>
             </div>
           )}
@@ -467,7 +466,7 @@ function NewDocument({ clientId }: { clientId: string }) {
           if (e.key === "Enter") add();
           if (e.key === "Escape") setAdding(false);
         }}
-        placeholder="What is it? e.g. Channel strategy, Tone of voice"
+        placeholder="Document title, e.g. Channel strategy or Tone of voice"
         className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
       />
       <button onClick={add} disabled={saving} className="btn btn-sm btn-glow shrink-0 disabled:opacity-60">

@@ -196,7 +196,7 @@ export function ListRow({
             <button
               type="button"
               onClick={() => onChangeStatus("done")}
-              title="Mark complete — moves it to History"
+              title="Mark as complete. It moves to History."
               className="status-pop flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1 text-xs font-medium text-emerald-300"
             >
               <CheckCircle2 size={13} className="shrink-0" /> Complete

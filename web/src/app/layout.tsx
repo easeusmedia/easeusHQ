@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Easeus HQ",
-  description: "Easeus internal ops platform",
+  description: "The Easeus Media team workspace",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

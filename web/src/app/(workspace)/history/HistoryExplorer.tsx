@@ -181,7 +181,7 @@ export function HistoryExplorer({
           <a
             href={exportHref()}
             download
-            title="A spreadsheet of exactly what's on screen — with each task's timings, revisions and full stage trail"
+            title="Download a spreadsheet of what's on screen, with each task's timings, revisions and full stage history"
             className="btn btn-glow flex items-center gap-1.5"
           >
             <Download size={14} /> Export
@@ -258,7 +258,7 @@ export function HistoryExplorer({
 
       {shown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-5 py-10 text-center text-sm text-muted">
-          Nothing finished matches that.
+          No completed work matches those filters.
         </p>
       ) : view === "list" ? (
         <div key="list" className="fade-in overflow-x-auto rounded-xl border border-border">
@@ -292,7 +292,7 @@ export function HistoryExplorer({
                     <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(i.completedAt)}</td>
                     <td className="px-3 py-2">
                       {i.title}
-                      {i.kind === "internal" && <span className="ml-2 text-xs text-muted">own work</span>}
+                      {i.kind === "internal" && <span className="ml-2 text-xs text-muted">Own work</span>}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-muted">{i.person}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-muted">{i.client ?? "—"}</td>
@@ -332,7 +332,7 @@ export function HistoryExplorer({
                               <input type="hidden" name="taskId" value={i.id} />
                             </form>
                             <ConfirmButton
-                              message={`Permanently delete "${i.title}"? This removes it and its activity log from the database. It can't be undone.`}
+                              message={`Permanently delete "${i.title}"? It will be removed along with its activity log. This can't be undone.`}
                               className="text-xs text-muted hover:text-red-400"
                               formId={`delete-history-${i.id}`}
                             >

@@ -37,7 +37,7 @@ export default async function ContractsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contracts</h1>
-          <p className="mt-1.5 text-sm text-muted">Send the client a form, shape the terms with the assistant, approve, and send for e-signature.</p>
+          <p className="mt-1.5 text-sm text-muted">Send a short form, shape the terms with Claude, approve, and send for e-signature.</p>
         </div>
         <div className="flex gap-2">
           <Link href="/contracts/template" className="btn btn-ghost flex items-center gap-1.5">
@@ -60,7 +60,7 @@ export default async function ContractsPage() {
             <FileSignature size={20} />
           </span>
           <p className="mt-4 text-sm">No contracts yet</p>
-          <p className="mt-1 max-w-sm text-xs text-muted">Start one with New contract — you&apos;ll get a short form link to send the client.</p>
+          <p className="mt-1 max-w-sm text-xs text-muted">Create one with New contract. You&apos;ll get a short form link to send your client.</p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2">

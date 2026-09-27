@@ -225,8 +225,8 @@ export function ClauseForm({
         className="field-sizing-content max-h-[60vh] min-h-32 w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm leading-relaxed outline-none! focus:border-hover"
       />
       <p className="text-xs leading-relaxed text-muted">
-        <code className="text-foreground/80">{"{{…}}"}</code> fills in a detail · a paragraph starting{" "}
-        <code className="text-foreground/80">[trial]</code>, <code className="text-foreground/80">[split]</code>… only shows when that
+        <code className="text-foreground/80">{"{{…}}"}</code> inserts a detail · A paragraph starting with{" "}
+        <code className="text-foreground/80">[trial]</code>, <code className="text-foreground/80">[split]</code>… only appears when it
         applies · <code className="text-foreground/80">- </code> starts a bullet · <code className="text-foreground/80">**bold**</code>
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -464,7 +464,7 @@ export function ContractPaper({
           there to see, and to edit into shape if one should apply */}
       {contract && contract.hidden.length > 0 && !readOnly && (
         <div className="mt-8 rounded-lg bg-[#f6f6f6] px-4 py-3 font-sans text-[12px] text-[#777]">
-          Not in this contract, as its terms stand:{" "}
+          Not included under the current terms:{" "}
           {contract.hidden.map((h, k) => (
             <span key={h.id}>
               <button type="button" onClick={() => setEditing(h.id)} className="text-[#333] underline decoration-[#bbb] underline-offset-2 hover:decoration-[#333]">

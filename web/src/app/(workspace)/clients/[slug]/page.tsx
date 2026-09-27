@@ -215,7 +215,7 @@ export default async function ClientDetailPage({
                 <section>
                   <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
                   <p className="-mt-3 mb-3 text-xs text-muted">
-                    What the client receives — this is what lands in their projects once delivered.
+                    Work for the client. Once delivered, it appears in their projects.
                   </p>
                   <ClientOngoing
                     tasks={deliverableTasks}
@@ -247,7 +247,7 @@ export default async function ClientDetailPage({
                   <section>
                     <h2 className="mb-4 text-sm font-medium">Internal work</h2>
                     <p className="-mt-3 mb-3 text-xs text-muted">
-                      Done for this client, never handed to them — doesn&apos;t count towards delivered projects.
+                      Work done behind the scenes for this client. It isn&apos;t delivered to them and doesn&apos;t count towards delivered projects.
                     </p>
                     <ClientOngoing
                       tasks={internalTasks}

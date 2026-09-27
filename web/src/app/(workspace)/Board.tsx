@@ -212,7 +212,7 @@ export function Board({
     if (!taskId) return;
     const draggedTask = optimisticTasks.find((t) => t.id === taskId);
     if (!canDropInto(draggedTask, to)) {
-      setError("Only the ops team can move a task to that stage.");
+      setError("Only the operations team can move a task to that stage.");
       return;
     }
 
@@ -315,7 +315,7 @@ export function Board({
         {list ? (
           columnTasks.length === 0 && (
             <p className={`rounded-xl border border-dashed px-4 py-3 text-xs text-muted ${draggingId ? "border-foreground/30" : "border-border"}`}>
-              {draggingId ? "Drop here" : "Nothing here"}
+              {draggingId ? "Drop to move here" : "No tasks here"}
             </p>
           )
         ) : (
@@ -410,7 +410,7 @@ export function Board({
             <X size={13} /> Clear
           </button>
           <ConfirmButton
-            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? Their history goes too, and this can't be undone.`}
+            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? Their history will be deleted too. This can't be undone.`}
             onConfirm={deleteSelected}
             className="btn btn-sm btn-danger"
           >

@@ -80,13 +80,12 @@ export default async function CalendarPage({
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="text-sm text-muted">
-            How many tasks were sitting in the dashboard on a given day. A task stops counting the day it&apos;s
-            delivered to the client, not before.
+            How many open tasks the team carried each day. A task counts until the day it&apos;s delivered to the client.
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm">
           <Link href={`/calendar?month=${toParam(prev)}`} className="text-muted hover:text-foreground">
-            ← Prev
+            ← Previous
           </Link>
           <span className="font-medium">{monthLabel}</span>
           <Link href={`/calendar?month=${toParam(next)}`} className="text-muted hover:text-foreground">

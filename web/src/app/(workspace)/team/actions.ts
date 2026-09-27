@@ -29,11 +29,11 @@ async function requirePeopleAdmin(): Promise<Viewer | null> {
 // browser resizes it before sending.
 export async function updatePersonPhoto(userId: string, dataUrl: string | null): Promise<PeopleFormState> {
   const sessionUserId = await getSessionUserId();
-  if (!sessionUserId) return { error: "Not signed in." };
+  if (!sessionUserId) return { error: "Your session has ended. Please sign in again." };
   if (userId !== sessionUserId && !(await requirePeopleAdmin())) {
     return { error: "Only the admin can change someone else's photo." };
   }
-  if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That picture couldn't be used — try a JPEG or PNG." };
+  if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That image couldn't be used. Please try a JPEG or PNG." };
 
   await prisma.user.update({ where: { id: userId }, data: { avatarUrl: dataUrl } });
   // the photo shows everywhere, so every page's layout needs it
@@ -134,8 +134,8 @@ export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
 // Kept for the older inline role dropdown; same admin bar as everything else.
 export async function updateUserRole(userId: string, role: string) {
   const actor = await requirePeopleAdmin();
-  if (!actor) throw new Error("Only admin can change roles");
-  if (!ROLES.includes(role as Role)) throw new Error("Invalid role");
+  if (!actor) throw new Error("Only an admin can change roles.");
+  if (!ROLES.includes(role as Role)) throw new Error("That isn't a valid role.");
 
   await prisma.user.update({ where: { id: userId }, data: { role: role as Role } });
   revalidatePath("/team");

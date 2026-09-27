@@ -153,16 +153,15 @@ export function ProjectCard({
         <p className="text-sm">
           Delete <strong>{project.name}</strong>?{" "}
           {project.taskCount
-            ? `Its ${project.taskCount} task${project.taskCount === 1 ? "" : "s"} — finished ones included — and its file links go with it.`
-            : "Its file links go with it."}{" "}
+            ? `Its ${project.taskCount} task${project.taskCount === 1 ? "" : "s"}, including finished ones, and its file links will be deleted too.`
+            : "Its file links will be deleted too."}{" "}
           This can&apos;t be undone.
         </p>
         {armed && (
           <div className="fade-in mt-3 flex gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-300" />
             <p className="text-xs text-red-200">
-              Last check: this deletes <strong>{tasks}</strong> task{tasks === 1 ? "" : "s"} along with the project, including
-              everything already delivered and each task&apos;s history. There is no way to get them back.
+              Final check: this permanently deletes <strong>{tasks}</strong> task{tasks === 1 ? "" : "s"} with the project, including delivered work and each task&apos;s history. They can&apos;t be recovered.
             </p>
           </div>
         )}

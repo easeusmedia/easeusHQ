@@ -38,7 +38,7 @@ export type ClientSyncResult = { created: number; updated: number; error?: strin
 // invoices, contact info) is untouched by this and lives here permanently.
 export async function syncClientsFromNotion(): Promise<ClientSyncResult> {
   const user = await requireOps();
-  if (!user) return { created: 0, updated: 0, error: "Only ops team members can sync clients." };
+  if (!user) return { created: 0, updated: 0, error: "Only the operations team can sync clients." };
 
   try {
     const rows = await fetchClientRows();
@@ -116,7 +116,7 @@ export async function setBillingRule(
   milestoneCount: number | null
 ): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit billing rules." };
+  if (!user) return { error: "Only the operations team can edit billing rules." };
 
   await prisma.client.update({
     where: { id: clientId },
@@ -134,7 +134,7 @@ export async function setBillingRule(
 // invoice view, or picked on the project's own page. The move is worked out
 // here again from what's saved, not taken from the browser.
 export async function moveProjectToInvoice(projectId: string, key: string | null): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can move projects between invoices." };
+  if (!(await requireOps())) return { error: "Only the operations team can move projects between invoices." };
   const res = await setInvoice(projectId, key);
   revalidatePath("/clients/[slug]", "page");
   revalidatePath(`/projects/${projectId}`);
@@ -168,7 +168,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
   const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
   const n = Number(key.match(/^batch-(\d+)$/)?.[1]);
   const valid = rule.cadence === "monthly_date" ? /^\d{4}-(0[1-9]|1[0-2])$/.test(key) : n >= 1 && n <= 9999;
-  if (!valid) return { error: rule.cadence === "monthly_date" ? "Pick the month it's invoiced in." : "An invoice number is a whole number, like 7." };
+  if (!valid) return { error: rule.cadence === "monthly_date" ? "Pick the month it's invoiced in." : "An invoice number must be a whole number, such as 7." };
 
   const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
   const saved = new Map(c.projects.map((p) => [p.id, p.invoiceBatch]));
@@ -186,7 +186,7 @@ export async function createInvoice(
   dueDate: string | null
 ): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can create invoices." };
+  if (!user) return { error: "Only the operations team can create invoices." };
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter a valid amount." };
 
   await prisma.invoice.create({
@@ -200,7 +200,7 @@ export async function createInvoice(
 
 export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can update invoices." };
+  if (!user) return { error: "Only the operations team can update invoices." };
 
   await prisma.invoice.update({ where: { id: invoiceId }, data: { status } });
   revalidatePath("/clients/[slug]", "page");
@@ -213,7 +213,7 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
 // without waiting for someone to update the Notion dashboard first).
 export async function updateClientStatus(clientId: string, status: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can change client status." };
+  if (!user) return { error: "Only the operations team can change client status." };
 
   await prisma.client.update({ where: { id: clientId }, data: { status } });
   revalidatePath("/clients");
@@ -225,7 +225,7 @@ export async function updateClientStatus(clientId: string, status: string): Prom
 // proxy.ts). Ops only; off by default.
 export async function setClientSharing(clientId: string, enabled: boolean): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can share a client's page." };
+  if (!user) return { error: "Only the operations team can share a client's page." };
   await prisma.client.update({ where: { id: clientId }, data: { shareEnabled: enabled } });
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -255,7 +255,7 @@ export async function unreadClientFeedback() {
 // whole team — it's the agency's queue, not a personal view.
 export async function reorderClient(clientId: string, sortOrder: number): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can rearrange clients." };
+  if (!user) return { error: "Only the operations team can rearrange clients." };
   if (!Number.isFinite(sortOrder)) return { error: "That position isn't valid." };
 
   await prisma.client.update({ where: { id: clientId }, data: { sortOrder } });
@@ -291,7 +291,7 @@ export type ClientInfoInput = {
 // a one-line field that belongs in this form.
 export async function updateClientInfo(clientId: string, input: ClientInfoInput): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit client info." };
+  if (!user) return { error: "Only the operations team can edit client info." };
   if (input.name.trim() === "") return { error: "Name can't be empty." };
 
   const empty = (s: string) => s.trim() === "";
@@ -328,7 +328,7 @@ const DOC_LABEL: Record<ClientDocType, string> = {
 // — scripts/sync-client-notion.ts is what seeds these from there.
 export async function updateClientDoc(clientId: string, doc: ClientDocType, content: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: `Only ops team members can edit ${DOC_LABEL[doc]}.` };
+  if (!user) return { error: `Only the operations team can edit ${DOC_LABEL[doc]}.` };
 
   await prisma.client.update({ where: { id: clientId }, data: { [doc]: content.trim() || null } });
   revalidatePath("/clients/[slug]", "page");
@@ -343,7 +343,7 @@ export async function updateClientDoc(clientId: string, doc: ClientDocType, cont
 // the page; these just aren't fixed by the template.
 export async function addClientDocument(clientId: string, title: string): Promise<{ id?: string; error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can add a document." };
+  if (!user) return { error: "Only the operations team can add a document." };
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the document a name." };
   const last = await prisma.clientDocument.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
@@ -356,7 +356,7 @@ export async function addClientDocument(clientId: string, title: string): Promis
 
 export async function updateClientDocument(id: string, input: { title?: string; content?: string }): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit a document." };
+  if (!user) return { error: "Only the operations team can edit a document." };
   if (input.title !== undefined && !input.title.trim()) return { error: "A document needs a name." };
   await prisma.clientDocument.update({
     where: { id },
@@ -371,7 +371,7 @@ export async function updateClientDocument(id: string, input: { title?: string; 
 
 export async function deleteClientDocument(id: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can delete a document." };
+  if (!user) return { error: "Only the operations team can delete a document." };
   await prisma.clientDocument.delete({ where: { id } });
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -379,10 +379,10 @@ export async function deleteClientDocument(id: string): Promise<{ error?: string
 
 export async function updateClientAvatar(clientId: string, dataUrl: string | null): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can change a client's photo." };
+  if (!user) return { error: "Only the operations team can change a client's photo." };
   // a small image only — anything else means the in-browser resize didn't
   // run (or was bypassed), and it's served back from our own site
-  if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That picture couldn't be used — try a JPEG or PNG." };
+  if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That image couldn't be used. Please try a JPEG or PNG." };
 
   await prisma.client.update({ where: { id: clientId }, data: { avatarUrl: dataUrl } });
   revalidatePath("/clients");
@@ -397,9 +397,9 @@ export async function listTags() {
 
 export async function createTag(name: string, color: string): Promise<{ error?: string; id?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can create tags." };
+  if (!user) return { error: "Only the operations team can create tags." };
   if (name.trim() === "") return { error: "Name the tag first." };
-  if (!TAG_PALETTE.includes(color)) return { error: "Pick a color from the palette." };
+  if (!TAG_PALETTE.includes(color)) return { error: "Choose a colour from the palette." };
 
   try {
     const tag = await prisma.tag.create({ data: { name: name.trim(), color } });
@@ -412,7 +412,7 @@ export async function createTag(name: string, color: string): Promise<{ error?: 
 
 export async function setClientTags(clientId: string, tagIds: string[]): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit tags." };
+  if (!user) return { error: "Only the operations team can edit tags." };
 
   await prisma.client.update({ where: { id: clientId }, data: { tags: { set: tagIds.map((id) => ({ id })) } } });
   revalidatePath("/clients");
@@ -445,7 +445,7 @@ export async function clientFootprint(clientId: string) {
 
 export async function deleteClient(clientId: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can delete a client." };
+  if (!user) return { error: "Only the operations team can delete a client." };
 
   const projectIds = (await prisma.project.findMany({ where: { clientId }, select: { id: true } })).map((p) => p.id);
   const taskIds = (await prisma.task.findMany({ where: { projectId: { in: projectIds } }, select: { id: true } })).map((t) => t.id);
@@ -497,7 +497,7 @@ export async function addDeliverable(
   deliveredCount: number
 ): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit deliverables." };
+  if (!user) return { error: "Only the operations team can edit deliverables." };
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
   const last = await prisma.deliverable.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" } });
@@ -521,7 +521,7 @@ export async function updateDeliverable(
   deliveredCount: number
 ): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit deliverables." };
+  if (!user) return { error: "Only the operations team can edit deliverables." };
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
   await prisma.deliverable.update({
@@ -534,7 +534,7 @@ export async function updateDeliverable(
 
 export async function deleteDeliverable(id: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit deliverables." };
+  if (!user) return { error: "Only the operations team can edit deliverables." };
 
   await prisma.deliverable.delete({ where: { id } });
   revalidatePath("/clients/[slug]", "page");
@@ -557,7 +557,7 @@ export type ClientTemplateData = {
 // seeded from templateDefaults — after that the database is the source of
 // truth and ops edits it in the app.
 export async function getClientTemplate(): Promise<ClientTemplateData> {
-  if (!(await requireOps())) throw new Error("Only ops team members can see the template.");
+  if (!(await requireOps())) throw new Error("Only the operations team can view the template.");
   return loadClientTemplate();
 }
 
@@ -591,7 +591,7 @@ async function loadClientTemplate(): Promise<ClientTemplateData> {
 
 export async function updateClientTemplate(data: ClientTemplateData): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit the template." };
+  if (!user) return { error: "Only the operations team can edit the template." };
 
   await prisma.clientTemplate.upsert({
     where: { id: "default" },
@@ -607,12 +607,12 @@ export async function updateClientTemplate(data: ClientTemplateData): Promise<{ 
 // checklist. Nothing is left to whoever happened to set the client up.
 export async function createClient(name: string, niche = ""): Promise<{ id?: string; slug?: string; error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can add a client." };
+  if (!user) return { error: "Only the operations team can add a client." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the client a name." };
 
   const existing = await prisma.client.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
-  if (existing) return { error: `${existing.name} is already on the roster.` };
+  if (existing) return { error: `${existing.name} is already a client.` };
 
   const template = await loadClientTemplate();
 
@@ -655,7 +655,7 @@ export async function createClient(name: string, niche = ""): Promise<{ id?: str
 
 export async function toggleOnboardingStep(stepId: string, done: boolean): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can update onboarding." };
+  if (!user) return { error: "Only the operations team can update onboarding." };
 
   await prisma.onboardingStep.update({ where: { id: stepId }, data: { done } });
   revalidatePath("/clients/[slug]", "page");
@@ -716,7 +716,7 @@ async function applyTemplateTo(clientId: string, template: ClientTemplateData): 
 // up before a step was added).
 export async function applyOnboardingTemplate(clientId: string): Promise<{ added: number; error?: string }> {
   const user = await requireOps();
-  if (!user) return { added: 0, error: "Only ops team members can do that." };
+  if (!user) return { added: 0, error: "Only the operations team can do that." };
 
   const added = await applyTemplateTo(clientId, await loadClientTemplate());
   revalidatePath("/clients/[slug]", "page");
@@ -759,7 +759,7 @@ export async function createProject(
   invoiceNumber: number | null = null
 ): Promise<{ id?: string; planned?: number; error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can add a project." };
+  if (!user) return { error: "Only the operations team can add a project." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the project a name." };
   if (coverUrl && coverUrl.length > 500_000) return { error: "That cover image is too large." };
@@ -832,7 +832,7 @@ export async function createProject(
 
 // The client's content blueprint, as edited from the content calendar.
 export async function saveContentPlan(clientId: string, plan: PlanItem[]): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can change the blueprint." };
+  if (!(await requireOps())) return { error: "Only the operations team can change the blueprint." };
   await prisma.client.update({ where: { id: clientId }, data: { contentPlan: planFor(plan) } });
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -853,7 +853,7 @@ export async function updateProject(
   }
 ): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit a project." };
+  if (!user) return { error: "Only the operations team can edit a project." };
   if (!data.name.trim()) return { error: "Give the project a name." };
   if (data.coverUrl && data.coverUrl.length > 500_000) return { error: "That cover image is too large." };
 
@@ -901,7 +901,7 @@ async function revalidateProject(projectId: string) {
 
 export async function addProjectAsset(projectId: string, input: ProjectAssetInput): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit a project's files." };
+  if (!user) return { error: "Only the operations team can edit a project's files." };
   if (!input.name.trim()) return { error: "Give the file a name." };
   let link: string | null;
   try {
@@ -926,7 +926,7 @@ export async function addProjectAsset(projectId: string, input: ProjectAssetInpu
 
 export async function updateProjectAsset(assetId: string, input: ProjectAssetInput): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit a project's files." };
+  if (!user) return { error: "Only the operations team can edit a project's files." };
   if (!input.name.trim()) return { error: "Give the file a name." };
   let link: string | null;
   try {
@@ -945,7 +945,7 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
 
 export async function deleteProjectAsset(assetId: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can edit a project's files." };
+  if (!user) return { error: "Only the operations team can edit a project's files." };
   const asset = await prisma.projectAsset.delete({ where: { id: assetId } });
   await revalidateProject(asset.projectId);
   return {};
@@ -956,7 +956,7 @@ export async function deleteProjectAsset(assetId: string): Promise<{ error?: str
 // tasks only lose the link to it: they belong to a person, not a project.
 export async function deleteProject(projectId: string): Promise<{ error?: string }> {
   const user = await requireOps();
-  if (!user) return { error: "Only ops team members can delete a project." };
+  if (!user) return { error: "Only the operations team can delete a project." };
 
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) return { error: "Project not found." };
@@ -988,7 +988,7 @@ export async function saveAnalyticsAccount(
   platform: "youtube" | "instagram",
   value: string
 ): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can change this." };
+  if (!(await requireOps())) return { error: "Only the operations team can change this." };
   const v = value.trim();
   if (v && (platform === "youtube" ? !youtubeRef(v) : !instagramUsername(v))) {
     return { error: platform === "youtube" ? "That doesn't look like a YouTube channel link or @handle." : "That doesn't look like an Instagram link or @handle." };
@@ -1023,7 +1023,7 @@ export async function markOurWork(
   externalIds: string[],
   ours: boolean | null
 ): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can change this." };
+  if (!(await requireOps())) return { error: "Only the operations team can change this." };
   await prisma.contentItem.updateMany({
     where: { clientId, platform, externalId: { in: externalIds } },
     data: { ours, oursBy: ours === null ? null : "person" },
@@ -1035,7 +1035,7 @@ export async function markOurWork(
 // "Everything on this account is ours" — a channel we run — or only what's
 // matched to our tasks or marked.
 export async function setAllOurs(clientId: string, platform: "youtube" | "instagram", value: boolean): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can change this." };
+  if (!(await requireOps())) return { error: "Only the operations team can change this." };
   await prisma.socialAccount.updateMany({ where: { clientId, platform }, data: { allOurs: value } });
   revalidatePath("/analytics");
   return {};

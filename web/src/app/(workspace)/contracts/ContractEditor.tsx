@@ -199,7 +199,7 @@ export function ContractEditor({
           ) : (
             "Check the address you used in Acrobat."
           )}{" "}
-          Cancel it in Acrobat and send it again to the right address — this page picks the new one up by itself.
+          Cancel it in Acrobat and send it again to the correct address. This page will pick up the new one automatically.
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -210,7 +210,7 @@ export function ContractEditor({
             }}
             className="btn btn-xs btn-glow flex items-center gap-1"
           >
-            {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy the right email"}
+            {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy the correct email"}
           </button>
           <a href={ACROBAT_ESIGN} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost flex items-center gap-1">
             Open Acrobat <ArrowUpRight size={12} />
@@ -231,7 +231,7 @@ export function ContractEditor({
     if (status === "invited")
       return {
         title: "Waiting for the client's form",
-        body: "Send them the link — or fill everything in yourself below.",
+        body: "Send them the link, or fill in the details yourself below.",
         action: (
           <button
             onClick={async () => {
@@ -248,12 +248,12 @@ export function ContractEditor({
     if (status === "draft" && composed.missing.length)
       return {
         title: `${composed.missing.length} thing${composed.missing.length === 1 ? "" : "s"} left to fill in`,
-        body: `${composed.missing.map((m) => m.label).join(", ")} — marked below. Then you can approve it.`,
+        body: `${composed.missing.map((m) => m.label).join(", ")}, marked below. Once they're filled in, you can approve it.`,
       };
     if (status === "draft")
       return {
-        title: "Ready — approve it",
-        body: "Read the contract on the right. When it's right, approve it — then it can be sent.",
+        title: "Ready for approval",
+        body: "Review the contract on the right. Once you're happy with it, approve it to send.",
         action: (
           <button onClick={() => run("approve", () => approveContract(id), () => setStatus("approved"))} disabled={busy !== null} className="btn btn-glow flex items-center gap-1.5">
             <Check size={14} /> {busy === "approve" ? "Approving…" : "Approve contract"}
@@ -287,7 +287,7 @@ export function ContractEditor({
       );
       const sent = (
         <ConfirmButton
-          message="Sent it through Acrobat? The contract is locked from here on."
+          message="Have you sent it through Acrobat? The contract will be locked from here on."
           confirm="Yes, it's sent"
           onConfirm={() => run("sent", () => markContractSent(id), () => setStatus("sent"))}
           className={`btn flex items-center gap-1.5 ${prepared ? "btn-glow" : "btn-ghost"}`}
@@ -303,7 +303,7 @@ export function ContractEditor({
               Drag the file that just downloaded onto <b className="font-medium text-foreground">Request e-signatures</b> in the Acrobat tab.
             </li>
             <li>
-              Add <b className="font-medium text-foreground">{PROVIDER.email}</b> first, then paste the client&apos;s email (it&apos;s copied).
+              Add <b className="font-medium text-foreground">{PROVIDER.email}</b> first, then paste the client&apos;s email (it&apos;s already copied).
             </li>
             <li>
               Put a signature and a date on each person&apos;s own box (<b className="font-medium text-foreground">Auto-place fields</b>, or drag them),
@@ -311,7 +311,7 @@ export function ContractEditor({
             </li>
             <li>
               {tracking ? (
-                <>That&apos;s it — this page updates by itself when Adobe&apos;s email says it&apos;s out.</>
+                <>That&apos;s it. This page updates automatically once Adobe confirms it&apos;s been sent.</>
               ) : (
                 <>
                   Back here: <b className="font-medium text-foreground">I&apos;ve sent it</b>.
@@ -348,8 +348,8 @@ export function ContractEditor({
         body: (
           <>
             {tracking
-              ? `Sent ${sentAt ?? "today"}. This follows Adobe's emails by itself — it turns Signed, with the signed copy, once everyone has.`
-              : `Sent ${sentAt ?? "today"}. Ashmit signs first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`}
+              ? `Sent ${sentAt ?? "today"}. This page follows Adobe's emails and will show Signed, with the signed copy, once everyone has signed.`
+              : `Sent ${sentAt ?? "today"}. Ashmit signs first in Acrobat, then ${to} receives Acrobat's email to sign. Mark it as signed once everyone has.`}
             {problem}
             {timeline}
           </>
@@ -403,7 +403,7 @@ export function ContractEditor({
             <FileDown size={14} /> PDF
           </a>
           {!locked && (
-            <ConfirmButton message="Delete this contract? The client's link stops working." onConfirm={() => run("delete", () => deleteContract(id), () => router.push("/contracts"))} className="btn btn-ghost px-2.5">
+            <ConfirmButton message="Delete this contract? The client's link will stop working." onConfirm={() => run("delete", () => deleteContract(id), () => router.push("/contracts"))} className="btn btn-ghost px-2.5">
               <Trash2 size={14} />
             </ConfirmButton>
           )}
@@ -481,11 +481,11 @@ export function ContractEditor({
             <div className="flex flex-wrap items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{next.title}</p>
-                {!locked && <p className="text-xs text-muted">Live preview · hover a clause to tweak it by hand</p>}
+                {!locked && <p className="text-xs text-muted">Live preview · Hover over a clause to edit it by hand</p>}
               </div>
               {!locked && (
                 <ConfirmButton
-                  message="Put the clauses back to the master template's? Changes made to this contract's clauses are lost."
+                  message="Restore the master template's clauses? Any changes to this contract's clauses will be lost."
                   confirm="Reset"
                   onConfirm={() =>
                     run("reset", async () => {

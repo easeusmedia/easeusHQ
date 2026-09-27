@@ -36,7 +36,7 @@ export function TemplateEditor({ clauses: initial }: { clauses: Clause[] }) {
         </div>
         <ConfirmButton
           confirm="Reset"
-          message="Put the template back to the SOP's clauses? Your edits to it are lost (contracts already made keep theirs)."
+          message="Restore the SOP's original clauses? Your edits to the template will be lost. Existing contracts keep their own clauses."
           onConfirm={async () => {
             const res = await resetTemplate();
             if (res.clauses) setClauses(res.clauses);

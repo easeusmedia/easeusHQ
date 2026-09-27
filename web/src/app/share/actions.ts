@@ -12,7 +12,7 @@ export async function sendClientFeedback(
   input: { name?: unknown; message?: unknown; trap?: unknown }
 ): Promise<{ error?: string; ok?: boolean }> {
   const client = await prisma.client.findUnique({ where: { slug: String(slug) }, select: { id: true, shareEnabled: true } });
-  if (!client?.shareEnabled) return { error: "This page isn't shared any more." };
+  if (!client?.shareEnabled) return { error: "This page is no longer shared." };
 
   const checked = checkFeedback({ name: String(input?.name ?? ""), message: String(input?.message ?? ""), trap: String(input?.trap ?? "") });
   if ("error" in checked) return checked;
@@ -20,7 +20,7 @@ export async function sendClientFeedback(
   const lastHour = await prisma.clientFeedback.count({
     where: { clientId: client.id, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
   });
-  if (lastHour >= FEEDBACK_PER_HOUR) return { error: "Lots of messages just now — please try again in a little while." };
+  if (lastHour >= FEEDBACK_PER_HOUR) return { error: "We've received a lot of messages just now. Please try again shortly." };
 
   await prisma.clientFeedback.create({ data: { clientId: client.id, ...checked } });
   // the team sees it on the client's own page

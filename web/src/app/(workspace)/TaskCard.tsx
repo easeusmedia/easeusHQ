@@ -337,7 +337,7 @@ export function TaskCard({
 
       {task.status === "revision_requested" && canManage && (
         <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
-          Waiting on the editor to pick this back up.
+          Waiting for the editor to pick this up again.
         </p>
       )}
       {task.status === "revision_requested" && actingRole === "employee" && (
@@ -348,7 +348,7 @@ export function TaskCard({
 
       {task.status === "sent_for_approval" && actingRole === "employee" && (
         <p className="rounded-md bg-purple-400/10 px-2 py-1 text-xs text-purple-300">
-          Sent. Waiting on ops to review it.
+          Sent. Waiting for the operations team to review it.
         </p>
       )}
 

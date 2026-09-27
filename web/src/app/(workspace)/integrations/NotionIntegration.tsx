@@ -23,8 +23,7 @@ export function NotionIntegration({
         <h2 className="text-base font-medium">Notion</h2>
       </div>
       <p className="-mt-2 text-sm text-muted">
-        Which databases Sync and Push work against. A new one has to be shared with the Easeus HQ integration in
-        Notion first.
+        The Notion databases that Sync and Push use. Share any new database with the Easeus HQ integration in Notion first.
       </p>
 
       <div className="flex flex-col divide-y divide-border/60 border-t border-border pt-4">

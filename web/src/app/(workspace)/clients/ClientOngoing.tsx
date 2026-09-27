@@ -36,7 +36,7 @@ export function ClientOngoing({
   if (tasks.length === 0 && workTasks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border px-5 py-10 text-center">
-        <p className="text-sm text-muted">Nothing in flight for this client right now.</p>
+        <p className="text-sm text-muted">No work in progress for this client right now.</p>
       </div>
     );
   }

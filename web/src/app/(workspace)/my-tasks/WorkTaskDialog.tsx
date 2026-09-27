@@ -99,7 +99,7 @@ export const WorkTaskDialog = forwardRef<
 
   async function save() {
     if (!title.trim()) {
-      setError("Give it a title.");
+      setError("Please give it a title.");
       return;
     }
     setSaving(true);

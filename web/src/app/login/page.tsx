@@ -12,23 +12,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6 text-foreground">
-      {/* the backdrop: slow light behind a fading grid (see .aurora in globals.css) */}
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="aurora left-[12%] top-[8%] size-[34rem] bg-[#4b95e6]" />
-        <div className="aurora bottom-[4%] right-[10%] size-[30rem] bg-[#2f5fc4] [animation-delay:-9s] [animation-duration:32s]" />
-        <div className="aurora left-[46%] top-[52%] size-[22rem] bg-[#3fb7c9] opacity-25 [animation-delay:-17s] [animation-duration:38s]" />
-        <div className="login-grid absolute inset-0" />
-      </div>
-
+    <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
       <div className="rise-in relative w-full max-w-[400px]">
-        <form action={formAction} className="glass-card rounded-[28px] p-8">
+        <form action={formAction} className="panel rounded-[28px] p-8 sm:p-9">
           <div className="flex flex-col items-center text-center">
-            <span className="badge-lit flex size-14 items-center justify-center rounded-2xl">
-              <Image src="/logo.png" alt="Easeus" width={26} height={26} className="h-[26px] w-[26px] object-contain drop-shadow-[0_0_10px_rgba(75,149,230,0.55)]" priority />
+            <span className="badge flex size-14 items-center justify-center rounded-2xl">
+              <Image src="/logo.png" alt="Easeus" width={26} height={26} className="h-[26px] w-[26px] object-contain" priority />
             </span>
             <h1 className="mt-5 text-2xl font-semibold tracking-tight">Welcome back</h1>
-            <p className="mt-1.5 text-sm text-muted">Sign in to Easeus HQ</p>
+            <p className="mt-1.5 text-sm text-muted">Sign in to continue to Easeus HQ.</p>
           </div>
 
           <div className="mt-8 flex flex-col gap-3">
@@ -40,7 +32,7 @@ export default function LoginPage() {
                 required
                 autoFocus
                 autoComplete="email"
-                placeholder="you@easeus.media"
+                placeholder="Work email"
                 aria-label="Email"
                 className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
               />
@@ -79,7 +71,7 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
-        <p className="mt-6 text-center text-xs text-muted/70">Easeus Media · the team&apos;s workspace</p>
+        <p className="mt-6 text-center text-xs text-muted/70">A private workspace for the Easeus Media team.</p>
       </div>
     </div>
   );

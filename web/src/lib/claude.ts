@@ -36,7 +36,7 @@ export async function claude({
   maxTokens?: number;
 }): Promise<{ content: Block[]; stop_reason: string }> {
   const key = await claudeKey();
-  if (!key) throw new Error("Claude isn't connected — add an Anthropic API key under Integrations.");
+  if (!key) throw new Error("Claude isn't connected yet. Add an Anthropic API key under Integrations.");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },

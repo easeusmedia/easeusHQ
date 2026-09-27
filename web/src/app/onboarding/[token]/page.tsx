@@ -49,7 +49,7 @@ export default async function OnboardingPage({
         <h1 className="text-xl font-semibold">{invite ? "This form is already filled in" : "This link isn't valid"}</h1>
         <p className="text-sm text-muted">
           {invite
-            ? "Thanks — we have your details. If something needs changing, just message your contact at Easeus."
+            ? "Thank you — we have your details. If anything needs changing, message your contact at Easeus Media."
             : "Ask your contact at Easeus Media for a new link."}
         </p>
       </main>

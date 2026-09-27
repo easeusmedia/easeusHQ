@@ -198,7 +198,7 @@ export function StatusSelect({
           >
             <p className="text-sm font-medium">{extraField.label}</p>
             <p className="text-xs text-muted">
-              Needed to move this to {STATUS_LABEL[pendingTo!]}.
+              Required before moving this to {STATUS_LABEL[pendingTo!]}.
             </p>
 
             {/* The file Frame.io already has, offered as the whole answer:
@@ -273,7 +273,7 @@ export function StatusSelect({
         )}
         {!extraField && error && (
           <div role="alert" className="flex flex-col gap-2">
-            <p className="text-sm font-medium">Couldn&apos;t change the status</p>
+            <p className="text-sm font-medium">The status couldn&apos;t be changed</p>
             <p className="text-sm text-muted">{error}</p>
             <div className="mt-1 flex justify-end">
               <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-glow">

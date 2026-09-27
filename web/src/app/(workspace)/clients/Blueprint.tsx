@@ -51,8 +51,7 @@ export function BlueprintButton({ clientId, plan }: { clientId: string; plan: Pl
       >
         <h2 className="text-base font-semibold">Blueprint</h2>
         <p className="mt-1 text-sm text-muted">
-          What one new project gets, and across which days of a {PLAN_DAYS}-day project each is made. A project with a
-          different deadline gets the same shape, stretched or squeezed to fit.
+          The tasks every new project begins with, and when each one falls across a {PLAN_DAYS}-day project. Projects with a different deadline keep the same shape, scaled to fit.
         </p>
 
         <div className="mt-5 flex flex-col divide-y divide-border/50">

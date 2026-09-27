@@ -22,14 +22,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
   const team = !!(await getSessionUserId());
   if (!team) {
     const shared = await prisma.client.findUnique({ where: { id: clientId }, select: { shareEnabled: true } });
-    if (!shared?.shareEnabled) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+    if (!shared?.shareEnabled) return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
   }
   const url = new URL(request.url);
   const platform = url.searchParams.get("platform");
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
   if ((platform !== "youtube" && platform !== "instagram") || !DAY.test(from) || !DAY.test(to) || from > to) {
-    return NextResponse.json({ error: "That isn't a date range." }, { status: 400 });
+    return NextResponse.json({ error: "That date range isn't valid." }, { status: 400 });
   }
 
   const target = (await targets([clientId])).find((t) => t.platform === platform);
