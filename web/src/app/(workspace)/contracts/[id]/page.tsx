@@ -20,7 +20,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
   if (!contract) notFound();
 
   // out through Acrobat: what Adobe's emails say about it since the last look
-  if (contract.status === "approved" || contract.status === "sent") {
+  if (contract.status === "approved" || contract.status === "sent" || (contract.status === "signed" && !contract.signedPdf && !contract.agreementId)) {
     await trackContracts(id).catch(() => {});
     contract = (await prisma.contract.findUnique({ where: { id } }))!;
   }

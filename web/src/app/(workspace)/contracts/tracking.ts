@@ -21,7 +21,13 @@ export async function trackContracts(onlyId?: string, force = false): Promise<vo
   if ((await gmailAccount()) === null) return;
 
   const contracts = await prisma.contract.findMany({
-    where: { status: { in: ["approved", "sent"] }, approvedAt: { not: null }, ...(onlyId ? { id: onlyId } : {}) },
+    where: {
+      approvedAt: { not: null },
+      ...(onlyId ? { id: onlyId } : {}),
+      // waiting on signatures — or marked signed by hand and still
+      // missing its signed copy and steps
+      OR: [{ status: { in: ["approved", "sent"] } }, { status: "signed", signedPdf: null, agreementId: null }],
+    },
   });
   if (!contracts.length) return;
 
