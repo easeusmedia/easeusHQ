@@ -7,8 +7,7 @@ import type { ContentRow, Dashboard, Format, Metric, Platform } from "@/lib/anal
 import { shiftDay } from "@/lib/analytics";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { markOurWork, saveAnalyticsAccount, setAllOurs } from "./actions";
-import { Checkbox } from "../Checkbox";
+import { markOurWork, saveAnalyticsAccount } from "./actions";
 import { InstagramIcon, YoutubeIcon } from "../PlatformIcon";
 
 // a post waiting to be called ours or not, or already called not ours
@@ -146,10 +145,6 @@ export function ClientAnalytics({
     await markOurWork(clientId, platform, ids, ours);
     setVersion((v) => v + 1);
   }
-  async function everything(value: boolean) {
-    await setAllOurs(clientId, platform, value);
-    setVersion((v) => v + 1);
-  }
 
   const d = shownData?.dashboard;
   const work = shownData?.work;
@@ -245,12 +240,6 @@ export function ClientAnalytics({
             </div>
             {canEdit && (
               <span className="ml-auto flex items-center gap-3">
-                {work && (
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted" title="On: every post counts unless it's marked as not ours, for channels we run. Off: only posts matched to our tasks or marked as ours count.">
-                    <Checkbox checked={work.allOurs} onChange={everything} label="Everything here is our work" size={14} />
-                    Everything here is our work
-                  </label>
-                )}
                 <button type="button" onClick={() => setEditing(true)} className="btn btn-xs btn-ghost">
                   <Pencil size={11} /> Change
                 </button>
@@ -786,7 +775,7 @@ function compact(n: number): string {
 }
 
 function fmt(v: number | null | undefined, format: Format): string {
-  if (v == null || Number.isNaN(v)) return "—";
+  if (v == null || Number.isNaN(v)) return "–";
   if (format === "percent") return `${(v * 100).toFixed(1)}%`;
   if (format === "seconds") return `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, "0")}`;
   if (format === "hours") return v < 10 ? `${v.toFixed(1)}h` : `${compact(v)}h`;

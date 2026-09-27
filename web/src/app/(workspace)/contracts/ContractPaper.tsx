@@ -457,7 +457,7 @@ export function ContractPaper({
       <footer className="mt-10">
         <div className="border-b-2 border-black" />
         <div className="mt-0.5 border-b-[0.5px] border-black" />
-        <p className="mt-2 text-center text-[11.5px] text-[#888]">— End of Agreement —</p>
+        <p className="mt-2 text-center text-[11.5px] text-[#888]">End of Agreement</p>
       </footer>
 
       {/* the clauses this contract has but that don't apply to its terms —

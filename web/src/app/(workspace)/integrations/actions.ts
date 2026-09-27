@@ -38,7 +38,7 @@ export async function saveGoogleApp(clientId: string, clientSecret: string): Pro
 export async function saveApifyTokens(text: string): Promise<{ error?: string; saved?: number; rejected?: number }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   const found = [...new Set(text.match(/apify_api_[A-Za-z0-9]+/g) ?? [])];
-  if (!found.length) return { error: "No Apify tokens in that — they start with apify_api_." };
+  if (!found.length) return { error: "No Apify tokens found. They start with apify_api_." };
   const ok = await Promise.all(
     found.map((t) => fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(t)}`).then((r) => r.ok, () => false))
   );
@@ -109,7 +109,7 @@ export async function saveNotionDatabase(which: "tasks" | "clients", link: strin
     const message = err instanceof Error ? err.message : "";
     return {
       error: /could not find|not shared|unauthorized|restricted/i.test(message)
-        ? "Notion can't see that database — share it with the Easeus HQ integration first."
+        ? "Notion can't see that database. Share it with the Easeus HQ integration first."
         : message || "Couldn't open that database.",
     };
   }
@@ -135,7 +135,7 @@ export async function testDrive(): Promise<{ ok?: string; error?: string }> {
     const { deleteFile } = await import("@/lib/drive");
     await deleteFile(made.id);
     const settings = await driveSettings();
-    return { ok: `Working — files will land in ${settings[DRIVE_SETTINGS.folderName] ?? "the chosen folder"}.` };
+    return { ok: `Working. Files will land in ${settings[DRIVE_SETTINGS.folderName] ?? "the chosen folder"}.` };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "That didn't work." };
   }
@@ -196,7 +196,7 @@ export async function testFrameio(): Promise<{ ok?: string; error?: string }> {
     if (files.length === 0) return { error: `Reached Frame.io, but "${task.title}" has no files in its share.` };
     const f = files[0];
     const mb = f.size ? `${(f.size / 1024 / 1024).toFixed(0)}MB` : "size unknown";
-    return { ok: `Working — "${task.title}" → ${f.name} (${mb}${f.ready ? "" : ", still transcoding"}).` };
+    return { ok: `Working. "${task.title}" → ${f.name} (${mb}${f.ready ? "" : ", still transcoding"}).` };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "That didn't work." };
   }
@@ -206,7 +206,7 @@ export async function testFrameio(): Promise<{ ok?: string; error?: string }> {
 export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   const k = key.trim();
-  if (!k.startsWith("sk-ant-")) return { error: "That isn't an Anthropic API key — they start with sk-ant-." };
+  if (!k.startsWith("sk-ant-")) return { error: "That isn't an Anthropic API key. They start with sk-ant-." };
   if (!(await checkClaudeKey(k))) return { error: "Anthropic didn't accept that key." };
   await prisma.appSetting.upsert({ where: { key: CLAUDE_SETTINGS.key }, create: { key: CLAUDE_SETTINGS.key, value: k }, update: { value: k } });
   revalidatePath("/integrations");

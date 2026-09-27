@@ -58,9 +58,9 @@ function Artwork() {
         <p className="text-[19px] leading-[1.45] tracking-tight text-white/95">
           Great content starts with a clear agreement.
           <br />
-          Tell us who you are — we&apos;ll handle the rest.
+          Tell us who you are. We&apos;ll handle the rest.
         </p>
-        <p className="mt-4 text-[12px] text-white/45">Easeus Media — video for people worth listening to.</p>
+        <p className="mt-4 text-[12px] text-white/45">Easeus Media: video for people worth listening to.</p>
       </div>
     </div>
   );

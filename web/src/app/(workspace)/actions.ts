@@ -77,7 +77,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   const editingNotes = String(formData.get("editingNotes") ?? "").trim() || null;
   if (!title.trim()) return { error: "Give the task a title." };
   if (!projectId) {
-    return { error: clientId ? "That client has no project yet — add one with + New." : "Pick the client this task is for." };
+    return { error: clientId ? "That client has no project yet. Add one with + New." : "Pick the client this task is for." };
   }
   if (actor.role === "employee" && assignedToId && assignedToId !== actor.id) {
     return { error: "You can only add tasks for yourself." };

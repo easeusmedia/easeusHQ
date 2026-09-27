@@ -296,7 +296,7 @@ export function ContractEditor({
         </ConfirmButton>
       );
       return {
-        title: prepared ? "Now finish in Acrobat" : "Approved — send it via Acrobat",
+        title: prepared ? "Now finish in Acrobat" : "Approved and ready to send via Acrobat",
         body: prepared ? (
           <ol className="flex list-decimal flex-col gap-1 pl-4">
             <li>
@@ -320,7 +320,7 @@ export function ContractEditor({
             </li>
           </ol>
         ) : (
-          `One click downloads it, copies ${to}, and opens Acrobat — Ashmit signs first there, then the client.`
+          `One click downloads it, copies ${to}, and opens Acrobat. Ashmit signs first, then the client.`
         ),
         primary: prepared ? (tracking ? check : sent) : send,
         action: (
@@ -344,7 +344,7 @@ export function ContractEditor({
         </ConfirmButton>
       );
       return {
-        title: wrongAddress || undelivered ? "Out for signature — but not to the client" : "Out for signature in Acrobat",
+        title: wrongAddress || undelivered ? "Out for signature, but not to the client" : "Out for signature in Acrobat",
         body: (
           <>
             {tracking

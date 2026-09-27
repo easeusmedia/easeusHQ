@@ -27,8 +27,7 @@ export default async function Home() {
         <p className="text-sm leading-relaxed text-muted">
           The internal system Easeus Media runs its client work on. It holds the editing pipeline from brief to
           delivery, every client&apos;s record and documents, the team&apos;s own tasks, and the history of what has
-          been finished. It is used by Easeus Media staff and by our clients through links we send them — there are no
-          public sign-ups.
+          been finished. It is used by Easeus Media staff and by our clients through links we send them. There are no public sign-ups.
         </p>
       </header>
 

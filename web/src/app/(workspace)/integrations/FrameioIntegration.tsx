@@ -86,7 +86,7 @@ export function FrameioIntegration({
         )}
       </div>
       <p className="-mt-2 text-sm text-muted">
-        Lets a delivered task copy its final file from the review link straight into Creative Exports. Read-only — nothing is ever written back to Frame.io.
+        Lets a delivered task copy its final file from the review link straight into Creative Exports. It is read-only, so nothing is ever written back to Frame.io.
       </p>
 
       {!hasApp ? (
@@ -100,7 +100,7 @@ export function FrameioIntegration({
       ) : (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
-            Connected as <span className="text-foreground">{account || "—"}</span>
+            Connected as <span className="text-foreground">{account || "–"}</span>
           </p>
 
           {/* Which account review links are looked up in first — changeable

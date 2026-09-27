@@ -138,7 +138,7 @@ export function IntakeForm({ token }: { token: string }) {
           </div>
         </Field>
         <Field label="Business name" required error={errors.entity}>
-          <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name — or yours, if there's no company" autoComplete="organization" invalid={!!errors.entity} />
+          <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name, or yours if there's no company" autoComplete="organization" invalid={!!errors.entity} />
         </Field>
         <Field label="Country" required error={errors.country}>
           <CountryPicker

@@ -98,7 +98,7 @@ export function DueDate({
     state === "overdue" ? "font-medium text-red-300" : state === "today" ? "font-medium text-amber-300" : "text-muted";
   const title =
     state === "overdue"
-      ? `Overdue — was due ${formatDate(date)}`
+      ? `Overdue. It was due ${formatDate(date)}`
       : state === "today"
         ? "Due today"
         : `Due ${formatDate(date)}`;
@@ -299,7 +299,7 @@ export function TaskCard({
               whole card — it's a property of the task, not an alarm */}
           {task.internal && (
             <span
-              title="Internal work — not delivered to the client"
+              title="Internal work, not delivered to the client"
               className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted"
             >
               <EyeOff size={9} /> Internal

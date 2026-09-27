@@ -83,7 +83,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       {/* the clients roster beside this page shows this project's client as the open one */}
       <ActiveClient slug={project.client.slug} />
       <Link

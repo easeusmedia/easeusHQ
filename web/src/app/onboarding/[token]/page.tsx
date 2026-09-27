@@ -33,7 +33,7 @@ export default async function OnboardingPage({
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center gap-3 px-6 text-center">
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/15 text-2xl text-emerald-300">✓</span>
-        <h1 className="text-xl font-semibold">Thank you — you&apos;re all set</h1>
+        <h1 className="text-xl font-semibold">Thank you, you&apos;re all set</h1>
         <p className="text-sm text-muted">
           {sent === "partial"
             ? "Your details are with the team. We'll be in touch about the files."
@@ -49,7 +49,7 @@ export default async function OnboardingPage({
         <h1 className="text-xl font-semibold">{invite ? "This form is already filled in" : "This link isn't valid"}</h1>
         <p className="text-sm text-muted">
           {invite
-            ? "Thank you — we have your details. If anything needs changing, message your contact at Easeus Media."
+            ? "Thank you. We have your details. If anything needs changing, message your contact at Easeus Media."
             : "Ask your contact at Easeus Media for a new link."}
         </p>
       </main>

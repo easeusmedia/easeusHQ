@@ -21,7 +21,7 @@ export function TemplateEditor({ clauses: initial }: { clauses: Clause[] }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/contracts" aria-label="All contracts" className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground">
           <ArrowLeft size={16} />

@@ -73,11 +73,11 @@ export async function submitOnboarding(input: OnboardingInput): Promise<Onboardi
 
   const name = input.name?.trim();
   if (!name) return { error: "Please give your brand or business name." };
-  if (input.logo && !isStorablePicture(input.logo)) return { error: "That logo couldn't be read — try a JPEG or PNG." };
+  if (input.logo && !isStorablePicture(input.logo)) return { error: "That logo couldn't be read. Please try a JPEG or PNG." };
 
   const files = (input.files ?? []).slice(0, MAX_FILES);
   for (const f of files) {
-    if (!f?.name) return { error: "One of those files has no name — remove it and try again." };
+    if (!f?.name) return { error: "One of those files has no name. Please remove it and try again." };
     if (!(f.size >= 0) || f.size > MAX_FILE_BYTES) return { error: `"${f.name}" is too big to send this way.` };
   }
 

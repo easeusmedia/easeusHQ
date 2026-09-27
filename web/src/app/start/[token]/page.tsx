@@ -35,9 +35,9 @@ export default async function StartPage({ params }: { params: Promise<{ token: s
     const to = (d.signatories[0]?.email || d.contactEmail).trim();
     const note =
       contract.status === "signed"
-        ? "Your agreement is signed — welcome to Easeus Media. A copy of it is in your email."
+        ? "Your agreement is signed. Welcome to Easeus Media. A copy is in your email."
         : contract.status === "sent"
-          ? `Your agreement is on its way — look out for Adobe's email${to ? ` to ${to}` : ""} to sign it.`
+          ? `Your agreement is on its way. Look out for Adobe's email${to ? ` to ${to}` : ""} to sign it.`
           : `We have your details. Your agreement will be sent${to ? ` to ${to}` : ""} for e-signature shortly.`;
     return (
       <Shell>

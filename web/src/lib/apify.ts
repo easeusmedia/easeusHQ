@@ -84,7 +84,7 @@ export async function startRun(
   throw new Error(
     lastError
       ? `Apify wouldn't start the scrape: ${lastError.message}`
-      : "Every Apify account is out of credit for this month — add another token under Integrations, or wait for the monthly reset."
+      : "Every Apify account is out of credit for this month. Add another token under Integrations, or wait for the monthly reset."
   );
 }
 

@@ -44,11 +44,13 @@ export default async function IntegrationsPage({
   const apify = await Promise.all(tokens.map((t) => apifyAccount(t).catch(() => null)));
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Integrations</h1>
         <p className="mt-1 text-sm text-muted">The services Easeus HQ connects to.</p>
       </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-2">
 
       <DriveIntegration
         hasApp={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}
@@ -84,6 +86,7 @@ export default async function IntegrationsPage({
         tasks={{ id: taskDb, name: notion[NOTION_SETTINGS.taskDatabaseName] ?? null }}
         clients={{ id: clientDb, name: notion[NOTION_SETTINGS.clientDatabaseName] ?? null }}
       />
+      </div>
     </div>
   );
 }

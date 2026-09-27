@@ -15,8 +15,8 @@ export const DEFAULT_ONBOARDING: TemplateStep[] = [
   { title: "Request brand assets", detail: "Logo (PNG/SVG), brand colour codes, brand guidelines or brand book, fonts." },
   { title: "Tell them the credentials email is coming", detail: "A short heads-up in the group before asking for logins." },
   { title: "Send the credentials request email", detail: "Instagram and TikTok logins, plus access to their YouTube channel." },
-  { title: "Confirm everything received", detail: "Form, assets, credentials and YouTube access — then confirm in the group." },
-  { title: "Fill in client information", detail: "Profession, language, brand fonts and colours — the editors work from this." },
+  { title: "Confirm everything received", detail: "Form, assets, credentials and YouTube access. Then confirm in the group." },
+  { title: "Fill in client information", detail: "Profession, language, brand fonts and colours. The editors work from this." },
   { title: "Write the editing SOP and quality checklist", detail: "How their work gets edited, and the final pass before anything is uploaded." },
   { title: "Set the deliverables and billing rule", detail: "What they're contracted for each cycle, and when they get invoiced." },
 ];
@@ -39,7 +39,7 @@ export const DEFAULT_DOCS = {
 -
 
 ## Language
-UK English. Every word on screen — captions, titles, lower-thirds — uses British spelling.
+UK English. Every word on screen, including captions, titles and lower-thirds, uses British spelling.
 
 ## Brand assets
 
@@ -55,7 +55,7 @@ UK English. Every word on screen — captions, titles, lower-thirds — uses Bri
 
 ## Setup
 1. Download all raw files and assets from the task.
-2. Download the project templates — check Client information if you don't have them.
+2. Download the project templates. Check Client information if you don't have them.
 3. Confirm logo placement against the brand assets. Never reposition or resize by preference.
 4. Add the hook/title within the first 5 seconds.
 5. Add the guest name and title within the first 10 seconds, on screen for ~4 seconds.
@@ -78,7 +78,7 @@ UK English. Every word on screen — captions, titles, lower-thirds — uses Bri
 
 ### Music
 - Keep background music below -20dB so the speaker's voice is always clearest.
-- Never use copyrighted music — royalty-free or properly licensed only.
+- Never use copyrighted music. Use only royalty-free or properly licensed tracks.
 
 ### Export settings
 | Setting | Value |
@@ -120,11 +120,11 @@ UK English. Every word on screen — captions, titles, lower-thirds — uses Bri
 ## Final check
 - Watch the export start to finish before uploading`,
 
-  meetingNotes: `Running notes from calls with this client — newest at the top.
+  meetingNotes: `Running notes from calls with this client, newest at the top.
 
 ## `,
 
-  resources: `Links the team needs for this client — asset folders, templates, brand drives.
+  resources: `Links the team needs for this client: asset folders, templates and brand drives.
 
 ## Brand assets
 

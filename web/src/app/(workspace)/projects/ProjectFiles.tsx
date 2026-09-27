@@ -233,7 +233,7 @@ export function ProjectFiles({
                       </button>
                       <ConfirmButton
                         confirm="Remove"
-                        message={`Remove "${r.name}" from this project? Only the link is removed — the file itself stays wherever it's stored.`}
+                        message={`Remove "${r.name}" from this project? Only the link is removed; the file itself stays where it's stored.`}
                         onConfirm={() => remove(r.id)}
                         className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-white/[0.06] hover:text-red-300"
                       >

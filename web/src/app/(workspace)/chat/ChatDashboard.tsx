@@ -136,15 +136,15 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
           </label>
         </div>
 
-        <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto border-t border-white/[0.05] px-2 pb-2 pt-2">
           {filtered.map((p) => {
             const selected = p.id === openId;
             return (
               <button
                 key={p.id}
                 onClick={() => setOpenId(p.id)}
-                className={`flex w-full shrink-0 items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors duration-150 ${
-                  selected ? "bg-gradient-to-r from-accent/[0.14] to-accent/[0.02] ring-1 ring-accent/20" : "hover:bg-white/[0.04]"
+                className={`flex w-full shrink-0 items-center gap-3 rounded-2xl border px-2.5 py-2.5 text-left transition-colors duration-200 ${
+                  selected ? "selected" : "border-transparent hover:bg-white/[0.04]"
                 }`}
               >
                 <span className="relative shrink-0">

@@ -33,7 +33,7 @@ export default async function ContractsPage() {
   });
   const count = (...statuses: string[]) => contracts.filter((x) => statuses.includes(x.c.status)).length;
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8">
+    <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contracts</h1>
@@ -81,7 +81,7 @@ export default async function ContractsPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{title}</span>
-                    <span className="block truncate text-xs text-muted">{sub || (c.status === "invited" ? "Form sent — not filled in yet" : "Service agreement")}</span>
+                    <span className="block truncate text-xs text-muted">{sub || (c.status === "invited" ? "Form sent, not filled in yet" : "Service agreement")}</span>
                   </span>
                   {/* how far along, at a glance */}
                   <span className="hidden items-center gap-1 md:flex" title={STEPS[Math.min(at, STEPS.length - 1)]}>

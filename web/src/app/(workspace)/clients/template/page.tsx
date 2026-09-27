@@ -19,7 +19,7 @@ export default async function ClientTemplatePage() {
   const template = await getClientTemplate();
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <Link href="/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft size={14} /> Clients
       </Link>

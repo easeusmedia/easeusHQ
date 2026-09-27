@@ -227,12 +227,12 @@ export default async function AnalyticsPage({
         ["Videos", now.length, Clapperboard],
         ["Long-form", longForm.length, MonitorPlay],
         ["Shorts", shorts.length, Smartphone],
-        ["Avg views", now.length ? count(total / now.length) : "—", ChartColumn],
+        ["Avg views", now.length ? count(total / now.length) : "–", ChartColumn],
       ] as const)
     : ([
         ["Posts", now.length, ImageIcon],
         ["Reels", reels.length, Clapperboard],
-        ["Avg views per reel", reels.length ? count(views(reels) / reels.length) : "—", ChartColumn],
+        ["Avg views per reel", reels.length ? count(views(reels) / reels.length) : "–", ChartColumn],
         ["Likes and comments", count(now.reduce((n, i) => n + (i.likes ?? 0) + (i.comments ?? 0), 0)), Heart],
       ] as const);
 
@@ -293,7 +293,7 @@ export default async function AnalyticsPage({
                 note={<Change now={total} before={views(before)} label={isLastTwo ? "vs the 2 weeks before" : isLastWeek ? "vs the week before" : "vs before"} />}
               />
               {stats.map(([label, value, Icon]) => (
-                <StatTile key={label} label={label} value={value} Icon={Icon} lit={value !== 0 && value !== "—"} />
+                <StatTile key={label} label={label} value={value} Icon={Icon} lit={value !== 0 && value !== "–"} />
               ))}
             </div>
             {review > 0 && (

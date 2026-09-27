@@ -325,7 +325,7 @@ export function BillingPanel({
               >
                 <span className="font-medium tabular-nums">{money(Number(inv.amount))}</span>
                 <span className={inv.status === "overdue" ? "text-red-300" : "text-muted"}>
-                  {inv.dueDate ? day(inv.dueDate) : "—"}
+                  {inv.dueDate ? day(inv.dueDate) : "–"}
                 </span>
                 <span className="hidden text-muted sm:block">{day(inv.createdAt)}</span>
                 <span className="justify-self-end">

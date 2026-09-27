@@ -147,14 +147,14 @@ export function DriveIntegration({
           />
           <SettingRow
             label="Brand assets folder name"
-            hint={`Inside each client's folder — their uploads land at ${folderName ?? "Raw Files"} / Client / ${brandAssets}.`}
+            hint={`Inside each client's folder. Their uploads land in ${folderName ?? "Raw Files"} / Client / ${brandAssets}.`}
             value={brandAssets}
             placeholder="e.g. Brand assets"
             onSave={saveBrandAssetsName}
           />
           <SettingRow
             label="Creative Exports"
-            hint="Where a delivered file is copied from Frame.io — into Client / Project inside it."
+            hint="Where delivered files are copied from Frame.io, into Client / Project inside it."
             value={exportsName ?? (exportsId ? "Chosen folder" : null)}
             href={exportsId ? `https://drive.google.com/drive/folders/${exportsId}` : null}
             placeholder="Paste the folder's Drive link"

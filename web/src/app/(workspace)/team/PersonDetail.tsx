@@ -273,9 +273,9 @@ export function PersonDetail({
                   defaultValue={form.role}
                   onChange={(v) => set("role", v)}
                   options={[
-                    { value: "admin", label: "Admin — every team" },
-                    { value: "core", label: "Core — their whole team" },
-                    { value: "employee", label: "Member — their own work" },
+                    { value: "admin", label: "Admin: every team" },
+                    { value: "core", label: "Core: their whole team" },
+                    { value: "employee", label: "Member: their own work" },
                   ]}
                 />
               </div>
@@ -389,7 +389,7 @@ export function PersonDetail({
                   value={form.notes}
                   onChange={(e) => set("notes", e.target.value)}
                   rows={3}
-                  placeholder="Anything worth knowing — working hours, strengths, what they're being trained on…"
+                  placeholder="Anything worth knowing: working hours, strengths, what they're learning…"
                   className={field}
                 />
               </label>
@@ -405,10 +405,10 @@ export function PersonDetail({
           <dl className="grid grid-cols-2 gap-3">
             {[
               ["Email", person.email],
-              ["Phone", person.phone ?? "—"],
-              ["Team", person.teamName ?? "—"],
-              ["Role", person.jobTitleName ?? "—"],
-              ["Joined", person.joinedAt ?? "—"],
+              ["Phone", person.phone ?? "–"],
+              ["Team", person.teamName ?? "–"],
+              ["Role", person.jobTitleName ?? "–"],
+              ["Joined", person.joinedAt ?? "–"],
               ["Status", EMPLOYMENT_LABEL[person.employment as EmploymentStatus]],
             ].map(([k, v]) => (
               <div key={k} className="rounded-xl border border-border bg-surface-2/50 px-4 py-3">

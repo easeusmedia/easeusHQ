@@ -14,7 +14,7 @@ export function useAttachments() {
   const [problem, setProblem] = useState<string | null>(null);
   function add(list: FileList | null) {
     const next = [...files, ...Array.from(list ?? [])].slice(0, 5);
-    if (next.reduce((n, f) => n + f.size, 0) > LIMIT) return setProblem("That's more than 4MB — attach fewer or smaller files.");
+    if (next.reduce((n, f) => n + f.size, 0) > LIMIT) return setProblem("That's more than 4 MB. Please attach fewer or smaller files.");
     setProblem(null);
     setFiles(next);
   }
@@ -39,7 +39,7 @@ export function AttachButton({ onPick, disabled, size = 14 }: { onPick: (list: F
         disabled={disabled}
         onClick={() => input.current?.click()}
         aria-label="Attach files"
-        title="Attach files — PDFs, images or text"
+        title="Attach files: PDFs, images or text"
         className="flex shrink-0 items-center justify-center rounded-full p-1 text-muted transition-colors hover:text-accent disabled:opacity-40"
       >
         <Paperclip size={size} />

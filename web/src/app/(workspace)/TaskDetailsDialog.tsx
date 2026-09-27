@@ -528,7 +528,7 @@ function HandoffNote({
   const late = daysLate(dueDate, handedOffAt);
   return (
     <p className="text-xs text-muted">
-      Reached the client {formatDate(handedOffAt)} —{" "}
+      Reached the client {formatDate(handedOffAt)},{" "}
       {late ? <span className="text-red-300">{late} day{late === 1 ? "" : "s"} late</span> : "on time"}
     </p>
   );

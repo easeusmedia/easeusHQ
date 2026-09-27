@@ -33,7 +33,7 @@ const columnFor = (view: "list" | GroupBy) => VIEWS.find((v) => v.key === view)!
 
 // the stored keys ("sent_for_approval") read as the stage names the board uses
 
-const hoursLabel = (h: number | null) => (h === null ? "—" : h >= 48 ? `${Math.round(h / 24)}d` : `${h}h`);
+const hoursLabel = (h: number | null) => (h === null ? "–" : h >= 48 ? `${Math.round(h / 24)}d` : `${h}h`);
 
 // Everything the company has finished, and what it says about how the work
 // goes. The list answers "what happened to this task"; the grouped views
@@ -128,7 +128,7 @@ export function HistoryExplorer({
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatTile label="Finished" value={top.completed} Icon={CircleCheck} tone="emerald" />
-        <StatTile label="On time" value={top.onTimePct === null ? "—" : `${top.onTimePct}%`} lit={top.onTimePct !== null} Icon={Clock} />
+        <StatTile label="On time" value={top.onTimePct === null ? "–" : `${top.onTimePct}%`} lit={top.onTimePct !== null} Icon={Clock} />
         <StatTile label="Median turnaround" value={hoursLabel(top.medianTurnaround)} lit={top.completed > 0} Icon={Timer} />
         <StatTile label="Revisions per task" value={top.revisionsPerTask} lit={top.completed > 0} Icon={RotateCcw} />
         <StatTile label="People" value={top.people} Icon={UsersRound} />
@@ -295,7 +295,7 @@ export function HistoryExplorer({
                       {i.kind === "internal" && <span className="ml-2 text-xs text-muted">Own work</span>}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-muted">{i.person}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-muted">{i.client ?? "—"}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-muted">{i.client ?? "–"}</td>
                     <td className="px-3 py-2">
                       <span className="flex flex-wrap gap-1">
                         {i.tags.map((t) => (
@@ -306,7 +306,7 @@ export function HistoryExplorer({
                     <td className={`whitespace-nowrap px-3 py-2 tabular-nums ${late ? "text-red-300" : "text-muted"}`}>
                       {hoursLabel(turnaroundHours(i))}
                     </td>
-                    <td className="px-3 py-2 tabular-nums text-muted">{i.revisions || "—"}</td>
+                    <td className="px-3 py-2 tabular-nums text-muted">{i.revisions || "–"}</td>
                     <td className="px-3 py-2">
                       {/* the delivered file only — a Frame.io thread is gone
                           by the time anyone reads this back */}
@@ -321,7 +321,7 @@ export function HistoryExplorer({
                           Drive ↗
                         </a>
                       ) : (
-                        <span className="text-muted">—</span>
+                        <span className="text-muted">–</span>
                       )}
                     </td>
                     {canDelete && (
@@ -372,7 +372,7 @@ export function HistoryExplorer({
                   <td className="px-3 py-2 tabular-nums text-muted">{hoursLabel(r.medianTurnaround)}</td>
                   <td className="px-3 py-2 tabular-nums text-muted">{hoursLabel(r.medianActive)}</td>
                   <td className="px-3 py-2 tabular-nums text-muted">{r.revisionsPerTask}</td>
-                  <td className="px-3 py-2 tabular-nums text-muted">{r.onTimePct === null ? "—" : `${r.onTimePct}%`}</td>
+                  <td className="px-3 py-2 tabular-nums text-muted">{r.onTimePct === null ? "–" : `${r.onTimePct}%`}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(r.lastAt)}</td>
                 </tr>
               ))}
@@ -399,7 +399,7 @@ export function HistoryExplorer({
             {(open.tags.length > 0 || detail?.internal || open.kind === "internal") && (
               <div className="mt-3 flex flex-wrap items-center gap-1">
                 {open.kind === "internal" && <TaskTagChip name="Own work" />}
-                {detail?.internal && <TaskTagChip name="Internal — not delivered to the client" />}
+                {detail?.internal && <TaskTagChip name="Internal, not delivered to the client" />}
                 {open.tags.map((t) => (
                   <TaskTagChip key={t} name={t} />
                 ))}
@@ -409,13 +409,13 @@ export function HistoryExplorer({
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               {[
                 ["Created", formatDate(open.createdAt)],
-                ["Started", open.startedAt ? formatDate(open.startedAt) : "—"],
+                ["Started", open.startedAt ? formatDate(open.startedAt) : "–"],
                 ["Finished", formatDate(open.completedAt)],
-                ["Due", open.dueDate ? formatDate(open.dueDate) : "—"],
+                ["Due", open.dueDate ? formatDate(open.dueDate) : "–"],
                 ["Turnaround", hoursLabel(turnaroundHours(open))],
                 ["Working time", hoursLabel(activeHours(open))],
                 ["Revisions", String(open.revisions)],
-                ["On time", onTime(open) === null ? "—" : onTime(open) ? "Yes" : "No"],
+                ["On time", onTime(open) === null ? "–" : onTime(open) ? "Yes" : "No"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="tabular-nums">{value}</p>

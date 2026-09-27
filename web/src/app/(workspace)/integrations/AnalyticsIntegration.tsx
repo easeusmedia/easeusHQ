@@ -50,7 +50,7 @@ export function AnalyticsIntegration({
         <h2 className="text-base font-medium">Client analytics</h2>
       </div>
       <p className="-mt-2 text-sm text-muted">
-        Public YouTube and Instagram numbers for every client, collected through Apify. No logins are needed and nothing is asked of clients — just their channel link and Instagram handle.
+        Public YouTube and Instagram numbers for every client, collected through Apify. No logins are needed and nothing is asked of clients beyond their channel link and Instagram handle.
       </p>
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
@@ -76,7 +76,7 @@ export function AnalyticsIntegration({
                   <span className="text-muted tabular-nums">{i + 1}.</span> {a.username}
                 </span>
                 <span className={a.left !== null && a.left < 0.25 ? "text-red-300" : "text-muted"}>
-                  {a.left === null ? "—" : a.left < 0.25 ? "out of credit this month" : `$${a.left.toFixed(2)} left this month`}
+                  {a.left === null ? "–" : a.left < 0.25 ? "out of credit this month" : `$${a.left.toFixed(2)} left this month`}
                 </span>
               </li>
             ))}
@@ -87,7 +87,7 @@ export function AnalyticsIntegration({
             <textarea
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Apify API tokens, one per line — used in this order"
+              placeholder="Apify API tokens, one per line, used in this order"
               rows={4}
               className={`${field} font-mono text-xs`}
             />

@@ -206,7 +206,7 @@ export function buildDashboard(
     ],
     rows,
     notes: [
-      `Public numbers: each ${noun}'s views, likes and comments so far, for the ${noun}s published in the range — compared with the ones published in the same length of time before.`,
+      `Public numbers: each ${noun}'s views, likes and comments so far, for the ${noun}s published in the range, compared with those published over the same length of time before.`,
       yt
         ? "Impressions, click-through rate and watch time are private to the channel, so they aren't here."
         : "Reach, saves, shares and watch time are private to the account, so they aren't here.",

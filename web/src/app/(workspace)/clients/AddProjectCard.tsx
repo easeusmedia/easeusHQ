@@ -219,7 +219,7 @@ export function AddProjectCard({
                     const fmt = (d: string) =>
                       new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
                     const first = [...tasks].sort((a, b) => a.due.localeCompare(b.due))[0];
-                    return `${tasks.length} task${tasks.length === 1 ? "" : "s"} — the first (${first.title.split(" · ")[0]}) due ${fmt(first.due)}, the last ${fmt(tasks.at(-1)!.due)}.`;
+                    return `${tasks.length} task${tasks.length === 1 ? "" : "s"}. The first (${first.title.split(" · ")[0]}) due ${fmt(first.due)}, the last ${fmt(tasks.at(-1)!.due)}.`;
                   })()}
                 </span>
               </div>

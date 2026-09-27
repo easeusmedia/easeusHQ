@@ -127,7 +127,7 @@ export function ContractChat({
         <Avatar />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Claude</p>
-          <p className="text-xs text-muted">Add or change anything — clauses, wording, terms</p>
+          <p className="text-xs text-muted">Add or change anything: clauses, wording or terms</p>
         </div>
         {chat.length > 0 && (
           <button

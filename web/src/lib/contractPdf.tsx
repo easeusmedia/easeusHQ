@@ -226,7 +226,7 @@ export async function contractPdf({
         <View style={s.end} wrap={false}>
           <View style={s.ruleThick} />
           <View style={s.ruleThin} />
-          <Text style={s.endText}>— End of Agreement —</Text>
+          <Text style={s.endText}>End of Agreement</Text>
         </View>
       </Page>
     </Document>

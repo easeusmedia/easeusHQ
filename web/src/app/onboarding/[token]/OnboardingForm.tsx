@@ -129,8 +129,7 @@ export function OnboardingForm({
         <Image src="/logo.png" alt="" width={28} height={28} className="h-7 w-7 object-contain" priority />
         <h1 className="text-2xl font-semibold tracking-tight">Welcome to Easeus Media</h1>
         <p className="max-w-md text-sm text-muted">
-          A few details so we can set you up properly. It takes about two minutes — anything you skip we can pick up on
-          our first call.
+          A few details so we can set you up properly. It takes about two minutes, and anything you skip we can cover on our first call.
         </p>
       </header>
 
@@ -165,7 +164,7 @@ export function OnboardingForm({
               <input
                 value={form.niche}
                 onChange={(e) => set({ niche: e.target.value })}
-                placeholder="What you do — e.g. leadership podcast, skin clinic"
+                placeholder="What you do, e.g. leadership podcast or skin clinic"
                 className={field}
               />
             </div>
