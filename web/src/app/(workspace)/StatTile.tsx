@@ -9,12 +9,15 @@ export function StatTile({
   Icon,
   lit = typeof value === "number" ? value > 0 : true,
   tone = "accent",
+  note,
 }: {
   label: string;
   value: number | string;
   Icon: LucideIcon;
   lit?: boolean;
   tone?: "accent" | "emerald";
+  // a line under the label — a change on the period before, say
+  note?: React.ReactNode;
 }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-surface/50 px-5 py-4">
@@ -34,6 +37,7 @@ export function StatTile({
       </span>
       <p className={`text-3xl font-semibold tabular-nums tracking-tight ${lit ? "text-foreground" : "text-muted"}`}>{value}</p>
       <p className="mt-1 truncate pr-8 text-xs text-muted">{label}</p>
+      {note && <div className="mt-2">{note}</div>}
     </div>
   );
 }

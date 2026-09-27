@@ -161,6 +161,34 @@ export async function dailySync(origin?: string): Promise<{ started: number; ski
   return startSync({ since: shiftDay(today, -(monday ? WEEKLY_WINDOW : DAILY_WINDOW)), origin });
 }
 
+// Keeping the numbers fresh without spending credit for nothing. Opening a
+// page that shows an account's numbers calls this: when they're more than
+// STALE_AFTER old and nothing's already reading them, it starts a light
+// read in the background — only the last FRESH_DAYS of posts, which is where
+// views still move (the nightly pass covers 8 days, Mondays 21). At most one
+// such read per platform (or client) per STALE_AFTER, even if it fails or the
+// page is opened again and again; changing the dates on a page never reads
+// anything. The page shows it updating, and refreshes itself when it lands.
+export const STALE_AFTER = 6 * 60 * 60 * 1000;
+const FRESH_DAYS = 3;
+
+export async function freshen(opts: { platform: Platform; clientIds?: string[]; origin?: string }): Promise<{ started: number }> {
+  const accounts = await prisma.socialAccount.findMany({
+    where: { platform: opts.platform, ...(opts.clientIds ? { clientId: { in: opts.clientIds } } : {}) },
+    select: { scrapedAt: true },
+  });
+  // the stalest of them decides — and an account never read is someone else's job (a full read)
+  const oldest = accounts.reduce<number | null>((m, a) => (a.scrapedAt && (m === null || a.scrapedAt.getTime() < m) ? a.scrapedAt.getTime() : m), null);
+  if (oldest === null || Date.now() - oldest < STALE_AFTER) return { started: 0 };
+  const key = `analytics.freshened.${opts.platform}${opts.clientIds?.length === 1 ? `.${opts.clientIds[0]}` : ""}`;
+  const last = await prisma.appSetting.findUnique({ where: { key } });
+  if (last && Date.now() - Date.parse(last.value) < STALE_AFTER) return { started: 0 };
+  const now = new Date().toISOString();
+  await prisma.appSetting.upsert({ where: { key }, create: { key, value: now }, update: { value: now } });
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
+  return startSync({ clientIds: opts.clientIds, platforms: [opts.platform], since: shiftDay(today, -FRESH_DAYS), origin: opts.origin });
+}
+
 // ---- turning scraped items into rows ----
 
 type IgItem = {

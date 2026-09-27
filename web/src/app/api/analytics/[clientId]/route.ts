@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { buildDashboard, istDay, previousRange, shiftDay, type Item } from "@/lib/analytics";
-import { addressKey, collect, startSync, syncing, targets } from "@/lib/contentSync";
+import { addressKey, collect, freshen, startSync, syncing, targets } from "@/lib/contentSync";
 import { counts } from "@/lib/ourWork";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -38,6 +38,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
       await startSync({ clientIds: [clientId], platforms: [platform], since, origin: url.origin });
       busy = true;
     }
+    // a few hours old: a light read of their recent posts, in the background
+    if (!busy && covered && (await freshen({ platform, clientIds: [clientId], origin: url.origin })).started > 0) busy = true;
 
     const rows = await prisma.contentItem.findMany({
       where: { clientId, platform, publishedAt: { gte: new Date(`${since}T00:00:00+05:30`), lt: new Date(`${shiftDay(to, 1)}T00:00:00+05:30`) } },

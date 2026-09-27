@@ -78,7 +78,20 @@ export function RangeControls({ from, to, today, platform }: { from: string; to:
 }
 
 // "Refresh", and while any scrape is running, the page quietly checking back
-export function RefreshButton({ from, to, syncing, updated }: { from: string; to: string; syncing: boolean; updated: string | null }) {
+export function RefreshButton({
+  from,
+  to,
+  syncing,
+  updated,
+  exact,
+}: {
+  from: string;
+  to: string;
+  syncing: boolean;
+  updated: string | null;
+  // the actual time, for the tooltip
+  exact: string | null;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,11 +116,11 @@ export function RefreshButton({ from, to, syncing, updated }: { from: string; to
           if (res.error) setError(res.error);
           router.refresh();
         }}
-        title="Read fresh numbers now — they're also refreshed every night on their own"
+        title={`${exact ? `Numbers as of ${exact} IST. ` : ""}They refresh by themselves when you open this and they're a few hours old — or read them now.`}
         className="btn btn-sm btn-ghost disabled:opacity-60"
       >
         <RefreshCw size={13} className={busy || syncing ? "animate-spin" : ""} />
-        {syncing ? "Updating…" : updated ? `Updated ${updated}` : "Refresh"}
+        {syncing ? "Refreshing…" : updated ? `Updated ${updated}` : "Refresh"}
       </button>
     </span>
   );
