@@ -10,6 +10,8 @@ import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
 import { apifyAccount, apifyTokens } from "@/lib/apify";
+import { adobeAccount } from "@/lib/adobeSign";
+import { AdobeSignIntegration } from "./AdobeSignIntegration";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +71,8 @@ export default async function IntegrationsPage({
         clientId={fio[FRAMEIO_SETTINGS.clientId] ?? ""}
         justConnected={frameio === "1"}
       />
+
+      <AdobeSignIntegration account={(await adobeAccount()) || null} />
 
       <AnalyticsIntegration apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })} />
 

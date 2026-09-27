@@ -39,6 +39,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
   const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
   const unreadBySender = await getUnreadBySender().catch(() => ({}));
+  // clients who've sent their contract form, waiting on us for the terms
+  const contractsWaiting = isOps ? await prisma.contract.count({ where: { status: "draft" } }).catch(() => 0) : 0;
   const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
   const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
   // the roster beside the Clients section, which everyone can open
@@ -70,6 +72,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         people={users.filter(onStaff)}
         sessionUserId={sessionUser.id}
         unreadBySender={unreadBySender}
+        contractsWaiting={contractsWaiting}
         logout={logout}
         initialOpen={sidebarOpen}
       />

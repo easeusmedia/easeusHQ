@@ -745,3 +745,33 @@ model AppSetting {
   value     String   @db.Text
   updatedAt DateTime @updatedAt
 }
+
+// A client's service agreement, from the first form they fill in to the
+// signed copy (see lib/contract.ts). Ops makes a link; the client fills in
+// who they are at /start/<token>; ops adds the terms, reviews the clauses and
+// approves; then it goes out through Adobe Acrobat Sign.
+model Contract {
+  id          String    @id @default(uuid())
+  // the client's form link — it stops working once they've sent it
+  token       String    @unique
+  // what ops called them when the link was made
+  name        String?
+  // invited → draft (the client sent the form) → approved → sent → signed.
+  // Any edit to an approved one takes it back to draft.
+  status      String    @default("invited")
+  // the form exactly as the client sent it, kept apart from `details`,
+  // which ops then corrects and adds to
+  intake      Json?
+  details     Json
+  // this contract's own copy of the master template's clauses, edited freely
+  clauses     Json
+  // the Adobe Acrobat Sign agreement, once sent
+  agreementId String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  sentAt      DateTime?
+  signedAt    DateTime?
+}

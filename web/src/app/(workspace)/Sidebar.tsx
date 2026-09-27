@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
@@ -73,6 +73,7 @@ export function Sidebar({
   people,
   sessionUserId,
   unreadBySender,
+  contractsWaiting = 0,
   logout,
   initialOpen,
 }: {
@@ -82,6 +83,8 @@ export function Sidebar({
   people: Person[];
   sessionUserId: string;
   unreadBySender: Record<string, number>;
+  // contracts whose client has sent the form, waiting on ops
+  contractsWaiting?: number;
   logout: () => Promise<void>;
   // read server-side from a cookie (see layout.tsx) — the very first paint
   // already matches the saved preference, so there's nothing to correct
@@ -235,10 +238,15 @@ export function Sidebar({
         ...(isOps ? [{ href: "/calendar", label: "Calendar", hint: "Workload day by day", Icon: CalendarDays }] : []),
         // every client's YouTube and Instagram views in one place
         ...(isOps ? [{ href: "/analytics", label: "Analytics", hint: "Views across every client", Icon: ChartColumn }] : []),
+        // client contracts, from the form to the signed copy
+        ...(isOps ? [{ href: "/contracts", label: "Contracts", hint: "Client agreements and e-signing", Icon: FileSignature, count: contractsWaiting }] : []),
         // core members see their own team here (read-only); admin edits everyone
         ...(isOps ? [{ href: "/team", label: "Team", hint: "Everyone and their roles", Icon: UsersRound }] : []),
       ].map((item) => {
         const active = isActive(item.href, pathname);
+        // what's waiting behind this item: unread chat, contracts to finish
+        const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
+        const waiting = item.href === "/chat" ? `${unreadCount} unread` : `${count} waiting on you`;
         return (
           <Link
             key={item.href}
@@ -277,20 +285,18 @@ export function Sidebar({
               <item.Icon size={18} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
-              {item.href === "/chat" && unreadCount > 0 && (
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
-              )}
+              {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />}
             </span>
             <FadeLabel open={open}>{item.label}</FadeLabel>
-            {item.href === "/chat" && unreadCount > 0 && open && (
+            {count > 0 && open && (
               <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-medium text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
+                {count > 9 ? "9+" : count}
               </span>
             )}
             <Tip
               show={!open}
               label={item.label}
-              hint={item.href === "/chat" && unreadCount > 0 ? `${unreadCount} unread` : item.hint}
+              hint={count > 0 ? waiting : item.hint}
             />
           </Link>
         );
