@@ -296,15 +296,15 @@ export async function askAboutContract(id: string, text: string, attached: Attac
   // Only what Claude changed goes over what's saved now — the form may have
   // saved something else while it was thinking.
   const fresh = withDefaults((await prisma.contract.findUnique({ where: { id }, select: { details: true } }))?.details);
-  const details = withDefaults({
-    ...fresh,
-    ...Object.fromEntries(
-      Object.entries(work.d).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k as keyof ContractDetails]))
-    ),
-  });
+  const changes = Object.fromEntries(
+    Object.entries(work.d).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k as keyof ContractDetails]))
+  ) as Partial<ContractDetails>;
+  const details = withDefaults({ ...fresh, ...changes });
   await prisma.contract.update({
     where: { id },
     data: { chat, ...(changed ? { details, clauses: work.clauses, status } : {}) },
   });
-  return { chat, details, clauses: work.clauses, status };
+  // `changes`: just what Claude changed, for the page to lay over what it
+  // shows — so a click made meanwhile isn't put back
+  return { chat, details, changes, clauses: work.clauses, status };
 }

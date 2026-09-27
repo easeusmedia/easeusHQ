@@ -195,7 +195,7 @@ export async function chatContract(
   text: string,
   // files attached to the message, as "files"
   form: FormData | null = null
-): Promise<{ error?: string; chat?: ChatMessage[]; details?: ContractDetails; clauses?: Clause[]; status?: string }> {
+): Promise<{ error?: string; chat?: ChatMessage[]; details?: ContractDetails; changes?: Partial<ContractDetails>; clauses?: Clause[]; status?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
   const files = (form?.getAll("files") ?? []).filter((f): f is File => f instanceof File);
   if (!text.trim() && !files.length) return {};

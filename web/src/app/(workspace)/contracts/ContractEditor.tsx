@@ -98,7 +98,8 @@ export function ContractEditor({
     setBusyField(null);
     if (res.error) return setChatError(res.error);
     if (res.chat) setChat(res.chat);
-    if (res.details) setD(res.details);
+    // only what Claude changed — anything clicked while it was thinking stays
+    if (res.changes) setD((cur) => withDefaults({ ...cur, ...res.changes }));
     if (res.clauses) setClauses(res.clauses);
     if (res.status) setStatus(res.status);
   }
@@ -211,9 +212,9 @@ export function ContractEditor({
     };
   })();
 
-  // On a large screen the page itself never scrolls: the header, the
-  // stepper, Claude and the preview's action bar stay put, and only the form
-  // and the contract scroll, each in its own column.
+  // On a large screen the page itself never scrolls: the header and the
+  // stepper stay put; the left column (form, next step, Claude) scrolls as
+  // one, and on the right the action bar stays while the contract scrolls.
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))] lg:overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start gap-3">
@@ -241,23 +242,20 @@ export function ContractEditor({
       </div>
 
       <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-4 lg:min-h-0">
-          {/* the form — the one part of this column that scrolls */}
-          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-            <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
+        {/* the left column scrolls as one: form, next step, Claude */}
+        <div className="flex min-w-0 flex-col gap-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+          <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
 
-            {/* after the last question: what to do now */}
-            <div className="relative shrink-0 overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
-              <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
-              <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
-              <p className="mt-1.5 text-base font-medium">{next.title}</p>
-              <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
-              {next.action && <div className="mt-4 flex">{next.action}</div>}
-            </div>
+          {/* after the last question: what to do now */}
+          <div className="relative shrink-0 overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
+            <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
+            <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
+            <p className="mt-1.5 text-base font-medium">{next.title}</p>
+            <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
+            {next.action && <div className="mt-4 flex">{next.action}</div>}
           </div>
 
-          {/* Claude stays put under the form */}
-          <div className="h-[440px] shrink-0 lg:h-[min(330px,38dvh)]">
+          <div className="h-[420px] shrink-0">
             <ContractChat
               chat={chat}
               thinking={thinking}
