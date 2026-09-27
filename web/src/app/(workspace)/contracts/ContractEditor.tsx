@@ -312,7 +312,7 @@ export function ContractEditor({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(111,179,189,0.06),transparent_60%)] lg:min-h-0">
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(122,165,216,0.06),transparent_60%)] lg:min-h-0">
           {/* the one next step, fixed above the contract it's about */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-white/[0.05] px-4 py-3 sm:px-6">
             <div className="flex flex-wrap items-center gap-3">

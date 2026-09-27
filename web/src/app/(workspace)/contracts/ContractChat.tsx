@@ -56,7 +56,7 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
             onClick={() => onAnswer(o)}
             className="group flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-foreground/85 transition-colors hover:bg-accent/10 hover:text-foreground"
           >
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-accent/25 text-[11px] tabular-nums text-accent transition-colors group-hover:border-accent group-hover:bg-accent group-hover:text-[#0b1215]">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-accent/25 text-[11px] tabular-nums text-accent transition-colors group-hover:border-accent group-hover:bg-accent group-hover:text-[#0b1220]">
               {i + 1}
             </span>
             <span className="min-w-0 flex-1">{o}</span>
@@ -73,7 +73,7 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
           <PenLine size={13} className="shrink-0 text-muted" />
           <input value={own} onChange={(e) => setOwn(e.target.value)} placeholder="Type your own answer…" className="min-w-0 flex-1 bg-transparent py-1.5 text-[13.5px] outline-none! placeholder:text-muted/70" />
           <AttachButton onPick={att.add} />
-          <button type="submit" disabled={!own.trim() && !att.files.length} aria-label="Send" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[#0b1215] transition-opacity disabled:opacity-25">
+          <button type="submit" disabled={!own.trim() && !att.files.length} aria-label="Send" className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-[#0b1220] transition-opacity disabled:opacity-25">
             <ArrowUp size={14} />
           </button>
         </form>
@@ -210,7 +210,7 @@ export function ContractChat({
               {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
             </div>
           )}
-          <div className="flex items-end gap-1 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-2 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(111,179,189,0.1)]">
+          <div className="flex items-end gap-1 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-2 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(122,165,216,0.1)]">
             <span className="mb-1.5">
               <AttachButton onPick={att.add} disabled={thinking} size={16} />
             </span>
@@ -232,7 +232,7 @@ export function ContractChat({
               onClick={() => send(draft, att.files)}
               disabled={(!draft.trim() && !att.files.length) || thinking}
               aria-label="Send"
-              className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1215] transition-opacity disabled:opacity-30"
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1220] transition-opacity disabled:opacity-30"
             >
               <ArrowUp size={16} />
             </button>

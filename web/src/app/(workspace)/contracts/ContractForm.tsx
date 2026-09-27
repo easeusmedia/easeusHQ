@@ -96,7 +96,7 @@ function Other({ placeholder = "Other…", busy, disabled, onSubmit }: { placeho
         />
         {(focus || att.files.length > 0) && <AttachButton onPick={att.add} disabled={disabled || busy} size={12} />}
         {ready && (
-          <button type="submit" aria-label="Send" className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-accent text-[#0b1215]">
+          <button type="submit" aria-label="Send" className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-accent text-[#0b1220]">
             <ArrowUp size={12} />
           </button>
         )}

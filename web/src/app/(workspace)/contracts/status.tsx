@@ -30,7 +30,7 @@ export function Stepper({ at }: { at: number }) {
             <span
               className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] transition-colors ${
                 done
-                  ? "bg-accent text-[#0b1215]"
+                  ? "bg-accent text-[#0b1220]"
                   : current
                     ? "bg-accent/15 ring-1 ring-accent/60"
                     : "ring-1 ring-white/15"
