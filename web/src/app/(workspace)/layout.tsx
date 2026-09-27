@@ -12,6 +12,7 @@ import { seesClientFeedback } from "@/lib/scope";
 import { PresenceHeartbeat } from "./presence/PresenceHeartbeat";
 import { getUnreadBySender } from "./presence/actions";
 import { MainScroll } from "./MainScroll";
+import { ClientDock } from "./clients/ClientDock";
 import { PeopleProvider } from "./photos";
 import { ACTIVE_WINDOW_MS } from "./presence/constants";
 import { clientLogoSrc } from "@/lib/photos";
@@ -40,7 +41,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const contractsWaiting = isOps ? await prisma.contract.count({ where: { status: "draft" } }).catch(() => 0) : 0;
   const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
   const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
-  // the current clients, under the sidebar's Clients item — everyone sees them
+  // the current clients: the sidebar's tree and the client bar — everyone sees them
   const currentClients = (
     await prisma.client.findMany({
       where: { status: "current" },
@@ -74,12 +75,12 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         logout={logout}
         initialOpen={sidebarOpen}
       />
-      {/* a true sibling of Sidebar — outside the scrolling wrapper below,
-          same as Sidebar itself — so it can be `sticky top-0 h-screen`
-          with no offset math to fake that position from inside a padded,
-          scrolling child. It only renders on a client's own page (checks
-          the URL itself), so every other page is unaffected. */}
-      <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)]">{children}</MainScroll>
+      {/* the page scrolls; the client bar floats over its foot, and the page
+          makes room for it whenever it's there */}
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <MainScroll className="min-h-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)] [&:has(+[data-dock])]:pb-24">{children}</MainScroll>
+        <ClientDock clients={currentClients} />
+      </div>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
       {hearsFromClients && <FeedbackWatcher />}
     </div>

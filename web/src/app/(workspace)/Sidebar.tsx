@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
@@ -79,50 +79,48 @@ function FadeLabel({ open, children }: { open: boolean; children: React.ReactNod
   );
 }
 
-// Every current client, in a card at the foot of the rail — one click to any
-// of them from anywhere, the one you're on lit. Collapsed, the same rows are
-// just their logos in a column (the names fold away as the menu's do).
-function ClientsCard({ clients, current, open }: { clients: SidebarClient[]; current: string | null; open: boolean }) {
+// The current clients under the Clients item, joined by a line that runs
+// down from it and curves into each row; the one you're on is the selected
+// pill, and the line to it is lit.
+function ClientTree({ clients, current }: { clients: SidebarClient[]; current: string | null }) {
+  const at = clients.findIndex((c) => c.slug === current);
   return (
-    <div className="panel-soft mt-2 w-full shrink-0 rounded-2xl px-0.5 py-1">
-      <p
-        className={`flex items-center overflow-hidden whitespace-nowrap px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted/60 transition-[max-height,opacity,padding] duration-200 ease-in-out ${
-          open ? "max-h-8 pb-1.5 pt-1.5 opacity-100" : "max-h-0 py-0 opacity-0"
-        }`}
-      >
-        Clients
-        <span className="ml-auto tabular-nums tracking-normal">{clients.length}</span>
-      </p>
-      {/* ponytail: collapsed, a name shows on hover as the browser's own
-          title — the rail's quick tips can't escape this scrolling list */}
-      <ul className="max-h-52 overflow-y-auto">
-        {clients.map((c) => {
-          const on = c.slug === current;
-          return (
-            <li key={c.id}>
-              <Link
-                href={clientHref(c)}
-                onClick={(e) => e.stopPropagation()}
-                title={open ? undefined : c.name}
-                className={`flex h-8 w-full items-center rounded-[10px] px-1.5 text-[13px] transition-colors duration-150 ${ROW} ${open ? "gap-2" : "gap-0"} ${
-                  on ? "selected" : IDLE
-                }`}
-              >
-                {c.logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- a small stored logo
-                  <img src={c.logo} alt="" className={`photo size-5 shrink-0 ${on ? "ring-1 ring-accent/60" : ""}`} />
-                ) : (
-                  <Avatar name={c.name} size={20} presence={false} />
-                )}
-                <FadeLabel open={open}>
-                  <span className={on ? "font-medium" : ""}>{c.name}</span>
-                </FadeLabel>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <ul>
+      {clients.map((c, i) => {
+        const on = i === at;
+        return (
+          <li key={c.id} className="relative">
+            {/* the line down to this row, curving into it on the 32px row's centre line */}
+            <span
+              className={`absolute left-0 top-0 h-4 w-3 rounded-bl-lg border-b border-l transition-colors duration-300 ${
+                at >= 0 && i <= at ? "border-accent/70" : "border-white/10"
+              }`}
+            />
+            {i < clients.length - 1 && (
+              <span className={`absolute bottom-0 left-0 top-4 w-px transition-colors duration-300 ${at > i ? "bg-accent/70" : "bg-white/10"}`} />
+            )}
+            <Link
+              href={clientHref(c)}
+              onClick={(e) => e.stopPropagation()}
+              className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${ROW} ${on ? "selected font-medium" : IDLE}`}
+            >
+              <ClientFace client={c} size={18} />
+              <span className="truncate">{c.name}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// a client's logo, or their initials when there's none
+export function ClientFace({ client, size }: { client: SidebarClient; size: number }) {
+  return client.logo ? (
+    // eslint-disable-next-line @next/next/no-img-element -- a small stored logo
+    <img src={client.logo} alt="" className="photo shrink-0" style={{ width: size, height: size }} />
+  ) : (
+    <Avatar name={client.name} size={size} presence={false} />
   );
 }
 
@@ -205,6 +203,16 @@ export function Sidebar({
   // the client you're on: its own page names it; a project's page says
   const activeClient = useActiveClient();
   const currentClient = pathname.match(CLIENTS_SECTION)?.[1] ?? (pathname.startsWith("/projects/") ? activeClient : null);
+
+  // The Clients item unfolds its clients — by itself whenever you're in
+  // the clients area, and by its chevron any time
+  const inClients = CLIENTS_SECTION.test(pathname);
+  const [clientsOpen, setClientsOpen] = useState(inClients);
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (pathname !== seenPath) {
+    setSeenPath(pathname);
+    if (inClients) setClientsOpen(true);
+  }
 
   const groups = [
     { label: "Main", items: MAIN },
@@ -331,11 +339,13 @@ export function Sidebar({
             {g.label}
           </p>
           {g.items.map((item) => {
-        const active = isActive(item.href, pathname);
+        // Clients is lit on the dashboard itself; on a client, the tree says which
+        const isClients = item.href === "/clients";
+        const active = isClients ? pathname === "/clients" : isActive(item.href, pathname);
         // what's waiting behind this item: unread chat, contracts to finish
         const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
         const waiting = item.href === "/chat" ? `${unreadCount} unread` : `${count} waiting on you`;
-        return (
+        const row = (
           <Link
             key={item.href}
             href={qs ? `${item.href}?${qs}` : item.href}
@@ -346,7 +356,7 @@ export function Sidebar({
             // `a, button` transition rule in globals.css)
             className={`group/tip relative flex items-center rounded-xl text-sm transition-colors duration-150 ${ROW} ${open ? "w-full gap-2" : "gap-0"} ${
               active ? "selected" : IDLE
-            }`}
+            } ${isClients && open ? "pr-8" : ""}`}
           >
             {/* fixed-size slot, same position whether collapsed or open */}
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
@@ -364,18 +374,62 @@ export function Sidebar({
               </span>
             )}
             <Tip
-              show={!open}
+              show={!open && !isClients}
               label={item.label}
               hint={count > 0 ? waiting : item.hint}
             />
           </Link>
-        );
+          );
+          if (!isClients) return row;
+          return (
+            <div key={item.href} className="group/fly relative w-full">
+              {row}
+              {/* open: a chevron unfolds the clients beneath */}
+              {open && clients.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setClientsOpen((v) => !v);
+                  }}
+                  aria-label={clientsOpen ? "Hide clients" : "Show clients"}
+                  aria-expanded={clientsOpen}
+                  className="absolute right-1.5 top-2 flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                >
+                  <ChevronDown size={15} className={`transition-transform duration-200 ${clientsOpen ? "" : "-rotate-90"}`} />
+                </button>
+              )}
+              {open && (
+                <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${clientsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="overflow-hidden">
+                    <div className="ml-[18px] pb-1 pt-1">
+                      <ClientTree clients={clients} current={currentClient} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* collapsed: hovering the icon shows them in a card beside it */}
+              {!open && clients.length > 0 && (
+                <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
+                  <div onClick={(e) => e.stopPropagation()} className="panel w-60 rounded-2xl p-2">
+                    <Link
+                      href={qs ? `/clients?${qs}` : "/clients"}
+                      className="mb-1 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground hover:bg-white/[0.05]"
+                    >
+                      <Building2 size={15} /> All clients
+                    </Link>
+                    <div className="ml-[13px]">
+                      <ClientTree clients={clients} current={currentClient} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
           })}
         </div>
       ))}
       </div>
-
-      {clients.length > 0 && <ClientsCard clients={clients} current={currentClient} open={open} />}
 
       {/* Team moved out to a floating trigger below (see after </nav>) —
           pinned to the viewport, not this rail, per feedback. Just the
