@@ -122,7 +122,7 @@ export function ContractChat({
   const ideas = locked ? ["Summarise this contract"] : ["Add a confidentiality clause", "Summarise this contract", "Add a 10% discount for month one"];
 
   return (
-    <div className="flex h-[440px] flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-surface/90 to-surface/50">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-surface/90 to-surface/50">
       <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3">
         <Avatar />
         <div className="min-w-0 flex-1">

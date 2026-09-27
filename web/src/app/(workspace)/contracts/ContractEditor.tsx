@@ -211,9 +211,12 @@ export function ContractEditor({
     };
   })();
 
+  // On a large screen the page itself never scrolls: the header, the
+  // stepper, Claude and the preview's action bar stay put, and only the form
+  // and the contract scroll, each in its own column.
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start gap-3">
+    <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))] lg:overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-start gap-3">
         <Link href="/contracts" aria-label="All contracts" className="mt-0.5 flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground">
           <ArrowLeft size={16} />
         </Link>
@@ -233,64 +236,74 @@ export function ContractEditor({
         </div>
       </div>
 
-      <Stepper at={stepOf(status)} />
+      <div className="shrink-0">
+        <Stepper at={stepOf(status)} />
+      </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-5">
-          <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
+      <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4 lg:min-h-0">
+          {/* the form — the one part of this column that scrolls */}
+          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+            <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
 
-          {/* after the last question: what to do now */}
-          <div className="relative overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
-            <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
-            <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
-            <p className="mt-1.5 text-base font-medium">{next.title}</p>
-            <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
-            {next.action && <div className="mt-4 flex">{next.action}</div>}
+            {/* after the last question: what to do now */}
+            <div className="relative shrink-0 overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
+              <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
+              <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
+              <p className="mt-1.5 text-base font-medium">{next.title}</p>
+              <p className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</p>
+              {next.action && <div className="mt-4 flex">{next.action}</div>}
+            </div>
           </div>
 
-
-          <ContractChat
-            chat={chat}
-            thinking={thinking}
-            error={chatError}
-            locked={locked}
-            onSend={(text, files) => ask(text, null, files)}
-            onClear={async () => {
-              await clearContractChat(id);
-              setChat([]);
-              setChatError(null);
-            }}
-          />
+          {/* Claude stays put under the form */}
+          <div className="h-[440px] shrink-0 lg:h-[min(330px,38dvh)]">
+            <ContractChat
+              chat={chat}
+              thinking={thinking}
+              error={chatError}
+              locked={locked}
+              onSend={(text, files) => ask(text, null, files)}
+              onClear={async () => {
+                await clearContractChat(id);
+                setChat([]);
+                setChatError(null);
+              }}
+            />
+          </div>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(111,179,189,0.06),transparent_60%)] p-3 sm:p-8 lg:sticky lg:top-2 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
-          {/* the one next step, on top of the contract it's about */}
-          <div className="flex flex-wrap items-center gap-3 px-1">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{next.title}</p>
-              {!locked && <p className="text-xs text-muted">Live preview · hover a clause to tweak it by hand</p>}
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(111,179,189,0.06),transparent_60%)] lg:min-h-0">
+          {/* the one next step, fixed above the contract it's about */}
+          <div className="flex shrink-0 flex-col gap-2 border-b border-white/[0.05] px-4 py-3 sm:px-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{next.title}</p>
+                {!locked && <p className="text-xs text-muted">Live preview · hover a clause to tweak it by hand</p>}
+              </div>
+              {!locked && (
+                <ConfirmButton
+                  message="Put the clauses back to the master template's? Changes made to this contract's clauses are lost."
+                  onConfirm={() =>
+                    run("reset", async () => {
+                      const res = await resetContractClauses(id);
+                      if (res.clauses) setClauses(res.clauses);
+                      return res;
+                    })
+                  }
+                  className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground"
+                >
+                  <RotateCcw size={12} /> Template clauses
+                </ConfirmButton>
+              )}
+              {next.action}
             </div>
-            {next.action}
+            {(error || note) && <p className="fade-in text-sm text-foreground/85">{error ?? note}</p>}
           </div>
-          {(error || note) && <p className="fade-in px-1 text-sm text-foreground/85">{error ?? note}</p>}
-          {!locked && (
-            <div className="flex items-center justify-end px-1 text-xs text-muted">
-              <ConfirmButton
-                message="Put the clauses back to the master template's? Changes made to this contract's clauses are lost."
-                onConfirm={() =>
-                  run("reset", async () => {
-                    const res = await resetContractClauses(id);
-                    if (res.clauses) setClauses(res.clauses);
-                    return res;
-                  })
-                }
-                className="flex items-center gap-1 transition-colors hover:text-foreground"
-              >
-                <RotateCcw size={12} /> Template clauses
-              </ConfirmButton>
-            </div>
-          )}
-          <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} />
+          {/* the contract — scrolls on its own */}
+          <div className="p-3 sm:p-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+            <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} />
+          </div>
         </div>
       </div>
     </div>
