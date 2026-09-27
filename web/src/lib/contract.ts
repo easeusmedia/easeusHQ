@@ -561,3 +561,11 @@ export function readAdobeMail(subject: string, snippet: string, agreement: strin
   }
   return readAdobeSubject(subject, agreement);
 }
+
+// What to call someone in a thank-you: their first name, or the title and
+// surname when they gave a title ("Dr Drake", not "Dr")
+export function greetingName(full: string): string {
+  const words = full.trim().split(/\s+/).filter(Boolean);
+  if (words.length > 1 && /^(dr|mr|mrs|ms|miss|mx|prof|sir|dame|lord|lady)\.?$/i.test(words[0])) return `${words[0]} ${words[words.length - 1]}`;
+  return words[0] ?? "";
+}

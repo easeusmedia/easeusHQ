@@ -108,3 +108,11 @@ test("an undeliverable email is tied to its agreement by its text", async () => 
   });
   assert.equal(readAdobeMail("Adobe Acrobat Sign Document - Undeliverable", snippet, "Service Agreement - Demo"), null);
 });
+
+test("a thank-you keeps a title with its surname", async () => {
+  const { greetingName } = await import("./contract.ts");
+  assert.equal(greetingName("Dr Drake"), "Dr Drake");
+  assert.equal(greetingName("Dr. Yusra Al Mukhtar"), "Dr. Mukhtar");
+  assert.equal(greetingName("Jane Doe"), "Jane");
+  assert.equal(greetingName(""), "");
+});

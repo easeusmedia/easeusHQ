@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
-import { EMAIL } from "@/lib/contract";
+import { EMAIL, greetingName } from "@/lib/contract";
 import { submitIntake } from "../actions";
 
 // The first thing a new client fills in — one short page, only what the
@@ -109,9 +109,9 @@ export function IntakeForm({ token }: { token: string }) {
         <span className="flex size-11 items-center justify-center rounded-full bg-[#4b95e6]/15 text-[#9fc4f0]">
           <Check size={20} />
         </span>
-        <h1 className="mt-6 text-[24px] font-normal tracking-tight">Thank you, {f.contactName.trim().split(/\s+/)[0]}.</h1>
+        <h1 className="mt-6 text-[24px] font-normal tracking-tight">Thank you, {greetingName(f.contactName)}.</h1>
         <p className="mt-2 text-[14px] leading-relaxed text-white/50">
-          Your agreement will be sent to <span className="text-white/80">{to.trim()}</span> for e-signature shortly.
+          We have your details. Your agreement will be sent to <span className="text-white/80">{to.trim()}</span> for e-signature shortly.
         </p>
       </div>
     );

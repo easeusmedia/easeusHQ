@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Check } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { greetingName, withDefaults } from "@/lib/contract";
 import { Shell } from "../Shell";
 import { IntakeForm } from "./IntakeForm";
 
@@ -15,19 +17,38 @@ export const metadata: Metadata = {
 // — the link ops makes under Contracts. It works until the form is sent.
 export default async function StartPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const contract = await prisma.contract.findUnique({ where: { token }, select: { status: true } });
+  const contract = await prisma.contract.findUnique({ where: { token }, select: { status: true, details: true } });
 
-  if (!contract || contract.status !== "invited") {
+  if (!contract) {
     return (
       <Shell>
-        <h1 className="text-[24px] font-normal tracking-tight">
-          {contract ? "We have your details" : "This link isn't valid"}
-        </h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-white/50">
-          {contract
-            ? "Thanks — your agreement is being prepared. If anything needs changing, just message your contact at Easeus Media."
-            : "Ask your contact at Easeus Media for a new link."}
-        </p>
+        <h1 className="text-[24px] font-normal tracking-tight">This link isn&apos;t valid</h1>
+        <p className="mt-2 text-[14px] leading-relaxed text-white/50">Ask your contact at Easeus Media for a new link.</p>
+      </Shell>
+    );
+  }
+
+  // Already sent: thank them by name, and say where their agreement is now
+  if (contract.status !== "invited") {
+    const d = withDefaults(contract.details);
+    const first = greetingName(d.contactName);
+    const to = (d.signatories[0]?.email || d.contactEmail).trim();
+    const note =
+      contract.status === "signed"
+        ? "Your agreement is signed — welcome to Easeus Media. A copy of it is in your email."
+        : contract.status === "sent"
+          ? `Your agreement is on its way — look out for Adobe's email${to ? ` to ${to}` : ""} to sign it.`
+          : `We have your details. Your agreement will be sent${to ? ` to ${to}` : ""} for e-signature shortly.`;
+    return (
+      <Shell>
+        <div className="fade-in flex flex-col items-start">
+          <span className="flex size-11 items-center justify-center rounded-full bg-[#4b95e6]/15 text-[#9fc4f0]">
+            <Check size={20} />
+          </span>
+          <h1 className="mt-6 text-[24px] font-normal tracking-tight">{first ? `Thank you, ${first}.` : "Thank you."}</h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-white/50">{note}</p>
+          <p className="mt-6 text-[12.5px] text-white/35">Anything to change? Just message your contact at Easeus Media.</p>
+        </div>
       </Shell>
     );
   }
