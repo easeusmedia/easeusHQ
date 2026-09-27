@@ -8,7 +8,7 @@ import { indiaDay } from "@/lib/due";
 import { DEFAULT_CLAUSES, EMAIL, PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { contractPdf } from "@/lib/contractPdf";
 import { sendForSignature, signingUrl } from "@/lib/adobeSign";
-import { SIGNATURE, TEMPLATE, masterClauses, providerSignature } from "./masterTemplate";
+import { TEMPLATE, masterClauses } from "./masterTemplate";
 import { askAboutContract, type Attachment, type ChatMessage } from "./assistant";
 
 // Every step of a contract after the client's form: ops fills in the terms,
@@ -137,8 +137,7 @@ export async function sendContract(id: string): Promise<{ error?: string }> {
   }
 
   try {
-    const signature = await providerSignature();
-    const pdf = await contractPdf({ sections, values, details, tags: true, signature });
+    const pdf = await contractPdf({ sections, values, details, tags: true });
     const agreementId = await sendForSignature({
       pdf,
       fileName: `Service Agreement - ${values.CLIENT_ENTITY}.pdf`.replace(/[\\/:*?"<>|]/g, ""),
@@ -146,11 +145,7 @@ export async function sendContract(id: string): Promise<{ error?: string }> {
       message: `Hi ${clients.map((s) => s.name.trim().split(/\s+/)[0]).join(" & ")}, here's your service agreement with Easeus Media — please review and sign. Thank you!`,
       // we sign first, then it goes to the client(s) — the order here is
       // the PDF's signer1, signer2, … (lib/contractPdf.tsx)
-      // (with Ashmit's signature already on it, only the client signs)
-      signers: [
-        ...(signature ? [] : [{ email: PROVIDER.email, order: 1 }]),
-        ...clients.map((s) => ({ email: s.email.trim(), order: signature ? 1 : 2 })),
-      ],
+      signers: [{ email: PROVIDER.email, order: 1 }, ...clients.map((s) => ({ email: s.email.trim(), order: 2 }))],
     });
     await prisma.contract.update({
       where: { id },
@@ -191,21 +186,6 @@ export async function deleteContract(id: string): Promise<{ error?: string }> {
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
   if (c?.status === "sent" || c?.status === "signed") return { error: "A contract that's gone out stays on record." };
   await prisma.contract.deleteMany({ where: { id } });
-  done();
-  return {};
-}
-
-// Ashmit's signature for every contract — a PNG or JPEG, already trimmed
-// and made transparent in the browser; null removes it
-export async function saveProviderSignature(image: string | null): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can change this." };
-  if (image === null) {
-    await prisma.appSetting.deleteMany({ where: { key: SIGNATURE } });
-  } else {
-    if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image)) return { error: "That isn't a PNG or JPEG image." };
-    if (image.length > 400_000) return { error: "That image is too large — try a smaller one." };
-    await prisma.appSetting.upsert({ where: { key: SIGNATURE }, create: { key: SIGNATURE, value: image }, update: { value: image } });
-  }
   done();
   return {};
 }

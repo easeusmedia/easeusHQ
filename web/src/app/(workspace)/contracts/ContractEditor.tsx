@@ -41,7 +41,6 @@ export function ContractEditor({
   agreementStatus,
   sentAt,
   sentByApi,
-  signature,
 }: {
   id: string;
   token: string;
@@ -56,8 +55,6 @@ export function ContractEditor({
   sentAt: string | null;
   // sent through the Adobe API, rather than by hand in Acrobat
   sentByApi: boolean;
-  // Ashmit's signature, already on our side of the PDF when there is one
-  signature: string | null;
 }) {
   const router = useRouter();
   const [d, setD] = useState(initialDetails);
@@ -226,25 +223,19 @@ export function ContractEditor({
             <li>
               In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b> and drop in the file that just downloaded.
             </li>
-            <li>Paste the client&apos;s email — it&apos;s copied.</li>
             <li>
-              <b className="font-medium text-foreground">Auto-place fields</b> (or drag a signature and date onto the client&apos;s lines), then{" "}
-              <b className="font-medium text-foreground">Send</b>.
+              Add <b className="font-medium text-foreground">{PROVIDER.email}</b> first, then paste the client&apos;s email (it&apos;s copied).
+            </li>
+            <li>
+              Put a signature and a date on each person&apos;s own box (<b className="font-medium text-foreground">Auto-place fields</b>, or drag them),
+              then <b className="font-medium text-foreground">Send</b>. Acrobat asks Ashmit to sign first, then emails the client.
             </li>
             <li>
               Back here: <b className="font-medium text-foreground">I&apos;ve sent it</b>.
             </li>
           </ol>
-        ) : signature ? (
-          `One click downloads it (Ashmit's signature and the date are on it), copies ${to}, and opens Acrobat.`
         ) : (
-          <>
-            One click downloads it, copies {to}, and opens Acrobat.{" "}
-            <Link href="/contracts" className="text-accent underline-offset-2 hover:underline">
-              Upload Ashmit&apos;s signature
-            </Link>{" "}
-            first and it comes signed on our side.
-          </>
+          `One click downloads it, copies ${to}, and opens Acrobat — Ashmit signs first there, then the client.`
         ),
         primary: prepared ? sent : send,
         action: (
@@ -268,9 +259,7 @@ export function ContractEditor({
       );
       return {
         title: "Out for signature in Acrobat",
-        body: signature
-          ? `Sent ${sentAt ?? "today"}. ${to} gets Acrobat's email to sign. Mark it signed once they have.`
-          : `Sent ${sentAt ?? "today"}. You sign first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`,
+        body: `Sent ${sentAt ?? "today"}. Ashmit signs first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`,
         primary: signed,
         action: (
           <div className="flex flex-wrap gap-2">
@@ -288,11 +277,7 @@ export function ContractEditor({
         body: `Adobe Acrobat Sign emails you (${PROVIDER.email}) to sign first; then it goes to ${to} to sign.`,
         action: (
           <ConfirmButton
-            message={
-              signature
-                ? `Send it through Adobe Acrobat Sign to ${to}? It's already signed on our side.`
-                : `Send it through Adobe Acrobat Sign? You sign first as ${PROVIDER.email}, then it goes to ${to}.`
-            }
+            message={`Send it through Adobe Acrobat Sign? You sign first as ${PROVIDER.email}, then it goes to ${to}.`}
             confirm="Send"
             onConfirm={() => run("send", () => sendContract(id), () => setStatus("sent"))}
             className="btn btn-glow flex items-center gap-1.5"
@@ -445,7 +430,7 @@ export function ContractEditor({
           </div>
           {/* the contract — scrolls on its own */}
           <div className="p-3 sm:p-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
-            <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} signature={signature} />
+            <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} />
           </div>
         </div>
       </div>
