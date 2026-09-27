@@ -268,7 +268,7 @@ export function ProjectsSection({
 
           {open && (
             // never wider than the screen, so it can't run off a phone's edge
-            <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[min(21.5rem,calc(100vw-2rem))] rounded-lg border border-border bg-surface-2 p-3 shadow-xl">
+            <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[min(21.5rem,calc(100vw-2rem))] rounded-lg popover p-3 shadow-xl">
               {/* how to look at them: as a list, or split into the invoices
                   they were billed in — only where the client has a rule */}
               {batches.length > 0 && (

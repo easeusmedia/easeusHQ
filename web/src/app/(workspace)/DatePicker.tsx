@@ -217,7 +217,7 @@ export function DatePicker({
         <div
           {...topLayer}
           style={{ top: position.top, bottom: position.bottom, left: position.left + shift, width: panelWidth }}
-          className="pop-in fixed z-50 rounded-xl border border-border bg-surface p-3 shadow-2xl"
+          className="pop-in fixed z-50 rounded-xl popover p-3 shadow-2xl"
         >
           <div className="mb-3 flex items-center justify-between gap-2">
             <button

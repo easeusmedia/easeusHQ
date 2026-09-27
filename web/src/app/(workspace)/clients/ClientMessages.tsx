@@ -50,7 +50,7 @@ export function ClientMessages({ clientId, items }: { clientId: string; items: I
         )}
       </button>
       {open && (
-        <div className="pop-in absolute right-0 top-full z-30 mt-1.5 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-surface-2 shadow-xl">
+        <div className="pop-in absolute right-0 top-full z-30 mt-1.5 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl popover shadow-xl">
           <p className="border-b border-border px-4 py-2.5 text-xs font-medium text-muted">From the client</p>
           <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto p-2">
             {items.length === 0 ? (

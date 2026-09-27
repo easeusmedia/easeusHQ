@@ -209,7 +209,7 @@ export function ClauseForm({
   }
 
   return (
-    <div className="fade-in -mx-3 my-2 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 font-sans text-foreground shadow-2xl">
+    <div className="fade-in -mx-3 my-2 flex flex-col gap-3 rounded-xl popover p-4 font-sans text-foreground shadow-2xl">
       <input
         autoFocus
         value={title}

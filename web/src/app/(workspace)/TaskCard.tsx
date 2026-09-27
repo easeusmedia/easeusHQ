@@ -284,7 +284,7 @@ export function TaskCard({
                   a card near the top of its scrolling column had nowhere
                   for an upward tooltip to go, so the column's own overflow
                   clipped it instead of letting it show */}
-              <span className="pointer-events-none absolute top-full right-0 z-10 mt-1 w-max max-w-[12rem] rounded-md border border-border bg-surface-2 px-2 py-1 text-xs font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
+              <span className="pointer-events-none absolute top-full right-0 z-10 mt-1 w-max max-w-[12rem] rounded-md popover px-2 py-1 text-xs font-normal text-foreground opacity-0 shadow-lg transition-opacity group-hover/rev:opacity-100">
                 Sent back for revision {task.revisionCount} time{task.revisionCount === 1 ? "" : "s"}
               </span>
             </span>

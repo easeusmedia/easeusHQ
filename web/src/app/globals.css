@@ -201,9 +201,20 @@ a, button {
    instead. So: .glass keeps a solid-feeling panel; .glass::backdrop does
    the real blurring. */
 .glass {
-  background: rgba(16, 17, 20, 0.96);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  /* dialogs and notices: the same stroked material as every card */
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #181b20 0%, #121418 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.03) 100%) border-box;
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.85);
+}
+/* menus, pickers and tooltips that open over the page */
+.popover {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #1b1e24 0%, #15171b 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 100%) border-box;
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.75);
 }
 /* Every <dialog> in the app eases in and out instead of appearing and
    vanishing in a single frame. Two things make this work on a native

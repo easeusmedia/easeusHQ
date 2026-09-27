@@ -315,7 +315,7 @@ export function StatusSelect({
             // right-aligned to the pill: the menu (11rem) is wider than the
             // pill it hangs off, so left-aligning pushed it past the edge
             style={{ top: position.top, bottom: position.bottom, left: Math.max(8, position.left + position.width - 176) }}
-            className="pop-in fixed z-50 w-44 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
+            className="pop-in fixed z-50 w-44 rounded-md popover py-1 shadow-lg"
           >
             {options.map((to) => (
               <button
@@ -370,7 +370,7 @@ export function StatusSelect({
             left: Math.max(8, Math.min(position.left, window.innerWidth - Math.max(position.width, 176) - 8)),
             width: Math.max(position.width, 176),
           }}
-          className="pop-in fixed z-50 rounded-md border border-border bg-surface-2 py-1 shadow-lg"
+          className="pop-in fixed z-50 rounded-md popover py-1 shadow-lg"
         >
           {dropdownOptions.map((to) => (
             <button

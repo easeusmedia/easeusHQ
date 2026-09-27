@@ -144,7 +144,7 @@ export function TagPill({
         <div
           {...topLayer}
           style={{ top: position.top, bottom: position.bottom, left: position.left, width: 340 }}
-          className="pop-in fixed z-50 rounded-xl border border-border bg-surface p-3 shadow-2xl"
+          className="pop-in fixed z-50 rounded-xl popover p-3 shadow-2xl"
         >
           <TaskTagPicker
             tags={tags}

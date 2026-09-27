@@ -152,7 +152,7 @@ export function Dropdown({
             left: position.left,
             width: pill ? Math.max(position.width, 208) : position.width,
           }}
-          className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md border border-border bg-surface-2 py-1 shadow-lg"
+          className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md popover py-1 shadow-lg"
         >
           {searching && (
             <div className="px-2 pt-1 pb-1.5">

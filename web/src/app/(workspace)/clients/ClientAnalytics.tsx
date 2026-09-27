@@ -661,7 +661,7 @@ function Chart({ series }: { series: { day: string; value: number }[] }) {
         </svg>
         {h && hover !== null && (
           <span
-            className="pointer-events-none absolute -top-2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-border bg-surface-2 px-2.5 py-1 text-xs shadow-lg"
+            className="pointer-events-none absolute -top-2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg popover px-2.5 py-1 text-xs shadow-lg"
             style={{ left: `${(x(hover) / W) * 100}%` }}
           >
             <span className="font-semibold tabular-nums">{h.value.toLocaleString("en-IN")}</span>{" "}
