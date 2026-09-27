@@ -500,3 +500,114 @@ dialog[open]::backdrop {
     overflow: visible;
   }
 }
+
+/* ---- Sign-in ----
+   Soft light drifting behind a stroked glass card: three blurred washes of
+   the brand blue (one cooler, one deeper) moving slowly enough to read as
+   calm, over a faint grid that fades out toward the edges. */
+.aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+  animation: drift 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6vw, -4vh, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-4vw, 5vh, 0) scale(0.94);
+  }
+}
+.login-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, black 20%, transparent 75%);
+}
+.rise-in {
+  animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* the sign-in card: real glass — translucent, blurring the light behind it
+   — so its stroke is drawn on a masked ring of its own rather than as a
+   background under the face (which would show through) */
+.glass-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(26, 30, 37, 0.62), rgba(14, 16, 20, 0.7));
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.9);
+}
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05) 45%, rgba(75, 149, 230, 0.22));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* a field on the glass: stroked, and softly lit in the accent when in use */
+.field {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.field:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.field:focus-within {
+  border-color: rgba(75, 149, 230, 0.55);
+  background: rgba(75, 149, 230, 0.04);
+  box-shadow: 0 0 0 4px rgba(75, 149, 230, 0.12);
+}
+/* the browser's saved-login fill would otherwise paint the field pale blue */
+.field input:-webkit-autofill {
+  -webkit-text-fill-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px #121821 inset;
+  caret-color: var(--foreground);
+  transition: background-color 9999s;
+}
+/* the one bright thing on the page: the accent as a lit gradient */
+.btn-primary {
+  background: linear-gradient(180deg, #5aa2ee 0%, #3f86d6 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 10px 30px -12px rgba(75, 149, 230, 0.7);
+  color: white;
+  transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 14px 36px -12px rgba(75, 149, 230, 0.85);
+}
+.btn-primary:active {
+  transform: translateY(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .rise-in {
+    animation: none;
+  }
+}

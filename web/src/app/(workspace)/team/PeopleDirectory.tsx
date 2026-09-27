@@ -57,6 +57,7 @@ export type PersonRecord = {
 export type Option = { id: string; name: string; slug?: string };
 
 const FORMER = "Former employees";
+const ADMIN = "Admin";
 
 export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
   active: "Active",
@@ -122,11 +123,14 @@ export function PeopleDirectory({
   const groups = useMemo(() => {
     const byGroup = new Map<string, PersonRecord[]>();
     for (const p of filtered) {
-      const key = p.employment === "former" ? FORMER : p.teamName ?? "No team";
+      // the admin runs the agency rather than sitting in one team
+      const key = p.employment === "former" ? FORMER : p.role === "admin" ? ADMIN : p.teamName ?? "No team";
       if (!byGroup.has(key)) byGroup.set(key, []);
       byGroup.get(key)!.push(p);
     }
-    return [...byGroup.entries()].sort(([a], [b]) => (a === FORMER ? 1 : b === FORMER ? -1 : 0));
+    // Admin first, former employees last, the teams as they come between
+    const rank = (k: string) => (k === ADMIN ? -1 : k === FORMER ? 1 : 0);
+    return [...byGroup.entries()].sort(([a], [b]) => rank(a) - rank(b));
   }, [filtered]);
 
   return (

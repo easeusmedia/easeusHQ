@@ -257,7 +257,11 @@ export function Sidebar({
       // floats: a stroked panel inset from the window's edges, the page's
       // own background showing round it (after the Hynex reference)
       className={`sticky top-0 z-30 h-screen shrink-0 py-3 pl-3 transition-[width] duration-200 ease-in-out ${
-        open ? "w-64" : "w-[72px]"
+        // collapsed: exactly one row wide inside the panel (its padding
+        // and stroke, the row's 36-unit slot and 1px border each side), so
+        // every icon sits dead centre. In spacing units rather than px —
+        // the root font size is 87.5%, so a unit isn't the usual 4px
+        open ? "w-64" : "w-[calc(var(--spacing)*17+4px)]"
       }`}
     >
       <div className="panel flex h-full flex-col items-start gap-1 rounded-3xl p-2.5">
@@ -286,7 +290,7 @@ export function Sidebar({
           // plain, non-interactive-looking logo — two things swapping to
           // the same "close sidebar" icon on hover was the actual complaint
           aria-label={open ? undefined : "Open sidebar"}
-          className={`group/tip relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${open ? "" : "group hover:bg-white/[0.05]"}`}
+          className={`group/tip relative ml-px flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${open ? "" : "group hover:bg-white/[0.05]"}`}
         >
           <Image
             src="/logo.png"
@@ -517,7 +521,7 @@ export function Sidebar({
           // same fixed layout (and the same animated gap-2/gap-0 — see
           // the nav rows' own comment above) as the nav rows: the avatar
           // never moves, and now neither does the name label mid-collapse
-          className={`group/tip relative flex items-center rounded-xl text-left hover:bg-white/[0.04] ${open ? "w-full gap-2" : "gap-0"}`}
+          className={`group/tip relative flex items-center rounded-xl text-left hover:bg-white/[0.04] ${ROW} ${open ? "w-full gap-2" : "gap-0"}`}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
             <Avatar name={name} size={26} presence={false} />
