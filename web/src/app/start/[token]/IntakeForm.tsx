@@ -95,7 +95,7 @@ export function IntakeForm({ token }: { token: string }) {
     const to = f.signsSelf ? f.contactEmail : f.signatory.email;
     return (
       <div className="fade-in flex flex-col items-start">
-        <span className="flex size-11 items-center justify-center rounded-full bg-[#7aa5d8]/15 text-[#a8c6ec]">
+        <span className="flex size-11 items-center justify-center rounded-full bg-[#5ba8d4]/15 text-[#9dcbe7]">
           <Check size={20} />
         </span>
         <h1 className="mt-6 text-[24px] font-normal tracking-tight">Thank you, {f.contactName.trim().split(/\s+/)[0]}.</h1>
@@ -142,7 +142,7 @@ export function IntakeForm({ token }: { token: string }) {
                 aria-pressed={f.signsSelf === o.self}
                 onClick={() => set({ signsSelf: o.self })}
                 className={`h-9 rounded-md text-[13px] transition-colors duration-200 ${
-                  f.signsSelf === o.self ? "bg-[#7aa5d8]/15 text-[#c6d9f2]" : "text-white/50 hover:text-white/80"
+                  f.signsSelf === o.self ? "bg-[#5ba8d4]/15 text-[#c2e0f1]" : "text-white/50 hover:text-white/80"
                 }`}
               >
                 {o.label}
@@ -167,7 +167,7 @@ export function IntakeForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={sending}
-        className="mt-9 h-11 rounded-lg bg-[#7aa5d8] text-[13.5px] font-medium text-[#0b1220] transition-colors duration-200 hover:bg-[#8fb4e1] disabled:opacity-60"
+        className="mt-9 h-11 rounded-lg bg-[#5ba8d4] text-[13.5px] font-medium text-[#0b1220] transition-colors duration-200 hover:bg-[#72b6dd] disabled:opacity-60"
       >
         {sending ? "Sending…" : "Send details"}
       </button>
@@ -199,7 +199,7 @@ function Field({
     <div className="flex flex-col gap-2">
       <span className="text-[12.5px] text-white/80">
         {label}
-        {required && <span className="ml-0.5 text-[#7aa5d8]"> *</span>}
+        {required && <span className="ml-0.5 text-[#5ba8d4]"> *</span>}
       </span>
       {children}
       {error ? <span className="fade-in text-[12px] text-[#e59a9a]">{error}</span> : hint && <span className="text-[12px] text-white/35">{hint}</span>}
@@ -211,7 +211,7 @@ const inputClass = (invalid: boolean) =>
   `w-full rounded-lg border bg-[#151515] px-3.5 text-[13.5px] text-white/90 outline-none! transition-[border-color,box-shadow] duration-200 placeholder:text-white/25 focus:bg-[#171717] ${
     invalid
       ? "border-[#e59a9a]/50 focus:shadow-[0_0_0_4px_rgba(229,154,154,0.10)]"
-      : "border-white/[0.06] hover:border-white/[0.14] focus:border-[#7aa5d8]/70 focus:shadow-[0_0_0_4px_rgba(122,165,216,0.12)]"
+      : "border-white/[0.06] hover:border-white/[0.14] focus:border-[#5ba8d4]/70 focus:shadow-[0_0_0_4px_rgba(91,168,212,0.12)]"
   }`;
 
 function Input({
@@ -318,7 +318,7 @@ function CountryPicker({ value, onChange, invalid }: { value: string; onChange: 
               } ${!query && i === FIRST.length - 1 ? "mb-1 border-b border-white/[0.06] pb-2.5" : ""}`}
             >
               {n}
-              {n === value && <Check size={13} className="text-[#7aa5d8]" />}
+              {n === value && <Check size={13} className="text-[#5ba8d4]" />}
             </li>
           ))}
         </ul>

@@ -5,7 +5,7 @@ import Image from "next/image";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh w-full items-stretch justify-center bg-[#0b0b0b] text-[#ededed] lg:items-center lg:bg-[#8f99a8] lg:p-10">
+    <div className="flex min-h-dvh w-full items-stretch justify-center bg-[#0b0b0b] text-[#ededed] lg:items-center lg:bg-[#8c99a3] lg:p-10">
       <div className="flex w-full max-w-[1120px] rounded-none bg-[#0b0b0b] lg:min-h-[660px] lg:rounded-[22px] lg:p-2.5 lg:shadow-[0_40px_120px_-40px_rgba(0,0,0,0.55)]">
         <Artwork />
         <div className="flex min-w-0 flex-1 flex-col px-6 py-8 sm:px-10 lg:px-16 lg:py-12">
@@ -32,8 +32,8 @@ function Artwork() {
         className="absolute inset-0"
         style={{
           background: [
-            "radial-gradient(95% 55% at 50% 108%, rgba(122,165,216,0.62) 0%, rgba(122,165,216,0.16) 48%, transparent 72%)",
-            "radial-gradient(70% 45% at 88% -5%, rgba(220,228,242,0.20) 0%, transparent 62%)",
+            "radial-gradient(95% 55% at 50% 108%, rgba(91,168,212,0.62) 0%, rgba(91,168,212,0.16) 48%, transparent 72%)",
+            "radial-gradient(70% 45% at 88% -5%, rgba(212,232,243,0.20) 0%, transparent 62%)",
             "linear-gradient(180deg, #1a1d23 0%, #0d0f13 100%)",
           ].join(","),
         }}
