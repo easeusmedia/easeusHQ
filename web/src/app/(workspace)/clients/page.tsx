@@ -11,27 +11,28 @@ import { clientLogoSrc } from "@/lib/photos";
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
-  const sessionUserId = await getSessionUserId();
+  // one round: the clients don't wait on who's asking
+  const [sessionUserId, users, clients] = await Promise.all([
+    getSessionUserId(),
+    getAllUsers(),
+    prisma.client.findMany({
+      include: {
+        tags: true,
+        // counting only what's live — a card claiming "12 active projects"
+        // when they all wrapped months ago is worse than no number
+        projects: {
+          where: { status: { not: "completed" } },
+          include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } },
+        },
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
   if (!sessionUserId) redirect("/login");
-
-  const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
   // Open to the whole team: everyone should be able to see what's
   // happening for a client, whatever their role. Rearranging them or
   // changing their status is for ops.
-
-  const clients = await prisma.client.findMany({
-    include: {
-      tags: true,
-      // counting only what's live — a card claiming "12 active projects"
-      // when they all wrapped months ago is worse than no number
-      projects: {
-        where: { status: { not: "completed" } },
-        include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } },
-      },
-    },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
 
   const cards: ClientCardData[] = clients.map((c) => ({
     id: c.id,

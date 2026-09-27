@@ -19,29 +19,28 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const sessionUserId = await getSessionUserId();
+  // one round: none of these needs another's answer
+  const [sessionUserId, users, project, typeCounts] = await Promise.all([
+    getSessionUserId(),
+    getAllUsers(),
+    prisma.project.findUnique({
+      where: { id },
+      include: {
+        // newest first, for the task form's "latest few" project list
+        client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
+        assets: { orderBy: { sortOrder: "asc" } },
+        tasks: {
+          orderBy: { createdAt: "desc" },
+          include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+        },
+      },
+    }),
+    // every type in use, most common first, for the header's Type picker
+    prisma.project.groupBy({ by: ["type"], _count: { type: true }, orderBy: { _count: { type: "desc" } } }),
+  ]);
   if (!sessionUserId) redirect("/login");
-
-  const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/login");
-  // Open to the whole team: everyone should be able to see what's
-  // happening for a client, whatever their role. Billing stays admin-only
-  // (see the canSeeBilling tab below) — that's the one part of a client
-  // that isn't everybody's business.
-
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: {
-      // newest first, for the task form's "latest few" project list
-      client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
-      assets: { orderBy: { sortOrder: "asc" } },
-      tasks: {
-        orderBy: { createdAt: "desc" },
-        include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
-      },
-    },
-  });
   if (!project) notFound();
 
   const editors = assignOptionsFor(me, users);
@@ -74,10 +73,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     ...batches.map((b) => ({ value: b.key, label: b.label })),
   ];
 
-  // every type in use, most common first, for the header's Type picker
-  const types = (
-    await prisma.project.groupBy({ by: ["type"], _count: { type: true }, orderBy: { _count: { type: "desc" } } })
-  ).map((r) => r.type);
+  const types = typeCounts.map((r) => r.type);
 
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));

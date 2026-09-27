@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { ArrowUpRight, CircleCheck, Clock, FileSignature, PenLine, ScrollText, Send } from "lucide-react";
 import { StatTile } from "../StatTile";
 import { prisma } from "@/lib/prisma";
@@ -23,10 +24,12 @@ const ago = (d: Date) => {
 // activity first, with how far it's got.
 export default async function ContractsPage() {
   if (!(await requireOps())) redirect("/board");
-  // anything out for signature: catch up on Adobe's emails first
-  await trackContracts().catch(() => {});
+  // anything out for signature: catch up on Adobe's emails — once the page
+  // is on its way, so Gmail's second or two isn't spent before it; what it
+  // finds arrives on the next pulse
+  after(() => trackContracts().catch(() => {}));
   const today = indiaDay(new Date());
-  const contracts = (await prisma.contract.findMany({ orderBy: { updatedAt: "desc" } })).map((c) => {
+  const contracts = (await prisma.contract.findMany({ orderBy: { updatedAt: "desc" }, omit: { signedPdf: true } })).map((c) => {
     const d = withDefaults(c.details);
     const missing = compose(c.clauses as Clause[], d, today).missing.length;
     return { c, d, missing, stage: contractStage(c.status, missing) };

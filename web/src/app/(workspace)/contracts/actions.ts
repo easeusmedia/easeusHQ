@@ -93,7 +93,7 @@ export async function resetContractClauses(id: string): Promise<{ error?: string
 
 export async function approveContract(id: string): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can approve a contract." };
-  const c = await prisma.contract.findUnique({ where: { id } });
+  const c = await prisma.contract.findUnique({ where: { id }, omit: { signedPdf: true } });
   if (!c) return { error: "That contract no longer exists." };
   if (c.status === "sent" || c.status === "signed") return { error: "This contract has already been sent." };
   const { missing } = compose(c.clauses as Clause[], withDefaults(c.details), indiaDay(new Date()));
@@ -107,7 +107,7 @@ export async function approveContract(id: string): Promise<{ error?: string }> {
 // the plan): the contract is dated today if it had no set date, and locked.
 export async function markContractSent(id: string): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can do that." };
-  const c = await prisma.contract.findUnique({ where: { id } });
+  const c = await prisma.contract.findUnique({ where: { id }, omit: { signedPdf: true } });
   if (!c) return { error: "That contract no longer exists." };
   if (c.status !== "approved") return { error: "Please approve the contract first. Only approved contracts can be sent." };
   const details = withDefaults(c.details);

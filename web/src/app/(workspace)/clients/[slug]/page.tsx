@@ -48,10 +48,34 @@ export default async function ClientDetailPage({
 }) {
   const { slug } = await params;
   const { tab, show, layout } = await searchParams;
-  const sessionUserId = await getSessionUserId();
+  // Two rounds of queries rather than nine in a row: everything that needs
+  // nothing else first, then everything that needs the client or you.
+  const [sessionUserId, users, client, opsTeam, allTags, tokens] = await Promise.all([
+    getSessionUserId(),
+    getAllUsers(),
+    prisma.client.findUnique({
+      where: { slug },
+      include: {
+        projects: {
+          orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+          include: {
+            _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
+          },
+        },
+        invoices: { orderBy: { createdAt: "desc" } },
+        deliverables: { orderBy: { sortOrder: "asc" } },
+        onboarding: { orderBy: { sortOrder: "asc" } },
+        documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+        tags: true,
+      },
+    }),
+    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
+    listTags(),
+    // whether the Apify tokens the Analytics tab scrapes with are set up
+    // (Integrations) — the same for YouTube and Instagram
+    apifyTokens(),
+  ]);
   if (!sessionUserId) redirect("/login");
-
-  const users = await getAllUsers();
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/login");
   // Open to the whole team: everyone should be able to see what's
@@ -59,36 +83,17 @@ export default async function ClientDetailPage({
   // (see the canSeeBilling tab below) — that's the one part of a client
   // that isn't everybody's business.
   const canSeeBilling = isAbhishekOrAdmin(me);
-
-  const client = await prisma.client.findUnique({
-    where: { slug },
-    include: {
-      projects: {
-        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
-        include: {
-          _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
-        },
-      },
-      invoices: { orderBy: { createdAt: "desc" } },
-      deliverables: { orderBy: { sortOrder: "asc" } },
-      onboarding: { orderBy: { sortOrder: "asc" } },
-      documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-      tags: true,
-    },
-  });
   if (!client) notFound();
 
   // client messages: admin/Abhishek and Operations' core members only
-  const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
   const canSeeFeedback = seesClientFeedback(me, opsTeam?.id ?? null);
-  const feedback = canSeeFeedback
-    ? await prisma.clientFeedback.findMany({ where: { clientId: client.id }, orderBy: { createdAt: "desc" }, take: 50 })
-    : [];
-
   const projectIds = client.projects.map((p) => p.id);
   const editors = assignOptionsFor(me, users);
 
-  const [tasks, deliveredSinceInvoice, allTags, clientWorkTasks] = await Promise.all([
+  const [feedback, tasks, deliveredSinceInvoice, clientWorkTasks, taskTags, taskCounts] = await Promise.all([
+    canSeeFeedback
+      ? prisma.clientFeedback.findMany({ where: { clientId: client.id }, orderBy: { createdAt: "desc" }, take: 50 })
+      : Promise.resolve([]),
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
       orderBy: { createdAt: "desc" },
@@ -101,7 +106,6 @@ export default async function ClientDetailPage({
         updatedAt: { gt: client.lastInvoicedAt ?? new Date(0) },
       },
     }),
-    listTags(),
     // work tasks sitting on one of this client's projects — a different
     // system from the editing queue, and previously invisible here
     prisma.workTask.findMany({
@@ -109,13 +113,16 @@ export default async function ClientDetailPage({
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: true },
       orderBy: [{ status: "asc" }, { sortOrder: "asc" }],
     }),
+    // only this person's own team's kinds of work (plus any shared ones) —
+    // Sales never has to pick past "Colour correction"
+    prisma.taskTag.findMany({
+      where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    // how many tasks each project carries in total (the active count above
+    // is filtered) — the delete confirmation says what would go with it
+    prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } }),
   ]);
-  // only this person's own team's kinds of work (plus any shared ones) —
-  // Sales never has to pick past "Colour correction"
-  const taskTags = await prisma.taskTag.findMany({
-    where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
   // the client's work splits two ways on the Overview: what they'll receive,
   // and what's done for them behind the scenes
   const deliverableTasks = tasks.filter((t) => !t.internal);
@@ -124,18 +131,9 @@ export default async function ClientDetailPage({
   const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }));
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
-  // how many tasks each project carries in total (the active count above is
-  // filtered) — the delete confirmation says what would go with it
-  const tasksPerProject = new Map(
-    (
-      await prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } })
-    ).map((r) => [r.projectId, r._count._all])
-  );
+  const tasksPerProject = new Map(taskCounts.map((r) => [r.projectId, r._count._all]));
   const plan = planFor(client.contentPlan);
-
-  // whether the Apify tokens the Analytics tab scrapes with are set up
-  // (Integrations) — the same for YouTube and Instagram
-  const scraping = (await apifyTokens()).length > 0;
+  const scraping = tokens.length > 0;
   const canPlan = me.role !== "employee";
 
   const projectCards = client.projects.map((p) => ({

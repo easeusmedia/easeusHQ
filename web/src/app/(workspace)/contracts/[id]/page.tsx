@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
@@ -15,13 +16,19 @@ export const maxDuration = 60;
 export default async function ContractPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await requireOps())) redirect("/board");
   const { id } = await params;
-  let contract = await prisma.contract.findUnique({ where: { id } });
+  // the signed PDF itself stays in the database: whether there is one is all
+  // this page needs, and loading the file slowed every open
+  const [contract, signedCopies] = await Promise.all([
+    prisma.contract.findUnique({ where: { id }, omit: { signedPdf: true } }),
+    prisma.contract.count({ where: { id, signedPdf: { not: null } } }),
+  ]);
   if (!contract) notFound();
 
-  // out through Acrobat: what Adobe's emails say about it since the last look
-  if (contract.status === "approved" || contract.status === "sent" || (contract.status === "signed" && !contract.signedPdf)) {
-    await trackContracts(id).catch(() => {});
-    contract = (await prisma.contract.findUnique({ where: { id } }))!;
+  // Out through Acrobat: what Adobe's emails say about it since the last
+  // look. Read after the page is sent, not before — Gmail takes a second or
+  // two — and anything it finds reaches this page on the next pulse.
+  if (contract.status === "approved" || contract.status === "sent" || (contract.status === "signed" && !signedCopies)) {
+    after(() => trackContracts(id).catch(() => {}));
   }
 
   return (
@@ -43,7 +50,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
         when: new Date(e.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
       }))}
       tracking={(await gmailAccount()) !== null}
-      hasSignedCopy={!!contract.signedPdf}
+      hasSignedCopy={signedCopies > 0}
       sentAt={contract.sentAt ? contract.sentAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : null}
     />
   );

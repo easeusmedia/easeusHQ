@@ -19,10 +19,8 @@ export default async function TasksPage({
   searchParams: Promise<{ as?: string; scope?: string }>;
 }) {
   const { as, scope } = await searchParams;
-  const sessionUserId = await getSessionUserId();
-  if (!sessionUserId) redirect("/login");
-
-  const [users, teams, rawProjects, tasks] = await Promise.all([
+  const [sessionUserId, users, teams, rawProjects, tasks] = await Promise.all([
+    getSessionUserId(),
     getAllUsers(),
     prisma.team.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, slug: true, name: true } }),
     prisma.project.findMany({
@@ -38,6 +36,7 @@ export default async function TasksPage({
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
   ]);
+  if (!sessionUserId) redirect("/login");
   // a project set up before names were required can still have "" — fall
   // back to its type so the new/reassign-task dropdown never shows a blank
   const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
@@ -86,7 +85,6 @@ export default async function TasksPage({
   // itself happens in the browser (BoardViews). The team views read the
   // widest work they can see and filter it down to one team.
   const widest = everyTeam ? "all" : isEditor ? null : (myTeam?.slug ?? "mine");
-  const work = widest ? await loadWork(viewer, widest, { withQueue: true }) : null;
 
   // a scheduled-for-the-future task stays off the assigned editor's board
   // until that date — ops/admin (the `else` below) always sees everything
@@ -99,14 +97,18 @@ export default async function TasksPage({
   const realUser = users.find((u) => u.id === sessionUserId);
   const canSyncNotion = !!realUser && isAbhishekOrAdmin(realUser);
 
-  // only this person's own team's kinds of work (plus any shared ones) —
-  // Sales never has to pick past "Colour correction"
-  const taskTags = realUser
-    ? await prisma.taskTag.findMany({
-        where: visibleTagWhere({ id: realUser.id, role: realUser.role, email: realUser.email, teamId: realUser.teamId }),
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      })
-    : [];
+  // the team work and this person's kinds of work, together — only their
+  // own team's kinds (plus any shared ones): Sales never has to pick past
+  // "Colour correction"
+  const [work, taskTags] = await Promise.all([
+    widest ? loadWork(viewer, widest, { withQueue: true }) : null,
+    realUser
+      ? prisma.taskTag.findMany({
+          where: visibleTagWhere({ id: realUser.id, role: realUser.role, email: realUser.email, teamId: realUser.teamId }),
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        })
+      : [],
+  ]);
 
   return (
     <BoardViews

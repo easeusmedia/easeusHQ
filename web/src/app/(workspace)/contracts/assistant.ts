@@ -214,7 +214,7 @@ function apply(name: string, input: Record<string, unknown>, work: { d: Contract
 }
 
 export async function askAboutContract(id: string, text: string, attached: Attachment[] = []) {
-  const contract = await prisma.contract.findUnique({ where: { id } });
+  const contract = await prisma.contract.findUnique({ where: { id }, omit: { signedPdf: true } });
   if (!contract) throw new Error("That contract no longer exists.");
   const locked = contract.status === "sent" || contract.status === "signed";
   const today = indiaDay(new Date());

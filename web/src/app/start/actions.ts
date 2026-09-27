@@ -22,7 +22,7 @@ export type IntakeInput = {
 const text = (v: unknown, max = 300) => String(v ?? "").trim().slice(0, max);
 
 export async function submitIntake(token: string, input: IntakeInput): Promise<{ error?: string }> {
-  const contract = await prisma.contract.findUnique({ where: { token } });
+  const contract = await prisma.contract.findUnique({ where: { token }, omit: { signedPdf: true } });
   if (!contract || contract.status !== "invited") return { error: "This link has already been used. Please ask your contact at Easeus Media for a new one." };
 
   const form = {
