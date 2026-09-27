@@ -75,6 +75,8 @@ export function ContractEditor({
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // "Send via Acrobat" pressed: the file's downloaded, Acrobat's open
+  const [prepared, setPrepared] = useState(false);
   const locked = status === "sent" || status === "signed";
 
   const composed = useMemo(() => compose(clauses, d, today), [clauses, d, today]);
@@ -190,65 +192,65 @@ export function ContractEditor({
       </a>
     );
     if (status === "approved" && !adobeConnected) {
-      const download = (
-        <a href={`/api/contracts/${id}/pdf?sign`} className="btn btn-glow flex items-center gap-1.5">
-          <Download size={14} /> Download for signing
-        </a>
+      // One click does our side: downloads the PDF, copies the client's
+      // email, opens Acrobat. Acrobat's own site isn't automated — Adobe
+      // doesn't allow bots on it.
+      const go = () => {
+        navigator.clipboard.writeText(clients.map((c) => c.email.trim()).join(", ")).catch(() => {});
+        const a = document.createElement("a");
+        a.href = `/api/contracts/${id}/pdf?sign`;
+        a.download = "";
+        a.click();
+        window.open("https://acrobat.adobe.com/", "_blank", "noopener");
+        setPrepared(true);
+      };
+      const send = (
+        <button onClick={go} className="btn btn-glow flex items-center gap-1.5">
+          <Send size={14} /> Send via Acrobat
+        </button>
+      );
+      const sent = (
+        <ConfirmButton
+          message="Sent it through Acrobat? The contract is locked from here on."
+          confirm="Yes, it's sent"
+          onConfirm={() => run("sent", () => markContractSent(id), () => setStatus("sent"))}
+          className={`btn flex items-center gap-1.5 ${prepared ? "btn-glow" : "btn-ghost"}`}
+        >
+          <Check size={14} /> I&apos;ve sent it
+        </ConfirmButton>
       );
       return {
-        title: "Approved — send it for signing in Acrobat",
-        body: signature ? (
+        title: prepared ? "Now finish in Acrobat" : "Approved — send it via Acrobat",
+        body: prepared ? (
           <ol className="flex list-decimal flex-col gap-1 pl-4">
-            <li>Download it — Ashmit&apos;s signature and the date are already on it.</li>
             <li>
-              In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b>, drop it in, and add {to}.
+              In Acrobat, click <b className="font-medium text-foreground">Request e-signatures</b> and drop in the file that just downloaded.
+            </li>
+            <li>Paste the client&apos;s email — it&apos;s copied.</li>
+            <li>
+              <b className="font-medium text-foreground">Auto-place fields</b> (or drag a signature and date onto the client&apos;s lines), then{" "}
+              <b className="font-medium text-foreground">Send</b>.
             </li>
             <li>
-              Click <b className="font-medium text-foreground">Auto-place fields</b> — or drag <b className="font-medium text-foreground">E-signature</b> and{" "}
-              <b className="font-medium text-foreground">Date of signing</b> onto the client&apos;s Signature and Date lines — then send.
-            </li>
-            <li>
-              Come back and press <b className="font-medium text-foreground">I&apos;ve sent it</b>.
+              Back here: <b className="font-medium text-foreground">I&apos;ve sent it</b>.
             </li>
           </ol>
+        ) : signature ? (
+          `One click downloads it (Ashmit's signature and the date are on it), copies ${to}, and opens Acrobat.`
         ) : (
-          <ol className="flex list-decimal flex-col gap-1 pl-4">
-            <li>
-              Easiest: upload Ashmit&apos;s signature once on the{" "}
-              <Link href="/contracts" className="text-accent underline-offset-2 hover:underline">
-                Contracts page
-              </Link>{" "}
-              — then every contract comes signed on our side.
-            </li>
-            <li>
-              Or: download it, click <b className="font-medium text-foreground">Request e-signatures</b> in Acrobat, add {PROVIDER.email} first and {to}{" "}
-              second, put a signature and date for each on their own box, and send.
-            </li>
-          </ol>
+          <>
+            One click downloads it, copies {to}, and opens Acrobat.{" "}
+            <Link href="/contracts" className="text-accent underline-offset-2 hover:underline">
+              Upload Ashmit&apos;s signature
+            </Link>{" "}
+            first and it comes signed on our side.
+          </>
         ),
-        primary: download,
+        primary: prepared ? sent : send,
         action: (
           <div className="flex flex-wrap gap-2">
-            {download}
-            {acrobat}
-            <button
-              onClick={async () => {
-                await navigator.clipboard.writeText(clients.map((c) => c.email.trim()).join(", "));
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              className="btn btn-ghost flex items-center gap-1.5"
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Client's email"}
-            </button>
-            <ConfirmButton
-              message="Sent it through Acrobat? The contract is locked from here on."
-              confirm="Yes, it's sent"
-              onConfirm={() => run("sent", () => markContractSent(id), () => setStatus("sent"))}
-              className="btn btn-ghost flex items-center gap-1.5"
-            >
-              <Send size={14} /> I&apos;ve sent it
-            </ConfirmButton>
+            {send}
+            {sent}
           </div>
         ),
       };
