@@ -175,8 +175,6 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
 
       {/* thread */}
       <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/[0.06] bg-surface/50">
-        {/* a faint glow of the brand's blue behind the conversation */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_50%_at_100%_0%,rgba(75,149,230,0.07),transparent_60%)]" />
         {open ? (
           <div key={open.id} className="fade-in relative flex min-h-0 flex-1 flex-col">
             <header className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-4">

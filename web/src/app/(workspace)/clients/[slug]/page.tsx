@@ -153,10 +153,6 @@ export default async function ClientDetailPage({
   }));
 
   return (
-    // the left-side switcher (ClientSwitcherSlot) lives in the shared
-    // layout now, as a sibling of this whole page rather than something
-    // rendered from inside it — see ClientSwitcher's own comment for why
-    //
     // Every tab, the task board included, just grows and lets the page
     // scroll; the board keeps its stage headers pinned while it does.
     <div className="flex min-h-full flex-col">

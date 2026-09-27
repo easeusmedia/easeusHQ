@@ -4,14 +4,59 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
-import { CLIENTS_SECTION, toggleClientsPanel } from "./clients/clientsPanel";
+import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
+import { clientHref } from "@/lib/slug";
+
+// logo: the logo's own address (see clientLogoSrc), not the image itself
+export type SidebarClient = { id: string; slug: string; name: string; logo: string | null };
+
+// The clients under the Clients item, on a tree line: a curve into each, and
+// the line lit in the accent from the top down to the client you're on.
+function ClientTree({ clients, current }: { clients: SidebarClient[]; current: string | null }) {
+  const at = clients.findIndex((c) => c.slug === current);
+  return (
+    <ul>
+      {clients.map((c, i) => {
+        const on = i === at;
+        return (
+          <li key={c.id} className="relative">
+            {/* the line down to this row, curving into it on the 32px row's centre line */}
+            <span
+              className={`absolute left-0 top-0 h-4 w-3 rounded-bl-lg border-b border-l transition-colors duration-300 ${
+                at >= 0 && i <= at ? "border-accent" : "border-white/10"
+              }`}
+            />
+            {i < clients.length - 1 && (
+              <span className={`absolute bottom-0 left-0 top-4 w-px transition-colors duration-300 ${at > i ? "bg-accent" : "bg-white/10"}`} />
+            )}
+            <Link
+              href={clientHref(c)}
+              onClick={(e) => e.stopPropagation()}
+              className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${
+                on ? "font-medium text-foreground" : "text-muted hover:bg-white/[0.04] hover:text-foreground"
+              }`}
+            >
+              {c.logo ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a small stored logo
+                <img src={c.logo} alt="" className="photo size-[18px] shrink-0" />
+              ) : (
+                <Avatar name={c.name} size={18} presence={false} />
+              )}
+              <span className="truncate">{c.name}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 // Chosen for what each destination actually is, not just for variety. The
 // two that mattered most: Clients and People were Users2 and Users — near
@@ -74,6 +119,7 @@ export function Sidebar({
   sessionUserId,
   unreadBySender,
   contractsWaiting = 0,
+  clients = [],
   logout,
   initialOpen,
 }: {
@@ -85,6 +131,8 @@ export function Sidebar({
   unreadBySender: Record<string, number>;
   // contracts whose client has sent the form, waiting on ops
   contractsWaiting?: number;
+  // the current clients, under the Clients item
+  clients?: SidebarClient[];
   logout: () => Promise<void>;
   // read server-side from a cookie (see layout.tsx) — the very first paint
   // already matches the saved preference, so there's nothing to correct
@@ -139,6 +187,19 @@ export function Sidebar({
 
   const current = searchParams.get("as") ?? sessionUserId;
 
+  // The Clients item unfolds its clients — by itself whenever you're in
+  // the clients area, and by its chevron any time
+  const inClients = CLIENTS_SECTION.test(pathname);
+  const [clientsOpen, setClientsOpen] = useState(inClients);
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (pathname !== seenPath) {
+    setSeenPath(pathname);
+    if (inClients) setClientsOpen(true);
+  }
+  // the client you're on: its own page names it; a project's page says
+  const activeClient = useActiveClient();
+  const currentClient = pathname.match(CLIENTS_SECTION)?.[1] ?? (pathname.startsWith("/projects/") ? activeClient : null);
+
   return (
     <>
     {/* sticky, not just a flex sibling — stays put if anything ever makes the
@@ -162,7 +223,7 @@ export function Sidebar({
       // z-index the clients panel (also sticky, and later in the page)
       // would paint over the hover labels that stick out past this rail
       className={`sticky top-0 z-30 flex h-screen shrink-0 flex-col items-start gap-1 border-r border-border bg-background p-3 transition-[width] duration-200 ease-in-out ${
-        open ? "w-52" : "w-16"
+        open ? "w-60" : "w-16"
       }`}
     >
       {/* The logo button is always mounted at the same fixed position —
@@ -230,6 +291,7 @@ export function Sidebar({
         </span>
       </div>
 
+      <div className={`flex min-h-0 w-full flex-1 flex-col items-start gap-1 ${open ? "overflow-y-auto" : ""}`}>
       {[
         // clients first: everyone sees them — what the agency is working on
         // isn't privileged information inside the agency
@@ -243,24 +305,16 @@ export function Sidebar({
         // core members see their own team here (read-only); admin edits everyone
         ...(isOps ? [{ href: "/team", label: "Team", hint: "Everyone and their roles", Icon: UsersRound }] : []),
       ].map((item) => {
-        const active = isActive(item.href, pathname);
+        const active = item.href === "/clients" ? pathname === "/clients" : isActive(item.href, pathname);
         // what's waiting behind this item: unread chat, contracts to finish
         const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
         const waiting = item.href === "/chat" ? `${unreadCount} unread` : `${count} waiting on you`;
-        return (
+        const isClients = item.href === "/clients";
+        const row = (
           <Link
             key={item.href}
             href={qs ? `${item.href}?${qs}` : item.href}
-            onClick={(e) => {
-              e.stopPropagation(); // don't also open the rail — this click already has its own job
-              // Already in the Clients section, the Clients icon opens and
-              // closes the client panel instead of reloading a page you're
-              // on. Anywhere else it's a plain link there.
-              if (item.href === "/clients" && CLIENTS_SECTION.test(pathname)) {
-                e.preventDefault();
-                toggleClientsPanel();
-              }
-            }}
+            onClick={(e) => e.stopPropagation()} // don't also open the rail — this click already has its own job
             // w-full only while open — collapsed, this row has no width
             // class at all, so it sizes to exactly its own content (the
             // 36px icon slot; the label is 0-width) now that nav itself no
@@ -276,36 +330,90 @@ export function Sidebar({
             // globals.css's shared `a, button` rule, not a utility class
             // here — see that rule's own comment for why a Tailwind
             // transition utility on gap silently never worked.
-            className={`group/tip relative flex items-center rounded-md text-sm ${open ? "w-full gap-2" : "gap-0"} ${
-              active ? "bg-accent/[0.12] text-foreground" : "text-muted hover:bg-white/[0.04] hover:text-foreground"
-            }`}
+            className={`group/tip relative flex items-center rounded-xl text-sm transition-colors duration-150 ${open ? "w-full gap-2" : "gap-0"} ${
+              active ? "bg-accent font-medium text-white" : "text-muted hover:bg-white/[0.05] hover:text-foreground"
+            } ${isClients && open ? "pr-8" : ""}`}
           >
             {/* fixed-size slot, same position whether collapsed or open */}
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-              <item.Icon size={18} className={active ? "text-accent" : ""} />
+              <item.Icon size={18} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-background" />}
             </span>
             <FadeLabel open={open}>{item.label}</FadeLabel>
             {count > 0 && open && (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-medium text-accent">
+              <span
+                className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium ${
+                  active ? "bg-white/20 text-white" : "bg-accent/20 text-accent"
+                }`}
+              >
                 {count > 9 ? "9+" : count}
               </span>
             )}
             <Tip
-              show={!open}
+              show={!open && !isClients}
               label={item.label}
               hint={count > 0 ? waiting : item.hint}
             />
           </Link>
         );
+        if (!isClients) return row;
+        return (
+          <div key={item.href} className="group/fly relative w-full">
+            {row}
+            {/* open: a chevron unfolds the clients beneath */}
+            {open && clients.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setClientsOpen((v) => !v);
+                }}
+                aria-label={clientsOpen ? "Hide clients" : "Show clients"}
+                aria-expanded={clientsOpen}
+                className={`absolute right-1 top-1.5 flex size-6 items-center justify-center rounded-md transition-colors ${
+                  active ? "text-white/80 hover:bg-white/15" : "text-muted hover:bg-white/[0.06] hover:text-foreground"
+                }`}
+              >
+                <ChevronDown size={15} className={`transition-transform duration-200 ${clientsOpen ? "" : "-rotate-90"}`} />
+              </button>
+            )}
+            {open && (
+              <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${clientsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className="overflow-hidden">
+                  <div className="ml-[18px] pb-1 pt-1">
+                    <ClientTree clients={clients} current={currentClient} />
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* collapsed: hovering the icon shows them in a card beside it */}
+            {!open && clients.length > 0 && (
+              <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
+                <div onClick={(e) => e.stopPropagation()} className="w-60 rounded-2xl border border-white/[0.08] bg-surface-2 p-2 shadow-2xl">
+                  <Link
+                    href={qs ? `/clients?${qs}` : "/clients"}
+                    className="mb-1 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground hover:bg-white/[0.05]"
+                  >
+                    <Building2 size={15} /> All clients
+                  </Link>
+                  <div className="ml-[13px]">
+                    <ClientTree clients={clients} current={currentClient} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
       })}
+
+      </div>
 
       {/* Team moved out to a floating trigger below (see after </nav>) —
           pinned to the viewport, not this rail, per feedback. Just the
           profile row pinned at the bottom now. */}
-      <div className="mt-auto flex w-full flex-col items-start gap-3">
+      <div className="flex w-full flex-col items-start gap-3 pt-2">
         <div ref={profileRef} className="relative w-full">
         {profileOpen && (
           <div

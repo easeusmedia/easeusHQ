@@ -1,8 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { Building2, CirclePause, Clapperboard, LayoutGrid, List, ListChecks } from "lucide-react";
-import { StatTile } from "../StatTile";
+import { LayoutGrid, List } from "lucide-react";
 import { reorderClient, updateClientStatus } from "./actions";
 import { moveTo, sortBetween } from "@/lib/reorder";
 import { AddClientCard } from "./AddClientCard";
@@ -92,18 +91,8 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
     commitSort(dragged.id, sortBetween(before, after));
   }
 
-  // the numbers across the top, for the clients we're working with now
-  const current = clients.filter((c) => c.status === "current");
-
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Current clients" value={current.length} Icon={Building2} />
-        <StatTile label="Active projects" value={current.reduce((n, c) => n + c.activeProjects, 0)} Icon={Clapperboard} />
-        <StatTile label="Active tasks" value={current.reduce((n, c) => n + c.activeTasks, 0)} Icon={ListChecks} />
-        <StatTile label="On hold" value={clients.filter((c) => c.status === "on_hold").length} Icon={CirclePause} />
-      </div>
-
       <div className="flex items-center justify-between gap-4">
         <div className="flex gap-1 rounded-xl border border-border bg-surface/60 p-1">
           {GROUPS.map((g) => (

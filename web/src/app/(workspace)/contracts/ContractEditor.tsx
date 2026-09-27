@@ -451,8 +451,7 @@ export function ContractEditor({
             <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
 
             {/* after the last question: what to do now */}
-            <div className="relative shrink-0 overflow-hidden rounded-3xl border border-accent/30 bg-accent/[0.07] p-5">
-              <div className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-accent/20 blur-3xl" />
+            <div className="relative shrink-0 overflow-hidden rounded-3xl border border-white/[0.08] bg-surface/50 p-5">
               <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
               <p className="mt-1.5 text-base font-medium">{next.title}</p>
               <div className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</div>
@@ -476,7 +475,7 @@ export function ContractEditor({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05] bg-[radial-gradient(120%_60%_at_50%_0%,rgba(75,149,230,0.06),transparent_60%)] lg:min-h-0">
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05]  bg-surface/30 lg:min-h-0">
           {/* the one next step, fixed above the contract it's about */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-white/[0.05] px-4 py-3 sm:px-6">
             <div className="flex flex-wrap items-center gap-3">

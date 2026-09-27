@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
@@ -12,8 +11,6 @@ import { FeedbackWatcher } from "./FeedbackWatcher";
 import { seesClientFeedback } from "@/lib/scope";
 import { PresenceHeartbeat } from "./presence/PresenceHeartbeat";
 import { getUnreadBySender } from "./presence/actions";
-import { ClientSwitcherSlot } from "./clients/ClientSwitcherSlot";
-import { CLIENTS_PANEL_COOKIE } from "./clients/clientsPanel";
 import { MainScroll } from "./MainScroll";
 import { PeopleProvider } from "./photos";
 import { ACTIVE_WINDOW_MS } from "./presence/constants";
@@ -29,7 +26,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // the effect ran, which is the "flickers open then collapses" bug
   const jar = await cookies();
   const sidebarOpen = jar.get("tasks-sidebar-open")?.value !== "0";
-  const clientsPanelOpen = jar.get(CLIENTS_PANEL_COOKIE)?.value !== "0";
 
   const users = await getAllUsers().catch(() => []);
   const sessionUser = users.find((u) => u.id === sessionUserId);
@@ -44,7 +40,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const contractsWaiting = isOps ? await prisma.contract.count({ where: { status: "draft" } }).catch(() => 0) : 0;
   const opsTeam = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
   const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
-  // the roster beside the Clients section, which everyone can open
+  // the current clients, under the sidebar's Clients item — everyone sees them
   const currentClients = (
     await prisma.client.findMany({
       where: { status: "current" },
@@ -74,6 +70,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         sessionUserId={sessionUser.id}
         unreadBySender={unreadBySender}
         contractsWaiting={contractsWaiting}
+        clients={currentClients}
         logout={logout}
         initialOpen={sidebarOpen}
       />
@@ -82,7 +79,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
           with no offset math to fake that position from inside a padded,
           scrolling child. It only renders on a client's own page (checks
           the URL itself), so every other page is unaffected. */}
-      <ClientSwitcherSlot clients={currentClients} initialOpen={clientsPanelOpen} canSeeBilling={isAbhishekOrAdmin(sessionUser)} />
       <MainScroll className="min-w-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)]">{children}</MainScroll>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
       {hearsFromClients && <FeedbackWatcher />}

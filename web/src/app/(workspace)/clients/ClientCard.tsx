@@ -38,7 +38,7 @@ function Face({ client, size }: { client: ClientCardData; size: number }) {
 function Stat({ n, label, Icon }: { n: number; label: string; Icon: LucideIcon }) {
   return (
     <span className="flex items-center gap-2.5">
-      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${n > 0 ? "bg-accent/15 text-accent" : "bg-white/[0.04] text-muted"}`}>
+      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${n > 0 ? "bg-white/[0.06] text-foreground/80" : "bg-white/[0.04] text-muted"}`}>
         <Icon size={14} />
       </span>
       <span className="flex flex-col">
@@ -61,10 +61,6 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
       draggable={false}
       className="group relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-white/[0.06] bg-surface/50 p-5 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12] hover:bg-surface/70"
     >
-      {/* a soft glow on the ones with work in hand */}
-      {client.activeTasks > 0 && (
-        <div className="pointer-events-none absolute -right-10 -top-12 size-32 rounded-full bg-gradient-to-br from-accent/20 to-transparent blur-2xl" />
-      )}
       <ArrowUpRight size={15} className="absolute right-4 top-4 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="flex items-center gap-3 pr-5">
         <Face client={client} size={42} />
