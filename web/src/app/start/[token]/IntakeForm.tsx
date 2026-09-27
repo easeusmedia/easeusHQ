@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { EMAIL } from "@/lib/contract";
 import { submitIntake } from "../actions";
 
@@ -14,6 +14,8 @@ const BLANK = {
   contactName: "",
   contactEmail: "",
   whatsapp: "",
+  // the WhatsApp number's country, for its calling code (ISO code, e.g. "IN")
+  whatsappCountry: "",
   entity: "",
   country: "",
   address: "",
@@ -29,7 +31,7 @@ function check(f: Form): Errors {
   if (!f.contactName.trim()) e.contactName = "Add your name.";
   e.contactEmail = email(f.contactEmail);
   // optional, but a real number if given
-  if (f.whatsapp.trim() && (f.whatsapp.replace(/\D/g, "").length < 7 || /[^\d\s+()-]/.test(f.whatsapp))) e.whatsapp = "That number doesn't look right.";
+  if (f.whatsapp.trim() && (!/^[\d\s+()-]+$/.test(f.whatsapp) || f.whatsapp.replace(/\D/g, "").length < 5)) e.whatsapp = "That number doesn't look right.";
   if (!f.entity.trim()) e.entity = "Add your business name.";
   if (!f.country.trim()) e.country = "Choose your country.";
   if (!f.address.trim()) e.address = "Add your address.";
@@ -64,6 +66,9 @@ export function IntakeForm({ token }: { token: string }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring what this browser kept, once
       if (kept?.contactName !== undefined) setF({ ...BLANK, ...kept });
     } catch {}
+    // a first guess at the WhatsApp code: the browser's region (en-IN → +91)
+    const region = navigator.language.split("-")[1]?.toUpperCase();
+    setF((cur) => (cur.whatsappCountry ? cur : { ...cur, whatsappCountry: region && DIAL[region] ? region : "GB" }));
   }, [saved]);
   useEffect(() => {
     try {
@@ -81,7 +86,9 @@ export function IntakeForm({ token }: { token: string }) {
     const res = await submitIntake(token, {
       contactName: f.contactName,
       contactEmail: f.contactEmail,
-      whatsapp: f.whatsapp,
+      // the full international number: "+91 98765 43210" (typed with its
+      // own + code, it's kept as it is)
+      whatsapp: !f.whatsapp.trim() ? "" : f.whatsapp.trim().startsWith("+") ? f.whatsapp.trim() : `+${DIAL[f.whatsappCountry] ?? ""} ${f.whatsapp.trim()}`,
       entity: f.entity,
       country: f.country,
       address: f.address,
@@ -125,13 +132,23 @@ export function IntakeForm({ token }: { token: string }) {
           </Field>
         </div>
         <Field label="WhatsApp number" error={errors.whatsapp}>
-          <Input value={f.whatsapp} onChange={(v) => set({ whatsapp: v })} placeholder="+44 7700 900123" type="tel" autoComplete="tel" invalid={!!errors.whatsapp} />
+          <div className="flex gap-2">
+            <DialPicker iso={f.whatsappCountry} onChange={(iso) => set({ whatsappCountry: iso })} />
+            <Input value={f.whatsapp} onChange={(v) => set({ whatsapp: v })} placeholder="98765 43210" type="tel" autoComplete="tel-national" invalid={!!errors.whatsapp} />
+          </div>
         </Field>
         <Field label="Business name" required error={errors.entity}>
           <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name — or yours, if there's no company" autoComplete="organization" invalid={!!errors.entity} />
         </Field>
         <Field label="Country" required error={errors.country}>
-          <CountryPicker value={f.country} onChange={(v) => set({ country: v })} invalid={!!errors.country} />
+          <CountryPicker
+            value={f.country}
+            onChange={(v) =>
+              // their country sets the WhatsApp code too, until they've typed a number
+              set({ country: v, ...(!f.whatsapp.trim() && isoOf(v) ? { whatsappCountry: isoOf(v)! } : {}) })
+            }
+            invalid={!!errors.country}
+          />
         </Field>
         <Field label="Address" required error={errors.address}>
           <Input value={f.address} onChange={(v) => set({ address: v })} placeholder="Street, city, postcode" autoComplete="street-address" invalid={!!errors.address} />
@@ -329,6 +346,135 @@ function CountryPicker({ value, onChange, invalid }: { value: string; onChange: 
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Calling codes by country (ISO code + digits). Names come from the
+// browser, like the country list above; flags are drawn from the ISO code.
+const DIAL: Record<string, string> = Object.fromEntries(
+  ("AF93 AL355 DZ213 AS1684 AD376 AO244 AI1264 AG1268 AR54 AM374 AW297 AU61 AT43 AZ994 BS1242 BH973 BD880 BB1246 BY375 BE32 " +
+    "BZ501 BJ229 BM1441 BT975 BO591 BA387 BW267 BR55 BN673 BG359 BF226 BI257 KH855 CM237 CA1 CV238 KY1345 CF236 TD235 CL56 CN86 " +
+    "CO57 KM269 CG242 CD243 CK682 CR506 CI225 HR385 CU53 CW599 CY357 CZ420 DK45 DJ253 DM1767 DO1809 EC593 EG20 SV503 GQ240 ER291 " +
+    "EE372 SZ268 ET251 FJ679 FI358 FR33 GF594 PF689 GA241 GM220 GE995 DE49 GH233 GI350 GR30 GL299 GD1473 GP590 GU1671 GT502 GG44 " +
+    "GN224 GW245 GY592 HT509 HN504 HK852 HU36 IS354 IN91 ID62 IR98 IQ964 IE353 IM44 IL972 IT39 JM1876 JP81 JE44 JO962 KZ7 KE254 " +
+    "KI686 XK383 KW965 KG996 LA856 LV371 LB961 LS266 LR231 LY218 LI423 LT370 LU352 MO853 MG261 MW265 MY60 MV960 ML223 MT356 MH692 " +
+    "MQ596 MR222 MU230 YT262 MX52 FM691 MD373 MC377 MN976 ME382 MS1664 MA212 MZ258 MM95 NA264 NR674 NP977 NL31 NC687 NZ64 NI505 " +
+    "NE227 NG234 MK389 MP1670 NO47 OM968 PK92 PW680 PS970 PA507 PG675 PY595 PE51 PH63 PL48 PT351 PR1787 QA974 RE262 RO40 RU7 RW250 " +
+    "KN1869 LC1758 VC1784 WS685 SM378 ST239 SA966 SN221 RS381 SC248 SL232 SG65 SX1721 SK421 SI386 SB677 SO252 ZA27 KR82 SS211 ES34 " +
+    "LK94 SD249 SR597 SE46 CH41 SY963 TW886 TJ992 TZ255 TH66 TL670 TG228 TO676 TT1868 TN216 TR90 TM993 TC1649 TV688 UG256 UA380 " +
+    "AE971 GB44 US1 UY598 UZ998 VU678 VA39 VE58 VN84 VG1284 VI1340 YE967 ZM260 ZW263")
+    .split(" ")
+    .map((x) => [x.slice(0, 2), x.slice(2)])
+);
+const FIRST_ISO = ["GB", "US", "CA", "AU", "AE", "SA", "IN", "IE"];
+const flag = (iso: string) => String.fromCodePoint(...[...iso].map((c) => 0x1f1a5 + c.charCodeAt(0)));
+
+let dialCache: { iso: string; name: string; dial: string }[] | null = null;
+function dialList() {
+  if (dialCache) return dialCache;
+  const names = new Intl.DisplayNames(["en"], { type: "region" });
+  const all = Object.keys(DIAL).map((iso) => ({ iso, name: names.of(iso) ?? iso, dial: DIAL[iso] }));
+  dialCache = [
+    ...FIRST_ISO.map((iso) => all.find((c) => c.iso === iso)!),
+    ...all.filter((c) => !FIRST_ISO.includes(c.iso)).sort((a, b) => a.name.localeCompare(b.name)),
+  ];
+  return dialCache;
+}
+// the ISO code of a country picked by name, for its calling code
+const isoOf = (name: string) => dialList().find((c) => c.name === name)?.iso;
+
+function DialPicker({ iso, onChange }: { iso: string; onChange: (iso: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [hi, setHi] = useState(0);
+  const box = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const all = useMemo(() => dialList(), []);
+  const q = query.trim().toLowerCase().replace(/^\+/, "");
+  const shown = q ? all.filter((c) => c.name.toLowerCase().includes(q) || c.dial.startsWith(q)) : all;
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  useEffect(() => {
+    listRef.current?.children[hi]?.scrollIntoView({ block: "nearest" });
+  }, [hi]);
+
+  function pick(code: string) {
+    onChange(code);
+    setOpen(false);
+    setQuery("");
+  }
+
+  return (
+    <div ref={box} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((o) => !o);
+          setQuery("");
+          setHi(0);
+        }}
+        aria-label="WhatsApp country code"
+        aria-expanded={open}
+        className="flex h-11 items-center gap-1.5 rounded-lg border border-white/[0.06] bg-[#151515] px-3 text-[13.5px] text-white/90 transition-colors hover:border-white/[0.14]"
+      >
+        <span className="text-base leading-none">{iso ? flag(iso) : "🌐"}</span>
+        <span className="tabular-nums">{iso ? `+${DIAL[iso]}` : "+"}</span>
+        <ChevronDown size={14} className="text-white/40" />
+      </button>
+      {open && (
+        <div className="fade-in absolute left-0 top-full z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.8)]">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setHi(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setHi((h) => Math.min(h + 1, shown.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setHi((h) => Math.max(h - 1, 0));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                if (shown[hi]) pick(shown[hi].iso);
+              } else if (e.key === "Escape") setOpen(false);
+            }}
+            placeholder="Search country or code"
+            className="w-full border-b border-white/[0.06] bg-transparent px-3.5 py-3 text-[13px] text-white/90 outline-none! placeholder:text-white/30"
+          />
+          <ul ref={listRef} role="listbox" className="max-h-64 overflow-y-auto p-1">
+            {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No match</li>}
+            {shown.map((c, i) => (
+              <li
+                key={c.iso}
+                role="option"
+                aria-selected={c.iso === iso}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(c.iso);
+                }}
+                onMouseEnter={() => setHi(i)}
+                className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] ${i === hi ? "bg-white/[0.06] text-white" : "text-white/70"} ${
+                  !q && i === FIRST_ISO.length - 1 ? "mb-1 border-b border-white/[0.06] pb-2.5" : ""
+                }`}
+              >
+                <span className="text-base leading-none">{flag(c.iso)}</span>
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <span className="tabular-nums text-white/40">+{c.dial}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
