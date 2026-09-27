@@ -8,6 +8,8 @@ import { ClientStats } from "../../(workspace)/clients/ClientStats";
 import { ClientTabs } from "../../(workspace)/clients/ClientTabs";
 import { ClientDeliverables } from "../../(workspace)/clients/ClientDeliverables";
 import { ClientDocuments } from "../../(workspace)/clients/ClientInfo";
+import { ClientAnalytics } from "../../(workspace)/clients/ClientAnalytics";
+import { socialLink } from "@/lib/analytics";
 import { ProjectsSection } from "../../(workspace)/clients/ProjectsSection";
 import { TagPill } from "../../(workspace)/clients/TagPill";
 import { ProfileHead } from "../../(workspace)/ProfileHead";
@@ -62,6 +64,12 @@ export default async function SharedClientPage({
   });
 
   const logo = clientLogoSrc(client);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
+  // their numbers, on the accounts we have for them — no tab without one
+  const accounts = {
+    youtube: client.youtubeChannel ?? socialLink(client.socialLinks, "youtube.com"),
+    instagram: client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"),
+  };
   const projectCards = client.projects.map((p) => ({
     id: p.id,
     name: p.name || p.type,
@@ -126,7 +134,7 @@ export default async function SharedClientPage({
                   initialShow={show}
                   initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
-                  today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
+                  today={today}
                   projectBase={`/share/${client.slug}/projects`}
                 />
               </div>
@@ -137,6 +145,24 @@ export default async function SharedClientPage({
             label: "Deliverables",
             content: <ClientDeliverables clientId={client.id} deliverables={client.deliverables} readOnly />,
           },
+          ...(accounts.youtube || accounts.instagram
+            ? [
+                {
+                  key: "analytics",
+                  label: "Analytics",
+                  content: (
+                    <ClientAnalytics
+                      clientId={client.id}
+                      accounts={accounts}
+                      ready={{ youtube: !!accounts.youtube, instagram: !!accounts.instagram }}
+                      canEdit={false}
+                      today={today}
+                      shared
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             key: "info",
             label: "Client info",
@@ -155,7 +181,7 @@ export default async function SharedClientPage({
         ]}
       />
 
-      <section id="feedback" className="mt-14 rounded-2xl border border-border bg-surface/40 p-5 sm:p-6">
+      <section id="feedback" className="panel mt-14 rounded-2xl p-5 sm:p-6">
         <h2 className="text-base font-semibold">Feedback</h2>
         <p className="mb-4 mt-1 text-sm text-muted">Anything you&apos;d like us to know or change — it goes straight to the team.</p>
         <FeedbackForm slug={client.slug} />

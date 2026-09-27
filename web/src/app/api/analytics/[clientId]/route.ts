@@ -12,9 +12,18 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 // Only when the range reaches back further than anything read for this
 // account yet (or on Refresh) does it start a scrape; it then answers with
 // what it has plus "syncing", and the tab asks again shortly.
+//
+// The client's own shared page asks too, signed out. It gets the numbers
+// only while their page is shared, and only what's stored: the link can't
+// start a scrape (they cost money) beyond the throttled light refresh, and
+// the team's review of which posts are ours stays with the team.
 export async function GET(request: Request, { params }: { params: Promise<{ clientId: string }> }) {
-  if (!(await getSessionUserId())) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { clientId } = await params;
+  const team = !!(await getSessionUserId());
+  if (!team) {
+    const shared = await prisma.client.findUnique({ where: { id: clientId }, select: { shareEnabled: true } });
+    if (!shared?.shareEnabled) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  }
   const url = new URL(request.url);
   const platform = url.searchParams.get("platform");
   const from = url.searchParams.get("from") ?? "";
@@ -34,7 +43,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
     const sameAccount = account?.handle === handle;
     const covered = sameAccount && account?.coveredSince && istDay(account.coveredSince) <= since;
     let busy = await syncing(clientId, platform);
-    if (!busy && (!covered || url.searchParams.get("refresh") === "1")) {
+    if (team && !busy && (!covered || url.searchParams.get("refresh") === "1")) {
       await startSync({ clientIds: [clientId], platforms: [platform], since, origin: url.origin });
       busy = true;
     }
@@ -93,6 +102,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
             to
           )
         : undefined;
+    if (!team) return NextResponse.json({ connected: true, dashboard, syncing: busy });
     return NextResponse.json({ connected: true, dashboard, pending: busy && !covered, syncing: busy, allOurs, review, notOurs, matched });
   } catch (err) {
     return NextResponse.json({ connected: true, error: err instanceof Error ? err.message : "Couldn't load the numbers." });

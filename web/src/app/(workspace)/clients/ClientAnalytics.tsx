@@ -43,12 +43,16 @@ const PLATFORM: Record<Platform, { name: string; Logo: typeof YoutubeIcon; kinds
 // nobody has to open YouTube or Instagram to know what's working. Public
 // numbers only: all it needs is the client's channel link and handle. Loads
 // only when the tab is actually opened.
+//
+// shared: on the client's own page — only the platforms they have an account
+// on, the numbers read-only, no refreshing on demand.
 export function ClientAnalytics({
   clientId,
   accounts,
   ready,
   canEdit,
   today,
+  shared = false,
 }: {
   clientId: string;
   // their channel link / @handle, and Instagram @handle, if known
@@ -57,9 +61,11 @@ export function ClientAnalytics({
   ready: Record<Platform, boolean>;
   canEdit: boolean;
   today: string;
+  shared?: boolean;
 }) {
   const router = useRouter();
-  const [platform, setPlatform] = useState<Platform>("youtube");
+  const platforms = (Object.keys(PLATFORM) as Platform[]).filter((p) => !shared || accounts[p]);
+  const [platform, setPlatform] = useState<Platform>(platforms[0] ?? "youtube");
   // the past month, unless asked otherwise
   const [range, setRange] = useState("30");
   const [custom, setCustom] = useState({ from: shiftDay(today, -29), to: today });
@@ -152,7 +158,7 @@ export function ClientAnalytics({
     <div ref={rootRef} className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-xl panel-soft p-1">
-          {(Object.keys(PLATFORM) as Platform[]).map((p) => {
+          {platforms.map((p) => {
             const { name, Logo } = PLATFORM[p];
             return (
               <button
@@ -180,6 +186,9 @@ export function ClientAnalytics({
                 <DatePicker pill={{}} value={custom.to} onChange={(v) => v && setCustom((c) => ({ ...c, to: v }))} placeholder="To" />
               </>
             )}
+            {shared ? (
+              d && Date.parse(d.fetchedAt) > 0 && <span className="px-2 text-xs text-muted">Updated {ago(d.fetchedAt)}</span>
+            ) : (
             <button
               type="button"
               onClick={() => setRefresh(1)}
@@ -190,6 +199,7 @@ export function ClientAnalytics({
               <RefreshCw size={13} className={current?.syncing ? "animate-spin" : ""} />
               {current?.syncing ? "Updating…" : d && Date.parse(d.fetchedAt) > 0 ? `Updated ${ago(d.fetchedAt)}` : "Refresh"}
             </button>
+            )}
           </div>
         )}
       </div>
@@ -250,6 +260,9 @@ export function ClientAnalytics({
 
           {current?.error ? (
             <p className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300">{current.error}</p>
+          ) : shared && current && !d && !current.syncing ? (
+            // nothing read for this account yet — the team's side reads it first
+            <p className="text-sm text-muted">Your numbers will show here shortly.</p>
           ) : !d || (current?.pending && !d.rows.length) ? (
             <div className="flex flex-col gap-3">
               {current?.pending && (
