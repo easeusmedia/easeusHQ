@@ -265,7 +265,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <div className="flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Dropdown
-                      pill={{ icon: <Building2 size={12} /> }}
+                      pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
                       value={clientId}
                       placeholder="Client"
                       options={clients.map((c) => ({ value: c.id, label: c.name }))}
@@ -287,7 +287,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     )}
                     <Dropdown
                       name="assignedToId"
-                      pill={{ icon: <User size={12} /> }}
+                      pill={{ icon: <User size={12} className="text-emerald-400" /> }}
                       value={assignee}
                       placeholder="Assignee"
                       onChange={setAssignee}
@@ -305,7 +305,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     {/* internal work never reaches the client */}
                     {!internal && (
                       <DatePicker
-                        pill={{ icon: <Send size={12} />, label: "Delivery" }}
+                        pill={{ icon: <Send size={12} className="text-violet-400" />, label: "Delivery" }}
                         value={delivery}
                         onChange={setDelivery}
                         placeholder="Delivery"
@@ -335,7 +335,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   <Reveal open={more}>
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       <DatePicker
-                        pill={{ icon: <CalendarClock size={12} /> }}
+                        pill={{ icon: <CalendarClock size={12} className="text-orange-400" /> }}
                         value={scheduled}
                         onChange={setScheduled}
                         placeholder="Hide until…"
@@ -354,14 +354,14 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     edit anything, so all of them are always here. Reference
                     and Assets only when the task has one (from Notion). */}
                 <div className="overflow-hidden rounded-xl bg-foreground/[0.03]">
-                  <LinkRow icon={<Link2 size={13} />} label="Raw footage" name="rawLink" value={task.rawLink} placeholder="Google Drive link" />
-                  <LinkRow icon={<Clapperboard size={13} />} label="Frame.io" name="frameioLink" value={task.frameioLink} placeholder="https://f.io/…" />
-                  <LinkRow icon={<FolderCheck size={13} />} label="Final Drive" name="driveLink" value={task.driveLink} placeholder="Google Drive link" />
+                  <LinkRow icon={<Link2 size={13} className="text-blue-400" />} label="Raw footage" name="rawLink" value={task.rawLink} placeholder="Google Drive link" />
+                  <LinkRow icon={<Clapperboard size={13} className="text-violet-400" />} label="Frame.io" name="frameioLink" value={task.frameioLink} placeholder="https://f.io/…" />
+                  <LinkRow icon={<FolderCheck size={13} className="text-emerald-400" />} label="Final Drive" name="driveLink" value={task.driveLink} placeholder="Google Drive link" />
                   {task.referenceLink !== null && (
-                    <LinkRow icon={<BookOpen size={13} />} label="Reference" name="referenceLink" value={task.referenceLink} />
+                    <LinkRow icon={<BookOpen size={13} className="text-amber-400" />} label="Reference" name="referenceLink" value={task.referenceLink} />
                   )}
                   {task.assetLink !== null && (
-                    <LinkRow icon={<Package size={13} />} label="Assets" name="assetLink" value={task.assetLink} />
+                    <LinkRow icon={<Package size={13} className="text-rose-400" />} label="Assets" name="assetLink" value={task.assetLink} />
                   )}
                 </div>
               </div>

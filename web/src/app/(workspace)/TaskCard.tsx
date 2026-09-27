@@ -270,7 +270,7 @@ export function TaskCard({
       onClick={() => detailsRef.current?.open()}
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
     >
-      {/* Delete on hover, for the people who can delete in the task's own
+      {/* Delete on hover, in the top-right corner, for the people who can delete in the task's own
           dialog (admin and core), asking first; the rest of editing lives
           in that dialog, which the card opens on click. */}
       {canManage && (
@@ -282,7 +282,8 @@ export function TaskCard({
           }}
         />
       )}
-      <p className="min-w-0 truncate text-xs text-muted">{clientName}</p>
+      {/* room on the right for the corner delete */}
+      <p className="min-w-0 truncate pr-7 text-xs text-muted">{clientName}</p>
 
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-snug">{task.title}</p>

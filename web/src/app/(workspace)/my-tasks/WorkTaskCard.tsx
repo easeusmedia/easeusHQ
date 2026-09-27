@@ -137,13 +137,13 @@ export function WorkTaskCard({
             complete();
           }}
           disabled={saving}
-          className="btn btn-sm status-pop flex w-full items-center justify-center gap-1.5 border border-emerald-400/30 bg-emerald-400/15 text-emerald-300 disabled:opacity-60"
+          className="btn btn-sm status-pop flex w-[calc(100%-2rem)] items-center justify-center gap-1.5 border border-emerald-400/30 bg-emerald-400/15 text-emerald-300 disabled:opacity-60"
         >
           <CheckCircle2 size={13} className="shrink-0" /> {saving ? "Completing…" : "Mark complete"}
         </button>
         )}
         {(task.tags.length > 0 || task.category) && (
-          <span className="flex w-fit flex-wrap items-center gap-1">
+          <span className="flex w-fit flex-wrap items-center gap-1 pr-7">
             {task.tags.map((t) => (
               <TaskTagChip key={t.id} name={t.name} />
             ))}
@@ -152,7 +152,8 @@ export function WorkTaskCard({
             {task.tags.length === 0 && task.category && <TaskTagChip name={task.category} />}
           </span>
         )}
-        <p className="text-sm font-medium leading-snug">{task.title}</p>
+        {/* room on the right for the corner delete */}
+        <p className="pr-6 text-sm font-medium leading-snug">{task.title}</p>
         {task.project && (
           <p className="truncate text-xs text-muted">
             {task.project.client.name} · {task.project.name}
