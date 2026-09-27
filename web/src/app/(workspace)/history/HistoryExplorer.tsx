@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Download, ExternalLink, Filter, Search } from "lucide-react";
+import { CircleCheck, Clock, Download, ExternalLink, Filter, RotateCcw, Search, Timer, UsersRound } from "lucide-react";
+import { StatTile } from "../StatTile";
 import { ConfirmButton } from "../ConfirmButton";
 import { deleteTaskPermanently } from "../actions";
 import { formatDate } from "../TaskCard";
@@ -9,7 +10,7 @@ import { DatePicker } from "../DatePicker";
 import { Dropdown } from "../Dropdown";
 import { Toolbar } from "../ViewToggle";
 import { TaskTagChip } from "../TaskTagPicker";
-import { activeHours, filterHistory, onTime, summarize, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
+import { activeHours, filterHistory, onTime, summarize, totals, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
 import { StageTrail } from "../StageTrail";
 
 type Wire = Omit<HistoryItem, "createdAt" | "startedAt" | "completedAt" | "dueDate"> & {
@@ -120,8 +121,19 @@ export function HistoryExplorer({
     ...(detail?.links ?? []).map((l) => ({ label: l.label || "Link", url: l.url })),
   ].filter((l): l is { label: string; url: string } => !!l.url);
 
+  // the headline numbers, for whatever the filters leave
+  const top = totals(shown);
+
   return (
     <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <StatTile label="Finished" value={top.completed} Icon={CircleCheck} tone="emerald" />
+        <StatTile label="On time" value={top.onTimePct === null ? "—" : `${top.onTimePct}%`} lit={top.onTimePct !== null} Icon={Clock} />
+        <StatTile label="Median turnaround" value={hoursLabel(top.medianTurnaround)} lit={top.completed > 0} Icon={Timer} />
+        <StatTile label="Revisions per task" value={top.revisionsPerTask} lit={top.completed > 0} Icon={RotateCcw} />
+        <StatTile label="People" value={top.people} Icon={UsersRound} />
+      </div>
+
       <Toolbar
         left={
           <div className="flex flex-wrap items-center gap-2">

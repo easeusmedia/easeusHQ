@@ -6,7 +6,9 @@
   --background: #0b0d10;
   --surface: #15181c;
   --surface-2: #1c2025;
-  --border: #272b31;
+  /* one soft, translucent line everywhere — the Contracts cards' border —
+     so it reads the same over the page, a panel or a card */
+  --border: rgba(255, 255, 255, 0.075);
   --hover-surface: #363c45; /* clearly lighter than surface/surface-2 — an obvious hover pop */
   --foreground: #eef0f2;
   --muted: #8b939c;
@@ -216,9 +218,9 @@ dialog[open]::backdrop {
      anything to blur through, but real-time backdrop sampling on every
      task card (there can be dozens on screen) was a genuine scroll/drag
      jank source. Same look, without paying for it every frame. */
-  background: rgba(21, 24, 28, 0.9);
-  border: 1px solid var(--border);
-  transition: background-color 0.12s ease;
+  background: rgba(21, 24, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 /* Only cards that actually do something on click light up. A panel that
    merely holds content — a form, a stats tile, a billing table — used to
@@ -226,7 +228,8 @@ dialog[open]::backdrop {
    clickable" when it isn't, and is plain distracting while you're typing
    in a field inside it. */
 .card-interactive:hover {
-  background-color: rgba(28, 31, 36, 0.92);
+  background-color: rgba(28, 31, 36, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* Interactive controls (buttons, menus) stay fully solid — no transparency
