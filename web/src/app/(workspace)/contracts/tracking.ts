@@ -26,7 +26,7 @@ export async function trackContracts(onlyId?: string, force = false): Promise<vo
       ...(onlyId ? { id: onlyId } : {}),
       // waiting on signatures — or marked signed by hand and still
       // missing its signed copy and steps
-      OR: [{ status: { in: ["approved", "sent"] } }, { status: "signed", signedPdf: null, agreementId: null }],
+      OR: [{ status: { in: ["approved", "sent"] } }, { status: "signed", signedPdf: null }],
     },
   });
   if (!contracts.length) return;

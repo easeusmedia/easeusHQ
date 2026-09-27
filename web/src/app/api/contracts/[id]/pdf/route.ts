@@ -3,11 +3,10 @@ import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { agreementName, compose, withDefaults, type Clause } from "@/lib/contract";
 import { contractPdf } from "@/lib/contractPdf";
-import { signedPdf } from "@/lib/adobeSign";
 
-// A contract as a PDF, for ops: as it stands now, (?sign) ready to upload
-// to Acrobat for e-signing, or (?signed=1) the copy everyone has signed,
-// straight from Adobe Acrobat Sign.
+// A contract as a PDF, for ops: as it stands now, (?sign) as a download to
+// drop into Acrobat's Request e-signatures, or (?signed=1) the signed copy
+// that came with Adobe's "Signed and Filed" email.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await requireOps())) return new Response("Not allowed", { status: 403 });
   const contract = await prisma.contract.findUnique({ where: { id: (await params).id } });
@@ -21,13 +20,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (query.has("signed") && contract.signedPdf) {
     // the copy Adobe emailed once everyone had signed
     pdf = new Uint8Array(contract.signedPdf);
-  } else if (query.has("signed") && contract.agreementId) {
-    pdf = new Uint8Array(await signedPdf(contract.agreementId));
   } else {
-    // ?sign: the copy to upload to Acrobat's Request e-signatures — its
-    // signature and date lines carry Acrobat Sign's field tags
+    // ?sign: the copy to drop into Acrobat's Request e-signatures
     const { sections, values } = compose(contract.clauses as Clause[], details, indiaDay(new Date()));
-    pdf = await contractPdf({ sections, values, details, tags: query.has("sign") });
+    pdf = await contractPdf({ sections, values, details });
   }
   return new Response(pdf as BodyInit, {
     headers: {

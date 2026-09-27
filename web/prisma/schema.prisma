@@ -749,7 +749,8 @@ model AppSetting {
 // A client's service agreement, from the first form they fill in to the
 // signed copy (see lib/contract.ts). Ops makes a link; the client fills in
 // who they are at /start/<token>; ops adds the terms, reviews the clauses and
-// approves; then it goes out through Adobe Acrobat Sign.
+// approves; then it goes out through Acrobat's e-signing, followed from
+// Adobe's emails in Gmail.
 model Contract {
   id          String    @id @default(uuid())
   // the client's form link — it stops working once they've sent it
@@ -767,8 +768,6 @@ model Contract {
   clauses     Json
   // the conversation with Claude about it: [{ role, text, at }]
   chat        Json?
-  // the Adobe Acrobat Sign agreement, once sent
-  agreementId String?
   // what Adobe's emails to easeus.media@gmail.com said about it — sent,
   // signed, filed — read from Gmail: [{ at, kind, text, id }]
   events      Json?

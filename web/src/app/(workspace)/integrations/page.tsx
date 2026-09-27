@@ -10,8 +10,6 @@ import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
 import { apifyAccount, apifyTokens } from "@/lib/apify";
-import { adobeAccount } from "@/lib/adobeSign";
-import { AdobeSignIntegration } from "./AdobeSignIntegration";
 import { ClaudeIntegration } from "./ClaudeIntegration";
 import { GmailIntegration } from "./GmailIntegration";
 import { gmailAccount } from "@/lib/gmail";
@@ -75,8 +73,6 @@ export default async function IntegrationsPage({
         clientId={fio[FRAMEIO_SETTINGS.clientId] ?? ""}
         justConnected={frameio === "1"}
       />
-
-      <AdobeSignIntegration account={(await adobeAccount()) || null} />
 
       <ClaudeIntegration ending={(await claudeKey())?.slice(-4) ?? null} />
 

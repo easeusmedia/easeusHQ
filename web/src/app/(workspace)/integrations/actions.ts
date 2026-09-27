@@ -8,7 +8,6 @@ import { DRIVE_SETTINGS, driveSettings, folder, parentFolderId, saveDriveSetting
 import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } from "@/lib/notion";
 import { APIFY_SETTINGS } from "@/lib/apify";
-import { connectAdobe } from "@/lib/adobeSign";
 import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
 import { GMAIL_SETTINGS } from "@/lib/gmail";
 
@@ -201,20 +200,6 @@ export async function testFrameio(): Promise<{ ok?: string; error?: string }> {
   } catch (err) {
     return { error: err instanceof Error ? err.message : "That didn't work." };
   }
-}
-
-// Adobe Acrobat Sign's integration key, checked against Acrobat Sign before
-// it's kept — contracts are sent for e-signature with it.
-export async function saveAdobeKey(key: string): Promise<{ error?: string }> {
-  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
-  if (!key.trim()) return { error: "Paste the integration key." };
-  try {
-    await connectAdobe(key.trim());
-  } catch (err) {
-    return { error: `Acrobat Sign didn't accept that key: ${err instanceof Error ? err.message : "unknown error"}` };
-  }
-  revalidatePath("/integrations");
-  return {};
 }
 
 // The Anthropic API key the contract assistant runs on, checked first

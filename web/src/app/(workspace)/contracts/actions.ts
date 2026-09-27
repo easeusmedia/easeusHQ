@@ -5,9 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
-import { DEFAULT_CLAUSES, EMAIL, PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
-import { contractPdf } from "@/lib/contractPdf";
-import { sendForSignature, signingUrl } from "@/lib/adobeSign";
+import { DEFAULT_CLAUSES, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { TEMPLATE, masterClauses } from "./masterTemplate";
 import { trackContracts } from "./tracking";
 import { askAboutContract, type Attachment, type ChatMessage } from "./assistant";
@@ -71,19 +69,6 @@ export async function saveContractDetails(id: string, patch: Partial<ContractDet
   return { status: e.status, details };
 }
 
-// Where to sign it ourselves, once Adobe has it waiting on us
-export async function contractSigningLink(id: string): Promise<{ error?: string; url?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can do that." };
-  const c = await prisma.contract.findUnique({ where: { id }, select: { agreementId: true } });
-  if (!c?.agreementId) return { error: "It hasn't been sent yet." };
-  try {
-    const url = await signingUrl(c.agreementId, PROVIDER.email);
-    return url ? { url } : { error: "It isn't waiting on your signature — check Adobe's email, or it's with the client now." };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Adobe didn't answer." };
-  }
-}
-
 export async function saveContractClauses(id: string, clauses: Clause[]): Promise<{ error?: string; status?: string }> {
   if (!(await requireOps())) return { error: "Only ops team members can edit a contract." };
   const e = await editable(id);
@@ -114,47 +99,6 @@ export async function approveContract(id: string): Promise<{ error?: string }> {
   const { missing } = compose(c.clauses as Clause[], withDefaults(c.details), indiaDay(new Date()));
   if (missing.length) return { error: `Still needed: ${missing.map((m) => m.label).join(", ")}.` };
   await prisma.contract.update({ where: { id }, data: { status: "approved", approvedAt: new Date() } });
-  done();
-  return {};
-}
-
-// The one step that reaches the client: the approved contract, as a PDF, to
-// Adobe Acrobat Sign — we sign first, then the client.
-export async function sendContract(id: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only ops team members can send a contract." };
-  const c = await prisma.contract.findUnique({ where: { id } });
-  if (!c) return { error: "That contract no longer exists." };
-  if (c.status !== "approved") return { error: "Approve it first — only an approved contract goes out." };
-
-  // dated the day it goes out, unless a date was set on purpose
-  const today = indiaDay(new Date());
-  const details = withDefaults(c.details);
-  if (!details.signingDate) details.signingDate = today;
-  const { sections, values, missing } = compose(c.clauses as Clause[], details, today);
-  if (missing.length) return { error: `Still needed: ${missing.map((m) => m.label).join(", ")}.` };
-  const clients = details.signatories.filter((s) => s.name.trim());
-  if (!clients.length || clients.some((s) => !EMAIL.test(s.email.trim()))) {
-    return { error: "Every client signatory needs a valid email." };
-  }
-
-  try {
-    const pdf = await contractPdf({ sections, values, details, tags: true });
-    const agreementId = await sendForSignature({
-      pdf,
-      fileName: `Service Agreement - ${values.CLIENT_ENTITY}.pdf`.replace(/[\\/:*?"<>|]/g, ""),
-      name: `Service Agreement · Easeus Media · ${values.CLIENT_ENTITY}`,
-      message: `Hi ${clients.map((s) => s.name.trim().split(/\s+/)[0]).join(" & ")}, here's your service agreement with Easeus Media — please review and sign. Thank you!`,
-      // we sign first, then it goes to the client(s) — the order here is
-      // the PDF's signer1, signer2, … (lib/contractPdf.tsx)
-      signers: [{ email: PROVIDER.email, order: 1 }, ...clients.map((s) => ({ email: s.email.trim(), order: 2 }))],
-    });
-    await prisma.contract.update({
-      where: { id },
-      data: { status: "sent", sentAt: new Date(), agreementId, details },
-    });
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Adobe Acrobat Sign couldn't send it." };
-  }
   done();
   return {};
 }

@@ -4,7 +4,6 @@ import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { withDefaults, type Clause } from "@/lib/contract";
 import type { ChatMessage } from "../assistant";
-import { ADOBE_SETTINGS, agreementStatus } from "@/lib/adobeSign";
 import { ContractEditor } from "../ContractEditor";
 import { trackContracts, type TrackedEvent } from "../tracking";
 import { gmailAccount } from "@/lib/gmail";
@@ -20,20 +19,10 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
   if (!contract) notFound();
 
   // out through Acrobat: what Adobe's emails say about it since the last look
-  if (contract.status === "approved" || contract.status === "sent" || (contract.status === "signed" && !contract.signedPdf && !contract.agreementId)) {
+  if (contract.status === "approved" || contract.status === "sent" || (contract.status === "signed" && !contract.signedPdf)) {
     await trackContracts(id).catch(() => {});
     contract = (await prisma.contract.findUnique({ where: { id } }))!;
   }
-
-  // out for signature: ask Adobe where it's got to, and note when it's signed
-  let adobe: string | null = null;
-  if (contract.status === "sent" && contract.agreementId) {
-    adobe = await agreementStatus(contract.agreementId).catch(() => null);
-    if (adobe === "SIGNED") {
-      contract = await prisma.contract.update({ where: { id }, data: { status: "signed", signedAt: new Date() } });
-    }
-  }
-  const adobeConnected = !!(await prisma.appSetting.findUnique({ where: { key: ADOBE_SETTINGS.api } }));
 
   return (
     <ContractEditor
@@ -45,9 +34,6 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
       clauses={contract.clauses as Clause[]}
       chat={(contract.chat as ChatMessage[] | null) ?? []}
       today={indiaDay(new Date())}
-      adobeConnected={adobeConnected}
-      agreementStatus={adobe}
-      sentByApi={!!contract.agreementId}
       events={((contract.events as TrackedEvent[] | null) ?? []).map((e) => ({
         ...e,
         // written here, so the browser shows exactly what the server did

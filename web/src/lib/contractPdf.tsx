@@ -4,9 +4,7 @@ import { PROVIDER, runs, type ContractDetails, type Section } from "./contract.t
 
 // The contract as a black-and-white A4 PDF, to the SOP's rendering spec (§6):
 // Helvetica, 25mm side margins, section heads with their own number column,
-// tables with a light fill for headers. With `tags`, the signature and date
-// lines carry Acrobat Sign text tags in white — invisible on the page, and
-// turned into the real fields when it's sent (lib/adobeSign.ts).
+// tables with a light fill for headers.
 
 const mm = (n: number) => n * 2.8346;
 const BLK = "#000000";
@@ -46,8 +44,6 @@ const s = StyleSheet.create({
   sigName: { fontFamily: "Helvetica-Bold", fontSize: 10.5, lineHeight: 14 / 10.5, color: BLK },
   sigLine: { fontSize: 9, marginTop: mm(10), flexDirection: "row", alignItems: "flex-end" },
   sigBlank: { flex: 1, borderBottomWidth: 0.5, borderBottomColor: BLK, marginLeft: 4, height: 14, justifyContent: "flex-end" },
-  // just above the line, so the white text never cuts it
-  tag: { color: "#ffffff", fontSize: 9, marginBottom: 2 },
   end: { marginTop: mm(10) },
   endText: { textAlign: "center", fontSize: 9, color: GRAY, marginTop: 6 },
   footer: { position: "absolute", left: mm(25), right: mm(25), bottom: mm(13), fontSize: 7, color: GRAY },
@@ -76,8 +72,8 @@ function Lines({ lines }: { lines: string[] }) {
   );
 }
 
-// A signature box. `signer` is its Acrobat Sign signer number when tagged.
-function SignatureBox({ label, lines, signer }: { label: string; lines: string[]; signer?: number }) {
+// A signature box: the party, the name, and lines to sign and date on
+function SignatureBox({ label, lines }: { label: string; lines: string[] }) {
   return (
     <View style={s.sigBox}>
       <Text style={s.sigLabel}>{label}</Text>
@@ -89,17 +85,17 @@ function SignatureBox({ label, lines, signer }: { label: string; lines: string[]
       ))}
       <View style={s.sigLine}>
         <Text>Signature:</Text>
-        <View style={s.sigBlank}>{signer && <Text style={s.tag}>{`{{Sig${signer}_es_:signer${signer}:signature}}`}</Text>}</View>
+        <View style={s.sigBlank} />
       </View>
       <View style={{ ...s.sigLine, marginTop: 10 }}>
         <Text>Date:</Text>
-        <View style={s.sigBlank}>{signer && <Text style={s.tag}>{`{{Dte${signer}_es_:signer${signer}:date}}`}</Text>}</View>
+        <View style={s.sigBlank} />
       </View>
     </View>
   );
 }
 
-function Table({ name, v, d, tags }: { name: string; v: Record<string, string>; d: ContractDetails; tags: boolean }) {
+function Table({ name, v, d }: { name: string; v: Record<string, string>; d: ContractDetails }) {
   if (name === "parties") {
     return (
       <View style={s.table} wrap={false}>
@@ -154,22 +150,22 @@ function Table({ name, v, d, tags }: { name: string; v: Record<string, string>; 
       </View>
     );
   }
-  // signatures: we sign first, as signer 1; then the client(s), 2 (and 3)
+  // signatures: ours, then the client(s)
   const clients = d.signatories.filter((x) => x.name.trim());
   return (
     <View wrap={false}>
       <View style={s.sigRow}>
         <View style={s.sigCol}>
-          <SignatureBox label="SERVICE PROVIDER" lines={[PROVIDER.name, `Name: ${PROVIDER.person}`]} signer={tags ? 1 : undefined} />
+          <SignatureBox label="SERVICE PROVIDER" lines={[PROVIDER.name, `Name: ${PROVIDER.person}`]} />
         </View>
         <View style={{ ...s.sigCol, alignItems: "flex-end" }}>
-          <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[0]?.name.trim() ?? ""}`]} signer={tags ? 2 : undefined} />
+          <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[0]?.name.trim() ?? ""}`]} />
         </View>
       </View>
       {clients[1] && (
         <View style={{ ...s.sigRow, justifyContent: "flex-end", marginTop: 12 }}>
           <View style={{ ...s.sigCol, alignItems: "flex-end" }}>
-            <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[1].name.trim()}`]} signer={tags ? 3 : undefined} />
+            <SignatureBox label="CLIENT" lines={[v.CLIENT_ENTITY, `Name: ${clients[1].name.trim()}`]} />
           </View>
         </View>
       )}
@@ -181,12 +177,10 @@ export async function contractPdf({
   sections,
   values: v,
   details: d,
-  tags,
 }: {
   sections: Section[];
   values: Record<string, string>;
   details: ContractDetails;
-  tags: boolean;
 }): Promise<Uint8Array> {
   const doc = (
     <Document title={`Service Agreement · ${v.CLIENT_ENTITY}`} author="Easeus Media">
@@ -223,7 +217,7 @@ export async function contractPdf({
                   ))}
                 </View>
               ) : (
-                <Table key={i} name={b.name} v={v} d={d} tags={tags} />
+                <Table key={i} name={b.name} v={v} d={d} />
               )
             )}
           </View>
