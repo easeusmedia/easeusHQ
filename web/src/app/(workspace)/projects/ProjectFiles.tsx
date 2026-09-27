@@ -182,6 +182,7 @@ export function ProjectFiles({
                             <Pencil size={12} /> Edit
                           </button>
                           <ConfirmButton
+                            confirm="Remove"
                             message={`Remove "${a.name}" from this project? Only the link is removed — the file itself stays wherever it's stored.`}
                             onConfirm={() => remove(a.id)}
                             className="btn btn-xs btn-ghost px-2 hover:text-red-300"

@@ -243,6 +243,7 @@ export function ContractEditor({
             </button>
             <ConfirmButton
               message="Sent it through Acrobat? The contract is locked from here on."
+              confirm="Yes, it's sent"
               onConfirm={() => run("sent", () => markContractSent(id), () => setStatus("sent"))}
               className="btn btn-ghost flex items-center gap-1.5"
             >
@@ -256,6 +257,7 @@ export function ContractEditor({
       const signed = (
         <ConfirmButton
           message="Has everyone signed it in Acrobat?"
+          confirm="Mark signed"
           onConfirm={() => run("signed", () => markContractSigned(id), () => setStatus("signed"))}
           className="btn btn-glow flex items-center gap-1.5"
         >
@@ -284,7 +286,12 @@ export function ContractEditor({
         body: `Adobe Acrobat Sign emails you (${PROVIDER.email}) to sign first; then it goes to ${to} to sign.`,
         action: (
           <ConfirmButton
-            message={`Send it through Adobe Acrobat Sign? You sign first as ${PROVIDER.email}, then it goes to ${to}.`}
+            message={
+              signature
+                ? `Send it through Adobe Acrobat Sign to ${to}? It's already signed on our side.`
+                : `Send it through Adobe Acrobat Sign? You sign first as ${PROVIDER.email}, then it goes to ${to}.`
+            }
+            confirm="Send"
             onConfirm={() => run("send", () => sendContract(id), () => setStatus("sent"))}
             className="btn btn-glow flex items-center gap-1.5"
           >
@@ -417,6 +424,7 @@ export function ContractEditor({
               {!locked && (
                 <ConfirmButton
                   message="Put the clauses back to the master template's? Changes made to this contract's clauses are lost."
+                  confirm="Reset"
                   onConfirm={() =>
                     run("reset", async () => {
                       const res = await resetContractClauses(id);

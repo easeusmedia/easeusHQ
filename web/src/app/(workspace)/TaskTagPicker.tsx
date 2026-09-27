@@ -120,6 +120,7 @@ export function TaskTagPicker({
               </button>
               {canManage && (
                 <ConfirmButton
+                  confirm="Remove"
                   message={`Remove the tag "${t.name}"? Tasks already tagged with it keep everything else — they just lose the label.`}
                   className="pr-1.5 opacity-0 transition-opacity group-hover/tag:opacity-100 hover:text-red-400"
                   onConfirm={() => remove(t.id)}

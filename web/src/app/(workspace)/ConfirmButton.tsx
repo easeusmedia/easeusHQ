@@ -12,6 +12,8 @@ export function ConfirmButton({
   children,
   formId,
   onConfirm,
+  confirm = "Delete",
+  danger = confirm === "Delete" || confirm === "Remove" || confirm === "Reset",
 }: {
   message: string;
   className?: string;
@@ -21,6 +23,10 @@ export function ConfirmButton({
   // already holds the call passes onConfirm. Exactly one is required.
   formId?: string;
   onConfirm?: () => void;
+  // the confirming button's word — "Delete" unless it's something else
+  // ("Send", "Mark signed"); red only for what loses something
+  confirm?: string;
+  danger?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -52,9 +58,9 @@ export function ConfirmButton({
               ref.current?.close();
               onConfirm?.();
             }}
-            className="btn btn-sm btn-danger"
+            className={`btn btn-sm ${danger ? "btn-danger" : "btn-glow"}`}
           >
-            Delete
+            {confirm}
           </button>
         </div>
       </dialog>

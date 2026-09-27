@@ -485,6 +485,7 @@ export function PersonDetail({
                 >
                   {j.name}
                   <ConfirmButton
+                    confirm="Remove"
                     message={`Remove the role "${j.name}"? Anyone holding it keeps their access — they just lose the label.`}
                     className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
                     onConfirm={() => removeTitle(j.id)}

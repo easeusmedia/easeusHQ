@@ -101,6 +101,7 @@ export function SignatureCard({ image }: { image: string | null }) {
         </button>
         {image && (
           <ConfirmButton
+            confirm="Remove"
             message="Remove Ashmit's signature? Contracts will then need him to sign each one himself."
             onConfirm={async () => {
               await saveProviderSignature(null);
