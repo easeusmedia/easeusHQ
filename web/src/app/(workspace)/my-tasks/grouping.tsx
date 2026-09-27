@@ -43,6 +43,19 @@ export function GroupHeader({ group, count, className = "" }: { group: Group; co
   );
 }
 
+// The same group, as a list's heading: quieter than the board's pill
+export function GroupTitle({ group, count }: { group: Group; count: number }) {
+  const stage = group.status && WORK_TASK_STAGE[group.status];
+  return (
+    <div className="flex items-center gap-2 px-1 text-sm">
+      {stage && <span className={`size-2 rounded-full ${stage.dot}`} />}
+      {group.person && <Avatar name={group.person} size={20} />}
+      <span className="font-medium">{group.label}</span>
+      <span className="text-xs tabular-nums text-muted">{count}</span>
+    </div>
+  );
+}
+
 export function QueueCard({ task, env }: { task: QueueCardData; env: QueueEnv }) {
   return <TaskCard task={task} clientName={task.project.client.name} {...env} />;
 }

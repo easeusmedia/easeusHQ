@@ -40,8 +40,10 @@ export const WorkTaskDialog = forwardRef<
     assignees?: { id: string; name: string }[];
     taskTags?: TaskTagOption[];
     canManageTags?: boolean;
+    // create mode's own trigger: the board's button, or a list's first row
+    trigger?: "button" | "row";
   }
->(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], taskTags = [], canManageTags = false }, ref) {
+>(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], taskTags = [], canManageTags = false, trigger = "button" }, ref) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -127,14 +129,23 @@ export const WorkTaskDialog = forwardRef<
 
   return (
     <>
-      {mode === "create" && (
-        <button
-          onClick={open}
-          className="btn btn-add flex w-full items-center justify-center gap-1.5"
-        >
-          <Plus size={16} /> New task
-        </button>
-      )}
+      {mode === "create" &&
+        (trigger === "row" ? (
+          <button
+            type="button"
+            onClick={open}
+            className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-muted transition-colors duration-150 hover:bg-white/[0.03] hover:text-foreground"
+          >
+            <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-dashed border-white/25">
+              <Plus size={11} />
+            </span>
+            Add a task
+          </button>
+        ) : (
+          <button onClick={open} className="btn btn-add flex w-full items-center justify-center gap-1.5">
+            <Plus size={16} /> New task
+          </button>
+        ))}
 
       <dialog
         ref={dialogRef}

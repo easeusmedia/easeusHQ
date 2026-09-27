@@ -2,18 +2,19 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2, Link2, Paperclip } from "lucide-react";
+import { CalendarClock, Check, Link2, Paperclip, Trash2 } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
 import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { AssigneeLabel } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
-import { moveWorkTask } from "./actions";
+import { deleteWorkTask, moveWorkTask } from "./actions";
+import { ConfirmButton } from "../ConfirmButton";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
-import { GroupHeader, QueueRow, type Group, type QueueEnv } from "./grouping";
+import { GroupTitle, QueueRow, type Group, type QueueEnv } from "./grouping";
 import { dueState } from "@/lib/due";
 
 
@@ -63,7 +64,7 @@ export function WorkTaskList({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7">
       {error && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-300">
           {error}
@@ -80,14 +81,14 @@ export function WorkTaskList({
         // grouped by person, every row is theirs — no need to repeat the name
         const rowAssignee = showAssignee && groupBy !== "person";
         return (
-          <section key={group.key} className="flex flex-col gap-2">
+          <section key={group.key} className="flex flex-col gap-1.5">
             {/* pinned while its own rows scroll past */}
             <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
-              <GroupHeader group={group} count={count} className="w-fit" />
+              <GroupTitle group={group} count={count} />
             </div>
 
             {rows.length > 0 && (
-            <div className="flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl">
+            <div className="flex flex-col divide-y divide-white/[0.05] overflow-hidden panel-soft rounded-2xl">
               {rows.map((task) => (
                 <ListRow
                   key={task.id}
@@ -122,6 +123,9 @@ export function WorkTaskList({
   );
 }
 
+// One task as a to-do row: a circle in its stage's colour (the tick that
+// finishes it, once it's in review), the title with what it's for and when
+// underneath, then who has it and its stage. Deleting shows on hover.
 export function ListRow({
   task,
   projects,
@@ -141,82 +145,101 @@ export function ListRow({
   canManageTags: boolean;
   onChangeStatus: (status: WorkTaskStatus) => void;
 }) {
+  const router = useRouter();
   const dialogRef = useRef<{ open: () => void }>(null);
   // judged in India's day, not UTC's — the old string compare against
   // toISOString() turned a task red at midnight UTC, 5:30am here
   const due = task.status === "done" ? null : dueState(task.dueDate, null);
-  const dueTone = due === "overdue" ? "font-medium text-red-300" : due === "today" ? "font-medium text-amber-300" : "";
+  const dueTone = due === "overdue" ? "text-red-300" : due === "today" ? "text-amber-300" : "";
+  const stage = WORK_TASK_STAGE[task.status];
+  // the same people the task's own dialog lets delete it (see WorkTaskCard)
+  const canDelete = task.assignedTo.id === actingUserId || task.createdBy.id === actingUserId || canManageTags;
+  const hasMeta = !!task.project || !!task.dueDate || task.tags.length > 0 || !!task.category || task.links.length + task.attachments.length > 0;
 
   return (
     <>
-      {/* a div, not a button — it contains the Dropdown below, which is
-          its own real <button>, and a button can't legally contain
-          another one (same reason TaskCard's own row is a div, not a
-          button: nested interactive controls, each stopping its own
-          click from bubbling up to this row's) */}
+      {/* a div, not a button — it holds buttons of its own, and a button
+          can't legally contain another; each stops its click from also
+          opening the task */}
       <div
         onClick={() => dialogRef.current?.open()}
-        className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2"
+        className="group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-white/[0.03]"
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
-        {(task.tags.length > 0 || task.category) && (
-          <span className="hidden shrink-0 items-center gap-1 sm:flex">
-            {task.tags.map((t) => (
-              <TaskTagChip key={t.id} name={t.name} />
-            ))}
-            {task.tags.length === 0 && task.category && <TaskTagChip name={task.category} />}
-          </span>
+        {task.status === "in_review" ? (
+          // the same finish as on a card, and only at the same point
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChangeStatus("done");
+            }}
+            title="Mark as complete. It moves to History."
+            aria-label="Mark as complete"
+            className="group/done flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-purple-400/70 text-emerald-300 transition-colors hover:border-emerald-400 hover:bg-emerald-400/15"
+          >
+            <Check size={11} className="opacity-0 transition-opacity group-hover/done:opacity-100" />
+          </button>
+        ) : (
+          <span className={`size-[18px] shrink-0 rounded-full border-[1.5px] ${task.status === "in_progress" ? "border-blue-400/70" : "border-white/25"}`} />
         )}
-        {task.project && (
-          <span className="hidden shrink-0 truncate text-xs text-muted sm:inline">
-            {task.project.client.name} · {task.project.name}
-          </span>
-        )}
-        <span className="flex shrink-0 items-center gap-3 text-xs text-muted">
-          {task.dueDate && (
-            <span className={`flex items-center gap-1 ${dueTone}`}>
-              <CalendarClock size={13} /> {shortDate(task.dueDate)}
-            </span>
-          )}
-          {task.links.length > 0 && (
-            <span className="flex items-center gap-1">
-              <Link2 size={13} /> {task.links.length}
-            </span>
-          )}
-          {task.attachments.length > 0 && (
-            <span className="flex items-center gap-1">
-              <Paperclip size={13} /> {task.attachments.length}
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm">{task.title}</span>
+          {hasMeta && (
+            <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted">
+              {task.tags.map((t) => (
+                <TaskTagChip key={t.id} name={t.name} />
+              ))}
+              {task.tags.length === 0 && task.category && <TaskTagChip name={task.category} />}
+              {task.project && (
+                <span className="truncate">
+                  {task.project.client.name} · {task.project.name}
+                </span>
+              )}
+              {task.dueDate && (
+                <span className={`flex shrink-0 items-center gap-1 ${dueTone}`}>
+                  <CalendarClock size={12} /> {shortDate(task.dueDate)}
+                </span>
+              )}
+              {task.links.length + task.attachments.length > 0 && (
+                <span className="flex shrink-0 items-center gap-1">
+                  {task.links.length > 0 ? <Link2 size={12} /> : <Paperclip size={12} />} {task.links.length + task.attachments.length}
+                </span>
+              )}
             </span>
           )}
         </span>
+
         {showAssignee && <AssigneeLabel name={task.assignedTo.name} />}
-        {/* the same finish as on a card, and only at the same point */}
-        {task.status === "in_review" && (
-          <span onClick={(e) => e.stopPropagation()} className="shrink-0">
-            <button
-              type="button"
-              onClick={() => onChangeStatus("done")}
-              title="Mark as complete. It moves to History."
-              className="status-pop flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/15 px-2 py-1 text-xs font-medium text-emerald-300"
-            >
-              <CheckCircle2 size={13} className="shrink-0" /> Complete
-            </button>
-          </span>
-        )}
-        {/* key={task.status}: Dropdown tracks its own selection internally
-            from defaultValue at mount only — without a remount keyed to
-            the actual status, it'd keep showing whatever was selected
-            right up until the row itself unmounts, even after the change
-            it reported actually saved and the page refreshed with it */}
-        <span onClick={(e) => e.stopPropagation()} className="w-36 shrink-0">
+        {/* key={task.status}: Dropdown takes defaultValue at mount only, so
+            it remounts to show the saved stage after a refresh */}
+        <span onClick={(e) => e.stopPropagation()} className="shrink-0">
           <Dropdown
             key={task.status}
             size="sm"
+            pill={{ icon: <span className={`size-1.5 rounded-full ${stage.dot}`} /> }}
             defaultValue={task.status}
             options={STATUS_OPTIONS}
             onChange={(v) => onChangeStatus(v as WorkTaskStatus)}
           />
         </span>
+        {canDelete && (
+          <span
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+          >
+            <ConfirmButton
+              message={`Delete "${task.title}"? This can't be undone.`}
+              onConfirm={async () => {
+                const res = await deleteWorkTask(task.id);
+                if (!res.error) router.refresh();
+              }}
+              className="flex size-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-red-300"
+            >
+              <Trash2 size={14} aria-label="Delete task" />
+            </ConfirmButton>
+          </span>
+        )}
       </div>
 
       <WorkTaskDialog ref={dialogRef} mode="edit" task={task} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />

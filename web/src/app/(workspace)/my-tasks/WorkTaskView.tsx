@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Toolbar, ViewToggle, type View } from "../ViewToggle";
 import { WorkTaskBoard } from "./WorkTaskBoard";
 import { WorkTaskList } from "./WorkTaskList";
-import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
+import type { Project } from "./WorkTaskDialog";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import { groupTasks, type GroupBy } from "@/lib/workTaskStages";
@@ -89,14 +89,6 @@ export function WorkTaskView({
         center={toolbarCenter}
         right={
           <>
-            {/* your own list has no "Up next" column to hold the inline
-                New task, so it gets one here; a team's view has no create
-                button at all */}
-            {view === "list" && groupBy === "status" && canCreate && (
-              <div className="w-fit">
-                <WorkTaskDialog mode="create" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
-              </div>
-            )}
             {toolbarRight}
           </>
         }

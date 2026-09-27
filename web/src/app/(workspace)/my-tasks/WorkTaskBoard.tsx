@@ -10,7 +10,7 @@ import { StickyColumns, scrollPageNearEdge } from "../StickyColumns";
 import { ListRow } from "./WorkTaskList";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { GroupBy } from "@/lib/workTaskStages";
-import { GroupHeader, QueueCard, type Group, type QueueEnv } from "./grouping";
+import { GroupHeader, GroupTitle, QueueCard, type Group, type QueueEnv } from "./grouping";
 
 
 // A much lighter version of the client Task board's drag-and-drop: no
@@ -122,14 +122,18 @@ export function WorkTaskBoard({
     const status = group.status!;
     const columnTasks = columnOf(status);
     const list = layout === "list";
+    const empty = columnTasks.length + group.queue.length === 0;
+    // a list's first stage opens with its own "Add a task" row
+    const addRow = list && status === "todo" && canCreate;
     return (
       <div
         className={
           !list
             ? "flex min-h-24 min-w-0 flex-1 flex-col gap-3"
-            : columnTasks.length + group.queue.length === 0
-              ? `rounded-xl border border-dashed ${draggingId ? "border-foreground/30" : "border-border"}`
-              : "flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl"
+            : empty && !addRow
+              ? // still a drop target while empty; it only shows as one mid-drag
+                `rounded-2xl border border-dashed transition-colors ${draggingId ? "border-white/20" : "border-transparent"}`
+              : "flex flex-col divide-y divide-white/[0.05] overflow-hidden panel-soft rounded-2xl"
         }
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -137,6 +141,9 @@ export function WorkTaskBoard({
           handleColumnDrop(status, e);
         }}
       >
+        {addRow && (
+          <WorkTaskDialog mode="create" trigger="row" projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} canManageTags={canManageTags} />
+        )}
         {columnTasks.map((task) => (
           <div
             key={task.id}
@@ -164,9 +171,8 @@ export function WorkTaskBoard({
         ))}
         {queueEnv && group.queue.map((task) => <QueueCard key={task.id} task={task} env={queueEnv} />)}
         {list ? (
-          columnTasks.length + group.queue.length === 0 && (
-            <p className="px-4 py-3 text-xs text-muted">{draggingId ? "Drop to move here" : "No tasks here"}</p>
-          )
+          empty &&
+          !addRow && <p className="px-1 py-1.5 text-xs text-muted/60">{draggingId ? "Drop to move here" : "Nothing here"}</p>
         ) : (
           <div className="h-6 shrink-0" />
         )}
@@ -232,11 +238,11 @@ export function WorkTaskBoard({
       {/* the list: every stage in turn, header pinned, rows draggable
           between stages just like the cards */}
       {groupBy === "status" && layout === "list" && (
-        <div className="flex flex-col gap-6" onDragOver={scrollPageNearEdge}>
+        <div className="flex flex-col gap-7" onDragOver={scrollPageNearEdge}>
           {groups.map((group) => (
-            <section key={group.key} className="flex flex-col gap-2">
+            <section key={group.key} className="flex flex-col gap-1.5">
               <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
-                <GroupHeader group={group} count={columnOf(group.status!).length + group.queue.length} className="w-fit" />
+                <GroupTitle group={group} count={columnOf(group.status!).length + group.queue.length} />
               </div>
               {dropZone(group)}
             </section>

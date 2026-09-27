@@ -37,7 +37,7 @@ export function WorkNotionSyncButton() {
         type="button"
         onClick={run}
         disabled={pending}
-        className="btn btn-glow flex items-center gap-1.5 disabled:opacity-60"
+        className="btn btn-ghost flex items-center gap-1.5 disabled:opacity-60"
       >
         <RefreshCw size={14} className={pending ? "animate-spin" : undefined} />
         {pending ? "Syncing…" : "Sync with Notion"}
