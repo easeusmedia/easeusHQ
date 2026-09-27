@@ -111,48 +111,56 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
     router.refresh(); // keeps the conversation list's previews/badges current
   }
 
+  const unreadTotal = people.reduce((n, p) => n + p.unread, 0);
+
   return (
     // h-full, not a 100vh calc: this sits inside the layout's padded,
     // full-height scroll pane, so 100vh minus a guessed padding overshot by
     // exactly that padding and cropped the composer off the bottom.
     <div className="flex h-full gap-4">
       {/* conversations */}
-      <aside className="flex w-[min(18rem,40vw)] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface/40">
-        <div className="border-b border-border p-3">
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
+      <aside className="flex w-[min(19rem,40vw)] shrink-0 flex-col overflow-hidden rounded-3xl border border-white/[0.06] bg-surface/50">
+        <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
+          <div className="flex items-baseline justify-between px-1">
+            <h1 className="text-sm font-semibold tracking-tight">Messages</h1>
+            {unreadTotal > 0 && <span className="text-xs text-accent">{unreadTotal} unread</span>}
+          </div>
+          <label className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2 transition-colors focus-within:border-accent/40">
             <Search size={14} className="shrink-0 text-muted" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search people…"
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+              placeholder="Search people"
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none! placeholder:text-muted/70"
             />
-          </div>
+          </label>
         </div>
 
-        <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
           {filtered.map((p) => {
             const selected = p.id === openId;
             return (
               <button
                 key={p.id}
                 onClick={() => setOpenId(p.id)}
-                className={`flex w-full shrink-0 items-center gap-3 rounded-xl px-2.5 py-2 text-left ${
-                  selected ? "bg-surface-2" : "hover:bg-surface-2/60"
+                className={`flex w-full shrink-0 items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors duration-150 ${
+                  selected ? "bg-gradient-to-r from-accent/[0.14] to-accent/[0.02] ring-1 ring-accent/20" : "hover:bg-white/[0.04]"
                 }`}
               >
-                <Face person={p} size={38} />
+                <span className="relative shrink-0">
+                  <Face person={p} size={38} />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
-                    <span className={`truncate text-sm ${p.unread > 0 ? "font-semibold" : "font-medium"}`}>{p.name}</span>
-                    {p.lastAt && <span className="shrink-0 text-xs text-muted">{ago(p.lastAt)}</span>}
+                    <span className={`truncate text-sm ${p.unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{p.name}</span>
+                    {p.lastAt && <span className="shrink-0 text-[11px] text-muted">{ago(p.lastAt)}</span>}
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className={`truncate text-xs ${p.unread > 0 ? "text-foreground" : "text-muted"}`}>
+                    <span className={`truncate text-xs ${p.unread > 0 ? "text-foreground/85" : "text-muted"}`}>
                       {p.lastBody ? `${p.lastFromMe ? "You: " : ""}${p.lastBody}` : isActive(p) ? "Active now" : "No messages yet"}
                     </span>
                     {p.unread > 0 && (
-                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-medium text-accent">
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 px-1 text-[11px] font-medium text-accent">
                         {p.unread > 9 ? "9+" : p.unread}
                       </span>
                     )}
@@ -166,25 +174,31 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
       </aside>
 
       {/* thread */}
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface/40">
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/[0.06] bg-surface/50">
+        {/* a faint glow of the brand's blue behind the conversation */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_50%_at_100%_0%,rgba(75,149,230,0.07),transparent_60%)]" />
         {open ? (
-          <div key={open.id} className="fade-in flex min-h-0 flex-1 flex-col">
-            <header className="flex items-center gap-3 border-b border-border px-5 py-3.5">
-              <Face person={open} size={34} />
+          <div key={open.id} className="fade-in relative flex min-h-0 flex-1 flex-col">
+            <header className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-4">
+              <Face person={open} size={38} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{open.name}</p>
-                <p className="text-xs text-muted">{isActive(open) ? "Active now" : "Away"}</p>
+                <p className="flex items-center gap-1.5 text-xs text-muted">
+                  <span className={`size-1.5 rounded-full ${isActive(open) ? "bg-emerald-400" : "bg-white/20"}`} />
+                  {isActive(open) ? "Active now" : "Away"}
+                </p>
               </div>
-              <span className="ml-auto rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs capitalize text-muted">
-                {open.role}
-              </span>
+              <span className="ml-auto rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs capitalize text-muted">{open.role}</span>
             </header>
 
-            <div ref={listRef} className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
+            <div ref={listRef} className="flex flex-1 flex-col overflow-y-auto px-6 py-5">
               {messages === null ? (
                 <p className="text-xs text-muted">Loading…</p>
               ) : messages.length === 0 ? (
-                <p className="m-auto text-sm text-muted">No messages yet — say hello.</p>
+                <div className="m-auto flex flex-col items-center gap-3 text-center">
+                  <Face person={open} size={48} />
+                  <p className="text-sm text-muted">No messages yet — say hello to {open.name.split(" ")[0]}.</p>
+                </div>
               ) : (
                 messages.map((m, i) => {
                   const mine = m.fromId === meId;
@@ -195,30 +209,30 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                   const showDay = !prev || dayLabel(prev.createdAt) !== dayLabel(m.createdAt);
                   // Consecutive messages from the same person within a few
                   // minutes are one run: they sit tight together and only the
-                  // last of them carries a timestamp. A time under every
-                  // single bubble was what made short back-and-forth ("hi",
-                  // "yes", "yesss?") sprawl down the whole pane.
+                  // last of them carries a timestamp.
                   const startsRun = showDay || !prev || prev.fromId !== m.fromId || !within(prev.createdAt, m.createdAt);
-                  const endsRun = !next || next.fromId !== m.fromId || !within(m.createdAt, next.createdAt)
-                    || dayLabel(next.createdAt) !== dayLabel(m.createdAt);
+                  const endsRun =
+                    !next || next.fromId !== m.fromId || !within(m.createdAt, next.createdAt) || dayLabel(next.createdAt) !== dayLabel(m.createdAt);
                   return (
-                    <div key={m.id} className={startsRun && !showDay ? "mt-3" : undefined}>
+                    <div key={m.id} className={startsRun && !showDay ? "mt-4" : undefined}>
                       {showDay && (
-                        <div className="my-4 flex items-center gap-3">
-                          <span className="h-px flex-1 bg-border" />
-                          <span className="text-xs text-muted">{dayLabel(m.createdAt)}</span>
-                          <span className="h-px flex-1 bg-border" />
+                        <div className="my-5 flex justify-center">
+                          <span className="rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1 text-[11px] text-muted">{dayLabel(m.createdAt)}</span>
                         </div>
                       )}
-                      <div className={`flex flex-col ${mine ? "items-end" : "items-start"} ${startsRun ? "" : "mt-0.5"}`}>
-                        <div
-                          className={`max-w-[68%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
-                            mine ? "bg-blue-600 text-white" : "bg-surface-2 text-foreground"
-                          } ${endsRun ? (mine ? "rounded-br-md" : "rounded-bl-md") : ""}`}
-                        >
-                          {m.body}
+                      <div className={`flex gap-2.5 ${mine ? "justify-end" : "justify-start"} ${startsRun ? "" : "mt-1"}`}>
+                        {/* their face beside the first of a run, room kept for the rest */}
+                        {!mine && <span className="w-7 shrink-0">{startsRun && <Face person={open} size={28} />}</span>}
+                        <div className={`flex max-w-[68%] flex-col ${mine ? "items-end" : "items-start"}`}>
+                          <div
+                            className={`whitespace-pre-wrap break-words rounded-2xl border px-4 py-2.5 text-sm leading-relaxed ${
+                              mine ? "border-accent/20 bg-accent/[0.12] text-foreground" : "border-white/[0.06] bg-white/[0.04] text-foreground/90"
+                            } ${endsRun ? (mine ? "rounded-br-md" : "rounded-bl-md") : ""}`}
+                          >
+                            {m.body}
+                          </div>
+                          {endsRun && <span className="mt-1.5 px-1 text-[11px] text-muted">{timeLabel(m.createdAt)}</span>}
                         </div>
-                        {endsRun && <span className="mt-1 px-1 text-xs text-muted">{timeLabel(m.createdAt)}</span>}
                       </div>
                     </div>
                   );
@@ -226,26 +240,34 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
               )}
             </div>
 
-            <div className="flex items-center gap-2 border-t border-border p-3">
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && send()}
-                placeholder={`Message ${open.name.split(" ")[0]}…`}
-                className="min-w-0 flex-1 rounded-full border border-border bg-surface-2 px-4 py-2.5 text-sm text-foreground"
-              />
-              <button
-                onClick={send}
-                disabled={sending || !draft.trim()}
-                aria-label="Send message"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40"
-              >
-                <Send size={16} />
-              </button>
+            <div className="px-5 pb-5 pt-2">
+              <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(75,149,230,0.08)]">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  rows={1}
+                  placeholder={`Message ${open.name.split(" ")[0]}…`}
+                  className="field-sizing-content max-h-40 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm text-foreground outline-none! placeholder:text-muted/70"
+                />
+                <button
+                  onClick={send}
+                  disabled={sending || !draft.trim()}
+                  aria-label="Send message"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-[#0b1220] transition-opacity hover:opacity-90 disabled:opacity-30"
+                >
+                  <Send size={15} />
+                </button>
+              </div>
             </div>
           </div>
         ) : (
-          <p className="m-auto text-sm text-muted">Pick someone to start a conversation.</p>
+          <p className="relative m-auto text-sm text-muted">Pick someone to start a conversation.</p>
         )}
       </section>
     </div>
