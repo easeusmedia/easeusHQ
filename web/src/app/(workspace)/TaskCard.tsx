@@ -72,7 +72,8 @@ const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 
 // "20 Sep" (plus the year when it isn't this one), red once it has passed
 // on anything not yet finished.
-// The editor's deadline: the day it has to reach the client (lib/due.ts).
+// The assignee's deadline: the day they have to finish it by (lib/due.ts) —
+// not the delivery date, which is when it goes to the client.
 // Muted while it's still to come, amber on the day, red once the day has
 // gone and it still isn't with the client — and gone altogether once it has
 // reached them, because from then on the deadline has done its job and the
@@ -97,10 +98,10 @@ export function DueDate({
     state === "overdue" ? "font-medium text-red-300" : state === "today" ? "font-medium text-amber-300" : "text-muted";
   const title =
     state === "overdue"
-      ? `Overdue — was due to reach the client by ${formatDate(date)}`
+      ? `Overdue — was due ${formatDate(date)}`
       : state === "today"
-        ? "Due today — needs to reach the client today"
-        : `Due ${formatDate(date)} — to reach the client by then`;
+        ? "Due today"
+        : `Due ${formatDate(date)}`;
   return (
     <span title={title} className={`flex shrink-0 items-center gap-1 whitespace-nowrap text-xs ${tone}`}>
       <CalendarClock size={12} className="shrink-0" />
@@ -146,6 +147,8 @@ export type TaskCardData = {
   editingNotes: string | null;
   revisionCount: number;
   dueDate: Date | null;
+  // when it goes to the client; never on internal work
+  deliveryDate: Date | null;
   // first reached the client — what the due date is judged against
   handedOffAt: Date | null;
   scheduledFor: Date | null;

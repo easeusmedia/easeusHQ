@@ -12,9 +12,7 @@ import { ProjectsSection } from "../../(workspace)/clients/ProjectsSection";
 import { TagPill } from "../../(workspace)/clients/TagPill";
 import { ProfileHead } from "../../(workspace)/ProfileHead";
 import { FeedbackForm } from "./FeedbackForm";
-import { OngoingList, sharedClient } from "./shared";
-import { ContentCalendar } from "../../(workspace)/clients/ContentCalendar";
-import { indiaDay } from "@/lib/due";
+import { sharedClient } from "./shared";
 
 // A client's own page, shown at /clients/<name> to anyone not signed in
 // (see proxy.ts), only while ops has sharing switched on. The same layout
@@ -59,16 +57,8 @@ export default async function SharedClientPage({
       },
     },
   });
-  const tasks = await prisma.task.findMany({
+  const activeTasks = await prisma.task.count({
     where: { projectId: { in: client.projects.map((p) => p.id) }, status: { in: ACTIVE_STATUSES }, internal: false },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, status: true, frameioLink: true, project: { select: { name: true, type: true } } },
-  });
-
-  // the plan by day, as the team sees it — only what's made for them
-  const dated = await prisma.task.findMany({
-    where: { projectId: { in: client.projects.map((p) => p.id) }, dueDate: { not: null }, internal: false },
-    select: { id: true, title: true, status: true, projectId: true, startDate: true, dueDate: true },
   });
 
   const logo = clientLogoSrc(client);
@@ -114,7 +104,7 @@ export default async function SharedClientPage({
 
       <div className="mb-10">
         <ClientStats
-          activeTasks={tasks.length}
+          activeTasks={activeTasks}
           inProgress={client.projects.filter((p) => p.status !== "completed").length}
           completed={client.projects.filter((p) => p.status === "completed").length}
           unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
@@ -130,26 +120,6 @@ export default async function SharedClientPage({
             label: "Overview",
             content: (
               <div className="flex flex-col gap-10">
-                <section>
-                  <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
-                  <p className="-mt-3 mb-3 text-xs text-muted">What we&apos;re making for you right now, and where each piece is.</p>
-                  <OngoingList
-                    tasks={tasks.map((t) => ({ ...t, subtitle: t.project.name || t.project.type }))}
-                  />
-                </section>
-                <ContentCalendar
-                  items={dated.map((t) => ({
-                    id: t.id,
-                    title: t.title,
-                    status: t.status,
-                    projectId: t.projectId,
-                    start: indiaDay(t.startDate ?? t.dueDate!),
-                    due: indiaDay(t.dueDate!),
-                    // the team's deadline, not something to flag red at the client
-                    overdue: false,
-                  }))}
-                  today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
-                />
                 <ProjectsSection
                   clientId={client.id}
                   projects={projectCards}

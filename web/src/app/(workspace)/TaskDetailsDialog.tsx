@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Package,
   Pencil,
+  Send,
   Trash2,
   User,
 } from "lucide-react";
@@ -99,6 +100,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const [editingFrameio, setEditingFrameio] = useState(false);
   const [internal, setInternal] = useState(task.internal);
   const [due, setDue] = useState(task.dueDate ? istDay(task.dueDate) : "");
+  const [delivery, setDelivery] = useState(task.deliveryDate ? istDay(task.deliveryDate) : "");
   const [scheduled, setScheduled] = useState(task.scheduledFor ? istDay(task.scheduledFor) : "");
   const clientOf = (id: string | null) => projects.find((p) => p.id === id)?.client.id ?? "";
   const [clientId, setClientId] = useState(clientOf(task.projectId));
@@ -125,6 +127,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
     setEditingFrameio(false);
     // what's saved now, not what was typed before a Cancel
     setDue(task.dueDate ? istDay(task.dueDate) : "");
+    setDelivery(task.deliveryDate ? istDay(task.deliveryDate) : "");
     setScheduled(task.scheduledFor ? istDay(task.scheduledFor) : "");
     setClientId(clientOf(task.projectId));
     setProjectId(task.projectId ?? "");
@@ -232,6 +235,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <input type="hidden" name="clientId" value={clientId} />
                 <input type="hidden" name="projectId" value={projectId} />
                 <input type="hidden" name="dueDate" value={due} />
+                <input type="hidden" name="deliveryDate" value={internal ? "" : delivery} />
                 <input type="hidden" name="scheduledFor" value={scheduled} />
                 <input type="hidden" name="tagsPresent" value="1" />
                 {tagIds.map((id) => (
@@ -297,7 +301,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                           : []),
                       ]}
                     />
-                    <DatePicker pill={{}} value={due} onChange={setDue} placeholder="Due" />
+                    <DatePicker pill={{ label: "Due" }} value={due} onChange={setDue} placeholder="Due" />
+                    {/* internal work never reaches the client */}
+                    {!internal && (
+                      <DatePicker
+                        pill={{ icon: <Send size={12} className="text-violet-400" />, label: "Delivery" }}
+                        value={delivery}
+                        onChange={setDelivery}
+                        placeholder="Delivery"
+                      />
+                    )}
                     {taskTags.length > 0 && (
                       <TagPill
                         tags={taskTags}

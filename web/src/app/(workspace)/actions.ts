@@ -83,6 +83,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: "You can only add tasks for yourself." };
   }
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
+  const deliveryDateInput = String(formData.get("deliveryDate") ?? "").trim();
+  const internal = formData.get("internal") === "on";
   const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
 
   // unassigned is fine — someone picks it up later
@@ -102,8 +104,10 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     data: {
       projectId,
       title: title.trim(),
-      // when it needs to reach the client for approval by, not when it was created
+      // when the assignee has to finish it by, not when it was created
       dueDate: dueDateInput ? new Date(dueDateInput) : null,
+      // internal work never goes to the client, so it has no delivery day
+      deliveryDate: deliveryDateInput && !internal ? new Date(deliveryDateInput) : null,
       // hidden from the assigned editor until this date — see the schema comment
       scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
       assignedToId: assignedToId || null,
@@ -111,7 +115,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       referenceLink,
       editingNotes,
       sortOrder: Date.now(),
-      internal: formData.get("internal") === "on",
+      internal,
       tags: { connect: formData.getAll("tagIds").map(String).filter(Boolean).map((id) => ({ id })) },
     },
     // status defaults to "queued"
@@ -313,6 +317,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v) : null;
   };
   const dueDate = day("dueDate");
+  const deliveryDate = day("deliveryDate");
   const scheduledFor = day("scheduledFor");
 
   await prisma.task.update({
@@ -328,8 +333,12 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       ...(referenceLink !== undefined ? { referenceLink } : {}),
       ...(assetLink !== undefined ? { assetLink } : {}),
       ...(dueDate !== undefined ? { dueDate } : {}),
+      ...(deliveryDate !== undefined ? { deliveryDate } : {}),
       ...(scheduledFor !== undefined ? { scheduledFor } : {}),
-      ...(formData.has("tagsPresent") ? { tags: { set: tagIds.map((id) => ({ id })) }, internal } : {}),
+      // internal work never goes to the client, so it loses any delivery day
+      ...(formData.has("tagsPresent")
+        ? { tags: { set: tagIds.map((id) => ({ id })) }, internal, ...(internal ? { deliveryDate: null } : {}) }
+        : {}),
     },
   });
   revalidatePath("/board");

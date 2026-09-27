@@ -3,15 +3,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
-import { ClientTabs } from "../../../../(workspace)/clients/ClientTabs";
-import { OngoingList, sharedClient } from "../../shared";
+import { sharedClient } from "../../shared";
 
 // One project on a client's shared page — the team's project page, read-only:
-// its cover and where it stands, then every file it produced — and, while it's
-// still being made, a switch to the work in progress. Its links stay on the client's own
+// its cover and where it stands, then every file it produced. Its links stay on the client's own
 // pages (/share/…), so they never lead into the team app, even in a browser
 // that also happens to be signed in to it.
 
@@ -30,26 +27,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function SharedProjectPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string; id: string }>;
-  searchParams: Promise<{ tab?: string }>;
 }) {
-  const [{ slug, id }, { tab }] = await Promise.all([params, searchParams]);
+  const { slug, id } = await params;
   const client = await sharedClient(slug);
   const project = client
     ? await prisma.project.findFirst({
         where: { id, clientId: client.id },
-        include: {
-          assets: { orderBy: { sortOrder: "asc" } },
-          // what's still being made for them (not the team's internal work)
-          tasks: {
-            where: { status: { in: ACTIVE_STATUSES }, internal: false },
-            orderBy: { createdAt: "desc" },
-            select: { id: true, title: true, status: true, frameioLink: true },
-          },
-
-        },
+        include: { assets: { orderBy: { sortOrder: "asc" } } },
       })
     : null;
   if (!client || !project) redirect("/login");
@@ -96,52 +82,24 @@ export default async function SharedProjectPage({
         </div>
       </div>
 
-      {(() => {
-        const files = (
-          <ProjectFiles
-            projectId={project.id}
-            assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null }))}
-            // what's been delivered to them, as the files it produced — their
-            // own finished work, never the team's internal tasks
-            delivered={delivered.map((t) => ({
-              id: t.id,
-              title: t.title,
-              link: t.driveLink ? normalizeUrl(t.driveLink) : null,
-              at: t.updatedAt.toISOString(),
-            }))}
-            readOnly
-          />
-        );
-        // still being made: its files, and a switch to the work in progress
-        if (project.status !== "completed" && project.tasks.length > 0) {
-          return (
-            <div className="mt-10">
-              <ClientTabs
-                initialTab={tab}
-                width=""
-                tabs={[
-                  { key: "files", label: "Files", count: project.assets.length + delivered.length, content: files },
-                  {
-                    key: "work",
-                    label: "In progress",
-                    count: project.tasks.length,
-                    content: <OngoingList tasks={project.tasks.map((t) => ({ ...t, subtitle: name }))} />,
-                  },
-                ]}
-              />
-            </div>
-          );
-        }
-        // delivered: the files are the whole story
-        return (
-          <section className="mt-10">
-            <h2 className="mb-4 text-sm font-medium">
-              Files <span className="font-normal text-muted">{project.assets.length}</span>
-            </h2>
-            {files}
-          </section>
-        );
-      })()}
+      <section className="mt-10">
+        <h2 className="mb-4 text-sm font-medium">
+          Files <span className="font-normal text-muted">{project.assets.length}</span>
+        </h2>
+        <ProjectFiles
+          projectId={project.id}
+          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null }))}
+          // what's been delivered to them, as the files it produced — their
+          // own finished work, never the team's internal tasks
+          delivered={delivered.map((t) => ({
+            id: t.id,
+            title: t.title,
+            link: t.driveLink ? normalizeUrl(t.driveLink) : null,
+            at: t.updatedAt.toISOString(),
+          }))}
+          readOnly
+        />
+      </section>
     </div>
   );
 }

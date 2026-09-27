@@ -134,17 +134,18 @@ export default async function ClientDetailPage({
   );
   // every dated task of theirs, finished ones included, for the calendar
   const dated = await prisma.task.findMany({
-    where: { projectId: { in: projectIds }, dueDate: { not: null } },
-    select: { id: true, title: true, status: true, projectId: true, startDate: true, dueDate: true, handedOffAt: true },
+    where: { projectId: { in: projectIds }, OR: [{ dueDate: { not: null } }, { deliveryDate: { not: null } }] },
+    select: { id: true, title: true, status: true, projectId: true, startDate: true, dueDate: true, deliveryDate: true, handedOffAt: true },
   });
   const calendarItems = dated.map((t) => ({
     id: t.id,
     title: t.title,
     status: t.status,
     projectId: t.projectId,
-    // no start given: just its due day
-    start: indiaDay(t.startDate ?? t.dueDate!),
-    due: indiaDay(t.dueDate!),
+    // drawn from its start to the day it goes to the client (just its due
+    // day for internal work); no start given, just that day
+    start: indiaDay(t.startDate ?? (t.deliveryDate ?? t.dueDate)!),
+    due: indiaDay((t.deliveryDate ?? t.dueDate)!),
     overdue: dueState(t.dueDate, t.handedOffAt) === "overdue",
   }));
   const plan = planFor(client.contentPlan);

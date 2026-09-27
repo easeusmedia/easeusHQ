@@ -100,7 +100,7 @@ export function DatePicker({
   placeholder?: string;
   clearable?: boolean;
   // a compact chip instead of a full-width field — see Dropdown's own pill
-  pill?: { icon?: React.ReactNode };
+  pill?: { icon?: React.ReactNode; label?: string };
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -193,7 +193,7 @@ export function DatePicker({
           className={`${chip(!!selected)}`}
         >
           <span className="flex shrink-0">{pill.icon ?? <CalendarDays size={12} className="text-amber-400" />}</span>
-          <span className="whitespace-nowrap">{selected ? shortLabel(selected) : placeholder}</span>
+          <span className="whitespace-nowrap">{selected ? `${pill.label ? `${pill.label} ` : ""}${shortLabel(selected)}` : placeholder}</span>
         </button>
       ) : (
         <button

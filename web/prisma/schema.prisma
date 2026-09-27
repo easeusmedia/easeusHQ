@@ -512,7 +512,11 @@ model Task {
   // the day work on it starts — with dueDate, the span the content calendar
   // draws it across. Null = just its due day.
   startDate    DateTime?
+  // when the assigned person has to finish it by — their deadline
   dueDate      DateTime?
+  // when it goes to the client. Never set on internal work, which the
+  // client doesn't receive.
+  deliveryDate DateTime?
   // null = visible immediately. Set = hidden from the assigned editor's
   // board/list until this date; ops/admin always see it regardless, so
   // work can be queued up ahead of time without cluttering an editor's

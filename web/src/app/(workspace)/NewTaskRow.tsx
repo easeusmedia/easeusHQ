@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Building2, CalendarClock, Link2, MoreHorizontal, Plus, User } from "lucide-react";
+import { Building2, CalendarClock, Link2, MoreHorizontal, Plus, Send, User } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
 import { useNewProject } from "./useNewProject";
 import { ProjectChip, TagPill, pill } from "./composer";
@@ -53,6 +53,7 @@ export function NewTaskRow({
       // an editor's only choice is themselves, so it's already made
       assignedToId: editors.length === 1 ? editors[0].id : "",
       dueDate: "",
+      deliveryDate: "",
       scheduledFor: "",
       rawLink: "",
       tagIds: [] as string[],
@@ -101,6 +102,7 @@ export function NewTaskRow({
     data.set("projectId", f.projectId);
     data.set("assignedToId", f.assignedToId);
     data.set("dueDate", f.dueDate);
+    data.set("deliveryDate", f.internal ? "" : f.deliveryDate);
     data.set("scheduledFor", f.scheduledFor);
     data.set("rawLink", f.rawLink);
     data.set("editingNotes", f.notes);
@@ -214,7 +216,16 @@ export function NewTaskRow({
                 onChange={(id) => set({ assignedToId: id })}
               />
             )}
-            <DatePicker pill={{}} value={f.dueDate} onChange={(v) => set({ dueDate: v })} placeholder="Due" />
+            <DatePicker pill={{ label: "Due" }} value={f.dueDate} onChange={(v) => set({ dueDate: v })} placeholder="Due" />
+            {/* internal work never reaches the client */}
+            {!f.internal && (
+              <DatePicker
+                pill={{ icon: <Send size={12} className="text-violet-400" />, label: "Delivery" }}
+                value={f.deliveryDate}
+                onChange={(v) => set({ deliveryDate: v })}
+                placeholder="Delivery"
+              />
+            )}
             {taskTags.length > 0 && (
               <TagPill
                 tags={taskTags}
