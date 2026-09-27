@@ -74,7 +74,7 @@ export default async function ContractsPage() {
               <li key={c.id}>
                 <Link
                   href={`/contracts/${c.id}`}
-                  className="group flex items-center gap-4 rounded-2xl border border-white/[0.05] bg-surface/40 px-4 py-3.5 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.1] hover:bg-surface/70 sm:px-5"
+                  className="group flex items-center gap-4 rounded-2xl panel-soft panel-hover px-4 py-3.5 hover:-translate-y-px sm:px-5"
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-sm font-semibold text-accent">
                     {title.trim().charAt(0).toUpperCase()}

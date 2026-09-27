@@ -129,7 +129,7 @@ export function WorkTaskBoard({
             ? "flex min-h-24 min-w-0 flex-1 flex-col gap-3"
             : columnTasks.length + group.queue.length === 0
               ? `rounded-xl border border-dashed ${draggingId ? "border-foreground/30" : "border-border"}`
-              : "flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40"
+              : "flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl"
         }
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {

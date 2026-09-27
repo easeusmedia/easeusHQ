@@ -168,7 +168,7 @@ export function ContractForm({
   const platforms = ["YouTube", "Instagram", "TikTok", "LinkedIn"];
 
   return (
-    <section className="rounded-3xl border border-white/[0.07] bg-surface/50 px-5 pb-2 pt-4">
+    <section className="panel rounded-3xl px-5 pb-2 pt-4">
       <h2 className="mb-3 text-sm font-medium">Details</h2>
 
       <Row label="Term" needed={needs("TERM_LENGTH")}>

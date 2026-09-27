@@ -69,14 +69,14 @@ export function WorkTaskView({
             <ViewToggle view={view} onChange={setView} />
             {/* how the work is laid out — by stage, or by who's doing it */}
             {groupOptions.length > 1 && (
-              <div className="flex w-fit items-center gap-1 rounded-xl border border-border bg-surface/60 p-1">
+              <div className="flex w-fit items-center gap-1 rounded-xl panel-soft p-1">
                 <span className="px-2 text-xs text-muted">Group by</span>
                 {groupOptions.map((key) => (
                   <button
                     key={key}
                     onClick={() => setGroupPick(key)}
                     className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-                      groupBy === key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                      groupBy === key ? "selected" : "border border-transparent text-muted hover:text-foreground"
                     }`}
                   >
                     {GROUP_LABEL[key]}

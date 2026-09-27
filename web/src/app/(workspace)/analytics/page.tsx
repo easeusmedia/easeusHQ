@@ -76,7 +76,7 @@ function Top({ item, rank, tall, client }: { item: Item; rank: number; tall: boo
         target="_blank"
         rel="noopener noreferrer"
         title={item.title}
-        className={`flex h-full gap-4 rounded-2xl border border-white/[0.06] bg-surface/50 p-3 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12] hover:bg-surface/70 ${tall ? "items-center" : "flex-col"}`}
+        className={`flex h-full gap-4 panel panel-hover rounded-2xl p-3 hover:-translate-y-px ${tall ? "items-center" : "flex-col"}`}
       >
         {picture}
         {facts}
@@ -247,7 +247,7 @@ export default async function AnalyticsPage({
             </p>
           </div>
           {/* one platform at a time */}
-          <div className="flex gap-1 rounded-xl border border-border bg-surface/60 p-1">
+          <div className="flex gap-1 rounded-xl panel-soft p-1">
             {(["youtube", "instagram"] as const).map((p) => {
               const Icon = p === "youtube" ? YoutubeIcon : InstagramIcon;
               return (
@@ -255,7 +255,7 @@ export default async function AnalyticsPage({
                   key={p}
                   href={href(p)}
                   className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium ${
-                    platform === p ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                    platform === p ? "selected" : "border border-transparent text-muted hover:text-foreground"
                   }`}
                 >
                   <Icon size={15} /> {p === "youtube" ? "YouTube" : "Instagram"}
@@ -325,7 +325,7 @@ export default async function AnalyticsPage({
                   <Link
                     key={c.cid}
                     href={`${clientHref(cl)}?tab=analytics`}
-                    className="group grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_6rem_5rem_6rem_1rem] items-center gap-5 rounded-2xl border border-white/[0.05] bg-surface/40 px-5 py-3 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.1] hover:bg-surface/70"
+                    className="group grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_6rem_5rem_6rem_1rem] items-center gap-5 rounded-2xl panel-soft panel-hover px-5 py-3 hover:-translate-y-px"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
                       {logo ? (

@@ -16,7 +16,7 @@ export function NotionIntegration({
   clients: { id: string; name: string | null };
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface/40 p-5">
+    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
       <div className="flex items-center gap-2.5">
         {/* eslint-disable-next-line @next/next/no-img-element -- a fixed 18px icon */}
         <img src="/notion-logo.webp" width={18} height={18} alt="" className="shrink-0" />

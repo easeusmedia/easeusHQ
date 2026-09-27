@@ -518,7 +518,7 @@ export function ProjectsSection({
 function ProjectRows({ projects, projectBase }: { projects: ProjectCardData[]; projectBase?: string }) {
   if (projects.length === 0) return null;
   return (
-    <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40">
+    <ul className="flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl">
       {projects.map((p) => (
         <ProjectRow key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} />
       ))}

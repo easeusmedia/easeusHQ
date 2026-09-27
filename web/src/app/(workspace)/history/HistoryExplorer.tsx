@@ -163,13 +163,13 @@ export function HistoryExplorer({
           </div>
         }
         center={
-          <div className="flex w-fit flex-wrap gap-1 rounded-xl border border-border bg-surface/60 p-1">
+          <div className="flex w-fit flex-wrap gap-1 rounded-xl panel-soft p-1">
             {VIEWS.map((v) => (
               <button
                 key={v.key}
                 onClick={() => setView(v.key)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  view === v.key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                  view === v.key ? "selected" : "border border-transparent text-muted hover:text-foreground"
                 }`}
               >
                 {v.label}
@@ -190,7 +190,7 @@ export function HistoryExplorer({
       />
 
       {filtersOpen && (
-        <div className="fade-in grid gap-3 rounded-xl border border-border bg-surface/40 p-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="fade-in grid gap-3 panel-soft rounded-xl p-3 sm:grid-cols-3 lg:grid-cols-6">
           <label className="flex flex-col gap-1 text-xs text-muted">
             Person
             <Dropdown

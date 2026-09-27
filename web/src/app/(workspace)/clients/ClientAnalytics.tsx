@@ -151,7 +151,7 @@ export function ClientAnalytics({
   return (
     <div ref={rootRef} className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-xl border border-border bg-surface/60 p-1">
+        <div className="flex gap-1 rounded-xl panel-soft p-1">
           {(Object.keys(PLATFORM) as Platform[]).map((p) => {
             const { name, Logo } = PLATFORM[p];
             return (
@@ -163,7 +163,7 @@ export function ClientAnalytics({
                   setEditing(false);
                 }}
                 className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  platform === p ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                  platform === p ? "selected" : "border border-transparent text-muted hover:text-foreground"
                 }`}
               >
                 <Logo /> {name}
@@ -350,7 +350,7 @@ function Board({
                 type="button"
                 onClick={() => setList(key)}
                 className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 ${
-                  list === key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+                  list === key ? "selected" : "border border-transparent text-muted hover:text-foreground"
                 }`}
               >
                 {text}

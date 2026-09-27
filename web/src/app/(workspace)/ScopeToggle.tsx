@@ -14,14 +14,14 @@ export function ScopeToggle({
   onSelect: (key: string) => void;
 }) {
   return (
-    <div className="flex w-fit gap-1 rounded-xl border border-border bg-surface/60 p-1">
+    <div className="flex w-fit gap-1 rounded-xl panel-soft p-1">
       {options.map((o) => (
         <button
           key={o.key}
           onClick={() => onSelect(o.key)}
           aria-pressed={active === o.key}
           className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            active === o.key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+            active === o.key ? "selected" : "border border-transparent text-muted hover:text-foreground"
           }`}
         >
           {o.label}

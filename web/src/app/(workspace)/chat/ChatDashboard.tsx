@@ -119,7 +119,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
     // exactly that padding and cropped the composer off the bottom.
     <div className="flex h-full gap-4">
       {/* conversations */}
-      <aside className="flex w-[min(19rem,40vw)] shrink-0 flex-col overflow-hidden rounded-3xl border border-white/[0.06] bg-surface/50">
+      <aside className="flex w-[min(19rem,40vw)] shrink-0 flex-col overflow-hidden panel rounded-3xl">
         <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
           <div className="flex items-baseline justify-between px-1">
             <h1 className="text-sm font-semibold tracking-tight">Messages</h1>
@@ -174,7 +174,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
       </aside>
 
       {/* thread */}
-      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/[0.06] bg-surface/50">
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden panel rounded-3xl">
         {open ? (
           <div key={open.id} className="fade-in relative flex min-h-0 flex-1 flex-col">
             <header className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-4">

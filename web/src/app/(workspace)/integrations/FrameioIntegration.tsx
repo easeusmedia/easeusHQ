@@ -75,7 +75,7 @@ export function FrameioIntegration({
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface/40 p-5">
+    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
       <div className="flex items-center gap-2.5">
         <Film size={18} className="text-muted" />
         <h2 className="text-base font-medium">Frame.io</h2>

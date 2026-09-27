@@ -417,7 +417,7 @@ export function ContractEditor({
       <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
         {/* the left column: the form or Claude, one at a time, each given the whole height */}
         <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
-          <div className="flex shrink-0 gap-1 rounded-2xl border border-white/[0.06] bg-surface/60 p-1">
+          <div className="flex shrink-0 gap-1 rounded-2xl panel-soft p-1">
             {(
               [
                 { key: "form", label: "Form", Icon: ListChecks },
@@ -451,7 +451,7 @@ export function ContractEditor({
             <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
 
             {/* after the last question: what to do now */}
-            <div className="relative shrink-0 overflow-hidden rounded-3xl border border-white/[0.08] bg-surface/50 p-5">
+            <div className="relative shrink-0 overflow-hidden panel rounded-3xl p-5">
               <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
               <p className="mt-1.5 text-base font-medium">{next.title}</p>
               <div className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</div>

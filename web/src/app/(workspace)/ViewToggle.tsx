@@ -8,14 +8,14 @@ export type View = "board" | "list";
 // either way (the Clients dashboard has its own copy of this pattern).
 export function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   return (
-    <div className="flex w-fit gap-1 rounded-xl border border-border bg-surface/60 p-1">
+    <div className="flex w-fit gap-1 rounded-xl panel-soft p-1">
       {([["board", LayoutGrid, "Board"], ["list", List, "List"]] as const).map(([key, Icon, label]) => (
         <button
           key={key}
           onClick={() => onChange(key)}
           aria-label={`${key} view`}
           className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium ${
-            view === key ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
+            view === key ? "selected" : "border border-transparent text-muted hover:text-foreground"
           }`}
         >
           <Icon size={15} /> {label}

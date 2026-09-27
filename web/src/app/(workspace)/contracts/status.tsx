@@ -21,7 +21,7 @@ export function stepOf(status: string) {
 // The road from link to signed copy, and where this contract is on it
 export function Stepper({ at }: { at: number }) {
   return (
-    <ol className="flex items-center gap-2 overflow-x-auto rounded-2xl border border-white/[0.05] bg-surface/40 px-4 py-3 [scrollbar-width:none]">
+    <ol className="flex items-center gap-2 overflow-x-auto rounded-2xl panel-soft px-4 py-3 [scrollbar-width:none]">
       {STEPS.map((label, i) => {
         const done = i < at;
         const current = i === at;

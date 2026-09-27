@@ -11,7 +11,7 @@ import { disconnectGmail } from "./actions";
 export function GmailIntegration({ account, clientId }: { account: string | null; clientId: string }) {
   const router = useRouter();
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface/40 p-5">
+    <section className="flex flex-col gap-3 panel rounded-2xl p-5">
       <div className="flex items-center justify-between gap-2.5">
         <div className="flex items-center gap-2.5">
           <Mail size={18} className="text-muted" />

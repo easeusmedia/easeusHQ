@@ -78,7 +78,7 @@ export function DriveIntegration({
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface/40 p-5">
+    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
       <div className="flex items-center gap-3">
         <Image src="/logo.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" />
         <div className="min-w-0 flex-1">

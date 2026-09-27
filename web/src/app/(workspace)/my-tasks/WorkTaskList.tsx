@@ -87,7 +87,7 @@ export function WorkTaskList({
             </div>
 
             {rows.length > 0 && (
-            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface/40">
+            <div className="flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl">
               {rows.map((task) => (
                 <ListRow
                   key={task.id}

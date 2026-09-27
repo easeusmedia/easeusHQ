@@ -78,8 +78,83 @@ html {
 }
 
 body {
-  background: var(--background);
+  /* a faint cool sheen from the top-left, over the near-black — enough to
+     give the page depth without a single visible glow */
+  background:
+    radial-gradient(1100px 620px at -8% -12%, rgba(75, 149, 230, 0.055), transparent 62%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
+}
+
+/* ---- The surfaces (after the Hynex reference) ----
+   Every card, panel and button sits on the same material: a dark face a
+   touch lighter at the top, and a hairline stroke that catches the light
+   along the top edge and fades down the sides. Drawn as two backgrounds —
+   the face clipped to the padding box over the stroke's gradient showing
+   through a transparent border — so it works at any radius. */
+.panel {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #171a1f 0%, #121418 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.03) 100%) border-box;
+  box-shadow: 0 24px 48px -32px rgba(0, 0, 0, 0.85);
+}
+/* a lighter touch, for rows and small tiles inside a page */
+.panel-soft {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #15181c 0%, #111316 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.035) 40%, rgba(255, 255, 255, 0.025) 100%) border-box;
+}
+/* panels you can click: the edge brightens under the pointer */
+.panel-hover {
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.panel-hover:hover {
+  background:
+    linear-gradient(180deg, #1a1d23 0%, #14161b 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.07) 35%, rgba(255, 255, 255, 0.04) 100%) border-box;
+}
+/* what's selected — a menu item, a tab: a dark gradient, faintly tinted with
+   the accent from the left, and the same catching stroke */
+.selected {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(90deg, rgba(75, 149, 230, 0.16), rgba(75, 149, 230, 0.02) 75%) padding-box,
+    linear-gradient(180deg, #1a1e24, #15181d) padding-box,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) border-box;
+  color: var(--foreground);
+}
+/* a small icon tile: the same stroked material. Lit, it takes a faint wash
+   of its colour and the glyph glows — a glow held tight to the icon's own
+   strokes, not a blurred patch of colour behind it */
+.badge {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #1a1d22, #141619) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)) border-box;
+  color: var(--muted);
+}
+.badge-lit {
+  --tint: 75, 149, 230;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(var(--tint), 0.16), rgba(var(--tint), 0.04)) padding-box,
+    linear-gradient(180deg, #1c2128, #15181d) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)) border-box;
+  color: rgb(var(--tint));
+}
+.badge-lit.emerald {
+  --tint: 110, 231, 183;
+}
+.badge-lit svg {
+  filter: drop-shadow(0 0 5px rgba(var(--tint), 0.6));
+}
+/* an icon that's lit: the accent with a soft glow held tight to it */
+.icon-glow {
+  color: var(--accent);
+  filter: drop-shadow(0 0 6px rgba(75, 149, 230, 0.55));
 }
 
 /* Replace the browser's default focus ring (too thick, doubles up with our
@@ -218,9 +293,11 @@ dialog[open]::backdrop {
      anything to blur through, but real-time backdrop sampling on every
      task card (there can be dozens on screen) was a genuine scroll/drag
      jank source. Same look, without paying for it every frame. */
-  background: rgba(21, 24, 28, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #16191e 0%, #121418 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.04) 35%, rgba(255, 255, 255, 0.03) 100%) border-box;
+  transition: background 0.15s ease;
 }
 /* Only cards that actually do something on click light up. A panel that
    merely holds content — a form, a stats tile, a billing table — used to
@@ -228,24 +305,31 @@ dialog[open]::backdrop {
    clickable" when it isn't, and is plain distracting while you're typing
    in a field inside it. */
 .card-interactive:hover {
-  background-color: rgba(28, 31, 36, 0.88);
-  border-color: rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, #1a1d23 0%, #14161b 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.19) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0.04) 100%) border-box;
 }
 
 /* Interactive controls (buttons, menus) stay fully solid — no transparency
    — and pop with an obvious, distinctly-lighter background on hover,
    instead of a barely-there brightness filter. */
 .btn-glow {
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #1d2127, #16191e) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)) border-box;
   color: var(--foreground);
-  transition: background-color 0.12s ease;
+  transition: background 0.15s ease;
 }
 .btn-glow:hover {
-  background-color: var(--hover-surface);
+  background:
+    linear-gradient(180deg, #262b33, #1c2026) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.07)) border-box;
 }
 .btn-glow:active {
-  background-color: color-mix(in srgb, var(--hover-surface) 80%, black 20%);
+  background:
+    linear-gradient(180deg, #15181c, #15181c) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05)) border-box;
 }
 
 /* Colored status tags/pills: a clearly stronger brighten on hover. */

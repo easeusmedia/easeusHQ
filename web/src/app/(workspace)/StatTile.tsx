@@ -1,8 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 // One number, the way every page shows it: big, with a small icon badge —
-// tinted when there's something there (green for what's done), muted at zero.
-// Flat: no glows.
+// lit when there's something there (green for what's done), muted at zero.
 export function StatTile({
   label,
   value,
@@ -20,10 +19,10 @@ export function StatTile({
   note?: React.ReactNode;
 }) {
   return (
-    <div className="relative rounded-2xl border border-white/[0.06] bg-surface/50 px-5 py-4">
+    <div className="relative panel rounded-2xl px-5 py-4">
       <span
         className={`absolute right-4 top-4 flex size-7 items-center justify-center rounded-lg ${
-          !lit ? "bg-white/[0.04] text-muted" : tone === "emerald" ? "bg-emerald-400/10 text-emerald-300" : "bg-white/[0.06] text-foreground/80"
+          !lit ? "badge" : tone === "emerald" ? "badge-lit emerald" : "badge-lit"
         }`}
       >
         <Icon size={14} />
