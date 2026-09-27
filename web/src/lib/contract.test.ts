@@ -97,3 +97,14 @@ test("Adobe's emails are read for the right agreement", async () => {
   assert.equal(readAdobeSubject("Service Agreement - Demo Studios has been sent out for signature to a@b.com", name), null);
   assert.equal(readAdobeSubject("Your account was credited", name), null);
 });
+
+test("an undeliverable email is tied to its agreement by its text", async () => {
+  const { readAdobeMail } = await import("./contract.ts");
+  const snippet =
+    "Service Agreement - Dr Drake: Undeliverable We were unable to deliver your document to the email address akraj^18@gmail.com. Please check that this is the correct email address.";
+  assert.deepEqual(readAdobeMail("Adobe Acrobat Sign Document - Undeliverable", snippet, "Service Agreement - Dr Drake"), {
+    kind: "undeliverable",
+    text: "Couldn't be delivered to akraj^18@gmail.com",
+  });
+  assert.equal(readAdobeMail("Adobe Acrobat Sign Document - Undeliverable", snippet, "Service Agreement - Demo"), null);
+});

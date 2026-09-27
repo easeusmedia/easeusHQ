@@ -520,7 +520,7 @@ export const agreementName = (d: ContractDetails, fallback?: string | null) =>
   `Service Agreement - ${d.entity.trim() || fallback?.trim() || "Draft"}`.replace(/[\\/:*?"<>|]/g, "");
 
 export type SignEvent = {
-  kind: "sent" | "requested" | "viewed" | "signed-by" | "completed" | "declined" | "cancelled" | "expired";
+  kind: "sent" | "requested" | "viewed" | "signed-by" | "completed" | "declined" | "cancelled" | "expired" | "undeliverable";
   text: string;
 };
 
@@ -547,4 +547,17 @@ export function readAdobeSubject(subject: string, agreement: string): SignEvent 
   if (/cancel/.test(s)) return { kind: "cancelled", text: "Cancelled" };
   if (/expired/.test(s)) return { kind: "expired", text: "Expired" };
   return null;
+}
+
+// Adobe's "Document - Undeliverable" email doesn't name the agreement in its
+// subject — its text does: "Service Agreement - Demo: Undeliverable We were
+// unable to deliver your document to the email address x@y.com."
+export function readAdobeMail(subject: string, snippet: string, agreement: string): SignEvent | null {
+  if (/undeliverable/i.test(subject)) {
+    const norm = (t: string) => t.replace(/[“”"']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (!norm(snippet).startsWith(`${norm(agreement)}:`)) return null;
+    const to = snippet.match(/email address (\S+@\S+?)\.?(?:\s|$)/i)?.[1];
+    return { kind: "undeliverable", text: `Couldn't be delivered${to ? ` to ${to}` : ""}` };
+  }
+  return readAdobeSubject(subject, agreement);
 }

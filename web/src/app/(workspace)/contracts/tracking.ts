@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { indiaDay } from "@/lib/due";
-import { agreementName, readAdobeSubject, withDefaults, type SignEvent } from "@/lib/contract";
+import { agreementName, readAdobeMail, withDefaults, type SignEvent } from "@/lib/contract";
 import { gmailAccount, mailAttachment, readMail, searchMail } from "@/lib/gmail";
 
 // Following contracts sent through Acrobat, from the emails Adobe sends
@@ -44,7 +44,7 @@ export async function trackContracts(onlyId?: string, force = false): Promise<vo
     let signedPdf: Buffer | null = null;
     for (const m of mail) {
       if (seen.has(m.id) || m.at < c.approvedAt!) continue;
-      const event = readAdobeSubject(m.subject, name);
+      const event = readAdobeMail(m.subject, m.snippet, name);
       if (!event) continue;
       events.push({ ...event, id: m.id, at: m.at.toISOString() });
       if (event.kind === "completed" && !c.signedPdf) {
@@ -56,7 +56,7 @@ export async function trackContracts(onlyId?: string, force = false): Promise<vo
     }
     if (events.length === ((c.events as TrackedEvent[] | null) ?? []).length) continue;
 
-    const sent = events.find((e) => e.kind !== "cancelled" && e.kind !== "expired");
+    const sent = events.find((e) => e.kind !== "cancelled" && e.kind !== "expired" && e.kind !== "undeliverable");
     const done = events.find((e) => e.kind === "completed");
     const status = done ? "signed" : sent && c.status === "approved" ? "sent" : c.status;
     await prisma.contract.update({

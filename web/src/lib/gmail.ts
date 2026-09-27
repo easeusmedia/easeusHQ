@@ -59,7 +59,7 @@ type Part = { filename?: string; mimeType?: string; body?: { attachmentId?: stri
 
 // A message's subject, when it arrived, and (with `full`) what's attached
 export async function readMail(id: string, full = false) {
-  const m = await gmail<{ id: string; internalDate: string; payload: Part & { headers?: { name: string; value: string }[] } }>(
+  const m = await gmail<{ id: string; internalDate: string; snippet?: string; payload: Part & { headers?: { name: string; value: string }[] } }>(
     `messages/${id}?format=${full ? "full" : "metadata&metadataHeaders=Subject"}`
   );
   const files: { name: string; type: string; attachmentId: string }[] = [];
@@ -72,6 +72,8 @@ export async function readMail(id: string, full = false) {
     id: m.id,
     subject: m.payload.headers?.find((h) => h.name.toLowerCase() === "subject")?.value ?? "",
     at: new Date(Number(m.internalDate)),
+    // the start of its text, as Gmail previews it
+    snippet: m.snippet ?? "",
     files,
   };
 }

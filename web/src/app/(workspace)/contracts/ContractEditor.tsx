@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Check, RefreshCw, Copy, Download, FileDown, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, RefreshCw, TriangleAlert, Copy, Download, FileDown, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";
 import { ConfirmButton } from "../ConfirmButton";
 import { ContractPaper } from "./ContractPaper";
@@ -146,13 +146,55 @@ export function ContractEditor({
   // Adobe's emails so far, as a line of steps
   const timeline = events.length > 0 && (
     <ol className="mt-3 flex flex-col gap-2 border-l border-accent/30 pl-4">
-      {events.map((e) => (
+      {/* Adobe sometimes says the same thing twice (a bounce, retried) */}
+      {events.filter((e, i) => e.text !== events[i - 1]?.text).map((e) => (
         <li key={e.id} className="relative text-sm text-foreground/85">
           <span className={`absolute -left-[21px] top-[7px] size-2 rounded-full ${e.kind === "completed" ? "bg-emerald-400" : "bg-accent"}`} />
           {e.text} <span className="text-xs text-muted">· {e.when}</span>
         </li>
       ))}
     </ol>
+  );
+  // Did it reach the right person? The latest send's address against the
+  // client's, and whether Adobe said it couldn't be delivered since.
+  const lastSend = [...events].reverse().find((e) => e.kind === "sent" || e.kind === "undeliverable");
+  const sentTo = [...events].reverse().find((e) => e.kind === "sent")?.text.replace(/^Sent to /, "").trim() ?? "";
+  const clientEmails = clients.map((c) => c.email.trim().toLowerCase());
+  const wrongAddress = !!sentTo && !clientEmails.includes(sentTo.toLowerCase()) && sentTo.toLowerCase() !== PROVIDER.email;
+  const undelivered = lastSend?.kind === "undeliverable";
+  const problem = (wrongAddress || undelivered) && (
+    <div className="mt-3 flex gap-2.5 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-3 text-sm text-foreground">
+      <TriangleAlert size={16} className="mt-0.5 shrink-0 text-accent" />
+      <div className="flex flex-col gap-2">
+        <p>
+          {undelivered ? <b className="font-medium">Adobe couldn&apos;t deliver it{sentTo ? ` to ${sentTo}` : ""}. </b> : null}
+          {wrongAddress ? (
+            <>
+              Acrobat sent it to <b className="font-medium">{sentTo}</b>, but the client&apos;s email is{" "}
+              <b className="font-medium">{clients.map((c) => c.email.trim()).join(" and ")}</b>.
+            </>
+          ) : (
+            "Check the address you used in Acrobat."
+          )}{" "}
+          Cancel it in Acrobat and send it again to the right address — this page picks the new one up by itself.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={async () => {
+              await navigator.clipboard.writeText(clients.map((c) => c.email.trim()).join(", "));
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+            className="btn btn-xs btn-glow flex items-center gap-1"
+          >
+            {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy the right email"}
+          </button>
+          <a href={ACROBAT_ESIGN} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost flex items-center gap-1">
+            Open Acrobat <ArrowUpRight size={12} />
+          </a>
+        </div>
+      </div>
+    </div>
   );
   const check = (
     <button onClick={() => run("check", () => checkContractMail(id))} disabled={busy !== null} className="btn btn-ghost flex items-center gap-1.5">
@@ -279,12 +321,13 @@ export function ContractEditor({
         </ConfirmButton>
       );
       return {
-        title: "Out for signature in Acrobat",
+        title: wrongAddress || undelivered ? "Out for signature — but not to the client" : "Out for signature in Acrobat",
         body: (
           <>
             {tracking
               ? `Sent ${sentAt ?? "today"}. This follows Adobe's emails by itself — it turns Signed, with the signed copy, once everyone has.`
               : `Sent ${sentAt ?? "today"}. Ashmit signs first in Acrobat, then ${to} gets Acrobat's email to sign. Mark it signed once everyone has.`}
+            {problem}
             {timeline}
           </>
         ),
