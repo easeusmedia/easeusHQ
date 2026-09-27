@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Building2, CalendarClock, Link2, MoreHorizontal, Plus, Send, User } from "lucide-react";
+import { Building2, CalendarClock, Link2, MoreHorizontal, Send, User } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
+import { ADD_BUTTON, ADD_ROW, PlusBadge } from "./AddButton";
 import { useNewProject } from "./useNewProject";
 import { ProjectChip, TagPill, pill } from "./composer";
 import { Dropdown } from "./Dropdown";
@@ -29,7 +30,10 @@ export function NewTaskRow({
   defaultProjectId,
   taskTags = [],
   canCreateProject = true,
+  trigger = "button",
 }: {
+  // the board column's button, or a list's first row
+  trigger?: "button" | "row";
   projects: Project[];
   editors: Editor[];
   taskTags?: TaskTagOption[];
@@ -122,13 +126,15 @@ export function NewTaskRow({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => dialogRef.current?.showModal()}
-        className="btn btn-add flex w-full items-center justify-center gap-1.5"
-      >
-        <Plus size={15} /> New task
-      </button>
+      {trigger === "row" ? (
+        <button type="button" onClick={() => dialogRef.current?.showModal()} className={ADD_ROW}>
+          <PlusBadge /> Add a task
+        </button>
+      ) : (
+        <button type="button" onClick={() => dialogRef.current?.showModal()} className={`${ADD_BUTTON} w-full`}>
+          <PlusBadge /> New task
+        </button>
+      )}
 
       <dialog
         ref={dialogRef}

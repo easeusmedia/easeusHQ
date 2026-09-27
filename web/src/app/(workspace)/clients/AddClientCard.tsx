@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Link2, Plus, X } from "lucide-react";
+import { Check, Copy, Link2, X } from "lucide-react";
+import { ADD_BUTTON, ADD_CARD, PlusBadge } from "../AddButton";
 import { createClient } from "./actions";
 import { createClientInvite, deleteClientInvite } from "../../onboarding/actions";
 import { pendingInvites } from "./actions";
@@ -85,19 +86,13 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
   return (
     <>
       {variant === "row" ? (
-        <button
-          onClick={open}
-          className="btn btn-add flex items-center gap-2"
-        >
-          <Plus size={15} /> Add client
+        <button type="button" onClick={open} className={`${ADD_BUTTON} w-full`}>
+          <PlusBadge /> Add client
         </button>
       ) : (
-        <button
-          onClick={open}
-          className="btn-add flex h-full min-h-[130px] flex-col items-center justify-center gap-2 rounded-3xl"
-        >
-          <Plus size={22} />
-          <span className="text-xs">Add client</span>
+        <button type="button" onClick={open} className={`${ADD_CARD} min-h-[130px] rounded-3xl`}>
+          <PlusBadge large />
+          Add client
         </button>
       )}
 

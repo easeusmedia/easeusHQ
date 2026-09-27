@@ -24,7 +24,11 @@ export function TaskRow({
   taskTags = [],
   selected,
   onSelect,
+  flat = false,
 }: {
+  // a row inside a list's panel (the Board's list): no box of its own, and a
+  // circle in the stage's colour that turns into the tick box on hover
+  flat?: boolean;
   task: TaskCardData;
   clientName: string;
   subtitle: string;
@@ -55,11 +59,37 @@ export function TaskRow({
     <>
       <div
         onClick={() => detailsRef.current?.open()}
-        className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-          selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
-        }`}
+        className={
+          flat
+            ? `group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors duration-150 ${selected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`
+            : `group flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
+              }`
+        }
       >
-        {onSelect && (
+        {flat && (
+          <span onClick={(e) => onSelect && e.stopPropagation()} className="relative flex size-[18px] shrink-0 items-center justify-center">
+            <span
+              className={`absolute inset-0 flex items-center justify-center rounded-full border-[1.5px] border-white/20 transition-opacity duration-150 ${
+                !onSelect ? "" : selected ? "opacity-0" : "group-hover:opacity-0 pointer-coarse:opacity-0"
+              }`}
+            >
+              <span className={`size-1.5 rounded-full ${STAGE[task.status].dot}`} />
+            </span>
+            {onSelect && (
+              <span
+                className={`transition-opacity duration-150 ${
+                  selected
+                    ? "opacity-100"
+                    : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100"
+                }`}
+              >
+                <Checkbox checked={!!selected} onChange={() => onSelect(task.id)} label={`Select ${task.title}`} />
+              </span>
+            )}
+          </span>
+        )}
+        {!flat && onSelect && (
           // The slot is always here, holding its width — so a row doesn't
           // shuffle sideways the moment the pointer touches it. Only the
           // checkbox itself fades in, and pointer events follow the fade so

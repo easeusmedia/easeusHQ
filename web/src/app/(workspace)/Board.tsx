@@ -247,6 +247,17 @@ export function Board({
 
   const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
 
+  // a list's heading: a dot, the stage, a count — quieter than the board's pill
+  function listTitle(col: Column) {
+    return (
+      <div className="flex items-center gap-2 px-1 text-sm">
+        <span className={`size-2 rounded-full ${col.dot}`} />
+        <span className="font-medium">{col.label}</span>
+        <span className="text-xs tabular-nums text-muted">{columnOf(col.status).length}</span>
+      </div>
+    );
+  }
+
   function stageHeader(col: Column) {
     return (
       <div
@@ -264,15 +275,28 @@ export function Board({
   function dropZone(col: Column) {
     const columnTasks = columnOf(col.status);
     const list = layout === "list";
+    const empty = columnTasks.length === 0;
+    // a list's first stage opens with its own "Add a task" row
+    const addRow = list && col.status === "queued" && canCreate;
     return (
       <div
-        className={list ? "flex flex-col gap-2" : "flex min-h-24 min-w-0 flex-1 flex-col gap-3"}
+        className={
+          !list
+            ? "flex min-h-24 min-w-0 flex-1 flex-col gap-3"
+            : empty && !addRow
+              ? // still a drop target while empty; it only shows as one mid-drag
+                `rounded-2xl border border-dashed transition-colors ${draggingId ? "border-white/20" : "border-transparent"}`
+              : "flex flex-col divide-y divide-white/[0.05] overflow-hidden panel-soft rounded-2xl"
+        }
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
           handleColumnDrop(col.status, e);
         }}
       >
+        {addRow && (
+          <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" />
+        )}
         {columnTasks.map((task) => (
           <div
             key={task.id}
@@ -298,6 +322,7 @@ export function Board({
                 taskTags={taskTags}
                 selected={selected.has(task.id)}
                 onSelect={canSelect ? toggleSelected : undefined}
+                flat
               />
             ) : (
               <TaskCard
@@ -313,11 +338,8 @@ export function Board({
           </div>
         ))}
         {list ? (
-          columnTasks.length === 0 && (
-            <p className={`rounded-xl border border-dashed px-4 py-3 text-xs text-muted ${draggingId ? "border-foreground/30" : "border-border"}`}>
-              {draggingId ? "Drop to move here" : "No tasks here"}
-            </p>
-          )
+          empty &&
+          !addRow && <p className="px-1 py-1.5 text-xs text-muted/60">{draggingId ? "Drop to move here" : "Nothing here"}</p>
         ) : (
           // guaranteed droppable cushion below the last card
           <div className="h-6 shrink-0" />
@@ -439,13 +461,10 @@ export function Board({
       ) : (
         // Every stage in turn, its header pinned while its rows scroll past.
         // Empty stages still show, as somewhere to drop a task.
-        <div className="flex flex-col gap-6" onDragOver={scrollPageNearEdge}>
+        <div className="flex flex-col gap-7" onDragOver={scrollPageNearEdge}>
           {columns.map((col) => (
-            <section key={col.status} className="flex flex-col gap-2">
-              <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">
-                <div className="w-fit">{stageHeader(col)}</div>
-              </div>
-              {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
+            <section key={col.status} className="flex flex-col gap-1.5">
+              <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">{listTitle(col)}</div>
               {dropZone(col)}
             </section>
           ))}

@@ -2,7 +2,8 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Link2, Paperclip, Plus, Trash2, User, X } from "lucide-react";
+import { Building2, Link2, Paperclip, Trash2, User, X } from "lucide-react";
+import { ADD_BUTTON, ADD_ROW, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { resizeToJpegMaxDim } from "@/lib/imageResize";
@@ -131,19 +132,12 @@ export const WorkTaskDialog = forwardRef<
     <>
       {mode === "create" &&
         (trigger === "row" ? (
-          <button
-            type="button"
-            onClick={open}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-muted transition-colors duration-150 hover:bg-white/[0.03] hover:text-foreground"
-          >
-            <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full border border-dashed border-white/25">
-              <Plus size={11} />
-            </span>
-            Add a task
+          <button type="button" onClick={open} className={ADD_ROW}>
+            <PlusBadge /> Add a task
           </button>
         ) : (
-          <button onClick={open} className="btn btn-add flex w-full items-center justify-center gap-1.5">
-            <Plus size={16} /> New task
+          <button type="button" onClick={open} className={`${ADD_BUTTON} w-full`}>
+            <PlusBadge /> New task
           </button>
         ))}
 

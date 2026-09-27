@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
+import { ADD_BUTTON, ADD_CARD, PlusBadge } from "../AddButton";
 import { createProject } from "./actions";
 import { CoverPicker } from "./CoverPicker";
 import { resizeToJpeg } from "@/lib/imageResize";
@@ -94,11 +95,12 @@ export function AddProjectCard({
   return (
     <>
       <button
+        type="button"
         onClick={open}
-        className={`btn-add flex items-center justify-center gap-1.5 rounded-xl ${row ? "w-full py-2.5" : "h-full min-h-[140px] flex-col"}`}
+        className={row ? `${ADD_BUTTON} w-full` : `${ADD_CARD} min-h-[140px] rounded-2xl`}
       >
-        <Plus size={18} />
-        <span className="text-xs">New project</span>
+        <PlusBadge large={!row} />
+        New project
       </button>
 
       <dialog
