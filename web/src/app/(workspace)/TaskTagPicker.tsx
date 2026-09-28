@@ -48,6 +48,10 @@ export function TaskTagPicker({
 }) {
   const [picked, setPicked] = useState<string[]>(selected);
   const [adding, setAdding] = useState(false);
+  // Deleting a tag is its own mode, behind "Edit tags". Its × used to sit on
+  // every chip, where it read as "unselect" — and pressing it deleted the tag
+  // from every task and file that had it.
+  const [managing, setManaging] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
   // a newly added tag arrives via the reload in add() below, so there is
@@ -115,17 +119,21 @@ export function TaskTagPicker({
                 on ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted"
               }`}
             >
-              <button type="button" onClick={() => toggle(t.id)} className="px-2 py-1 hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => !managing && toggle(t.id)}
+                className={`px-2 py-1 ${managing ? "cursor-default" : "hover:text-foreground"}`}
+              >
                 {t.name}
               </button>
-              {canManage && (
+              {canManage && managing && (
                 <ConfirmButton
-                  confirm="Remove"
-                  message={`Remove the tag "${t.name}"? Tasks that use it simply lose the label; nothing else changes.`}
-                  className="pr-1.5 opacity-0 transition-opacity group-hover/tag:opacity-100 hover:text-red-400"
+                  confirm="Delete"
+                  message={`Delete the tag "${t.name}" everywhere? Every task and file tagged with it loses the tag. This can't be undone.`}
+                  className="pr-1.5 text-muted hover:text-red-400"
                   onConfirm={() => remove(t.id)}
                 >
-                  <X size={11} />
+                  <X size={11} aria-label={`Delete the tag ${t.name}`} />
                 </ConfirmButton>
               )}
             </span>
@@ -161,6 +169,15 @@ export function TaskTagPicker({
           </button>
         )}
       </div>
+      {canManage && (
+        <button
+          type="button"
+          onClick={() => setManaging((m) => !m)}
+          className="self-start text-[11px] text-muted underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {managing ? "Done editing" : "Edit tags"}
+        </button>
+      )}
       {error && <p className="text-xs text-red-300">{error}</p>}
     </div>
   );

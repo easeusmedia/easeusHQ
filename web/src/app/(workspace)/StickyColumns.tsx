@@ -55,10 +55,7 @@ export function StickyColumns({
   // top-0 would pin headers a padding's height down the page with cards
   // showing above them. Pulling the stop up by the page padding
   // (--page-pad, set in the layout) pins them flush with the top.
-  // the soft fade under it: what scrolls beneath the pinned headers eases
-  // out of view instead of being sliced off at a hard edge
-  const pinned =
-    "sticky top-[calc(-1*var(--page-pad,0px))] bg-background py-3 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-gradient-to-b after:from-background after:to-transparent";
+  const pinned = "sticky top-[calc(-1*var(--page-pad,0px))] bg-background py-3";
 
   return (
     <div
