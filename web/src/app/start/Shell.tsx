@@ -49,7 +49,7 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
             </ol>
           </div>
 
-          <p className="relative mt-10 text-xs text-muted/70">Easeus Media: video for people worth listening to.</p>
+          <p className="relative mt-10 text-xs text-muted/70">Easeus Media: new-age media distribution, built for how people watch today.</p>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col px-6 py-8 sm:px-10 lg:px-16 lg:py-12">
@@ -73,7 +73,8 @@ function Lines() {
     "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")";
   const fade = "linear-gradient(to bottom, transparent 0%, black 22%, black 48%, transparent 72%)";
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
+    // half strength: a texture in the background, never a feature
+    <div aria-hidden className="pointer-events-none absolute inset-0 opacity-50">
       <div
         className="absolute inset-0"
         style={{ background: "radial-gradient(80% 45% at 50% 30%, rgba(75,149,230,0.22) 0%, rgba(75,149,230,0.06) 45%, transparent 70%)" }}
