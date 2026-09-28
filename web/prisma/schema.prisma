@@ -168,6 +168,10 @@ model User {
   employment         EmploymentStatus @default(active)
   // full_time | part_time | freelance | intern (see team/actions.ts)
   employmentType     String?
+  // how they're paid, for Finance: fixed | per_video | hourly, and how
+  // often: monthly | fortnightly | weekly
+  payStructure       String?
+  payCycle           String?
   birthday           DateTime?
   // a name and a number, as one line: "Riya (sister) · +91 98…"
   emergencyContact   String?
@@ -183,6 +187,9 @@ model User {
   clientInvites     ClientInvite[]
   messagesSent      Message[]     @relation("MessagesSent")
   messagesReceived  Message[]     @relation("MessagesReceived")
+  performance       PerformanceEntry[] @relation("PerformanceAbout")
+  performanceLogged PerformanceEntry[] @relation("PerformanceLogged")
+  salaryPayments    SalaryPayment[]
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -592,6 +599,10 @@ model Task {
   updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs
 
   feedback Feedback[]
+  performance PerformanceEntry[]
+  // left out of the editor's numbers: reassigned mid-way, a test, anything
+  // ops decides shouldn't count for or against them
+  kpiExcluded Boolean @default(false)
 }
 
 // A personal/team work item — see the WorkTaskStatus comment above for how
@@ -705,6 +716,73 @@ model Invoice {
   // set when it's marked paid; what Finance counts as collected, and when
   paidAt    DateTime?
   createdAt DateTime      @default(now())
+
+  // Ready for Skydo, which clients pay through: its invoice number, the
+  // currency it was raised in, and where it lives there. "manual" until the
+  // Skydo workflow is connected and starts filling these in itself.
+  number      String?
+  currency    String  @default("INR")
+  source      String  @default("manual")
+  externalId  String? @unique
+  externalUrl String?
+  notes       String? @db.Text
+}
+
+// What a person was paid for a month. The team is paid from the payroll
+// spreadsheet, not through Skydo; until that sheet is connected, the admin
+// marks a month paid here. One row per person per month ("2026-09").
+model SalaryPayment {
+  id        String    @id @default(uuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  period    String
+  // what was due that month, and what's been paid of it
+  amount    Decimal   @db.Decimal(12, 2)
+  paid      Decimal   @default(0) @db.Decimal(12, 2)
+  paidAt    DateTime?
+  note      String?
+  // manual | sheet — the row of the payroll sheet it came from, once connected
+  source    String    @default("manual")
+  sheetRef  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([userId, period])
+}
+
+// One piece of feedback on an editor's work. A mistake counts against their
+// grade (the A+ to F scale from the Notion performance review); creative
+// feedback is ordinary direction; praise and notes are for the record.
+// Some arrive on their own (Frame.io review comments, sorted by Claude; the
+// old Notion log), the rest ops writes in, and every one can be corrected.
+model PerformanceEntry {
+  id          String   @id @default(uuid())
+  editor      User     @relation("PerformanceAbout", fields: [editorId], references: [id], onDelete: Cascade)
+  editorId    String
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId      String?
+  // mistake | creative | praise | note
+  kind        String
+  // a mistake's kind: Typos, Subtitles, Sound…
+  category    String?
+  body        String   @db.Text
+  // how many times it happened (the Notion log counted a mistake per week)
+  count       Int      @default(1)
+  at          DateTime
+  // manual | frameio | notion, and the id there, so a sync never repeats one
+  source      String   @default("manual")
+  sourceId    String?  @unique
+  // who said it: the reviewer on Frame.io, or whoever wrote it here
+  by          String?
+  fromClient  Boolean  @default(false)
+  // an automatic entry that someone has looked over or corrected
+  reviewed    Boolean  @default(false)
+  loggedBy    User?    @relation("PerformanceLogged", fields: [loggedById], references: [id])
+  loggedById  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([editorId, at])
 }
 
 model ActivityLog {

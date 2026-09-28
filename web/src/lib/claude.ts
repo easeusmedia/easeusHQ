@@ -54,3 +54,35 @@ export async function checkClaudeKey(key: string): Promise<boolean> {
   });
   return res.ok;
 }
+
+// One answer in a fixed JSON shape, for sorting and extracting rather than
+// conversation. Opus with low effort: a classification doesn't repay deep
+// thinking. A request its classifiers decline is re-run on Anthropic's
+// recommended fallback model rather than coming back empty.
+export async function claudeJson<T>({ system, prompt, schema }: { system: string; prompt: string; schema: Record<string, unknown> }): Promise<T> {
+  const key = await claudeKey();
+  if (!key) throw new Error("Claude isn't connected yet. Add an Anthropic API key under Integrations.");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "server-side-fallback-2026-07-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-opus-5",
+      max_tokens: 16000,
+      fallbacks: "default",
+      output_config: { effort: "low", format: { type: "json_schema", schema } },
+      system,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.error?.message ?? `Claude answered ${res.status}.`);
+  if (body.stop_reason === "refusal") throw new Error("Claude declined to sort these.");
+  const text = (body.content as Block[]).find((b): b is { type: "text"; text: string } => b.type === "text")?.text;
+  if (!text) throw new Error("Claude sent nothing back.");
+  return JSON.parse(text) as T;
+}

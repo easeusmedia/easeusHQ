@@ -154,6 +154,68 @@ type RawFile = {
 
 type RawAsset = RawFile & { head_version?: RawFile };
 
+// A share's contents, from whichever Frame.io account owns it: the chosen
+// one first, then any other this login can reach — the team's shares are
+// spread across two of them, and which one a given review link belongs to
+// isn't something anyone should have to know.
+async function shareAssets(shareId: string, query = ""): Promise<{ accountId: string; assets: RawAsset[] }> {
+  const s = await frameioSettings();
+  const chosen = s[FRAMEIO_SETTINGS.accountId];
+  if (!chosen) throw new Error("No Frame.io account has been chosen yet.");
+  const others = (await accounts().catch(() => [])).map((a) => a.id).filter((id) => id !== chosen);
+  let lastError: unknown = null;
+  for (const accountId of [chosen, ...others]) {
+    try {
+      const body = await api(`/accounts/${accountId}/shares/${shareId}/assets${query}`);
+      return { accountId, assets: (body?.data ?? []) as RawAsset[] };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("That share isn't in any Frame.io account we can see.");
+}
+
+export type FrameioComment = {
+  id: string;
+  text: string;
+  createdAt: string;
+  by: string | null;
+  byEmail: string | null;
+  // which cut of the video it was left on, 1 being the first
+  version: number;
+};
+
+// Every review comment on a share, across every cut of every video in it.
+// Comments live on each version's file, not on the stack that holds them.
+export async function shareComments(shareId: string): Promise<FrameioComment[]> {
+  const { accountId, assets } = await shareAssets(shareId);
+  // every video's cuts, then every cut's comments, each set asked for at once
+  const stacks = await Promise.all(
+    assets.map(async (a): Promise<RawFile[]> =>
+      a.type === "version_stack" ? ((await api(`/accounts/${accountId}/version_stacks/${a.id}/children`))?.data ?? []) : [a]
+    )
+  );
+  const cuts = stacks.flatMap((versions) =>
+    [...versions]
+      .sort((x, y) => (x.created_at ?? "").localeCompare(y.created_at ?? ""))
+      .map((v, i) => ({ v, version: i + 1 }))
+      .filter(({ v }) => (v.type ?? "file") === "file")
+  );
+  const lists = await Promise.all(cuts.map(({ v }) => api(`/accounts/${accountId}/files/${v.id}/comments?include=owner`)));
+  return lists.flatMap((body, i) =>
+    ((body?.data ?? []) as { id: string; text?: string; created_at?: string; owner?: { name?: string; email?: string } }[])
+      .filter((c) => c.text?.trim())
+      .map((c) => ({
+        id: c.id,
+        text: c.text!.trim(),
+        createdAt: c.created_at ?? new Date().toISOString(),
+        by: c.owner?.name ?? null,
+        byEmail: c.owner?.email ?? null,
+        version: cuts[i].version,
+      }))
+  );
+}
+
 // What's actually in a share, each with a download address for the original
 // upload — the file as the editor exported it, not a proxy.
 //
@@ -166,27 +228,7 @@ type RawAsset = RawFile & { head_version?: RawFile };
 // The addresses are short-lived signed URLs. They are fetched at the moment
 // they're used and never stored, so a copy always re-lists the share.
 export async function shareFiles(shareId: string): Promise<FrameioFile[]> {
-  const s = await frameioSettings();
-  const chosen = s[FRAMEIO_SETTINGS.accountId];
-  if (!chosen) throw new Error("No Frame.io account has been chosen yet.");
-
-  // The chosen account first, then any other this login can reach: the
-  // team's shares are spread across two of them, and which one a given
-  // review link belongs to isn't something anyone should have to know.
-  const others = (await accounts().catch(() => [])).map((a) => a.id).filter((id) => id !== chosen);
-  let lastError: unknown = null;
-  let body: { data?: unknown } | null = null;
-  for (const accountId of [chosen, ...others]) {
-    try {
-      body = await api(`/accounts/${accountId}/shares/${shareId}/assets?include=media_links.original`);
-      break;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  if (!body) throw lastError instanceof Error ? lastError : new Error("That share isn't in any Frame.io account we can see.");
-
-  const assets = (body?.data ?? []) as RawAsset[];
+  const { assets } = await shareAssets(shareId, "?include=media_links.original");
   return assets
     .map((a) => (a.type === "version_stack" && a.head_version ? a.head_version : a))
     .filter((f) => (f.type ?? "file") === "file")

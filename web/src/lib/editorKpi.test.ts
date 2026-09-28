@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_TARGETS, draftHours, editorKpis, meets, settle, shiftMonth, type KpiTask } from "./editorKpi.ts";
+import { DEFAULT_TARGETS, draftHours, editorKpis, grade, insights, meets, settle, shiftMonth, weekOfMonth, type KpiTask } from "./editorKpi.ts";
 
 const at = (s: string) => new Date(`2026-09-${s}Z`);
 const mv = (when: string, from: string, to: string) => ({ at: at(when), from, to });
 const task = (over: Partial<KpiTask>): KpiTask => ({
+  id: "t",
   title: "Video",
+  client: null,
   createdAt: at("01T04:00:00"),
   deliveredAt: at("10T04:00:00"),
   dueDate: null,
@@ -70,12 +72,44 @@ test("nothing delivered scores nothing, rather than zero", () => {
   assert.equal(meets("onTimePct", k.onTimePct, DEFAULT_TARGETS), null);
 });
 
-test("revisions and draft time are better lower; the rest higher", () => {
+test("turnaround, revisions and mistakes are better lower; the rest higher", () => {
   assert.equal(meets("revisions", 1, DEFAULT_TARGETS), true);
   assert.equal(meets("revisions", 1.5, DEFAULT_TARGETS), false);
-  assert.equal(meets("draftHours", 60, DEFAULT_TARGETS), false);
+  assert.equal(meets("turnaroundHours", 80, DEFAULT_TARGETS), false);
+  assert.equal(meets("mistakes", 2, DEFAULT_TARGETS), true);
   assert.equal(meets("onTimePct", 90, DEFAULT_TARGETS), true);
   assert.equal(meets("delivered", 19, DEFAULT_TARGETS), false);
+});
+
+test("the Notion grade: none is A+, then A to F in steps of two", () => {
+  assert.deepEqual([0, 1, 2, 3, 4, 6, 8, 9].map(grade), ["A+", "A", "A", "B", "B", "C", "D", "F"]);
+});
+
+test("mistakes are counted, graded and split by kind and by week of the month", () => {
+  const k = editorKpis(
+    [task({ createdAt: at("01T04:00:00"), handedOffAt: at("03T04:00:00") })],
+    [
+      { kind: "mistake", category: "Subtitles", count: 2, day: "2026-09-03" },
+      { kind: "mistake", category: "Typos", count: 1, day: "2026-09-15" },
+      { kind: "creative", category: null, count: 1, day: "2026-09-15" },
+      { kind: "praise", category: null, count: 1, day: "2026-09-29" },
+    ]
+  );
+  assert.deepEqual([k.mistakes, k.mistakesPerVideo, k.grade], [3, 3, "B"]);
+  assert.deepEqual(k.byCategory, [["Subtitles", 2], ["Typos", 1]]);
+  assert.deepEqual(k.weeks, [2, 0, 1, 0, 0]);
+  assert.equal(k.turnaroundHours, 48);
+  assert.equal(k.praise, 1);
+  assert.equal(weekOfMonth("2026-09-29"), 5);
+  assert.equal(editorKpis([], []).grade, null);
+});
+
+test("insights: a kind of mistake two months running is flagged; fewer mistakes is praised", () => {
+  const sept = editorKpis([task({})], [{ kind: "mistake", category: "Subtitles", count: 1, day: "2026-09-03" }]);
+  const aug = editorKpis([task({})], [{ kind: "mistake", category: "Subtitles", count: 4, day: "2026-08-03" }]);
+  const { good, watch } = insights(sept, aug, DEFAULT_TARGETS);
+  assert.ok(good.some((g) => g.startsWith("Fewer mistakes")));
+  assert.ok(watch.some((w) => w.startsWith("Subtitles keeps coming up")));
 });
 
 test("months step across a year end", () => {

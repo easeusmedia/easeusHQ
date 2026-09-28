@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { collect, dailySync } from "@/lib/contentSync";
 import { trackContracts } from "@/app/(workspace)/contracts/tracking";
+import { syncFrameioFeedback } from "@/lib/frameioFeedback";
 
 // The daily refresh of every client's public YouTube and Instagram numbers
 // (vercel.json runs it at 2am India time). Safe to call any time by anyone:
@@ -19,5 +20,9 @@ export async function GET(request: Request) {
   await collect().catch(() => {});
   // and catch up on contracts out for signature (Adobe's emails in Gmail)
   await trackContracts().catch(() => {});
-  return NextResponse.json(await dailySync(origin));
+  const result = await dailySync(origin);
+  // last, so a slow Frame.io can't hold up the rest: yesterday's review
+  // comments into the editors' feedback log (only new ones reach Claude)
+  await syncFrameioFeedback().catch(() => {});
+  return NextResponse.json(result);
 }
