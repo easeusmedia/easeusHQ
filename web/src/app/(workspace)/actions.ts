@@ -422,15 +422,24 @@ export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number
 // dummy/test rows out of History, not something ops reaches for on real
 // client work (that's what deleteTask above is for, and it's reversible in
 // spirit since the task is still "real"; this one leaves nothing behind).
-// Admin and Abhishek only, checked against the signed-in session.
+// Admin and Abhishek only, checked against the signed-in session. Either
+// kind of task: someone's own work ("internal") has nothing hanging off it
+// but its tags, which go with it.
 export async function deleteTaskPermanently(formData: FormData) {
   const taskId = String(formData.get("taskId"));
+  const own = formData.get("kind") === "internal";
   const sessionUserId = await getSessionUserId();
   const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
   if (!user || !isAbhishekOrAdmin(user)) {
     throw new Error("Only Abhishek or an admin can permanently delete a task.");
   }
 
+  if (own) {
+    await prisma.workTask.delete({ where: { id: taskId } });
+    revalidatePath("/history");
+    revalidatePath("/team");
+    return;
+  }
   await prisma.$transaction([
     prisma.feedback.deleteMany({ where: { taskId } }),
     prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: taskId } }),

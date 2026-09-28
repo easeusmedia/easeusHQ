@@ -328,20 +328,19 @@ export function HistoryExplorer({
                     </td>
                     {canDelete && (
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        {i.kind === "client" && (
-                          <>
-                            <form id={`delete-history-${i.id}`} action={deleteTaskPermanently}>
-                              <input type="hidden" name="taskId" value={i.id} />
-                            </form>
-                            <ConfirmButton
-                              message={`Permanently delete "${i.title}"? It will be removed along with its activity log. This can't be undone.`}
-                              className="text-xs text-muted hover:text-red-400"
-                              formId={`delete-history-${i.id}`}
-                            >
-                              Delete
-                            </ConfirmButton>
-                          </>
-                        )}
+                        <form id={`delete-history-${i.id}`} action={deleteTaskPermanently}>
+                          <input type="hidden" name="taskId" value={i.id} />
+                          <input type="hidden" name="kind" value={i.kind} />
+                        </form>
+                        <ConfirmButton
+                          message={`Permanently delete "${i.title}"? ${
+                            i.kind === "client" ? "It will be removed along with its activity log." : "It will be removed from History and their record."
+                          } This can't be undone.`}
+                          className="text-xs text-muted hover:text-red-400"
+                          formId={`delete-history-${i.id}`}
+                        >
+                          Delete
+                        </ConfirmButton>
                       </td>
                     )}
                   </tr>
