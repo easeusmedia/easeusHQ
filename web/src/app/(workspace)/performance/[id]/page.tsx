@@ -1,39 +1,21 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CircleAlert, ThumbsUp } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
-import { STAGE } from "@/lib/stages";
-import {
-  draftHours,
-  editorKpis,
-  hoursLabel,
-  insights,
-  monthName,
-  onTime,
-  PART_LABEL,
-  sentBack,
-  settle,
-  shiftMonth,
-  unitsOf,
-  weekEnd,
-  type Kpis,
-  type Part,
-} from "@/lib/editorKpi";
+import { draftHours, editorKpis, focusStatus, hoursLabel, monthName, onTime, PART_LABEL, sentBack, settle, shiftMonth, unitsOf, type Kpis, type Part } from "@/lib/editorKpi";
 import { Avatar } from "../../TaskCard";
 import { ClientTabs } from "../../clients/ClientTabs";
-import { CategoryBars, FeedbackPanel, LogFeedbackButton, MonthSwitch, PartBar, ScoreBadge, TaskTable, TrendBars, type EntryRow, type TaskRow } from "../ui";
-import { kpiTargets, loadPerformance, monthShare, PART_NOTE, partText, pickMonth, weeklyScores } from "../data";
+import { FeedbackPanel, FocusAreas, LogFeedbackButton, MonthSwitch, PartBar, ScoreBadge, TaskTable, type EntryRow, type FocusRow, type TaskRow } from "../ui";
+import { kpiTargets, loadPerformance, monthShare, PART_NOTE, partText, pickMonth, recentWeeks } from "../data";
 
 export const dynamic = "force-dynamic";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const short = (ym: string) => MONTHS[Number(ym.slice(5, 7)) - 1];
-const dayLabel = (iso: string) => `${Number(iso.slice(8, 10))} ${short(iso.slice(0, 7))}`;
-
-// One editor, one month: the score and what it's made of, how the month went
-// week by week, what's going well and where they could use support; then
-// the feedback, the videos, trends and their record in tabs.
+// One editor, kept to what's worth reading: the month's score and the four
+// parts it's made of; the last four weeks, by date; what they're working
+// on improving, which stays until they have; and the detail behind it all
+// in tabs.
 export default async function EditorPerformancePage({
   params,
   searchParams,
@@ -48,25 +30,27 @@ export default async function EditorPerformancePage({
   const today = indiaDay(new Date());
   const thisMonth = today.slice(0, 7);
   const month = pickMonth(asked, thisMonth);
-  const prev = shiftMonth(month, -1);
-  const [data, targets] = await Promise.all([loadPerformance(month, 12, id), kpiTargets()]);
+  const [data, targets, focus] = await Promise.all([
+    loadPerformance(month, 12, id),
+    kpiTargets(),
+    prisma.focusArea.findMany({ where: { editorId: id }, orderBy: { openedAt: "asc" } }),
+  ]);
   const editor = data.editors[0];
   if (!editor) notFound();
 
-  const months = Array.from({ length: 12 }, (_, i) => shiftMonth(month, i - 11));
-  const byMonth = new Map<string, Kpis>(months.map((m) => [m, editorKpis(...data.slice(m), targets, monthShare(m, today))]));
-  const now = byMonth.get(month)!;
-  const said = insights(now, byMonth.get(prev)!);
-  const six = months.slice(-6);
-  const scores = weeklyScores(data, month, today, targets);
+  const now = editorKpis(...data.slice(month), targets, monthShare(month, today));
+  const weeks = recentWeeks(data, month, today, targets);
 
-  // each week on its own: what was delivered and found in it
-  const weeks = [1, 2, 3, 4, 5].map((w, i) => {
-    const from = `${month}-${String((w - 1) * 7 + 1).padStart(2, "0")}`;
-    const to = `${month}-${String(weekEnd(month, w)).padStart(2, "0")}`;
-    const k = editorKpis(...data.slice(month, undefined, { from, to }), targets);
-    return { w, from, to, k, score: scores[i], future: from > today };
-  });
+  // confirmed mistakes, to tell whether a focus area is still coming up
+  const confirmed = data.entries.filter((e) => e.kind === "mistake" && e.reviewed);
+  const focusRows: FocusRow[] = focus.map((f) => ({
+    id: f.id,
+    title: f.title,
+    category: f.category,
+    since: indiaDay(f.openedAt),
+    improved: f.resolvedAt ? indiaDay(f.resolvedAt) : null,
+    ...focusStatus({ category: f.category, opened: indiaDay(f.openedAt) }, confirmed, today),
+  }));
 
   const taskRows: TaskRow[] = data.tasks
     .filter((t) => t.month === month)
@@ -104,17 +88,18 @@ export default async function EditorPerformancePage({
       taskId: e.taskId,
       taskTitle: e.task?.title ?? null,
     }));
-  // only a sorted mistake waits on ops: it's the only kind that moves the score
-  const toReview = entries.filter((e) => !e.reviewed && e.kind === "mistake").length;
+  const toConfirm = entries.filter((e) => !e.reviewed && e.kind === "mistake").length;
   const taskOptions = [...new Map([...data.open, ...data.tasks].map((t) => [t.id, { id: t.id, title: t.title }])).values()];
+
+  const months = Array.from({ length: 12 }, (_, i) => shiftMonth(month, -i));
   const history = months
-    .slice()
-    .reverse()
-    .map((m) => ({ m, k: byMonth.get(m)! }))
+    .map((m) => ({ m, k: editorKpis(...data.slice(m), targets, monthShare(m, today)) as Kpis }))
     .filter(({ k }) => k.delivered || k.mistakes);
+
   const base = `/performance/${editor.id}`;
   const card = "rounded-2xl border border-border bg-surface-2/30 p-5";
-  const HISTORY_ROW = "grid grid-cols-[minmax(0,1fr)_4rem_4rem_5rem] items-center gap-4 px-4 sm:grid-cols-[minmax(0,1fr)_4rem_5rem_6rem_5rem_5rem_5rem]";
+  const WEEK_ROW = "grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem_4.5rem] items-center gap-3";
+  const HISTORY_ROW = "grid grid-cols-[minmax(0,1fr)_4rem_4rem_5rem] items-center gap-4 px-4 sm:grid-cols-[minmax(0,1fr)_4rem_5rem_6rem_5rem_5rem]";
 
   return (
     <div className="flex flex-col gap-6">
@@ -139,99 +124,63 @@ export default async function EditorPerformancePage({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-2">
         <section className={card}>
           <div className="flex items-center gap-4">
             <ScoreBadge score={now.score} grade={now.grade} size="lg" />
             <div>
               <p className="text-sm font-semibold">{monthName(month)}</p>
               <p className="text-xs text-muted">
-                {now.delivered} video{now.delivered === 1 ? "" : "s"} delivered ({now.units} weighted){month === thisMonth ? " · so far this month" : ""}
+                {now.delivered} video{now.delivered === 1 ? "" : "s"} delivered{month === thisMonth ? " so far" : ""}
               </p>
             </div>
           </div>
-          <div className="mt-5 flex flex-col gap-4">
-            {(Object.keys(PART_LABEL) as Part[]).map((p) => {
-              const part = now.parts[p];
-              return (
-                <div key={p} className="grid grid-cols-[minmax(0,1fr)_3rem] items-end gap-4">
-                  <PartBar label={`${PART_LABEL[p]} · counts ${part.weight}%`} text={partText(p, now)} points={part.points} note={PART_NOTE[p](part.target)} />
-                  <span className="pb-4 text-right text-xs tabular-nums text-muted">{part.points === null ? "–" : `${part.points} pts`}</span>
-                </div>
-              );
-            })}
+          <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
+            {(Object.keys(PART_LABEL) as Part[]).map((p) => (
+              <PartBar key={p} label={`${PART_LABEL[p]} · ${now.parts[p].weight}%`} text={partText(p, now)} points={now.parts[p].points} note={PART_NOTE[p](now.parts[p].target)} />
+            ))}
           </div>
         </section>
 
         <section className={card}>
-          <h2 className="text-sm font-semibold">This month by week</h2>
+          <h2 className="text-sm font-semibold">Past four weeks</h2>
           <div className="mt-4 text-sm">
-            <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_4rem_3.5rem] gap-3 pb-2 text-xs text-muted">
+            <div className={`${WEEK_ROW} pb-2 text-xs text-muted`}>
               <span>Week</span>
               <span className="text-right">Videos</span>
               <span className="text-right">Mistakes</span>
-              <span className="text-right">Sent back</span>
               <span className="text-right">Score</span>
             </div>
-            {weeks.map(({ w, from, to, k, score, future }) => (
-              <div key={w} className={`grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_4rem_3.5rem] gap-3 border-t border-border/50 py-2.5 ${future ? "text-muted/50" : ""}`}>
+            {weeks.map((w, i) => (
+              <div key={w.from} className={`${WEEK_ROW} border-t border-border/50 py-2.5`}>
                 <span className="truncate">
-                  Week {w} <span className="text-xs text-muted">{dayLabel(from)}–{Number(to.slice(8))}</span>
+                  {w.label}
+                  {i === 0 && <span className="ml-1.5 text-xs text-muted">this week</span>}
                 </span>
-                <span className="text-right tabular-nums">{future ? "" : k.delivered}</span>
-                <span className="text-right tabular-nums">{future ? "" : k.mistakes}</span>
-                <span className="text-right tabular-nums">{future ? "" : k.internalRevisions + k.clientRevisions}</span>
-                <span className="text-right font-medium tabular-nums">{future ? "" : (score ?? "–")}</span>
+                <span className="text-right tabular-nums">{w.k.delivered}</span>
+                <span className="text-right tabular-nums">{w.k.mistakes}</span>
+                <span className="text-right font-medium tabular-nums">
+                  {w.k.score ?? "–"} {w.k.grade && <span className="text-xs font-normal text-muted">{w.k.grade}</span>}
+                </span>
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-muted">Score is the month so far at the end of each week.</p>
         </section>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {[
-          { title: "Going well", Icon: ThumbsUp, items: said.good, empty: "Nothing stands out yet this month." },
-          { title: "Could use support", Icon: CircleAlert, items: said.watch, empty: "Nothing to raise this month." },
-        ].map(({ title, Icon, items, empty }) => (
-          <section key={title} className={card}>
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Icon size={14} className="text-muted" /> {title}
-            </h2>
-            <ul className="mt-3 flex flex-col gap-2 text-sm">
-              {items.length ? items.map((t) => <li key={t}>{t}</li>) : <li className="text-muted">{empty}</li>}
-            </ul>
-          </section>
-        ))}
-      </div>
+      <FocusAreas editorId={editor.id} rows={focusRows} />
 
       <ClientTabs
         width=""
-        initialTab={tab ?? (toReview ? "feedback" : undefined)}
+        initialTab={tab ?? (toConfirm ? "feedback" : undefined)}
         tabs={[
           {
             key: "feedback",
-            label: toReview ? `Feedback · ${toReview} to confirm` : "Feedback",
-            count: toReview ? undefined : entries.length,
+            label: toConfirm ? `Feedback · ${toConfirm} to confirm` : "Feedback",
+            count: toConfirm ? undefined : entries.length,
             content: <FeedbackPanel editorId={editor.id} entries={entries} tasks={taskOptions} today={today} />,
           },
           { key: "videos", label: "Videos", count: taskRows.length, content: <TaskTable rows={taskRows} /> },
-          {
-            key: "trends",
-            label: "Trends",
-            content: (
-              <div className="grid gap-3 md:grid-cols-2">
-                <TrendBars title="Score, by month" empty="No score yet" points={six.map((m) => ({ label: short(m), value: byMonth.get(m)!.score, text: String(byMonth.get(m)!.score ?? "–") }))} />
-                <TrendBars
-                  title="Mistakes per video, by month"
-                  empty="No mistakes logged"
-                  points={six.map((m) => ({ label: short(m), value: byMonth.get(m)!.mistakesPerVideo, text: String(byMonth.get(m)!.mistakesPerVideo ?? "–") }))}
-                />
-                <TrendBars title="Weighted videos, by month" points={six.map((m) => ({ label: short(m), value: byMonth.get(m)!.units, text: String(byMonth.get(m)!.units) }))} />
-                <CategoryBars rows={now.byCategory} />
-              </div>
-            ),
-          },
           {
             key: "history",
             label: "History",
@@ -245,7 +194,6 @@ export default async function EditorPerformancePage({
                     <span className="text-right">Score</span>
                     <span className="text-right">Videos</span>
                     <span className="hidden text-right sm:block">Mistakes a video</span>
-                    <span className="hidden text-right sm:block">Sent back a video</span>
                     <span className="hidden text-right sm:block">On time</span>
                     <span className="text-right">Turnaround</span>
                   </div>
@@ -253,11 +201,10 @@ export default async function EditorPerformancePage({
                     <Link key={m} href={`${base}?month=${m}`} className={`${HISTORY_ROW} border-t border-border/50 py-2.5 transition-colors hover:bg-foreground/[0.02] ${m === month ? "bg-accent/[0.06]" : ""}`}>
                       <span>{monthName(m)}</span>
                       <span className="text-right font-medium tabular-nums">
-                        {k.score ?? "–"} <span className="text-xs text-muted">{k.grade}</span>
+                        {k.score ?? "–"} <span className="text-xs font-normal text-muted">{k.grade}</span>
                       </span>
                       <span className="text-right tabular-nums">{k.delivered}</span>
                       <span className="hidden text-right tabular-nums sm:block">{k.mistakesPerVideo ?? "–"}</span>
-                      <span className="hidden text-right tabular-nums sm:block">{k.revisions ?? "–"}</span>
                       <span className="hidden text-right tabular-nums sm:block">{k.onTimePct === null ? "–" : `${k.onTimePct}%`}</span>
                       <span className="text-right tabular-nums">{k.draftHours === null ? "–" : hoursLabel(k.draftHours)}</span>
                     </Link>
@@ -267,27 +214,6 @@ export default async function EditorPerformancePage({
           },
         ]}
       />
-
-      {data.open.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold">On their plate now</h2>
-          <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border text-sm">
-            {data.open.map((t) => {
-              const late = t.dueDate && indiaDay(t.dueDate) < today;
-              return (
-                <li key={t.id} className="flex items-center gap-3 bg-surface/40 px-4 py-2.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{t.title}</span>
-                    <span className="block truncate text-xs text-muted">{[t.project.client.name, t.project.name || t.project.type].join(" · ")}</span>
-                  </span>
-                  {t.dueDate && <span className={`shrink-0 text-xs ${late ? "text-red-300" : "text-muted"}`}>{late ? "Was due" : "Due"} {dayLabel(indiaDay(t.dueDate))}</span>}
-                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STAGE[t.status].pill}`}>{STAGE[t.status].label}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

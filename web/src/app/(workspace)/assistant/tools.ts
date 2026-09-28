@@ -152,7 +152,11 @@ async function search({ q }: { q: string }) {
 }
 
 async function editorLine(id: string, name: string, month: string) {
-  const [data, targets] = await Promise.all([loadPerformance(month, 1, id), kpiTargets()]);
+  const [data, targets, focus] = await Promise.all([
+    loadPerformance(month, 1, id),
+    kpiTargets(),
+    prisma.focusArea.findMany({ where: { editorId: id, resolvedAt: null }, select: { title: true, openedAt: true } }),
+  ]);
   if (!data.editors.length) return null;
   const k = editorKpis(...data.slice(month, id), targets, monthShare(month, today()));
   const cats = k.byCategory.map(([c, n]) => `${c} ${n}`).join(", ");
@@ -173,6 +177,7 @@ async function editorLine(id: string, name: string, month: string) {
     `Confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · sent back ${k.internalRevisions} times by our review, ${k.clientRevisions} by clients · typical time to a first draft ${k.draftHours === null ? "unknown" : hoursLabel(k.draftHours)}`,
     k.late.length ? `First drafts late: ${k.late.join("; ")}` : "",
     pending ? `Frame.io mistakes waiting for ops to confirm (not counted yet): ${pending}` : "",
+    focus.length ? `Working on improving (focus areas, open until improved): ${focus.map((f) => `${f.title} since ${d(f.openedAt)}`).join("; ")}` : "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -189,6 +189,7 @@ model User {
   messagesReceived  Message[]     @relation("MessagesReceived")
   performance       PerformanceEntry[] @relation("PerformanceAbout")
   performanceLogged PerformanceEntry[] @relation("PerformanceLogged")
+  focusAreas        FocusArea[]
   salaryPayments    SalaryPayment[]
 }
 
@@ -897,4 +898,24 @@ model AiUsage {
   userId           String?
 
   @@index([at])
+}
+
+// Something an editor is working on improving ("Sound design"), kept open
+// week after week, for months if need be, until ops marks it improved. The
+// Notion review's "Active Feedbacks", made to last. A focus area that
+// tracks a kind of mistake counts every confirmed mistake of that kind
+// since it was raised, so it's plain whether it's still coming up.
+model FocusArea {
+  id         String    @id @default(uuid())
+  editor     User      @relation(fields: [editorId], references: [id], onDelete: Cascade)
+  editorId   String
+  title      String
+  // the kind of mistake it tracks, when there is one (Sound, Subtitles…)
+  category   String?
+  note       String?   @db.Text
+  openedAt   DateTime  @default(now())
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([editorId])
 }

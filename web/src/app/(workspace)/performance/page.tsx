@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight, CircleAlert, Clapperboard, Clock, Gauge, ThumbsUp, TriangleAlert } from "lucide-react";
+import { ChevronRight, CircleAlert, Clapperboard, Clock, Crosshair, Gauge, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireOps } from "@/lib/auth";
 import { canEditPeople } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
-import { editorKpis, insights, letter, PART_LABEL, shiftMonth, type Part } from "@/lib/editorKpi";
+import { editorKpis, letter, PART_LABEL, type Part } from "@/lib/editorKpi";
 import { StatTile } from "../StatTile";
 import { Avatar } from "../TaskCard";
 import { MonthSwitch, PartBar, ScoreBadge, TargetsEditor, WeekStrip } from "./ui";
 import { SyncFrameio } from "./SyncFrameio";
-import { kpiTargets, loadPerformance, monthShare, PART_NOTE, partText, pickMonth, weeklyScores } from "./data";
+import { kpiTargets, loadPerformance, monthShare, PART_NOTE, partText, pickMonth, recentWeeks } from "./data";
 
 export const dynamic = "force-dynamic";
 
@@ -25,26 +25,23 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const today = indiaDay(new Date());
   const thisMonth = today.slice(0, 7);
   const month = pickMonth((await searchParams).month, thisMonth);
-  const prev = shiftMonth(month, -1);
   const share = monthShare(month, today);
-  const [data, targets, kinds] = await Promise.all([
+  const [data, targets, kinds, focus] = await Promise.all([
     loadPerformance(month, 2),
     kpiTargets(),
     prisma.taskTag.findMany({ where: { team: { slug: "operations" } }, select: { name: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.focusArea.findMany({ where: { resolvedAt: null }, select: { editorId: true, title: true }, orderBy: { openedAt: "asc" } }),
   ]);
-
-  // the month so far, week by week: the score as it stood at each week's end
-  const weeks = (who?: string) => weeklyScores(data, month, today, targets, who);
 
   const rows = data.editors.map((e) => {
     const now = editorKpis(...data.slice(month, e.id), targets, share);
     const open = data.open.filter((t) => t.assignedToId === e.id);
-    const said = insights(now, editorKpis(...data.slice(prev, e.id), targets));
     return {
       e,
       now,
-      weeks: weeks(e.id),
-      line: said.watch[0] ? { good: false, text: said.watch[0] } : said.good[0] ? { good: true, text: said.good[0] } : null,
+      // oldest first, so the strip reads left to right
+      weeks: recentWeeks(data, month, today, targets, e.id).reverse(),
+      focus: focus.filter((f) => f.editorId === e.id).map((f) => f.title),
       open: open.length,
       overdue: open.filter((t) => t.dueDate && indiaDay(t.dueDate) < today).length,
       toReview: data.entries.filter((x) => x.editorId === e.id && !x.reviewed && x.kind === "mistake" && x.day.startsWith(month)).length,
@@ -122,16 +119,19 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
                 <div className="flex items-center gap-4">
                   <div className="hidden flex-col items-end gap-1 lg:flex">
-                    <WeekStrip weeks={r.weeks} />
-                    <span className="text-[10px] text-muted">Score by week</span>
+                    <WeekStrip weeks={r.weeks.map((w) => w.k.score)} labels={r.weeks.map((w) => w.label)} />
+                    <span className="text-[10px] text-muted">Past four weeks</span>
                   </div>
                   <ChevronRight size={16} className="text-muted transition-transform group-hover:translate-x-0.5" />
                 </div>
 
-                {r.line && (
+                {r.focus.length > 0 && (
                   <p className="flex items-start gap-2 border-t border-border/60 pt-3 text-xs text-foreground/80 md:col-span-3">
-                    {r.line.good ? <ThumbsUp size={12} className="mt-0.5 shrink-0 text-muted" /> : <CircleAlert size={12} className="mt-0.5 shrink-0 text-muted" />}
-                    {r.line.text}
+                    <Crosshair size={12} className="mt-0.5 shrink-0 text-accent" />
+                    <span>
+                      <span className="text-muted">Working on: </span>
+                      {r.focus.join(", ")}
+                    </span>
                   </p>
                 )}
               </Link>

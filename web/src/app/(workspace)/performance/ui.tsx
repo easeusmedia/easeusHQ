@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, Check, ChevronLeft, ChevronRight, CircleAlert, CircleSlash, MessageSquare, PenLine, Plus, StickyNote, Target, ThumbsUp, Trash2, X, type LucideIcon } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, CircleSlash, Crosshair, MessageSquare, PenLine, Plus, RotateCcw, StickyNote, Target, ThumbsUp, Trash2, X, type LucideIcon } from "lucide-react";
 import { ENTRY_KINDS, MISTAKE_CATEGORIES, PART_LABEL, monthName, shiftMonth, type Grade, type Part, type Targets } from "@/lib/editorKpi";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { Reveal } from "../Reveal";
 import { Stepper } from "../Stepper";
 import { ConfirmButton } from "../ConfirmButton";
-import { acceptAll, deleteEntry, logEntry, reviewEntry, saveKpiTargets, setTaskExcluded, updateEntry, type EntryInput } from "./actions";
+import { acceptAll, addFocusArea, deleteEntry, deleteFocusArea, logEntry, reviewEntry, saveKpiTargets, setFocusImproved, setTaskExcluded, updateEntry, type EntryInput } from "./actions";
 
 // ---------- header ----------
 
@@ -211,78 +211,17 @@ export function PartBar({ label, text, points, note }: { label: string; text: st
   );
 }
 
-// The score as the month went, week by week: Week 1 to Week 5
-export function WeekStrip({ weeks }: { weeks: (number | null)[] }) {
+// The score week by week over the last four weeks, oldest on the left
+export function WeekStrip({ weeks, labels }: { weeks: (number | null)[]; labels: string[] }) {
   return (
-    <div className="flex h-9 items-end gap-1" title={weeks.map((w, i) => `Week ${i + 1}: ${w ?? "–"}`).join(" · ")}>
+    <div className="flex h-9 items-end gap-1" title={weeks.map((w, i) => `${labels[i]}: ${w ?? "–"}`).join(" · ")}>
       {weeks.map((w, i) => (
         <span
           key={i}
-          className={`w-2.5 rounded-t-[3px] ${w === null ? "bg-foreground/[0.07]" : i === weeks.findLastIndex((x) => x !== null) ? "bg-accent" : "bg-accent/35"}`}
+          className={`w-2.5 rounded-t-[3px] ${w === null ? "bg-foreground/[0.07]" : i === weeks.length - 1 ? "bg-accent" : "bg-accent/35"}`}
           style={{ height: w === null ? 3 : Math.max(3, (w / 100) * 36) }}
         />
       ))}
-    </div>
-  );
-}
-
-// Columns over time, one series: past months muted, the current one in the
-// accent with its value on the cap. Hover any column for its number.
-export function TrendBars({ title, points, empty = "No data yet" }: { title: string; points: { label: string; value: number | null; text: string }[]; empty?: string }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(0, ...points.map((p) => p.value ?? 0));
-  const last = points.length - 1;
-  const H = 84;
-  return (
-    <div className="rounded-2xl border border-border bg-surface-2/30 p-4">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-xs text-muted">{title}</p>
-        <p className="text-xs tabular-nums text-muted">{hover !== null ? `${points[hover].label}: ${points[hover].text}` : ""}</p>
-      </div>
-      {max === 0 ? (
-        <p className="grid h-[118px] place-items-center text-xs text-muted/60">{empty}</p>
-      ) : (
-        <div className="mt-3 flex items-end gap-2" onMouseLeave={() => setHover(null)}>
-          {points.map((p, i) => {
-            const h = p.value ? Math.max(3, (p.value / max) * H) : 0;
-            return (
-              <div key={p.label} className="flex min-w-0 flex-1 flex-col items-center gap-1.5" onMouseEnter={() => setHover(i)}>
-                <span className={`text-[11px] tabular-nums ${i === last && p.value !== null ? "text-foreground" : "invisible"}`}>{p.text}</span>
-                <div className="flex w-full justify-center border-b border-border/70" style={{ height: H }}>
-                  <div
-                    className={`mt-auto w-full max-w-6 rounded-t-[4px] transition-colors ${i === last ? "bg-accent" : hover === i ? "bg-accent/60" : "bg-accent/30"}`}
-                    style={{ height: h }}
-                  />
-                </div>
-                <span className="text-[11px] text-muted">{p.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// how many of each kind of mistake, longest first
-export function CategoryBars({ rows }: { rows: [string, number][] }) {
-  const max = Math.max(1, ...rows.map(([, n]) => n));
-  return (
-    <div className="rounded-2xl border border-border bg-surface-2/30 p-4">
-      <p className="text-xs text-muted">Mistakes by kind</p>
-      {rows.length === 0 ? (
-        <p className="grid h-[118px] place-items-center text-xs text-muted/60">None this month</p>
-      ) : (
-        <ul className="mt-3 flex flex-col gap-2">
-          {rows.map(([cat, n]) => (
-            <li key={cat} className="grid grid-cols-[8rem_1fr_1.5rem] items-center gap-3 text-xs">
-              <span className="truncate text-muted">{cat}</span>
-              <span className="h-2 rounded-r-[4px] bg-accent/70" style={{ width: `${(n / max) * 100}%` }} />
-              <span className="text-right tabular-nums">{n}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
@@ -658,5 +597,150 @@ export function TaskTable({ rows }: { rows: TaskRow[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ---------- focus areas ----------
+
+export type FocusRow = {
+  id: string;
+  title: string;
+  category: string | null;
+  since: string;
+  improved: string | null;
+  cameUp: number;
+  lastSeen: string | null;
+  quiet: boolean;
+};
+
+// What an editor is working on improving. Each stays open, week after week,
+// until ops marks it improved; one that tracks a kind of mistake shows
+// whether it's still coming up, and asks once it's been quiet for a month.
+export function FocusAreas({ editorId, rows }: { editorId: string; rows: FocusRow[] }) {
+  const router = useRouter();
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ title: "", category: "" });
+  const [showImproved, setShowImproved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const open = rows.filter((r) => !r.improved);
+  const improved = rows.filter((r) => r.improved);
+
+  async function run(fn: () => Promise<{ error?: string }>) {
+    const res = await fn();
+    if (res.error) return setError(res.error);
+    setError(null);
+    router.refresh();
+  }
+
+  async function add() {
+    await run(() => addFocusArea({ editorId, title: form.title, category: form.category, note: "" }));
+    setForm({ title: "", category: "" });
+    setAdding(false);
+  }
+
+  const status = (r: FocusRow) =>
+    !r.category
+      ? `Since ${shortDay(r.since)}`
+      : r.cameUp
+        ? `Since ${shortDay(r.since)} · came up ${r.cameUp} time${r.cameUp === 1 ? "" : "s"}, last on ${shortDay(r.lastSeen!)}`
+        : `Since ${shortDay(r.since)} · hasn't come up since`;
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Focus areas</h2>
+          <p className="mt-0.5 text-xs text-muted">What they&apos;re working on improving. Each stays until it has.</p>
+        </div>
+        {!adding && (
+          <button onClick={() => setAdding(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
+            <Plus size={12} /> Add
+          </button>
+        )}
+      </div>
+
+      <Reveal open={adding}>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && form.title.trim() && add()}
+            placeholder="e.g. Sound design"
+            className="min-w-48 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
+          />
+          <div className="w-56">
+            <Dropdown
+              value={form.category}
+              placeholder="Track a kind of mistake"
+              onChange={(v) => setForm({ ...form, category: v })}
+              options={[{ value: "", label: "Don't track one" }, ...MISTAKE_CATEGORIES.map((c) => ({ value: c, label: c }))]}
+            />
+          </div>
+          <button onClick={() => setAdding(false)} className="btn btn-sm btn-ghost">
+            Cancel
+          </button>
+          <button onClick={add} disabled={!form.title.trim()} className="btn btn-sm btn-glow disabled:opacity-50">
+            Add
+          </button>
+        </div>
+      </Reveal>
+
+      {open.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">Nothing open right now.</p>
+      ) : (
+        <ul className="mt-4 flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border">
+          {open.map((r) => (
+            <li key={r.id} className="group flex items-center gap-3 bg-surface/40 px-4 py-3">
+              <Crosshair size={14} className="shrink-0 text-accent" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {r.title}
+                  {r.category && r.category !== r.title && <span className="ml-2 text-xs font-normal text-muted">{r.category}</span>}
+                </p>
+                <p className="truncate text-xs text-muted">
+                  {status(r)}
+                  {r.quiet && <span className="text-foreground/80"> · Quiet for four weeks. Improved?</span>}
+                </p>
+              </div>
+              <button
+                onClick={() => run(() => deleteFocusArea(r.id))}
+                aria-label="Remove"
+                className="grid size-7 shrink-0 place-items-center rounded-md text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+              >
+                <Trash2 size={13} />
+              </button>
+              <button onClick={() => run(() => setFocusImproved(r.id, true))} className={`btn btn-xs flex shrink-0 items-center gap-1 ${r.quiet ? "btn-glow" : "btn-ghost"}`}>
+                <Check size={12} /> Improved
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {improved.length > 0 && (
+        <div className="mt-3">
+          <button onClick={() => setShowImproved((v) => !v)} className="flex items-center gap-1 text-xs text-muted hover:text-foreground">
+            <ChevronDown size={12} className={`transition-transform duration-200 ${showImproved ? "rotate-180" : ""}`} />
+            Improved ({improved.length})
+          </button>
+          <Reveal open={showImproved}>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {improved.map((r) => (
+                <li key={r.id} className="flex items-center gap-3 text-sm text-muted">
+                  <Check size={12} className="shrink-0 text-accent" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {r.title} <span className="text-xs">· improved {shortDay(r.improved!)}</span>
+                  </span>
+                  <button onClick={() => run(() => setFocusImproved(r.id, false))} className="flex items-center gap-1 text-xs hover:text-foreground">
+                    <RotateCcw size={11} /> Reopen
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+    </section>
   );
 }

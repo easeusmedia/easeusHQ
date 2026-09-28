@@ -107,10 +107,6 @@ export const daysInMonth = (ym: string) => new Date(Date.UTC(Number(ym.slice(0, 
 // "30h", "3d"
 export const hoursLabel = (h: number) => (h >= 72 ? `${Math.round(h / 24)}d` : `${Math.round(h)}h`);
 
-// Days 1–7 are week 1, and so on: the Notion log's Week-1 to Week-5
-export const weekOfMonth = (day: string) => Math.min(5, Math.floor((Number(day.slice(8, 10)) - 1) / 7) + 1);
-// the last day of week w in a month
-export const weekEnd = (ym: string, w: number) => Math.min(daysInMonth(ym), w * 7 + (w === 5 ? 3 : 0));
 
 export type Grade = "A+" | "A" | "B" | "C" | "D" | "F";
 export function letter(score: number): Grade {
@@ -260,37 +256,40 @@ export function editorKpis(input: KpiTask[], entries: KpiEntry[], targets: Targe
 
 export type Kpis = ReturnType<typeof editorKpis>;
 
-const fmt = (p: Part, v: number) => (p === "deadlines" ? `${v}%` : p === "output" ? `${v}` : `${v}`);
-const UNIT: Record<Part, string> = { quality: "mistakes per video", deadlines: "on time", revisions: "rounds per video", output: "weighted videos" };
+const DAY = 86_400_000;
+const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dm = (day: string) => `${Number(day.slice(8, 10))} ${SHORT_MONTHS[Number(day.slice(5, 7)) - 1]}`;
 
-// What's going well and where they could use support, in plain words: the
-// parts that hold the score up or pull it down, a kind of mistake that keeps
-// coming back, and how the score moved. The point isn't a ranking: it's
-// what to talk about with them.
-export function insights(now: Kpis, before: Kpis): { good: string[]; watch: string[] } {
-  const good: string[] = [];
-  const watch: string[] = [];
-  const parts = (Object.entries(now.parts) as [Part, PartScore][]).filter(([, p]) => p.points !== null && p.value !== null);
+// The last n weeks, Monday to Sunday by their real dates, newest first. The
+// week under way runs to `upTo` (today, or the end of a past month).
+export function pastWeeks(upTo: string, n = 4): { from: string; to: string; days: number; label: string }[] {
+  const monday = addDays(upTo, -((new Date(`${upTo}T00:00:00Z`).getUTCDay() + 6) % 7));
+  return Array.from({ length: n }, (_, i) => {
+    const from = addDays(monday, -7 * i);
+    const to = i === 0 ? upTo : addDays(from, 6);
+    const days = Math.round((Date.parse(to) - Date.parse(from)) / DAY) + 1;
+    return { from, to, days, label: from.slice(5, 7) === to.slice(5, 7) ? `${Number(from.slice(8))}–${dm(to)}` : `${dm(from)} – ${dm(to)}` };
+  });
+}
 
-  // the weakest parts first, by how much they cost the score
-  for (const [key, p] of [...parts].sort((a, b) => (a[1].points! - 100) * a[1].weight - (b[1].points! - 100) * b[1].weight)) {
-    if (p.points! < 70)
-      watch.push(
-        `${PART_LABEL[key]}: ${fmt(key, p.value!)} ${UNIT[key]}${key === "deadlines" ? ` (${now.rated} video${now.rated === 1 ? "" : "s"} with a due date)` : ""}, against a target of ${fmt(key, p.target)}.`
-      );
-  }
-  const lastMonth = new Map(before.byCategory);
-  for (const [cat, n] of now.byCategory.filter(([c]) => c !== "Others").slice(0, 2)) {
-    if (lastMonth.has(cat)) watch.push(`${cat} keeps coming up: ${n} this month after ${lastMonth.get(cat)} last month.`);
-  }
+// how much of a month's output target a stretch of days carries
+export const weekShare = (days: number) => days / 30.44;
 
-  if (now.delivered && now.mistakes === 0) good.push(`No mistakes across ${now.delivered} video${now.delivered === 1 ? "" : "s"}.`);
-  if (now.onTimePct === 100 && now.rated >= 2) good.push("Every first draft was on time.");
-  if (now.delivered >= 2 && now.revisions === 0) good.push("Nothing was sent back.");
-  if (now.score !== null && before.score !== null) {
-    if (now.score >= before.score + 5) good.push(`Score up from ${before.score} to ${now.score}.`);
-    else if (now.score <= before.score - 5) watch.push(`Score down from ${before.score} to ${now.score}.`);
-  }
-  if (now.praise) good.push(`${now.praise} piece${now.praise === 1 ? "" : "s"} of praise logged.`);
-  return { good: good.slice(0, 3), watch: watch.slice(0, 3) };
+export type FocusStatus = { cameUp: number; lastSeen: string | null; quiet: boolean };
+
+// Whether a focus area is still coming up: confirmed mistakes of its kind
+// since it was raised, the last one, and whether it's been four weeks
+// without one (time to ask if it's improved). One with no kind of mistake
+// to track is judged by ops alone.
+export function focusStatus(area: { category: string | null; opened: string }, mistakes: KpiEntry[], today: string): FocusStatus {
+  if (!area.category) return { cameUp: 0, lastSeen: null, quiet: false };
+  const since = mistakes.filter((m) => m.kind === "mistake" && m.category === area.category && m.day >= area.opened);
+  const lastSeen = since.map((m) => m.day).sort().at(-1) ?? null;
+  const fourWeeksAgo = addDays(today, -28);
+  return {
+    cameUp: since.reduce((n, m) => n + m.count, 0),
+    lastSeen,
+    quiet: area.opened <= fourWeeksAgo && (!lastSeen || lastSeen < fourWeeksAgo),
+  };
 }

@@ -3,7 +3,7 @@ import { indiaDay } from "@/lib/due";
 import { displayTeam } from "@/lib/teams";
 import { LIVE_TASK } from "@/lib/workflow";
 import { parseStageChange } from "@/lib/stages";
-import { daysInMonth, editorKpis, KPI_TARGETS, shiftMonth, weekEnd, withTargetDefaults, type KpiEntry, type KpiTask, type Kpis, type Part, type Targets } from "@/lib/editorKpi";
+import { daysInMonth, editorKpis, KPI_TARGETS, pastWeeks, shiftMonth, weekShare, withTargetDefaults, type KpiEntry, type KpiTask, type Kpis, type Part, type Targets } from "@/lib/editorKpi";
 
 // ?month=, if it's a real month not in the future; this month otherwise
 export function pickMonth(asked: string | undefined, thisMonth: string) {
@@ -126,7 +126,13 @@ export async function loadPerformance(month: string, months: number, editorId?: 
     ];
   };
 
-  return { editors, tasks, entries: kpiEntries, open, slice };
+  // any stretch of days, across months if need be (yyyy-mm-dd, inclusive)
+  const between = (from: string, to: string, who?: string): [KpiTask[], KpiEntry[]] => [
+    tasks.filter((t) => t.day >= from && t.day <= to && !t.excluded && (!who || t.editorId === who)),
+    kpiEntries.filter((e) => e.day >= from && e.day <= to && (!who || e.editorId === who) && (e.reviewed || e.kind !== "mistake")),
+  ];
+
+  return { editors, tasks, entries: kpiEntries, open, slice, between };
 }
 
 // the number each part is read as, in its own terms, and what it aims for
@@ -141,20 +147,10 @@ export const PART_NOTE: Record<Part, (target: number) => string> = {
   output: (t) => `weighted videos · aim ${t}`,
 };
 
-// The month's score as it stood at the end of each week (days 1–7, 8–14…),
-// output judged on the days gone by then. Null for a week not yet started.
-export function weeklyScores(
-  data: Awaited<ReturnType<typeof loadPerformance>>,
-  month: string,
-  today: string,
-  targets: Targets,
-  who?: string
-): (number | null)[] {
-  return [1, 2, 3, 4, 5].map((w) => {
-    const first = `${month}-${String((w - 1) * 7 + 1).padStart(2, "0")}`;
-    if (first > today) return null;
-    const last = `${month}-${String(weekEnd(month, w)).padStart(2, "0")}`;
-    const upTo = last < today ? last : today;
-    return editorKpis(...data.slice(month, who, { to: upTo }), targets, Number(upTo.slice(8)) / daysInMonth(month)).score;
-  });
+// The last four weeks (Monday to Sunday, by date), newest first, each scored
+// on its own: its output judged against a week's share of the month's target.
+// They end today, or on the last day of a past month being looked at.
+export function recentWeeks(data: Awaited<ReturnType<typeof loadPerformance>>, month: string, today: string, targets: Targets, who?: string) {
+  const monthEnd = `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
+  return pastWeeks(monthEnd < today ? monthEnd : today).map((w) => ({ ...w, k: editorKpis(...data.between(w.from, w.to, who), targets, weekShare(w.days)) }));
 }

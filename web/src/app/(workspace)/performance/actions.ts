@@ -151,3 +151,30 @@ export async function syncFeedback(): Promise<Result & { added?: number; mistake
     return { error: err instanceof Error ? err.message : "Frame.io couldn't be reached." };
   }
 }
+
+// A focus area: something an editor is working on improving, kept open until
+// they have. Ops only.
+export async function addFocusArea(input: { editorId: string; title: string; category: string; note: string }): Promise<Result> {
+  if (!(await requireOps())) return { error: "Only the operations team can add a focus area." };
+  const title = input.title.trim();
+  if (!title) return { error: "Name what they're working on." };
+  await prisma.focusArea.create({
+    data: { editorId: input.editorId, title, category: input.category.trim() || null, note: input.note.trim() || null },
+  });
+  revalidatePath("/performance", "layout");
+  return {};
+}
+
+export async function setFocusImproved(id: string, improved: boolean): Promise<Result> {
+  if (!(await requireOps())) return { error: "Only the operations team can change a focus area." };
+  await prisma.focusArea.update({ where: { id }, data: { resolvedAt: improved ? new Date() : null } });
+  revalidatePath("/performance", "layout");
+  return {};
+}
+
+export async function deleteFocusArea(id: string): Promise<Result> {
+  if (!(await requireOps())) return { error: "Only the operations team can remove a focus area." };
+  await prisma.focusArea.delete({ where: { id } });
+  revalidatePath("/performance", "layout");
+  return {};
+}
