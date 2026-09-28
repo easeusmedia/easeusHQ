@@ -73,8 +73,8 @@ function Lines() {
     "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")";
   const fade = "linear-gradient(to bottom, transparent 0%, black 22%, black 48%, transparent 72%)";
   return (
-    // half strength: a texture in the background, never a feature
-    <div aria-hidden className="pointer-events-none absolute inset-0 opacity-50">
+    // three-quarter strength: present, but a texture rather than a feature
+    <div aria-hidden className="pointer-events-none absolute inset-0 opacity-75">
       <div
         className="absolute inset-0"
         style={{ background: "radial-gradient(80% 45% at 50% 30%, rgba(75,149,230,0.22) 0%, rgba(75,149,230,0.06) 45%, transparent 70%)" }}
