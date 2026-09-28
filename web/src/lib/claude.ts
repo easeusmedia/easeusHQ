@@ -1,28 +1,13 @@
-import { prisma } from "./prisma.ts";
+import { callClaude, HAIKU, type Block, type Message, type Tool } from "./ai";
 
-// Talking to Claude (Anthropic's Messages API), for the contract assistant.
-// The key is kept in the app's settings (Integrations → Claude), so it can
-// be changed without a redeploy; ANTHROPIC_API_KEY works too.
-
-export const CLAUDE_SETTINGS = { key: "anthropic.apiKey" } as const;
+// Talking to Claude for the contract assistant and the Frame.io sorter. Both
+// go through lib/ai.ts, which meters every call against the month's
+// allowance; the key and the shared types live there too.
+export { CLAUDE_SETTINGS, claudeKey, type Block, type Message, type Tool } from "./ai";
 
 // Haiku: the cheapest current Claude, and plenty for editing a contract
 // through tools. ponytail: switch to "claude-sonnet-5" if edits need more care.
-export const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
-
-export async function claudeKey(): Promise<string | null> {
-  const row = await prisma.appSetting.findUnique({ where: { key: CLAUDE_SETTINGS.key } });
-  return row?.value ?? process.env.ANTHROPIC_API_KEY ?? null;
-}
-
-export type Block =
-  | { type: "text"; text: string }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
-  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string };
-export type Message = { role: "user" | "assistant"; content: string | Block[] };
-export type Tool = { name: string; description: string; input_schema: Record<string, unknown> };
+export const CLAUDE_MODEL = HAIKU;
 
 export async function claude({
   system,
@@ -35,16 +20,16 @@ export async function claude({
   tools?: Tool[];
   maxTokens?: number;
 }): Promise<{ content: Block[]; stop_reason: string }> {
-  const key = await claudeKey();
-  if (!key) throw new Error("Claude isn't connected yet. Add an Anthropic API key under Integrations.");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: maxTokens, system, messages, tools }),
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.error?.message ?? `Claude answered ${res.status}.`);
-  return body;
+  return callClaude({ feature: "contracts", model: CLAUDE_MODEL, system, messages, tools, maxTokens });
+}
+
+// One answer in a fixed JSON shape, for sorting and extracting rather than
+// conversation. Haiku: a classification doesn't need more.
+export async function claudeJson<T>({ system, prompt, schema, maxTokens = 4096 }: { system: string; prompt: string; schema: Record<string, unknown>; maxTokens?: number }): Promise<T> {
+  const res = await callClaude({ feature: "frameio", model: HAIKU, system, messages: [{ role: "user", content: prompt }], format: schema, maxTokens });
+  const text = res.content.find((b): b is { type: "text"; text: string } => b.type === "text")?.text;
+  if (!text) throw new Error("Claude sent nothing back.");
+  return JSON.parse(text) as T;
 }
 
 // A key is good if it can list the models
@@ -53,36 +38,4 @@ export async function checkClaudeKey(key: string): Promise<boolean> {
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
   });
   return res.ok;
-}
-
-// One answer in a fixed JSON shape, for sorting and extracting rather than
-// conversation. Opus with low effort: a classification doesn't repay deep
-// thinking. A request its classifiers decline is re-run on Anthropic's
-// recommended fallback model rather than coming back empty.
-export async function claudeJson<T>({ system, prompt, schema }: { system: string; prompt: string; schema: Record<string, unknown> }): Promise<T> {
-  const key = await claudeKey();
-  if (!key) throw new Error("Claude isn't connected yet. Add an Anthropic API key under Integrations.");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "server-side-fallback-2026-07-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-opus-5",
-      max_tokens: 16000,
-      fallbacks: "default",
-      output_config: { effort: "low", format: { type: "json_schema", schema } },
-      system,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(body?.error?.message ?? `Claude answered ${res.status}.`);
-  if (body.stop_reason === "refusal") throw new Error("Claude declined to sort these.");
-  const text = (body.content as Block[]).find((b): b is { type: "text"; text: string } => b.type === "text")?.text;
-  if (!text) throw new Error("Claude sent nothing back.");
-  return JSON.parse(text) as T;
 }

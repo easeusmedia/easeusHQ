@@ -9,6 +9,7 @@ import { Pulse } from "./Pulse";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
 import { canEditPeople, seesClientFeedback } from "@/lib/scope";
+import { Assistant } from "./assistant/Assistant";
 import { getUnreadBySender } from "./presence/actions";
 import { MainScroll } from "./MainScroll";
 import { ClientDock } from "./clients/ClientDock";
@@ -86,6 +87,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       </div>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
       {hearsFromClients && <FeedbackWatcher />}
+      {/* the admin's assistant, over whatever page is open */}
+      {canEditPeople(sessionUser) && <Assistant />}
     </div>
     </PeopleProvider>
   );

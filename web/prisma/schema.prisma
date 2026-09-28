@@ -878,3 +878,23 @@ model Contract {
   sentAt      DateTime?
   signedAt    DateTime?
 }
+
+// Every call to Claude, whatever asked for it (the admin's assistant, the
+// Frame.io sorter, the contract assistant): its tokens and what it cost, so
+// the month's spend is known before the next call is made and a call that
+// would overrun the allowance isn't.
+model AiUsage {
+  id               String   @id @default(uuid())
+  at               DateTime @default(now())
+  // assistant | frameio | contracts
+  feature          String
+  model            String
+  inputTokens      Int
+  outputTokens     Int
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  costUsd          Float
+  userId           String?
+
+  @@index([at])
+}
