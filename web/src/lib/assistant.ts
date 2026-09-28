@@ -56,7 +56,7 @@ export function mentioned<T extends { name: string }>(question: string, items: T
 
 // what a topic word in the question pulls in before Claude is asked
 export const TOPICS: { key: "workload" | "finance" | "contracts" | "performance"; test: RegExp }[] = [
-  { key: "workload", test: /\b(pending|workload|busy|busiest|overdue|open (tasks|work)|most work|on their plate|working on)\b/i },
+  { key: "workload", test: /\b(pending|workload|busy|busiest|overdue|open (tasks|work)|most work|on their plate|working on|attention|priorit\w*|at risk|today)\b/i },
   { key: "finance", test: /\b(financ\w*|invoice\w*|payment\w*|revenue|salar\w*|payroll|owe\w*|outstanding|paid|money|cash)\b/i },
   { key: "contracts", test: /\bcontracts?\b/i },
   { key: "performance", test: /\b(perform\w*|kpis?|grade|mistakes?|feedback|revisions?|turnaround|on time|quality)\b/i },

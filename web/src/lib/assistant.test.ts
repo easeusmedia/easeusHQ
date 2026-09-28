@@ -36,4 +36,5 @@ test("names are matched as whole words, by full name or first name", () => {
   assert.deepEqual(mentioned("What's the weather today?", clients), []);
   assert.deepEqual(mentioned("How is the broker account doing? And tego?", clients).map((c) => c.name), ["The Broker Brunch", "Dr Tego"]);
   assert.deepEqual(TOPICS.filter((t) => t.test.test("Who has the most pending work?")).map((t) => t.key), ["workload"]);
+  assert.deepEqual(TOPICS.filter((t) => t.test.test("What needs my attention today?")).map((t) => t.key), ["workload"]);
 });

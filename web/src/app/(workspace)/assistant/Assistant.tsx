@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUp, Check, Maximize2, Minimize2, Sparkles, SquarePen, X } from "lucide-react";
+import { ArrowUp, Check, Maximize2, Minimize2, SquarePen, X } from "lucide-react";
 import { ask, assistantUsage, confirmProposal } from "./actions";
 import type { Proposal } from "./proposals";
 
@@ -17,7 +17,14 @@ type Msg = {
 };
 
 const KEY = "hq.assistant.v1";
-const SUGGESTIONS = ["What is everyone working on?", "Who has the most pending work?", "How did the editors do this month?", "What's the financial status?"];
+const SUGGESTIONS = ["What needs my attention today?", "Who has the most pending work?", "How are the editors doing this month?", "What's the financial status?"];
+
+// Nyra's mark: her initial, in the accent
+function Mark({ size }: { size: "sm" | "md" }) {
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-lg bg-accent/15 font-semibold text-accent ${size === "sm" ? "size-5 text-[11px]" : "size-7 text-sm"}`}>N</span>
+  );
+}
 const EASE = "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
 
 // **bold** inside a line
@@ -37,7 +44,7 @@ function Inline({ text }: { text: string }) {
   );
 }
 
-// Just the markdown Claude writes back: paragraphs, lists, headings, tables.
+// Just the markdown Nyra writes back: paragraphs, lists, headings, tables.
 function Answer({ text }: { text: string }) {
   const lines = text.split("\n");
   const out: React.ReactNode[] = [];
@@ -100,7 +107,8 @@ function Answer({ text }: { text: string }) {
   return <div className="flex flex-col gap-2">{out}</div>;
 }
 
-// The admin's assistant: a button at the bottom right (or ⌘J) opens a panel
+// Nyra, the admin's assistant (Claude underneath): a button at the bottom
+// right (or ⌘J) opens a panel
 // over the page, which can go full screen. Answers come from Easeus HQ's
 // own data; anything it wants to change waits for Confirm.
 export function Assistant() {
@@ -170,7 +178,7 @@ export function Assistant() {
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "";
     setBusy(true);
-    const res = await ask(history, q).catch(() => ({ error: "Couldn't reach the assistant. Please try again." }) as Awaited<ReturnType<typeof ask>>);
+    const res = await ask(history, q).catch(() => ({ error: "Couldn't reach Nyra. Please try again." }) as Awaited<ReturnType<typeof ask>>);
     setBusy(false);
     if (res.error) return setMsgs((m) => [...m, { role: "assistant", text: res.error!, error: true }]);
     setMsgs((m) => [
@@ -202,8 +210,8 @@ export function Assistant() {
           open ? "pointer-events-none translate-y-2 opacity-0" : ""
         }`}
       >
-        <Sparkles size={15} className="text-accent" />
-        <span className="hidden sm:inline">Ask Claude</span>
+        <Mark size="sm" />
+        <span className="hidden sm:inline">Ask Nyra</span>
         <kbd className="hidden rounded bg-surface px-1 text-[10px] text-muted sm:inline">⌘J</kbd>
       </button>
 
@@ -213,20 +221,18 @@ export function Assistant() {
       />
 
       <aside
-        aria-label="Claude"
+        aria-label="Nyra"
         inert={!open}
         className={`fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-border bg-background/95 shadow-2xl backdrop-blur-xl transition-all ${EASE} ${
           full ? "inset-3 md:inset-10" : "bottom-3 right-3 top-3 w-[min(27rem,calc(100vw-1.5rem))]"
         } ${open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-10 opacity-0"}`}
       >
         <header className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-          <span className="grid size-7 place-items-center rounded-lg bg-accent/15 text-accent">
-            <Sparkles size={14} />
-          </span>
+          <Mark size="md" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Claude</p>
+            <p className="text-sm font-semibold">Nyra</p>
             <p className="truncate text-[11px] text-muted">
-              {spend ? `$${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)} used this month` : "Your Easeus HQ assistant"}
+              {spend ? `$${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)} used this month` : "Here to help"}
             </p>
           </div>
           {[
@@ -247,8 +253,11 @@ export function Assistant() {
             {msgs.length === 0 && (
               <div className="fade-in flex flex-col gap-4 pt-6">
                 <div>
-                  <p className="text-base font-semibold">What would you like to know?</p>
-                  <p className="mt-1 text-xs text-muted">Ask about anyone&apos;s work, a client, performance or money. I only see what&apos;s in Easeus HQ, and I ask before changing anything.</p>
+                  <p className="text-base font-semibold">Hi, I&apos;m Nyra.</p>
+                  <p className="mt-1 text-xs text-muted">
+                    I&apos;m here to help you and the whole team. Ask me about anyone&apos;s work, a client, how the editors are doing or money, and I&apos;ll find it for you. I only see
+                    what&apos;s in Easeus HQ, and I always ask before changing anything.
+                  </p>
                 </div>
                 <div className="flex flex-col gap-2">
                   {SUGGESTIONS.map((s) => (
@@ -318,7 +327,7 @@ export function Assistant() {
                 <span className="size-1.5 animate-pulse rounded-full bg-accent" />
                 <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:150ms]" />
                 <span className="size-1.5 animate-pulse rounded-full bg-accent [animation-delay:300ms]" />
-                <span className="ml-1">Looking it up</span>
+                <span className="ml-1">Nyra is looking into it</span>
               </div>
             )}
             <div ref={endRef} />
