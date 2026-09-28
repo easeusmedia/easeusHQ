@@ -40,7 +40,7 @@ export default async function ContractsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contracts</h1>
-          <p className="mt-1.5 text-sm text-muted">Send a short form, shape the terms with Claude, approve, and send for e-signature.</p>
+          <p className="mt-1.5 text-sm text-muted">Send a short form, shape the terms with Nyra, approve, and send for e-signature.</p>
         </div>
         <div className="flex gap-2">
           <Link href="/contracts/template" className="btn btn-ghost flex items-center gap-1.5">

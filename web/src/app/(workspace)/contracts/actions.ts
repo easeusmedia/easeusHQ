@@ -194,7 +194,7 @@ export async function chatContract(
     done();
     return res;
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Claude couldn't answer just now." };
+    return { error: err instanceof Error ? err.message : "Nyra couldn't answer just now." };
   }
 }
 

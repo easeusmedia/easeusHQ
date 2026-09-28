@@ -578,3 +578,63 @@ dialog[open]::backdrop {
     animation: none;
   }
 }
+
+/* Nyra's launcher: a soft light that travels round its edge, with a blurred
+   halo behind it that brightens on hover. The angle is a registered
+   property so the gradient itself can turn, smoothly, in pure CSS. Still
+   for anyone who's asked their system for less motion. */
+@property --nyra-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+/* positioned by its own classes (fixed, in the corner), which also anchor
+   the light and halo drawn round it */
+.nyra-glow {
+  isolation: isolate;
+  border-radius: 9999px;
+}
+.nyra-glow::before,
+.nyra-glow::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--nyra-angle),
+    transparent 0deg,
+    rgba(75, 149, 230, 0.15) 40deg,
+    rgba(75, 149, 230, 0.95) 110deg,
+    rgba(186, 214, 255, 0.95) 140deg,
+    rgba(75, 149, 230, 0.15) 200deg,
+    transparent 260deg
+  );
+  animation: nyra-orbit 4s linear infinite;
+}
+/* the light on the rim */
+.nyra-glow::before {
+  inset: -2px;
+  z-index: -1;
+}
+/* the halo behind it */
+.nyra-glow::after {
+  inset: -8px;
+  z-index: -2;
+  filter: blur(14px);
+  opacity: 0.75;
+  transition: opacity 0.4s ease;
+}
+.nyra-glow:hover::after {
+  opacity: 1;
+}
+@keyframes nyra-orbit {
+  to {
+    --nyra-angle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nyra-glow::before,
+  .nyra-glow::after {
+    animation: none;
+  }
+}

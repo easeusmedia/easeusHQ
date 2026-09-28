@@ -421,7 +421,7 @@ export function ContractEditor({
             {(
               [
                 { key: "form", label: "Form", Icon: ListChecks },
-                { key: "chat", label: "Ask Claude", Icon: Sparkles },
+                { key: "chat", label: "Ask Nyra", Icon: Sparkles },
               ] as const
             ).map(({ key, label, Icon }) => (
               <button

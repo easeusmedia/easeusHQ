@@ -126,7 +126,7 @@ export function ContractChat({
       <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3">
         <Avatar />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Claude</p>
+          <p className="text-sm font-medium">Nyra</p>
           <p className="text-xs text-muted">Add or change anything: clauses, wording or terms</p>
         </div>
         {chat.length > 0 && (

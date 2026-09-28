@@ -27,10 +27,8 @@ const partOfDay = () => {
 };
 
 // Nyra's mark: sparkles, in the accent
-function Mark({ size }: { size: "sm" | "md" }) {
-  return size === "sm" ? (
-    <Sparkles size={15} className="shrink-0 text-accent" />
-  ) : (
+function Mark() {
+  return (
     <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent">
       <Sparkles size={14} />
     </span>
@@ -215,16 +213,19 @@ export function Assistant({ name }: { name: string }) {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className={`fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-border bg-surface-2/90 px-3.5 py-2.5 text-sm shadow-xl backdrop-blur transition-[opacity,translate,border-color] ${EASE} hover:border-hover ${
-          open ? "pointer-events-none translate-y-2 opacity-0" : ""
-        }`}
+      {/* the light round the edge lives on the wrapper, behind the button */}
+      <span
+        className={`nyra-glow fixed bottom-5 right-5 z-40 transition-[opacity,translate] ${EASE} ${open ? "pointer-events-none translate-y-2 opacity-0" : ""}`}
       >
-        <Mark size="sm" />
-        <span className="hidden sm:inline">Ask Nyra</span>
-        <kbd className="hidden rounded bg-surface px-1 text-[10px] text-muted sm:inline">⌘J</kbd>
-      </button>
+        <button
+          onClick={() => setOpen(true)}
+          className="group flex items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2.5 text-sm shadow-xl transition-transform duration-200 hover:scale-[1.03] active:scale-[0.97]"
+        >
+          <Sparkles size={15} className="shrink-0 text-accent transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+          <span className="hidden sm:inline">Ask Nyra</span>
+          <kbd className="hidden rounded bg-surface px-1 text-[10px] text-muted sm:inline">⌘J</kbd>
+        </button>
+      </span>
 
       <div
         onClick={() => setFull(false)}
@@ -239,7 +240,7 @@ export function Assistant({ name }: { name: string }) {
         } ${open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-10 opacity-0"}`}
       >
         <header className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-          <Mark size="md" />
+          <Mark />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Nyra</p>
             <p className="truncate text-[11px] text-muted">
