@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ListChecks } from "lucide-react";
 import type { TaskStatus, Role } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { Avatar, type TaskCardData } from "../TaskCard";
@@ -19,11 +20,11 @@ export type TaskEnv = {
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const SHOWN = 3;
 
-// The month as one panel of days. Each day shows the first few tasks the
-// team was carrying (a dot in each one's stage colour) and how many more;
-// a task opens its full window, a day opens its whole list.
+// The month as one panel of days. Each day says in a line what it holds —
+// for now, how many open tasks the team carried — so it stays readable as
+// meetings and events join it later; the day itself opens the whole list,
+// and a task in that list opens its full window.
 //
 // UTC-based date math throughout (see TaskCard's formatDate) so the grid
 // renders the same on the server and after hydration.
@@ -101,38 +102,27 @@ export function CalendarGrid({
                 key={i}
                 role={entries.length ? "button" : undefined}
                 tabIndex={entries.length ? 0 : undefined}
+                aria-current={isToday ? "date" : undefined}
                 onClick={() => entries.length > 0 && showDay(key)}
                 onKeyDown={(e) => e.key === "Enter" && entries.length > 0 && showDay(key)}
-                className={`group flex min-h-28 flex-col gap-1.5 p-2 text-left transition-colors duration-150 ${edges} ${
-                  entries.length ? "cursor-pointer hover:bg-white/[0.03]" : ""
-                } ${future ? "opacity-50" : ""}`}
+                className={`flex min-h-24 flex-col gap-2 p-2 text-left transition-colors duration-150 ${edges} ${
+                  isToday ? "bg-accent/[0.07] shadow-[inset_0_0_0_1px_rgba(75,149,230,0.45)]" : ""
+                } ${entries.length ? "cursor-pointer hover:bg-white/[0.03]" : ""} ${future ? "opacity-50" : ""}`}
               >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${
-                      isToday ? "bg-accent font-semibold text-white" : "text-muted"
-                    }`}
-                  >
-                    {day}
+                <span
+                  className={`flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${
+                    isToday ? "bg-accent font-semibold text-white" : "text-muted"
+                  }`}
+                >
+                  {day}
+                </span>
+                {/* one line per kind of thing on the day */}
+                {entries.length > 0 && (
+                  <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-foreground/85">
+                    <ListChecks size={12} className="text-sky-400" />
+                    {entries.length} task{entries.length === 1 ? "" : "s"}
                   </span>
-                  {entries.length > 0 && <span className="pr-1 text-[11px] tabular-nums text-muted/70">{entries.length}</span>}
-                </div>
-                {entries.slice(0, SHOWN).map((e) => (
-                  <button
-                    key={e.taskId}
-                    type="button"
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      showTask(e.taskId);
-                    }}
-                    title={`${e.clientName} · ${e.title}`}
-                    className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-[11px] text-foreground/85 transition-colors hover:bg-white/[0.06]"
-                  >
-                    <span className={`size-1.5 shrink-0 rounded-full ${STAGE[e.status].dot}`} />
-                    <span className="truncate">{e.title}</span>
-                  </button>
-                ))}
-                {entries.length > SHOWN && <span className="px-1.5 text-[11px] text-muted">+{entries.length - SHOWN} more</span>}
+                )}
               </div>
             );
           })}
@@ -150,10 +140,11 @@ export function CalendarGrid({
       >
         <div className="px-5 pb-3 pt-5">
           <p className="text-base font-medium">{selectedLabel}</p>
-          <p className="mt-0.5 text-xs text-muted">
-            {selectedEntries.length} open task{selectedEntries.length === 1 ? "" : "s"}
-          </p>
         </div>
+        <p className="flex items-center gap-1.5 px-5 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted/70">
+          <ListChecks size={12} className="text-sky-400" />
+          Tasks · {selectedEntries.length}
+        </p>
         <ul className="max-h-96 divide-y divide-white/[0.05] overflow-y-auto border-y border-white/[0.06]">
           {selectedEntries.map((e) => (
             <li key={e.taskId}>

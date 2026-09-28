@@ -106,12 +106,12 @@ export function IntakeForm({ token }: { token: string }) {
     const to = f.signsSelf ? f.contactEmail : f.signatory.email;
     return (
       <div className="fade-in flex flex-col items-start">
-        <span className="flex size-11 items-center justify-center rounded-full bg-[#4b95e6]/15 text-[#9fc4f0]">
+        <span className="badge-lit emerald flex size-11 items-center justify-center rounded-2xl">
           <Check size={20} />
         </span>
-        <h1 className="mt-6 text-[24px] font-normal tracking-tight">Thank you, {greetingName(f.contactName)}.</h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-white/50">
-          We have your details. Your agreement will be sent to <span className="text-white/80">{to.trim()}</span> for e-signature shortly.
+        <h1 className="mt-6 text-[26px] font-semibold tracking-tight">Thank you, {greetingName(f.contactName)}.</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          We have your details. Your agreement will be sent to <span className="text-foreground">{to.trim()}</span> for e-signature shortly.
         </p>
       </div>
     );
@@ -119,8 +119,8 @@ export function IntakeForm({ token }: { token: string }) {
 
   return (
     <form onSubmit={submit} noValidate className="fade-in flex flex-col">
-      <h1 className="text-[24px] font-normal tracking-tight">A few details for your agreement</h1>
-      <p className="mt-1.5 text-[13.5px] text-white/45">Takes less than a minute.</p>
+      <h1 className="text-[26px] font-semibold tracking-tight">A few details for your agreement</h1>
+      <p className="mt-1.5 text-sm text-muted">It takes less than a minute.</p>
 
       <div className="mt-8 flex flex-col gap-5">
         <div className="grid gap-5 sm:grid-cols-2">
@@ -155,7 +155,7 @@ export function IntakeForm({ token }: { token: string }) {
         </Field>
 
         <Field label="Who signs the agreement?">
-          <div className="grid grid-cols-2 rounded-lg border border-white/[0.06] bg-[#151515] p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-xl panel-soft p-1">
             {[
               { self: true, label: "I'll sign it" },
               { self: false, label: "Someone else" },
@@ -165,8 +165,8 @@ export function IntakeForm({ token }: { token: string }) {
                 type="button"
                 aria-pressed={f.signsSelf === o.self}
                 onClick={() => set({ signsSelf: o.self })}
-                className={`h-9 rounded-md text-[13px] transition-colors duration-200 ${
-                  f.signsSelf === o.self ? "bg-[#4b95e6]/15 text-[#c4daf6]" : "text-white/50 hover:text-white/80"
+                className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
+                  f.signsSelf === o.self ? "selected" : "border border-transparent text-muted hover:text-foreground"
                 }`}
               >
                 {o.label}
@@ -186,19 +186,19 @@ export function IntakeForm({ token }: { token: string }) {
         )}
       </div>
 
-      {problem && <p className="fade-in mt-6 text-[12.5px] text-[#e59a9a]">{problem}</p>}
+      {problem && <p className="fade-in mt-6 text-xs text-red-300">{problem}</p>}
 
       <button
         type="submit"
         disabled={sending}
-        className="mt-9 h-11 rounded-lg bg-[#4b95e6] text-[13.5px] font-medium text-[#0b1220] transition-colors duration-200 hover:bg-[#63a4ec] disabled:opacity-60"
+        className="btn-primary mt-9 h-11 rounded-xl text-sm font-semibold disabled:opacity-60"
       >
         {sending ? "Sending…" : "Send details"}
       </button>
 
-      <p className="mt-7 text-center text-[11.5px] text-white/30">
+      <p className="mt-7 text-center text-xs text-muted/70">
         Only used for your agreement ·{" "}
-        <a href="/privacy" target="_blank" className="text-white/50 hover:text-white/80">
+        <a href="/privacy" target="_blank" className="text-foreground/70 hover:text-foreground">
           Privacy Policy
         </a>
       </p>
@@ -221,21 +221,19 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[12.5px] text-white/80">
+      <span className="text-[13px] text-foreground/85">
         {label}
-        {required && <span className="ml-0.5 text-[#4b95e6]"> *</span>}
+        {required && <span className="ml-0.5 text-accent"> *</span>}
       </span>
       {children}
-      {error ? <span className="fade-in text-[12px] text-[#e59a9a]">{error}</span> : hint && <span className="text-[12px] text-white/35">{hint}</span>}
+      {error ? <span className="fade-in text-xs text-red-300">{error}</span> : hint && <span className="text-xs text-muted/70">{hint}</span>}
     </div>
   );
 }
 
 const inputClass = (invalid: boolean) =>
-  `w-full rounded-lg border bg-[#151515] px-3.5 text-[13.5px] text-white/90 outline-none! transition-[border-color,box-shadow] duration-200 placeholder:text-white/25 focus:bg-[#171717] ${
-    invalid
-      ? "border-[#e59a9a]/50 focus:shadow-[0_0_0_4px_rgba(229,154,154,0.10)]"
-      : "border-white/[0.06] hover:border-white/[0.14] focus:border-[#4b95e6]/70 focus:shadow-[0_0_0_4px_rgba(75,149,230,0.12)]"
+  `w-full rounded-xl border bg-white/[0.025] px-3.5 text-sm text-foreground outline-none! transition-colors duration-200 placeholder:text-muted/60 ${
+    invalid ? "border-red-400/50" : "border-white/[0.08] hover:border-white/[0.14] focus:border-accent/60"
   }`;
 
 function Input({
@@ -324,7 +322,7 @@ function CountryPicker({ value, onChange, invalid }: { value: string; onChange: 
           id="countries"
           ref={listRef}
           role="listbox"
-          className="fade-in absolute inset-x-0 top-full z-20 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-white/[0.08] bg-[#141414] p-1 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.8)]"
+          className="fade-in popover absolute inset-x-0 top-full z-20 mt-1.5 max-h-64 overflow-y-auto rounded-xl p-1"
         >
           {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No matches</li>}
           {shown.map((n, i) => (
@@ -342,7 +340,7 @@ function CountryPicker({ value, onChange, invalid }: { value: string; onChange: 
               } ${!query && i === FIRST.length - 1 ? "mb-1 border-b border-white/[0.06] pb-2.5" : ""}`}
             >
               {n}
-              {n === value && <Check size={13} className="text-[#4b95e6]" />}
+              {n === value && <Check size={13} className="text-accent" />}
             </li>
           ))}
         </ul>
@@ -422,14 +420,14 @@ function DialPicker({ iso, onChange }: { iso: string; onChange: (iso: string) =>
         }}
         aria-label="WhatsApp country code"
         aria-expanded={open}
-        className="flex h-11 items-center gap-1.5 rounded-lg border border-white/[0.06] bg-[#151515] px-3 text-[13.5px] text-white/90 transition-colors hover:border-white/[0.14]"
+        className="flex h-11 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 text-sm text-foreground transition-colors hover:border-white/[0.14]"
       >
         <span className="text-base leading-none">{iso ? flag(iso) : "🌐"}</span>
         <span className="tabular-nums">{iso ? `+${DIAL[iso]}` : "+"}</span>
         <ChevronDown size={14} className="text-white/40" />
       </button>
       {open && (
-        <div className="fade-in absolute left-0 top-full z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141414] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.8)]">
+        <div className="fade-in popover absolute left-0 top-full z-20 mt-1.5 w-72 overflow-hidden rounded-xl">
           <input
             autoFocus
             value={query}

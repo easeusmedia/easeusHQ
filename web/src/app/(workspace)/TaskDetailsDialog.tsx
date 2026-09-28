@@ -117,6 +117,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const tucked = [scheduled, internal].filter(Boolean).length;
 
   const canManage = actingRole === "admin" || actingRole === "core";
+  // once it's delivered, the raw files and the Frame.io review are deleted:
+  // the final Drive link is the only file left to show
+  const delivered = task.status === "delivered_and_uploaded";
   const isAssignee = task.assignedTo?.id === actingUserId;
   // only while it's actually under review — that's the one window an
   // editor has anything to fix on their own submission
@@ -356,14 +359,25 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     edit anything, so all of them are always here. Reference
                     and Assets only when the task has one (from Notion). */}
                 <div className="overflow-hidden rounded-xl bg-foreground/[0.03]">
-                  <LinkRow icon={<Link2 size={13} className="text-blue-400" />} label="Raw footage" name="rawLink" value={task.rawLink} placeholder="Google Drive link" />
-                  <LinkRow icon={<Clapperboard size={13} className="text-violet-400" />} label="Frame.io" name="frameioLink" value={task.frameioLink} placeholder="https://f.io/…" />
-                  <LinkRow icon={<FolderCheck size={13} className="text-emerald-400" />} label="Final Drive" name="driveLink" value={task.driveLink} placeholder="Google Drive link" />
-                  {task.referenceLink !== null && (
-                    <LinkRow icon={<BookOpen size={13} className="text-amber-400" />} label="Reference" name="referenceLink" value={task.referenceLink} />
-                  )}
-                  {task.assetLink !== null && (
-                    <LinkRow icon={<Package size={13} className="text-rose-400" />} label="Assets" name="assetLink" value={task.assetLink} />
+                  {delivered ? (
+                    <>
+                      {/* saving reads the raw link whether or not it's shown,
+                          so it rides along unchanged rather than being wiped */}
+                      <input type="hidden" name="rawLink" value={task.rawLink ?? ""} />
+                      <LinkRow icon={<FolderCheck size={13} className="text-emerald-400" />} label="Final Drive" name="driveLink" value={task.driveLink} placeholder="Google Drive link" />
+                    </>
+                  ) : (
+                    <>
+                      <LinkRow icon={<Link2 size={13} className="text-blue-400" />} label="Raw footage" name="rawLink" value={task.rawLink} placeholder="Google Drive link" />
+                      <LinkRow icon={<Clapperboard size={13} className="text-violet-400" />} label="Frame.io" name="frameioLink" value={task.frameioLink} placeholder="https://f.io/…" />
+                      <LinkRow icon={<FolderCheck size={13} className="text-emerald-400" />} label="Final Drive" name="driveLink" value={task.driveLink} placeholder="Google Drive link" />
+                      {task.referenceLink !== null && (
+                        <LinkRow icon={<BookOpen size={13} className="text-amber-400" />} label="Reference" name="referenceLink" value={task.referenceLink} />
+                      )}
+                      {task.assetLink !== null && (
+                        <LinkRow icon={<Package size={13} className="text-rose-400" />} label="Assets" name="assetLink" value={task.assetLink} />
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -387,6 +401,18 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                   </div>
                 )}
                 <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} createdAt={task.createdAt} />
+                {delivered ? (
+                  <div>
+                    <p className="mb-1 text-xs text-muted">Final Drive</p>
+                    {task.driveLink ? (
+                      <a href={task.driveLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 underline underline-offset-2">
+                        {task.driveLink}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted">None</p>
+                    )}
+                  </div>
+                ) : (
                 <div>
                   <p className="mb-1 text-xs text-muted">Raw footage</p>
                   {task.rawLink ? (
@@ -397,6 +423,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     <p className="text-sm text-muted">None</p>
                   )}
                 </div>
+                )}
                 <div className="flex items-center gap-1.5 text-sm text-muted">
                   <NotesGlyph size={14} />
                   Editing notes
@@ -413,7 +440,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     className="rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
                   />
                 ) : (
-                  (canEditFrameio || task.frameioLink) && (
+                  !delivered && (canEditFrameio || task.frameioLink) && (
                     <div className="group/link">
                       <p className="mb-1 text-xs text-muted">Frame.io</p>
                       <div className="flex items-center gap-2">

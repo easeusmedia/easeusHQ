@@ -22,8 +22,8 @@ export default async function StartPage({ params }: { params: Promise<{ token: s
   if (!contract) {
     return (
       <Shell>
-        <h1 className="text-[24px] font-normal tracking-tight">This link isn&apos;t valid</h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-white/50">Ask your contact at Easeus Media for a new link.</p>
+        <h1 className="text-[26px] font-semibold tracking-tight">This link isn&apos;t valid</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">Ask your contact at Easeus Media for a new link.</p>
       </Shell>
     );
   }
@@ -40,14 +40,15 @@ export default async function StartPage({ params }: { params: Promise<{ token: s
           ? `Your agreement is on its way. Look out for Adobe's email${to ? ` to ${to}` : ""} to sign it.`
           : `We have your details. Your agreement will be sent${to ? ` to ${to}` : ""} for e-signature shortly.`;
     return (
-      <Shell>
+      // where they are: signed (every step done), sent (signing), or with us
+      <Shell step={contract.status === "signed" ? 4 : contract.status === "sent" ? 3 : 2}>
         <div className="fade-in flex flex-col items-start">
-          <span className="flex size-11 items-center justify-center rounded-full bg-[#4b95e6]/15 text-[#9fc4f0]">
+          <span className="badge-lit emerald flex size-11 items-center justify-center rounded-2xl">
             <Check size={20} />
           </span>
-          <h1 className="mt-6 text-[24px] font-normal tracking-tight">{first ? `Thank you, ${first}.` : "Thank you."}</h1>
-          <p className="mt-2 text-[14px] leading-relaxed text-white/50">{note}</p>
-          <p className="mt-6 text-[12.5px] text-white/35">Anything to change? Just message your contact at Easeus Media.</p>
+          <h1 className="mt-6 text-[26px] font-semibold tracking-tight">{first ? `Thank you, ${first}.` : "Thank you."}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{note}</p>
+          <p className="mt-6 text-xs text-muted/70">Anything to change? Just message your contact at Easeus Media.</p>
         </div>
       </Shell>
     );
