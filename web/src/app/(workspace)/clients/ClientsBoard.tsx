@@ -175,7 +175,7 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
               setDraggingId(null);
               setPreview(null);
             }}
-            className={`transition-opacity ${canArrange ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === client.id ? "opacity-40" : ""}`}
+            className={`transition-opacity ${view === "grid" ? "h-full" : ""} ${canArrange ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === client.id ? "opacity-40" : ""}`}
           >
             {view === "grid" ? (
               <ClientCard client={client} onStatusChange={commitStatus} />

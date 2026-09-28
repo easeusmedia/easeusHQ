@@ -54,35 +54,36 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
     <PrefetchLink
       href={clientHref(client)}
       draggable={false}
-      className="group relative flex min-w-0 flex-col gap-6 overflow-hidden panel panel-hover rounded-3xl p-5 hover:-translate-y-0.5"
+      // h-full: every card in a row the same height, its numbers on one line at the foot
+      className="group relative flex h-full min-w-0 flex-col gap-4 overflow-hidden panel panel-hover rounded-3xl p-5 hover:-translate-y-0.5"
     >
       {/* the soft glow on the ones with work in hand */}
       {client.activeProjects + client.activeTasks > 0 && <div className="glass-glow" />}
-      <div className="relative flex items-start gap-3.5">
+
+      <div className="relative flex items-center gap-3.5">
         <span className="shrink-0 rounded-full ring-1 ring-white/10 ring-offset-2 ring-offset-[#15181c]">
           <Face client={client} size={44} />
         </span>
-        {/* leading-6: `truncate` clips the line box, and a tighter one cut
+        {/* the whole width for the name: nothing else shares its line.
+            leading-6: `truncate` clips the line box, and a tighter one cut
             the descenders off names like "Courageous Leaders" */}
-        <div className="min-w-0 flex-1 pt-0.5">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-medium leading-6 tracking-tight">{client.name}</p>
           {client.niche && <p className="truncate text-xs leading-5 text-muted">{client.niche}</p>}
         </div>
-        <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
       </div>
 
-      <div className="relative mt-auto flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <Stat n={client.activeProjects} one="active project" many="active projects" Icon={Clapperboard} />
-          <Stat n={client.activeTasks} one="open task" many="open tasks" Icon={ListChecks} />
-        </div>
-        {client.tags.length > 0 && (
-          <div className="flex shrink-0 gap-1">
-            {client.tags.slice(0, 2).map((t) => (
-              <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
-            ))}
-          </div>
-        )}
+      {/* where they stand: the status, and the plan beside it */}
+      <div className="relative -ml-2 flex min-h-7 flex-wrap items-center gap-1.5">
+        <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
+        {client.tags.slice(0, 2).map((t) => (
+          <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
+        ))}
+      </div>
+
+      <div className="relative mt-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/[0.05] pt-3.5">
+        <Stat n={client.activeProjects} one="active project" many="active projects" Icon={Clapperboard} />
+        <Stat n={client.activeTasks} one="open task" many="open tasks" Icon={ListChecks} />
       </div>
     </PrefetchLink>
   );
