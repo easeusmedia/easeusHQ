@@ -157,12 +157,19 @@ async function editorLine(id: string, name: string, month: string) {
   const k = editorKpis(...data.slice(month, id), targets, monthShare(month, today()));
   const cats = k.byCategory.map(([c, n]) => `${c} ${n}`).join(", ");
   const pending = data.entries.filter((e) => !e.reviewed && e.kind === "mistake" && e.day.startsWith(month)).length;
+  // each part says what it measures, so it can't be misread
+  const MEANS: Record<Part, string> = {
+    quality: "mistakes per video, fewer is better",
+    deadlines: `% of first drafts on time, from ${k.rated} video${k.rated === 1 ? "" : "s"} with a due date`,
+    revisions: "times sent back per video, fewer is better",
+    output: "weighted videos delivered",
+  };
   const parts = (Object.keys(PART_LABEL) as Part[])
-    .map((p) => `${PART_LABEL[p].toLowerCase()} ${partText(p, k)} (aim ${k.parts[p].target}, ${k.parts[p].points ?? "–"} of 100, counts ${k.parts[p].weight}%)`)
-    .join(" · ");
+    .map((p) => `${PART_LABEL[p]}: ${partText(p, k)} ${MEANS[p]} (aim ${k.parts[p].target}; scores ${k.parts[p].points ?? "–"} of 100; counts ${k.parts[p].weight}%)`)
+    .join("\n");
   return [
     `${name}, ${month}${month === today().slice(0, 7) ? " so far" : ""}: score ${k.score ?? "–"} of 100, grade ${k.grade ?? "–"} · delivered ${k.delivered} (${k.units} weighted)`,
-    `Parts: ${parts}`,
+    parts,
     `Confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · sent back ${k.internalRevisions} times by our review, ${k.clientRevisions} by clients · typical time to a first draft ${k.draftHours === null ? "unknown" : hoursLabel(k.draftHours)}`,
     k.late.length ? `First drafts late: ${k.late.join("; ")}` : "",
     pending ? `Frame.io mistakes waiting for ops to confirm (not counted yet): ${pending}` : "",
@@ -181,7 +188,13 @@ async function person({ who }: { who: string }) {
   ]);
   const record = [
     `${ref(p.id)} · ${p.name} · ${p.jobTitle?.name ?? "no position"} · ${displayTeam(p)?.name ?? "no department"} · access ${p.role} · ${p.employment}`,
-    [p.email, p.phone, p.joinedAt && `joined ${indiaDay(p.joinedAt)}`, p.employmentType && EMPLOYMENT_TYPE_LABEL[p.employmentType], p.salary && `salary ₹${Number(p.salary).toLocaleString("en-IN")}/month`]
+    [
+      p.email,
+      p.phone,
+      p.joinedAt && `joined ${indiaDay(p.joinedAt)} (${Math.floor((Date.now() - p.joinedAt.getTime()) / (30.44 * 86_400_000))} months ago)`,
+      p.employmentType && EMPLOYMENT_TYPE_LABEL[p.employmentType],
+      p.salary && `salary ₹${Number(p.salary).toLocaleString("en-IN")}/month`,
+    ]
       .filter(Boolean)
       .join(" · "),
     p.notes ? `notes: ${clipText(p.notes, 200)}` : "",
