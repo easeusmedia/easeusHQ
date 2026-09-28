@@ -15,8 +15,7 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
     <div className="flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
       <div className="panel flex w-full max-w-[1120px] rounded-none lg:min-h-[640px] lg:rounded-[28px] lg:p-2.5">
         <aside className="relative hidden w-[44%] shrink-0 flex-col overflow-hidden rounded-[20px] panel-soft p-8 lg:flex">
-          {/* one soft wash of the accent in the corner, as on a lit card */}
-          <div className="glass-glow" />
+          <Lines />
           <div className="relative flex items-center gap-2">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
             <span className="text-[13px] font-medium tracking-tight">Easeus Media</span>
@@ -62,6 +61,33 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
           <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center">{children}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Drawn, not photographed: fine lines leaning in like a façade seen from
+// below, a soft blue light rising behind them and a little grain. It fills
+// the top of the panel and fades out before the words, so they stay calm.
+function Lines() {
+  const grain =
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")";
+  const fade = "linear-gradient(to bottom, transparent 0%, black 22%, black 48%, transparent 72%)";
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(80% 45% at 50% 30%, rgba(75,149,230,0.22) 0%, rgba(75,149,230,0.06) 45%, transparent 70%)" }}
+      />
+      <div
+        className="absolute -inset-x-1/4 top-[-12%] bottom-[30%] origin-bottom"
+        style={{
+          background: "repeating-linear-gradient(90deg, rgba(255,255,255,0.075) 0 1px, transparent 1px 18px)",
+          transform: "perspective(900px) rotateX(24deg)",
+          maskImage: fade,
+          WebkitMaskImage: fade,
+        }}
+      />
+      <div className="absolute inset-0 opacity-[0.14] mix-blend-overlay" style={{ backgroundImage: grain }} />
     </div>
   );
 }
