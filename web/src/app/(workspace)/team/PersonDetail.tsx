@@ -17,6 +17,7 @@ import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { seesEveryTeam } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
+import { GradeBadge, TargetDot } from "../performance/ui";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 const labelCls = "flex min-w-0 flex-col gap-1 text-xs text-muted";
@@ -466,18 +467,32 @@ export function PersonDetail({
           )}
         </Section>
 
-        <Section
-          title="Performance"
-          aside={
-            person.shownTeam === "editors" ? (
-              <Link href="/performance" className="flex items-center gap-1 hover:text-foreground">
-                Last 30 days · Editor KPIs <ArrowUpRight size={12} />
+        {person.editorKpi ? (
+          <Section
+            title="Performance"
+            aside={
+              <Link href={`/performance/${person.id}`} className="flex items-center gap-1 hover:text-foreground">
+                This month · Full details <ArrowUpRight size={12} />
               </Link>
-            ) : (
-              "Last 30 days"
-            )
-          }
-        >
+            }
+          >
+            <div className="flex items-center gap-3">
+              <GradeBadge grade={person.editorKpi.grade} />
+              <div className="grid flex-1 grid-cols-5 gap-2">
+                {person.editorKpi.rows.map((r) => (
+                  <div key={r.label} className="min-w-0 rounded-xl border border-border bg-surface-2/50 px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-base font-semibold tabular-nums">
+                      {r.text}
+                      <TargetDot ok={r.ok} />
+                    </span>
+                    <span className="block truncate text-xs text-muted">{r.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+        ) : (
+        <Section title="Performance" aside="Last 30 days">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat value={p.completed} label="Finished" lit={p.completed > 0} />
             <Stat value={p.onTimePct === null ? "–" : `${p.onTimePct}%`} label="On time" lit={p.onTimePct !== null} />
@@ -485,6 +500,7 @@ export function PersonDetail({
             <Stat value={p.completed ? p.revisionsPerTask : "–"} label="Revisions per task" lit={p.completed > 0} />
           </div>
         </Section>
+        )}
 
         {/* everything they've ever finished lives on History, filtered to them */}
         <Link

@@ -228,13 +228,22 @@ export function Sidebar({
             { href: "/calendar", label: "Calendar", hint: "The team's workload, day by day", Icon: CalendarDays },
             // every client's YouTube and Instagram views in one place
             { href: "/analytics", label: "Analytics", hint: "Performance across every client", Icon: ChartColumn },
+          ]
+        : [],
+    },
+    // Running the company rather than the work: people, how they're doing,
+    // money, and client agreements
+    {
+      label: "Admin",
+      items: isOps
+        ? [
+            // core members see their own team here (read-only); admin edits everyone
+            { href: "/team", label: "Employees", hint: "Everyone's record and current work", Icon: UsersRound },
+            // the editors' monthly numbers against the targets admin sets
+            { href: "/performance", label: "Performance", hint: "Editor KPIs and feedback", Icon: Gauge },
+            ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),
             // client contracts, from the form to the signed copy
             { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting },
-            ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),
-            // the editors' monthly numbers against the targets admin sets
-            { href: "/performance", label: "Performance", hint: "Editor KPIs against their targets", Icon: Gauge },
-            // core members see their own team here (read-only); admin edits everyone
-            { href: "/team", label: "Team", hint: "Your people and their roles", Icon: UsersRound },
           ]
         : [],
     },

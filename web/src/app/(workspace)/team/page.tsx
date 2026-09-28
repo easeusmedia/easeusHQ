@@ -10,6 +10,8 @@ import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
+import { editorKpis } from "@/lib/editorKpi";
+import { headline, kpiTargets, loadPerformance } from "../performance/data";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +77,14 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   ]);
 
   const dueOf = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+  // editors are read by the numbers on their Performance page, this month
+  const [kpiData, targets] = await Promise.all([loadPerformance(today.slice(0, 7), 1), kpiTargets()]);
+  const editorKpiFor = (id: string) => {
+    if (!kpiData.editors.some((e) => e.id === id)) return null;
+    const k = editorKpis(...kpiData.slice(today.slice(0, 7), id));
+    return { grade: k.grade, rows: headline(k, targets).map(({ label, text, ok }) => ({ label, text, ok })) };
+  };
 
   // What's in flight right now — the first question this page answers.
   const currentFor = (id: string): TaskEntry[] => [
@@ -147,6 +157,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     current: currentFor(p.id),
     overdue: currentFor(p.id).filter((t) => t.due && t.due < today).length,
     performance: performanceFor(p.id),
+    editorKpi: editorKpiFor(p.id),
   }));
 
   return (
