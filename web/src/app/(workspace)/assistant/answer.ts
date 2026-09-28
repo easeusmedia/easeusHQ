@@ -87,6 +87,9 @@ async function lookAhead(q: string, r: Awaited<ReturnType<typeof roster>>): Prom
     if (/\b(mistakes?|feedback|comments?)\b/i.test(q)) for (const p of people) parts.push(feedbackOf({ person: p.id }));
   }
   if (topics.has("workload") && !people.length) parts.push(overviewOf({ topic: "workload" }));
+  // "what needs my attention", "what's overdue": the list itself, so it's
+  // answered in one call instead of a second one to fetch it
+  if (/\b(attention|overdue|late|priorit\w*|at risk|today|urgent)\b/i.test(q) && !people.length) parts.push(runTool("tasks", { state: "overdue" }));
   // open tasks named in the question, so a change can be proposed at once
   parts.push(namedTasks(q));
   if (topics.has("finance")) parts.push(overviewOf({ topic: "finance" }));

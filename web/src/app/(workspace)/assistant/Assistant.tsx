@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUp, Check, Maximize2, Minimize2, SquarePen, X } from "lucide-react";
+import { ArrowUp, Check, Maximize2, Minimize2, Sparkles, SquarePen, X } from "lucide-react";
 import { ask, assistantUsage, confirmProposal } from "./actions";
 import type { Proposal } from "./proposals";
 
@@ -19,10 +19,14 @@ type Msg = {
 const KEY = "hq.assistant.v1";
 const SUGGESTIONS = ["What needs my attention today?", "Who has the most pending work?", "How are the editors doing this month?", "What's the financial status?"];
 
-// Nyra's mark: her initial, in the accent
+// Nyra's mark: sparkles, in the accent
 function Mark({ size }: { size: "sm" | "md" }) {
-  return (
-    <span className={`grid shrink-0 place-items-center rounded-lg bg-accent/15 font-semibold text-accent ${size === "sm" ? "size-5 text-[11px]" : "size-7 text-sm"}`}>N</span>
+  return size === "sm" ? (
+    <Sparkles size={15} className="shrink-0 text-accent" />
+  ) : (
+    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent">
+      <Sparkles size={14} />
+    </span>
   );
 }
 const EASE = "duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
@@ -251,7 +255,7 @@ export function Assistant() {
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className={`mx-auto flex flex-col gap-5 px-4 py-5 text-sm leading-relaxed ${full ? "max-w-3xl" : ""}`}>
             {msgs.length === 0 && (
-              <div className="fade-in flex flex-col gap-4 pt-6">
+              <div className="fade-in flex flex-col gap-4">
                 <div>
                   <p className="text-base font-semibold">Hi, I&apos;m Nyra.</p>
                   <p className="mt-1 text-xs text-muted">
