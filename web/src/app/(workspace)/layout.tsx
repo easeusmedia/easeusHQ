@@ -88,7 +88,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
       {hearsFromClients && <FeedbackWatcher />}
       {/* the admin's assistant, over whatever page is open */}
-      {canEditPeople(sessionUser) && <Assistant />}
+      {canEditPeople(sessionUser) && <Assistant name={sessionUser.name.split(" ")[0]} />}
     </div>
     </PeopleProvider>
   );

@@ -17,7 +17,14 @@ type Msg = {
 };
 
 const KEY = "hq.assistant.v1";
-const SUGGESTIONS = ["What needs my attention today?", "Who has the most pending work?", "How are the editors doing this month?", "What's the financial status?"];
+// each worded to match what's looked up before Nyra is asked (lib/assistant
+// TOPICS), so every one is answered in a single call
+const SUGGESTIONS = ["What needs my attention today?", "Who's got the most on their plate?", "How are the editors performing?", "How are we doing for money?"];
+
+const partOfDay = () => {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+};
 
 // Nyra's mark: sparkles, in the accent
 function Mark({ size }: { size: "sm" | "md" }) {
@@ -115,7 +122,7 @@ function Answer({ text }: { text: string }) {
 // right (or ⌘J) opens a panel
 // over the page, which can go full screen. Answers come from Easeus HQ's
 // own data; anything it wants to change waits for Confirm.
-export function Assistant() {
+export function Assistant({ name }: { name: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
@@ -257,11 +264,11 @@ export function Assistant() {
             {msgs.length === 0 && (
               <div className="fade-in flex flex-col gap-4">
                 <div>
-                  <p className="text-base font-semibold">Hi, I&apos;m Nyra.</p>
-                  <p className="mt-1 text-xs text-muted">
-                    I&apos;m here to help you and the whole team. Ask me about anyone&apos;s work, a client, how the editors are doing or money, and I&apos;ll find it for you. I only see
-                    what&apos;s in Easeus HQ, and I always ask before changing anything.
+                  {/* the hour is the browser's, not the server's */}
+                  <p className="text-base font-semibold" suppressHydrationWarning>
+                    {partOfDay()}, {name}.
                   </p>
+                  <p className="mt-1 text-sm text-muted">Hand me the chaos; I&apos;ll bring back a plan.</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   {SUGGESTIONS.map((s) => (
