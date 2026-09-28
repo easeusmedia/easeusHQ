@@ -142,7 +142,10 @@ export function Assistant() {
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
-    if (!spend) assistantUsage().then((s) => s && setSpend(s));
+    if (!spend)
+      assistantUsage()
+        .then((s) => s && setSpend(s))
+        .catch(() => {});
   }, [open, spend]);
 
   // braces, not an arrow's value: scrollIntoView returns a promise in newer

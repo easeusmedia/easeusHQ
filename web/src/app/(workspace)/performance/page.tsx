@@ -57,16 +57,15 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      {/* the controls sit beside the title; the targets panel opens full width under both */}
+      <div className="flex flex-wrap items-end gap-x-2 gap-y-3">
+        <div className="mr-auto pr-4">
           <h1 className="text-2xl font-semibold tracking-tight">Editor performance</h1>
-          <p className="mt-1.5 text-sm text-muted">Each editor&apos;s month as a score out of 100: quality, deadlines, revisions and output.</p>
+          <p className="mt-1.5 text-sm text-muted">Each editor&apos;s month as a score out of 100, built from quality, deadlines, revisions and output.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SyncFrameio />
-          {canEditPeople(me) && <TargetsEditor targets={targets} kinds={kinds.map((k) => k.name)} />}
-          <MonthSwitch month={month} thisMonth={thisMonth} base="/performance" />
-        </div>
+        <SyncFrameio />
+        {canEditPeople(me) && <TargetsEditor targets={targets} kinds={kinds.map((k) => k.name)} />}
+        <MonthSwitch month={month} thisMonth={thisMonth} base="/performance" />
       </div>
 
       {pending.length > 0 && (
@@ -82,10 +81,16 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label={teamScore === null ? "Team score" : `Team score · ${letter(teamScore)}`} value={teamScore ?? "–"} lit={teamScore !== null} Icon={Gauge} />
-        <StatTile label="Videos delivered" value={team.delivered} Icon={Clapperboard} note={<span className="text-xs text-muted">{team.units} weighted</span>} />
-        <StatTile label="Mistakes per video" value={team.mistakesPerVideo ?? "–"} lit={team.mistakesPerVideo !== null} Icon={TriangleAlert} note={<span className="text-xs text-muted">Aim for {targets.mistakesPerVideo} or fewer</span>} />
-        <StatTile label="First drafts on time" value={team.onTimePct === null ? "–" : `${team.onTimePct}%`} lit={team.onTimePct !== null} Icon={Clock} note={<span className="text-xs text-muted">Aim for {targets.onTimePct}%</span>} />
+        <StatTile
+          label="Team score"
+          value={teamScore ?? "–"}
+          lit={teamScore !== null}
+          Icon={Gauge}
+          note={<span className="text-xs text-muted">{teamScore === null ? "Nothing scored yet" : `Grade ${letter(teamScore)} · average of editors`}</span>}
+        />
+        <StatTile label="Delivered" value={team.delivered} Icon={Clapperboard} note={<span className="text-xs text-muted">{team.units} weighted videos</span>} />
+        <StatTile label="Mistakes a video" value={team.mistakesPerVideo ?? "–"} lit={team.mistakesPerVideo !== null} Icon={TriangleAlert} note={<span className="text-xs text-muted">Aim for {targets.mistakesPerVideo} or fewer</span>} />
+        <StatTile label="On time" value={team.onTimePct === null ? "–" : `${team.onTimePct}%`} lit={team.onTimePct !== null} Icon={Clock} note={<span className="text-xs text-muted">First drafts · aim {targets.onTimePct}%</span>} />
       </div>
 
       {rows.length === 0 ? (
@@ -118,7 +123,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                 <div className="flex items-center gap-4">
                   <div className="hidden flex-col items-end gap-1 lg:flex">
                     <WeekStrip weeks={r.weeks} />
-                    <span className="text-[10px] text-muted">By week</span>
+                    <span className="text-[10px] text-muted">Score by week</span>
                   </div>
                   <ChevronRight size={16} className="text-muted transition-transform group-hover:translate-x-0.5" />
                 </div>
@@ -135,9 +140,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         </ul>
       )}
 
-      <p className="text-xs leading-relaxed text-muted">
-        Each part scores 100 at its target or better and less the further it falls short. Quality counts mistakes per video; deadlines, first drafts sent for our
-        review by the due date; output weighs each kind of work ({Object.entries(targets.typeWeights).map(([k, w]) => `${k.toLowerCase()} ${w}`).join(", ")}, anything else 1). A month still running is judged on the days so far. Grades: A+ 95, A 85, B 75, C 65, D 50.
+      <p className="text-xs text-muted">
+        A part scores 100 at its target or better, less the further it falls short. Grades: A+ 95, A 85, B 75, C 65, D 50. Open an editor for the full breakdown.
       </p>
     </div>
   );

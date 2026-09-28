@@ -87,7 +87,7 @@ export function PayDetails({ userId, salary, payStructure, payCycle }: { userId:
   const save = useSave(savePayDetails);
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3">
         <label className={label}>
           <span>
             Salary <span className="text-muted/70">· Monthly, INR</span>
@@ -125,7 +125,7 @@ export function PayDetails({ userId, salary, payStructure, payCycle }: { userId:
         {save.error && <span className="mr-auto text-xs text-red-300">{save.error}</span>}
         {save.done && <span className="text-xs text-muted">Saved.</span>}
         <button onClick={() => save.run({ userId, ...form })} disabled={save.busy} className="btn btn-sm btn-glow disabled:opacity-60">
-          {save.busy ? "Saving…" : "Save"}
+          {save.busy ? "Saving…" : "Save pay details"}
         </button>
       </div>
     </div>
@@ -154,7 +154,7 @@ export function RecordPayment({
   const save = useSave(recordSalaryPayment);
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_0.8fr_0.8fr_1.5fr]">
         <div className={label}>
           Month
           <Dropdown value={form.period} options={months} onChange={(v) => setForm(initial(v))} />

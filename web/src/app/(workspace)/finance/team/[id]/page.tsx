@@ -62,55 +62,58 @@ export default async function PersonPayPage({ params }: { params: Promise<{ id: 
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          ["Monthly salary", salary === null ? "Not set" : money(salary)],
-          ["How they're paid", [person.payStructure ? PAY_STRUCTURE[person.payStructure] : null, person.payCycle ? PAY_CYCLE[person.payCycle] : null].filter(Boolean).join(", ") || "Not set"],
-          ["Paid in total", money(totalPaid)],
-        ].map(([k, v]) => (
-          <div key={k} className="panel rounded-2xl px-5 py-4">
-            <p className="text-xl font-semibold tabular-nums">{v}</p>
-            <p className="mt-1 text-xs text-muted">{k}</p>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+        <div className="flex flex-col gap-4">
+          <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
+            <h2 className="mb-4 text-sm font-semibold">Record a payment</h2>
+            <RecordPayment userId={person.id} months={options} today={today} existing={recorded} />
+          </section>
+
+          <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
+            <div className="mb-4 flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-semibold">Payment history</h2>
+              {person.salaryPayments.length > 0 && <span className="text-xs text-muted">{money(totalPaid)} paid in total</span>}
+            </div>
+            {person.salaryPayments.length === 0 ? (
+              <p className="text-sm text-muted">Nothing recorded yet. Once the payroll sheet is connected, each month fills in from it.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border text-sm">
+                {person.salaryPayments.map((s) => {
+                  const state = payState({ due: Number(s.amount), paid: Number(s.paid) });
+                  return (
+                    <li key={s.id} className="group flex items-center gap-4 bg-surface/40 px-4 py-2.5">
+                      <span className="w-20 shrink-0 font-medium">{monthLabel(s.period)}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted">{s.note ?? (s.source === "sheet" ? "From the payroll sheet" : "")}</span>
+                      <span className="shrink-0 tabular-nums">{money(Number(s.paid))}</span>
+                      <span className="hidden w-24 shrink-0 text-right text-xs text-muted sm:block">of {money(Number(s.amount))}</span>
+                      <span className="hidden w-16 shrink-0 text-xs text-muted sm:block">{s.paidAt ? day(indiaDay(s.paidAt)) : "–"}</span>
+                      <span className={`flex w-20 shrink-0 items-center justify-end gap-1 text-xs ${PILL[state]}`}>
+                        {state === "paid" && <Check size={12} className="text-accent" />}
+                        {STATE[state]}
+                      </span>
+                      <DeletePayment id={s.id} month={monthLabel(s.period)} />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
+          <h2 className="text-sm font-semibold">How they&apos;re paid</h2>
+          <p className="mt-3 text-2xl font-semibold tabular-nums">{salary === null ? "Not set" : money(salary)}</p>
+          <p className="text-xs text-muted">
+            {salary === null ? "No salary set" : "a month"}
+            {person.payStructure || person.payCycle
+              ? ` · ${[person.payStructure ? PAY_STRUCTURE[person.payStructure] : null, person.payCycle ? PAY_CYCLE[person.payCycle] : null].filter(Boolean).join(", ")}`
+              : ""}
+          </p>
+          <div className="mt-5 border-t border-border pt-5">
+            <PayDetails userId={person.id} salary={salary === null ? "" : String(salary)} payStructure={person.payStructure ?? ""} payCycle={person.payCycle ?? ""} />
           </div>
-        ))}
+        </section>
       </div>
-
-      <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
-        <h2 className="mb-4 text-sm font-semibold">Record a payment</h2>
-        <RecordPayment userId={person.id} months={options} today={today} existing={recorded} />
-      </section>
-
-      <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
-        <h2 className="mb-4 text-sm font-semibold">Payment history</h2>
-        {person.salaryPayments.length === 0 ? (
-          <p className="text-sm text-muted">Nothing recorded yet. Once the payroll sheet is connected, each month fills in from it.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border text-sm">
-            {person.salaryPayments.map((s) => {
-              const state = payState({ due: Number(s.amount), paid: Number(s.paid) });
-              return (
-                <li key={s.id} className="group flex items-center gap-4 bg-surface/40 px-4 py-2.5">
-                  <span className="w-20 shrink-0 font-medium">{monthLabel(s.period)}</span>
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted">{s.note ?? (s.source === "sheet" ? "From the payroll sheet" : "")}</span>
-                  <span className="shrink-0 tabular-nums">{money(Number(s.paid))}</span>
-                  <span className="hidden w-24 shrink-0 text-right text-xs text-muted sm:block">of {money(Number(s.amount))}</span>
-                  <span className="hidden w-16 shrink-0 text-xs text-muted sm:block">{s.paidAt ? day(indiaDay(s.paidAt)) : "–"}</span>
-                  <span className={`flex w-20 shrink-0 items-center justify-end gap-1 text-xs ${PILL[state]}`}>
-                    {state === "paid" && <Check size={12} className="text-accent" />}
-                    {STATE[state]}
-                  </span>
-                  <DeletePayment id={s.id} month={monthLabel(s.period)} />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
-        <h2 className="mb-4 text-sm font-semibold">How they&apos;re paid</h2>
-        <PayDetails userId={person.id} salary={salary === null ? "" : String(salary)} payStructure={person.payStructure ?? ""} payCycle={person.payCycle ?? ""} />
-      </section>
     </div>
   );
 }

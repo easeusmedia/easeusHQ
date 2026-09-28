@@ -274,7 +274,10 @@ export function insights(now: Kpis, before: Kpis): { good: string[]; watch: stri
 
   // the weakest parts first, by how much they cost the score
   for (const [key, p] of [...parts].sort((a, b) => (a[1].points! - 100) * a[1].weight - (b[1].points! - 100) * b[1].weight)) {
-    if (p.points! < 70) watch.push(`${PART_LABEL[key]}: ${fmt(key, p.value!)} ${UNIT[key]}, against a target of ${fmt(key, p.target)}.`);
+    if (p.points! < 70)
+      watch.push(
+        `${PART_LABEL[key]}: ${fmt(key, p.value!)} ${UNIT[key]}${key === "deadlines" ? ` (${now.rated} video${now.rated === 1 ? "" : "s"} with a due date)` : ""}, against a target of ${fmt(key, p.target)}.`
+      );
   }
   const lastMonth = new Map(before.byCategory);
   for (const [cat, n] of now.byCategory.filter(([c]) => c !== "Others").slice(0, 2)) {

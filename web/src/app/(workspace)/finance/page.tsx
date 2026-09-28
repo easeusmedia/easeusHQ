@@ -150,7 +150,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
 
       {/* where each book will fill itself in from, once connected */}
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-dashed border-border p-5">
+        <div className="rounded-2xl border border-border bg-surface-2/30 p-5">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Wallet size={14} className="text-muted" /> Skydo
           </p>
@@ -159,7 +159,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
             on its own. Until then, raise invoices on a client&apos;s Billing tab and mark them paid there.
           </p>
         </div>
-        <div className="rounded-2xl border border-dashed border-border p-5">
+        <div className="rounded-2xl border border-border bg-surface-2/30 p-5">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Sheet size={14} className="text-muted" /> Payroll sheet
           </p>

@@ -481,7 +481,7 @@ export function LogFeedbackButton({ editorId, tasks, today }: { editorId: string
 
 const FILTERS = [
   { key: "all", label: "All" },
-  { key: "review", label: "To review" },
+  { key: "review", label: "To confirm" },
   { key: "mistake", label: "Mistakes" },
   { key: "creative", label: "Creative" },
   { key: "praise", label: "Praise" },
@@ -493,10 +493,11 @@ const FILTERS = [
 // are marked, with the one-click verdicts beside them.
 export function FeedbackPanel({ editorId, entries, tasks, today }: { editorId: string; entries: EntryRow[]; tasks: TaskOption[]; today: string }) {
   const router = useRouter();
-  const pending = entries.filter((e) => !e.reviewed).length;
+  const waiting = (e: EntryRow) => !e.reviewed && e.kind === "mistake";
+  const pending = entries.filter(waiting).length;
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>(pending ? "review" : "all");
   const [editing, setEditing] = useState<EntryRow | null>(null);
-  const shown = entries.filter((e) => (filter === "all" ? true : filter === "review" ? !e.reviewed : e.kind === filter));
+  const shown = entries.filter((e) => (filter === "all" ? true : filter === "review" ? waiting(e) : e.kind === filter));
 
   async function verdict(id: string, kind: "mistake" | "creative" | null) {
     await reviewEntry(id, kind);
@@ -525,7 +526,7 @@ export function FeedbackPanel({ editorId, entries, tasks, today }: { editorId: s
       {filter === "review" && shown.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-accent/[0.06] px-4 py-2.5 text-xs">
           <span className="text-muted">
-            Sorted automatically from Frame.io. A mistake counts towards the grade once it&apos;s confirmed here.
+            Frame.io comments Claude sorted as mistakes. Each counts towards the score once you confirm it.
           </span>
           <button
             onClick={async () => {
@@ -534,7 +535,7 @@ export function FeedbackPanel({ editorId, entries, tasks, today }: { editorId: s
             }}
             className="btn btn-xs btn-glow flex items-center gap-1"
           >
-            <Check size={11} /> Accept all as sorted
+            <Check size={11} /> Confirm all
           </button>
         </div>
       )}
@@ -544,7 +545,7 @@ export function FeedbackPanel({ editorId, entries, tasks, today }: { editorId: s
       ) : (
         <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
           {shown.map((e) => (
-            <li key={e.id} className={`group flex items-start gap-3 px-4 py-3 ${e.reviewed ? "bg-surface/40" : "bg-accent/[0.04]"}`}>
+            <li key={e.id} className={`group flex items-start gap-3 px-4 py-3 ${waiting(e) ? "bg-accent/[0.04]" : "bg-surface/40"}`}>
               <KindIcon kind={e.kind} size={14} className="mt-0.5 shrink-0 text-muted" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm">{e.body}</p>

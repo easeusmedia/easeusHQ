@@ -104,7 +104,8 @@ export default async function EditorPerformancePage({
       taskId: e.taskId,
       taskTitle: e.task?.title ?? null,
     }));
-  const toReview = entries.filter((e) => !e.reviewed).length;
+  // only a sorted mistake waits on ops: it's the only kind that moves the score
+  const toReview = entries.filter((e) => !e.reviewed && e.kind === "mistake").length;
   const taskOptions = [...new Map([...data.open, ...data.tasks].map((t) => [t.id, { id: t.id, title: t.title }])).values()];
   const history = months
     .slice()

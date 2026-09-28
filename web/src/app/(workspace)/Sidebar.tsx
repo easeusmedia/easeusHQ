@@ -192,6 +192,14 @@ export function Sidebar({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  // A phone has no room for the open sidebar beside the page: there it
+  // starts folded and folds again after each page is picked (nothing saved,
+  // so a desktop keeps its own preference).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the screen's width is only known in the browser
+    if (window.matchMedia("(max-width: 767px)").matches) setOpen(false);
+  }, [pathname]);
+
   function toggle() {
     setOpen((v) => {
       const next = !v;
