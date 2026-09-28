@@ -281,7 +281,7 @@ export function Assistant() {
                         </dl>
                         <div className="mt-3 flex items-center justify-end gap-2">
                           {outcome === "done" ? (
-                            <span className="flex items-center gap-1 text-xs text-emerald-300">
+                            <span className="flex items-center gap-1 text-xs text-muted">
                               <Check size={12} /> Done
                             </span>
                           ) : outcome === "dismissed" ? (

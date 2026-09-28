@@ -35,7 +35,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   ];
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <Link href="/finance?tab=invoices" className="flex w-fit items-center gap-1.5 text-xs text-muted hover:text-foreground">
         <ArrowLeft size={13} /> Invoices
       </Link>
@@ -46,7 +46,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         </div>
         <span
           className={`rounded-full border px-3 py-1 text-sm ${
-            inv.status === "paid" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : late ? "border-red-400/30 bg-red-400/10 text-red-300" : "border-border bg-surface-2 text-muted"
+            inv.status === "paid" ? "border-accent/30 bg-accent/10 text-accent" : late ? "border-red-400/30 bg-red-400/10 text-red-300" : "border-border bg-surface-2 text-muted"
           }`}
         >
           {late && inv.status !== "overdue" ? "Overdue" : INVOICE_STATUS[inv.status]}

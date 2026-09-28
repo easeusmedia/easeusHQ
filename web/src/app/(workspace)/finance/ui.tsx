@@ -179,7 +179,7 @@ export function RecordPayment({
       <div className="flex items-center justify-end gap-3">
         {save.error && <span className="mr-auto text-xs text-red-300">{save.error}</span>}
         {save.done && (
-          <span className="flex items-center gap-1 text-xs text-emerald-300">
+          <span className="flex items-center gap-1 text-xs text-muted">
             <Check size={12} /> Recorded
           </span>
         )}

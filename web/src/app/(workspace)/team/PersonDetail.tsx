@@ -197,11 +197,8 @@ export function PersonDetail({
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
-              className={`flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs ${
-                person.employment === "active" ? "text-muted" : "text-amber-300"
-              }`}
+              className={`rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs ${person.employment === "active" ? "text-muted" : "text-foreground"}`}
             >
-              <span className={`size-1.5 rounded-full ${person.employment === "active" ? "bg-emerald-400" : "bg-amber-400"}`} />
               {EMPLOYMENT_LABEL[person.employment as EmploymentStatus]}
             </span>
             {person.employmentType && (

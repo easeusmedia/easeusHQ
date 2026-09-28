@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, Check, ChevronLeft, ChevronRight, CircleSlash, PenLine, Plus, Target, Trash2, X } from "lucide-react";
+import { Bot, Check, ChevronLeft, ChevronRight, CircleAlert, CircleSlash, MessageSquare, PenLine, Plus, StickyNote, Target, ThumbsUp, Trash2, X, type LucideIcon } from "lucide-react";
 import { ENTRY_KINDS, MISTAKE_CATEGORIES, monthName, shiftMonth, type Grade, type KpiKey, type Targets } from "@/lib/editorKpi";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
@@ -107,31 +107,32 @@ export function TargetsEditor({ targets }: { targets: Targets }) {
 
 // ---------- marks ----------
 
-const GRADE_TONE: Record<Grade, string> = {
-  "A+": "bg-emerald-400/15 text-emerald-300 ring-emerald-400/30",
-  A: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20",
-  B: "bg-accent/12 text-accent ring-accent/25",
-  C: "bg-amber-400/12 text-amber-300 ring-amber-400/25",
-  D: "bg-orange-400/12 text-orange-300 ring-orange-400/25",
-  F: "bg-red-400/12 text-red-300 ring-red-400/25",
-};
-
 export function GradeBadge({ grade, size = "md" }: { grade: Grade | null; size?: "md" | "lg" }) {
   const box = size === "lg" ? "size-14 text-2xl rounded-2xl" : "size-10 text-base rounded-xl";
   return (
     <span
       title={grade ? `Grade ${grade}, from the mistakes found this month` : "Nothing to grade yet this month"}
-      className={`grid shrink-0 place-items-center font-semibold ring-1 ${box} ${grade ? GRADE_TONE[grade] : "bg-surface-2 text-muted ring-border"}`}
+      className={`grid shrink-0 place-items-center bg-surface-2 font-semibold ring-1 ring-border ${box} ${grade ? "text-foreground" : "text-muted"}`}
     >
       {grade ?? "–"}
     </span>
   );
 }
 
-// a dot for whether a number meets its target: green, amber, or nothing to judge
+// a quiet mark beside a number that misses its target; nothing when it meets it
 export function TargetDot({ ok }: { ok: boolean | null }) {
-  if (ok === null) return null;
-  return <span title={ok ? "Meets the target" : "Misses the target"} className={`size-1.5 shrink-0 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />;
+  if (ok !== false) return null;
+  return <CircleAlert size={12} aria-label="Misses the target" className="shrink-0 text-muted" />;
+}
+
+// the line under a number: its target, marked when it's missed
+export function TargetNote({ ok, text }: { ok: boolean | null; text: string }) {
+  return (
+    <span className={`flex items-center gap-1 text-xs ${ok === false ? "text-foreground/80" : "text-muted"}`}>
+      {ok === false && <CircleAlert size={11} className="text-muted" />}
+      {text}
+    </span>
+  );
 }
 
 // Columns over time, one series: past months muted, the current one in the
@@ -185,7 +186,7 @@ export function CategoryBars({ rows }: { rows: [string, number][] }) {
           {rows.map(([cat, n]) => (
             <li key={cat} className="grid grid-cols-[8rem_1fr_1.5rem] items-center gap-3 text-xs">
               <span className="truncate text-muted">{cat}</span>
-              <span className="h-2 rounded-r-[4px] bg-amber-400/70" style={{ width: `${(n / max) * 100}%` }} />
+              <span className="h-2 rounded-r-[4px] bg-accent/70" style={{ width: `${(n / max) * 100}%` }} />
               <span className="text-right tabular-nums">{n}</span>
             </li>
           ))}
@@ -213,12 +214,16 @@ export type EntryRow = {
 };
 export type TaskOption = { id: string; title: string };
 
-const KIND_DOT: Record<string, string> = {
-  mistake: "bg-amber-400",
-  creative: "bg-accent",
-  praise: "bg-emerald-400",
-  note: "bg-muted",
+const KIND_ICON: Record<string, LucideIcon> = {
+  mistake: CircleAlert,
+  creative: MessageSquare,
+  praise: ThumbsUp,
+  note: StickyNote,
 };
+function KindIcon({ kind, size, className }: { kind: string; size: number; className?: string }) {
+  const Icon = KIND_ICON[kind] ?? StickyNote;
+  return <Icon size={size} className={className} />;
+}
 const SOURCE_LABEL: Record<string, string> = { frameio: "Frame.io", notion: "Notion", manual: "Logged" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const shortDay = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
@@ -297,7 +302,7 @@ function EntryDialog({
               form.kind === k ? "bg-surface-2 text-foreground shadow-sm" : "text-muted hover:text-foreground"
             }`}
           >
-            <span className={`size-1.5 rounded-full ${KIND_DOT[k]}`} />
+            <KindIcon kind={k} size={12} />
             {name}
           </button>
         ))}
@@ -449,7 +454,7 @@ export function FeedbackPanel({ editorId, entries, tasks, today }: { editorId: s
         <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
           {shown.map((e) => (
             <li key={e.id} className={`group flex items-start gap-3 px-4 py-3 ${e.reviewed ? "bg-surface/40" : "bg-accent/[0.04]"}`}>
-              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_DOT[e.kind] ?? "bg-muted"}`} />
+              <KindIcon kind={e.kind} size={14} className="mt-0.5 shrink-0 text-muted" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm">{e.body}</p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { indiaDay } from "@/lib/due";
 import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
@@ -13,9 +13,9 @@ import { DeletePayment, PayDetails, RecordPayment } from "../../ui";
 export const dynamic = "force-dynamic";
 
 const PILL = {
-  paid: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-  partial: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  pending: "border-border bg-surface-2 text-muted",
+  paid: "text-foreground",
+  partial: "text-foreground/80",
+  pending: "text-muted",
 } as const;
 const STATE = { paid: "Paid", partial: "Part paid", pending: "Pending" } as const;
 
@@ -42,7 +42,7 @@ export default async function PersonPayPage({ params }: { params: Promise<{ id: 
   const totalPaid = person.salaryPayments.reduce((n, s) => n + Number(s.paid), 0);
 
   return (
-    <div className="flex max-w-5xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <Link href="/finance?tab=team" className="flex w-fit items-center gap-1.5 text-xs text-muted hover:text-foreground">
         <ArrowLeft size={13} /> Team pay
       </Link>
@@ -95,7 +95,10 @@ export default async function PersonPayPage({ params }: { params: Promise<{ id: 
                   <span className="shrink-0 tabular-nums">{money(Number(s.paid))}</span>
                   <span className="hidden w-24 shrink-0 text-right text-xs text-muted sm:block">of {money(Number(s.amount))}</span>
                   <span className="hidden w-16 shrink-0 text-xs text-muted sm:block">{s.paidAt ? day(indiaDay(s.paidAt)) : "–"}</span>
-                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${PILL[state]}`}>{STATE[state]}</span>
+                  <span className={`flex w-20 shrink-0 items-center justify-end gap-1 text-xs ${PILL[state]}`}>
+                    {state === "paid" && <Check size={12} className="text-accent" />}
+                    {STATE[state]}
+                  </span>
                   <DeletePayment id={s.id} month={monthLabel(s.period)} />
                 </li>
               );

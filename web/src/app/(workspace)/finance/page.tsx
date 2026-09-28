@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CalendarClock, CircleAlert, CircleCheck, Hourglass, Receipt, Sheet, Wallet } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Check, CircleAlert, CircleCheck, Hourglass, Receipt, Sheet, Wallet } from "lucide-react";
 import { clientLogoSrc } from "@/lib/photos";
 import { clientHref } from "@/lib/slug";
 import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
@@ -14,9 +14,9 @@ import { billingCycle, day, INVOICE_STATUS, loadFinance, money, monthLabel, PAY_
 export const dynamic = "force-dynamic";
 
 const PAY_PILL = {
-  paid: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-  partial: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  pending: "border-border bg-surface-2 text-muted",
+  paid: "text-foreground",
+  partial: "text-foreground/80",
+  pending: "text-muted",
 } as const;
 const PAY_LABEL = { paid: "Paid", partial: "Part paid", pending: "Pending" } as const;
 
@@ -35,7 +35,7 @@ function Group({ title, source, children }: { title: string; source: React.React
 function Source({ label, on }: { label: string; on: boolean }) {
   return (
     <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted">
-      <span className={`size-1.5 rounded-full ${on ? "bg-emerald-400" : "bg-muted/60"}`} /> {label}
+      <span className={`size-1.5 rounded-full ${on ? "bg-accent" : "bg-muted/60"}`} /> {label}
     </span>
   );
 }
@@ -89,7 +89,6 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
             label="Collected this month"
             value={money(collected)}
             lit={collected > 0}
-            tone="emerald"
             Icon={CircleCheck}
             note={<span className="text-xs text-muted">{money(yearSoFar)} so far this year</span>}
           />
@@ -119,7 +118,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       <Group title={`Team, ${monthLabel(month)}`} source={<Source label={sheet ? "Payroll sheet linked" : "Payroll sheet not linked"} on={!!sheet} />}>
         <div className="grid gap-3 sm:grid-cols-3">
           <StatTile label="Salaries due" value={money(pay.obligations)} lit={pay.obligations > 0} Icon={Receipt} note={<span className="text-xs text-muted">{paid.length} people</span>} />
-          <StatTile label="Paid" value={money(pay.paid)} lit={pay.paid > 0} tone="emerald" Icon={CircleCheck} />
+          <StatTile label="Paid" value={money(pay.paid)} lit={pay.paid > 0} Icon={CircleCheck} />
           <StatTile
             label="Pending"
             value={money(pay.pending)}
@@ -138,7 +137,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
             {attention.map((a) => (
               <li key={a.key}>
                 <Link href={a.href} className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-foreground/[0.02]">
-                  <CircleAlert size={14} className="shrink-0 text-amber-300" />
+                  <CircleAlert size={14} className="shrink-0 text-red-300" />
                   <span className="min-w-0 flex-1 truncate">{a.title}</span>
                   <span className="shrink-0 text-xs text-muted">{a.note}</span>
                   <ArrowUpRight size={14} className="shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
@@ -240,7 +239,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
               <span className="text-right tabular-nums">{money(i.amount, i.currency)}</span>
               <span className="hidden text-muted md:block">{INVOICE_STATUS[i.status]}</span>
               <span className={`hidden md:block ${late ? "text-red-300" : "text-muted"}`}>{i.dueDate ? day(i.dueDate) : "–"}</span>
-              <span className={i.status === "paid" ? "text-emerald-300" : late ? "text-red-300" : "text-muted"}>
+              <span className={i.status === "paid" ? "text-foreground" : late ? "text-red-300" : "text-muted"}>
                 {i.status === "paid" ? `Paid ${i.paidAt ? day(i.paidAt) : ""}` : late ? "Overdue" : i.status === "draft" ? "Not sent" : "Awaiting"}
               </span>
             </Link>
@@ -274,7 +273,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                   <span className="block truncate font-medium">{p.name}</span>
                   <span className="block truncate text-xs text-muted">
                     {[p.jobTitle?.name, dept].filter(Boolean).join(" · ") || "No position set"}
-                    {p.employment === "on_leave" && <span className="text-amber-300"> · On leave</span>}
+                    {p.employment === "on_leave" && <span> · On leave</span>}
                   </span>
                 </span>
               </span>
@@ -286,7 +285,10 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
               <span className="hidden text-muted md:block">{now.paidAt ? day(now.paidAt) : "–"}</span>
               <span>
                 {state ? (
-                  <span className={`rounded-full border px-2 py-0.5 text-xs ${PAY_PILL[state]}`}>{PAY_LABEL[state]}</span>
+                  <span className={`flex items-center gap-1 text-xs ${PAY_PILL[state]}`}>
+                    {state === "paid" && <Check size={12} className="text-accent" />}
+                    {PAY_LABEL[state]}
+                  </span>
                 ) : (
                   <span className="text-xs text-muted/50">–</span>
                 )}

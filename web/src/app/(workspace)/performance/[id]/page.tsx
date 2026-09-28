@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CircleAlert, CircleCheck, Clapperboard, Clock, RotateCcw, Sparkles, Timer, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CircleAlert, CircleCheck, Clapperboard, Clock, RotateCcw, ThumbsUp, Timer } from "lucide-react";
 import { requireOps } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { STAGE } from "@/lib/stages";
@@ -8,7 +8,7 @@ import { editorKpis, hoursLabel, insights, meets, monthName, shiftMonth, turnaro
 import { StatTile } from "../../StatTile";
 import { Avatar } from "../../TaskCard";
 import { ClientTabs } from "../../clients/ClientTabs";
-import { CategoryBars, FeedbackPanel, GradeBadge, LogFeedbackButton, MonthSwitch, TaskTable, TrendBars, type EntryRow, type TaskRow } from "../ui";
+import { CategoryBars, FeedbackPanel, GradeBadge, LogFeedbackButton, MonthSwitch, TargetNote, TaskTable, TrendBars, type EntryRow, type TaskRow } from "../ui";
 import { kpiTargets, loadPerformance, pickMonth } from "../data";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ export default async function EditorPerformancePage({
     if (a === null || b === null || a === b) return <span className="text-xs text-muted">Same as {short(prev)}</span>;
     const up = a > b;
     const good = better === "up" ? up : !up;
-    return <span className={`text-xs ${good ? "text-emerald-300" : "text-amber-300"}`}>{`${up ? "Up" : "Down"} from ${fmt(b)} in ${short(prev)}`}</span>;
+    return <TargetNote ok={good ? null : false} text={`${up ? "Up" : "Down"} from ${fmt(b)} in ${short(prev)}`} />;
   };
 
   const history = months
@@ -142,9 +142,7 @@ export default async function EditorPerformancePage({
           lit={now.mistakes > 0}
           Icon={CircleAlert}
           note={
-            <span className={`text-xs ${meets("mistakes", now.mistakes, targets) === false ? "text-amber-300" : "text-muted"}`}>
-              {now.mistakesPerVideo === null ? `Target ${targets.mistakes} or fewer` : `${now.mistakesPerVideo} per video`}
-            </span>
+            <TargetNote ok={meets("mistakes", now.mistakes, targets)} text={now.mistakesPerVideo === null ? `Target ${targets.mistakes} or fewer` : `${now.mistakesPerVideo} per video`} />
           }
         />
         <StatTile
@@ -158,9 +156,8 @@ export default async function EditorPerformancePage({
           label="On time"
           value={now.onTimePct === null ? "–" : `${now.onTimePct}%`}
           lit={now.onTimePct !== null}
-          tone={meets("onTimePct", now.onTimePct, targets) ? "emerald" : "accent"}
           Icon={Clock}
-          note={<span className="text-xs text-muted">Target {targets.onTimePct}%</span>}
+          note={<TargetNote ok={meets("onTimePct", now.onTimePct, targets)} text={`Target ${targets.onTimePct}%`} />}
         />
         <StatTile
           label="Approved first time"
@@ -174,7 +171,7 @@ export default async function EditorPerformancePage({
       <div className="grid gap-3 md:grid-cols-2">
         <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles size={14} className="text-emerald-300" /> Going well
+            <ThumbsUp size={14} className="text-muted" /> Going well
           </h2>
           <ul className="mt-3 flex flex-col gap-2 text-sm">
             {said.good.length ? said.good.map((g) => <li key={g}>{g}</li>) : <li className="text-muted">Nothing stands out yet this month.</li>}
@@ -182,7 +179,7 @@ export default async function EditorPerformancePage({
         </section>
         <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <TriangleAlert size={14} className="text-amber-300" /> Could use support
+            <CircleAlert size={14} className="text-muted" /> Could use support
           </h2>
           <ul className="mt-3 flex flex-col gap-2 text-sm">
             {said.watch.length ? said.watch.map((w) => <li key={w}>{w}</li>) : <li className="text-muted">Nothing to raise this month.</li>}

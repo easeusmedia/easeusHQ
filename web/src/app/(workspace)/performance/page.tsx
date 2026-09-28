@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, CircleAlert, Clapperboard, Clock, RotateCcw, Timer } from "lucide-react";
+import { ArrowUpRight, CircleAlert, Clapperboard, Clock, RotateCcw, ThumbsUp, Timer } from "lucide-react";
 import { requireOps } from "@/lib/auth";
 import { canEditPeople } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
 import { editorKpis, hoursLabel, insights, meets, monthName, shiftMonth } from "@/lib/editorKpi";
 import { StatTile } from "../StatTile";
 import { Avatar } from "../TaskCard";
-import { GradeBadge, MonthSwitch, TargetDot, TargetsEditor } from "./ui";
+import { GradeBadge, MonthSwitch, TargetDot, TargetNote, TargetsEditor } from "./ui";
 import { SyncFrameio } from "./SyncFrameio";
 import { headline, kpiTargets, loadPerformance, pickMonth } from "./data";
 
@@ -43,7 +43,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   });
 
   const change = team.delivered - before.delivered;
-  const note = (ok: boolean | null, text: string) => <span className={`text-xs ${ok === false ? "text-amber-300" : "text-muted"}`}>{text}</span>;
+  const note = (ok: boolean | null, text: string) => <TargetNote ok={ok} text={text} />;
 
   return (
     <div className="flex flex-col gap-8">
@@ -91,7 +91,6 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
           label="On time"
           value={team.onTimePct === null ? "–" : `${team.onTimePct}%`}
           lit={team.onTimePct !== null}
-          tone={meets("onTimePct", team.onTimePct, targets) ? "emerald" : "accent"}
           Icon={Clock}
           note={note(meets("onTimePct", team.onTimePct, targets), `Target ${targets.onTimePct}%`)}
         />
@@ -132,8 +131,16 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
               </div>
 
               <div className="flex flex-col gap-1.5 text-xs">
-                {said.good[0] && <p className="text-emerald-300/90">{said.good[0]}</p>}
-                {said.watch[0] && <p className="text-amber-300/90">{said.watch[0]}</p>}
+                {said.good[0] && (
+                  <p className="flex items-start gap-2 text-foreground/80">
+                    <ThumbsUp size={12} className="mt-0.5 shrink-0 text-muted" /> {said.good[0]}
+                  </p>
+                )}
+                {said.watch[0] && (
+                  <p className="flex items-start gap-2 text-foreground/80">
+                    <CircleAlert size={12} className="mt-0.5 shrink-0 text-muted" /> {said.watch[0]}
+                  </p>
+                )}
                 {!said.good[0] && !said.watch[0] && <p className="text-muted">Not enough this month to say yet.</p>}
               </div>
 
