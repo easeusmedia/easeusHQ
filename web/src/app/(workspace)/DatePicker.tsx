@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { topLayer, useCloseOnScroll, usePopover } from "./popover";
 import { chip } from "./chip";
 
@@ -119,6 +119,9 @@ export function DatePicker({
     const base = selected ?? todayYmd();
     return { y: base.y, m: base.m };
   });
+  // the title opens a month grid, and that one's title a grid of years, so
+  // a birthday in 1998 is three clicks away rather than three hundred
+  const [mode, setMode] = useState<"days" | "months" | "years">("days");
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -139,6 +142,7 @@ export function DatePicker({
     const base = selected ?? todayYmd();
     setDraft(selected);
     setView({ y: base.y, m: base.m });
+    setMode("days");
     const trigger = triggerRef.current;
     if (!trigger) return;
     // 20rem, or the window less a margin on a phone
@@ -158,6 +162,13 @@ export function DatePicker({
       return { y: v.y, m };
     });
   }
+
+  // the arrows move a month, a year, or a page of twelve years
+  function step(by: 1 | -1) {
+    if (mode === "days") shiftMonth(by);
+    else setView((v) => ({ ...v, y: v.y + by * (mode === "years" ? 12 : 1) }));
+  }
+  const firstYear = view.y - (((view.y % 12) + 12) % 12);
 
   // 6 rows × 7 days, always — a grid that changes height month to month
   // makes the footer buttons jump around under the cursor.
@@ -182,6 +193,10 @@ export function DatePicker({
   }, [view]);
 
   const today = todayYmd();
+  const cellCls = (selected: boolean, current: boolean) =>
+    `flex items-center justify-center rounded-md text-sm ${
+      selected ? "bg-foreground font-medium text-background" : "bg-surface-2 text-foreground hover:bg-hover"
+    } ${current && !selected ? "ring-1 ring-muted/50" : ""}`;
 
   return (
     <div ref={ref} className={pill ? "relative inline-block" : "relative"}>
@@ -222,25 +237,35 @@ export function DatePicker({
           <div className="mb-3 flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={() => shiftMonth(-1)}
-              aria-label="Previous month"
+              onClick={() => step(-1)}
+              aria-label={mode === "days" ? "Previous month" : mode === "months" ? "Previous year" : "Earlier years"}
               className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface-2 text-muted hover:text-foreground"
             >
               <ChevronLeft size={15} />
             </button>
-            <span className="text-sm font-semibold">
-              {MONTHS[view.m - 1]} {view.y}
-            </span>
             <button
               type="button"
-              onClick={() => shiftMonth(1)}
-              aria-label="Next month"
+              disabled={mode === "years"}
+              onClick={() => setMode(mode === "days" ? "months" : "years")}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold transition-colors enabled:hover:bg-surface-2"
+            >
+              {mode === "days" ? `${MONTHS[view.m - 1]} ${view.y}` : mode === "months" ? view.y : `${firstYear}–${firstYear + 11}`}
+              {mode !== "years" && <ChevronDown size={13} className="text-muted" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label={mode === "days" ? "Next month" : mode === "months" ? "Next year" : "Later years"}
               className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface-2 text-muted hover:text-foreground"
             >
               <ChevronRight size={15} />
             </button>
           </div>
 
+          {/* the days stay laid out underneath, so the panel keeps its
+              height whichever grid is showing */}
+          <div className="relative">
+          <div className={mode === "days" ? "fade-in" : "invisible"}>
           <div className="mb-1 grid grid-cols-7 gap-1">
             {WEEKDAYS.map((w) => (
               <span key={w} className="py-1 text-center text-xs font-medium text-muted">
@@ -270,6 +295,39 @@ export function DatePicker({
                 </button>
               );
             })}
+          </div>
+          </div>
+          {mode !== "days" && (
+            <div key={mode} className="fade-in absolute inset-0 grid grid-cols-3 grid-rows-4 gap-1">
+              {mode === "months"
+                ? MONTHS.map((name, i) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setView({ y: view.y, m: i + 1 });
+                        setMode("days");
+                      }}
+                      className={cellCls(draft?.y === view.y && draft.m === i + 1, today.y === view.y && today.m === i + 1)}
+                    >
+                      {name.slice(0, 3)}
+                    </button>
+                  ))
+                : Array.from({ length: 12 }, (_, i) => firstYear + i).map((y) => (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => {
+                        setView((v) => ({ ...v, y }));
+                        setMode("months");
+                      }}
+                      className={cellCls(draft?.y === y, today.y === y)}
+                    >
+                      {y}
+                    </button>
+                  ))}
+            </div>
+          )}
           </div>
 
           <div className="mt-3 flex items-center gap-2">
