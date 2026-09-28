@@ -58,11 +58,13 @@ export function HistoryExplorer({
   details,
   logsByTask,
   canDelete,
+  initialFilters = {},
 }: {
   items: Wire[];
   details: Record<string, TaskDetail>;
   logsByTask: Record<string, { createdAt: string; action: string; actorName: string }[]>;
   canDelete: boolean;
+  initialFilters?: Filters;
 }) {
   const items = useMemo<HistoryItem[]>(
     () =>
@@ -77,8 +79,8 @@ export function HistoryExplorer({
   );
 
   const [view, setView] = useState<"list" | GroupBy>("list");
-  const [filters, setFilters] = useState<Filters>({});
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<Filters>(initialFilters);
+  const [filtersOpen, setFiltersOpen] = useState(Object.keys(initialFilters).length > 0);
   const [openId, setOpenId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 

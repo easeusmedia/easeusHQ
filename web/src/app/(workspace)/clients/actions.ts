@@ -195,6 +195,7 @@ export async function createInvoice(
   // resets the "delivered since last invoice" counter for milestone clients
   await prisma.client.update({ where: { id: clientId }, data: { lastInvoicedAt: new Date() } });
   revalidatePath("/clients/[slug]", "page");
+  revalidatePath("/finance");
   return {};
 }
 
@@ -202,8 +203,14 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can update invoices." };
 
-  await prisma.invoice.update({ where: { id: invoiceId }, data: { status } });
+  // paid keeps the day it was first marked paid; anything else clears it
+  const inv = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { paidAt: true } });
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { status, paidAt: status === "paid" ? (inv?.paidAt ?? new Date()) : null },
+  });
   revalidatePath("/clients/[slug]", "page");
+  revalidatePath("/finance");
   return {};
 }
 

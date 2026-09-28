@@ -6,17 +6,6 @@ import type { EmploymentStatus, Role } from "@prisma/client";
 import { Avatar } from "../TaskCard";
 import { PersonDetail } from "./PersonDetail";
 
-// One finished thing, from either task system — an employee's record of
-// work shouldn't depend on which board it happened to live on.
-export type HistoryEntry = {
-  id: string;
-  title: string;
-  kind: "work" | "client";
-  at: string;
-  context: string | null;
-  tags: string[];
-};
-
 // One thing currently on someone's plate, from either task system.
 export type TaskEntry = {
   id: string;
@@ -24,7 +13,8 @@ export type TaskEntry = {
   kind: "work" | "client";
   status: string;
   pill: string;
-  context: string | null;
+  client: string | null;
+  project: string | null;
   tags: string[];
   due: string | null;
 };
@@ -40,18 +30,20 @@ export type PersonRecord = {
   avatarUrl: string | null;
   role: Role;
   employment: EmploymentStatus;
+  employmentType: string | null;
   teamId: string | null;
   teamName: string | null;
   jobTitleId: string | null;
   jobTitleName: string | null;
   joinedAt: string | null;
+  birthday: string | null;
+  emergencyContact: string | null;
   salary: string | null;
   notes: string | null;
-  openWork: number;
-  doneWork: number;
-  clientLoad: number;
   current: TaskEntry[];
-  history: HistoryEntry[];
+  overdue: number;
+  // the last 30 days, scored as History scores them
+  performance: { completed: number; onTimePct: number | null; medianTurnaround: number; revisionsPerTask: number };
 };
 
 export type Option = { id: string; name: string; slug?: string };
@@ -85,16 +77,18 @@ export function PeopleDirectory({
   jobTitles,
   canEdit,
   meId,
+  openFirst,
 }: {
   people: PersonRecord[];
   teams: Option[];
   jobTitles: Option[];
   canEdit: boolean;
   meId: string;
+  openFirst?: string;
 }) {
   const [query, setQuery] = useState("");
   const [team, setTeam] = useState<string>("all");
-  const [openId, setOpenId] = useState<string | null>(people[0]?.id ?? null);
+  const [openId, setOpenId] = useState<string | null>(people.find((p) => p.id === openFirst)?.id ?? people[0]?.id ?? null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -188,9 +182,9 @@ export function PeopleDirectory({
                       </span>
                       <span className="block truncate text-xs text-muted">{p.jobTitleName ?? ROLE_LABEL[p.role]}</span>
                     </span>
-                    {p.openWork + p.clientLoad > 0 && (
+                    {p.current.length > 0 && (
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-xs tabular-nums text-muted">
-                        {p.openWork + p.clientLoad}
+                        {p.current.length}
                       </span>
                     )}
                   </button>

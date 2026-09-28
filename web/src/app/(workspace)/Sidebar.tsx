@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, Wallet } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
@@ -127,6 +127,7 @@ export function ClientFace({ client, size }: { client: SidebarClient; size: numb
 
 export function Sidebar({
   isOps = false,
+  canSeeFinance = false,
   name,
   canViewAs,
   people,
@@ -138,6 +139,8 @@ export function Sidebar({
   initialOpen,
 }: {
   isOps?: boolean;
+  // admin only: what clients owe and what the team is paid
+  canSeeFinance?: boolean;
   name: string;
   canViewAs: boolean;
   people: Person[];
@@ -227,6 +230,7 @@ export function Sidebar({
             { href: "/analytics", label: "Analytics", hint: "Performance across every client", Icon: ChartColumn },
             // client contracts, from the form to the signed copy
             { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting },
+            ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),
             // core members see their own team here (read-only); admin edits everyone
             { href: "/team", label: "Team", hint: "Your people and their roles", Icon: UsersRound },
           ]

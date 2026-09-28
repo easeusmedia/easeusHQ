@@ -23,8 +23,9 @@ const COMPLETED_STATUSES: TaskStatus[] = ["delivered_and_uploaded"];
 // the company rather than of one board. Who sees whose work is the same
 // three rings the rest of the app uses (lib/scope): your own work, your
 // team's, or everyone's.
-export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ as?: string }> }) {
-  const { as } = await searchParams;
+export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ as?: string; person?: string }> }) {
+  // person: arriving from someone's profile, already filtered to them
+  const { as, person } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -166,6 +167,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       details={details}
       logsByTask={logsByTask}
       canDelete={canDelete}
+      initialFilters={person ? { personId: person } : {}}
     />
   );
 }

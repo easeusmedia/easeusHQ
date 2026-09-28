@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { userPhotoSrc } from "@/lib/photos";
 import { canEditPeople, seesEveryTeam, type Viewer } from "@/lib/scope";
-import { PeopleDirectory, type HistoryEntry, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
+import { PeopleDirectory, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
+import { totals, type HistoryItem } from "@/lib/history";
+import { indiaDay } from "@/lib/due";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
@@ -11,12 +13,13 @@ import { displayTeam } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
-// Everyone at the agency, their record, and what they've actually shipped.
-//
-// Replaces the old four-column role table. Admin (and Abhishek) see and edit
+// Everyone at the agency: their record, what they're on now and how the
+// last month went. Admin (and Abhishek) see and edit
 // everyone; a core member sees their own team read-only, which is enough to
 // know who's on what without handing them salaries.
-export default async function PeoplePage() {
+// ?person=<id> opens straight on that person (linked from Finance)
+export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ person?: string }> }) {
+  const { person } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
@@ -43,10 +46,13 @@ export default async function PeoplePage() {
     prisma.jobTitle.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
-  // Everything the roster is carrying and everything it has finished, in four
-  // queries for the whole agency and grouped in memory — far cheaper than a
-  // round trip per person as you click down the list.
+  // What the roster is carrying now and what it finished in the last 30
+  // days, in four queries for the whole agency and grouped in memory. The
+  // full record of finished work is History's job, not this page's.
   const ids = people.map((p) => p.id);
+  // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
+  const since = new Date(Date.now() - 30 * 86_400_000);
+  const today = indiaDay(new Date());
   const [openWorkRows, openClientRows, finishedWork, deliveredClient] = await Promise.all([
     prisma.workTask.findMany({
       where: { assignedToId: { in: ids }, status: { not: "done" } },
@@ -59,18 +65,16 @@ export default async function PeoplePage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.workTask.findMany({
-      where: { assignedToId: { in: ids }, status: "done" },
-      include: { tags: true, project: { include: { client: true } } },
-      orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }],
-      take: 400,
+      where: { assignedToId: { in: ids }, status: "done", OR: [{ completedAt: { gte: since } }, { completedAt: null, updatedAt: { gte: since } }] },
+      select: { assignedToId: true, createdAt: true, completedAt: true, updatedAt: true, dueDate: true },
     }),
     prisma.task.findMany({
-      where: { assignedToId: { in: ids }, status: "delivered_and_uploaded" },
-      include: { project: { include: { client: true } } },
-      orderBy: { updatedAt: "desc" },
-      take: 400,
+      where: { assignedToId: { in: ids }, status: "delivered_and_uploaded", updatedAt: { gte: since } },
+      select: { assignedToId: true, createdAt: true, updatedAt: true, dueDate: true, handedOffAt: true, revisionCount: true },
     }),
   ]);
+
+  const dueOf = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
   // What's in flight right now — the first question this page answers.
   const currentFor = (id: string): TaskEntry[] => [
@@ -82,9 +86,10 @@ export default async function PeoplePage() {
         kind: "client" as const,
         status: STAGE[t.status].label,
         pill: STAGE[t.status].pill,
-        context: t.project.client.name,
+        client: t.project.client.name,
+        project: t.project.name || t.project.type,
         tags: [] as string[],
-        due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+        due: dueOf(t.dueDate),
       })),
     ...openWorkRows
       .filter((t) => t.assignedToId === id)
@@ -94,35 +99,27 @@ export default async function PeoplePage() {
         kind: "work" as const,
         status: WORK_TASK_STAGE[t.status].label,
         pill: WORK_TASK_STAGE[t.status].pill,
-        context: t.project ? `${t.project.client.name} · ${t.project.name || t.project.type}` : null,
+        client: t.project?.client.name ?? null,
+        project: t.project ? t.project.name || t.project.type : null,
         tags: t.tags.map((x) => x.name),
-        due: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+        due: dueOf(t.dueDate),
       })),
   ];
 
-  const historyFor = (id: string): HistoryEntry[] =>
-    [
-      ...finishedWork
-        .filter((t) => t.assignedToId === id)
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          kind: "work" as const,
-          at: (t.completedAt ?? t.updatedAt).toISOString(),
-          context: t.project ? `${t.project.client.name} · ${t.project.name || t.project.type}` : null,
-          tags: t.tags.map((x) => x.name),
-        })),
+  // the last 30 days, scored the way History scores them (lib/history.ts)
+  const performanceFor = (id: string) => {
+    const base = { id, kind: "client" as const, title: "", personId: id, person: "", team: null, client: null, project: null, tags: [], startedAt: null };
+    const items: HistoryItem[] = [
       ...deliveredClient
         .filter((t) => t.assignedToId === id)
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          kind: "client" as const,
-          at: t.updatedAt.toISOString(),
-          context: t.project.client.name,
-          tags: [],
-        })),
-    ].sort((a, b) => b.at.localeCompare(a.at));
+        .map((t) => ({ ...base, createdAt: t.createdAt, completedAt: t.updatedAt, dueDate: t.dueDate, handedOffAt: t.handedOffAt, revisions: t.revisionCount })),
+      ...finishedWork
+        .filter((t) => t.assignedToId === id)
+        .map((t) => ({ ...base, kind: "internal" as const, createdAt: t.createdAt, completedAt: t.completedAt ?? t.updatedAt, dueDate: t.dueDate, handedOffAt: null, revisions: 0 })),
+    ];
+    const { completed, onTimePct, medianTurnaround, revisionsPerTask } = totals(items);
+    return { completed, onTimePct, medianTurnaround, revisionsPerTask };
+  };
 
   const records: PersonRecord[] = people.map((p) => ({
     id: p.id,
@@ -132,23 +129,24 @@ export default async function PeoplePage() {
     avatarUrl: userPhotoSrc(p),
     role: p.role,
     employment: p.employment,
+    employmentType: p.employmentType,
     teamId: p.teamId,
     // shown under Editors / Operations / … as the rest of the app shows them
     teamName: displayTeam(p)?.name ?? null,
     shownTeam: displayTeam(p)?.slug ?? null,
     jobTitleId: p.jobTitleId,
     jobTitleName: p.jobTitle?.name ?? null,
-    joinedAt: p.joinedAt ? p.joinedAt.toISOString().slice(0, 10) : null,
+    joinedAt: dueOf(p.joinedAt),
+    birthday: dueOf(p.birthday),
+    emergencyContact: p.emergencyContact,
     // Decimal doesn't survive the trip to a client component, and this is
     // the one page allowed to show it at all — so it crosses as a string,
     // and only when the viewer may edit people.
     salary: canEdit && p.salary ? p.salary.toString() : null,
     notes: p.notes,
-    openWork: openWorkRows.filter((t) => t.assignedToId === p.id).length,
-    doneWork: finishedWork.filter((t) => t.assignedToId === p.id).length,
-    clientLoad: openClientRows.filter((t) => t.assignedToId === p.id).length,
     current: currentFor(p.id),
-    history: historyFor(p.id),
+    overdue: currentFor(p.id).filter((t) => t.due && t.due < today).length,
+    performance: performanceFor(p.id),
   }));
 
   return (
@@ -159,6 +157,7 @@ export default async function PeoplePage() {
         jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name }))}
         canEdit={canEdit}
         meId={me.id}
+        openFirst={person}
       />
     </div>
   );

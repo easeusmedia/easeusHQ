@@ -8,7 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { Pulse } from "./Pulse";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { seesClientFeedback } from "@/lib/scope";
+import { canEditPeople, seesClientFeedback } from "@/lib/scope";
 import { getUnreadBySender } from "./presence/actions";
 import { MainScroll } from "./MainScroll";
 import { ClientDock } from "./clients/ClientDock";
@@ -67,6 +67,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <Pulse />
       <Sidebar
         isOps={isOps}
+        canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
         canViewAs={canViewAs && users.length > 0}
         people={users.filter(onStaff)}

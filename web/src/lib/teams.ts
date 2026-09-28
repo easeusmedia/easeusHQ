@@ -22,3 +22,11 @@ export function displayTeam<T extends { slug: string; name: string }>(person: {
   if (person.role === "admin") return null;
   return person.team;
 }
+
+// How someone is employed — a label, not access; saved as the key.
+export const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
+  full_time: "Full-time",
+  part_time: "Part-time",
+  freelance: "Freelance",
+  intern: "Intern",
+};

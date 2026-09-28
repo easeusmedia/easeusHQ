@@ -166,6 +166,11 @@ model User {
   // than money that's slightly awkward to read back out.
   salary             Decimal?         @db.Decimal(12, 2)
   employment         EmploymentStatus @default(active)
+  // full_time | part_time | freelance | intern (see team/actions.ts)
+  employmentType     String?
+  birthday           DateTime?
+  // a name and a number, as one line: "Riya (sister) · +91 98…"
+  emergencyContact   String?
   notes              String?          @db.Text
 
   tasksAssigned     Task[]        @relation("AssignedTasks")
@@ -697,6 +702,8 @@ model Invoice {
   status    InvoiceStatus @default(draft)
   pdfUrl    String?
   dueDate   DateTime?
+  // set when it's marked paid; what Finance counts as collected, and when
+  paidAt    DateTime?
   createdAt DateTime      @default(now())
 }
 
