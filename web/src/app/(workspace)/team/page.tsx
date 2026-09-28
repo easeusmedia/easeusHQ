@@ -6,7 +6,7 @@ import { canEditPeople, seesEveryTeam, type Viewer } from "@/lib/scope";
 import { PeopleDirectory, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
 import { totals, type HistoryItem } from "@/lib/history";
 import { indiaDay } from "@/lib/due";
-import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
@@ -55,12 +55,12 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const today = indiaDay(new Date());
   const [openWorkRows, openClientRows, finishedWork, deliveredClient] = await Promise.all([
     prisma.workTask.findMany({
-      where: { assignedToId: { in: ids }, status: { not: "done" } },
+      where: { assignedToId: { in: ids }, ...LIVE_WORK_TASK },
       include: { tags: true, project: { include: { client: true } } },
       orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
     }),
     prisma.task.findMany({
-      where: { assignedToId: { in: ids }, status: { in: ACTIVE_STATUSES } },
+      where: { assignedToId: { in: ids }, ...LIVE_TASK },
       include: { project: { include: { client: true } } },
       orderBy: { createdAt: "desc" },
     }),

@@ -5,7 +5,7 @@ import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
-import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
+import { LIVE_TASK, type Role } from "@/lib/workflow";
 import { seesEveryTeam, visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
@@ -31,7 +31,7 @@ export default async function TasksPage({
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
     prisma.task.findMany({
-      where: { status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
+      where: LIVE_TASK,
       orderBy: { createdAt: "desc" },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),

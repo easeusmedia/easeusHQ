@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { displayTeam } from "@/lib/teams";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -42,13 +42,13 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     }),
     prisma.workTask.findMany({
       // finished work belongs to History, not to a board
-      where: { ...where, status: { not: "done" } },
+      where: { ...where, ...LIVE_WORK_TASK },
       include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: { sortOrder: "asc" },
     }),
     withQueue
       ? prisma.task.findMany({
-          where: { ...where, status: { in: ACTIVE_STATUSES } },
+          where: { ...where, ...LIVE_TASK },
           orderBy: { createdAt: "desc" },
           include: { assignedTo: assignee, tags: true, project: { include: { client: true } } },
         })

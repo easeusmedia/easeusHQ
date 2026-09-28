@@ -60,6 +60,15 @@ export const ALL_STATUSES: TaskStatus[] = [
 // "active tasks" means the same number wherever it's shown
 export const ACTIVE_STATUSES: TaskStatus[] = ALL_STATUSES.filter((s) => s !== "delivered_and_uploaded");
 
+// Live work, wherever it's listed: not shipped, and for a current client. A
+// client put on hold takes its unfinished tasks off every board and profile
+// with it. Someone's own work with no project is always theirs to finish.
+export const LIVE_TASK = { status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } };
+export const LIVE_WORK_TASK = {
+  status: { not: "done" as const },
+  OR: [{ projectId: null }, { project: { client: { status: "current" } } }],
+};
+
 export type Role = "admin" | "core" | "employee";
 
 export type Actor = { role: Role; isAssignee: boolean };

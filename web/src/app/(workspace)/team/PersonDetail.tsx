@@ -466,7 +466,18 @@ export function PersonDetail({
           )}
         </Section>
 
-        <Section title="Performance" aside="Last 30 days">
+        <Section
+          title="Performance"
+          aside={
+            person.shownTeam === "editors" ? (
+              <Link href="/performance" className="flex items-center gap-1 hover:text-foreground">
+                Last 30 days · Editor KPIs <ArrowUpRight size={12} />
+              </Link>
+            ) : (
+              "Last 30 days"
+            )
+          }
+        >
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat value={p.completed} label="Finished" lit={p.completed > 0} />
             <Stat value={p.onTimePct === null ? "–" : `${p.onTimePct}%`} label="On time" lit={p.onTimePct !== null} />
