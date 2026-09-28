@@ -49,7 +49,7 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
             </ol>
           </div>
 
-          <p className="relative mt-10 text-xs text-muted/70">Easeus Media: New Age Media Distribution, made for the scroll and built to outlast it.</p>
+          <p className="relative mt-10 text-xs text-muted/70">Easeus Media: your New Age Media Distribution Partner. (Yes, technically an agency. We just don&apos;t act like one.)</p>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col px-6 py-8 sm:px-10 lg:px-16 lg:py-12">

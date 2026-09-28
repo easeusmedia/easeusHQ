@@ -59,11 +59,18 @@ export function workTaskHome(a: { role: string; teamSlug: string | null; workboo
   return pushesToNotion({ role: a.role, teamSlug: a.teamSlug }) ? "queue" : null;
 }
 
-// The Editing Queue's Editor column. Always sent, even empty: leaving it out
-// when the new assignee has no Notion account kept the *previous* editor on
-// the row, so the task stayed in their Notion view after being handed on.
+// The Editing Queue's Editor column, as Notion takes it.
 export function editorPeople(notionUserId: string | null) {
   return { people: notionUserId ? [{ object: "user" as const, id: notionUserId }] : [] };
+}
+
+// With no Notion account known for the assignee, whether to clear the Editor
+// the row has now: only if it names one of our own linked people — then the
+// task was handed on from them, and it mustn't stay in their view. A name we
+// don't know is left alone: it may be this very person's account, just not
+// linked here, or the team may have set it in Notion themselves.
+export function clearsEditor(current: string[], known: Set<string>): boolean {
+  return current.some((id) => known.has(id));
 }
 
 // Notion writes a database's id with or without its dashes

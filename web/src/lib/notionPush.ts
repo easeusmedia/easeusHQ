@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { notionGet, notionPatch, notionPost, taskDatabaseId } from "./notion";
-import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, editorPeople, exportedLinkFor, sameNotionId, workTaskHome } from "./notionMapping";
+import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, clearsEditor, editorPeople, exportedLinkFor, sameNotionId, workTaskHome } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
 // Pushing work *up* to Notion, the other direction from lib/notion.ts.
@@ -40,9 +40,22 @@ function propertiesFor(task: PushableTask) {
     "Sync check": {
       rich_text: task.assignedTo ? [{ text: { content: task.assignedTo.name } }] : [],
     },
-    // always written, so a task handed on leaves the last editor's view
-    Editor: editorPeople(task.assignedTo?.notionUserId ?? null),
   };
+}
+
+// The Editor column to write onto a row (see clearsEditor): the assignee's
+// Notion account when we know it; otherwise cleared only when it names one
+// of our own people, and otherwise left exactly as it is.
+async function editorFor(pageId: string | null, notionUserId: string | null) {
+  if (notionUserId) return { Editor: editorPeople(notionUserId) };
+  if (!pageId) return {};
+  const page = await notionGet(`/pages/${pageId}`).catch(() => null);
+  const current = ((page?.properties?.Editor?.people ?? []) as { id: string }[]).map((u) => u.id);
+  if (current.length === 0) return {};
+  const known = new Set(
+    (await prisma.user.findMany({ where: { notionUserId: { not: null } }, select: { notionUserId: true } })).map((u) => u.notionUserId!)
+  );
+  return clearsEditor(current, known) ? { Editor: editorPeople(null) } : {};
 }
 
 // Creates the row and records its id, so later syncs update this page rather
@@ -56,7 +69,7 @@ export async function createInNotion(taskId: string): Promise<{ pageId?: string;
   try {
     const page = await notionPost("/pages", {
       parent: { database_id: await taskDatabaseId() },
-      properties: propertiesFor(task),
+      properties: { ...propertiesFor(task), ...(await editorFor(null, task.assignedTo?.notionUserId ?? null)) },
     });
     await prisma.task.update({
       where: { id: taskId },
@@ -80,7 +93,7 @@ export async function createInNotion(taskId: string): Promise<{ pageId?: string;
 export async function updateInNotion(taskId: string): Promise<{ error?: string; restored?: boolean; recreated?: boolean }> {
   const task = await loadTask(taskId);
   if (!task?.notionPageId) return { error: "This task isn't linked to Notion." };
-  const properties = propertiesFor(task);
+  const properties = { ...propertiesFor(task), ...(await editorFor(task.notionPageId, task.assignedTo?.notionUserId ?? null)) };
   try {
     await notionPatch(`/pages/${task.notionPageId}`, { properties });
     return {};
@@ -186,15 +199,21 @@ export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?
     }
     if (!databaseId) return {};
 
-    const properties = home === "workbook" ? await workbookProperties(databaseId, t) : editingQueueProperties(t);
+    const properties =
+      home === "workbook"
+        ? await workbookProperties(databaseId, t)
+        : { ...editingQueueProperties(t), ...(await editorFor(pageId, t.assignedTo.notionUserId)) };
     if (pageId) {
       try {
         await notionPatch(`/pages/${pageId}`, { properties });
         if (!t.notionDatabaseId) await prisma.workTask.update({ where: { id: workTaskId }, data: { notionDatabaseId: databaseId } });
         return {};
       } catch (err) {
-        // gone for good in Notion: make it again below; anything else is a real error
-        if (!/could not find|not found|archiv|trash/i.test(err instanceof Error ? err.message : "")) throw err;
+        const message = err instanceof Error ? err.message : "";
+        // someone deleted the row in their Notion: their call, so it stays deleted
+        if (/archiv|trash/i.test(message)) return {};
+        // gone for good (not even in the trash): make it again below
+        if (!/could not find|not found/i.test(message)) throw err;
       }
     }
     const page = await notionPost("/pages", { parent: { database_id: databaseId }, properties });
@@ -234,7 +253,6 @@ function editingQueueProperties(t: WorkTaskRow) {
     "Editor Queu Date": { date: { start: t.createdAt.toISOString().slice(0, 10) } },
     "Raw Links": url(links[0]?.url ?? null),
     "Sync check": { rich_text: [{ text: { content: t.assignedTo.name } }] },
-    Editor: editorPeople(t.assignedTo.notionUserId),
   };
 }
 

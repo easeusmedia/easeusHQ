@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { editorPeople, exportedLinkFor, matchClient, pushesToNotion, sameNotionId, workTaskHome } from "./notionMapping.ts";
+import { clearsEditor, editorPeople, exportedLinkFor, matchClient, pushesToNotion, sameNotionId, workTaskHome } from "./notionMapping.ts";
 
 const FRAME = "https://f.io/abc";
 const DRIVE = "https://drive.google.com/file/d/xyz/view";
@@ -69,10 +69,18 @@ test("a work task goes to its person's own workbook, the queue for other Operati
   assert.equal(workTaskHome({ role: "core", teamSlug: "sales", workbookId: null }), null);
 });
 
-test("the Editor column is always written, empty when the assignee has no Notion account", () => {
+test("the Editor column, as Notion takes it", () => {
   assert.deepEqual(editorPeople("user-1"), { people: [{ object: "user", id: "user-1" }] });
-  // empty clears whoever had it before, rather than leaving them on the row
   assert.deepEqual(editorPeople(null), { people: [] });
+});
+
+test("with no account for the assignee, an Editor is cleared only when it's one of ours", () => {
+  const known = new Set(["narendra", "sparsh"]);
+  // handed on from Narendra to someone without Notion: take Narendra off
+  assert.equal(clearsEditor(["narendra"], known), true);
+  // someone we don't know (their own unlinked account, or set in Notion): leave it
+  assert.equal(clearsEditor(["someone-else"], known), false);
+  assert.equal(clearsEditor([], known), false);
 });
 
 test("database ids match with or without dashes", () => {
