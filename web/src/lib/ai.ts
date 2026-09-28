@@ -55,13 +55,70 @@ const monthStart = () => {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 };
 
-export async function aiSpend(): Promise<{ spent: number; budget: number }> {
-  const [sum, row] = await Promise.all([
+// Anthropic's own record of the month's spend, across everything on the
+// account (other apps, the Console's playground), not just this app. Read
+// with an optional Admin API key, which can only read reports, never send
+// messages. Asked at most every 10 minutes; its figures lag a few minutes.
+export const AI_ADMIN_KEY = "anthropic.adminKey";
+const ACCOUNT_SPEND = "ai.accountSpend";
+const FRESH = 10 * 60_000;
+
+export async function readCostReport(adminKey: string): Promise<number> {
+  const start = monthStart();
+  const end = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1));
+  let cents = 0;
+  let page: string | undefined;
+  do {
+    const q = new URLSearchParams({ starting_at: start.toISOString(), ending_at: end.toISOString(), limit: "31", ...(page ? { page } : {}) });
+    const res = await fetch(`https://api.anthropic.com/v1/organizations/cost_report?${q}`, {
+      headers: { "x-api-key": adminKey, "anthropic-version": "2023-06-01" },
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.error?.message ?? `Anthropic answered ${res.status}.`);
+    // amounts are decimal strings in cents
+    for (const bucket of body.data ?? []) for (const r of bucket.results ?? []) cents += Number(r.amount) || 0;
+    page = body.has_more ? body.next_page : undefined;
+  } while (page);
+  return cents / 100;
+}
+
+async function accountSpend(): Promise<number | null> {
+  const rows = await prisma.appSetting.findMany({ where: { key: { in: [AI_ADMIN_KEY, ACCOUNT_SPEND] } } });
+  const key = rows.find((r) => r.key === AI_ADMIN_KEY)?.value;
+  if (!key) return null;
+  const month = monthStart().toISOString().slice(0, 7);
+  let cached: { at: number; usd: number; month: string } | null = null;
+  try {
+    cached = JSON.parse(rows.find((r) => r.key === ACCOUNT_SPEND)?.value ?? "null");
+  } catch {}
+  if (cached && cached.month === month && Date.now() - cached.at < FRESH) return cached.usd;
+  try {
+    const usd = await readCostReport(key);
+    const value = JSON.stringify({ at: Date.now(), usd, month });
+    await prisma.appSetting.upsert({ where: { key: ACCOUNT_SPEND }, create: { key: ACCOUNT_SPEND, value }, update: { value } });
+    return usd;
+  } catch {
+    // Anthropic unreachable: the last figure this month, if there is one
+    return cached?.month === month ? cached.usd : null;
+  }
+}
+
+// The month's spend. With an admin key, the account's own figure (never less
+// than what this app has metered itself, since the report lags); without
+// one, only what this app has spent, and it says so.
+export async function aiSpend(): Promise<{ spent: number; budget: number; account: boolean }> {
+  const [sum, row, account] = await Promise.all([
     prisma.aiUsage.aggregate({ where: { at: { gte: monthStart() } }, _sum: { costUsd: true } }),
     prisma.appSetting.findUnique({ where: { key: AI_BUDGET } }),
+    accountSpend(),
   ]);
   const budget = Number(row?.value);
-  return { spent: sum._sum.costUsd ?? 0, budget: Number.isFinite(budget) && budget > 0 ? budget : DEFAULT_BUDGET };
+  const app = sum._sum.costUsd ?? 0;
+  return {
+    spent: account === null ? app : Math.max(account, app),
+    budget: Number.isFinite(budget) && budget > 0 ? budget : DEFAULT_BUDGET,
+    account: account !== null,
+  };
 }
 
 export class OverBudget extends Error {}

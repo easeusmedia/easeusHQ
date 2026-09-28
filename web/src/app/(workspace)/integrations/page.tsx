@@ -14,6 +14,7 @@ import { ClaudeIntegration } from "./ClaudeIntegration";
 import { GmailIntegration } from "./GmailIntegration";
 import { gmailAccount } from "@/lib/gmail";
 import { claudeKey } from "@/lib/claude";
+import { AI_ADMIN_KEY, aiSpend } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,11 @@ export default async function IntegrationsPage({
         justConnected={frameio === "1"}
       />
 
-      <ClaudeIntegration ending={(await claudeKey())?.slice(-4) ?? null} />
+      <ClaudeIntegration
+        ending={(await claudeKey())?.slice(-4) ?? null}
+        adminEnding={(await prisma.appSetting.findUnique({ where: { key: AI_ADMIN_KEY } }))?.value.slice(-4) ?? null}
+        spend={await aiSpend()}
+      />
 
       <GmailIntegration account={await gmailAccount()} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 

@@ -9,6 +9,7 @@ import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFro
 import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } from "@/lib/notion";
 import { APIFY_SETTINGS } from "@/lib/apify";
 import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
+import { AI_ADMIN_KEY, AI_BUDGET, readCostReport } from "@/lib/ai";
 import { GMAIL_SETTINGS } from "@/lib/gmail";
 
 // Connecting the team's Google Drive, from inside the app rather than from
@@ -217,6 +218,39 @@ export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
 export async function disconnectGmail(): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   await prisma.appSetting.deleteMany({ where: { key: { in: [GMAIL_SETTINGS.refreshToken, GMAIL_SETTINGS.account] } } });
+  revalidatePath("/integrations");
+  return {};
+}
+
+// An Admin API key, only to read the account's monthly cost so the spend
+// line and the limit count everything on the account. Checked by reading
+// the report before it's kept; clearing it goes back to this app's own count.
+export async function saveClaudeAdminKey(key: string): Promise<{ error?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  const k = key.trim();
+  if (!k) {
+    await prisma.appSetting.deleteMany({ where: { key: { in: [AI_ADMIN_KEY, "ai.accountSpend"] } } });
+    revalidatePath("/integrations");
+    return {};
+  }
+  if (!k.startsWith("sk-ant-admin")) return { error: "That isn't an Admin API key. They start with sk-ant-admin." };
+  try {
+    await readCostReport(k);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Anthropic didn't accept that key." };
+  }
+  await prisma.appSetting.upsert({ where: { key: AI_ADMIN_KEY }, create: { key: AI_ADMIN_KEY, value: k }, update: { value: k } });
+  await prisma.appSetting.deleteMany({ where: { key: "ai.accountSpend" } });
+  revalidatePath("/integrations");
+  return {};
+}
+
+// The monthly limit every Claude call is checked against
+export async function saveAiBudget(usd: number): Promise<{ error?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  if (!Number.isFinite(usd) || usd <= 0 || usd > 10000) return { error: "Give a limit in dollars, above zero." };
+  const value = String(Math.round(usd * 100) / 100);
+  await prisma.appSetting.upsert({ where: { key: AI_BUDGET }, create: { key: AI_BUDGET, value }, update: { value } });
   revalidatePath("/integrations");
   return {};
 }

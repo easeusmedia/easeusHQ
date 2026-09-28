@@ -127,7 +127,7 @@ export function Assistant({ name }: { name: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [spend, setSpend] = useState<{ spent: number; budget: number } | null>(null);
+  const [spend, setSpend] = useState<{ spent: number; budget: number; account: boolean } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -199,7 +199,7 @@ export function Assistant({ name }: { name: string }) {
         meta: `${res.model?.includes("haiku") ? "Haiku" : "Sonnet"} · $${(res.cost ?? 0).toFixed(3)}`,
       },
     ]);
-    if (res.spent !== undefined && res.budget !== undefined) setSpend({ spent: res.spent, budget: res.budget });
+    if (res.spent !== undefined && res.budget !== undefined) setSpend({ spent: res.spent, budget: res.budget, account: !!res.account });
   }
 
   async function decide(mi: number, pi: number, go: boolean) {
@@ -244,7 +244,12 @@ export function Assistant({ name }: { name: string }) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Nyra</p>
             <p className="truncate text-[11px] text-muted">
-              {spend ? `$${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)} used this month` : "Here to help"}
+              {/* the account's own figure with an admin key; otherwise only what this app spent, said as such */}
+              {spend
+                ? spend.account
+                  ? `$${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)} used this month`
+                  : `$${spend.spent.toFixed(2)} used in Easeus HQ this month`
+                : "Here to help"}
             </p>
           </div>
           {[

@@ -22,7 +22,7 @@ export async function ask(history: Turn[], question: string): Promise<AskResult>
 }
 
 // the panel's spend line, when it opens
-export async function assistantUsage(): Promise<{ spent: number; budget: number } | null> {
+export async function assistantUsage(): Promise<{ spent: number; budget: number; account: boolean } | null> {
   if (!(await admin())) return null;
   return aiSpend();
 }

@@ -24,6 +24,8 @@ export type AskResult = {
   cost?: number;
   spent?: number;
   budget?: number;
+  // spent is the whole Anthropic account's, not only this app's
+  account?: boolean;
   error?: string;
 };
 
@@ -157,8 +159,8 @@ export async function answer(me: { id: string; name: string }, history: Turn[], 
       messages.push({ role: "assistant", content: res.content }, { role: "user", content: results });
     }
 
-    const { spent, budget } = await aiSpend();
-    return { text: text || (proposals.length ? "Here's the change for you to confirm." : "I couldn't find an answer to that."), proposals, model, cost, spent, budget };
+    const { spent, budget, account } = await aiSpend();
+    return { account, text: text || (proposals.length ? "Here's the change for you to confirm." : "I couldn't find an answer to that."), proposals, model, cost, spent, budget };
   } catch (err) {
     if (err instanceof OverBudget) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Claude couldn't be reached." };
