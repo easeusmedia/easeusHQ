@@ -17,13 +17,18 @@ export function SyncFrameio() {
     setSaid(null);
     const res = await syncFeedback();
     setBusy(false);
-    if (res.error) return setSaid(res.error);
+    if (res.error) {
+      setSaid(res.error);
+      return setTimeout(() => setSaid(null), 6000);
+    }
     setSaid(
       !res.added
         ? "No new comments."
         : `${res.added} new comment${res.added === 1 ? "" : "s"}${res.sorted ? `, ${res.mistakes} sorted as mistakes` : ", to sort by hand"}.`
     );
     router.refresh();
+    // a passing note, not a fixture of the header
+    setTimeout(() => setSaid(null), 4000);
   }
 
   return (

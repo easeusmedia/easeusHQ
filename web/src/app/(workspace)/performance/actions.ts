@@ -4,24 +4,42 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId, requireOps } from "@/lib/auth";
 import { canEditPeople } from "@/lib/scope";
-import { ENTRY_KINDS, KPI_TARGETS, type Targets } from "@/lib/editorKpi";
+import { ENTRY_KINDS, KPI_TARGETS, withTargetDefaults, type Targets } from "@/lib/editorKpi";
 import { syncFrameioFeedback } from "@/lib/frameioFeedback";
 
 type Result = { error?: string };
 
-const LIMITS: Record<keyof Targets, number> = { delivered: 500, turnaroundHours: 720, onTimePct: 100, revisions: 20, mistakes: 100 };
+const LIMITS = { output: 500, mistakesPerVideo: 20, revisions: 20, onTimePct: 100, draftHours: 720 } as const;
+const num = (v: unknown, max: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= max ? Math.round(n * 100) / 100 : null;
+};
 
-// The editing team's targets. Admin sets them; ops reads them.
+// The editing team's targets, how much each part counts, and how much each
+// kind of work weighs. Admin sets them; ops reads them.
 export async function saveKpiTargets(input: Targets): Promise<Result> {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id }, select: { role: true, email: true } }) : null;
   if (!me || !canEditPeople(me)) return { error: "Only the admin can change the targets." };
 
-  const clean = {} as Targets;
-  for (const key of Object.keys(LIMITS) as (keyof Targets)[]) {
-    const n = Number(input[key]);
-    if (!Number.isFinite(n) || n < 0 || n > LIMITS[key]) return { error: "One of those targets isn't a sensible number." };
+  const clean = withTargetDefaults({});
+  for (const key of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
+    const n = num(input[key], LIMITS[key]);
+    if (n === null) return { error: "One of those targets isn't a sensible number." };
     clean[key] = n;
+  }
+  if (clean.mistakesPerVideo <= 0 || clean.revisions <= 0 || clean.output <= 0) return { error: "Targets need to be above zero." };
+  for (const part of Object.keys(clean.weights) as (keyof Targets["weights"])[]) {
+    const n = num(input.weights?.[part], 100);
+    if (n === null) return { error: "Each weight is between 0 and 100." };
+    clean.weights[part] = n;
+  }
+  if (Object.values(clean.weights).reduce((a, b) => a + b, 0) <= 0) return { error: "At least one part needs a weight." };
+  clean.typeWeights = {};
+  for (const [kind, w] of Object.entries(input.typeWeights ?? {})) {
+    const n = num(w, 20);
+    if (n === null || !kind.trim()) return { error: "Each kind of work weighs between 0 and 20." };
+    clean.typeWeights[kind.trim()] = n;
   }
   const value = JSON.stringify(clean);
   await prisma.appSetting.upsert({ where: { key: KPI_TARGETS }, create: { key: KPI_TARGETS, value }, update: { value } });

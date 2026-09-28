@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bot, Check, ChevronLeft, ChevronRight, CircleAlert, CircleSlash, MessageSquare, PenLine, Plus, StickyNote, Target, ThumbsUp, Trash2, X, type LucideIcon } from "lucide-react";
-import { ENTRY_KINDS, MISTAKE_CATEGORIES, monthName, shiftMonth, type Grade, type KpiKey, type Targets } from "@/lib/editorKpi";
+import { ENTRY_KINDS, MISTAKE_CATEGORIES, PART_LABEL, monthName, shiftMonth, type Grade, type Part, type Targets } from "@/lib/editorKpi";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { Reveal } from "../Reveal";
@@ -13,14 +13,6 @@ import { ConfirmButton } from "../ConfirmButton";
 import { acceptAll, deleteEntry, logEntry, reviewEntry, saveKpiTargets, setTaskExcluded, updateEntry, type EntryInput } from "./actions";
 
 // ---------- header ----------
-
-const TARGET_FIELDS: { key: KpiKey; label: string; unit: string; max: number; min?: number }[] = [
-  { key: "delivered", label: "Videos", unit: "a month, per editor", max: 500 },
-  { key: "turnaroundHours", label: "Turnaround", unit: "hours, at most", max: 720 },
-  { key: "mistakes", label: "Mistakes", unit: "a month, at most", max: 100, min: 0 },
-  { key: "revisions", label: "Revisions", unit: "per video, at most", max: 20, min: 0 },
-  { key: "onTimePct", label: "On time", unit: "% or more", max: 100 },
-];
 
 export function MonthSwitch({ month, thisMonth, base }: { month: string; thisMonth: string; base: string }) {
   const step = "grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-foreground";
@@ -44,13 +36,36 @@ export function MonthSwitch({ month, thisMonth, base }: { month: string; thisMon
   );
 }
 
-// The team's targets, set by the admin, opening under the page title.
-export function TargetsEditor({ targets }: { targets: Targets }) {
+// a number field that takes decimals (0.5 mistakes a video), no spinners
+function Num({ value, onChange, suffix, wide }: { value: number; onChange: (n: number) => void; suffix?: string; wide?: boolean }) {
+  const [text, setText] = useState(String(value));
+  return (
+    <span className="flex items-center gap-1.5">
+      <input
+        value={text}
+        inputMode="decimal"
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Number(e.target.value);
+          if (e.target.value.trim() && Number.isFinite(n)) onChange(n);
+        }}
+        className={`${wide ? "w-20" : "w-16"} rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-sm tabular-nums text-foreground`}
+      />
+      {suffix && <span className="text-xs text-muted">{suffix}</span>}
+    </span>
+  );
+}
+
+// The team's targets, how much each part counts and what each kind of work
+// weighs, set by the admin, opening under the page title.
+export function TargetsEditor({ targets, kinds }: { targets: Targets; kinds: string[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(targets);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const total = Object.values(draft.weights).reduce((a, b) => a + b, 0);
+  const unlisted = kinds.filter((k) => !(k in draft.typeWeights));
 
   async function save() {
     setSaving(true);
@@ -62,28 +77,86 @@ export function TargetsEditor({ targets }: { targets: Targets }) {
     router.refresh();
   }
 
+  const label = "flex flex-col gap-1.5 text-xs text-muted";
   return (
     <>
       <button onClick={() => setOpen((o) => !o)} className="btn btn-ghost flex items-center gap-1.5">
         <Target size={14} /> Targets
       </button>
-      {/* fixed under the header row, full width */}
       <div className="order-last basis-full">
         <Reveal open={open}>
-          <div className="mt-1 card-surface rounded-2xl p-4 shadow-sm">
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              {TARGET_FIELDS.map((f) => (
-                <div key={f.key} className="flex flex-col gap-1.5">
-                  <span className="text-xs text-muted">{f.label}</span>
-                  <span className="flex items-center gap-2">
-                    <Stepper value={draft[f.key]} min={f.min ?? 1} max={f.max} onChange={(n) => setDraft((d) => ({ ...d, [f.key]: n }))} />
-                    <span className="text-xs text-muted">{f.unit}</span>
+          <div className="mt-1 grid gap-6 rounded-2xl border border-border bg-surface-2/30 p-5 lg:grid-cols-3">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium">Targets</p>
+              <div className={label}>
+                Output a month
+                <Num value={draft.output} onChange={(n) => setDraft({ ...draft, output: n })} suffix="weighted videos" />
+              </div>
+              <div className={label}>
+                Mistakes per video, at most
+                <Num value={draft.mistakesPerVideo} onChange={(n) => setDraft({ ...draft, mistakesPerVideo: n })} />
+              </div>
+              <div className={label}>
+                Times sent back per video, at most
+                <Num value={draft.revisions} onChange={(n) => setDraft({ ...draft, revisions: n })} />
+              </div>
+              <div className={label}>
+                First drafts on time
+                <Num value={draft.onTimePct} onChange={(n) => setDraft({ ...draft, onTimePct: n })} suffix="% or more" />
+              </div>
+              <div className={label}>
+                Turnaround, shown but not scored
+                <Num value={draft.draftHours} onChange={(n) => setDraft({ ...draft, draftHours: n })} suffix="hours to a first draft" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium">How much each part counts</p>
+              {(Object.keys(PART_LABEL) as Part[]).map((part) => (
+                <div key={part} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted">{PART_LABEL[part]}</span>
+                  <Num value={draft.weights[part]} onChange={(n) => setDraft({ ...draft, weights: { ...draft.weights, [part]: n } })} suffix="%" />
+                </div>
+              ))}
+              <p className={`text-xs ${total === 100 ? "text-muted" : "text-foreground"}`}>
+                Total {total}%{total === 100 ? "" : ". The score scales them either way."}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium">What each kind of work counts as</p>
+              {Object.entries(draft.typeWeights).map(([kind, w]) => (
+                <div key={kind} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate text-muted">{kind}</span>
+                  <span className="flex items-center gap-1">
+                    <Num value={w} onChange={(n) => setDraft({ ...draft, typeWeights: { ...draft.typeWeights, [kind]: n } })} suffix="videos" />
+                    <button
+                      onClick={() => {
+                        const next = { ...draft.typeWeights };
+                        delete next[kind];
+                        setDraft({ ...draft, typeWeights: next });
+                      }}
+                      aria-label={`Remove ${kind}`}
+                      className="grid size-7 place-items-center rounded-md text-muted hover:text-foreground"
+                    >
+                      <X size={13} />
+                    </button>
                   </span>
                 </div>
               ))}
+              {unlisted.length > 0 && (
+                <Dropdown
+                  value=""
+                  placeholder="Add a kind of work"
+                  size="sm"
+                  options={unlisted.map((k) => ({ value: k, label: k }))}
+                  onChange={(k) => k && setDraft({ ...draft, typeWeights: { ...draft.typeWeights, [k]: 1 } })}
+                />
+              )}
+              <p className="text-xs text-muted">Anything not listed, and untagged videos, count as 1.</p>
             </div>
-            <p className="mt-3 text-xs text-muted">The grade follows the Notion review: no mistakes is an A+, up to 2 an A, 4 a B, 6 a C, 8 a D, more an F.</p>
-            <div className="mt-3 flex items-center justify-end gap-2">
+
+            <div className="flex items-center justify-end gap-2 lg:col-span-3">
               {error && <span className="mr-auto text-xs text-red-300">{error}</span>}
               <button
                 onClick={() => {
@@ -107,31 +180,49 @@ export function TargetsEditor({ targets }: { targets: Targets }) {
 
 // ---------- marks ----------
 
-export function GradeBadge({ grade, size = "md" }: { grade: Grade | null; size?: "md" | "lg" }) {
-  const box = size === "lg" ? "size-14 text-2xl rounded-2xl" : "size-10 text-base rounded-xl";
+// The month's score and its letter, in one quiet block
+export function ScoreBadge({ score, grade, size = "md" }: { score: number | null; grade: Grade | null; size?: "sm" | "md" | "lg" }) {
+  const box = { sm: "h-9 min-w-9 px-2 text-sm", md: "h-12 min-w-12 px-2.5 text-lg", lg: "h-16 min-w-16 px-3 text-2xl" }[size];
   return (
     <span
-      title={grade ? `Grade ${grade}, from the mistakes found this month` : "Nothing to grade yet this month"}
-      className={`grid shrink-0 place-items-center bg-surface-2 font-semibold ring-1 ring-border ${box} ${grade ? "text-foreground" : "text-muted"}`}
+      title={score === null ? "Nothing to score yet this month" : `Score ${score} out of 100`}
+      className={`inline-flex shrink-0 flex-col items-center justify-center rounded-xl bg-surface-2 ring-1 ring-border ${box}`}
     >
-      {grade ?? "–"}
+      <span className={`font-semibold leading-none tabular-nums ${score === null ? "text-muted" : ""}`}>{score ?? "–"}</span>
+      {grade && <span className="mt-1 text-[10px] font-medium leading-none text-muted">{grade}</span>}
     </span>
   );
 }
 
-// a quiet mark beside a number that misses its target; nothing when it meets it
-export function TargetDot({ ok }: { ok: boolean | null }) {
-  if (ok !== false) return null;
-  return <CircleAlert size={12} aria-label="Misses the target" className="shrink-0 text-muted" />;
+// One part of the score: its name, the number, and how close it is to its
+// target as a thin bar (full at the target or better).
+export function PartBar({ label, text, points, note }: { label: string; text: string; points: number | null; note?: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-xs text-muted">{label}</span>
+        <span className={`text-sm font-medium tabular-nums ${points === null ? "text-muted" : ""}`}>{text}</span>
+      </div>
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-foreground/[0.07]">
+        <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${points ?? 0}%` }} />
+      </div>
+      {note && <p className="mt-1 truncate text-[11px] text-muted">{note}</p>}
+    </div>
+  );
 }
 
-// the line under a number: its target, marked when it's missed
-export function TargetNote({ ok, text }: { ok: boolean | null; text: string }) {
+// The score as the month went, week by week: Week 1 to Week 5
+export function WeekStrip({ weeks }: { weeks: (number | null)[] }) {
   return (
-    <span className={`flex items-center gap-1 text-xs ${ok === false ? "text-foreground/80" : "text-muted"}`}>
-      {ok === false && <CircleAlert size={11} className="text-muted" />}
-      {text}
-    </span>
+    <div className="flex h-9 items-end gap-1" title={weeks.map((w, i) => `Week ${i + 1}: ${w ?? "–"}`).join(" · ")}>
+      {weeks.map((w, i) => (
+        <span
+          key={i}
+          className={`w-2.5 rounded-t-[3px] ${w === null ? "bg-foreground/[0.07]" : i === weeks.findLastIndex((x) => x !== null) ? "bg-accent" : "bg-accent/35"}`}
+          style={{ height: w === null ? 3 : Math.max(3, (w / 100) * 36) }}
+        />
+      ))}
+    </div>
   );
 }
 

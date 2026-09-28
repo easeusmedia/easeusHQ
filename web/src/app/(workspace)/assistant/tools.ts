@@ -4,11 +4,11 @@ import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { editorKpis, hoursLabel, ENTRY_KINDS, MISTAKE_CATEGORIES } from "@/lib/editorKpi";
+import { editorKpis, hoursLabel, ENTRY_KINDS, MISTAKE_CATEGORIES, PART_LABEL, type Part } from "@/lib/editorKpi";
 import { collectedIn, isOverdue, ledger, payroll, upcoming } from "@/lib/finance";
 import { clipText } from "@/lib/assistant";
 import type { Tool } from "@/lib/ai";
-import { loadPerformance } from "../performance/data";
+import { kpiTargets, loadPerformance, monthShare, partText } from "../performance/data";
 import { billingCycle, loadFinance, money } from "../finance/data";
 
 // What the admin's assistant can read and propose, and nothing else: the
@@ -54,7 +54,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "performance",
-    description: "Editors' numbers for a month (yyyy-mm, default this one): grade, delivered, turnaround, mistakes by kind, revisions, on time. Leave out person for every editor.",
+    description: "Editors' score out of 100 for a month (yyyy-mm, default this one) and its parts: quality (mistakes per video), deadlines (first drafts on time), revisions, output (weighted videos). Leave out person for every editor.",
     input_schema: { type: "object", properties: { person: { type: "string" }, month: { type: "string" } } },
   },
   {
@@ -152,15 +152,20 @@ async function search({ q }: { q: string }) {
 }
 
 async function editorLine(id: string, name: string, month: string) {
-  const data = await loadPerformance(month, 1, id);
+  const [data, targets] = await Promise.all([loadPerformance(month, 1, id), kpiTargets()]);
   if (!data.editors.length) return null;
-  const k = editorKpis(...data.slice(month, id));
+  const k = editorKpis(...data.slice(month, id), targets, monthShare(month, today()));
   const cats = k.byCategory.map(([c, n]) => `${c} ${n}`).join(", ");
-  const pending = data.entries.filter((e) => !e.reviewed && e.day.startsWith(month)).length;
+  const pending = data.entries.filter((e) => !e.reviewed && e.kind === "mistake" && e.day.startsWith(month)).length;
+  const parts = (Object.keys(PART_LABEL) as Part[])
+    .map((p) => `${PART_LABEL[p].toLowerCase()} ${partText(p, k)} (aim ${k.parts[p].target}, ${k.parts[p].points ?? "–"} of 100, counts ${k.parts[p].weight}%)`)
+    .join(" · ");
   return [
-    `${name}'s numbers for ${month}: grade ${k.grade ?? "–"} · delivered ${k.delivered} · typical turnaround ${k.turnaroundHours === null ? "unknown" : hoursLabel(k.turnaroundHours)} · confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · revisions ${k.revisions ?? "–"} per video · approved first time ${k.firstPassPct ?? "–"}% · on time ${k.onTimePct === null ? "not scored (no due dates)" : `${k.onTimePct}%`}`,
-    k.late.length ? `Reached the client late: ${k.late.join("; ")}` : "",
-    pending ? `Frame.io comments about their work still awaiting review (not counted yet): ${pending}` : "",
+    `${name}, ${month}${month === today().slice(0, 7) ? " so far" : ""}: score ${k.score ?? "–"} of 100, grade ${k.grade ?? "–"} · delivered ${k.delivered} (${k.units} weighted)`,
+    `Parts: ${parts}`,
+    `Confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · sent back ${k.internalRevisions} times by our review, ${k.clientRevisions} by clients · typical time to a first draft ${k.draftHours === null ? "unknown" : hoursLabel(k.draftHours)}`,
+    k.late.length ? `First drafts late: ${k.late.join("; ")}` : "",
+    pending ? `Frame.io mistakes waiting for ops to confirm (not counted yet): ${pending}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -251,10 +256,13 @@ async function performance({ person: who, month }: { person?: string; month?: st
     if (!("id" in p)) return notFound("person", p);
     return (await editorLine(p.id, p.name, m)) ?? `${p.name} isn't an editor, so has no editor numbers.`;
   }
-  const data = await loadPerformance(m, 1);
-  const team = editorKpis(...data.slice(m));
+  const [data, targets] = await Promise.all([loadPerformance(m, 1), kpiTargets()]);
+  const team = editorKpis(...data.slice(m), targets, monthShare(m, today()));
   const lines = await Promise.all(data.editors.map((e) => editorLine(e.id, e.name, m)));
-  return [`Team, ${m}: delivered ${team.delivered} · mistakes ${team.mistakes} · revisions ${team.revisions ?? "–"}/video · on time ${team.onTimePct ?? "–"}%`, ...lines.filter(Boolean)].join("\n");
+  return [
+    `Team, ${m}: delivered ${team.delivered} (${team.units} weighted) · mistakes ${team.mistakesPerVideo ?? "–"} per video · sent back ${team.revisions ?? "–"} per video · first drafts on time ${team.onTimePct ?? "–"}%`,
+    ...lines.filter(Boolean),
+  ].join("\n");
 }
 
 async function feedback({ person: who, month, kind }: { person: string; month?: string; kind?: string }) {

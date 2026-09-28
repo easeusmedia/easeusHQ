@@ -145,7 +145,11 @@ export function Assistant() {
     if (!spend) assistantUsage().then((s) => s && setSpend(s));
   }, [open, spend]);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [msgs, busy]);
+  // braces, not an arrow's value: scrollIntoView returns a promise in newer
+  // browsers, and an effect that returns anything but a function breaks React
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [msgs, busy]);
 
   async function send(text: string) {
     const q = text.trim();

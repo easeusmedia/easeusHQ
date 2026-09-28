@@ -3,23 +3,18 @@ import { indiaDay } from "@/lib/due";
 import { displayTeam } from "@/lib/teams";
 import { LIVE_TASK } from "@/lib/workflow";
 import { parseStageChange } from "@/lib/stages";
-import { DEFAULT_TARGETS, KPI_TARGETS, hoursLabel, meets, shiftMonth, type KpiEntry, type KpiKey, type KpiTask, type Kpis, type Targets } from "@/lib/editorKpi";
+import { daysInMonth, editorKpis, KPI_TARGETS, shiftMonth, weekEnd, withTargetDefaults, type KpiEntry, type KpiTask, type Kpis, type Part, type Targets } from "@/lib/editorKpi";
 
 // ?month=, if it's a real month not in the future; this month otherwise
 export function pickMonth(asked: string | undefined, thisMonth: string) {
   return asked && /^\d{4}-\d{2}$/.test(asked) && asked <= thisMonth ? asked : thisMonth;
 }
 
-// the five numbers every editor is read by, in the order they're read
-export function headline(k: Kpis, t: Targets): { key: KpiKey; label: string; value: number | null; text: string; ok: boolean | null }[] {
-  const rows: { key: KpiKey; label: string; value: number | null; text: string }[] = [
-    { key: "delivered", label: "Delivered", value: k.delivered, text: String(k.delivered) },
-    { key: "turnaroundHours", label: "Turnaround", value: k.turnaroundHours, text: k.turnaroundHours === null ? "–" : hoursLabel(k.turnaroundHours) },
-    { key: "mistakes", label: "Mistakes", value: k.mistakes, text: String(k.mistakes) },
-    { key: "revisions", label: "Revisions", value: k.revisions, text: k.revisions === null ? "–" : String(k.revisions) },
-    { key: "onTimePct", label: "On time", value: k.onTimePct, text: k.onTimePct === null ? "–" : `${k.onTimePct}%` },
-  ];
-  return rows.map((m) => ({ ...m, ok: meets(m.key, m.value, t) }));
+// How much of a month the numbers cover: all of a past month; of the
+// current one, the days gone so far — so output isn't judged against days
+// that haven't happened.
+export function monthShare(ym: string, today: string) {
+  return ym === today.slice(0, 7) ? Number(today.slice(8, 10)) / daysInMonth(ym) : 1;
 }
 
 // the moment a month starts in India
@@ -28,13 +23,13 @@ export const monthStart = (ym: string) => new Date(`${ym}-01T00:00:00+05:30`);
 export async function kpiTargets(): Promise<Targets> {
   const row = await prisma.appSetting.findUnique({ where: { key: KPI_TARGETS } });
   try {
-    return { ...DEFAULT_TARGETS, ...JSON.parse(row?.value ?? "{}") };
+    return withTargetDefaults(JSON.parse(row?.value ?? "{}"));
   } catch {
-    return DEFAULT_TARGETS;
+    return withTargetDefaults({});
   }
 }
 
-export type DeliveredTask = KpiTask & { editorId: string; month: string; project: string | null; excluded: boolean };
+export type DeliveredTask = KpiTask & { editorId: string; month: string; day: string; project: string | null; excluded: boolean };
 
 // Everything the Performance pages score, for the editors (or one of them)
 // over the `months` months up to and including `month`: what they
@@ -110,6 +105,7 @@ export async function loadPerformance(month: string, months: number, editorId?: 
         moves,
         editorId: t.assignedToId!,
         month: indiaDay(deliveredAt).slice(0, 7),
+        day: indiaDay(deliveredAt),
         excluded: t.kpiExcluded,
       };
     })
@@ -121,10 +117,44 @@ export async function loadPerformance(month: string, months: number, editorId?: 
   // One editor's (or the team's) month, ready for editorKpis. A mistake
   // Claude picked out of Frame.io counts once someone has confirmed it:
   // the sorting is a first pass, and a grade shouldn't rest on a guess.
-  const slice = (ym: string, who?: string): [KpiTask[], KpiEntry[]] => [
-    tasks.filter((t) => t.month === ym && !t.excluded && (!who || t.editorId === who)),
-    kpiEntries.filter((e) => e.day.slice(0, 7) === ym && (!who || e.editorId === who) && (e.reviewed || e.kind !== "mistake")),
-  ];
+  // Days from and to (yyyy-mm-dd, both included) narrow it to part of the month.
+  const slice = (ym: string, who?: string, days: { from?: string; to?: string } = {}): [KpiTask[], KpiEntry[]] => {
+    const inside = (day: string) => day.startsWith(ym) && (!days.from || day >= days.from) && (!days.to || day <= days.to);
+    return [
+      tasks.filter((t) => inside(t.day) && !t.excluded && (!who || t.editorId === who)),
+      kpiEntries.filter((e) => inside(e.day) && (!who || e.editorId === who) && (e.reviewed || e.kind !== "mistake")),
+    ];
+  };
 
   return { editors, tasks, entries: kpiEntries, open, slice };
+}
+
+// the number each part is read as, in its own terms, and what it aims for
+export function partText(part: Part, k: Kpis): string {
+  const v = k.parts[part].value;
+  return v === null ? "–" : part === "deadlines" ? `${v}%` : String(v);
+}
+export const PART_NOTE: Record<Part, (target: number) => string> = {
+  quality: (t) => `mistakes a video · aim ${t}`,
+  deadlines: (t) => `on time · aim ${t}%`,
+  revisions: (t) => `sent back a video · aim ${t}`,
+  output: (t) => `weighted videos · aim ${t}`,
+};
+
+// The month's score as it stood at the end of each week (days 1–7, 8–14…),
+// output judged on the days gone by then. Null for a week not yet started.
+export function weeklyScores(
+  data: Awaited<ReturnType<typeof loadPerformance>>,
+  month: string,
+  today: string,
+  targets: Targets,
+  who?: string
+): (number | null)[] {
+  return [1, 2, 3, 4, 5].map((w) => {
+    const first = `${month}-${String((w - 1) * 7 + 1).padStart(2, "0")}`;
+    if (first > today) return null;
+    const last = `${month}-${String(weekEnd(month, w)).padStart(2, "0")}`;
+    const upTo = last < today ? last : today;
+    return editorKpis(...data.slice(month, who, { to: upTo }), targets, Number(upTo.slice(8)) / daysInMonth(month)).score;
+  });
 }

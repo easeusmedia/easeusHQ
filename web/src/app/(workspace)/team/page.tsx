@@ -10,8 +10,8 @@ import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
-import { editorKpis } from "@/lib/editorKpi";
-import { headline, kpiTargets, loadPerformance } from "../performance/data";
+import { editorKpis, PART_LABEL, type Part } from "@/lib/editorKpi";
+import { kpiTargets, loadPerformance, monthShare, PART_NOTE, partText } from "../performance/data";
 
 export const dynamic = "force-dynamic";
 
@@ -82,8 +82,12 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const [kpiData, targets] = await Promise.all([loadPerformance(today.slice(0, 7), 1), kpiTargets()]);
   const editorKpiFor = (id: string) => {
     if (!kpiData.editors.some((e) => e.id === id)) return null;
-    const k = editorKpis(...kpiData.slice(today.slice(0, 7), id));
-    return { grade: k.grade, rows: headline(k, targets).map(({ label, text, ok }) => ({ label, text, ok })) };
+    const k = editorKpis(...kpiData.slice(today.slice(0, 7), id), targets, monthShare(today.slice(0, 7), today));
+    return {
+      score: k.score,
+      grade: k.grade,
+      parts: (Object.keys(PART_LABEL) as Part[]).map((p) => ({ label: PART_LABEL[p], text: partText(p, k), points: k.parts[p].points, note: PART_NOTE[p](k.parts[p].target) })),
+    };
   };
 
   // What's in flight right now — the first question this page answers.
