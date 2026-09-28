@@ -48,6 +48,28 @@ export function pushesToNotion(user: { role: string; teamSlug: string | null }):
   return user.teamSlug === "operations" && user.role !== "admin";
 }
 
+// Where a work task lives in Notion, by who it's assigned to: their own
+// workbook if they have one; the shared Editing Queue for anyone else in
+// Operations (the editors' workbooks are views of it); nowhere at all for
+// the rest (the admin, Sales). One answer for create, update and sync, so a
+// task handed to someone else moves to *their* Notion and leaves the last
+// person's.
+export function workTaskHome(a: { role: string; teamSlug: string | null; workbookId: string | null }): "workbook" | "queue" | null {
+  if (a.workbookId) return "workbook";
+  return pushesToNotion({ role: a.role, teamSlug: a.teamSlug }) ? "queue" : null;
+}
+
+// The Editing Queue's Editor column. Always sent, even empty: leaving it out
+// when the new assignee has no Notion account kept the *previous* editor on
+// the row, so the task stayed in their Notion view after being handed on.
+export function editorPeople(notionUserId: string | null) {
+  return { people: notionUserId ? [{ object: "user" as const, id: notionUserId }] : [] };
+}
+
+// Notion writes a database's id with or without its dashes
+export const sameNotionId = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && a.replace(/-/g, "").toLowerCase() === b.replace(/-/g, "").toLowerCase();
+
 // A work task's own four stages, onto the same Notion column. The Editing
 // Queue's wording is about a video going out the door, so the fit is
 // approximate by nature — "In review" is the team looking at it, which is

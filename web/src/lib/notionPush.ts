@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { notionGet, notionPatch, notionPost, taskDatabaseId } from "./notion";
-import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, exportedLinkFor } from "./notionMapping";
+import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, editorPeople, exportedLinkFor, sameNotionId, workTaskHome } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
 // Pushing work *up* to Notion, the other direction from lib/notion.ts.
@@ -40,9 +40,8 @@ function propertiesFor(task: PushableTask) {
     "Sync check": {
       rich_text: task.assignedTo ? [{ text: { content: task.assignedTo.name } }] : [],
     },
-    ...(task.assignedTo?.notionUserId
-      ? { Editor: { people: [{ object: "user", id: task.assignedTo.notionUserId }] } }
-      : {}),
+    // always written, so a task handed on leaves the last editor's view
+    Editor: editorPeople(task.assignedTo?.notionUserId ?? null),
   };
 }
 
@@ -153,29 +152,53 @@ async function workbookSchema(databaseId: string): Promise<WorkbookSchema> {
   return schema;
 }
 
+// Puts a work task in its assignee's Notion (see workTaskHome), and only
+// theirs. A task handed to someone else is taken out of the last person's
+// Notion (its page archived, which Notion keeps in its trash) and made fresh
+// in the new person's; a task handed to someone with no place in Notion is
+// taken out and left out.
 export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?: string }> {
   const t = await prisma.workTask.findUnique({
     where: { id: workTaskId },
     include: {
       tags: true,
-      assignedTo: { select: { name: true, notionUserId: true, notionWorkbookDbId: true } },
+      assignedTo: {
+        select: { name: true, role: true, notionUserId: true, notionWorkbookDbId: true, team: { select: { slug: true } } },
+      },
     },
   });
   if (!t) return { error: "That task doesn't exist." };
 
   try {
-    const workbook = t.assignedTo.notionWorkbookDbId;
-    const properties = workbook
-      ? await workbookProperties(workbook, t)
-      : editingQueueProperties(t);
-    const databaseId = workbook ?? (await taskDatabaseId());
+    const home = workTaskHome({ role: t.assignedTo.role, teamSlug: t.assignedTo.team?.slug ?? null, workbookId: t.assignedTo.notionWorkbookDbId });
+    const databaseId = home === "workbook" ? t.assignedTo.notionWorkbookDbId! : home === "queue" ? await taskDatabaseId() : null;
 
-    if (t.notionPageId) {
-      await notionPatch(`/pages/${t.notionPageId}`, { properties });
-    } else {
-      const page = await notionPost("/pages", { parent: { database_id: databaseId }, properties });
-      await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: page.id } });
+    let pageId = t.notionPageId;
+    if (pageId) {
+      // where its page is now (asked of Notion once, for pages made before
+      // this was recorded)
+      const current = t.notionDatabaseId ?? (await notionGet(`/pages/${pageId}`).catch(() => null))?.parent?.database_id ?? null;
+      if (!databaseId || !sameNotionId(current, databaseId)) {
+        await notionPatch(`/pages/${pageId}`, { archived: true }).catch(() => {});
+        await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: null, notionDatabaseId: null } });
+        pageId = null;
+      }
     }
+    if (!databaseId) return {};
+
+    const properties = home === "workbook" ? await workbookProperties(databaseId, t) : editingQueueProperties(t);
+    if (pageId) {
+      try {
+        await notionPatch(`/pages/${pageId}`, { properties });
+        if (!t.notionDatabaseId) await prisma.workTask.update({ where: { id: workTaskId }, data: { notionDatabaseId: databaseId } });
+        return {};
+      } catch (err) {
+        // gone for good in Notion: make it again below; anything else is a real error
+        if (!/could not find|not found|archiv|trash/i.test(err instanceof Error ? err.message : "")) throw err;
+      }
+    }
+    const page = await notionPost("/pages", { parent: { database_id: databaseId }, properties });
+    await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: page.id, notionDatabaseId: databaseId } });
     return {};
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't reach Notion." };
@@ -211,9 +234,7 @@ function editingQueueProperties(t: WorkTaskRow) {
     "Editor Queu Date": { date: { start: t.createdAt.toISOString().slice(0, 10) } },
     "Raw Links": url(links[0]?.url ?? null),
     "Sync check": { rich_text: [{ text: { content: t.assignedTo.name } }] },
-    ...(t.assignedTo.notionUserId
-      ? { Editor: { people: [{ object: "user", id: t.assignedTo.notionUserId }] } }
-      : {}),
+    Editor: editorPeople(t.assignedTo.notionUserId),
   };
 }
 

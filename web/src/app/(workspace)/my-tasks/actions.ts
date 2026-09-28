@@ -132,17 +132,25 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
       AND: [
         assigneeWhere(viewer),
         {
-          assignedTo: {
-            OR: [
-              { notionWorkbookDbId: { not: null } },
-              { role: { not: "admin" }, team: { slug: "operations" } },
-            ],
-          },
+          OR: [
+            // already in someone's Notion: kept current, or moved to the new
+            // assignee's, or taken out if they have no place there
+            { notionPageId: { not: null } },
+            {
+              assignedTo: {
+                OR: [
+                  { notionWorkbookDbId: { not: null } },
+                  { role: { not: "admin" }, team: { slug: "operations" } },
+                ],
+              },
+            },
+          ],
         },
       ],
     },
     select: { id: true },
-    take: 100,
+    orderBy: { updatedAt: "desc" },
+    take: 300,
   });
 
   let pushed = 0;

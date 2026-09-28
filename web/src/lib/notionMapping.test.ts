@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exportedLinkFor, matchClient, pushesToNotion } from "./notionMapping.ts";
+import { editorPeople, exportedLinkFor, matchClient, pushesToNotion, sameNotionId, workTaskHome } from "./notionMapping.ts";
 
 const FRAME = "https://f.io/abc";
 const DRIVE = "https://drive.google.com/file/d/xyz/view";
@@ -57,4 +57,26 @@ test("a row we have no client for stays unmatched rather than landing on the wro
   assert.equal(client("Dr - 5 Treatments i will never do"), null);
   assert.equal(client("SRT - Self Centred Leaders"), null); // "Leaders" alone isn't Courageous Leaders
   assert.equal(client(""), null);
+});
+
+test("a work task goes to its person's own workbook, the queue for other Operations, nowhere else", () => {
+  // Abhishek, Arpit, Jyotsna: their own workbooks, whatever their team
+  assert.equal(workTaskHome({ role: "core", teamSlug: "operations", workbookId: "wb-abhishek" }), "workbook");
+  // an editor with no workbook: the shared Editing Queue
+  assert.equal(workTaskHome({ role: "employee", teamSlug: "operations", workbookId: null }), "queue");
+  // the admin and Sales: not in Notion at all
+  assert.equal(workTaskHome({ role: "admin", teamSlug: "operations", workbookId: null }), null);
+  assert.equal(workTaskHome({ role: "core", teamSlug: "sales", workbookId: null }), null);
+});
+
+test("the Editor column is always written, empty when the assignee has no Notion account", () => {
+  assert.deepEqual(editorPeople("user-1"), { people: [{ object: "user", id: "user-1" }] });
+  // empty clears whoever had it before, rather than leaving them on the row
+  assert.deepEqual(editorPeople(null), { people: [] });
+});
+
+test("database ids match with or without dashes", () => {
+  assert.ok(sameNotionId("c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b", "c8fe3e3fbc0b47bf8681e13b1e1eb62b"));
+  assert.ok(!sameNotionId("c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b", "d8fe3e3fbc0b47bf8681e13b1e1eb62b"));
+  assert.ok(!sameNotionId(null, "c8fe3e3fbc0b47bf8681e13b1e1eb62b"));
 });
