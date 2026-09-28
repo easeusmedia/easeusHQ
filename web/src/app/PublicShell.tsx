@@ -33,8 +33,8 @@ export function PublicShell({ current, children }: { current?: "privacy" | "term
 
       <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] px-6 py-6 text-xs text-muted">
         <span>© {new Date().getFullYear()} Easeus Media</span>
-        <a href="mailto:team.easeusnow@gmail.com" className="hover:text-foreground">
-          team.easeusnow@gmail.com
+        <a href="mailto:easeus.media@gmail.com" className="hover:text-foreground">
+          easeus.media@gmail.com
         </a>
       </footer>
     </div>

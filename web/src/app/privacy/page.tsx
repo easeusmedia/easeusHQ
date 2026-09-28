@@ -149,7 +149,7 @@ const SECTIONS: Section[] = [
     tint: "251, 146, 60",
     body: (
       <p>
-        Questions about any of this? Write to us at <a href="mailto:team.easeusnow@gmail.com">team.easeusnow@gmail.com</a>.
+        Questions about any of this? Write to us at <a href="mailto:easeus.media@gmail.com">easeus.media@gmail.com</a>.
       </p>
     ),
   },
