@@ -3,7 +3,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEditPeople } from "@/lib/scope";
-import { aiSpend } from "@/lib/ai";
 import type { Turn } from "@/lib/assistant";
 import { answer, type AskResult } from "./answer";
 import { apply, type Proposal } from "./proposals";
@@ -19,12 +18,6 @@ export async function ask(history: Turn[], question: string): Promise<AskResult>
   const me = await admin();
   if (!me) return { error: "Only the admin can use the assistant." };
   return answer(me, history, question);
-}
-
-// the panel's spend line, when it opens
-export async function assistantUsage(): Promise<{ spent: number; budget: number; account: boolean } | null> {
-  if (!(await admin())) return null;
-  return aiSpend();
 }
 
 // The admin pressed Confirm on a proposed change.

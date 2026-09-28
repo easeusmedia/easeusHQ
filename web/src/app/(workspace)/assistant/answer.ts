@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { indiaDay } from "@/lib/due";
 import { displayTeam } from "@/lib/teams";
-import { aiSpend, callClaude, HAIKU, OverBudget, SONNET, type Block, type Message } from "@/lib/ai";
+import { callClaude, HAIKU, OverBudget, SONNET, type Block, type Message } from "@/lib/ai";
 import { clipText, compressHistory, mentioned, needsDeepModel, TOPICS, type Turn } from "@/lib/assistant";
 import { TOOLS, runTool, personSummary, clientSummary, overviewOf, performanceOf, feedbackOf } from "./tools";
 import { prepare, type Proposal } from "./proposals";
@@ -22,10 +22,8 @@ export type AskResult = {
   proposals?: Proposal[];
   model?: string;
   cost?: number;
-  spent?: number;
-  budget?: number;
-  // spent is the whole Anthropic account's, not only this app's
-  account?: boolean;
+  // what this one question took, for weighing up the cost of asking
+  usage?: { calls: number; input: number; output: number; ms: number };
   error?: string;
 };
 
@@ -118,6 +116,7 @@ export async function answer(me: { id: string; name: string }, history: Turn[], 
 
     const proposals: Proposal[] = [];
     let cost = 0;
+    const usage = { calls: 0, input: 0, output: 0, ms: Date.now() };
     let text = "";
     for (let step = 0; step < MAX_STEPS; step++) {
       const res = await callClaude({
@@ -132,6 +131,9 @@ export async function answer(me: { id: string; name: string }, history: Turn[], 
         userId: me.id,
       });
       cost += res.cost;
+      usage.calls++;
+      usage.input += res.usage.input_tokens + (res.usage.cache_read_input_tokens ?? 0) + (res.usage.cache_creation_input_tokens ?? 0);
+      usage.output += res.usage.output_tokens;
       text = res.content
         .filter((b): b is { type: "text"; text: string } => b.type === "text")
         .map((b) => b.text)
@@ -159,8 +161,8 @@ export async function answer(me: { id: string; name: string }, history: Turn[], 
       messages.push({ role: "assistant", content: res.content }, { role: "user", content: results });
     }
 
-    const { spent, budget, account } = await aiSpend();
-    return { account, text: text || (proposals.length ? "Here's the change for you to confirm." : "I couldn't find an answer to that."), proposals, model, cost, spent, budget };
+    usage.ms = Date.now() - usage.ms;
+    return { text: text || (proposals.length ? "Here's the change for you to confirm." : "I couldn't find an answer to that."), proposals, model, cost, usage };
   } catch (err) {
     if (err instanceof OverBudget) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Claude couldn't be reached." };

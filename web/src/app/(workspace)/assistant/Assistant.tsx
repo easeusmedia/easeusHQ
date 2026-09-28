@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp, Check, Maximize2, Minimize2, Sparkles, SquarePen, X } from "lucide-react";
-import { ask, assistantUsage, confirmProposal } from "./actions";
+import { ask, confirmProposal } from "./actions";
 import type { Proposal } from "./proposals";
 
 type Msg = {
@@ -12,11 +12,19 @@ type Msg = {
   proposals?: Proposal[];
   // per proposal: done, dismissed, or what went wrong
   outcome?: Record<number, string>;
-  meta?: string;
+  // what answering it took: model, calls, tokens each way, dollars, time
+  usage?: { model: string; calls: number; input: number; output: number; cost: number; ms: number };
   error?: boolean;
 };
 
 const KEY = "hq.assistant.v1";
+const POS_KEY = "hq.nyra.position";
+
+// While we weigh up what asking Claude costs, each answer shows its tokens
+// and price, and the header the chat's total. Set to false (or delete what
+// it guards) once testing's done: the admin needn't see any of it.
+const SHOW_USAGE = true;
+const tokens = (n: number) => n.toLocaleString("en-IN");
 // each worded to match what's looked up before Nyra is asked (lib/assistant
 // TOPICS), so every one is answered in a single call
 const SUGGESTIONS = ["What needs my attention today?", "Who's got the most on their plate?", "How are the editors performing?", "How are we doing for money?"];
@@ -127,7 +135,13 @@ export function Assistant({ name }: { name: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [spend, setSpend] = useState<{ spent: number; budget: number; account: boolean } | null>(null);
+  // where the launcher sits: its distance from the bottom-right corner,
+  // null for the default; dragged there, and remembered in this browser
+  const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
+  const launcher = useRef<HTMLSpanElement>(null);
+  const drag = useRef<{ x: number; y: number; right: number; bottom: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const landed = useRef<{ right: number; bottom: number } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -157,13 +171,46 @@ export function Assistant({ name }: { name: string }) {
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    inputRef.current?.focus();
-    if (!spend)
-      assistantUsage()
-        .then((s) => s && setSpend(s))
-        .catch(() => {});
-  }, [open, spend]);
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  // back where it was left, kept on screen if the window is smaller now
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(POS_KEY) ?? "null");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring where this browser left it, once
+      if (saved) setPos({ right: Math.min(saved.right, window.innerWidth - 80), bottom: Math.min(saved.bottom, window.innerHeight - 50) });
+    } catch {}
+  }, []);
+
+  function onPointerDown(e: React.PointerEvent) {
+    const r = launcher.current!.getBoundingClientRect();
+    drag.current = { x: e.clientX, y: e.clientY, right: window.innerWidth - r.right, bottom: window.innerHeight - r.bottom, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    // a few pixels of wobble is still a click
+    if (!d.moved && Math.hypot(dx, dy) < 5) return;
+    d.moved = true;
+    const r = launcher.current!.getBoundingClientRect();
+    const clamp = (v: number, max: number) => Math.max(8, Math.min(v, max));
+    landed.current = { right: clamp(d.right - dx, window.innerWidth - r.width - 8), bottom: clamp(d.bottom - dy, window.innerHeight - r.height - 8) };
+    setPos(landed.current);
+  }
+  function onPointerUp() {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.moved) return;
+    // the click that follows a drag isn't a click
+    dragged.current = true;
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(landed.current));
+    } catch {}
+  }
 
   // braces, not an arrow's value: scrollIntoView returns a promise in newer
   // browsers, and an effect that returns anything but a function breaks React
@@ -196,11 +243,13 @@ export function Assistant({ name }: { name: string }) {
         role: "assistant",
         text: res.text ?? "",
         proposals: res.proposals,
-        meta: `${res.model?.includes("haiku") ? "Haiku" : "Sonnet"} · $${(res.cost ?? 0).toFixed(3)}`,
+        usage: res.usage && { model: res.model?.includes("haiku") ? "Haiku" : "Sonnet", cost: res.cost ?? 0, ...res.usage },
       },
     ]);
-    if (res.spent !== undefined && res.budget !== undefined) setSpend({ spent: res.spent, budget: res.budget, account: !!res.account });
   }
+
+  // the chat so far, for the header while SHOW_USAGE is on
+  const chat = msgs.reduce((t, m) => (m.usage ? { tokens: t.tokens + m.usage.input + m.usage.output, cost: t.cost + m.usage.cost } : t), { tokens: 0, cost: 0 });
 
   async function decide(mi: number, pi: number, go: boolean) {
     const setOutcome = (v: string) => setMsgs((m) => m.map((x, i) => (i === mi ? { ...x, outcome: { ...x.outcome, [pi]: v } } : x)));
@@ -215,11 +264,23 @@ export function Assistant({ name }: { name: string }) {
     <>
       {/* the light round the edge lives on the wrapper, behind the button */}
       <span
+        ref={launcher}
+        style={pos ? { right: pos.right, bottom: pos.bottom } : undefined}
         className={`nyra-glow fixed bottom-5 right-5 z-40 transition-[opacity,translate] ${EASE} ${open ? "pointer-events-none translate-y-2 opacity-0" : ""}`}
       >
         <button
-          onClick={() => setOpen(true)}
-          className="group flex items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2.5 text-sm shadow-xl transition-transform duration-200 hover:scale-[1.03] active:scale-[0.97]"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onClick={() => {
+            if (dragged.current) {
+              dragged.current = false;
+              return;
+            }
+            setOpen(true);
+          }}
+          title="Ask Nyra (drag to move)"
+          className="group flex touch-none select-none items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2.5 text-sm shadow-xl transition-transform duration-200 hover:scale-[1.03] active:scale-[0.97] active:cursor-grabbing"
         >
           <Sparkles size={15} className="shrink-0 text-accent transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
           <span className="hidden sm:inline">Ask Nyra</span>
@@ -244,12 +305,8 @@ export function Assistant({ name }: { name: string }) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Nyra</p>
             <p className="truncate text-[11px] text-muted">
-              {/* the account's own figure with an admin key; otherwise only what this app spent, said as such */}
-              {spend
-                ? spend.account
-                  ? `$${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)} used this month`
-                  : `$${spend.spent.toFixed(2)} used in Easeus HQ this month`
-                : "Here to help"}
+              {/* while testing: this chat's running total (see SHOW_USAGE) */}
+              {SHOW_USAGE && chat.cost > 0 ? `This chat: ${tokens(chat.tokens)} tokens · $${chat.cost.toFixed(4)}` : "Here to help"}
             </p>
           </div>
           {[
@@ -334,7 +391,12 @@ export function Assistant({ name }: { name: string }) {
                       </div>
                     );
                   })}
-                  {m.meta && <p className="text-[10px] text-muted/60">{m.meta}</p>}
+                  {SHOW_USAGE && m.usage && (
+                    <p className="text-[10px] tabular-nums text-muted/70">
+                      {m.usage.model} · {m.usage.calls} call{m.usage.calls === 1 ? "" : "s"} · {tokens(m.usage.input)} tokens in, {tokens(m.usage.output)} out · $
+                      {m.usage.cost.toFixed(4)} · {(m.usage.ms / 1000).toFixed(1)}s
+                    </p>
+                  )}
                 </div>
               )
             )}
