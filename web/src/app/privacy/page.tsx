@@ -78,13 +78,13 @@ const SECTIONS: Section[] = [
         <p>We use a small number of cookies, and never for advertising or tracking.</p>
         <ul>
           <li>
-            <b>Sign-in</b> (essential, 30 days): keeps a team member signed in securely.
+            <b>Sign-in</b> (essential, 30 days): Keeps a team member signed in securely.
           </li>
           <li>
-            <b>Cookie choice</b> (essential, 1 year): remembers the choice you made on our cookie notice.
+            <b>Cookie choice</b> (essential, 1 year): Remembers the choice you made on our cookie notice.
           </li>
           <li>
-            <b>Sidebar layout</b> (preference, 1 year): remembers whether the sidebar is open. Set only if you choose
+            <b>Sidebar layout</b> (preference, 1 year): Remembers whether the sidebar is open. Set only if you choose
             Accept all.
           </li>
         </ul>

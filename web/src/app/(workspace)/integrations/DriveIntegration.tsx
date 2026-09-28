@@ -120,7 +120,7 @@ export function DriveIntegration({
             <p className="font-medium">2. Approve it</p>
             <p className="text-xs text-muted">
               Sign in with the Google account whose Drive the team uses. If Google warns the app isn&apos;t verified,
-              choose Advanced → Continue: it&apos;s your own app.
+              choose Advanced → Continue. It&apos;s your own app.
             </p>
             <button
               onClick={connect}

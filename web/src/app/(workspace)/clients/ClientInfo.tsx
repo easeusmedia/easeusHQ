@@ -295,7 +295,7 @@ export function ClientInfo({
             <div className="fade-in mt-3 flex gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
               <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-300" />
               <p className="text-xs text-red-200">
-                Final check: this permanently removes {name} and everything listed above from Easeus HQ. Their files in Google Drive won&apos;t be touched.
+                Final check: This permanently removes {name} and everything listed above from Easeus HQ. Their files in Google Drive won&apos;t be touched.
               </p>
             </div>
           )}

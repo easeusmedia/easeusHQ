@@ -273,9 +273,9 @@ export function PersonDetail({
                   defaultValue={form.role}
                   onChange={(v) => set("role", v)}
                   options={[
-                    { value: "admin", label: "Admin: every team" },
-                    { value: "core", label: "Core: their whole team" },
-                    { value: "employee", label: "Member: their own work" },
+                    { value: "admin", label: "Admin: Every team" },
+                    { value: "core", label: "Core: Their whole team" },
+                    { value: "employee", label: "Member: Their own work" },
                   ]}
                 />
               </div>
