@@ -151,7 +151,11 @@ export function TagPill({
             selected={picked}
             internal={internal}
             onInternalHint={onInternalHint}
-            onChange={onChange}
+            // one kind per task, so the menu's job is done once one is picked
+            onChange={(ids) => {
+              onChange(ids);
+              if (ids.length) close();
+            }}
             canManage={canManage}
           />
         </div>

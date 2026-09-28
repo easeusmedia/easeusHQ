@@ -18,9 +18,9 @@ export function TaskTagChip({ name }: { name: string }) {
   );
 }
 
-// Checkbox list rather than a dropdown: a task is often more than one kind
-// of work (a reel that also needs a thumbnail), and the whole set is short
-// enough to show at once.
+// The kinds of work, shown at once (the set is short). One per task: a task
+// is one specific piece of work, so picking a kind replaces the last, and
+// picking it again clears it.
 export function TaskTagPicker({
   tags,
   selected,
@@ -55,7 +55,7 @@ export function TaskTagPicker({
   const all = tags;
 
   function toggle(id: string) {
-    const next = picked.includes(id) ? picked.filter((t) => t !== id) : [...picked, id];
+    const next = picked.includes(id) ? [] : [id];
     setPicked(next);
     onChange?.(next);
     // A task tagged only with internal kinds of work (audio engineering,
