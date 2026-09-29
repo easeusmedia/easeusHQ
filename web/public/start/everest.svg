@@ -7,9 +7,6 @@
   <radialGradient id="warm" cx="240" cy="470" r="620" gradientTransform="translate(0 367.2) scale(1 0.2)" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#ffc49a" stop-opacity="0.4"/><stop offset="0.4" stop-color="#e59c80" stop-opacity="0.1"/><stop offset="1" stop-color="#f0a57e" stop-opacity="0"/>
   </radialGradient>
-  <linearGradient id="shade" gradientUnits="userSpaceOnUse" x1="0" y1="236" x2="0" y2="720">
-    <stop offset="0" stop-color="#030812" stop-opacity="0.2"/><stop offset="1" stop-color="#030812" stop-opacity="0"/>
-  </linearGradient>
   <radialGradient id="dawn" cx="520" cy="600" r="700" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#a9d0ff" stop-opacity="0.5"/><stop offset="0.3" stop-color="#5a9fea" stop-opacity="0.2"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
   </radialGradient>

@@ -90,7 +90,6 @@ function peaks(seed, list, baseY) {
 
 const line = (pts) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
 const fill = (pts) => `${line(pts)} L${W + 40} ${H + 40} L-40 ${H + 40} Z`;
-const yAt = (pts, x) => pts.reduce((best, p) => (Math.abs(p[0] - x) < Math.abs(best[0] - x) ? p : best))[1];
 
 // Snow in the couloirs: many short marks scattered over the faces below
 // the ridge, running down the fall line, densest and brightest near the
@@ -144,24 +143,6 @@ const foldPts = (() => {
 })();
 const face = `${line(leftRidge)} ${foldPts.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(" ")} L${leftRidge[0][0] + 40} 700 Z`;
 
-// the faces turned from the light: from the fold (where the lit face
-// ends) across to the right ridge, for Everest and for Lhotse
-const wander = (seed, x0, y0, drift) => {
-  const n = noise(seed);
-  return Array.from({ length: 24 }, (_, i) => {
-    const t = i / 23;
-    return [x0 + drift * t + (n(i / 3) - 0.5) * 34 * t, y0 + (720 - y0) * t];
-  });
-};
-const toPath = (pts) => pts.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-// the lowest point of the ridge between two x's: where one face ends
-const saddle = (from, to) => everest.filter(([x]) => x > from && x < to).reduce((a, b) => (b[1] > a[1] ? b : a));
-const lhotseTop = everest.filter(([x]) => x > 660 && x < 760).reduce((a, b) => (b[1] < a[1] ? b : a));
-const col = saddle(SUMMIT.x + 20, lhotseTop[0] - 20);
-const shadowFace = `${line(everest.filter(([x]) => x >= SUMMIT.x && x <= col[0]))} ${toPath(wander(503, col[0], col[1], 40))} ${toPath([...foldPts].reverse())} Z`;
-const lhotseEnd = saddle(lhotseTop[0] + 40, 1000);
-const lhotseShadow = `${line(everest.filter(([x]) => x >= lhotseTop[0] && x <= lhotseEnd[0]))} ${toPath(wander(504, lhotseEnd[0], lhotseEnd[1], 30))} ${toPath(wander(502, lhotseTop[0], lhotseTop[1], -30).reverse())} Z`;
-
 const far1 = range(21, 610, 150, 260);
 const far2 = range(34, 640, 170, 210);
 const near1 = range(55, 800, 150, 240);
@@ -209,9 +190,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
   <radialGradient id="warm" cx="240" cy="470" r="620" gradientTransform="translate(0 367.2) scale(1 0.22)" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#ffc49a" stop-opacity="0.42"/><stop offset="0.4" stop-color="#e59c80" stop-opacity="0.14"/><stop offset="1" stop-color="#f0a57e" stop-opacity="0"/>
   </radialGradient>
-  <linearGradient id="shade" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
-    <stop offset="0" stop-color="#030812" stop-opacity="0.2"/><stop offset="1" stop-color="#030812" stop-opacity="0"/>
-  </linearGradient>
   <radialGradient id="dawn" cx="${SUMMIT.x}" cy="600" r="700" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#a9d0ff" stop-opacity="0.5"/><stop offset="0.3" stop-color="#5a9fea" stop-opacity="0.22"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
   </radialGradient>
