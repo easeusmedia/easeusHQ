@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, Wallet, Gauge } from "lucide-react";
+import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
@@ -500,7 +500,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => photoInput.current?.click()}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+              className="menu-item px-2.5 py-2 text-sm"
             >
               <Camera size={15} />
               {hasPhoto ? "Change photo" : "Add a photo"}
@@ -509,7 +509,7 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => setPhoto(null)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+                className="menu-item px-2.5 py-2 text-sm"
               >
                 <Trash2 size={15} />
                 Remove photo
@@ -521,7 +521,7 @@ export function Sidebar({
               <PrefetchLink
                 href="/integrations"
                 onClick={() => setProfileOpen(false)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+                className="menu-item px-2.5 py-2 text-sm"
               >
                 <Plug size={15} />
                 Integrations
@@ -530,7 +530,7 @@ export function Sidebar({
             <form action={logout}>
               <button
                 type="submit"
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground hover:bg-hover"
+                className="menu-item px-2.5 py-2 text-sm"
               >
                 <LogOut size={15} />
                 Sign out
@@ -543,6 +543,8 @@ export function Sidebar({
             e.stopPropagation(); // don't also open the rail — this click already has its own job
             setProfileOpen((v) => !v);
           }}
+          aria-haspopup="menu"
+          aria-expanded={profileOpen}
           // same fixed layout (and the same animated gap-2/gap-0 — see
           // the nav rows' own comment above) as the nav rows: the avatar
           // never moves, and now neither does the name label mid-collapse
@@ -554,6 +556,15 @@ export function Sidebar({
           <FadeLabel open={open}>
             <span className="text-sm">{name}</span>
           </FadeLabel>
+          {/* says there's a menu here: it opens upward, and the arrow turns
+              as it does; fades with the name when the rail folds */}
+          <span
+            className={`ml-auto mr-2 flex shrink-0 overflow-hidden text-muted transition-[max-width,opacity] duration-200 ease-in-out group-hover/tip:text-foreground ${
+              open ? "max-w-5 opacity-100" : "max-w-0 opacity-0"
+            }`}
+          >
+            <ChevronUp size={15} className={`transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`} />
+          </span>
           <Tip show={!open && !profileOpen} label={name} hint="Your photo, account and sign-out" />
         </button>
         </div>

@@ -317,14 +317,14 @@ export function StatusSelect({
           <div
             {...topLayer}
             style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
-            className="pop-in fixed z-50 rounded-md popover py-1 shadow-lg"
+            className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg"
           >
             {options.map((to) => (
               <button
                 key={to}
                 type="button"
                 onClick={() => pick(to)}
-                className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+                className="menu-item px-2.5 py-1.5 text-xs"
               >
                 {STATUS_LABEL[to]}
               </button>
@@ -368,14 +368,14 @@ export function StatusSelect({
         <div
           {...topLayer}
           style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
-          className="pop-in fixed z-50 rounded-md popover py-1 shadow-lg"
+          className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg"
         >
           {dropdownOptions.map((to) => (
             <button
               key={to}
               type="button"
               onClick={() => pick(to)}
-              className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+              className="menu-item px-2.5 py-1.5 text-xs"
             >
               {STATUS_LABEL[to]}
             </button>

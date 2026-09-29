@@ -443,6 +443,29 @@ dialog[open]::backdrop {
    Same height with or without a border (border-box), so a pair lines up.
    In the components layer, so a call site can still add w-full or a margin. */
 @layer components {
+  /* An option in any menu, the way the country picker on the client form
+     has them: its own small rounded row inside the list's padding, in soft
+     text that lights up with a faint wash on hover or keyboard focus. Size
+     comes from the call site (text-xs in dense places, text-sm in forms). */
+  .menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    text-align: left;
+    color: color-mix(in oklab, var(--foreground) 75%, transparent);
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease;
+  }
+  .menu-item:hover,
+  .menu-item:focus-visible,
+  .menu-item[data-active="true"] {
+    background: rgb(255 255 255 / 0.06);
+    color: var(--foreground);
+    outline: none;
+  }
   .btn {
     display: inline-flex;
     align-items: center;
@@ -577,6 +600,20 @@ dialog[open]::backdrop {
   .rise-in {
     animation: none;
   }
+}
+
+/* Nyra's panel: frosted glass over the page. A translucent dark fill and a
+   strong blur, so the dashboard shows through softly behind her without
+   costing legibility; a hairline light edge and a faint highlight along the
+   top catch the light like a pane of glass. */
+.glass-panel {
+  background: linear-gradient(180deg, rgba(40, 46, 58, 0.58) 0%, rgba(17, 19, 25, 0.66) 100%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* Nyra's launcher: a soft light that travels round its edge, with a blurred

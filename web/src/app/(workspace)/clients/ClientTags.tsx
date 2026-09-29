@@ -72,7 +72,7 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
       </button>
 
       {open && (
-        <div className="pop-in absolute left-0 top-full z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-lg popover p-1 shadow-xl">
+        <div className="pop-in absolute left-0 top-full z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl popover p-1 shadow-xl">
           {!creating ? (
             <>
               <div className="max-h-48 overflow-y-auto">
@@ -81,19 +81,19 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
                   <button
                     key={t.id}
                     onClick={() => toggle(t.id)}
-                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs hover:bg-hover"
+                    className="menu-item justify-between px-2.5 py-1.5 text-xs"
                   >
                     <span className="flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
                       {t.name}
                     </span>
-                    {selectedIds.has(t.id) && <Check size={13} />}
+                    {selectedIds.has(t.id) && <Check size={13} className="text-accent" />}
                   </button>
                 ))}
               </div>
               <button
                 onClick={() => setCreating(true)}
-                className="flex w-full items-center gap-1.5 rounded-md border-t border-border px-2 py-1.5 text-left text-xs text-muted hover:bg-hover"
+                className="menu-item mt-1 px-2.5 py-1.5 text-xs text-muted"
               >
                 <Plus size={12} /> Create new tag
               </button>

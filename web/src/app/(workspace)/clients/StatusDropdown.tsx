@@ -110,10 +110,10 @@ export function StatusDropdown({
               key={o}
               type="button"
               onClick={() => pick(o)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-hover"
+              className="menu-item justify-between px-2.5 py-1.5 text-xs"
             >
               {STATUS_LABEL[o]}
-              {o === status && <Check size={13} />}
+              {o === status && <Check size={13} className="text-accent" />}
             </button>
           ))}
         </div>

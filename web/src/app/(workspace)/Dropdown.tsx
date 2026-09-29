@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { topLayer, usePopover, useCloseOnScroll } from "./popover";
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { pickList, type PickOption } from "@/lib/pickList";
 import { chip } from "./chip";
 
@@ -156,10 +156,10 @@ export function Dropdown({
             left: position.left,
             width: position.width,
           }}
-          className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md popover py-1 shadow-lg"
+          className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-xl popover p-1 shadow-lg"
         >
           {searching && (
-            <div className="px-2 pt-1 pb-1.5">
+            <div className="px-1 pt-1 pb-1.5">
               <input
                 autoFocus
                 value={query}
@@ -186,18 +186,21 @@ export function Dropdown({
               key={o.value || "_empty"}
               type="button"
               onClick={() => pick(o.value)}
-              className={`block w-full truncate text-left text-foreground hover:bg-hover ${s.option}`}
+              className={`menu-item ${s.option}`}
             >
-              {o.label}
+              <span className="min-w-0 flex-1 truncate">{o.label}</span>
+              {o.value === value && o.value !== "" && <Check size={13} className="shrink-0 text-accent" />}
             </button>
           ))}
           {addable && (
             <button
               type="button"
               onClick={() => pick(q)}
-              className={`block w-full truncate text-left text-foreground hover:bg-hover ${s.option}`}
+              className={`menu-item ${s.option}`}
             >
-              <span className="text-muted">＋ Add</span> “{q}”
+              <span className="min-w-0 truncate">
+                <span className="text-muted">＋ Add</span> “{q}”
+              </span>
             </button>
           )}
           {searching && q && matches.length === 0 && !addable && (
@@ -209,7 +212,7 @@ export function Dropdown({
             <button
               type="button"
               onClick={() => setMore((m) => m + 10)}
-              className={`block w-full text-left text-xs text-muted hover:bg-hover hover:text-foreground ${s.option}`}
+              className={`menu-item text-xs text-muted ${s.option}`}
             >
               Show more
             </button>
