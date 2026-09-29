@@ -32,6 +32,7 @@ import type { Role } from "@/lib/workflow";
 import { StageTrail } from "./StageTrail";
 import type { TaskCardData } from "./TaskCard";
 import { Checkbox } from "./Checkbox";
+import { closeOnBackdrop } from "./dialog";
 
 const initialState: TaskFormState = {};
 
@@ -182,9 +183,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   return (
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         // the width eases open with the History panel (see .dialog-grow);
         // the panel grows by exactly what the dialog does, so the form
         // beside it never changes size on the way

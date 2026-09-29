@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Images } from "lucide-react";
 import { listClientCovers } from "./actions";
+import { closeOnBackdrop } from "../dialog";
 
 // Pick a cover this client already uses, instead of hunting down the same
 // image again. Duplicating a project isn't a thing here, and some clients
@@ -27,9 +28,7 @@ export function CoverPicker({ clientId, onPick }: { clientId: string; onPick: (u
 
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 max-h-[80vh] w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-5 text-foreground"
       >
         <h2 className="mb-1 text-base font-semibold">This client&apos;s covers</h2>

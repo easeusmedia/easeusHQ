@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { normalizeUrl } from "@/lib/links";
+import { closeOnBackdrop } from "./dialog";
 
 // matches full URLs (https://…) as well as bare domains typed without a
 // protocol (pinterest.com, docs.google.com/foo) — one capture group, so
@@ -48,9 +49,7 @@ export function NotesButton({ notes }: { notes: string }) {
       </button>
       <dialog
         ref={ref}
-        onClick={(e) => {
-          if (e.target === ref.current) ref.current?.close();
-        }}
+        {...closeOnBackdrop}
         // Tailwind's reset zeroes out margin, which is what the browser
         // normally uses to center a <dialog> — so we center it explicitly.
         className="glass fixed top-1/2 left-1/2 m-0 w-[32rem] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"

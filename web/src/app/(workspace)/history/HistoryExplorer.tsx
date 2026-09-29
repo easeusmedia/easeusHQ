@@ -12,6 +12,7 @@ import { Toolbar } from "../ViewToggle";
 import { TaskTagChip } from "../TaskTagPicker";
 import { activeHours, filterHistory, onTime, summarize, totals, turnaroundHours, type Filters, type GroupBy, type HistoryItem } from "@/lib/history";
 import { StageTrail } from "../StageTrail";
+import { closeOnBackdrop } from "../dialog";
 
 type Wire = Omit<HistoryItem, "createdAt" | "startedAt" | "completedAt" | "dueDate"> & {
   createdAt: string | Date;
@@ -384,9 +385,7 @@ export function HistoryExplorer({
 
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 max-h-[85vh] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-5 text-foreground"
       >
         {open && (

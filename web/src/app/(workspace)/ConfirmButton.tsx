@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { closeOnBackdrop } from "./dialog";
 
 // Native window.confirm() renders as the browser's own unstyled popup (grey
 // box, "site says") — this is a glass dialog instead, consistent with the
@@ -37,9 +38,7 @@ export function ConfirmButton({
       </button>
       <dialog
         ref={ref}
-        onClick={(e) => {
-          if (e.target === ref.current) ref.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-72 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         <p className="text-sm">{message}</p>

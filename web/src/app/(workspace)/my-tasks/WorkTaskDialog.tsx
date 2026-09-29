@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Paperclip, Trash2, User, X } from "lucide-react";
 import { ADD_BUTTON, ADD_ROW, PlusBadge } from "../AddButton";
@@ -14,10 +14,15 @@ import { useNewProject } from "../useNewProject";
 import { ProjectChip, TagPill } from "../composer";
 import { Reveal } from "../Reveal";
 import { ConfirmButton } from "../ConfirmButton";
+import { keepDraft, readDraft } from "../draft";
 
 // one definition, imported by the board, the list and the card — it was
 // copied into all four, so widening it in one place broke the other three
 export type Project = { id: string; name: string; client: { id: string; name: string } };
+
+// what a new task keeps while it's being written (images aside: they're
+// large, and kept only while the page is open)
+type Draft = { title: string; notes: string; tagIds: string[]; dueDate: string; clientId: string; projectId: string; links: WorkTaskLink[]; assignedToId: string };
 
 
 // One dialog handles both creating and editing — the fields are identical,
@@ -60,6 +65,16 @@ export const WorkTaskDialog = forwardRef<
   const [attachments, setAttachments] = useState<WorkTaskAttachment[]>(task?.attachments ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A new task keeps what's been written until it's added or discarded:
+  // closing it (the ×, Esc) only puts it away. The draft is read the first
+  // time it opens, and kept from then on.
+  const draftKey = `hq.draft.work-task.${actingUserId}`;
+  const draftLoaded = useRef(false);
+  const written = !!(title.trim() || notes.trim() || tagIds.length || dueDate || clientId || links.length || attachments.length);
+  useEffect(() => {
+    if (mode !== "create" || !draftLoaded.current) return;
+    keepDraft(draftKey, written ? ({ title, notes, tagIds, dueDate, clientId, projectId, links, assignedToId } satisfies Draft) : null);
+  }, [mode, draftKey, written, title, notes, tagIds, dueDate, clientId, projectId, links, assignedToId]);
 
   const clients = [...new Map(projects.map((p) => [p.client.id, p.client])).values()].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -67,7 +82,8 @@ export const WorkTaskDialog = forwardRef<
   const newProject = useNewProject(clientId, setProjectId);
   const clientProjects = newProject.withMade(projects).filter((p) => p.client.id === clientId);
 
-  function open() {
+  // back to the task as saved, or for a new one, to nothing
+  function reset() {
     setTitle(task?.title ?? "");
     setTagIds(task?.tags?.map((t) => t.id) ?? []);
     setAssignedToId(task?.assignedTo?.id ?? actingUserId);
@@ -77,9 +93,38 @@ export const WorkTaskDialog = forwardRef<
     setNotes(task?.notes ?? "");
     setLinks(task?.links ?? []);
     setAttachments(task?.attachments ?? []);
-    setError(null);
     newProject.cancel();
+  }
+
+  function open() {
+    if (mode === "edit") reset();
+    else if (!draftLoaded.current) {
+      draftLoaded.current = true;
+      const d = readDraft<Draft>(draftKey);
+      if (d) {
+        setTitle(d.title ?? "");
+        setNotes(d.notes ?? "");
+        setTagIds(d.tagIds ?? []);
+        setDueDate(d.dueDate ?? "");
+        // only a client and project that are still current
+        const project = projects.find((p) => p.id === d.projectId);
+        setClientId(project?.client.id ?? (projects.some((p) => p.client.id === d.clientId) ? (d.clientId ?? "") : ""));
+        setProjectId(project?.id ?? "");
+        setLinks(d.links ?? []);
+        if (d.assignedToId && (d.assignedToId === actingUserId || assignees.some((a) => a.id === d.assignedToId))) setAssignedToId(d.assignedToId);
+      }
+    }
+    setError(null);
     dialogRef.current?.showModal();
+  }
+
+  // Cancel on a new task means throw it away; on an edit, leave it as saved
+  function discard() {
+    if (mode === "create") {
+      reset();
+      keepDraft(draftKey, null);
+    }
+    dialogRef.current?.close();
   }
 
   useImperativeHandle(ref, () => ({ open }));
@@ -111,6 +156,11 @@ export const WorkTaskDialog = forwardRef<
       setError(res.error);
       return;
     }
+    // added: the next one starts from nothing
+    if (mode === "create") {
+      reset();
+      keepDraft(draftKey, null);
+    }
     dialogRef.current?.close();
     router.refresh();
   }
@@ -141,11 +191,10 @@ export const WorkTaskDialog = forwardRef<
           </button>
         ))}
 
+      {/* no closing on a click outside: that's also how an open menu inside
+          is dismissed, and it took everything written with it */}
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
       >
         <form
@@ -320,8 +369,8 @@ export const WorkTaskDialog = forwardRef<
               </p>
             )}
             <div className="flex shrink-0 gap-2">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
-                Cancel
+              <button type="button" onClick={discard} className="btn btn-ghost">
+                {mode === "create" && written ? "Discard" : "Cancel"}
               </button>
               <button disabled={saving} className="btn btn-primary disabled:opacity-60">
                 {saving ? "Saving…" : mode === "create" ? "Add task" : "Save"}

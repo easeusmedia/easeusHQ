@@ -17,6 +17,7 @@ import {
 } from "./actions";
 import { ConfirmButton } from "../ConfirmButton";
 import { Reveal } from "../Reveal";
+import { closeOnBackdrop } from "../dialog";
 
 type Doc = { key: ClientDocType; label: string; icon: typeof Palette; hint: string };
 
@@ -260,9 +261,7 @@ export function ClientInfo({
 
         <dialog
           ref={deleteRef}
-          onClick={(e) => {
-            if (e.target === deleteRef.current) deleteRef.current?.close();
-          }}
+          {...closeOnBackdrop}
           onClose={() => setArmed(false)}
           className="glass fixed top-1/2 left-1/2 m-0 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5 text-foreground"
         >

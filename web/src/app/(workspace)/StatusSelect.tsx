@@ -9,6 +9,7 @@ import { linkProblem, pickLink } from "@/lib/links";
 import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
 import { copyFrameioFileToDrive, frameioFileForTask, type DeliverableFile } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
+import { closeOnBackdrop } from "./dialog";
 
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
 // picking a status calls the exact same moveTask() that dragging the card
@@ -184,9 +185,7 @@ export function StatusSelect({
           setPendingTo(null);
           setError(null);
         }}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(21rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
         {extraField && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Building2, CalendarClock, Link2, MoreHorizontal, Send, User } from "lucide-react";
+import { Building2, CalendarClock, Link2, MoreHorizontal, Send, User, X } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
 import { ADD_BUTTON, ADD_ROW, PlusBadge } from "./AddButton";
 import { useNewProject } from "./useNewProject";
@@ -10,6 +10,7 @@ import { Dropdown } from "./Dropdown";
 import { DatePicker } from "./DatePicker";
 import type { TaskTagOption } from "./TaskTagPicker";
 import { Checkbox } from "./Checkbox";
+import { keepDraft, readDraft } from "./draft";
 import { Reveal } from "./Reveal";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
@@ -67,6 +68,44 @@ export function NewTaskRow({
   );
   const [f, setF] = useState(blank);
   const set = (patch: Partial<ReturnType<typeof blank>>) => setF((cur) => ({ ...cur, ...patch }));
+
+  // What's been written stays until it's added or discarded: closing only
+  // puts it away, and this browser keeps it through a refresh. Read the
+  // first time it opens; kept from then on. One per page it's added from.
+  const draftKey = `hq.draft.task.${defaultProjectId ?? "board"}`;
+  const draftLoaded = useRef(false);
+  const start = blank();
+  const written = (Object.keys(start) as (keyof typeof start)[]).some((k) => JSON.stringify(f[k]) !== JSON.stringify(start[k]));
+  useEffect(() => {
+    if (draftLoaded.current) keepDraft(draftKey, written ? f : null);
+  }, [draftKey, written, f]);
+
+  function open() {
+    if (!draftLoaded.current) {
+      draftLoaded.current = true;
+      const d = readDraft<ReturnType<typeof blank>>(draftKey);
+      // only a client and project that are still current
+      const project = projects.find((p) => p.id === d?.projectId);
+      if (d) {
+        setF({
+          ...blank(),
+          ...d,
+          clientId: project?.client.id ?? (projects.some((p) => p.client.id === d.clientId) ? (d.clientId ?? "") : preset?.client.id ?? ""),
+          projectId: project?.id ?? defaultProjectId ?? "",
+          assignedToId: editors.some((e) => e.id === d.assignedToId) ? (d.assignedToId ?? "") : blank().assignedToId,
+        });
+      }
+    }
+    dialogRef.current?.showModal();
+  }
+
+  function discard() {
+    setF(blank());
+    setMore(false);
+    newProject.cancel();
+    keepDraft(draftKey, null);
+    dialogRef.current?.close();
+  }
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState<"title" | "client" | null>(null);
 
@@ -84,6 +123,7 @@ export function NewTaskRow({
     setF(blank());
     setMore(false);
     newProject.cancel();
+    keepDraft(draftKey, null);
     dialogRef.current?.close();
     // only when a task lands — newProject is a fresh object every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,20 +167,19 @@ export function NewTaskRow({
   return (
     <>
       {trigger === "row" ? (
-        <button type="button" onClick={() => dialogRef.current?.showModal()} className={ADD_ROW}>
+        <button type="button" onClick={open} className={ADD_ROW}>
           <PlusBadge /> Add a task
         </button>
       ) : (
-        <button type="button" onClick={() => dialogRef.current?.showModal()} className={`${ADD_BUTTON} w-full`}>
+        <button type="button" onClick={open} className={`${ADD_BUTTON} w-full`}>
           <PlusBadge /> New task
         </button>
       )}
 
+      {/* no closing on a click outside: that's also how an open menu inside
+          is dismissed, and it took everything written with it */}
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
         // centred like every other dialog here; opening "⋯" eases it taller
         // and it re-centres as it grows, rather than jumping
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
@@ -159,11 +198,23 @@ export function NewTaskRow({
           }}
           className="flex flex-col"
         >
+          {/* × puts it away; what's written stays for next time */}
+          <div className="flex items-center justify-between px-5 pt-4">
+            <p className="text-xs font-medium text-muted">New task</p>
+            <button
+              type="button"
+              onClick={() => dialogRef.current?.close()}
+              aria-label="Close"
+              className="-mr-1.5 flex size-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            >
+              <X size={15} />
+            </button>
+          </div>
           {/* borderless, so no focus ring: the caret already says where you
               are, and a box drawn round a field that has no box looks like a
               mistake. `outline-none!` because the app's global :focus-visible
               rule is unlayered and would otherwise win over a utility. */}
-          <div className="flex flex-col gap-1.5 px-5 pt-5">
+          <div className="flex flex-col gap-1.5 px-5 pt-2">
             <input
               ref={titleRef}
               value={f.title}
@@ -283,8 +334,8 @@ export function NewTaskRow({
             {/* only ever says something when something's wrong */}
             <p className="min-w-0 truncate text-xs text-red-300">{error}</p>
             <div className="flex shrink-0 gap-2">
-              <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">
-                Cancel
+              <button type="button" onClick={discard} className="btn btn-ghost">
+                {written ? "Discard" : "Cancel"}
               </button>
               <button disabled={pending} className="btn btn-glow disabled:opacity-60">
                 {pending ? "Adding…" : "Add task"}

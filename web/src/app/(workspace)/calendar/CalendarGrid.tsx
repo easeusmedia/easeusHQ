@@ -7,6 +7,7 @@ import { STAGE } from "@/lib/stages";
 import { Avatar, type TaskCardData } from "../TaskCard";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import type { TaskTagOption } from "../TaskTagPicker";
+import { closeOnBackdrop } from "../dialog";
 
 export type DayEntry = { taskId: string; title: string; clientName: string; status: TaskStatus; actorName: string };
 
@@ -133,9 +134,7 @@ export function CalendarGrid({
           comes back here */}
       <dialog
         ref={dayRef}
-        onClick={(e) => {
-          if (e.target === dayRef.current) dayRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
       >
         <div className="px-5 pb-3 pt-5">

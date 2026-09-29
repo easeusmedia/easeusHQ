@@ -6,6 +6,7 @@ import { Workflow } from "lucide-react";
 import { PLAN_DAYS, type PlanItem } from "@/lib/contentPlan";
 import { saveContentPlan } from "./actions";
 import { Stepper } from "../Stepper";
+import { closeOnBackdrop } from "../dialog";
 
 // The blueprint: what one new project of this client gets, and across which
 // days of its week each is made — fitted to each project's own deadline.
@@ -44,9 +45,7 @@ export function BlueprintButton({ clientId, plan }: { clientId: string; plan: Pl
       </button>
       <dialog
         ref={ref}
-        onClick={(e) => {
-          if (e.target === ref.current) ref.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 text-foreground"
       >
         <h2 className="text-base font-semibold">Blueprint</h2>

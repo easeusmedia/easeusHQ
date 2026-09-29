@@ -13,6 +13,7 @@ import { linkProblem, pickLink } from "@/lib/links";
 import { STAGE } from "@/lib/stages";
 import { ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import type { TaskTagOption } from "./TaskTagPicker";
+import { closeOnBackdrop } from "./dialog";
 
 export type Column = { status: TaskStatus; label: string; dot: string };
 
@@ -370,11 +371,8 @@ export function Board({
           setPending(null);
           setLinkError(null);
         }}
-        onClick={(e) => {
-          // clicking the backdrop (the dialog element itself, outside the
-          // inner panel) dismisses it, same as every other dialog
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        // clicking the dim area around it dismisses it, like every dialog
+        {...closeOnBackdrop}
         // Tailwind's reset zeroes out margin, which is what the browser
         // normally uses to center a <dialog> — so we center it explicitly.
         className="glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"

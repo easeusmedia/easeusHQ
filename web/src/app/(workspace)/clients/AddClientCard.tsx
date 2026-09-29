@@ -7,6 +7,7 @@ import { ADD_BUTTON, ADD_CARD, PlusBadge } from "../AddButton";
 import { createClient } from "./actions";
 import { createClientInvite, deleteClientInvite } from "../../onboarding/actions";
 import { pendingInvites } from "./actions";
+import { closeOnBackdrop } from "../dialog";
 
 // One way in, for every client. The dialog only asks for what's actually
 // known at the moment someone is added — the rest of the structure comes
@@ -98,9 +99,7 @@ export function AddClientCard({ variant }: { variant: "card" | "row" }) {
 
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 text-foreground"
       >
         <h2 className="text-base font-semibold">New client</h2>

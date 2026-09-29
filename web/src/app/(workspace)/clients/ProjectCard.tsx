@@ -5,6 +5,7 @@ import { PrefetchLink } from "../PrefetchLink";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { deleteProject } from "./actions";
+import { closeOnBackdrop } from "../dialog";
 
 export type ProjectCardData = {
   id: string;
@@ -144,9 +145,7 @@ export function ProjectCard({
 
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         onClose={() => setArmed(false)}
         className="glass fixed top-1/2 left-1/2 m-0 w-80 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >

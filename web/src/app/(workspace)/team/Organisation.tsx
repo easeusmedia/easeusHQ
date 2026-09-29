@@ -6,6 +6,7 @@ import { Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
 import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
+import { closeOnBackdrop } from "../dialog";
 
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
@@ -208,9 +209,7 @@ export function Organisation({
       </button>
       <dialog
         ref={ref}
-        onClick={(e) => {
-          if (e.target === ref.current) ref.current?.close();
-        }}
+        {...closeOnBackdrop}
         onClose={() => changed && router.refresh()}
         className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(40rem,calc(100vh-2rem))] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
       >

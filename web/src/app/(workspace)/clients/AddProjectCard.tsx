@@ -11,6 +11,7 @@ import { DELIVERABLE_TYPES } from "@/lib/deliverableTypes";
 import { DEFAULT_PLAN, PLAN_DAYS, addDays, planTasks, type PlanItem } from "@/lib/contentPlan";
 import { DatePicker } from "../DatePicker";
 import { Checkbox } from "../Checkbox";
+import { closeOnBackdrop } from "../dialog";
 
 // The same shape every project starts with — name, cover, and which of the
 // agency's deliverable types apply — so a project set up in five minutes on
@@ -105,9 +106,7 @@ export function AddProjectCard({
 
       <dialog
         ref={dialogRef}
-        onClick={(e) => {
-          if (e.target === dialogRef.current) dialogRef.current?.close();
-        }}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 text-foreground"
       >
         <h2 className="mb-4 text-base font-semibold">New project</h2>
