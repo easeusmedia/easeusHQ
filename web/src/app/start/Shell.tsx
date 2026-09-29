@@ -172,6 +172,8 @@ function Scene({ name }: { name?: string | null }) {
       <div className="absolute bottom-2 left-0 -translate-x-1/2">
         <div className="ev-bob ev-hold group flex flex-col-reverse items-center">
           <span className="ev-tag pointer-events-auto relative isolate">
+            {/* the halo behind it: part of the box, so it arrives with it */}
+            <span aria-hidden className="ev-halo pointer-events-none absolute top-1/2 left-1/2 -z-10 h-[120px] w-[260px] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(closest-side,rgba(125,179,242,0.4),rgba(75,149,230,0.12)_50%,transparent)]" />
             <span aria-hidden className="ev-box-glow absolute -inset-[3px] -z-10 rounded-[13px]" />
             <span className="ev-box relative flex cursor-default items-center gap-2 rounded-[11px] px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground">
               <Flag size={14} className="shrink-0 text-accent" />
@@ -286,18 +288,8 @@ function Scene({ name }: { name?: string | null }) {
                 <animate attributeName="opacity" dur="12s" begin="2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.1;0.45;0.55;1" />
               </circle>
             </mask>
-            <radialGradient id="sc-halo">
-              <stop offset="0" stopColor="#7db3f2" stopOpacity="0.4" />
-              <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0.12" />
-              <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
-            </radialGradient>
           </defs>
           <path d={SUMMIT_RIDGE} fill="none" stroke="#eef5ff" strokeWidth="0.9" strokeLinejoin="round" mask="url(#sc-glint)" className="ev-glint" />
-          {label && (
-            <g transform={`translate(${SUMMIT.x} ${SUMMIT.y})`}>
-              <ellipse cx="0" cy="-40" rx="130" ry="60" fill="url(#sc-halo)" className="ev-halo" />
-            </g>
-          )}
         </svg>
         {label && TAG}
       </Layer>
