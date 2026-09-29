@@ -2,8 +2,9 @@ import Image from "next/image";
 import { FileText, PenLine, UserRound, type LucideIcon } from "lucide-react";
 
 // The frame every /start page sits in: one stroked dark card on the app's
-// own dark ground — how it works on the left (desktop only), the page itself
-// on the right. step: where the client is, lit on the left.
+// own dark ground, in two even halves — how it works on the left (desktop
+// only), the page itself on the right. step: where the client is, lit on
+// the left.
 const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
   { Icon: UserRound, title: "Your details", body: "Who you are, and who signs." },
   { Icon: FileText, title: "Your agreement", body: "We prepare it from what you share." },
@@ -14,7 +15,7 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
   return (
     <div className="flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
       <div className="panel flex w-full max-w-[1120px] rounded-none lg:min-h-[640px] lg:rounded-[28px] lg:p-2.5">
-        <aside className="relative hidden w-[44%] shrink-0 flex-col overflow-hidden rounded-[20px] panel-soft p-8 lg:flex">
+        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] panel-soft p-9 lg:flex">
           <Eclipse />
           <div className="relative flex items-center gap-2">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
@@ -52,13 +53,13 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
           <p className="relative mt-10 text-xs text-muted/70">Easeus Media: Your New Age Media Distribution Partner.</p>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col px-6 py-8 sm:px-10 lg:px-16 lg:py-12">
+        <div className="flex min-w-0 flex-1 flex-col px-6 py-8 sm:px-10 lg:px-12 lg:py-12">
           {/* on a phone the left side is gone, so the name comes along here */}
           <div className="mb-10 flex items-center gap-2 lg:hidden">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
             <span className="text-[13px] font-medium tracking-tight">Easeus Media</span>
           </div>
-          <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center">{children}</div>
+          <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center">{children}</div>
         </div>
       </div>
     </div>
