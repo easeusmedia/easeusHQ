@@ -9,6 +9,7 @@ import { Pulse } from "./Pulse";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
 import { canEditPeople, seesClientFeedback } from "@/lib/scope";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { Assistant } from "./assistant/Assistant";
 import { getUnreadBySender } from "./presence/actions";
 import { MainScroll } from "./MainScroll";
@@ -49,8 +50,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
 
   const isAdmin = sessionUser.role === "admin";
   const isOps = isAdmin || sessionUser.role === "core"; // Calendar access — unchanged, still every core member
-  // "Viewing as" itself is narrower: just Abhishek (dev) and the admin
-  const canViewAs = isAdmin || sessionUser.email === "abhishek@easeus.media";
   const contractsWaiting = isOps ? draftContracts : 0;
   const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
   const currentClients = clientRows.map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
@@ -70,8 +69,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         isOps={isOps}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
-        canViewAs={canViewAs && users.length > 0}
-        people={users.filter(onStaff)}
+        fullAccess={isAbhishekOrAdmin(sessionUser)}
         sessionUserId={sessionUser.id}
         unreadBySender={unreadBySender}
         contractsWaiting={contractsWaiting}

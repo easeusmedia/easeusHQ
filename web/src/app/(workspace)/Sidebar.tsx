@@ -2,11 +2,10 @@
 
 import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
 import { Avatar } from "./TaskCard";
-import { Dropdown } from "./Dropdown";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
 import { resizeToJpeg } from "@/lib/imageResize";
@@ -45,7 +44,6 @@ const IDLE = "text-muted hover:bg-white/[0.04] hover:text-foreground";
 
 const COOKIE_NAME = "tasks-sidebar-open";
 
-type Person = { id: string; name: string; role: string; avatarUrl: string | null; lastSeenAt: Date | null };
 
 // Collapsed, the rail is icons only; this names each one the moment the
 // pointer is on it. The browser's own title tooltip did the job in theory,
@@ -129,8 +127,7 @@ export function Sidebar({
   isOps = false,
   canSeeFinance = false,
   name,
-  canViewAs,
-  people,
+  fullAccess,
   sessionUserId,
   unreadBySender,
   contractsWaiting = 0,
@@ -142,8 +139,8 @@ export function Sidebar({
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;
-  canViewAs: boolean;
-  people: Person[];
+  // admin and the developer: the Integrations page
+  fullAccess: boolean;
   sessionUserId: string;
   unreadBySender: Record<string, number>;
   // contracts whose client has sent the form, waiting on ops
@@ -158,11 +155,6 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // only "viewing as" follows you between pages — a page's own view state
-  // (?scope=, ?tab=) means nothing anywhere else
-  const as = searchParams.get("as");
-  const qs = as ? `as=${encodeURIComponent(as)}` : "";
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -210,8 +202,6 @@ export function Sidebar({
       return next;
     });
   }
-
-  const current = searchParams.get("as") ?? sessionUserId;
 
   // the client you're on: its own page names it; a project's page says
   const activeClient = useActiveClient();
@@ -377,7 +367,7 @@ export function Sidebar({
         const row = (
           <PrefetchLink
             key={item.href}
-            href={qs ? `${item.href}?${qs}` : item.href}
+            href={item.href}
             onClick={(e) => e.stopPropagation()} // don't also open the rail — this click already has its own job
             // w-full only while open — collapsed, this row sizes to its
             // 36px icon slot. gap-2/gap-0 are two real values of the same
@@ -442,7 +432,7 @@ export function Sidebar({
                 <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
                   <div onClick={(e) => e.stopPropagation()} className="panel w-60 rounded-2xl p-2">
                     <PrefetchLink
-                      href={qs ? `/clients?${qs}` : "/clients"}
+                      href="/clients"
                       className="mb-1 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground hover:bg-white/[0.05]"
                     >
                       <Building2 size={15} /> All clients
@@ -467,25 +457,9 @@ export function Sidebar({
         <div ref={profileRef} className="relative w-full">
         {profileOpen && (
           <div
-            onClick={(e) => e.stopPropagation()} // includes the nested Viewing-as dropdown — none of this should reach the rail's own click-to-open handler
+            onClick={(e) => e.stopPropagation()} // none of this should reach the rail's own click-to-open handler
             className="pop-in panel absolute bottom-full left-0 mb-1 w-56 rounded-2xl p-1"
           >
-            {canViewAs && (
-              <div className="px-2 py-1.5">
-                <p className="mb-1 text-xs font-medium text-muted">Viewing as</p>
-                <Dropdown
-                  key={current}
-                  size="sm"
-                  defaultValue={current}
-                  options={people.map((p) => ({ value: p.id, label: p.name }))}
-                  onChange={(id) => {
-                    const params = new URLSearchParams(searchParams);
-                    params.set("as", id);
-                    router.push(`${pathname}?${params.toString()}`);
-                  }}
-                />
-              </div>
-            )}
             <input
               ref={photoInput}
               type="file"
@@ -517,7 +491,7 @@ export function Sidebar({
             )}
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
             {/* admin-only: what the app is joined up to outside itself */}
-            {canViewAs && (
+            {fullAccess && (
               <PrefetchLink
                 href="/integrations"
                 onClick={() => setProfileOpen(false)}
@@ -559,8 +533,8 @@ export function Sidebar({
           {/* says there's a menu here: it opens upward, and the arrow turns
               as it does; fades with the name when the rail folds */}
           <span
-            className={`ml-auto mr-2 flex shrink-0 overflow-hidden text-muted transition-[max-width,opacity] duration-200 ease-in-out group-hover/tip:text-foreground ${
-              open ? "max-w-5 opacity-100" : "max-w-0 opacity-0"
+            className={`ml-auto flex shrink-0 overflow-hidden text-muted transition-[max-width,margin,opacity] duration-200 ease-in-out group-hover/tip:text-foreground ${
+              open ? "mr-2 max-w-5 opacity-100" : "mr-0 max-w-0 opacity-0"
             }`}
           >
             <ChevronUp size={15} className={`transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`} />

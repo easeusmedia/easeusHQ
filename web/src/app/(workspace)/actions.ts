@@ -29,10 +29,8 @@ function requireLinkOrNull(value: string, label: string): string | null {
 }
 
 // Who's doing this, from the signed-in session — never from the form or the
-// call. The pages still pass an "acting" user to the UI (so "viewing as"
-// can preview someone's permissions), but what a request may do is decided
-// here, by who actually sent it. An editor claiming to be admin in a form
-// used to be taken at their word.
+// call: what a request may do is decided here, by who actually sent it. An
+// editor claiming to be admin in a form used to be taken at their word.
 async function sessionActor() {
   const id = await getSessionUserId();
   return id ? prisma.user.findUnique({ where: { id }, select: { id: true, role: true } }) : null;

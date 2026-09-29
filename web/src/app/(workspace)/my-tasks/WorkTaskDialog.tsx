@@ -2,7 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Link2, Paperclip, Trash2, User, X } from "lucide-react";
+import { Building2, Paperclip, Trash2, User, X } from "lucide-react";
 import { ADD_BUTTON, ADD_ROW, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
@@ -11,7 +11,7 @@ import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import { useNewProject } from "../useNewProject";
-import { ProjectChip, TagPill, pill } from "../composer";
+import { ProjectChip, TagPill } from "../composer";
 import { Reveal } from "../Reveal";
 import { ConfirmButton } from "../ConfirmButton";
 
@@ -240,13 +240,18 @@ export const WorkTaskDialog = forwardRef<
               <TagPill tags={taskTags} picked={tagIds} onChange={setTagIds} internal={false} canManage={canManageTags} />
             )}
             <span className="mx-0.5 h-4 w-px bg-white/[0.08]" aria-hidden />
-            <button type="button" onClick={() => setLinks((cur) => [...cur, { label: "", url: "" }])} className={pill(links.length > 0)}>
-              <Link2 size={12} className="text-blue-400" /> Link
-            </button>
+            {/* one chip for anything attached: a link or an image */}
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
-            <button type="button" onClick={() => fileRef.current?.click()} className={pill(attachments.length > 0)}>
-              <Paperclip size={12} className="text-teal-400" /> Image
-            </button>
+            <Dropdown
+              pill={{ icon: <Paperclip size={12} className="text-teal-400" /> }}
+              value=""
+              placeholder={links.length + attachments.length ? `${links.length + attachments.length} attached` : "Attach"}
+              onChange={(v) => (v === "link" ? setLinks((cur) => [...cur, { label: "", url: "" }]) : fileRef.current?.click())}
+              options={[
+                { value: "link", label: "Link" },
+                { value: "image", label: "Image" },
+              ]}
+            />
           </div>
 
           <Reveal open={links.length > 0 || attachments.length > 0}>

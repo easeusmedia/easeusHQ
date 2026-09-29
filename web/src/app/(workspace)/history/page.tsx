@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import type { TaskStatus } from "@/lib/workflow";
 import { assigneeWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -23,14 +23,14 @@ const COMPLETED_STATUSES: TaskStatus[] = ["delivered_and_uploaded"];
 // the company rather than of one board. Who sees whose work is the same
 // three rings the rest of the app uses (lib/scope): your own work, your
 // team's, or everyone's.
-export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ as?: string; person?: string }> }) {
+export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ person?: string }> }) {
   // person: arriving from someone's profile, already filtered to them
-  const { as, person } = await searchParams;
+  const { person } = await searchParams;
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
   const users = await getAllUsers();
-  const actingUser = resolveActingUser(users, sessionUserId, as);
+  const actingUser = users.find((u) => u.id === sessionUserId);
   if (!actingUser) return null;
 
   const viewer = { id: actingUser.id, role: actingUser.role, email: actingUser.email, teamId: actingUser.teamId };
@@ -65,11 +65,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     }),
   ]);
 
-  // based on who's actually signed in, not "viewing as": Abhishek looking at
-  // the board as an editor shouldn't lose this, and an editor being previewed
-  // shouldn't gain it
-  const realUser = users.find((u) => u.id === sessionUserId);
-  const canDelete = !!realUser && isAbhishekOrAdmin(realUser);
+  const canDelete = isAbhishekOrAdmin(actingUser);
 
   const visibleIds = new Set(tasks.map((t) => t.id));
   const logsByTask: Record<string, { createdAt: string; action: string; actorName: string }[]> = {};

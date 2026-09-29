@@ -321,7 +321,7 @@ export default async function ClientDetailPage({
           },
           // Billing is money: invoice amounts, the billing rule, what's owed.
           // Every core member could open it; it's admin + Abhishek (dev)
-          // only now, the same bar "viewing as" and permanent deletes use.
+          // only now, the same bar permanent deletes use.
           ...(canSeeBilling
             ? [{
             key: "billing",

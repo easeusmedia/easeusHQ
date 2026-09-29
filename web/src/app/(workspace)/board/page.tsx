@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { resolveActingUser, isAbhishekOrAdmin } from "@/lib/actingUser";
+import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
@@ -16,9 +16,9 @@ export const dynamic = "force-dynamic"; // always hits the DB, never statically 
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ as?: string; scope?: string }>;
+  searchParams: Promise<{ scope?: string }>;
 }) {
-  const { as, scope } = await searchParams;
+  const { scope } = await searchParams;
   const [sessionUserId, users, teams, rawProjects, tasks] = await Promise.all([
     getSessionUserId(),
     getAllUsers(),
@@ -41,7 +41,7 @@ export default async function TasksPage({
   // back to its type so the new/reassign-task dropdown never shows a blank
   const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
 
-  const actingUser = resolveActingUser(users, sessionUserId, as);
+  const actingUser = users.find((u) => u.id === sessionUserId);
 
   if (!actingUser) {
     return (
@@ -92,22 +92,14 @@ export default async function TasksPage({
     ? tasks.filter((t) => t.assignedToId === actingUser.id && (!t.scheduledFor || t.scheduledFor <= new Date()))
     : tasks;
 
-  // based on who's actually signed in, not the "viewing as" impersonation —
-  // same rule as History's delete button (see history/page.tsx)
-  const realUser = users.find((u) => u.id === sessionUserId);
-  const canSyncNotion = !!realUser && isAbhishekOrAdmin(realUser);
+  const canSyncNotion = isAbhishekOrAdmin(actingUser);
 
   // the team work and this person's kinds of work, together — only their
   // own team's kinds (plus any shared ones): Sales never has to pick past
   // "Colour correction"
   const [work, taskTags] = await Promise.all([
     widest ? loadWork(viewer, widest, { withQueue: true }) : null,
-    realUser
-      ? prisma.taskTag.findMany({
-          where: visibleTagWhere({ id: realUser.id, role: realUser.role, email: realUser.email, teamId: realUser.teamId }),
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        })
-      : [],
+    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
   return (
