@@ -8,10 +8,10 @@
 //   node scripts/everest-scene.mjs
 //
 // Writes vector files the page draws at whatever size and zoom it's shown
-// at (public/start/everest.svg, the scene; everest-stars.svg, the night
-// sky the page turns; everest-sky.png, the sky's shape, which keeps the
-// stars off the mountains) and src/app/start/everestRidge.ts (the
-// summit's ridge line, for the glint that travels it).
+// at (public/start/everest/*.svg, the scene in four layers for parallax;
+// everest-stars.svg, the night sky the page turns, set between the sky and
+// the land) and src/app/start/everestRidge.ts (the summit's ridge line, for
+// the glint that travels it).
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -162,11 +162,6 @@ const shadowFace = `${line(everest.filter(([x]) => x >= SUMMIT.x && x <= col[0])
 const lhotseEnd = saddle(lhotseTop[0] + 40, 1000);
 const lhotseShadow = `${line(everest.filter(([x]) => x >= lhotseTop[0] && x <= lhotseEnd[0]))} ${toPath(wander(504, lhotseEnd[0], lhotseEnd[1], 30))} ${toPath(wander(502, lhotseTop[0], lhotseTop[1], -30).reverse())} Z`;
 
-const stars = (() => {
-  const r = rng(3);
-  return [];
-})();
-
 const far1 = range(21, 610, 150, 260);
 const far2 = range(34, 640, 170, 210);
 const near1 = range(55, 800, 150, 240);
@@ -181,8 +176,12 @@ const mist = (y, h, o) =>
 // the grain of rock inside a shape: pale streaks, and darker weathering
 const tex = (d, light) => `<path d="${d}" fill="#fff" filter="url(#rocktex)" opacity="${light}"/>`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 1.5}" height="${H * 1.5}">
-<defs>
+// The scene in four layers, back to front, so the page can shift them a
+// little against each other as the pointer moves (parallax): the sky with
+// the dawn in it, the far ranges, Everest with Lhotse and Nuptse, and the
+// near ridges. Each carries the same definitions; all but the sky are
+// clear where there's no land.
+const defs = `<defs>
   <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#02060f"/><stop offset="0.32" stop-color="#071528"/>
     <stop offset="0.52" stop-color="#11315a"/><stop offset="0.64" stop-color="#2a5d97"/><stop offset="0.72" stop-color="#1d4674"/><stop offset="1" stop-color="#081626"/>
@@ -258,22 +257,23 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
   <filter id="snow-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="0.9"/></filter>
   <filter id="haze" x="-10%" y="-80%" width="120%" height="260%"><feGaussianBlur stdDeviation="20"/></filter>
   <filter id="far" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0.8"/></filter>
-</defs>
-<rect width="${W}" height="${H}" fill="url(#sky)"/>
-<g fill="#e6f0ff">${stars.map(([x, y, r, o]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(2)}" opacity="${o.toFixed(2)}"/>`).join("")}</g>
+</defs>`;
+const layer = (content) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 1.5}" height="${H * 1.5}">\n${defs}\n${content}\n</svg>`;
+const LAYERS = {
+  sky: `<rect width="${W}" height="${H}" fill="url(#sky)"/>
 <rect width="${W}" height="${H}" fill="url(#dawn)"/>
 
 <rect width="${W}" height="${H}" fill="url(#warm)"/>
 <rect width="${W}" height="${H}" fill="url(#dawn-core)"/>
-<path d="${fill(far1)}" fill="url(#far1)" filter="url(#far)"/>
+<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.09" style="mix-blend-mode:overlay"/>`,
+  far: `<path d="${fill(far1)}" fill="url(#far1)" filter="url(#far)"/>
 <path d="${line(far1)}" fill="none" stroke="url(#dawn-rim)" stroke-width="1"/>
 ${tex(fill(far1), 0.05)}
 ${mist(560, 140, 0.35)}
 <path d="${fill(far2)}" fill="url(#far2)"/>
 ${tex(fill(far2), 0.06)}
-${mist(610, 150, 0.28)}
-
-<path d="${fill(everest)}" fill="url(#rock)"/>
+${mist(610, 150, 0.28)}`,
+  peak: `<path d="${fill(everest)}" fill="url(#rock)"/>
 ${tex(fill(everest), 0.08)}
 <path d="${face}" fill="url(#lit)" filter="url(#lit-soft)"/>
 <path d="${shadowFace}" fill="url(#shade)"/>
@@ -284,30 +284,17 @@ ${mist(640, 130, 0.22)}
 <path d="${fill(nuptse)}" fill="url(#wall)"/>
 ${tex(fill(nuptse), 0.06)}
 <g fill="none" stroke="#dbeaff" stroke-linecap="round" filter="url(#snow-soft)">${gullies(202, nuptse, 60, 560, 330, 0.7)}</g>
-${mist(720, 120, 0.16)}
-
-<path d="${fill(near1)}" fill="url(#near1)"/>
+${mist(720, 120, 0.16)}`,
+  near: `<path d="${fill(near1)}" fill="url(#near1)"/>
 ${tex(fill(near1), 0.04)}
-<path d="${fill(near2)}" fill="#050d1a"/>
-<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.09" style="mix-blend-mode:overlay"/>
-</svg>`;
+<path d="${fill(near2)}" fill="#050d1a"/>`,
+};
 
 mkdirSync("public/start", { recursive: true });
 // numbers to one decimal: the same picture, a lighter file
 const tidy = (svgText) => svgText.replace(/(\d+\.\d)\d+/g, "$1");
-// high quality: smooth skies band at the usual settings
-writeFileSync("public/start/everest.svg", tidy(svg));
-
-// the sky's shape (white) against the land (black), for the page's stars,
-// which move and must never cross a mountain
-const land = [far1, far2, everest, nuptse, near1, near2].map((pts) => `<path d="${fill(pts)}" fill="#000"/>`).join("");
-const skySvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W / 2}" height="${H / 2}"><rect width="${W}" height="${H}" fill="#fff"/>${land}</svg>`;
-// as a CSS mask: opaque sky, clear land
-const skyAlpha = await sharp(Buffer.from(skySvg)).blur(1.2).greyscale().raw().toBuffer({ resolveWithObject: true });
-const px = skyAlpha.info.width * skyAlpha.info.height;
-const rgba = Buffer.alloc(px * 4, 255);
-for (let i = 0; i < px; i++) rgba[i * 4 + 3] = skyAlpha.data[i * skyAlpha.info.channels];
-await sharp(rgba, { raw: { width: skyAlpha.info.width, height: skyAlpha.info.height, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/everest-sky.png");
+mkdirSync("public/start/everest", { recursive: true });
+for (const [name, content] of Object.entries(LAYERS)) writeFileSync(`public/start/everest/${name}.svg`, tidy(layer(content)));
 
 // The night sky on its own (transparent), for the page to turn slowly: a
 // clear sky full of stars, as it looks from high up on a clear night.

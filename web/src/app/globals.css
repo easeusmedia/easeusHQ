@@ -698,6 +698,13 @@ dialog[open]::backdrop {
     opacity: 1;
   }
 }
+/* the scene's layers, shifted by the pointer in proportion to their depth
+   (start/Parallax.tsx sets --ev-x and --ev-y, -1 to 1): up to 22px across
+   and 8px down for the nearest, moving against the pointer */
+.ev-layer {
+  will-change: transform;
+  transform: translate3d(calc(var(--ev-x, 0) * var(--ev-depth) * -22px), calc(var(--ev-y, 0) * var(--ev-depth) * -8px), 0);
+}
 /* the tag at the summit pops up as the page opens, then floats, and every
    few seconds gives a little hop and wiggle for attention (paused while
    it's pointed at) */
