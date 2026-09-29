@@ -10,6 +10,7 @@ import { createJobTitle, updatePerson, updatePersonPhoto } from "./actions";
 import { Organisation } from "./Organisation";
 import { PhotoEdit } from "../PhotoEdit";
 import { ProfileHead } from "../ProfileHead";
+import { DUE_TONE } from "../TaskCard";
 import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type Option, type PersonRecord, type Position, type WorkTag } from "./PeopleDirectory";
 import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
@@ -398,7 +399,7 @@ export function PersonDetail({
             person.current.length > 0 && (
               <>
                 {person.current.length} open
-                {person.overdue > 0 && <span className="text-red-300"> · {person.overdue} overdue</span>}
+                {person.overdue > 0 && <span className="text-rose-400"> · {person.overdue} overdue</span>}
               </>
             )
           }
@@ -433,7 +434,7 @@ export function PersonDetail({
                         </span>
                       )}
                       {t.due && (
-                        <span className={`hidden shrink-0 whitespace-nowrap text-xs sm:block ${late ? "text-red-300" : "text-muted"}`}>
+                        <span className={`hidden shrink-0 whitespace-nowrap text-xs sm:block ${late ? DUE_TONE.overdue : DUE_TONE.upcoming}`}>
                           {late ? "Was due" : "Due"} {date(t.due, false)}
                         </span>
                       )}

@@ -8,7 +8,7 @@ import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { Dropdown } from "../Dropdown";
 import { deleteWorkTask, moveWorkTask } from "./actions";
 import { HoverDelete } from "../HoverDelete";
-import { Avatar } from "../TaskCard";
+import { Avatar, DUE_TONE } from "../TaskCard";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { TaskTagChip } from "../TaskTagPicker";
 import type { TaskTagOption } from "../TaskTagPicker";
@@ -81,7 +81,7 @@ export function WorkTaskCard({
   // judged in India's day, not UTC's — the old string compare against
   // toISOString() turned a task red at midnight UTC, 5:30am here
   const due = task.status === "done" ? null : dueState(task.dueDate, null);
-  const dueTone = due === "overdue" ? "text-red-300" : due === "today" ? "text-amber-300" : "";
+  const dueTone = due && due !== "met" && due !== "late" ? DUE_TONE[due] : "";
   // the same people the task's own dialog lets delete it: whoever it's for or
   // from, and the operations side (canManageTags is that same bar)
   const canDelete = task.assignedTo.id === actingUserId || task.createdBy.id === actingUserId || canManageTags;

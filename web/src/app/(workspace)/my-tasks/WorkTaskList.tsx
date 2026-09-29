@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarClock, Check, Link2, Paperclip, Trash2 } from "lucide-react";
 import type { WorkTaskStatus } from "@prisma/client";
 import { ACTIVE_WORK_STATUSES, WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { AssigneeLabel } from "../TaskCard";
+import { AssigneeLabel, DUE_TONE } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
 import { deleteWorkTask, moveWorkTask } from "./actions";
 import { ConfirmButton } from "../ConfirmButton";
@@ -150,7 +150,7 @@ export function ListRow({
   // judged in India's day, not UTC's — the old string compare against
   // toISOString() turned a task red at midnight UTC, 5:30am here
   const due = task.status === "done" ? null : dueState(task.dueDate, null);
-  const dueTone = due === "overdue" ? "text-red-300" : due === "today" ? "text-amber-300" : "";
+  const dueTone = due && due !== "met" && due !== "late" ? DUE_TONE[due] : "";
   const stage = WORK_TASK_STAGE[task.status];
   // the same people the task's own dialog lets delete it (see WorkTaskCard)
   const canDelete = task.assignedTo.id === actingUserId || task.createdBy.id === actingUserId || canManageTags;

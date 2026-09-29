@@ -81,6 +81,14 @@ const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 // gone and it still isn't with the client — and gone altogether once it has
 // reached them, because from then on the deadline has done its job and the
 // wait is the client's, not the editor's.
+// A due date wears the accent. Overdue, it turns the soft red the icons use
+// rather than a deep one: noticed without shouting from every card.
+export const DUE_TONE: Record<"overdue" | "today" | "upcoming", string> = {
+  overdue: "text-rose-400",
+  today: "font-medium text-accent",
+  upcoming: "text-accent",
+};
+
 export function DueDate({
   date,
   handedOffAt = null,
@@ -97,8 +105,7 @@ export function DueDate({
   const due = istDay(date);
   const today = istDay(new Date());
   const [y, m, d] = due.split("-").map(Number);
-  const tone =
-    state === "overdue" ? "font-medium text-red-300" : state === "today" ? "font-medium text-amber-300" : "text-muted";
+  const tone = DUE_TONE[state];
   const title =
     state === "overdue"
       ? `Overdue. It was due ${formatDate(date)}`
