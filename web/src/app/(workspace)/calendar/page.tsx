@@ -8,6 +8,7 @@ import { visibleTagWhere } from "@/lib/scope";
 import type { Role } from "@/lib/workflow";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { parseStageChange } from "@/lib/stages";
 import { indiaDay } from "@/lib/due";
 import { addDays, mondayOf, spanOf, stretchOpen } from "@/lib/timeline";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
@@ -54,7 +55,7 @@ export default async function CalendarPage({
     // live board, so it stops counting from that day on (see page.tsx's
     // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
     prisma.task.findMany({
-      where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd } },
+      where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd }, ...ON_STAFF },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
     // for a task's own window: the projects it can move to, the tags on offer
@@ -69,12 +70,14 @@ export default async function CalendarPage({
   if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
   const env = envFor(me, users, projects, allTags);
 
+  const delivered = await deliveredDays(tasks);
   const days: Record<string, DayEntry[]> = {};
   for (let d = new Date(monthStart); d < rangeEnd; d.setUTCDate(d.getUTCDate() + 1)) {
     const key = dateKey(d);
     for (const task of tasks) {
       if (dateKey(task.createdAt) > key) continue; // not created yet as of this day
-      if (task.status === "delivered_and_uploaded" && dateKey(task.updatedAt) <= key) continue; // already delivered by this day
+      const gone = delivered.get(task.id);
+      if (gone && gone <= key) continue; // already delivered by this day
       (days[key] ??= []).push({
         taskId: task.id,
         title: task.title,
@@ -125,6 +128,28 @@ export default async function CalendarPage({
 }
 
 type Users = Awaited<ReturnType<typeof getAllUsers>>;
+
+// Only work that's anyone's now: tasks of people who've left aren't counted
+const ON_STAFF = { AND: [{ OR: [{ assignedToId: null }, { assignedTo: { employment: { not: "former" as const } } }] }] };
+
+// The day each delivered task left the board: its last move to delivered,
+// from the activity log. Not updatedAt, which moves with any later edit (a
+// Notion sync) and kept delivered work "open" for weeks. One delivered with
+// no move recorded (arrived from Notion already done) was never open on the
+// board, so it leaves the day it was made.
+async function deliveredDays(tasks: { id: string; status: string; createdAt: Date }[]): Promise<Map<string, string>> {
+  const done = tasks.filter((t) => t.status === "delivered_and_uploaded");
+  const logs = done.length
+    ? await prisma.activityLog.findMany({
+        where: { entity: "Task", entityId: { in: done.map((t) => t.id) } },
+        select: { entityId: true, action: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const at = new Map<string, string>();
+  for (const l of logs) if (parseStageChange(l.action)?.to === "delivered_and_uploaded") at.set(l.entityId, dateKey(l.createdAt));
+  return new Map(done.map((t) => [t.id, at.get(t.id) ?? dateKey(t.createdAt)]));
+}
 
 // what a task's own window needs, the same as the Board passes it
 function envFor(
@@ -190,6 +215,7 @@ async function TimelinePage({ sessionUserId, week }: { sessionUserId: string; we
       where: {
         project: { client: { status: "current" } },
         OR: [{ status: { in: ACTIVE_STATUSES } }, { updatedAt: { gte: new Date(`${weekStart}T00:00:00+05:30`) } }],
+        ...ON_STAFF,
       },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: { createdAt: "asc" },
@@ -204,7 +230,11 @@ async function TimelinePage({ sessionUserId, week }: { sessionUserId: string; we
   const me = users.find((u) => u.id === sessionUserId);
   if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
 
+  const delivered = await deliveredDays(tasks);
   const items: TimelineTask[] = tasks
+    // delivered work shows only for the week it was delivered in, and only
+    // if it was ever open on the board (lib: deliveredDays)
+    .filter((t) => t.status !== "delivered_and_uploaded" || (delivered.get(t.id) ?? "") >= weekStart)
     .map((t) => {
       const due = day(t.dueDate);
       const span = spanOf({ start: day(t.startDate), created: indiaDay(t.createdAt), due, delivery: day(t.deliveryDate) });
