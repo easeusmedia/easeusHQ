@@ -720,11 +720,56 @@ dialog[open]::backdrop {
     transform: none;
   }
 }
+/* the stars twinkle, each on its own clock, and the whole sky drifts a
+   few pixels over a minute; now and then one falls */
+.ev-star {
+  opacity: 0.5;
+  animation: ev-twinkle 4s ease-in-out infinite alternate;
+}
+@keyframes ev-twinkle {
+  to {
+    opacity: 0.1;
+  }
+}
+.ev-drift {
+  animation: ev-drift 60s ease-in-out infinite alternate;
+}
+@keyframes ev-drift {
+  to {
+    transform: translate(-18px, 4px);
+  }
+}
+.ev-meteor {
+  opacity: 0;
+  animation: ev-meteor 13s ease-in 4s infinite;
+}
+@keyframes ev-meteor {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  2% {
+    opacity: 1;
+  }
+  7% {
+    opacity: 0;
+    transform: translate(-260px, 96px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-260px, 96px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .ev-halo,
   .ev-tag,
-  .ev-arrow {
+  .ev-arrow,
+  .ev-star,
+  .ev-drift {
     animation: none;
+  }
+  .ev-meteor {
+    display: none;
   }
   .ev-glint {
     display: none;

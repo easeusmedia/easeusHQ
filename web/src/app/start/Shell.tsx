@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { FileText, PenLine, UserRound, type LucideIcon } from "lucide-react";
+import { FileText, Flag, PenLine, UserRound, type LucideIcon } from "lucide-react";
 import { SCENE, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
 
 // The frame every /start page sits in, over Everest at blue hour: the
@@ -21,7 +21,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
       <Scene name={name} />
       {/* a fine film grain over the picture, so its gradients blend rather
           than step */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 opacity-[0.16] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
+      <div aria-hidden className="pointer-events-none fixed inset-0 opacity-[0.24] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
       {/* the card passes pointing through to the picture (the name at the
           summit answers a hover); the form takes it back */}
       <div className="pointer-events-none relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
@@ -102,6 +102,21 @@ const FRAME_MASK: React.CSSProperties = {
   WebkitMaskComposite: "xor",
 };
 
+// Stars in the open sky only: above everything, and lower down only clear
+// of Everest and Lhotse (x, y, radius, when and how fast each twinkles)
+const STARS: [number, number, number, number, number][] = (() => {
+  let seed = 7;
+  const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const out: [number, number, number, number, number][] = [];
+  while (out.length < 70) {
+    const x = r() * 1600;
+    const y = r() * 430;
+    if (x > 180 && x < 1120 && y > 210) continue;
+    out.push([Math.round(x), Math.round(y), 0.5 + r() * 0.9, Math.round(r() * 60) / 10, 3 + Math.round(r() * 40) / 10]);
+  }
+  return out;
+})();
+
 // what the client reads on hovering over their name at the summit
 const SUMMIT_NOTE = "This summit has your name on it. We're just here to carry the gear.";
 
@@ -134,6 +149,10 @@ function Scene({ name }: { name?: string | null }) {
           <stop offset="0.55" stopColor="#000" stopOpacity="0" />
           <stop offset="1" stopColor="#000" stopOpacity="0.85" />
         </linearGradient>
+        <linearGradient id="sc-meteor" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
         <radialGradient id="sc-halo">
           <stop offset="0" stopColor="#7db3f2" stopOpacity="0.45" />
           <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0.14" />
@@ -141,6 +160,12 @@ function Scene({ name }: { name?: string | null }) {
         </radialGradient>
       </defs>
       <image href="/start/everest.webp" width={width} height={height} />
+      <g className="ev-drift" fill="#e8f0ff">
+        {STARS.map(([x, y, r, d, t], i) => (
+          <circle key={i} cx={x} cy={y} r={r} className="ev-star" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }} />
+        ))}
+      </g>
+      <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
       {/* the foot of the picture sinks into black */}
       <rect width={width} height={height} fill="url(#sc-foot)" />
       <path d={SUMMIT_RIDGE} fill="none" stroke="#eef5ff" strokeWidth="0.9" strokeLinejoin="round" mask="url(#sc-glint)" className="ev-glint" />
@@ -156,11 +181,16 @@ function Scene({ name }: { name?: string | null }) {
           <foreignObject x="-210" y="-160" width="420" height="119">
             {/* the tag at the foot; hovering it brings up a line for them above */}
             <div className="flex h-full flex-col-reverse items-center">
-              <div className="ev-tag nyra-glow peer pointer-events-auto relative cursor-default rounded-full bg-[#0a1322]/95 px-4 py-1.5 text-[15px] font-medium tracking-tight whitespace-nowrap text-white shadow-[0_6px_24px_rgba(0,0,0,0.35)]">
-                {label}
-                {/* the dip: the tag's foot, pointing down */}
-                <span className="absolute -bottom-[4px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 bg-[#0a1322]" />
-              </div>
+              {/* made like the Nyra button: the moving light on the wrapper,
+                  a solid pill inside it */}
+              <span className="ev-tag nyra-glow peer pointer-events-auto relative">
+                <span className="relative flex cursor-default items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground shadow-xl">
+                  <Flag size={14} className="shrink-0 text-accent" />
+                  Hey {label}, we want you here
+                  {/* the dip: the tag's foot, pointing down */}
+                  <span className="absolute -bottom-[4px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 bg-surface-2" />
+                </span>
+              </span>
               <p className="mb-2.5 max-w-[250px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/85 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-md transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
                 {SUMMIT_NOTE}
               </p>
