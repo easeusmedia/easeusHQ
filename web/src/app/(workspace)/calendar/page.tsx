@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChartGantt, ChevronLeft, ChevronRight } from "lucide-react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
@@ -7,7 +7,11 @@ import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { visibleTagWhere } from "@/lib/scope";
 import type { Role } from "@/lib/workflow";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { indiaDay } from "@/lib/due";
+import { addDays, mondayOf, spanOf, stretchOpen } from "@/lib/timeline";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
+import { CalendarTimeline, type TimelineTask } from "./CalendarTimeline";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +22,13 @@ function dateKey(d: Date) {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; view?: string; week?: string }>;
 }) {
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const { month: monthParam } = await searchParams;
+  const { month: monthParam, view, week } = await searchParams;
+  if (view === "timeline") return <TimelinePage sessionUserId={sessionUserId} week={week} />;
   const now = new Date();
   const parsed = monthParam?.match(/^(\d{4})-(\d{1,2})$/);
   const [year, month] =
@@ -62,20 +67,7 @@ export default async function CalendarPage({
   ]);
   const me = users.find((u) => u.id === sessionUserId);
   if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
-  const visible = visibleTagWhere(me) as { OR?: { teamId: string | null }[] };
-  const env = {
-    editors: assignOptionsFor(me, users).map((u) => ({ id: u.id, name: u.name })),
-    projects: projects.map((p) => ({ id: p.id, name: p.name || p.type, client: p.client })),
-    actingUserId: me.id,
-    actingRole: me.role as Role,
-    // the same kinds of work this person picks from on the Board
-    taskTags: (visible.OR ? allTags.filter((t) => !t.teamId || t.teamId === me.teamId) : allTags).map((t) => ({
-      id: t.id,
-      name: t.name,
-      clientFacing: t.clientFacing,
-      group: t.team?.name ?? null,
-    })),
-  };
+  const env = envFor(me, users, projects, allTags);
 
   const days: Record<string, DayEntry[]> = {};
   for (let d = new Date(monthStart); d < rangeEnd; d.setUTCDate(d.getUTCDate() + 1)) {
@@ -104,6 +96,7 @@ export default async function CalendarPage({
 
   return (
     <>
+      <ViewSwitch view="month" />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{monthLabel}</h1>
@@ -127,6 +120,139 @@ export default async function CalendarPage({
       </div>
 
       <CalendarGrid year={year} month={monthIndex} days={days} tasks={tasks} env={env} />
+    </>
+  );
+}
+
+type Users = Awaited<ReturnType<typeof getAllUsers>>;
+
+// what a task's own window needs, the same as the Board passes it
+function envFor(
+  me: Users[number],
+  users: Users,
+  projects: { id: string; name: string; type: string; client: { id: string; name: string } }[],
+  allTags: { id: string; name: string; clientFacing: boolean; teamId: string | null; team: { name: string } | null }[]
+) {
+  const visible = visibleTagWhere(me) as { OR?: { teamId: string | null }[] };
+  return {
+    editors: assignOptionsFor(me, users).map((u) => ({ id: u.id, name: u.name })),
+    projects: projects.map((p) => ({ id: p.id, name: p.name || p.type, client: p.client })),
+    actingUserId: me.id,
+    actingRole: me.role as Role,
+    // the same kinds of work this person picks from on the Board
+    taskTags: (visible.OR ? allTags.filter((t) => !t.teamId || t.teamId === me.teamId) : allTags).map((t) => ({
+      id: t.id,
+      name: t.name,
+      clientFacing: t.clientFacing,
+      group: t.team?.name ?? null,
+    })),
+  };
+}
+
+// Month or timeline, the same switch as the Board's Board and List
+function ViewSwitch({ view }: { view: "month" | "timeline" }) {
+  return (
+    <div className="mb-5 flex w-fit gap-1 rounded-xl panel-soft p-1">
+      {(
+        [
+          ["month", CalendarDays, "Month", "/calendar"],
+          ["timeline", ChartGantt, "Timeline", "/calendar?view=timeline"],
+        ] as const
+      ).map(([key, Icon, label, href]) => (
+        <Link
+          key={key}
+          href={href}
+          className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium ${
+            view === key ? "selected" : "border border-transparent text-muted hover:text-foreground"
+          }`}
+        >
+          <Icon size={15} /> {label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+const day = (d: Date | null) => (d ? indiaDay(d) : null);
+const shortDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+// A week of the team's client work as a timeline (CalendarTimeline): what's
+// open, and what was delivered, from the day it starts to the day it's due.
+async function TimelinePage({ sessionUserId, week }: { sessionUserId: string; week?: string }) {
+  const today = indiaDay(new Date());
+  const weekStart = mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(week ?? "") ? week! : today);
+  const weekEnd = addDays(weekStart, 6);
+
+  const [users, tasks, projects, allTags] = await Promise.all([
+    getAllUsers(),
+    // what's open, and what was finished since the week began
+    prisma.task.findMany({
+      where: {
+        project: { client: { status: "current" } },
+        OR: [{ status: { in: ACTIVE_STATUSES } }, { updatedAt: { gte: new Date(`${weekStart}T00:00:00+05:30`) } }],
+      },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.project.findMany({
+      where: { client: { status: "current" } },
+      include: { client: { select: { id: true, name: true } } },
+      orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
+    }),
+    prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),
+  ]);
+  const me = users.find((u) => u.id === sessionUserId);
+  if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
+
+  const items: TimelineTask[] = tasks
+    .map((t) => {
+      const due = day(t.dueDate);
+      const span = spanOf({ start: day(t.startDate), created: indiaDay(t.createdAt), due, delivery: day(t.deliveryDate) });
+      const open = t.status !== "delivered_and_uploaded";
+      return {
+        id: t.id,
+        title: t.title,
+        client: t.project.client.name,
+        status: t.status,
+        assignee: t.assignedTo?.name ?? null,
+        tag: t.tags[0]?.name ?? null,
+        ...(open ? stretchOpen(span, due, today) : { ...span, overdue: false }),
+      };
+    })
+    .filter((t) => t.start <= weekEnd && t.end >= weekStart);
+
+  const open = items.filter((t) => t.status !== "delivered_and_uploaded").length;
+  const arrow = "flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const href = (d: string) => `/calendar?view=timeline&week=${d}`;
+
+  return (
+    <>
+      <ViewSwitch view="timeline" />
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {shortDay(weekStart)} – {shortDay(weekEnd)}
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {open} task{open === 1 ? "" : "s"} in progress this week
+            {items.length > open && `, ${items.length - open} delivered`}. Each runs from the day it starts to the day it&apos;s due.
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          {weekStart !== mondayOf(today) && (
+            <Link href="/calendar?view=timeline" className="btn btn-sm btn-ghost mr-1">
+              Today
+            </Link>
+          )}
+          <Link href={href(addDays(weekStart, -7))} aria-label="Previous week" className={arrow}>
+            <ChevronLeft size={16} />
+          </Link>
+          <Link href={href(addDays(weekStart, 7))} aria-label="Next week" className={arrow}>
+            <ChevronRight size={16} />
+          </Link>
+        </div>
+      </div>
+      <CalendarTimeline weekStart={weekStart} today={today} items={items} tasks={tasks} env={envFor(me, users, projects, allTags)} />
     </>
   );
 }
