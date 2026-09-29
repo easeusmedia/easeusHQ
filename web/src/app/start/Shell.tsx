@@ -22,7 +22,12 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
       {/* a fine film grain over the picture, so its gradients blend rather
           than step */}
       <div aria-hidden className="pointer-events-none fixed inset-0 opacity-[0.16] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
-      <div className="relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] bg-white/[0.02] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
+      {/* the card passes pointing through to the picture (the name at the
+          summit answers a hover); the form takes it back */}
+      <div className="pointer-events-none relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
+        {/* frosted glass round the edge and between the two halves; only
+            the window onto the peak stays clear */}
+        <div aria-hidden className="absolute inset-0 hidden rounded-[inherit] bg-[#07090d]/35 backdrop-blur-xl lg:block" style={FRAME_MASK} />
         {/* the window: nothing between the peak and the eye but a shade
             at the foot, so the words there read */}
         <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-35% via-black/45 via-70% to-black/90 p-9 lg:flex">
@@ -64,7 +69,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 
         {/* dark frosted glass: the range goes soft behind the form, lit
             faintly along its top edge like a pane */}
-        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
+        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
           {/* the sheen a pane of glass catches, top left */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
           {/* on a phone the left side is gone, so the name comes along here */}
@@ -86,6 +91,20 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 // hairline seen only where a soft spot of light passes, so it fades in and
 // out at both ends (globals.css, .ev-*; still for reduced motion). The
 // summit sits in the left third, where the card's window is.
+// The frame's frost: everything but the window, which sits inside the 10px
+// padding and is half the width inside it
+const FRAME_MASK: React.CSSProperties = {
+  maskImage: "linear-gradient(#000 0 0), linear-gradient(#000 0 0)",
+  maskSize: "100% 100%, calc(50% - 10px) calc(100% - 20px)",
+  maskPosition: "0 0, 10px 10px",
+  maskRepeat: "no-repeat",
+  maskComposite: "exclude",
+  WebkitMaskComposite: "xor",
+};
+
+// what the client reads on hovering over their name at the summit
+const SUMMIT_NOTE = "This summit has your name on it. We're just here to carry the gear.";
+
 const GRAIN =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
 
@@ -97,7 +116,8 @@ function Scene({ name }: { name?: string | null }) {
       aria-hidden
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="xMidYMid slice"
-      className="pointer-events-none fixed inset-0 h-full w-full"
+      className="fixed inset-0 h-full w-full"
+      pointerEvents="none"
     >
       <defs>
         <radialGradient id="sc-spot">
@@ -133,13 +153,17 @@ function Scene({ name }: { name?: string | null }) {
             <line x1="0" y1="-34" x2="0" y2="-5" stroke="#dcebff" strokeOpacity="0.75" strokeWidth="0.8" />
             <path d="M-3 -9 L0 -4.5 L3 -9" fill="none" stroke="#dcebff" strokeOpacity="0.85" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
           </g>
-          <foreignObject x="-200" y="-72" width="400" height="48">
-            <div className="flex h-full items-start justify-center">
-              <div className="ev-tag relative rounded-full border border-white/25 bg-[#0a1322]/55 px-4 py-1.5 text-[15px] font-medium tracking-tight whitespace-nowrap text-white shadow-[0_6px_24px_rgba(0,0,0,0.35),0_0_24px_rgba(75,149,230,0.35)] backdrop-blur-md">
+          <foreignObject x="-210" y="-160" width="420" height="119">
+            {/* the tag at the foot; hovering it brings up a line for them above */}
+            <div className="flex h-full flex-col-reverse items-center">
+              <div className="ev-tag nyra-glow peer pointer-events-auto relative cursor-default rounded-full bg-[#0a1322]/95 px-4 py-1.5 text-[15px] font-medium tracking-tight whitespace-nowrap text-white shadow-[0_6px_24px_rgba(0,0,0,0.35)]">
                 {label}
                 {/* the dip: the tag's foot, pointing down */}
-                <span className="absolute -bottom-[5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/25 bg-[#0a1322]" />
+                <span className="absolute -bottom-[4px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 bg-[#0a1322]" />
               </div>
+              <p className="mb-2.5 max-w-[250px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/85 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-md transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
+                {SUMMIT_NOTE}
+              </p>
             </div>
           </foreignObject>
         </g>
