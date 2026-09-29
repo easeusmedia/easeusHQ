@@ -19,10 +19,13 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
   return (
     <div className="relative flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
       <Scene name={name} />
+      {/* a fine film grain over the picture, so its gradients blend rather
+          than step */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 opacity-[0.16] mix-blend-overlay" style={{ backgroundImage: GRAIN }} />
       <div className="relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] bg-white/[0.02] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
         {/* the window: nothing between the peak and the eye but a shade
             at the foot, so the words there read */}
-        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-45% to-[#040810]/85 p-9 lg:flex">
+        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-35% via-black/45 via-70% to-black/90 p-9 lg:flex">
           <div className="relative flex items-center gap-2">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
             <span className="text-[13px] font-medium tracking-tight">Easeus Media</span>
@@ -61,9 +64,9 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 
         {/* dark frosted glass: the range goes soft behind the form, lit
             faintly along its top edge like a pane */}
-        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-gradient-to-br from-[#101a2b]/60 via-[#0a111d]/64 to-[#05080e]/70 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-[24px] backdrop-saturate-[1.8] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.12] lg:px-12 lg:py-12">
+        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
           {/* the sheen a pane of glass catches, top left */}
-          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.07),transparent_60%)]" />
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
           {/* on a phone the left side is gone, so the name comes along here */}
           <div className="relative mb-10 flex items-center gap-2 lg:hidden">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
@@ -83,6 +86,9 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 // hairline seen only where a soft spot of light passes, so it fades in and
 // out at both ends (globals.css, .ev-*; still for reduced motion). The
 // summit sits in the left third, where the card's window is.
+const GRAIN =
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
+
 function Scene({ name }: { name?: string | null }) {
   const { width, height } = SCENE;
   const label = name?.trim();
@@ -104,6 +110,10 @@ function Scene({ name }: { name?: string | null }) {
             <animate attributeName="opacity" dur="12s" begin="2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.1;0.45;0.55;1" />
           </circle>
         </mask>
+        <linearGradient id="sc-foot" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0.55" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.85" />
+        </linearGradient>
         <radialGradient id="sc-halo">
           <stop offset="0" stopColor="#7db3f2" stopOpacity="0.45" />
           <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0.14" />
@@ -111,17 +121,21 @@ function Scene({ name }: { name?: string | null }) {
         </radialGradient>
       </defs>
       <image href="/start/everest.webp" width={width} height={height} />
+      {/* the foot of the picture sinks into black */}
+      <rect width={width} height={height} fill="url(#sc-foot)" />
       <path d={SUMMIT_RIDGE} fill="none" stroke="#eef5ff" strokeWidth="0.9" strokeLinejoin="round" mask="url(#sc-glint)" className="ev-glint" />
       {label && (
         // the client's name at the top: a tag with a dip at the foot, and from
         // it a fine arrow down onto the summit, in a soft halo
         <g transform={`translate(${SUMMIT.x} ${SUMMIT.y})`}>
           <ellipse cx="0" cy="-50" rx="120" ry="60" fill="url(#sc-halo)" className="ev-halo" />
-          <line x1="0" y1="-34" x2="0" y2="-5" stroke="#dcebff" strokeOpacity="0.75" strokeWidth="0.8" />
-          <path d="M-3 -9 L0 -4.5 L3 -9" fill="none" stroke="#dcebff" strokeOpacity="0.85" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
+          <g className="ev-arrow">
+            <line x1="0" y1="-34" x2="0" y2="-5" stroke="#dcebff" strokeOpacity="0.75" strokeWidth="0.8" />
+            <path d="M-3 -9 L0 -4.5 L3 -9" fill="none" stroke="#dcebff" strokeOpacity="0.85" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
+          </g>
           <foreignObject x="-200" y="-72" width="400" height="48">
             <div className="flex h-full items-start justify-center">
-              <div className="relative rounded-full border border-white/25 bg-[#0a1322]/55 px-4 py-1.5 text-[15px] font-medium tracking-tight whitespace-nowrap text-white shadow-[0_6px_24px_rgba(0,0,0,0.35),0_0_24px_rgba(75,149,230,0.35)] backdrop-blur-md">
+              <div className="ev-tag relative rounded-full border border-white/25 bg-[#0a1322]/55 px-4 py-1.5 text-[15px] font-medium tracking-tight whitespace-nowrap text-white shadow-[0_6px_24px_rgba(0,0,0,0.35),0_0_24px_rgba(75,149,230,0.35)] backdrop-blur-md">
                 {label}
                 {/* the dip: the tag's foot, pointing down */}
                 <span className="absolute -bottom-[5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-r border-b border-white/25 bg-[#0a1322]" />

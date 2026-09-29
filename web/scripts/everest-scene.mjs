@@ -273,12 +273,13 @@ ${mist(720, 120, 0.16)}
 <path d="${fill(near1)}" fill="url(#near1)"/>
 ${tex(fill(near1), 0.04)}
 <path d="${fill(near2)}" fill="#050d1a"/>
-<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.045" style="mix-blend-mode:overlay"/>
+<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.07" style="mix-blend-mode:overlay"/>
 </svg>`;
 
 mkdirSync("public/start", { recursive: true });
 const out = process.argv[2] ?? "public/start/everest.webp";
-await sharp(Buffer.from(svg)).webp({ quality: 84 }).toFile(out);
+// high quality: smooth skies band at the usual settings
+await sharp(Buffer.from(svg)).webp({ quality: 95, smartSubsample: true, effort: 6 }).toFile(out);
 
 // the stretch of ridge around the summit, for the page's glint, and its top
 const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
