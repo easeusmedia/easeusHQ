@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { FileText, Flag, PenLine, UserRound, type LucideIcon } from "lucide-react";
-import { GALAXY, SCENE, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
+import { SCENE, STARFIELD, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
 
 // The frame every /start page sits in, over Everest at blue hour: the
 // mountain fills the screen (the goal we help clients reach: the top), with
@@ -120,11 +120,11 @@ const SUMMIT_NOTE = "Anyone can point at the top. We're the ones who'll get you 
 function Scene({ name }: { name?: string | null }) {
   const { width, height } = SCENE;
   const label = name?.trim();
-  // the galaxy's box, in the picture's own units: drawn larger than the
-  // picture, and raised so its band arcs through the open sky over the peak
-  const gx = (width - GALAXY.width) / 2;
-  const gy = (height - GALAXY.height) / 2 - 430;
-  // the far-off point the sky turns about, within the galaxy's box
+  // the night sky's box, in the picture's own units: drawn larger than the
+  // picture so turning never shows an edge
+  const gx = (width - STARFIELD.width) / 2;
+  const gy = (height - STARFIELD.height) / 2;
+  // the far-off point the sky turns about, within that box
   const pivot = { x: 1500 - gx, y: -700 - gy };
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
   return (
@@ -134,8 +134,8 @@ function Scene({ name }: { name?: string | null }) {
       <img src="/start/everest.svg" alt="" aria-hidden fetchPriority="high" className="pointer-events-none fixed inset-0 h-full w-full object-cover" />
 
       {/* 2. the night sky, turning slowly on its own layer (the browser
-          turns it without redrawing it): the Milky Way and the stars, kept
-          to the sky's shape so nothing ever crosses a mountain */}
+          turns it without redrawing it): a clear sky full of stars, kept to
+          the sky's shape so none ever crosses a mountain */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -153,14 +153,14 @@ function Scene({ name }: { name?: string | null }) {
             style={{
               left: pct(gx, width),
               top: pct(gy, height),
-              width: pct(GALAXY.width, width),
-              height: pct(GALAXY.height, height),
-              transformOrigin: `${pct(pivot.x, GALAXY.width)} ${pct(pivot.y, GALAXY.height)}`,
+              width: pct(STARFIELD.width, width),
+              height: pct(STARFIELD.height, height),
+              transformOrigin: `${pct(pivot.x, STARFIELD.width)} ${pct(pivot.y, STARFIELD.height)}`,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- a vector file */}
-            <img src="/start/everest-galaxy.svg" alt="" className="h-full w-full opacity-85" />
-            <svg viewBox={`0 0 ${GALAXY.width} ${GALAXY.height}`} className="absolute inset-0 h-full w-full" fill="#e8f0ff">
+            <img src="/start/everest-stars.svg" alt="" className="h-full w-full" />
+            <svg viewBox={`0 0 ${STARFIELD.width} ${STARFIELD.height}`} className="absolute inset-0 h-full w-full" fill="#e8f0ff">
               {STARS.map(([x, y, r, d, t], i) => (
                 <circle key={i} cx={x - gx} cy={y - gy} r={r} className="ev-star" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }} />
               ))}
@@ -199,9 +199,9 @@ function Scene({ name }: { name?: string | null }) {
             </circle>
           </mask>
           <radialGradient id="sc-vignette" cx={SUMMIT.x + 60} cy="380" r="1050" gradientUnits="userSpaceOnUse">
-            <stop offset="0.3" stopColor="#000" stopOpacity="0" />
-            <stop offset="0.7" stopColor="#000" stopOpacity="0.55" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.85" />
+            <stop offset="0.35" stopColor="#000" stopOpacity="0" />
+            <stop offset="0.75" stopColor="#000" stopOpacity="0.28" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.5" />
           </radialGradient>
           <linearGradient id="sc-foot" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0.55" stopColor="#000" stopOpacity="0" />

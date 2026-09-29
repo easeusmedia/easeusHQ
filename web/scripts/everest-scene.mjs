@@ -8,8 +8,8 @@
 //   node scripts/everest-scene.mjs
 //
 // Writes vector files the page draws at whatever size and zoom it's shown
-// at (public/start/everest.svg, the scene; everest-galaxy.svg, the Milky
-// Way the page turns; everest-sky.png, the sky's shape, which keeps the
+// at (public/start/everest.svg, the scene; everest-stars.svg, the night
+// sky the page turns; everest-sky.png, the sky's shape, which keeps the
 // stars off the mountains) and src/app/start/everestRidge.ts (the
 // summit's ridge line, for the glint that travels it).
 import sharp from "sharp";
@@ -164,7 +164,7 @@ const lhotseShadow = `${line(everest.filter(([x]) => x >= lhotseTop[0] && x <= l
 
 const stars = (() => {
   const r = rng(3);
-  return Array.from({ length: 90 }, () => [r() * W, r() * 380, 0.3 + r() * 0.7, 0.04 + r() * 0.28]);
+  return [];
 })();
 
 const far1 = range(21, 610, 150, 260);
@@ -298,60 +298,41 @@ const rgba = Buffer.alloc(px * 4, 255);
 for (let i = 0; i < px; i++) rgba[i * 4 + 3] = skyAlpha.data[i * skyAlpha.info.channels];
 await sharp(rgba, { raw: { width: skyAlpha.info.width, height: skyAlpha.info.height, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/everest-sky.png");
 
-// The Milky Way, on its own (transparent) so the page can turn it slowly
-// across the sky: a band of star clouds in blue and violet, a darker dust
-// lane down its middle, and thousands of faint stars thickest along it.
-// Drawn larger than the picture (GX by GY, the picture at its middle) so
-// turning never shows an edge.
+// The night sky on its own (transparent), for the page to turn slowly: a
+// clear sky full of stars, as it looks from high up on a clear night.
+// Thousands of fine ones, blue-white and a few warm, a scatter of
+// brighter ones, and a dozen that shine with a soft glow. Drawn larger than
+// the picture (GX by GY, the picture at its middle) so turning never shows
+// an edge.
 const GX = 2400;
 const GY = 1600;
-const galaxy = (() => {
-  const r = rng(17);
-  const gauss = () => (r() + r() + r() + r() + r() + r() - 3) / 3;
-  // the band bends gently; `mid(x)` is its centre line
-  const mid = (x) => GY / 2 + Math.sin((x / GX) * Math.PI * 1.3) * 40;
-  const core = GX * 0.34; // the bright heart of it
-  const glow = (x) => 0.55 + 0.45 * Math.exp(-(((x - core) / (GX * 0.16)) ** 2));
-  const stars = [];
-  for (let i = 0; i < 4200; i++) {
-    const inBand = i < 3200;
-    const x = r() * GX * 1.1 - GX * 0.05;
-    const across = gauss() * (inBand ? 150 * glow(x) : 420);
-    const bright = r() < 0.03;
-    const o = (inBand ? 0.18 + r() * 0.5 : 0.08 + r() * 0.3) * (inBand ? glow(x) : 1);
-    stars.push(`<circle cx="${x.toFixed(0)}" cy="${(mid(x) + across).toFixed(1)}" r="${(bright ? 0.9 + r() * 0.7 : 0.3 + r() * 0.55).toFixed(2)}" opacity="${Math.min(1, bright ? o + 0.4 : o).toFixed(2)}"/>`);
+const starfield = (() => {
+  const r = rng(29);
+  const tint = () => (r() < 0.12 ? "#ffe8d0" : r() < 0.45 ? "#d4e3ff" : "#ffffff");
+  const dots = [];
+  for (let i = 0; i < 3800; i++) {
+    const k = r();
+    const rad = k < 0.86 ? 0.35 + r() * 0.4 : k < 0.97 ? 0.7 + r() * 0.5 : 1.1 + r() * 0.5;
+    const o = k < 0.86 ? 0.28 + r() * 0.45 : 0.6 + r() * 0.4;
+    dots.push(`<circle cx="${(r() * GX).toFixed(0)}" cy="${(r() * GY).toFixed(0)}" r="${rad.toFixed(2)}" fill="${tint()}" opacity="${o.toFixed(2)}"/>`);
   }
-  // star clouds: many soft blobs of differing size and tint, thickest at the core
-  const clouds = Array.from({ length: 70 }, () => {
-    const x = r() * GX;
-    const g = glow(x);
-    const w = (60 + r() * 220) * (0.7 + g * 0.6);
-    const h = (30 + r() * 80) * (0.7 + g * 0.5);
-    const warm = Math.abs(x - core) < GX * 0.1 && r() < 0.5;
-    const c = warm ? "#ffe0c2" : r() < 0.35 ? "#b9adff" : "#9cc2ff";
-    return `<ellipse cx="${x.toFixed(0)}" cy="${(mid(x) + gauss() * 90).toFixed(0)}" rx="${w.toFixed(0)}" ry="${h.toFixed(0)}" fill="${c}" opacity="${((0.03 + r() * 0.07) * g * 1.4).toFixed(3)}"/>`;
-  }).join("");
-  // dust: dark patches drifting along the middle, not one stripe
-  const dust = Array.from({ length: 34 }, () => {
-    const x = r() * GX;
-    return `<ellipse cx="${x.toFixed(0)}" cy="${(mid(x) + (r() - 0.5) * 60).toFixed(0)}" rx="${(40 + r() * 140).toFixed(0)}" ry="${(8 + r() * 22).toFixed(0)}" fill="#010308" opacity="${(0.15 + r() * 0.25).toFixed(2)}"/>`;
-  }).join("");
+  // the few that shine: a point and a soft glow round it
+  for (let i = 0; i < 14; i++) {
+    const x = (r() * GX).toFixed(0);
+    const y = (r() * GY).toFixed(0);
+    dots.push(`<circle cx="${x}" cy="${y}" r="${(7 + r() * 5).toFixed(1)}" fill="url(#glow)"/><circle cx="${x}" cy="${y}" r="${(1.4 + r() * 0.6).toFixed(2)}" fill="#fff"/>`);
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GX} ${GY}" width="${GX}" height="${GY}">
-<defs><filter id="neb" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="30"/></filter>
-<filter id="dust" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="18"/></filter></defs>
-<g transform="rotate(-24 ${GX / 2} ${GY / 2})">
-  <g filter="url(#neb)">${clouds}</g>
-  <g fill="#f2f5ff">${stars.join("")}</g>
-  <g filter="url(#dust)">${dust}</g>
-</g>
+<defs><radialGradient id="glow"><stop offset="0" stop-color="#dfe9ff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#9fc0ff" stop-opacity="0.18"/><stop offset="1" stop-color="#9fc0ff" stop-opacity="0"/></radialGradient></defs>
+${dots.join("")}
 </svg>`;
 })();
-writeFileSync("public/start/everest-galaxy.svg", tidy(galaxy));
+writeFileSync("public/start/everest-stars.svg", tidy(starfield));
 
 // the stretch of ridge around the summit, for the page's glint, and its top
 const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-galaxy.svg, drawn larger than the picture and centred on it\nexport const GALAXY = { width: ${GX}, height: ${GY} };\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-stars.svg, the night sky, drawn larger than the picture and centred on it\nexport const STARFIELD = { width: ${GX}, height: ${GY} };\n`
 );
 console.log("ok");
