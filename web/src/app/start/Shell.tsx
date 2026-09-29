@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { FileText, Flag, PenLine, UserRound, type LucideIcon } from "lucide-react";
-import { SCENE, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
+import { GALAXY, SCENE, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
 
 // The frame every /start page sits in, over Everest at blue hour: the
 // mountain fills the screen (the goal we help clients reach: the top), with
@@ -102,16 +102,15 @@ const FRAME_MASK: React.CSSProperties = {
   WebkitMaskComposite: "xor",
 };
 
-// Stars in the open sky only: above everything, and lower down only clear
-// of Everest and Lhotse (x, y, radius, when and how fast each twinkles)
+// Stars across the sky (x, y, radius, when and how fast each twinkles); the
+// sky's own shape keeps them off the mountains as the sky turns
 const STARS: [number, number, number, number, number][] = (() => {
   let seed = 7;
   const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const out: [number, number, number, number, number][] = [];
   while (out.length < 70) {
     const x = r() * 1600;
-    const y = r() * 430;
-    if (x > 180 && x < 1120 && y > 210) continue;
+    const y = r() * 520;
     out.push([Math.round(x), Math.round(y), 0.5 + r() * 0.9, Math.round(r() * 60) / 10, 3 + Math.round(r() * 40) / 10]);
   }
   return out;
@@ -145,6 +144,14 @@ function Scene({ name }: { name?: string | null }) {
             <animate attributeName="opacity" dur="12s" begin="2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.1;0.45;0.55;1" />
           </circle>
         </mask>
+        <mask id="sc-sky" maskUnits="userSpaceOnUse" x="0" y="0" width={width} height={height}>
+          <image href="/start/everest-sky.png" width={width} height={height} preserveAspectRatio="none" />
+        </mask>
+        <radialGradient id="sc-vignette" cx={SUMMIT.x + 60} cy="380" r="1050" gradientUnits="userSpaceOnUse">
+          <stop offset="0.3" stopColor="#000" stopOpacity="0" />
+          <stop offset="0.7" stopColor="#000" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.85" />
+        </radialGradient>
         <linearGradient id="sc-foot" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0.55" stopColor="#000" stopOpacity="0" />
           <stop offset="1" stopColor="#000" stopOpacity="0.85" />
@@ -160,36 +167,49 @@ function Scene({ name }: { name?: string | null }) {
         </radialGradient>
       </defs>
       <image href="/start/everest.webp" width={width} height={height} />
-      <g className="ev-drift" fill="#e8f0ff">
-        {STARS.map(([x, y, r, d, t], i) => (
-          <circle key={i} cx={x} cy={y} r={r} className="ev-star" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }} />
-        ))}
+      {/* the night sky, turning slowly: the Milky Way and the stars, kept
+          to the sky's own shape so nothing ever crosses a mountain */}
+      <g mask="url(#sc-sky)">
+        <g className="ev-sky">
+          <image
+            href="/start/everest-galaxy.webp"
+            x={(width - GALAXY.width) / 2}
+            // raised so the band arcs through the open sky over the peak
+            y={(height - GALAXY.height) / 2 - 430}
+            width={GALAXY.width}
+            height={GALAXY.height}
+            opacity="0.85"
+            style={{ mixBlendMode: "screen" }}
+          />
+          <g fill="#e8f0ff">
+            {STARS.map(([x, y, r, d, t], i) => (
+              <circle key={i} cx={x} cy={y} r={r} className="ev-star" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }} />
+            ))}
+          </g>
+        </g>
+        <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
       </g>
-      <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
-      {/* the foot of the picture sinks into black */}
+      {/* the foot of the picture sinks into black, and everything away
+          from the peak falls into shadow, so the eye goes to the form */}
       <rect width={width} height={height} fill="url(#sc-foot)" />
+      <rect width={width} height={height} fill="url(#sc-vignette)" />
       <path d={SUMMIT_RIDGE} fill="none" stroke="#eef5ff" strokeWidth="0.9" strokeLinejoin="round" mask="url(#sc-glint)" className="ev-glint" />
       {label && (
         // the client's name at the top: a tag with a dip at the foot, and from
         // it a fine arrow down onto the summit, in a soft halo
         <g transform={`translate(${SUMMIT.x} ${SUMMIT.y})`}>
           <ellipse cx="0" cy="-50" rx="120" ry="60" fill="url(#sc-halo)" className="ev-halo" />
-          <g className="ev-arrow">
-            <line x1="0" y1="-34" x2="0" y2="-5" stroke="#dcebff" strokeOpacity="0.75" strokeWidth="0.8" />
-            <path d="M-3 -9 L0 -4.5 L3 -9" fill="none" stroke="#dcebff" strokeOpacity="0.85" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
-          </g>
-          <foreignObject x="-210" y="-160" width="420" height="119">
-            {/* the tag at the foot; hovering it brings up a line for them above */}
-            <div className="flex h-full flex-col-reverse items-center">
-              {/* made like the Nyra button: the moving light on the wrapper,
-                  a solid pill inside it */}
+          <foreignObject x="-210" y="-121" width="420" height="119">
+            {/* a speech bubble floating over the peak, its tail resting on the
+                top; it pops now and then for attention, and hovering it brings
+                up a line above */}
+            <div className="ev-bob flex h-full flex-col-reverse items-center pb-[9px]">
               <span className="ev-tag nyra-glow peer pointer-events-auto relative">
                 <span className="relative flex cursor-default items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground shadow-xl">
                   <Flag size={14} className="shrink-0 text-accent" />
                   Hey {label}, we want you here
-                  {/* the dip: the tag's foot, pointing down */}
-                  <span className="absolute -bottom-[4px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 bg-surface-2" />
                 </span>
+                <span className="absolute top-full left-1/2 -translate-x-1/2 border-x-[7px] border-t-[9px] border-x-transparent border-t-surface-2" />
               </span>
               <p className="mb-2.5 max-w-[250px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/85 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-md transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
                 {SUMMIT_NOTE}

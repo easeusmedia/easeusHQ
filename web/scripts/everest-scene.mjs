@@ -218,10 +218,10 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <stop offset="0" stop-color="#a9d0ff" stop-opacity="0.5"/><stop offset="0.3" stop-color="#5a9fea" stop-opacity="0.22"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
   </radialGradient>
   <linearGradient id="far1" gradientUnits="userSpaceOnUse" x1="0" y1="450" x2="0" y2="700">
-    <stop offset="0" stop-color="#3a6aa3"/><stop offset="1" stop-color="#26507f"/>
+    <stop offset="0" stop-color="#2a4d78"/><stop offset="1" stop-color="#1b3a5f"/>
   </linearGradient>
   <linearGradient id="far2" gradientUnits="userSpaceOnUse" x1="0" y1="460" x2="0" y2="720">
-    <stop offset="0" stop-color="#2b5688"/><stop offset="1" stop-color="#1b3e68"/>
+    <stop offset="0" stop-color="#1f3f66"/><stop offset="1" stop-color="#142e4f"/>
   </linearGradient>
   <linearGradient id="rock" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
     <stop offset="0" stop-color="#1c3a61"/><stop offset="0.55" stop-color="#13294a"/><stop offset="1" stop-color="#0d1e36"/>
@@ -281,10 +281,66 @@ const out = process.argv[2] ?? "public/start/everest.webp";
 // high quality: smooth skies band at the usual settings
 await sharp(Buffer.from(svg)).webp({ quality: 95, smartSubsample: true, effort: 6 }).toFile(out);
 
+// the sky's shape (white) against the land (black), for the page's stars,
+// which move and must never cross a mountain
+const land = [far1, far2, everest, nuptse, near1, near2].map((pts) => `<path d="${fill(pts)}" fill="#000"/>`).join("");
+const skySvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W / 2}" height="${H / 2}"><rect width="${W}" height="${H}" fill="#fff"/>${land}</svg>`;
+await sharp(Buffer.from(skySvg)).blur(1.2).greyscale().png({ compressionLevel: 9, palette: true }).toFile("public/start/everest-sky.png");
+
+// The Milky Way, on its own (transparent) so the page can turn it slowly
+// across the sky: a band of star clouds in blue and violet, a darker dust
+// lane down its middle, and thousands of faint stars thickest along it.
+// Drawn larger than the picture (GX by GY, the picture at its middle) so
+// turning never shows an edge.
+const GX = 2400;
+const GY = 1600;
+const galaxy = (() => {
+  const r = rng(17);
+  const gauss = () => (r() + r() + r() + r() + r() + r() - 3) / 3;
+  // the band bends gently; `mid(x)` is its centre line
+  const mid = (x) => GY / 2 + Math.sin((x / GX) * Math.PI * 1.3) * 40;
+  const core = GX * 0.34; // the bright heart of it
+  const glow = (x) => 0.55 + 0.45 * Math.exp(-(((x - core) / (GX * 0.16)) ** 2));
+  const stars = [];
+  for (let i = 0; i < 7000; i++) {
+    const inBand = i < 5200;
+    const x = r() * GX * 1.1 - GX * 0.05;
+    const across = gauss() * (inBand ? 150 * glow(x) : 420);
+    const bright = r() < 0.03;
+    const o = (inBand ? 0.18 + r() * 0.5 : 0.08 + r() * 0.3) * (inBand ? glow(x) : 1);
+    stars.push(`<circle cx="${x.toFixed(0)}" cy="${(mid(x) + across).toFixed(1)}" r="${(bright ? 0.9 + r() * 0.7 : 0.3 + r() * 0.55).toFixed(2)}" opacity="${Math.min(1, bright ? o + 0.4 : o).toFixed(2)}"/>`);
+  }
+  // star clouds: many soft blobs of differing size and tint, thickest at the core
+  const clouds = Array.from({ length: 70 }, () => {
+    const x = r() * GX;
+    const g = glow(x);
+    const w = (60 + r() * 220) * (0.7 + g * 0.6);
+    const h = (30 + r() * 80) * (0.7 + g * 0.5);
+    const warm = Math.abs(x - core) < GX * 0.1 && r() < 0.5;
+    const c = warm ? "#ffe0c2" : r() < 0.35 ? "#b9adff" : "#9cc2ff";
+    return `<ellipse cx="${x.toFixed(0)}" cy="${(mid(x) + gauss() * 90).toFixed(0)}" rx="${w.toFixed(0)}" ry="${h.toFixed(0)}" fill="${c}" opacity="${((0.03 + r() * 0.07) * g * 1.4).toFixed(3)}"/>`;
+  }).join("");
+  // dust: dark patches drifting along the middle, not one stripe
+  const dust = Array.from({ length: 34 }, () => {
+    const x = r() * GX;
+    return `<ellipse cx="${x.toFixed(0)}" cy="${(mid(x) + (r() - 0.5) * 60).toFixed(0)}" rx="${(40 + r() * 140).toFixed(0)}" ry="${(8 + r() * 22).toFixed(0)}" fill="#010308" opacity="${(0.15 + r() * 0.25).toFixed(2)}"/>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GX} ${GY}" width="${GX}" height="${GY}">
+<defs><filter id="neb" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="30"/></filter>
+<filter id="dust" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="18"/></filter></defs>
+<g transform="rotate(-24 ${GX / 2} ${GY / 2})">
+  <g filter="url(#neb)">${clouds}</g>
+  <g fill="#f2f5ff">${stars.join("")}</g>
+  <g filter="url(#dust)">${dust}</g>
+</g>
+</svg>`;
+})();
+await sharp(Buffer.from(galaxy)).webp({ quality: 80, alphaQuality: 85, effort: 6 }).toFile("public/start/everest-galaxy.webp");
+
 // the stretch of ridge around the summit, for the page's glint, and its top
 const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.webp (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.webp (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-galaxy.webp, drawn larger than the picture and centred on it\nexport const GALAXY = { width: ${GX}, height: ${GY} };\n`
 );
 console.log("ok");
