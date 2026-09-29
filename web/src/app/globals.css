@@ -93,10 +93,28 @@ body {
    along the top edge and fades down the sides. Drawn as two backgrounds —
    the face clipped to the padding box over the stroke's gradient showing
    through a transparent border — so it works at any radius. */
+/* Clickable cards light up where the pointer is: a soft blue glow on the
+   face that follows it, and the edge brightening nearest it. Two extra
+   layers in each surface's background, one over the face and one under it
+   (so it shows only through the 1px border), dark until --spot rises on
+   hover. --mx/--my come from (workspace)/Spotlight.tsx. */
+@property --spot {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+.panel,
+.panel-soft,
+.card-surface {
+  --spot-face: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgb(75 149 230 / calc(var(--spot) * 0.12)), transparent 65%) padding-box;
+  --spot-edge: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), rgb(125 180 245 / calc(var(--spot) * 0.75)), transparent 75%) border-box;
+}
 .panel {
   border: 1px solid transparent;
   background:
+    var(--spot-face),
     linear-gradient(180deg, #171a1f 0%, #121418 100%) padding-box,
+    var(--spot-edge),
     linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.03) 100%) border-box;
   box-shadow: 0 24px 48px -32px rgba(0, 0, 0, 0.85);
 }
@@ -104,16 +122,21 @@ body {
 .panel-soft {
   border: 1px solid transparent;
   background:
+    var(--spot-face),
     linear-gradient(180deg, #15181c 0%, #111316 100%) padding-box,
+    var(--spot-edge),
     linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.035) 40%, rgba(255, 255, 255, 0.025) 100%) border-box;
 }
 /* panels you can click: the edge brightens under the pointer */
 .panel-hover {
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease, --spot 0.35s ease;
 }
 .panel-hover:hover {
+  --spot: 1;
   background:
+    var(--spot-face),
     linear-gradient(180deg, #1a1d23 0%, #14161b 100%) padding-box,
+    var(--spot-edge),
     linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.07) 35%, rgba(255, 255, 255, 0.04) 100%) border-box;
 }
 /* what's selected — a menu item, a tab: a dark gradient, faintly tinted with
@@ -312,7 +335,9 @@ dialog[open]::backdrop {
      jank source. Same look, without paying for it every frame. */
   border: 1px solid transparent;
   background:
+    var(--spot-face),
     linear-gradient(180deg, #16191e 0%, #121418 100%) padding-box,
+    var(--spot-edge),
     linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.04) 35%, rgba(255, 255, 255, 0.03) 100%) border-box;
   transition: background 0.15s ease;
 }
@@ -321,9 +346,15 @@ dialog[open]::backdrop {
    pop the moment the pointer crossed it, which reads as "this is
    clickable" when it isn't, and is plain distracting while you're typing
    in a field inside it. */
+.card-interactive {
+  transition: background 0.15s ease, --spot 0.35s ease;
+}
 .card-interactive:hover {
+  --spot: 1;
   background:
+    var(--spot-face),
     linear-gradient(180deg, #1a1d23 0%, #14161b 100%) padding-box,
+    var(--spot-edge),
     linear-gradient(180deg, rgba(255, 255, 255, 0.19) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0.04) 100%) border-box;
 }
 

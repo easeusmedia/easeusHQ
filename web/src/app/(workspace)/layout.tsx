@@ -6,6 +6,7 @@ import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { Pulse } from "./Pulse";
+import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
 import { canEditPeople, isEditor, seesClientFeedback } from "@/lib/scope";
@@ -70,6 +71,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
     <div className="flex h-screen bg-background text-foreground">
       <Pulse live={liveLine()} />
+      <Spotlight />
       <Sidebar
         isOps={isOps}
         canSeeFinance={canEditPeople(sessionUser)}
