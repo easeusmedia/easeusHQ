@@ -48,11 +48,15 @@ export async function GET() {
       take: 5,
       select: { id: true, name: true, message: true, client: { select: { name: true, slug: true } } },
     }),
-    // here: at most once every 45s, not a write on every ask
-    prisma.user.updateMany({
-      where: { id: userId, OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: new Date(now.getTime() - 45_000) } }] },
-      data: { lastSeenAt: now },
-    }),
+    // here: at most once every 45s, not a write on every ask. Never from a
+    // local dev server: it shares the live database, so testing there would
+    // show whoever it's signed in as online to the whole team.
+    process.env.NODE_ENV === "production"
+      ? prisma.user.updateMany({
+          where: { id: userId, OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: new Date(now.getTime() - 45_000) } }] },
+          data: { lastSeenAt: now },
+        })
+      : null,
   ]);
 
   const seesFeedback = !!user && seesClientFeedback(user, ops?.id ?? null);
