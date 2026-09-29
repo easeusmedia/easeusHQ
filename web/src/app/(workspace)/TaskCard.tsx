@@ -354,11 +354,6 @@ export function TaskCard({
         </p>
       )}
 
-      {task.status === "revision_requested" && canManage && (
-        <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
-          Waiting for the editor to pick this up again.
-        </p>
-      )}
       {task.status === "revision_requested" && actingRole === "employee" && (
         <p className="rounded-md bg-orange-400/10 px-2 py-1 text-xs text-orange-300">
           Revision requested. Check the notes and resume editing.
