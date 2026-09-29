@@ -25,7 +25,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
       <div className="pointer-events-none relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
         {/* frosted glass round the edge and between the two halves; only
             the window onto the peak stays clear */}
-        <div aria-hidden className="absolute inset-0 hidden rounded-[inherit] bg-[#07090d]/35 backdrop-blur-xl lg:block" style={FRAME_MASK} />
+        <div aria-hidden className="absolute inset-0 hidden rounded-[inherit] bg-white/[0.03] backdrop-blur-xl backdrop-saturate-[1.6] lg:block" style={FRAME_MASK} />
         {/* the window: nothing between the peak and the eye but a shade
             at the foot, so the words there read */}
         <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-35% via-black/45 via-70% to-black/90 p-9 lg:flex">
@@ -67,7 +67,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 
         {/* dark frosted glass: the range goes soft behind the form, lit
             faintly along its top edge like a pane */}
-        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
+        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0b1220]/55 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-[28px] backdrop-saturate-150 sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
           {/* the sheen a pane of glass catches, top left */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
           {/* on a phone the left side is gone, so the name comes along here */}
@@ -151,36 +151,73 @@ function Scene({ name }: { name?: string | null }) {
   // the far-off point the sky turns about, within that box
   const pivot = { x: 1500 - gx, y: -700 - gy };
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+  // where a point of the picture lands inside a layer: the picture covers
+  // the layer from its middle, at whichever scale fills it
+  const scale = `max(100cqw / ${width}, 100cqh / ${height})`;
+  const at = (x: number, y: number) => ({
+    left: `calc(50% + ${x - width / 2} * ${scale})`,
+    top: `calc(50% + ${y - height / 2} * ${scale})`,
+  });
   // A message over the peak: a box with a small pointer in the middle of
-  // its foot, the pointer's tip on the summit. One thin blue edge with the
-  // Nyra light running along it, and no shadow or haze outside it; it
-  // floats, hops now and then for attention, and hovering it brings up a
-  // line above. The client's name is always capitalised, however it was
+  // its foot, the pointer's tip on the summit. Plain HTML pinned to the
+  // summit (not drawn inside the picture, which would shrink it with the
+  // picture and thin its edge to nothing at the corners). Its edge is its
+  // own border, with the Nyra light running round it and a soft blue glow
+  // following the light. It floats, hops now and then for attention, and
+  // hovering it brings up a line above, which stays while the pointer is
+  // on either. The client's name is always capitalised, however it was
   // typed.
   const TAG = (
-    <div className="ev-bob flex h-full flex-col-reverse items-center pb-[8px]">
-      <span className="ev-tag peer pointer-events-auto relative">
-        <span className="nyra-glow nyra-line relative block rounded-[11px] bg-[#2a4a72] p-px">
-          <span className="relative flex cursor-default items-center gap-2 rounded-[10px] bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground">
-            <Flag size={14} className="shrink-0 text-accent" />
-            <span>
-              Hey <span className="capitalize">{label}</span>, we want you here
+    <div className="absolute" style={at(SUMMIT.x, SUMMIT.y)}>
+      <div className="absolute bottom-2 left-0 -translate-x-1/2">
+        <div className="ev-bob ev-hold group flex flex-col-reverse items-center">
+          <span className="ev-tag pointer-events-auto relative isolate">
+            <span aria-hidden className="ev-box-glow absolute -inset-[3px] -z-10 rounded-[13px]" />
+            <span className="ev-box relative flex cursor-default items-center gap-2 rounded-[11px] px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground">
+              <Flag size={14} className="shrink-0 text-accent" />
+              <span>
+                Hey <span className="capitalize">{label}</span>, we want you here
+              </span>
+            </span>
+            {/* the pointer: the box's own fill, and its edge colour */}
+            <span className="absolute top-full left-1/2 -mt-[6.5px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-[#2a4a72] bg-surface-2" />
+          </span>
+          {/* padding, not margin, below the line: the pointer can cross from
+              the box to it without letting go */}
+          <span className="pointer-events-none translate-y-1 pb-3 opacity-0 transition-[opacity,translate] delay-150 duration-300 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-hover:delay-0">
+            <span className="block w-max max-w-[260px] rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85">
+              {SUMMIT_NOTE}
             </span>
           </span>
-        </span>
-        {/* the pointer: part of the box, the same fill and stroke */}
-        <span className="absolute top-full left-1/2 -mt-[6.5px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-[#2a4a72] bg-surface-2" />
-      </span>
-      <p className="mb-3 max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
-        {SUMMIT_NOTE}
-      </p>
+        </div>
+      </div>
     </div>
   );
   return (
     <>
       <Parallax />
-      {/* 1. the sky, with the dawn in it */}
-      <Layer depth={0.2} src="sky" />
+      {/* 1. the sky, with the dawn in it, and a soft glow round the dawn
+          that breathes slowly: a rose haze high up, and warm light pooled on
+          the horizon */}
+      <Layer depth={0.2} src="sky">
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid slice" className="ev-dawn absolute inset-0 h-full w-full mix-blend-screen">
+          <defs>
+            <radialGradient id="sc-dawn-haze">
+              <stop offset="0" stopColor="#f6b39a" stopOpacity="0.2" />
+              <stop offset="0.45" stopColor="#b77aa6" stopOpacity="0.08" />
+              <stop offset="1" stopColor="#6f5aa8" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="sc-dawn-glow">
+              <stop offset="0" stopColor="#ffd8ae" stopOpacity="0.6" />
+              <stop offset="0.3" stopColor="#ffab73" stopOpacity="0.3" />
+              <stop offset="0.65" stopColor="#e27f7a" stopOpacity="0.09" />
+              <stop offset="1" stopColor="#e27f7a" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="300" cy="470" rx="920" ry="330" fill="url(#sc-dawn-haze)" />
+          <ellipse cx="270" cy="515" rx="560" ry="160" fill="url(#sc-dawn-glow)" />
+        </svg>
+      </Layer>
 
       {/* 2. the night sky, turning slowly on its own layer (the browser
           turns it without redrawing it), behind the land */}
@@ -219,8 +256,20 @@ function Scene({ name }: { name?: string | null }) {
         </div>
       </Layer>
 
-      {/* 3. the far ranges */}
-      <Layer depth={0.4} src="far" />
+      {/* 3. the far ranges, the dawn's light spilling softly over their
+          tops */}
+      <Layer depth={0.4} src="far">
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid slice" className="ev-dawn absolute inset-0 h-full w-full mix-blend-screen">
+          <defs>
+            <radialGradient id="sc-dawn-spill">
+              <stop offset="0" stopColor="#ffd9b0" stopOpacity="0.32" />
+              <stop offset="0.5" stopColor="#ff9f6e" stopOpacity="0.1" />
+              <stop offset="1" stopColor="#ff9f6e" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="260" cy="522" rx="380" ry="80" fill="url(#sc-dawn-spill)" />
+        </svg>
+      </Layer>
 
       {/* 4. Everest, with the glint on its ridge and the message on its
           summit, which move with it */}
@@ -247,12 +296,10 @@ function Scene({ name }: { name?: string | null }) {
           {label && (
             <g transform={`translate(${SUMMIT.x} ${SUMMIT.y})`}>
               <ellipse cx="0" cy="-40" rx="130" ry="60" fill="url(#sc-halo)" className="ev-halo" />
-              <foreignObject x="-210" y="-121" width="420" height="120">
-                {TAG}
-              </foreignObject>
             </g>
           )}
         </svg>
+        {label && TAG}
       </Layer>
 
       {/* 5. the near ridges */}
