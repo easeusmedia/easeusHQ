@@ -221,7 +221,8 @@ export function Sidebar({
   }
 
   const groups = [
-    { label: "Main", items: isEditor ? MAIN.filter((i) => i.href !== "/my-tasks") : MAIN },
+    // an editor sees their own numbers, read-only (the page takes them there)
+    { label: "Main", items: isEditor ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }] : MAIN },
     {
       label: "Manage",
       items: isOps
@@ -240,8 +241,8 @@ export function Sidebar({
         ? [
             // core members see their own team here (read-only); admin edits everyone
             { href: "/team", label: "Employees", hint: "Everyone's record and current work", Icon: UsersRound },
-            // the editors' monthly numbers against the targets admin sets
-            { href: "/performance", label: "Performance", hint: "Editor KPIs and feedback", Icon: Gauge },
+            // how each editor is doing, week by week, and what keeps coming back
+            { href: "/performance", label: "Performance", hint: "Editor grades, feedback and issues", Icon: Gauge },
             ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),
             // client contracts, from the form to the signed copy
             { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting },

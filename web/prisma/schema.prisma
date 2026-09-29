@@ -196,6 +196,7 @@ model User {
   performance       PerformanceEntry[] @relation("PerformanceAbout")
   performanceLogged PerformanceEntry[] @relation("PerformanceLogged")
   focusAreas        FocusArea[]
+  leaveDays         LeaveDay[]
   salaryPayments    SalaryPayment[]
   // the clients an editor (role employee) has been given: the only ones
   // they see, and only their own work on each
@@ -792,6 +793,10 @@ model PerformanceEntry {
   fromClient  Boolean  @default(false)
   // an automatic entry that someone has looked over or corrected
   reviewed    Boolean  @default(false)
+  // dealt with: for a Frame.io comment, when the editor ticked it done
+  // there (read back on every sync); for anything else, when core marked
+  // it so. Null = still open.
+  resolvedAt  DateTime?
   loggedBy    User?    @relation("PerformanceLogged", fields: [loggedById], references: [id])
   loggedById  String?
   createdAt   DateTime @default(now())
@@ -919,6 +924,12 @@ model AiUsage {
 // Notion review's "Active Feedbacks", made to last. A focus area that
 // tracks a kind of mistake counts every confirmed mistake of that kind
 // since it was raised, so it's plain whether it's still coming up.
+// An issue in an editor's queue: something they keep getting wrong, kept
+// in view until it stops. Opened by core, or automatically when a kind of
+// mistake turns up on two different videos within 30 days
+// (lib/editorKpi.ts, issuePlan). Resolved by core; if that kind of mistake
+// comes back afterwards, it reopens on its own. (Called a focus area when
+// it was manual only; the table kept the name.)
 model FocusArea {
   id         String    @id @default(uuid())
   editor     User      @relation(fields: [editorId], references: [id], onDelete: Cascade)
@@ -929,7 +940,26 @@ model FocusArea {
   note       String?   @db.Text
   openedAt   DateTime  @default(now())
   resolvedAt DateTime?
+  // opened by the app rather than by a person
+  auto       Boolean   @default(false)
+  // how many times it has come back after being resolved, and the last time
+  reopens    Int       @default(0)
+  reopenedAt DateTime?
   createdAt  DateTime  @default(now())
 
   @@index([editorId])
+}
+
+// A day an editor was away (leave, a holiday), so it isn't counted against
+// their output. Core records it.
+model LeaveDay {
+  id        String   @id @default(uuid())
+  editor    User     @relation(fields: [editorId], references: [id], onDelete: Cascade)
+  editorId  String
+  // yyyy-mm-dd, a day in India
+  day       String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([editorId, day])
 }

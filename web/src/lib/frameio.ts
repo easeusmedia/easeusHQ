@@ -183,6 +183,9 @@ export type FrameioComment = {
   byEmail: string | null;
   // which cut of the video it was left on, 1 being the first
   version: number;
+  // when someone ticked it done in Frame.io (our editors tick what they've
+  // fixed); null while it's open
+  completedAt: string | null;
 };
 
 // Every review comment on a share, across every cut of every video in it.
@@ -203,7 +206,7 @@ export async function shareComments(shareId: string): Promise<FrameioComment[]> 
   );
   const lists = await Promise.all(cuts.map(({ v }) => api(`/accounts/${accountId}/files/${v.id}/comments?include=owner`)));
   return lists.flatMap((body, i) =>
-    ((body?.data ?? []) as { id: string; text?: string; created_at?: string; owner?: { name?: string; email?: string } }[])
+    ((body?.data ?? []) as { id: string; text?: string; created_at?: string; completed_at?: string | null; owner?: { name?: string; email?: string } }[])
       .filter((c) => c.text?.trim())
       .map((c) => ({
         id: c.id,
@@ -212,6 +215,7 @@ export async function shareComments(shareId: string): Promise<FrameioComment[]> 
         by: c.owner?.name ?? null,
         byEmail: c.owner?.email ?? null,
         version: cuts[i].version,
+        completedAt: c.completed_at ?? null,
       }))
   );
 }

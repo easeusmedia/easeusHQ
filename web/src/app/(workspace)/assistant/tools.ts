@@ -4,11 +4,12 @@ import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { editorKpis, hoursLabel, ENTRY_KINDS, MISTAKE_CATEGORIES, PART_LABEL, type Part } from "@/lib/editorKpi";
+import { hoursLabel, ENTRY_KINDS, MISTAKE_CATEGORIES, PART_LABEL, periodFrom, type Part } from "@/lib/editorKpi";
 import { collectedIn, isOverdue, ledger, payroll, upcoming } from "@/lib/finance";
 import { clipText } from "@/lib/assistant";
 import type { Tool } from "@/lib/ai";
-import { kpiTargets, loadPerformance, monthShare, partText } from "../performance/data";
+import { loadPerformance } from "../performance/data";
+import { partText } from "../performance/shared";
 import { billingCycle, loadFinance, money } from "../finance/data";
 
 // What the admin's assistant can read and propose, and nothing else: the
@@ -152,32 +153,30 @@ async function search({ q }: { q: string }) {
 }
 
 async function editorLine(id: string, name: string, month: string) {
-  const [data, targets, focus] = await Promise.all([
-    loadPerformance(month, 1, id),
-    kpiTargets(),
-    prisma.focusArea.findMany({ where: { editorId: id, resolvedAt: null }, select: { title: true, openedAt: true } }),
-  ]);
+  const period = periodFrom({ view: "month", month }, today());
+  const data = await loadPerformance({ from: period.from, editorId: id });
   if (!data.editors.length) return null;
-  const k = editorKpis(...data.slice(month, id), targets, monthShare(month, today()));
+  const t = data.targets;
+  const k = data.score(period.from, period.to, id);
   const cats = k.byCategory.map(([c, n]) => `${c} ${n}`).join(", ");
-  const pending = data.entries.filter((e) => !e.reviewed && e.kind === "mistake" && e.day.startsWith(month)).length;
+  const issues = data.issues.filter((i) => !i.resolvedDay);
   // each part says what it measures, so it can't be misread
   const MEANS: Record<Part, string> = {
-    quality: "mistakes per video, fewer is better",
-    deadlines: `% of first drafts on time, from ${k.rated} video${k.rated === 1 ? "" : "s"} with a due date`,
+    quality: `confirmed mistakes per video (a client's catch counts ${t.clientMistakeWeight}×), fewer is better`,
+    output: "reel-equivalents completed / target for the working days so far",
+    speed: `% of videos edited within their type's standard time, from ${k.rated} timed`,
     revisions: "times sent back per video, fewer is better",
-    output: "weighted videos delivered",
+    issues: "recurring issues open (each costs 20 points; each Frame.io comment passed over costs 5)",
   };
   const parts = (Object.keys(PART_LABEL) as Part[])
     .map((p) => `${PART_LABEL[p]}: ${partText(p, k)} ${MEANS[p]} (aim ${k.parts[p].target}; scores ${k.parts[p].points ?? "–"} of 100; counts ${k.parts[p].weight}%)`)
     .join("\n");
   return [
-    `${name}, ${month}${month === today().slice(0, 7) ? " so far" : ""}: score ${k.score ?? "–"} of 100, grade ${k.grade ?? "–"} · delivered ${k.delivered} (${k.units} weighted)`,
+    `${name}, ${month}${period.current ? " so far" : ""}: grade ${k.grade ?? (k.enough ? "–" : "not graded, fewer than two videos")}, score ${k.score ?? "–"} of 100 · completed ${k.completed} of ${k.assigned} given (${k.units} reel-equivalents)`,
     parts,
-    `Confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · sent back ${k.internalRevisions} times by our review, ${k.clientRevisions} by clients · typical time to a first draft ${k.draftHours === null ? "unknown" : hoursLabel(k.draftHours)}`,
-    k.late.length ? `First drafts late: ${k.late.join("; ")}` : "",
-    pending ? `Frame.io mistakes waiting for ops to confirm (not counted yet): ${pending}` : "",
-    focus.length ? `Working on improving (focus areas, open until improved): ${focus.map((f) => `${f.title} since ${d(f.openedAt)}`).join("; ")}` : "",
+    `Confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · feedback points ${k.feedback}, unresolved ${k.unresolved} · sent back ${k.internalRevisions} times by our review, ${k.clientRevisions} by clients · typical edit time ${k.editHours === null ? "unknown" : hoursLabel(k.editHours, t)}`,
+    k.toConfirm ? `Frame.io mistakes waiting for core to confirm (not counted yet): ${k.toConfirm}` : "",
+    issues.length ? `Issue queue (open until resolved): ${issues.map((i) => `${i.title}${i.count ? `, ${i.count} times on ${i.videos} videos` : ""} since ${i.openedDay}`).join("; ")}` : "No open issues",
   ]
     .filter(Boolean)
     .join("\n");
@@ -274,11 +273,12 @@ async function performance({ person: who, month }: { person?: string; month?: st
     if (!("id" in p)) return notFound("person", p);
     return (await editorLine(p.id, p.name, m)) ?? `${p.name} isn't an editor, so has no editor numbers.`;
   }
-  const [data, targets] = await Promise.all([loadPerformance(m, 1), kpiTargets()]);
-  const team = editorKpis(...data.slice(m), targets, monthShare(m, today()));
+  const period = periodFrom({ view: "month", month: m }, today());
+  const data = await loadPerformance({ from: period.from });
+  const team = data.score(period.from, period.to);
   const lines = await Promise.all(data.editors.map((e) => editorLine(e.id, e.name, m)));
   return [
-    `Team, ${m}: delivered ${team.delivered} (${team.units} weighted) · mistakes ${team.mistakesPerVideo ?? "–"} per video · sent back ${team.revisions ?? "–"} per video · first drafts on time ${team.onTimePct ?? "–"}%`,
+    `Team, ${m}: completed ${team.completed} (${team.units} reel-equivalents) · mistakes ${team.mistakesPerVideo ?? "–"} per video · sent back ${team.revisions ?? "–"} per video · within standard ${team.onStandardPct ?? "–"}%`,
     ...lines.filter(Boolean),
   ].join("\n");
 }

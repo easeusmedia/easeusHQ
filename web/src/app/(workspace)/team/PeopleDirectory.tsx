@@ -48,7 +48,7 @@ export type PersonRecord = {
   // the last 30 days, scored as History scores them
   performance: { completed: number; onTimePct: number | null; medianTurnaround: number; revisionsPerTask: number };
   // an editor's month as the Performance page reads it; null for everyone else
-  editorKpi: { score: number | null; grade: Grade | null; parts: { label: string; text: string; points: number | null; note: string }[] } | null;
+  editorKpi: { score: number | null; grade: Grade | null; light: boolean; parts: { label: string; text: string; points: number | null; note: string }[] } | null;
 };
 
 export type Option = { id: string; name: string; slug?: string };

@@ -16,7 +16,7 @@ import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { seesEveryTeam } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
-import { PartBar, ScoreBadge } from "../performance/ui";
+import { GradeBadge, PartBar } from "../performance/ui";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 const labelCls = "flex min-w-0 flex-col gap-1 text-xs text-muted";
@@ -457,13 +457,13 @@ export function PersonDetail({
             title="Performance"
             aside={
               <Link href={`/performance/${person.id}`} className="flex items-center gap-1 hover:text-foreground">
-                This month · Full details <ArrowUpRight size={12} />
+                This week · Full details <ArrowUpRight size={12} />
               </Link>
             }
           >
             <div className="flex items-center gap-6">
-              <ScoreBadge score={person.editorKpi.score} grade={person.editorKpi.grade} />
-              <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+              <GradeBadge score={person.editorKpi.score} grade={person.editorKpi.grade} light={person.editorKpi.light} />
+              <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
                 {person.editorKpi.parts.map((r) => (
                   <PartBar key={r.label} label={r.label} text={r.text} points={r.points} note={r.note} />
                 ))}

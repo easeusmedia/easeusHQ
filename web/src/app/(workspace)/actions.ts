@@ -48,6 +48,11 @@ export async function logout() {
 // just fix and resubmit.
 export type TaskFormState = { error?: string; success?: boolean };
 
+// An editor (Operations, not core): their videos are measured by type
+// (a reel, a trailer), on the Performance page.
+const editsVideos = (u: { role: string; team: { slug: string } | null }) => u.role === "employee" && u.team?.slug === "operations";
+const TYPE_NEEDED = "Pick the type of work (Reel, Trailer, Podcast editing…) before giving this to an editor.";
+
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const actor = await sessionActor();
   if (!actor) return { error: "Your session has ended. Please sign in again." };
@@ -95,6 +100,10 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     : null;
   if (assignedToId && (!assignee || assignee.employment === "former")) {
     return { error: "That person is no longer on the team. Please choose someone else." };
+  }
+  // an editor's work is measured by its type, so it needs one
+  if (assignee && editsVideos(assignee) && !formData.getAll("tagIds").map(String).some(Boolean)) {
+    return { error: TYPE_NEEDED };
   }
 
   const task = await prisma.task.create({
@@ -321,6 +330,13 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const deliveryDate = day("deliveryDate");
   const postDate = day("postDate");
   const scheduledFor = day("scheduledFor");
+
+  // an editor's work is measured by its type, so it needs one
+  const assignee = assignedToId ? await prisma.user.findUnique({ where: { id: assignedToId }, select: { role: true, team: { select: { slug: true } } } }) : null;
+  if (assignee && editsVideos(assignee)) {
+    const typed = formData.has("tagsPresent") ? tagIds.length > 0 : (await prisma.task.count({ where: { id: taskId, tags: { some: {} } } })) > 0;
+    if (!typed) return { error: TYPE_NEEDED };
+  }
 
   await prisma.task.update({
     where: { id: taskId },

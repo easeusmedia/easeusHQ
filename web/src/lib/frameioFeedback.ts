@@ -2,11 +2,13 @@ import { prisma } from "./prisma";
 import { frameioConnected, shareComments, shareIdFrom, type FrameioComment } from "./frameio";
 import { claudeJson, claudeKey } from "./claude";
 import { MISTAKE_CATEGORIES } from "./editorKpi";
+import { syncIssues } from "./issues";
 
 // Review comments from Frame.io, turned into the editor's feedback log.
 //
 // Every comment left on an editor's review link becomes one entry against
-// them. Claude sorts each: an actual editing mistake (with its kind, the
+// them, open until the editor ticks it done in Frame.io (read back on every
+// sync, so ticking or unticking there shows here). Claude sorts each: an actual editing mistake (with its kind, the
 // same kinds the Notion review used), ordinary creative direction, praise,
 // or just a note. The sorting is a first pass, not a verdict: every entry
 // arrives unreviewed, and ops confirms or flips it on the editor's page.
@@ -96,10 +98,19 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
     found.push(...lists.flat());
   }
 
-  const known = new Set(
-    (await prisma.performanceEntry.findMany({ where: { sourceId: { in: found.map((c) => `frameio:${c.id}`) } }, select: { sourceId: true } })).map((e) => e.sourceId)
-  );
+  const logged = await prisma.performanceEntry.findMany({
+    where: { sourceId: { in: found.map((c) => `frameio:${c.id}`) } },
+    select: { id: true, sourceId: true, resolvedAt: true },
+  });
+  const known = new Map(logged.map((e) => [e.sourceId, e]));
   const fresh = found.filter((c) => !known.has(`frameio:${c.id}`));
+
+  // ticked or unticked in Frame.io since the last sync: follow it
+  for (const c of found) {
+    const e = known.get(`frameio:${c.id}`);
+    if (!e || (e.resolvedAt?.toISOString() ?? null) === (c.completedAt ? new Date(c.completedAt).toISOString() : null)) continue;
+    await prisma.performanceEntry.update({ where: { id: e.id }, data: { resolvedAt: c.completedAt ? new Date(c.completedAt) : null } });
+  }
 
   // without Claude they still arrive, as creative feedback for ops to sort
   const sorted = fresh.length && (await claudeKey()) ? await sort(fresh) : new Map();
@@ -117,10 +128,13 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
         sourceId: `frameio:${c.id}`,
         by: c.by,
         fromClient: c.fromClient,
+        resolvedAt: c.completedAt ? new Date(c.completedAt) : null,
       };
     }),
     skipDuplicates: true,
   });
+  // new mistakes can make a kind of mistake recurring
+  await syncIssues();
   const now = new Date().toISOString();
   await prisma.appSetting.upsert({ where: { key: FEEDBACK_SYNCED }, create: { key: FEEDBACK_SYNCED, value: now }, update: { value: now } });
   return { added: fresh.length, mistakes: [...sorted.values()].filter((s) => s.kind === "mistake").length, sorted: sorted.size > 0 };

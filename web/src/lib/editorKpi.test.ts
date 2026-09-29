@@ -1,123 +1,248 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_TARGETS, draftHours, editorKpis, focusStatus, letter, onTime, pastWeeks, settle, shiftMonth, withTargetDefaults, type KpiTask } from "./editorKpi.ts";
+import {
+  DEFAULT_TARGETS,
+  issuePlan,
+  issueStatus,
+  letter,
+  periodFrom,
+  recurring,
+  scorePeriod,
+  settle,
+  trendSpans,
+  videoFacts,
+  withTargetDefaults,
+  workingDaysIn,
+  workingHours,
+  workType,
+  type KpiEntry,
+  type KpiTask,
+  type Mark,
+} from "./editorKpi.ts";
 
-const at = (s: string) => new Date(`2026-09-${s}Z`);
-const mv = (when: string, from: string, to: string) => ({ at: at(when), from, to });
+const T = DEFAULT_TARGETS;
+// a moment in India
+const ist = (s: string) => new Date(`2026-09-${s}+05:30`);
+const mv = (when: string, from: string, to: string) => ({ at: ist(when), from, to });
 const task = (over: Partial<KpiTask>): KpiTask => ({
   id: "t",
   title: "Video",
   client: null,
-  createdAt: at("01T04:00:00"),
-  deliveredAt: at("20T04:00:00"),
-  dueDate: null,
+  createdAt: ist("28T10:00:00"),
+  assignedAt: ist("28T10:00:00"),
   handedOffAt: null,
+  deliveredAt: null,
+  dueDate: null,
   tags: [],
   moves: [],
   ...over,
 });
-const T = DEFAULT_TARGETS;
-
-test("a stage put straight back cancels out; one left in place stays", () => {
-  const moves = [
-    mv("12T23:14:02", "sent_for_client_approval", "revision_requested"),
-    mv("12T23:14:06", "revision_requested", "sent_for_client_approval"),
-    mv("13T10:00:00", "final_export_ready", "revision_requested"),
-  ];
-  assert.deepEqual(settle(moves).map((m) => m.to), ["revision_requested"]);
+const entry = (over: Partial<KpiEntry>): KpiEntry => ({
+  kind: "mistake",
+  category: "Typos",
+  count: 1,
+  day: "2026-09-28",
+  taskId: null,
+  fromClient: false,
+  reviewed: true,
+  source: "manual",
+  resolved: true,
+  stale: false,
+  ...over,
 });
 
-test("turnaround is the editor's own time: picked up → first draft", () => {
-  const t = task({ moves: [mv("02T04:00:00", "queued", "editing"), mv("03T10:00:00", "editing", "sent_for_approval"), mv("05T04:00:00", "revision_requested", "sent_for_approval")] });
-  assert.equal(draftHours(t), 30);
-  // made straight into editing: it started when it was made
-  assert.equal(draftHours(task({ createdAt: at("02T04:00:00"), moves: [mv("02T10:00:00", "editing", "sent_for_approval")] })), 6);
-  // arrived mid-way from Notion: unknown
-  assert.equal(draftHours(task({ moves: [mv("02T04:00:00", "sent_for_approval", "editing")] })), null);
+test("working hours count only 10:00–19:00, Monday to Saturday, and skip leave", () => {
+  // Saturday 6pm to Monday 11am: an hour on Saturday, an hour on Monday
+  assert.equal(workingHours(ist("26T18:00:00"), ist("28T11:00:00"), T), 2);
+  // before and after hours don't count
+  assert.equal(workingHours(ist("28T08:00:00"), ist("28T21:00:00"), T), 9);
+  assert.equal(workingHours(ist("26T18:00:00"), ist("28T11:00:00"), T, new Set(["2026-09-26"])), 1);
 });
 
-test("on time means the first draft reached our review by the due date", () => {
-  const due = at("05T00:00:00");
-  assert.equal(onTime(task({ dueDate: due, moves: [mv("02T04:00:00", "queued", "editing"), mv("05T12:00:00", "editing", "sent_for_approval")] })), true);
-  assert.equal(onTime(task({ dueDate: due, moves: [mv("02T04:00:00", "queued", "editing"), mv("06T12:00:00", "editing", "sent_for_approval")] })), false);
-  assert.equal(onTime(task({ moves: [mv("02T04:00:00", "queued", "editing")] })), null);
+test("a week under way is judged on the working days it has had", () => {
+  // Monday to Sunday, all done: six working days
+  assert.equal(workingDaysIn("2026-09-21", "2026-09-27", T, new Set()), 6);
+  // on leave Tuesday
+  assert.equal(workingDaysIn("2026-09-21", "2026-09-27", T, new Set(["2026-09-22"])), 5);
+  // Monday 14:30: half of today's working day
+  assert.equal(workingDaysIn("2026-09-28", "2026-10-04", T, new Set(), ist("28T14:30:00")), 0.5);
 });
 
-test("each part scores 100 at target and falls in proportion; the score weighs them 40/25/20/15", () => {
-  // 10 reels, 5 confirmed mistakes (0.5 a video, on target), no due dates, none sent back
-  const tasks = Array.from({ length: 10 }, (_, i) => task({ id: `t${i}`, tags: ["Reel"] }));
-  const k = editorKpis(tasks, [{ kind: "mistake", category: "Typos", count: 5, day: "2026-09-03" }], T);
-  assert.equal(k.parts.quality.points, 100);
-  assert.equal(k.parts.revisions.points, 100);
-  assert.equal(k.parts.deadlines.points, null); // nothing to judge: left out
-  assert.equal(k.parts.output.points, 50); // 10 of 20
-  // (100·40 + 100·20 + 50·15) / 75
-  assert.equal(k.score, 90);
+test("the type comes from the tag, or is guessed from the title", () => {
+  assert.deepEqual(workType(["Trailer"], "Anything", T), { type: "Trailer", guessed: false });
+  assert.deepEqual(workType([], "Ep 12 trailer v2", T), { type: "Trailer", guessed: true });
+  assert.deepEqual(workType([], "Military Leaders full episode", T), { type: "Podcast editing", guessed: true });
+  assert.deepEqual(workType([], "Reel 3", T), { type: "Reel", guessed: true });
+  assert.deepEqual(workType([], "Something else", T), { type: "Reel", guessed: true });
+});
+
+test("speed is the editor's own time, picked up to first sent, against the type's standard", () => {
+  const reel = videoFacts(
+    task({ tags: ["Reel"], moves: [mv("28T10:00:00", "queued", "editing"), mv("28T14:00:00", "editing", "sent_for_approval")] }),
+    T
+  );
+  assert.equal(reel.editHours, 4);
+  // handed to the client before it was ever sent for review: the clock stops there
+  const handed = videoFacts(task({ tags: ["Reel"], handedOffAt: ist("28T12:00:00"), moves: [mv("28T10:00:00", "queued", "editing"), mv("29T12:00:00", "editing", "sent_for_approval")] }), T);
+  assert.equal(handed.editHours, 2);
+  assert.equal(reel.standardHours, 4.5);
+  assert.equal(reel.onStandard, true);
+  assert.equal(reel.units, 1);
+  // a trailer: 1.5 working days, 13.5 hours
+  const trailer = videoFacts(
+    task({ tags: ["Trailer"], moves: [mv("28T10:00:00", "queued", "editing"), mv("29T16:00:00", "editing", "sent_for_approval")] }),
+    T
+  );
+  assert.equal(trailer.editHours, 15);
+  assert.equal(trailer.onStandard, false);
+  assert.equal(trailer.units, 3);
+  // sitting in the queue first doesn't count against them
+  const queued = videoFacts(
+    task({ assignedAt: ist("21T10:00:00"), tags: ["Reel"], moves: [mv("28T10:00:00", "queued", "editing"), mv("28T12:00:00", "editing", "sent_for_approval")] }),
+    T
+  );
+  assert.equal(queued.editHours, 2);
+});
+
+test("complete for the editor when it first reaches the client; revisions split ours and the client's", () => {
+  const v = videoFacts(
+    task({
+      handedOffAt: ist("29T12:00:00"),
+      moves: [
+        mv("28T10:00:00", "queued", "editing"),
+        mv("28T12:00:00", "editing", "sent_for_approval"),
+        mv("28T13:00:00", "sent_for_approval", "revision_requested"),
+        mv("28T15:00:00", "revision_requested", "sent_for_approval"),
+        mv("29T12:00:00", "sent_for_approval", "sent_for_client_approval"),
+        mv("30T12:00:00", "sent_for_client_approval", "revision_requested"),
+      ],
+    }),
+    T
+  );
+  assert.equal(v.completedDay, "2026-09-29");
+  assert.equal(v.internalRevisions, 1);
+  assert.equal(v.clientRevisions, 1);
+});
+
+test("a stage put straight back cancels out", () => {
+  const moves = [mv("28T10:00:00", "editing", "revision_requested"), mv("28T10:01:00", "revision_requested", "editing")];
+  assert.equal(settle(moves).length, 0);
+});
+
+const reel = (over: Partial<KpiTask> = {}) =>
+  videoFacts(task({ tags: ["Reel"], moves: [mv("28T10:00:00", "queued", "editing"), mv("28T13:00:00", "editing", "sent_for_approval")], ...over }), T);
+
+test("the score: five parts against their targets, and a grade", () => {
+  // 12 reels in 6 working days: on target; nothing wrong
+  const k = scorePeriod({ videos: Array.from({ length: 12 }, () => reel()), entries: [], assigned: 12, openIssues: 0, workDays: 6 }, T);
+  assert.equal(k.parts.output.value, 12);
+  assert.equal(k.parts.output.target, 12);
+  assert.equal(k.score, 100);
   assert.equal(k.grade, "A");
+  // half the output, and a mistake a video (twice the 0.5 allowed)
+  const half = scorePeriod({ videos: Array.from({ length: 6 }, () => reel()), entries: Array.from({ length: 6 }, () => entry({})), assigned: 6, openIssues: 0, workDays: 6 }, T);
+  assert.equal(half.parts.output.points, 50);
+  assert.equal(half.parts.quality.points, 50);
+  // 35×50 + 25×50 + 20×100 + 10×100 + 10×100, over 100
+  assert.equal(half.score, 70);
+  assert.equal(half.grade, "B");
 });
 
-test("mistakes are per video, so delivering more isn't punished", () => {
-  const one = editorKpis([task({})], [{ kind: "mistake", category: "Typos", count: 2, day: "2026-09-03" }], T);
-  const six = editorKpis(Array.from({ length: 6 }, () => task({})), [{ kind: "mistake", category: "Typos", count: 2, day: "2026-09-03" }], T);
-  assert.equal(one.mistakesPerVideo, 2);
-  assert.equal(one.parts.quality.points, 25);
-  assert.equal(six.mistakesPerVideo, 0.3);
-  assert.equal(six.parts.quality.points, 100);
+test("only confirmed mistakes count, a client's catch counts double, creative direction never counts", () => {
+  const videos = [reel(), reel()];
+  const k = scorePeriod(
+    {
+      videos,
+      entries: [entry({ fromClient: true }), entry({ reviewed: false }), entry({ kind: "creative", category: null })],
+      assigned: 2,
+      openIssues: 0,
+      workDays: 1,
+    },
+    T
+  );
+  assert.equal(k.mistakes, 1);
+  assert.equal(k.mistakesPerVideo, 1); // 2 weighted over 2 videos
+  assert.equal(k.toConfirm, 1);
+  assert.equal(k.creative, 1);
 });
 
-test("output weighs the kind of work, and a month in progress is judged on its share", () => {
-  const k = editorKpis([task({ tags: ["Trailer"] }), task({ tags: ["Podcast editing"] }), task({ tags: ["Reel"] }), task({})], [], T, 0.25);
-  assert.equal(k.units, 6.5); // 3 + 1.5 + 1 + 1
-  assert.equal(k.parts.output.target, 5);
-  assert.equal(k.parts.output.points, 100);
+test("open issues and ignored comments cost points; fewer than two videos isn't graded", () => {
+  const k = scorePeriod({ videos: [reel(), reel()], entries: [entry({ kind: "creative", resolved: false, stale: true })], assigned: 2, openIssues: 2, workDays: 1 }, T);
+  assert.equal(k.parts.issues.points, 55);
+  assert.equal(k.stale, 1);
+  // speed isn't judged on a single timed video
+  assert.equal(scorePeriod({ videos: [reel(), videoFacts(task({ title: "Reel 9" }), T)], entries: [], assigned: 2, openIssues: 0, workDays: 1 }, T).parts.speed.points, null);
+  const light = scorePeriod({ videos: [reel()], entries: [], assigned: 1, openIssues: 0, workDays: 1 }, T);
+  assert.equal(light.score, null);
+  assert.equal(light.enough, false);
+  assert.equal(light.parts.output.value, 1);
 });
 
-test("nothing delivered and nothing found: no score", () => {
-  const k = editorKpis([], [], T);
-  assert.equal(k.score, null);
-  assert.equal(k.grade, null);
+test("grades: A from 85, B 70, C 55, D below", () => {
+  assert.deepEqual([90, 85, 84, 70, 69, 55, 54].map((s) => letter(s)), ["A", "A", "B", "B", "C", "C", "D"]);
 });
 
-test("letters: A+ from 95, A 85, B 75, C 65, D 50", () => {
-  assert.deepEqual([100, 95, 94, 85, 75, 65, 50, 49].map(letter), ["A+", "A+", "A", "A", "B", "C", "D", "F"]);
+const mark = (category: string, taskId: string | null, day: string): Mark => ({ category, taskId, day, count: 1 });
+
+test("a kind of mistake on two different videos within 30 days is recurring", () => {
+  const marks = [mark("UK/US spelling", "a", "2026-09-02"), mark("UK/US spelling", "a", "2026-09-10"), mark("Typos", "a", "2026-09-05"), mark("Typos", "b", "2026-09-20")];
+  const r = recurring(marks, "2026-09-28");
+  assert.equal(r.has("UK/US spelling"), false); // twice, but on one video
+  assert.equal(r.get("Typos")?.videos, 2);
+  // older than 30 days doesn't count
+  assert.equal(recurring([mark("Sound", "a", "2026-08-01"), mark("Sound", "b", "2026-09-20")], "2026-09-28").size, 0);
 });
 
-test("the past four weeks run Monday to Sunday by date, newest first, this one to today", () => {
-  const w = pastWeeks("2026-09-30");
-  assert.deepEqual(w.map((x) => [x.from, x.to]), [
-    ["2026-09-28", "2026-09-30"],
-    ["2026-09-21", "2026-09-27"],
-    ["2026-09-14", "2026-09-20"],
-    ["2026-09-07", "2026-09-13"],
-  ]);
-  assert.equal(w[0].days, 3);
-  assert.equal(w[1].label, "21–27 Sep");
-  assert.equal(pastWeeks("2026-10-02")[0].label, "28 Sep – 2 Oct");
+test("the queue opens new recurring issues and reopens resolved ones that come back", () => {
+  const marks = [mark("Typos", "a", "2026-09-05"), mark("Typos", "b", "2026-09-20"), mark("Sound", "c", "2026-09-25")];
+  const plan = issuePlan(
+    [
+      { id: "i1", category: "Sound", resolvedDay: "2026-09-15" },
+      { id: "i2", category: "Subtitles", resolvedDay: "2026-09-15" },
+    ],
+    marks,
+    "2026-09-28"
+  );
+  assert.deepEqual(plan.open, [{ category: "Typos", first: "2026-09-05" }]);
+  assert.deepEqual(plan.reopen, ["i1"]);
+  // the catch-all never opens one by itself
+  assert.deepEqual(issuePlan([], [mark("Others", "a", "2026-09-05"), mark("Others", "b", "2026-09-06")], "2026-09-28").open, []);
+  // an issue already open isn't opened twice
+  assert.deepEqual(issuePlan([{ id: "i3", category: "Typos", resolvedDay: null }], marks, "2026-09-28").open, []);
 });
 
-test("a focus area counts its kind of mistake since it was raised, and goes quiet after four weeks without one", () => {
-  const m = (day: string, category = "Sound", count = 1) => ({ kind: "mistake", category, count, day });
-  const area = { category: "Sound", opened: "2026-08-01" };
-  assert.deepEqual(focusStatus(area, [m("2026-07-20"), m("2026-08-10", "Sound", 2), m("2026-09-20"), m("2026-09-21", "Typos")], "2026-09-30"), {
-    cameUp: 3,
-    lastSeen: "2026-09-20",
-    quiet: false,
-  });
-  assert.equal(focusStatus(area, [m("2026-08-10")], "2026-09-30").quiet, true);
-  // raised this week: too soon to call quiet
-  assert.equal(focusStatus({ category: "Sound", opened: "2026-09-25" }, [], "2026-09-30").quiet, false);
-  assert.deepEqual(focusStatus({ category: null, opened: "2026-08-01" }, [m("2026-09-01")], "2026-09-30"), { cameUp: 0, lastSeen: null, quiet: false });
+test("an issue looks fixed after three quiet weeks", () => {
+  const marks = [mark("Typos", "a", "2026-09-01"), mark("Typos", "b", "2026-09-03")];
+  const s = issueStatus({ category: "Typos", openedDay: "2026-09-01", reopenedDay: null }, marks, "2026-09-28");
+  assert.equal(s.count, 2);
+  assert.equal(s.videos, 2);
+  assert.equal(s.lastSeen, "2026-09-03");
+  assert.equal(s.looksFixed, true);
+  assert.equal(issueStatus({ category: "Typos", openedDay: "2026-09-01", reopenedDay: null }, [...marks, mark("Typos", "c", "2026-09-20")], "2026-09-28").looksFixed, false);
+});
+
+test("periods: a week, a month and a range, never in the future, each with the one before", () => {
+  const w = periodFrom({ view: "week", week: "2026-09-30" }, "2026-09-30");
+  assert.deepEqual([w.from, w.to, w.current, w.prev.from, w.prev.to], ["2026-09-28", "2026-09-30", true, "2026-09-21", "2026-09-27"]);
+  const m = periodFrom({ view: "month", month: "2026-08" }, "2026-09-30");
+  assert.deepEqual([m.from, m.to, m.prev.from, m.prev.to], ["2026-08-01", "2026-08-31", "2026-07-01", "2026-07-31"]);
+  const r = periodFrom({ view: "range", from: "2026-09-01", to: "2026-09-15" }, "2026-09-30");
+  assert.deepEqual([r.from, r.to, r.prev.from, r.prev.to], ["2026-09-01", "2026-09-15", "2026-08-17", "2026-08-31"]);
+  // a future month falls back to this one
+  assert.equal(periodFrom({ view: "month", month: "2027-01" }, "2026-09-30").from, "2026-09-01");
+});
+
+test("the trend runs oldest first, ending with the period shown", () => {
+  const weeks = trendSpans("week", "2026-09-30", 3);
+  assert.deepEqual(weeks.map((w) => w.from), ["2026-09-14", "2026-09-21", "2026-09-28"]);
+  assert.equal(weeks[2].to, "2026-09-30");
+  assert.deepEqual(trendSpans("month", "2026-09-30", 2).map((m) => m.from), ["2026-08-01", "2026-09-01"]);
 });
 
 test("saved targets keep the defaults for anything they don't set", () => {
-  const t = withTargetDefaults({ output: 12, weights: { quality: 50 }, typeWeights: { Thumbnail: 0.5 } });
-  assert.equal(t.output, 12);
-  assert.deepEqual(t.weights, { quality: 50, deadlines: 25, revisions: 20, output: 15 });
-  assert.equal(t.typeWeights.Trailer, 3);
-  assert.equal(t.typeWeights.Thumbnail, 0.5);
-});
-
-test("months step across a year end", () => {
-  assert.equal(shiftMonth("2026-01", -1), "2025-12");
-  assert.equal(shiftMonth("2026-12", 1), "2027-01");
+  const t = withTargetDefaults({ dailyUnits: 3, weights: { quality: 50 } });
+  assert.equal(t.dailyUnits, 3);
+  assert.equal(t.weights.quality, 50);
+  assert.equal(t.weights.output, 25);
+  assert.equal(t.typeDays.Trailer, 1.5);
 });

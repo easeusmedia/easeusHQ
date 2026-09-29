@@ -10,8 +10,9 @@ import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
-import { editorKpis, PART_LABEL, type Part } from "@/lib/editorKpi";
-import { kpiTargets, loadPerformance, monthShare, PART_NOTE, partText } from "../performance/data";
+import { PART_LABEL, periodFrom, type Part } from "@/lib/editorKpi";
+import { loadPerformance } from "../performance/data";
+import { partNote, partText } from "../performance/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -81,15 +82,17 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   const dueOf = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
-  // editors are read by the numbers on their Performance page, this month
-  const [kpiData, targets] = await Promise.all([loadPerformance(today.slice(0, 7), 1), kpiTargets()]);
+  // editors are read by the numbers on their Performance page, this week
+  const week = periodFrom({}, today);
+  const kpiData = await loadPerformance({ from: week.from });
   const editorKpiFor = (id: string) => {
     if (!kpiData.editors.some((e) => e.id === id)) return null;
-    const k = editorKpis(...kpiData.slice(today.slice(0, 7), id), targets, monthShare(today.slice(0, 7), today));
+    const k = kpiData.score(week.from, week.to, id);
     return {
       score: k.score,
       grade: k.grade,
-      parts: (Object.keys(PART_LABEL) as Part[]).map((p) => ({ label: PART_LABEL[p], text: partText(p, k), points: k.parts[p].points, note: PART_NOTE[p](k.parts[p].target) })),
+      light: !k.enough && k.completed > 0,
+      parts: (Object.keys(PART_LABEL) as Part[]).map((p) => ({ label: PART_LABEL[p], text: partText(p, k), points: k.parts[p].points, note: partNote(p, k) })),
     };
   };
 
