@@ -664,13 +664,6 @@ dialog[open]::backdrop {
 .nyra-glow:hover::after {
   opacity: 0.65;
 }
-/* only the light on the line: no halo round it */
-.nyra-line::after {
-  display: none;
-}
-.nyra-line::before {
-  inset: 0;
-}
 @keyframes nyra-orbit {
   to {
     --nyra-angle: 360deg;
@@ -683,88 +676,92 @@ dialog[open]::backdrop {
   }
 }
 
-/* The agreement page's Everest (start/Shell.tsx). The message on the
-   summit springs up from the peak as the page opens, like a flag planted
-   at the top, and every few seconds gives one quick hop (paused while it's
-   pointed at). Everything here is still for anyone who's asked for less
-   motion. */
-.ev-tag {
-  transform-origin: 50% calc(100% + 6px);
-  animation:
-    ev-plant 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) 0.6s both,
-    ev-hop 6s ease-out 3s infinite;
+/* The agreement page's Everest (start/Shell.tsx). Slow on purpose: the
+   halo behind the client's name at the summit breathes, and now and then a
+   fine glint runs the ridge (its motion is the SVG's own; this only hides
+   it). Both still for anyone who's asked for less motion. */
+.ev-halo {
+  animation: ev-halo 7s ease-in-out infinite alternate;
 }
-.ev-hold:hover .ev-tag {
+@keyframes ev-halo {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* the tag at the summit pops up as the page opens, then floats, and every
+   few seconds gives a little hop and wiggle for attention (paused while
+   it's pointed at) */
+.ev-tag {
+  transform-origin: 50% 100%;
+  animation:
+    ev-tag-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both,
+    ev-nudge 5.5s ease-in-out 2.5s infinite;
+}
+.ev-tag:hover {
   animation-play-state: paused;
 }
-/* the halo behind the message breathes, and so does the light along the
-   ridge */
-.ev-halo {
-  animation: ev-breathe 7s ease-in-out infinite alternate;
-}
-.ev-edge {
-  animation: ev-breathe 5s ease-in-out infinite alternate;
-}
-@keyframes ev-breathe {
+@keyframes ev-tag-pop {
   from {
-    opacity: 0.55;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes ev-plant {
-  0% {
     opacity: 0;
-    transform: scale(0.2);
-  }
-  45% {
-    opacity: 1;
-    transform: scale(1.14);
-  }
-  70% {
-    transform: scale(0.95);
-  }
-  100% {
-    transform: none;
-  }
-}
-@keyframes ev-hop {
-  0%,
-  88%,
-  100% {
-    transform: none;
-  }
-  91% {
-    transform: scale(1.1) translateY(-4px);
-  }
-  95% {
-    transform: scale(0.97);
-  }
-}
-/* the stars drift, the far ones slower than the near, over a minute or
-   more, and the brighter ones twinkle, each on its own clock; now and then
-   one falls */
-.ev-drift-far {
-  animation: ev-drift 110s ease-in-out infinite alternate;
-}
-.ev-drift-near {
-  animation: ev-drift 70s ease-in-out infinite alternate-reverse;
-}
-@keyframes ev-drift {
-  from {
-    transform: translate(-9px, -3px);
+    transform: translateY(8px) scale(0.6);
   }
   to {
-    transform: translate(9px, 3px);
+    opacity: 1;
+    transform: none;
   }
 }
+@keyframes ev-nudge {
+  0%,
+  72%,
+  100% {
+    transform: none;
+  }
+  76% {
+    transform: translateY(-4px) scale(1.06) rotate(-2deg);
+  }
+  80% {
+    transform: scale(0.98) rotate(2deg);
+  }
+  84% {
+    transform: scale(1.02) rotate(-1deg);
+  }
+  88% {
+    transform: none;
+  }
+}
+.ev-bob {
+  animation: ev-bob 3.2s ease-in-out infinite alternate;
+}
+@keyframes ev-bob {
+  to {
+    transform: translateY(-3px);
+  }
+}
+/* the stars twinkle, each on its own clock, and the whole sky turns a few
+   degrees about a point far off to the top right, over a minute and a half;
+   now and then one falls */
 .ev-star {
+  opacity: 0.5;
   animation: ev-twinkle 4s ease-in-out infinite alternate;
 }
 @keyframes ev-twinkle {
   to {
-    opacity: 0.2;
+    opacity: 0.1;
+  }
+}
+.ev-sky {
+  will-change: transform;
+  animation: ev-sky 90s ease-in-out infinite alternate;
+}
+@keyframes ev-sky {
+  from {
+    transform: rotate(-3deg);
+  }
+  to {
+    transform: rotate(3deg);
   }
 }
 .ev-meteor {
@@ -789,15 +786,17 @@ dialog[open]::backdrop {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ev-tag,
   .ev-halo,
-  .ev-edge,
-  .ev-drift-far,
-  .ev-drift-near,
-  .ev-star {
+  .ev-tag,
+  .ev-bob,
+  .ev-star,
+  .ev-sky {
     animation: none;
   }
   .ev-meteor {
+    display: none;
+  }
+  .ev-glint {
     display: none;
   }
 }

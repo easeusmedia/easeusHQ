@@ -7,11 +7,11 @@
 //
 //   node scripts/everest-scene.mjs
 //
-// Writes public/start/everest.webp (the scene, drawn as vectors and then
-// rendered once at retina size, so the browser only ever scales a picture:
-// crisp, and nothing to redraw on zoom) and src/app/start/everestRidge.ts
-// (the summit, the glow along its ridge, and the stars the page lays over
-// the sky, which drift and twinkle).
+// Writes vector files the page draws at whatever size and zoom it's shown
+// at (public/start/everest.svg, the scene; everest-stars.svg, the night
+// sky the page turns; everest-sky.png, the sky's shape, which keeps the
+// stars off the mountains) and src/app/start/everestRidge.ts (the
+// summit's ridge line, for the glint that travels it).
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -90,6 +90,7 @@ function peaks(seed, list, baseY) {
 
 const line = (pts) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
 const fill = (pts) => `${line(pts)} L${W + 40} ${H + 40} L-40 ${H + 40} Z`;
+const yAt = (pts, x) => pts.reduce((best, p) => (Math.abs(p[0] - x) < Math.abs(best[0] - x) ? p : best))[1];
 
 // Snow in the couloirs: many short marks scattered over the faces below
 // the ridge, running down the fall line, densest and brightest near the
@@ -161,6 +162,11 @@ const shadowFace = `${line(everest.filter(([x]) => x >= SUMMIT.x && x <= col[0])
 const lhotseEnd = saddle(lhotseTop[0] + 40, 1000);
 const lhotseShadow = `${line(everest.filter(([x]) => x >= lhotseTop[0] && x <= lhotseEnd[0]))} ${toPath(wander(504, lhotseEnd[0], lhotseEnd[1], 30))} ${toPath(wander(502, lhotseTop[0], lhotseTop[1], -30).reverse())} Z`;
 
+const stars = (() => {
+  const r = rng(3);
+  return [];
+})();
+
 const far1 = range(21, 610, 150, 260);
 const far2 = range(34, 640, 170, 210);
 const near1 = range(55, 800, 150, 240);
@@ -174,7 +180,6 @@ const mist = (y, h, o) =>
   `<rect x="-60" y="${y - h * 0.2}" width="${W + 120}" height="${h * 1.4}" fill="#fff" filter="url(#fog)" mask="url(#fogfade)" opacity="${o.toFixed(2)}"/>`;
 // the grain of rock inside a shape: pale streaks, and darker weathering
 const tex = (d, light) => `<path d="${d}" fill="#fff" filter="url(#rocktex)" opacity="${light}"/>`;
-const dark = (d, o) => `<path d="${d}" fill="#fff" filter="url(#rockdark)" opacity="${o}"/>`;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 1.5}" height="${H * 1.5}">
 <defs>
@@ -182,18 +187,9 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <stop offset="0" stop-color="#02060f"/><stop offset="0.32" stop-color="#071528"/>
     <stop offset="0.52" stop-color="#11315a"/><stop offset="0.64" stop-color="#2a5d97"/><stop offset="0.72" stop-color="#1d4674"/><stop offset="1" stop-color="#081626"/>
   </linearGradient>
-  <!-- first light on the horizon, low on the left: a wide warm wash, and
-       a bright orange heart sitting on the horizon behind the far ranges -->
-  <radialGradient id="dawn-wide" cx="250" cy="520" r="900" gradientTransform="translate(0 364) scale(1 0.3)" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#ff8a45" stop-opacity="0.55"/><stop offset="0.35" stop-color="#d9603f" stop-opacity="0.26"/><stop offset="0.7" stop-color="#7a3350" stop-opacity="0.1"/><stop offset="1" stop-color="#7a3350" stop-opacity="0"/>
+  <radialGradient id="warm" cx="260" cy="500" r="820" gradientTransform="translate(0 375) scale(1 0.25)" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#f4ad7d" stop-opacity="0.5"/><stop offset="0.4" stop-color="#d9947a" stop-opacity="0.2"/><stop offset="1" stop-color="#d9947a" stop-opacity="0"/>
   </radialGradient>
-  <radialGradient id="dawn-core" cx="250" cy="522" r="460" gradientTransform="translate(0 438.5) scale(1 0.16)" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#fff0d6" stop-opacity="0.95"/><stop offset="0.14" stop-color="#ffc07a" stop-opacity="0.85"/><stop offset="0.4" stop-color="#ff8d3f" stop-opacity="0.5"/><stop offset="0.75" stop-color="#e8663a" stop-opacity="0.15"/><stop offset="1" stop-color="#e8663a" stop-opacity="0"/>
-  </radialGradient>
-  <!-- the far ridges' tops catch it -->
-  <linearGradient id="dawn-rim" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="900" y2="0">
-    <stop offset="0" stop-color="#ffb070" stop-opacity="0.5"/><stop offset="0.3" stop-color="#ffc58f" stop-opacity="0.8"/><stop offset="0.6" stop-color="#ff9b5c" stop-opacity="0.3"/><stop offset="1" stop-color="#ff9b5c" stop-opacity="0"/>
-  </linearGradient>
   <linearGradient id="shade" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
     <stop offset="0" stop-color="#030812" stop-opacity="0.36"/><stop offset="1" stop-color="#030812" stop-opacity="0.08"/>
   </linearGradient>
@@ -204,7 +200,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <feComposite in2="SourceGraphic" operator="in"/>
   </filter>
   <filter id="rockdark" x="0" y="0" width="100%" height="100%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.05 0.009" numOctaves="4" seed="21"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.004" numOctaves="4" seed="21"/>
     <feColorMatrix type="matrix" values="0 0 0 0 0.01  0 0 0 0 0.03  0 0 0 0 0.07  0 0 0 -1.8 1.05"/>
     <feComposite in2="SourceGraphic" operator="in"/>
   </filter>
@@ -250,27 +246,24 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
   </linearGradient>
   <filter id="soft" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
   <filter id="lit-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
-  <filter id="snow-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="0.6"/></filter>
+  <filter id="snow-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="0.9"/></filter>
   <filter id="haze" x="-10%" y="-80%" width="120%" height="260%"><feGaussianBlur stdDeviation="20"/></filter>
   <filter id="far" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0.8"/></filter>
 </defs>
 <rect width="${W}" height="${H}" fill="url(#sky)"/>
+<g fill="#e6f0ff">${stars.map(([x, y, r, o]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(2)}" opacity="${o.toFixed(2)}"/>`).join("")}</g>
 <rect width="${W}" height="${H}" fill="url(#dawn)"/>
 
-<rect width="${W}" height="${H}" fill="url(#dawn-wide)"/>
-<rect width="${W}" height="${H}" fill="url(#dawn-core)"/>
-<path d="${fill(far1)}" fill="url(#far1)"/>
-<path d="${line(far1)}" fill="none" stroke="url(#dawn-rim)" stroke-width="1.1"/>
-${tex(fill(far1), 0.07)}
+<rect width="${W}" height="${H}" fill="url(#warm)"/>
+<path d="${fill(far1)}" fill="url(#far1)" filter="url(#far)"/>
+${tex(fill(far1), 0.05)}
 ${mist(560, 140, 0.35)}
 <path d="${fill(far2)}" fill="url(#far2)"/>
-<path d="${line(far2)}" fill="none" stroke="url(#dawn-rim)" stroke-width="0.9" opacity="0.7"/>
-${tex(fill(far2), 0.08)}
+${tex(fill(far2), 0.06)}
 ${mist(610, 150, 0.28)}
 
 <path d="${fill(everest)}" fill="url(#rock)"/>
-${tex(fill(everest), 0.13)}
-${dark(fill(everest), 0.4)}
+${tex(fill(everest), 0.08)}
 <path d="${face}" fill="url(#lit)" filter="url(#lit-soft)"/>
 <path d="${shadowFace}" fill="url(#shade)"/>
 <path d="${lhotseShadow}" fill="url(#shade)"/>
@@ -278,73 +271,68 @@ ${dark(fill(everest), 0.4)}
 ${mist(640, 130, 0.22)}
 
 <path d="${fill(nuptse)}" fill="url(#wall)"/>
-${tex(fill(nuptse), 0.1)}
-${dark(fill(nuptse), 0.35)}
+${tex(fill(nuptse), 0.06)}
 <g fill="none" stroke="#dbeaff" stroke-linecap="round" filter="url(#snow-soft)">${gullies(202, nuptse, 60, 560, 330, 0.7)}</g>
 ${mist(720, 120, 0.16)}
 
 <path d="${fill(near1)}" fill="url(#near1)"/>
-${tex(fill(near1), 0.06)}
+${tex(fill(near1), 0.04)}
 <path d="${fill(near2)}" fill="#050d1a"/>
+<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.09" style="mix-blend-mode:overlay"/>
 </svg>`;
 
 mkdirSync("public/start", { recursive: true });
-// Rendered once at retina size (2880 by 1800), with a touch of dither so
-// the long gradients never band
-const PW = 2880;
-const PH = 1800;
-const { data } = await sharp(Buffer.from(svg), { density: (72 * PW) / (W * 1.5) }).resize(PW, PH).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-const dr = rng(1);
-for (let i = 0; i < data.length; i++) data[i] = Math.max(0, Math.min(255, Math.round(data[i] + (dr() - dr()) * 1.2)));
-await sharp(data, { raw: { width: PW, height: PH, channels: 3 } }).webp({ quality: 90, smartSubsample: true, effort: 6 }).toFile(process.env.OUT ?? "public/start/everest.webp");
+// numbers to one decimal: the same picture, a lighter file
+const tidy = (svgText) => svgText.replace(/(\d+\.\d)\d+/g, "$1");
+// high quality: smooth skies band at the usual settings
+writeFileSync("public/start/everest.svg", tidy(svg));
 
-// the sky line: the highest land at each x (every range shares the x's)
-const skyline = everest.map((_, i) => Math.min(...[far1, far2, everest, nuptse, near1, near2].map((pts) => pts[i][1])));
-const skyAt = (x) => skyline[Math.max(0, Math.min(N, Math.round(((x + 40) / (W + 80)) * N)))];
+// the sky's shape (white) against the land (black), for the page's stars,
+// which move and must never cross a mountain
+const land = [far1, far2, everest, nuptse, near1, near2].map((pts) => `<path d="${fill(pts)}" fill="#000"/>`).join("");
+const skySvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W / 2}" height="${H / 2}"><rect width="${W}" height="${H}" fill="#fff"/>${land}</svg>`;
+// as a CSS mask: opaque sky, clear land
+const skyAlpha = await sharp(Buffer.from(skySvg)).blur(1.2).greyscale().raw().toBuffer({ resolveWithObject: true });
+const px = skyAlpha.info.width * skyAlpha.info.height;
+const rgba = Buffer.alloc(px * 4, 255);
+for (let i = 0; i < px; i++) rgba[i * 4 + 3] = skyAlpha.data[i * skyAlpha.info.channels];
+await sharp(rgba, { raw: { width: skyAlpha.info.width, height: skyAlpha.info.height, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/everest-sky.png");
 
-// Stars for the page to lay over the sky: sparse, fine, a few brighter
-// ones that shine; each well clear of the land, since they drift
-const stars = (() => {
+// The night sky on its own (transparent), for the page to turn slowly: a
+// clear sky full of stars, as it looks from high up on a clear night.
+// Thousands of fine ones, blue-white and a few warm, a scatter of
+// brighter ones, and a dozen that shine with a soft glow. Drawn larger than
+// the picture (GX by GY, the picture at its middle) so turning never shows
+// an edge.
+const GX = 2400;
+const GY = 1600;
+const starfield = (() => {
   const r = rng(29);
-  const out = [];
-  for (let i = 0; i < 260 && out.length < 110; i++) {
-    const x = r() * W;
-    const y = r() * 560;
+  const tint = () => (r() < 0.12 ? "#ffe8d0" : r() < 0.45 ? "#d4e3ff" : "#ffffff");
+  const dots = [];
+  for (let i = 0; i < 3800; i++) {
     const k = r();
-    if (skyAt(x) - y < 40) continue;
-    const rad = k < 0.82 ? 0.5 + r() * 0.35 : k < 0.96 ? 0.85 + r() * 0.35 : 1.2 + r() * 0.4;
-    const o = (k < 0.82 ? 0.35 + r() * 0.35 : 0.7 + r() * 0.3) * Math.min(1, (skyAt(x) - y) / 160);
-    out.push([Math.round(x), Math.round(y), +rad.toFixed(2), +o.toFixed(2)]);
+    const rad = k < 0.86 ? 0.35 + r() * 0.4 : k < 0.97 ? 0.7 + r() * 0.5 : 1.1 + r() * 0.5;
+    const o = k < 0.86 ? 0.28 + r() * 0.45 : 0.6 + r() * 0.4;
+    dots.push(`<circle cx="${(r() * GX).toFixed(0)}" cy="${(r() * GY).toFixed(0)}" r="${rad.toFixed(2)}" fill="${tint()}" opacity="${o.toFixed(2)}"/>`);
   }
-  return out;
+  // the few that shine: a point and a soft glow round it
+  for (let i = 0; i < 14; i++) {
+    const x = (r() * GX).toFixed(0);
+    const y = (r() * GY).toFixed(0);
+    dots.push(`<circle cx="${x}" cy="${y}" r="${(7 + r() * 5).toFixed(1)}" fill="url(#glow)"/><circle cx="${x}" cy="${y}" r="${(1.4 + r() * 0.6).toFixed(2)}" fill="#fff"/>`);
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GX} ${GY}" width="${GX}" height="${GY}">
+<defs><radialGradient id="glow"><stop offset="0" stop-color="#dfe9ff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#9fc0ff" stop-opacity="0.18"/><stop offset="1" stop-color="#9fc0ff" stop-opacity="0"/></radialGradient></defs>
+${dots.join("")}
+</svg>`;
 })();
+writeFileSync("public/start/everest-stars.svg", tidy(starfield));
 
-// The glow along the summit ridge: a line of light that's widest at the
-// top and tapers to nothing down either side, as a shape (so it can taper)
-// rather than a stroke, and a softer, wider one for its bloom
+// the stretch of ridge around the summit, for the page's glint, and its top
 const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
-const glowPts = everest.filter(([x]) => x > top[0] - 250 && x < top[0] + 175);
-const band = (width, inside) => {
-  const outer = [];
-  const inner = [];
-  glowPts.forEach(([x, y], i) => {
-    const a = glowPts[Math.max(0, i - 1)];
-    const b = glowPts[Math.min(glowPts.length - 1, i + 1)];
-    const slope = (b[1] - a[1]) / (b[0] - a[0]);
-    const m = Math.hypot(slope, 1);
-    // into the mountain, square to the ridge
-    const nx = -slope / m;
-    const ny = 1 / m;
-    const t = x < top[0] ? (top[0] - x) / 250 : (x - top[0]) / 175;
-    const w = width * Math.pow(Math.max(0, 1 - t), 1.6);
-    outer.push([x - nx * w * (1 - inside), y - ny * w * (1 - inside)]);
-    inner.push([x + nx * w * inside, y + ny * w * inside]);
-  });
-  return line([...outer, ...inner.reverse()]) + " Z";
-};
-
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: points in public/start/everest.webp,\n// in the picture's own units (${W} by ${H}).\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\n// the glow along the summit ridge: its bright line and its bloom, both\n// tapering down from the top, and how far it reaches either side\nexport const RIDGE_GLOW = { line: "${band(2.2, 0.8)}", bloom: "${band(9, 0.5)}", from: ${(top[0] - 250).toFixed(0)}, to: ${(top[0] + 175).toFixed(0)} };\n// stars over the sky: x, y, radius, brightness\nexport const STARS: [number, number, number, number][] = ${JSON.stringify(stars)};\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-stars.svg, the night sky, drawn larger than the picture and centred on it\nexport const STARFIELD = { width: ${GX}, height: ${GY} };\n`
 );
-console.log(`ok ${PW}x${PH}, ${stars.length} stars`);
+console.log("ok");
