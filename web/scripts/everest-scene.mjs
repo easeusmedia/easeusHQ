@@ -1,23 +1,30 @@
-// The agreement page's backdrop (start/Shell.tsx): Everest before dawn,
-// all in the app's blues. Drawn from numbers rather than a photograph, so
-// it's ours and can be retuned: layered ranges that pale into the mist
-// with distance, a sky lightening at the horizon, and Everest in the left
-// third, where the page's left panel looks onto it, Lhotse beside it and
-// Nuptse's wall in front, their snow picked out in fine gullies.
+// The agreement page's backdrop (start/Shell.tsx): Everest at night, in the
+// app's blues. One peak lit hard from the upper left, its snow face bright
+// and carved into fine flutes, its far face in shadow; lower ridges in
+// front of it, mist at its foot, a black rocky ridge in the foreground, and
+// a quiet sky with a few stars. Drawn from numbers rather than a
+// photograph, so it's ours and can be retuned: each ridge is a silhouette
+// with a surface behind it (a steep tent from each summit, grooved along
+// the fall line by noise), shaded by the light and toned down a blue ramp.
 //
-//   node scripts/everest-scene.mjs
+//   node scripts/everest-scene.mjs          (SCALE=0.75 for a quick look)
 //
-// Writes public/start/everest.svg (the scene, stars and all, a vector file
-// sharp at any size and zoom, with no filters heavy enough to stall a
-// redraw), public/start/grain.png (the page's grain) and
-// src/app/start/everestRidge.ts (the summit, its ridge line and the stars
-// the page twinkles).
+// Writes public/start/everest.webp (large enough for a retina screen, with
+// a hint of dither so the sky never bands), public/start/grain.png (the
+// page's grain) and src/app/start/everestRidge.ts (the summit, its ridge
+// line and the stars the page twinkles).
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const W = 1600;
 const H = 1000;
-const N = 640; // points across a ridgeline
+const S = Number(process.env.SCALE ?? 1.8);
+const PW = Math.round(W * S);
+const PH = Math.round(H * S);
+const OUT = process.env.OUT ?? "public/start/everest.webp";
+// the land sits this far down the frame: sky above the peak for the
+// message on its summit
+const DY = 60;
 
 // a repeatable random: the same picture every run
 function rng(seed) {
@@ -31,229 +38,438 @@ function rng(seed) {
   };
 }
 
-// smooth 1D noise in 0..1, several octaves
-function noise(seed) {
+// 2D gradient noise, about -0.7..0.7
+function perlin(seed) {
   const r = rng(seed);
-  const lattice = Array.from({ length: 4096 }, () => r());
-  const at = (x) => {
-    const i = Math.floor(x);
-    const f = x - i;
-    const u = f * f * (3 - 2 * f);
-    return lattice[i & 4095] * (1 - u) + lattice[(i + 1) & 4095] * u;
-  };
-  return (x, octaves = 6) => {
-    let sum = 0;
-    let amp = 0.5;
-    let freq = 1;
-    let norm = 0;
-    for (let o = 0; o < octaves; o++) {
-      sum += at(x * freq + o * 17.3) * amp;
-      norm += amp;
-      amp *= 0.5;
-      freq *= 2.03;
-    }
-    return sum / norm;
-  };
-}
-
-// A range: crested rather than rolling, by folding the noise (ridged)
-function range(seed, baseY, amp, scale) {
-  const n = noise(seed);
-  return Array.from({ length: N + 1 }, (_, i) => {
-    const x = (i / N) * (W + 80) - 40;
-    const v = n(x / scale);
-    const crest = Math.pow(1 - Math.abs(v * 2 - 1), 1.6);
-    return [x, baseY - amp * crest];
-  });
-}
-
-// Peaks as shapes: each a steep pyramid with a crumpled edge; the outline
-// is the highest of them at each x
-function peaks(seed, list, baseY) {
-  const n = noise(seed);
-  return Array.from({ length: N + 1 }, (_, i) => {
-    const x = (i / N) * (W + 80) - 40;
-    let top = baseY;
-    for (const p of list) {
-      const d = Math.abs(x - p.x) / p.w;
-      const shape = p.y + (baseY - p.y) * Math.pow(d, p.k ?? 0.85);
-      top = Math.min(top, shape);
-    }
-    // shoulders and steps down the slopes (none right at a summit, which
-    // stays a clean point), and a crumpled edge, rougher where it's highest
-    const fromTop = Math.min(1, Math.min(...list.map((p) => Math.abs(x - p.x))) / 90);
-    const shoulders = (n(x / 75 + 40, 4) - 0.5) * 70 * fromTop + (n(x / 28 + 90, 4) - 0.5) * 30 * fromTop;
-    const rough = (n(x / 14, 5) - 0.5) * (top < 420 ? 16 : 10) + (n(x / 5 + 7, 3) - 0.5) * 5;
-    return [x, Math.min(baseY + 40, top + shoulders + rough)];
-  });
-}
-
-const line = (pts) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-const fill = (pts) => `${line(pts)} L${W + 40} ${H + 40} L-40 ${H + 40} Z`;
-
-// Snow in the couloirs: many short marks scattered over the faces below
-// the ridge, running down the fall line, densest and brightest near the
-// top and on the lit (left) faces, thinning with depth
-function gullies(seed, pts, from, to, summitX, strength) {
-  const r = rng(seed);
-  const out = [];
-  for (const [x, y] of pts) {
-    if (x < from || x > to) continue;
-    const lit = x < summitX;
-    const height = Math.max(0, 1 - (y - 230) / 420);
-    const marks = Math.round((lit ? 3 : 1.5) * (0.4 + height) * strength);
-    for (let m = 0; m < marks; m++) {
-      const depth = r() * r();
-      const sy = y + 4 + depth * 260;
-      const sx = x + (r() - 0.5) * 10 + (lit ? -1 : 1) * depth * 60;
-      const len = (8 + r() * 34) * (1 - depth * 0.6);
-      const dx = (lit ? -1 : 1) * len * (0.2 + r() * 0.35);
-      const bend = (r() - 0.5) * len * 0.35;
-      const o = (lit ? 0.2 : 0.07) * strength * (0.35 + height) * (1 - depth) * (0.5 + r() * 0.5);
-      if (o < 0.012) continue;
-      out.push(
-        `<path d="M${sx.toFixed(1)} ${sy.toFixed(1)} q ${(dx * 0.5 + bend).toFixed(1)} ${(len * 0.5).toFixed(1)} ${dx.toFixed(1)} ${len.toFixed(1)}" stroke-opacity="${o.toFixed(3)}" stroke-width="${(0.5 + r() * 1.1).toFixed(2)}"/>`
-      );
-    }
+  const perm = Array.from({ length: 256 }, (_, i) => i);
+  for (let i = 255; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [perm[i], perm[j]] = [perm[j], perm[i]];
   }
-  return out.join("");
+  const p = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+  const gx = new Float32Array(256);
+  const gy = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const a = r() * Math.PI * 2;
+    gx[i] = Math.cos(a);
+    gy[i] = Math.sin(a);
+  }
+  return (x, y) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const xf = x - xi;
+    const yf = y - yi;
+    const X = xi & 255;
+    const Y = yi & 255;
+    const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10);
+    const v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+    const a = p[p[X] + Y];
+    const b = p[p[X + 1] + Y];
+    const c = p[p[X] + Y + 1];
+    const d = p[p[X + 1] + Y + 1];
+    const n00 = gx[a] * xf + gy[a] * yf;
+    const n10 = gx[b] * (xf - 1) + gy[b] * yf;
+    const n01 = gx[c] * xf + gy[c] * (yf - 1);
+    const n11 = gx[d] * (xf - 1) + gy[d] * (yf - 1);
+    const top = n00 + (n10 - n00) * u;
+    return top + (n01 + (n11 - n01) * u - top) * v;
+  };
+}
+// cells: the distance to the nearest of a scatter of points, 0..~1. As a
+// surface: flat facets meeting in sharp crests, like broken rock and ice
+function cells(seed) {
+  const h = (i, j) => {
+    let n = (Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(seed, 144269)) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  };
+  return (x, y) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    let f1 = 9;
+    for (let j = -1; j <= 1; j++) {
+      for (let i = -1; i <= 1; i++) {
+        const cx = xi + i;
+        const cy = yi + j;
+        const d = Math.hypot(cx + h(cx, cy) - x, cy + h(cy + 71, cx - 13) - y);
+        if (d < f1) f1 = d;
+      }
+    }
+    return f1;
+  };
+}
+const fbm = (n, x, y, oct) => {
+  let s = 0;
+  let amp = 0.5;
+  let f = 1;
+  for (let o = 0; o < oct; o++) {
+    s += n(x * f + o * 31.7, y * f - o * 17.3) * amp;
+    amp *= 0.5;
+    f *= 2.07;
+  }
+  return s;
+};
+// crests: sharp ridges, soft hollows, 0..1
+const ridged = (n, x, y, oct) => {
+  let s = 0;
+  let amp = 0.5;
+  let f = 1;
+  let norm = 0;
+  for (let o = 0; o < oct; o++) {
+    const v = 1 - Math.abs(n(x * f + o * 13.1, y * f + o * 7.9)) * 1.6;
+    s += v * v * amp;
+    norm += amp;
+    amp *= 0.5;
+    f *= 2.13;
+  }
+  return s / norm;
+};
+const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
+const smooth = (a, b, v) => {
+  const t = clamp((v - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+function ramp(stops) {
+  const s = stops.map(([t, h]) => [t, hex(h)]);
+  return (v) => {
+    v = clamp(v);
+    for (let i = 1; i < s.length; i++) {
+      if (v <= s[i][0]) return mix(s[i - 1][1], s[i][1], (v - s[i - 1][0]) / (s[i][0] - s[i - 1][0]));
+    }
+    return s[s.length - 1][1];
+  };
 }
 
-const SUMMIT = { x: 520, y: 236 };
-const everest = peaks(7, [
-  { x: SUMMIT.x, y: SUMMIT.y, w: 460, k: 0.82 },
-  { x: 705, y: 300, w: 330, k: 0.8 }, // Lhotse
-  { x: 1030, y: 470, w: 420, k: 0.9 },
-], 700);
-const nuptse = peaks(13, [
-  { x: 330, y: 392, w: 300, k: 0.75 },
-  { x: 150, y: 470, w: 260, k: 0.9 },
-], 760);
+// snow and rock by moonlight, from shadow to the brightest snow
+const tone = ramp([
+  [0, "#03060c"],
+  [0.16, "#08121f"],
+  [0.34, "#132842"],
+  [0.52, "#284e80"],
+  [0.68, "#4f86c8"],
+  [0.82, "#9cc2ee"],
+  [1, "#f1f6ff"],
+]);
 
-// the lit face of Everest: summit, down the left ridge, back up a fold
-const summitAt = everest.findIndex(([x]) => x >= SUMMIT.x);
-const leftRidge = everest.filter(([x]) => x > 250 && x <= SUMMIT.x);
-// the fold between the lit face and the shade wanders down, not straight
-const foldPts = (() => {
-  const n = noise(501);
-  return Array.from({ length: 24 }, (_, i) => {
-    const t = i / 23;
-    return [SUMMIT.x - 60 * t + (n(i / 3) - 0.5) * 34 * t, SUMMIT.y + (720 - SUMMIT.y) * t];
-  });
+const img = new Float32Array(PW * PH * 3);
+const put = (i, c, a = 1) => {
+  img[i * 3] += (c[0] - img[i * 3]) * a;
+  img[i * 3 + 1] += (c[1] - img[i * 3 + 1]) * a;
+  img[i * 3 + 2] += (c[2] - img[i * 3 + 2]) * a;
+};
+
+// the light: from the upper left, a little in front
+const L = (() => {
+  const v = [-0.78, -0.42, 0.52];
+  const m = Math.hypot(...v);
+  return v.map((c) => c / m);
 })();
-const face = `${line(leftRidge)} ${foldPts.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(" ")} L${leftRidge[0][0] + 40} 700 Z`;
 
-const far1 = range(21, 610, 150, 260);
-const far2 = range(34, 640, 170, 210);
-const near1 = range(55, 800, 150, 240);
-const near2 = range(89, 905, 120, 300);
+// and a faint fill from the upper right, so faces in shadow keep their shape
+const F = (() => {
+  const v = [0.7, -0.55, 0.45];
+  const m = Math.hypot(...v);
+  return v.map((c) => c / m);
+})();
 
-// the skyline: the highest land at each x (every range shares the x's)
-const skyline = everest.map((_, i) => Math.min(...[far1, far2, everest, nuptse, near1, near2].map((pts) => pts[i][1])));
-const skyAt = (x) => skyline[Math.max(0, Math.min(N, Math.round(((x + 40) / (W + 80)) * N)))];
+const SUMMIT = { x: 520, y: 205 };
 
-// A clear night sky: fine stars, blue-white and a few warm, a scatter of
-// brighter ones and a few that shine; none on a mountain, and dimming into
-// the glow near the horizon
+// 1. The sky: near black at the top, a deep blue toward the horizon, and a
+// soft light behind the peak
+const skyTop = hex("#02040a");
+const skyLow = hex("#0a1628");
+const glow = hex("#16305a");
+for (let py = 0; py < PH; py++) {
+  const y = py / S - DY;
+  const base = mix(skyTop, skyLow, smooth(-DY, 640, y));
+  for (let px = 0; px < PW; px++) {
+    const x = px / S;
+    const d = Math.hypot((x - SUMMIT.x) / 1.25, y - (SUMMIT.y + 260)) / 620;
+    const c = mix(base, glow, 0.55 * Math.pow(clamp(1 - d), 2.2));
+    const i = py * PW + px;
+    img[i * 3] = c[0];
+    img[i * 3 + 1] = c[1];
+    img[i * 3 + 2] = c[2];
+  }
+}
+
+// a few stars, faint, only in the upper sky
 const stars = (() => {
   const r = rng(29);
   const out = [];
-  for (let i = 0; i < 1400; i++) {
+  for (let i = 0; i < 150; i++) {
     const x = r() * W;
-    const y = r() * 620;
+    const y = r() * r() * 520;
     const k = r();
-    const room = skyAt(x) - y;
-    const tint = r() < 0.12 ? "#ffe8d0" : r() < 0.45 ? "#d4e3ff" : "#ffffff";
-    if (room < 8) continue;
-    const rad = k < 0.86 ? 0.4 + r() * 0.45 : k < 0.97 ? 0.8 + r() * 0.5 : 1.2 + r() * 0.5;
-    const o = (k < 0.86 ? 0.3 + r() * 0.45 : 0.65 + r() * 0.35) * Math.min(1, room / 180);
-    out.push({ x, y, rad, o, tint });
+    out.push({ x, y, rad: k < 0.9 ? 0.45 + r() * 0.35 : 0.8 + r() * 0.4, o: (k < 0.9 ? 0.25 + r() * 0.35 : 0.6 + r() * 0.3) * (1 - y / 700), warm: r() < 0.15 });
   }
   return out;
 })();
-// the ones that twinkle on the page, from the brighter stars in the upper
-// sky; the page draws them, so the scene leaves them out
-const twinkles = stars.filter((s) => s.rad > 0.75 && s.y < 420).slice(0, 36);
-const still = stars.filter((s) => !twinkles.includes(s));
+const twinkles = stars.filter((s) => s.rad > 0.75 && s.y < 380).slice(0, 12);
+for (const s of stars) {
+  if (twinkles.includes(s)) continue;
+  const c = s.warm ? hex("#ffe6cc") : hex("#dde8ff");
+  const R = Math.ceil(s.rad * S * 2.5);
+  const cx = s.x * S;
+  const cy = (s.y + DY) * S;
+  for (let py = Math.floor(cy - R); py <= cy + R; py++) {
+    for (let px = Math.floor(cx - R); px <= cx + R; px++) {
+      if (px < 0 || py < 0 || px >= PW || py >= PH) continue;
+      const d = Math.hypot(px + 0.5 - cx, py + 0.5 - cy) / (s.rad * S);
+      put(py * PW + px, c, s.o * Math.exp(-d * d * 1.4));
+    }
+  }
+}
 
-const summitRidge = everest.slice(summitAt - 70, summitAt + 70);
+// A ridge: a silhouette (top(x), in picture units) with a surface behind
+// it. Each summit raises a steep tent whose crest (the arete) wanders down
+// from it; where tents meet, the nearer surface wins, which carves the
+// valleys between peaks. Noise grooves the faces along the fall line: big
+// spurs, finer flutes, and grit.
+function ridge({ seed, peaks, top, kx = 1.25, ky = 0.35, spurs = 14, flutes = 3.2, grit = 0.5, scale = 1, stretch = 1, fall = 0.85, shade, fog }) {
+  const c1 = cells(seed);
+  const n2 = perlin(seed + 1);
+  const n3 = perlin(seed + 2);
+  const nw = perlin(seed + 3);
+  const tops = new Float32Array(PW + 2);
+  for (let px = -1; px <= PW; px++) tops[px + 1] = top((px + 0.5) / S);
+  let minTop = Infinity;
+  for (const t of tops) minTop = Math.min(minTop, t);
+  const y0 = Math.max(0, Math.floor((minTop + DY) * S) - 2);
+  const rows = PH - y0;
+  // the surface, in picture units toward the eye
+  const D = new Float32Array(PW * rows);
+  const cav = new Float32Array(PW * rows);
+  // the grooves on their own, without the tent: lit as if the face were
+  // flat, they show the texture in the shadowed faces
+  const R = new Float32Array(PW * rows);
+  const arete = peaks.map((p) => {
+    const n = perlin(seed + 11 + p.x);
+    return (y) => {
+      const f = Math.max(0, y - p.y);
+      return p.x + (p.drift ?? 0.5) * f + (p.bow ?? 0.0015) * f * f + n(y / 110, 0.5) * 40 * clamp(f / 220);
+    };
+  });
+  for (let r = 0; r < rows; r++) {
+    const y = (y0 + r) / S - DY;
+    const ax = arete.map((a) => a(y));
+    for (let px = 0; px < PW; px++) {
+      const x = (px + 0.5) / S;
+      let best = -Infinity;
+      let side = 1;
+      for (let k = 0; k < peaks.length; k++) {
+        const p = peaks[k];
+        // a buttress sinks back into the face as it falls
+        const d = -(p.kx ?? kx) * Math.abs(x - ax[k]) + ky * (y - p.y) + (p.z ?? 0) - (p.sink ?? 0) * Math.max(0, y - p.y);
+        if (d > best) {
+          best = d;
+          side = x < ax[k] ? -1 : 1;
+        }
+      }
+      // grooves down the fall line: down and away from the crest
+      const fx = side * fall;
+      const fy = 1;
+      const m = Math.hypot(fx, fy);
+      const warp = fbm(nw, x / 170, y / 170, 3) * 44 + fbm(nw, x / 38 + 9, y / 38, 2) * 9;
+      const u = ((x * fy - y * fx) / m + warp) / scale;
+      const v = (x * fx + y * fy) / m / scale;
+      const r1 = c1(u / 62, v / (190 * stretch)) * 0.65 + c1(u / 24 + 40, v / (80 * stretch)) * 0.35;
+      const r2 = ridged(n2, u / 15, v / (190 * stretch), 3);
+      const g = fbm(n3, x / 3, y / 3, 2);
+      // carved in places, smooth snowfields in others
+      const patch = 0.3 + 1.2 * smooth(-0.18, 0.22, fbm(nw, x / 230 + 5, y / 230 + 5, 2));
+      const relief = spurs * r1 * (0.6 + 0.4 * patch) + flutes * r2 * patch + grit * g;
+      D[r * PW + px] = best + relief;
+      R[r * PW + px] = relief;
+      cav[r * PW + px] = r1 * 0.5 + r2 * 0.5;
+    }
+  }
+  // light blocked by the surface itself: march toward the light and see
+  // whether the ground rises above the ray (a little soft at the edge)
+  const lxy = Math.hypot(L[0], L[1]);
+  const sdx = L[0] / lxy;
+  const sdy = L[1] / lxy;
+  const rise = L[2] / lxy / S;
+  const shadowAt = (px, r) => {
+    const d0 = D[r * PW + px];
+    let most = -Infinity;
+    for (let t = 1.5; t < 150 * S; t += 1 + t * 0.06) {
+      const qx = Math.round(px + sdx * t);
+      const qr = Math.round(r + sdy * t);
+      if (qx < 0 || qx >= PW || qr < 0) break;
+      if (y0 + qr < (tops[qx + 1] + DY) * S) break;
+      most = Math.max(most, D[qr * PW + qx] - d0 - rise * t);
+    }
+    return smooth(-0.4, 1.6, most);
+  };
+  for (let r = 0; r < rows; r++) {
+    const py = y0 + r;
+    const y = py / S - DY;
+    for (let px = 0; px < PW; px++) {
+      const t0 = tops[px + 1];
+      const slope = (tops[px + 2] - tops[px]) / 2;
+      // coverage across the edge, measured square to it: smooth at any angle
+      const dist = ((y + 0.5 / S - t0) * S) / Math.sqrt(1 + slope * slope);
+      const cover = clamp(dist + 0.5);
+      if (cover <= 0) continue;
+      const i = r * PW + px;
+      const xl = px > 0 ? D[i - 1] : D[i];
+      const xr = px < PW - 1 ? D[i + 1] : D[i];
+      const yu = r > 0 ? D[i - PW] : D[i];
+      const yd = r < rows - 1 ? D[i + PW] : D[i];
+      const dx = ((xr - xl) * S) / 2;
+      const dy = ((yd - yu) * S) / 2;
+      const m = Math.hypot(dx, dy, 1);
+      const lam = (-dx * L[0] - dy * L[1] + L[2]) / m;
+      const fill = clamp((-dx * F[0] - dy * F[1] + F[2]) / m);
+      const rx = (((px < PW - 1 ? R[i + 1] : R[i]) - (px > 0 ? R[i - 1] : R[i])) * S) / 2;
+      const ry = (((r < rows - 1 ? R[i + PW] : R[i]) - (r > 0 ? R[i - PW] : R[i])) * S) / 2;
+      const detail = clamp((-rx * L[0] - ry * L[1] + L[2]) / Math.hypot(rx, ry, 1));
+      const x = (px + 0.5) / S;
+      const c = shade({ lam, fill, detail, sh: shadowAt(px, r), cav: cav[i], x, y, below: y - t0 });
+      const f = fog ? fog({ x, y, below: y - t0 }) : null;
+      put(py * PW + px, f ? mix(c, f.color, f.amount) : c, cover);
+    }
+  }
+}
 
-// a band of haze (soft by its own gradient: no blur to redraw on zoom)
-const mist = (y, h, o) => `<rect x="-60" y="${y}" width="${W + 120}" height="${h}" fill="url(#mist)" opacity="${o}"/>`;
+// Silhouettes from hand-placed points (x, y), joined smoothly and then
+// crumpled: notches and steps along the crest, calm right at a summit
+function outline(seed, pts, rough = 1, calm = []) {
+  const n = perlin(seed);
+  return (x) => {
+    let i = 1;
+    while (i < pts.length - 1 && pts[i][0] < x) i++;
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    const t = clamp((x - x0) / (x1 - x0));
+    const base = y0 + (y1 - y0) * (t * t * (3 - 2 * t) * 0.5 + t * 0.5);
+    const still = calm.reduce((m, c) => Math.min(m, clamp(Math.abs(x - c) / 60)), 1);
+    const steps = (ridged(n, x / 70, 0.5, 3) - 0.45) * 18 + n(x / 20, 3.3) * 6 + n(x / 5, 8.1) * 1.8;
+    return base + steps * rough * (0.25 + 0.75 * still);
+  };
+}
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 1.5}" height="${H * 1.5}">
-<defs>
-  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#02060f"/><stop offset="0.32" stop-color="#071528"/>
-    <stop offset="0.52" stop-color="#11315a"/><stop offset="0.64" stop-color="#2a5d97"/><stop offset="0.72" stop-color="#1d4674"/><stop offset="1" stop-color="#081626"/>
-  </linearGradient>
-  <radialGradient id="warm" cx="240" cy="470" r="620" gradientTransform="translate(0 367.2) scale(1 0.22)" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#ffc49a" stop-opacity="0.42"/><stop offset="0.4" stop-color="#e59c80" stop-opacity="0.14"/><stop offset="1" stop-color="#f0a57e" stop-opacity="0"/>
-  </radialGradient>
-  <radialGradient id="dawn" cx="${SUMMIT.x}" cy="600" r="700" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#a9d0ff" stop-opacity="0.5"/><stop offset="0.3" stop-color="#5a9fea" stop-opacity="0.22"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
-  </radialGradient>
-  <linearGradient id="far1" gradientUnits="userSpaceOnUse" x1="0" y1="450" x2="0" y2="700">
-    <stop offset="0" stop-color="#3a6aa3"/><stop offset="1" stop-color="#26507f"/>
-  </linearGradient>
-  <linearGradient id="far2" gradientUnits="userSpaceOnUse" x1="0" y1="460" x2="0" y2="720">
-    <stop offset="0" stop-color="#2b5688"/><stop offset="1" stop-color="#1b3e68"/>
-  </linearGradient>
-  <linearGradient id="rock" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
-    <stop offset="0" stop-color="#1c3a61"/><stop offset="0.55" stop-color="#13294a"/><stop offset="1" stop-color="#0d1e36"/>
-  </linearGradient>
-  <linearGradient id="lit" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="700">
-    <stop offset="0" stop-color="#d6e8ff" stop-opacity="0.42"/><stop offset="0.45" stop-color="#6fa5e6" stop-opacity="0.14"/><stop offset="1" stop-color="#6fa5e6" stop-opacity="0"/>
-  </linearGradient>
-  <linearGradient id="wall" gradientUnits="userSpaceOnUse" x1="0" y1="380" x2="0" y2="780">
-    <stop offset="0" stop-color="#152f52"/><stop offset="1" stop-color="#0b182c"/>
-  </linearGradient>
-  <linearGradient id="near1" gradientUnits="userSpaceOnUse" x1="0" y1="640" x2="0" y2="900">
-    <stop offset="0" stop-color="#0d2038"/><stop offset="1" stop-color="#081427"/>
-  </linearGradient>
-  <linearGradient id="edge" gradientUnits="userSpaceOnUse" x1="${SUMMIT.x - 300}" y1="0" x2="${SUMMIT.x + 300}" y2="0">
-    <stop offset="0" stop-color="#4b95e6" stop-opacity="0"/><stop offset="0.35" stop-color="#8fc0ff" stop-opacity="0.75"/><stop offset="0.5" stop-color="#f2f7ff"/><stop offset="0.68" stop-color="#8fc0ff" stop-opacity="0.55"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
-  </linearGradient>
-  <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#9cc6f7" stop-opacity="0"/><stop offset="0.5" stop-color="#9cc6f7" stop-opacity="1"/><stop offset="1" stop-color="#9cc6f7" stop-opacity="0"/>
-  </linearGradient>
-  <filter id="soft" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="2.5"/></filter>
-  <filter id="lit-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
-  <radialGradient id="shine"><stop offset="0" stop-color="#dfe9ff" stop-opacity="0.5"/><stop offset="0.35" stop-color="#9fc0ff" stop-opacity="0.16"/><stop offset="1" stop-color="#9fc0ff" stop-opacity="0"/></radialGradient>
-</defs>
-<rect width="${W}" height="${H}" fill="url(#sky)"/>
-<g>${still.map((t) => `<circle cx="${t.x.toFixed(0)}" cy="${t.y.toFixed(0)}" r="${t.rad.toFixed(2)}" fill="${t.tint}" opacity="${t.o.toFixed(2)}"/>`).join("")}</g>
-${stars.filter((t) => t.rad > 1.3 && t.o > 0.75).slice(0, 5).map((t) => `<circle cx="${t.x.toFixed(0)}" cy="${t.y.toFixed(0)}" r="9" fill="url(#shine)"/>`).join("")}
-<rect width="${W}" height="${H}" fill="url(#dawn)"/>
-<rect width="${W}" height="${H}" fill="url(#warm)"/>
+const fogAt = (color, from, to, most) => ({ y }) => ({ color, amount: most * smooth(from, to, y) });
 
-<path d="${fill(far1)}" fill="url(#far1)"/>
-${mist(560, 140, 0.3)}
-<path d="${fill(far2)}" fill="url(#far2)"/>
-${mist(610, 150, 0.24)}
+// 2. Distant ranges, low along the horizon, pale in the haze
+const farTop = outline(41, [[-40, 520], [120, 470], [260, 500], [700, 520], [900, 470], [1000, 450], [1090, 400], [1200, 460], [1320, 420], [1460, 460], [1640, 440]], 1.1);
+ridge({
+  seed: 40,
+  peaks: [{ x: 120, y: 470, drift: 0.7 }, { x: 1090, y: 400, drift: 0.7 }, { x: 1320, y: 420, drift: 0.7 }, { x: 1600, y: 440, drift: 0.7 }],
+  top: farTop,
+  kx: 1.1,
+  spurs: 12,
+  flutes: 1.5,
+  shade: ({ lam, sh }) => tone(0.14 + 0.36 * smooth(0.3, 1, lam * (1 - sh))),
+  fog: ({ y }) => ({ color: hex("#15243f"), amount: 0.62 + 0.3 * smooth(440, 620, y) }),
+});
 
-<path d="${fill(everest)}" fill="url(#rock)"/>
-<path d="${face}" fill="url(#lit)" filter="url(#lit-soft)"/>
-<g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(101, everest, 250, 1250, SUMMIT.x, 0.85)}</g>
-<!-- first light along the summit ridge: a thin line, brightest at the top and fading out down both sides -->
-<path d="${line(summitRidge)}" fill="none" stroke="url(#edge)" stroke-width="3" opacity="0.35" filter="url(#soft)"/>
-<path d="${line(summitRidge)}" fill="none" stroke="url(#edge)" stroke-width="1.1" stroke-linejoin="round"/>
-${mist(640, 130, 0.2)}
+// 3. Everest: one broad, steep peak with a stepped west ridge, and Lhotse
+// lower off its right shoulder
+const everestTop = outline(7, [
+  [-40, 640], [90, 590], [200, 520], [270, 470], [320, 452], [370, 400], [420, 330], [468, 262], [520, 200],
+  [560, 236], [610, 282], [660, 318], [705, 332], [750, 306], [790, 282], [830, 312], [900, 372], [1000, 430], [1140, 480], [1300, 520], [1640, 560],
+], 1, [520, 790]);
+ridge({
+  seed: 7,
+  peaks: [
+    { x: SUMMIT.x, y: SUMMIT.y, drift: 0.55 },
+    { x: 790, y: 282, drift: 0.5, z: -30 },
+  ],
+  top: everestTop,
+  kx: 1.3,
+  spurs: 22,
+  flutes: 1.8,
+  shade: ({ lam, fill, detail, sh, cav, y }) => {
+    // snow: bright where the light falls full on it, lying thicker higher up
+    const high = 1 - smooth(240, 700, y);
+    const lit = clamp(lam) * (1 - sh);
+    const snow = smooth(0.26, 0.8, lit) * (0.5 + 0.5 * high);
+    // in shadow: dim, with the rock and old snow picked out faintly
+    const dim = 0.05 + 0.08 * fill + 0.3 * Math.pow(detail, 2.2) * (0.55 + 0.45 * high);
+    return tone(dim + 0.06 * cav + 0.86 * snow);
+  },
+  fog: fogAt(hex("#1a3052"), 420, 700, 0.9),
+});
 
-<path d="${fill(nuptse)}" fill="url(#wall)"/>
-<g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(202, nuptse, 60, 560, 330, 0.6)}</g>
-<path d="${line(nuptse.filter(([x]) => x > 40 && x < 620))}" fill="none" stroke="#8fbef5" stroke-opacity="0.22" stroke-width="0.8"/>
-${mist(720, 120, 0.14)}
+// 4. Lower ridges in front of it, left and right
+const frontTop = outline(19, [
+  [-40, 470], [60, 440], [150, 418], [220, 400], [300, 450], [380, 520], [470, 590], [560, 640],
+  [700, 640], [800, 570], [880, 500], [930, 478], [1000, 505], [1100, 500], [1240, 530], [1400, 510], [1640, 540],
+], 1, [220, 930]);
+ridge({
+  seed: 19,
+  peaks: [{ x: 220, y: 400, drift: 0.6 }, { x: 930, y: 478, drift: 0.55 }, { x: 1400, y: 510, drift: 0.6 }],
+  top: frontTop,
+  kx: 1.2,
+  spurs: 14,
+  flutes: 2.2,
+  shade: ({ lam, fill, detail, sh, cav, y }) => {
+    const high = 1 - smooth(400, 720, y);
+    const lit = clamp(lam) * (1 - sh);
+    const snow = smooth(0.35, 0.9, lit) * (0.3 + 0.55 * high);
+    const dim = 0.04 + 0.07 * fill + 0.24 * Math.pow(detail, 2.2);
+    return tone(dim + 0.06 * cav + 0.72 * snow);
+  },
+  fog: fogAt(hex("#18304f"), 500, 760, 0.85),
+});
 
-<path d="${fill(near1)}" fill="url(#near1)"/>
-<path d="${fill(near2)}" fill="#050d1a"/>
-</svg>`;
+// 5. Mist lying in the valley: soft drifts, lit a little on the peak's side
+{
+  const n = perlin(77);
+  const mist = hex("#4d6d97");
+  for (let py = Math.floor((560 + DY) * S); py < Math.min(PH, (860 + DY) * S); py++) {
+    const y = py / S - DY;
+    const band = smooth(560, 680, y) * (1 - smooth(720, 850, y));
+    for (let px = 0; px < PW; px++) {
+      const x = px / S;
+      const drift = fbm(n, x / 320 + fbm(n, x / 500, y / 120, 2) * 0.6, y / 55, 5);
+      const a = band * clamp(0.18 + drift * 0.9) * (0.75 + 0.35 * (1 - smooth(300, 1300, x)));
+      put(py * PW + px, mist, a * 0.55);
+    }
+  }
+}
+
+// 6. The rocky ridge in the foreground: black, its rock picked out in fine
+// lines where the light catches it
+const nearTop = outline(88, [
+  [-40, 800], [120, 770], [260, 730], [380, 700], [470, 660], [540, 630], [600, 612], [650, 628], [720, 670], [820, 720],
+  [950, 770], [1080, 790], [1220, 760], [1350, 735], [1480, 760], [1640, 800],
+], 1.5, [600]);
+ridge({
+  seed: 88,
+  peaks: [{ x: 600, y: 612, drift: 0.6 }, { x: 520, y: 650, drift: 0.3, z: -24, sink: 0.3 }, { x: 1350, y: 735, drift: 0.6 }, { x: 120, y: 770, drift: 0.6 }],
+  top: nearTop,
+  kx: 0.95,
+  ky: 0.3,
+  spurs: 12,
+  flutes: 4,
+  grit: 1.6,
+  scale: 0.55,
+  stretch: 0.3,
+  shade: ({ lam, sh, below }) => {
+    const lines = Math.pow(smooth(0.45, 1, clamp(lam) * (1 - sh)), 1.8);
+    return tone(0.04 + 0.06 * clamp(lam) + 0.46 * lines * (1 - smooth(30, 260, below)));
+  },
+  fog: fogAt(hex("#010204"), 760, 1000, 0.9),
+});
+
+// the foot of the picture into black
+for (let py = Math.floor(820 * S); py < PH; py++) {
+  const a = smooth(820, 1000, py / S) * 0.7;
+  for (let px = 0; px < PW; px++) put(py * PW + px, [0.004, 0.008, 0.016], a);
+}
 
 mkdirSync("public/start", { recursive: true });
-// numbers to one decimal: the same picture, a lighter file
-const tidy = (svgText) => svgText.replace(/(\d+\.\d)\d+/g, "$1");
-// high quality: smooth skies band at the usual settings
-writeFileSync("public/start/everest.svg", tidy(svg));
+// to 8 bits with a hint of dither, so the long gradients never band
+const out = Buffer.alloc(PW * PH * 3);
+const dr = rng(1);
+for (let i = 0; i < out.length; i++) out[i] = clamp(Math.round(clamp(img[i]) * 255 + (dr() - dr()) * 0.9), 0, 255);
+await sharp(out, { raw: { width: PW, height: PH, channels: 3 } }).webp({ quality: 88, smartSubsample: true, effort: 6 }).toFile(OUT);
 
 // Grain, laid over the page as a small repeating tile: it keeps the
 // gradients from banding, and a bitmap tile costs nothing to redraw on zoom
@@ -267,10 +483,13 @@ for (let i = 0; i < G * G; i++) {
 }
 await sharp(grain, { raw: { width: G, height: G, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/grain.png");
 
-// the stretch of ridge around the summit, for the page's glint, and its top
-const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
+// the summit as drawn, and the ridge either side of it, for the page
+let top = { x: SUMMIT.x, y: everestTop(SUMMIT.x) };
+for (let x = SUMMIT.x - 30; x <= SUMMIT.x + 30; x += 0.5) if (everestTop(x) < top.y) top = { x, y: everestTop(x) };
+const ridgeLine = [];
+for (let x = top.x - 190; x <= top.x + 170; x += 2) ridgeLine.push(`${ridgeLine.length ? "L" : "M"}${x.toFixed(1)} ${(everestTop(x) + DY).toFixed(1)}`);
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// bright stars in the scene, for the page to twinkle: x, y, radius\nexport const TWINKLES: [number, number, number][] = ${JSON.stringify(twinkles.map((t) => [Math.round(t.x), Math.round(t.y), +t.rad.toFixed(2)]))};\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.webp (${W} by ${H} units), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top.x.toFixed(1)}, y: ${(top.y + DY).toFixed(1)} };\nexport const SUMMIT_RIDGE = "${ridgeLine.join(" ")}";\n// bright stars left out of the picture, for the page to twinkle: x, y, radius\nexport const TWINKLES: [number, number, number][] = ${JSON.stringify(twinkles.map((t) => [Math.round(t.x), Math.round(t.y + DY), +t.rad.toFixed(2)]))};\n`
 );
-console.log("ok");
+console.log(`ok ${PW}x${PH}`);

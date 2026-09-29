@@ -93,16 +93,16 @@ const FRAME_MASK: React.CSSProperties = {
 };
 
 // what the client reads on hovering over their name at the summit
-const SUMMIT_NOTE = "Anyone can point at the top. We're the ones who'll get you there.";
+const SUMMIT_NOTE = "You bring the vision. We'll handle the climb.";
 
 
-// Everest at blue hour, filling the screen (public/start/everest.svg, drawn
-// by scripts/everest-scene.mjs, stars and all), with in the same frame so
-// they line up: the stars that twinkle, one that falls now and then, a
-// glint of first light running the summit ridge, and the client's name at
-// the summit with a halo behind it (globals.css, .ev-*; still for reduced
-// motion). Nothing large moves, so nothing large is redrawn: zooming stays
-// clean, and the glass over it has nothing to keep re-blurring.
+// Everest by night, filling the screen (public/start/everest.webp, drawn by
+// scripts/everest-scene.mjs), with in the same frame so they line up: the
+// stars that twinkle, one that falls now and then, a glint of light running
+// the summit ridge, and a message for the client planted on the summit
+// (globals.css, .ev-*; still for reduced motion). Nothing large moves, so
+// nothing large is redrawn: zooming stays clean, and the glass over it has
+// nothing to keep re-blurring.
 function Scene({ name }: { name?: string | null }) {
   const { width, height } = SCENE;
   const label = name?.trim();
@@ -115,8 +115,8 @@ function Scene({ name }: { name?: string | null }) {
   });
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element -- a vector file; there's nothing for next/image to optimise */}
-      <img src="/start/everest.svg" alt="" aria-hidden fetchPriority="high" className="pointer-events-none fixed inset-0 h-full w-full object-cover" />
+      {/* eslint-disable-next-line @next/next/no-img-element -- already sized and compressed for the screen by the script */}
+      <img src="/start/everest.webp" alt="" aria-hidden fetchPriority="high" decoding="async" className="pointer-events-none fixed inset-0 h-full w-full object-cover" />
 
       <svg
         aria-hidden
@@ -138,11 +138,6 @@ function Scene({ name }: { name?: string | null }) {
             <stop offset="0.6" stopColor="#000" stopOpacity="0" />
             <stop offset="1" stopColor="#000" stopOpacity="0.55" />
           </linearGradient>
-          <radialGradient id="sc-halo">
-            <stop offset="0" stopColor="#7db3f2" stopOpacity="0.4" />
-            <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0.12" />
-            <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
-          </radialGradient>
         </defs>
         {/* the foot of the picture and its far edges fall a little into
             shadow, so the eye goes to the peak and the form */}
@@ -156,35 +151,33 @@ function Scene({ name }: { name?: string | null }) {
         <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
         {/* first light running up the ridge to the top and down the far side */}
         <path d={SUMMIT_RIDGE} pathLength={100} fill="none" stroke="#f4f8ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="ev-glint" />
-        {label && <ellipse cx={SUMMIT.x} cy={SUMMIT.y - 40} rx="130" ry="60" fill="url(#sc-halo)" className="ev-halo" />}
       </svg>
 
       {/* grain over the picture, a small tile, against banding */}
       <div aria-hidden className="pointer-events-none fixed inset-0 bg-[url(/start/grain.png)] bg-[length:160px]" />
 
       {label && (
-        // A message over the peak: a box with a small pointer in the middle
-        // of its foot, the pointer's tip on the summit. A thin blue stroke
-        // with the Nyra button's moving light round it; it floats, hops now
-        // and then for attention, and hovering it brings up a line above.
+        // A message planted on the summit: a box with a small pointer in
+        // the middle of its foot, the tip on the peak. One thin blue stroke
+        // with the Nyra button's light running round it. It springs up
+        // from the peak as the page opens, gives a quick hop now and then,
+        // and hovering it brings up a line above.
         <div aria-hidden className="pointer-events-none fixed inset-0 [container-type:size]">
           <div className="absolute" style={at(SUMMIT.x, SUMMIT.y)}>
-            <div className="absolute bottom-2 left-0 -translate-x-1/2">
-              <div className="ev-bob flex flex-col-reverse items-center">
-                <span className="ev-tag peer pointer-events-auto relative">
-                  <span className="nyra-glow relative block" style={{ borderRadius: 10 }}>
-                    <span className="relative flex cursor-default items-center gap-2 rounded-[10px] border border-accent/40 bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground shadow-[0_8px_28px_rgba(0,0,0,0.45),0_0_22px_rgba(75,149,230,0.25)]">
-                      <Flag size={14} className="shrink-0 text-accent" />
-                      Hey {label}, we want you here
-                    </span>
+            <div className="absolute bottom-1.5 left-0 flex -translate-x-1/2 flex-col-reverse items-center">
+              <span className="ev-tag peer pointer-events-auto relative">
+                <span className="nyra-glow nyra-line relative block rounded-[11px] bg-[#2a4a72] p-px">
+                  <span className="flex cursor-default items-center gap-2 rounded-[10px] bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground">
+                    <Flag size={14} className="shrink-0 text-accent" />
+                    {label}, we&apos;re here to take you to the top
                   </span>
-                  {/* the pointer: part of the box, the same fill and stroke */}
-                  <span className="absolute top-full left-1/2 -mt-[6px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-accent/40 bg-surface-2" />
                 </span>
-                <p className="mb-3 w-max max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
-                  {SUMMIT_NOTE}
-                </p>
-              </div>
+                {/* the pointer: the box's own fill and stroke */}
+                <span className="absolute top-full left-1/2 -mt-[6.5px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-[#2a4a72] bg-surface-2" />
+              </span>
+              <p className="mb-3 w-max max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
+                {SUMMIT_NOTE}
+              </p>
             </div>
           </div>
         </div>
