@@ -159,6 +159,7 @@ export type TaskCardData = {
   dueDate: Date | null;
   // when it goes to the client; never on internal work
   deliveryDate: Date | null;
+  postDate: Date | null;
   // first reached the client — what the due date is judged against
   handedOffAt: Date | null;
   scheduledFor: Date | null;

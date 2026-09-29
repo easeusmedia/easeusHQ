@@ -5,9 +5,10 @@ import { Check, Users } from "lucide-react";
 import { topLayer, useCloseOnScroll, usePopover } from "../popover";
 import { setClientEditors } from "./actions";
 
-// Which editors can see this client. An editor sees only the clients given
-// to them here, and on each only their own tasks and its documents. Each
-// tick saves at once.
+// Which members (everyone outside the core team) can see this client. A
+// member sees only the clients given to them here, and on each only their
+// own tasks and its documents. Each tick saves at once; the menu stays
+// open for the next.
 export function EditorAccess({ clientId, editors, given }: { clientId: string; editors: { id: string; name: string }[]; given: string[] }) {
   const [picked, setPicked] = useState(given);
   const [open, setOpen] = useState(false);
@@ -55,7 +56,7 @@ export function EditorAccess({ clientId, editors, given }: { clientId: string; e
         className="btn btn-sm flex items-center gap-2 border border-border bg-surface-2 text-muted hover:text-foreground"
       >
         <Users size={13} />
-        {names.length === 0 ? "No editors" : names.length <= 2 ? `Editors: ${names.join(", ")}` : `Editors: ${names.length}`}
+        {names.length === 0 ? "Give access" : names.length <= 2 ? names.join(", ") : `${names.length} people`}
       </button>
       {open && position && (
         <div
@@ -63,14 +64,14 @@ export function EditorAccess({ clientId, editors, given }: { clientId: string; e
           style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
           className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg"
         >
-          <p className="px-2.5 pt-1.5 pb-2 text-xs text-muted">Only these editors see this client, and only their own tasks on it.</p>
+          <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-muted/70">Can see this client</p>
           {editors.map((e) => (
             <button key={e.id} type="button" onClick={() => toggle(e.id)} className="menu-item px-2.5 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate">{e.name}</span>
               {picked.includes(e.id) && <Check size={13} className="shrink-0 text-accent" />}
             </button>
           ))}
-          {editors.length === 0 && <p className="px-2.5 py-2 text-sm text-muted">No editors on the team yet.</p>}
+          {editors.length === 0 && <p className="px-2.5 py-2 text-sm text-muted">No one outside the core team yet.</p>}
           {error && <p className="px-2.5 py-1.5 text-xs text-rose-400">{error}</p>}
         </div>
       )}

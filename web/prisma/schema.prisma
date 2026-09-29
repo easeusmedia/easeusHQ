@@ -549,6 +549,9 @@ model Task {
   // when it goes to the client. Never set on internal work, which the
   // client doesn't receive.
   deliveryDate DateTime?
+  // when it goes live on the client's channel: a reel's or video's posting
+  // day, for the week calendar on the client's page. Client work only.
+  postDate     DateTime?
   // null = visible immediately. Set = hidden from the assigned editor's
   // board/list until this date; ops/admin always see it regardless, so
   // work can be queued up ahead of time without cluttering an editor's

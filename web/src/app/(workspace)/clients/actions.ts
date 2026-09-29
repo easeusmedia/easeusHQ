@@ -228,13 +228,15 @@ export async function updateClientStatus(clientId: string, status: string): Prom
   return {};
 }
 
-// Which editors can see this client (lib/scope visibleClientWhere). Ops
-// only, and only ever members: the team sees every client already.
+// Which members can see this client (lib/scope visibleClientWhere). Ops
+// only, and only ever members: the core team sees every client already.
+// Nothing to revalidate: the picker keeps its own ticks, so the page isn't
+// re-rendered (and the menu closed) after every one; a member's own pages
+// pick it up on their next load.
 export async function setClientEditors(clientId: string, editorIds: string[]): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can choose who sees a client." };
   const editors = await prisma.user.findMany({ where: { id: { in: editorIds }, role: "employee" }, select: { id: true } });
   await prisma.client.update({ where: { id: clientId }, data: { editors: { set: editors } } });
-  revalidatePath("/clients", "layout");
   return {};
 }
 

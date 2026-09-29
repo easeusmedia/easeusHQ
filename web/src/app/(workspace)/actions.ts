@@ -82,6 +82,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   }
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const deliveryDateInput = String(formData.get("deliveryDate") ?? "").trim();
+  const postDateInput = String(formData.get("postDate") ?? "").trim();
   const internal = formData.get("internal") === "on";
   const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
 
@@ -106,6 +107,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       dueDate: dueDateInput ? new Date(dueDateInput) : null,
       // internal work never goes to the client, so it has no delivery day
       deliveryDate: deliveryDateInput && !internal ? new Date(deliveryDateInput) : null,
+      // nor a day it goes live
+      postDate: postDateInput && !internal ? new Date(postDateInput) : null,
       // hidden from the assigned editor until this date — see the schema comment
       scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
       assignedToId: assignedToId || null,
@@ -316,6 +319,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   };
   const dueDate = day("dueDate");
   const deliveryDate = day("deliveryDate");
+  const postDate = day("postDate");
   const scheduledFor = day("scheduledFor");
 
   await prisma.task.update({
@@ -332,10 +336,11 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       ...(assetLink !== undefined ? { assetLink } : {}),
       ...(dueDate !== undefined ? { dueDate } : {}),
       ...(deliveryDate !== undefined ? { deliveryDate } : {}),
+      ...(postDate !== undefined ? { postDate } : {}),
       ...(scheduledFor !== undefined ? { scheduledFor } : {}),
       // internal work never goes to the client, so it loses any delivery day
       ...(formData.has("tagsPresent")
-        ? { tags: { set: tagIds.map((id) => ({ id })) }, internal, ...(internal ? { deliveryDate: null } : {}) }
+        ? { tags: { set: tagIds.map((id) => ({ id })) }, internal, ...(internal ? { deliveryDate: null, postDate: null } : {}) }
         : {}),
     },
   });
