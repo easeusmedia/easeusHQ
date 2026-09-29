@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Users2 } from "lucide-react";
+import { Network, Search, Users2 } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import type { Grade } from "@/lib/editorKpi";
 import { Avatar } from "../TaskCard";
 import { PersonDetail } from "./PersonDetail";
+import { Organisation } from "./Organisation";
 
 // One thing currently on someone's plate, from either task system.
 export type TaskEntry = {
@@ -34,6 +35,7 @@ export type PersonRecord = {
   employmentType: string | null;
   teamId: string | null;
   teamName: string | null;
+  departmentName: string | null;
   jobTitleId: string | null;
   jobTitleName: string | null;
   joinedAt: string | null;
@@ -50,6 +52,10 @@ export type PersonRecord = {
 };
 
 export type Option = { id: string; name: string; slug?: string };
+// a department, and a position filed under one (none: leadership), with how
+// many current people each has
+export type Department = Option & { people: number };
+export type Position = { id: string; name: string; teamId: string | null; people: number };
 
 const FORMER = "Former employees";
 const ADMIN = "Admin";
@@ -64,6 +70,13 @@ export const ROLE_LABEL: Record<Role, string> = {
   admin: "Admin",
   core: "Core",
   employee: "Member",
+};
+
+// what each access level reaches, in the same words as Department
+export const ROLE_REACH: Record<Role, string> = {
+  admin: "Admin: Everything",
+  core: "Core: Their department",
+  employee: "Member: Their own work",
 };
 
 // a person's photo (or initials) and online dot — the shared avatar
@@ -83,8 +96,8 @@ export function PeopleDirectory({
   openFirst,
 }: {
   people: PersonRecord[];
-  teams: Option[];
-  jobTitles: Option[];
+  teams: Department[];
+  jobTitles: Position[];
   canEdit: boolean;
   meId: string;
   openFirst?: string;
@@ -134,14 +147,28 @@ export function PeopleDirectory({
     <div className="flex h-full gap-4">
       <aside className="flex w-[min(20rem,40vw)] shrink-0 flex-col overflow-hidden panel rounded-2xl">
         <div className="flex flex-col gap-2 border-b border-border p-3">
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
-            <Search size={14} className="shrink-0 text-muted" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search people…"
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
-            />
+          <div className="flex gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
+              <Search size={14} className="shrink-0 text-muted" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search people…"
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+              />
+            </div>
+            {canEdit && (
+              <Organisation
+                departments={teams}
+                positions={jobTitles}
+                className="group/tip relative flex w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-muted transition-colors hover:text-foreground"
+              >
+                <Network size={15} />
+                <span className="pointer-events-none absolute top-full right-0 z-20 mt-1.5 whitespace-nowrap panel rounded-lg px-2.5 py-1.5 text-xs text-foreground opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100">
+                  Departments and positions
+                </span>
+              </Organisation>
+            )}
           </div>
           {shownTeams.length > 1 && (
             <div className="flex flex-wrap gap-1">

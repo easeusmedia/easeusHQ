@@ -7,7 +7,8 @@
 //   - with something typed, every entry whose label contains it
 //   - "Show more" reveals `more` further entries beyond the recent few
 //   - `older` is how many still aren't shown — whether "Show more" appears
-export type PickOption = { value: string; label: string; pinned?: boolean };
+// group: a heading it's listed under; options of a group come together
+export type PickOption = { value: string; label: string; pinned?: boolean; group?: string };
 
 export function pickList(
   options: PickOption[],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { topLayer, usePopover, useCloseOnScroll } from "./popover";
 import { Check, ChevronDown } from "lucide-react";
 import { pickList, type PickOption } from "@/lib/pickList";
@@ -96,7 +96,8 @@ export function Dropdown({
   const addable = create && q && !options.some((o) => o.label.toLowerCase() === q.toLowerCase());
   // roughly what the list will render at, for the flip-up check — capped by
   // max-h-80 below
-  const listHeight = Math.min(320, (shown.length + (searching ? 2 : 0)) * (size === "sm" ? 28 : 36) + 8);
+  const headings = new Set(shown.map((o) => o.group).filter(Boolean)).size;
+  const listHeight = Math.min(320, (shown.length + headings + (searching ? 2 : 0)) * (size === "sm" ? 28 : 36) + 8);
   const { position, place } = usePopover(listHeight);
 
   const close = useCallback(() => setOpen(false), []);
@@ -105,7 +106,8 @@ export function Dropdown({
   function openList() {
     setQuery("");
     setMore(0);
-    place(triggerRef.current, { width: pill ? 208 : 0 });
+    // never narrower than a readable option, however narrow the field
+    place(triggerRef.current, { width: pill ? 208 : 200 });
     setOpen(true);
   }
 
@@ -181,16 +183,16 @@ export function Dropdown({
               />
             </div>
           )}
-          {shown.map((o) => (
-            <button
-              key={o.value || "_empty"}
-              type="button"
-              onClick={() => pick(o.value)}
-              className={`menu-item ${s.option}`}
-            >
-              <span className="min-w-0 flex-1 truncate">{o.label}</span>
-              {o.value === value && o.value !== "" && <Check size={13} className="shrink-0 text-accent" />}
-            </button>
+          {shown.map((o, i) => (
+            <Fragment key={o.value || "_empty"}>
+              {o.group && o.group !== shown[i - 1]?.group && (
+                <p className="px-2.5 pt-2.5 pb-1 text-[11px] font-medium text-muted/70">{o.group}</p>
+              )}
+              <button type="button" onClick={() => pick(o.value)} className={`menu-item ${s.option}`}>
+                <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                {o.value === value && o.value !== "" && <Check size={13} className="shrink-0 text-accent" />}
+              </button>
+            </Fragment>
           ))}
           {addable && (
             <button

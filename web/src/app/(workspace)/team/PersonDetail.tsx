@@ -2,18 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowUpRight, History, Mail, PenLine, Phone, Trash2 } from "lucide-react";
+import { ArrowUpRight, History, Mail, PenLine, Phone } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { ConfirmButton } from "../ConfirmButton";
-import { Reveal } from "../Reveal";
-import { createJobTitle, deleteJobTitle, updatePerson, updatePersonPhoto } from "./actions";
+import { createJobTitle, updatePerson, updatePersonPhoto } from "./actions";
+import { Organisation } from "./Organisation";
 import { PhotoEdit } from "../PhotoEdit";
 import { ProfileHead } from "../ProfileHead";
-import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, type Option, type PersonRecord } from "./PeopleDirectory";
-import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
+import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type Option, type PersonRecord, type Position } from "./PeopleDirectory";
+import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { seesEveryTeam } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
@@ -49,14 +47,14 @@ const inr = (v: string) => `₹${Number(v).toLocaleString("en-IN")}`;
 // before saving rather than finding out from the person.
 function canSeeSummary(role: Role, email: string, team: Option | undefined): string {
   if (seesEveryTeam({ role, email: email.trim().toLowerCase() })) {
-    return "Everything: every team's work and the editing queue.";
+    return "Everything: every department's work and the editing queue.";
   }
   const ops = team?.slug === "operations";
   if (role === "core") {
-    if (!team) return "Only their own work. Pick a department to give them its view.";
+    if (!team) return "Only their own work. Give them a department to show them its work.";
     return ops
-      ? `The whole ${team.name} team's work, and every editor's tasks on the editing queue.`
-      : `The whole ${team.name} team's work.`;
+      ? `All of ${team.name}'s work, and every editor's tasks on the editing queue.`
+      : `All of ${team.name}'s work.`;
   }
   return ops ? "Only their own work, including their own editing tasks." : "Only their own work.";
 }
@@ -103,12 +101,11 @@ export function PersonDetail({
   isSelf,
 }: {
   person: PersonRecord;
-  teams: Option[];
-  jobTitles: Option[];
+  teams: Department[];
+  jobTitles: Position[];
   canEdit: boolean;
   isSelf: boolean;
 }) {
-  const router = useRouter();
   const today = indiaDay(new Date());
   const blank = {
     name: person.name,
@@ -129,8 +126,11 @@ export function PersonDetail({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [managing, setManaging] = useState(false);
   const [allWork, setAllWork] = useState(false);
+  // positions added from the field itself, listed at once without
+  // reloading the page; the next refresh brings them in with the rest
+  const [added, setAdded] = useState<Position[]>([]);
+  const titles = [...jobTitles, ...added.filter((a) => !jobTitles.some((j) => j.id === a.id))];
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -145,8 +145,8 @@ export function PersonDetail({
       setError(res.error);
       return;
     }
+    // the save revalidates the page, which brings the new record in
     setEditing(false);
-    router.refresh();
   }
 
   function cancel() {
@@ -155,23 +155,27 @@ export function PersonDetail({
     setEditing(false);
   }
 
-  // a position typed into the list that isn't one yet arrives as its name
+  // Where they sit follows their position (lib/teams); the department
+  // field is only a choice when the position doesn't decide it.
+  const position = titles.find((t) => t.id === form.jobTitleId);
+  const department = departmentFor(form.role, position?.teamId, form.teamId || null);
+  const departmentName = (id: string | null) => teams.find((t) => t.id === id)?.name;
+
+  // A position typed into the list that isn't one yet arrives as its name,
+  // and is filed under the department they're in now (Leadership if none).
   async function pickPosition(v: string) {
-    if (!v || jobTitles.some((j) => j.id === v)) return set("jobTitleId", v);
-    const res = await createJobTitle(v);
+    if (!v || titles.some((j) => j.id === v)) return set("jobTitleId", v);
+    const res = await createJobTitle(v, department);
     if (res.error || !res.id) return setError(res.error ?? "That position couldn't be added.");
+    setAdded((a) => [...a, { id: res.id!, name: res.name!, teamId: res.teamId ?? null, people: 0 }]);
     set("jobTitleId", res.id);
-    router.refresh();
   }
 
-  async function removeTitle(id: string) {
-    const res = await deleteJobTitle(id);
-    if (res.error) setError(res.error);
-    else {
-      if (form.jobTitleId === id) set("jobTitleId", "");
-      router.refresh();
-    }
-  }
+  // listed under their department, Leadership first
+  const groups = [{ id: null as string | null, name: "Leadership" }, ...teams];
+  const positionOptions = groups.flatMap((g) =>
+    titles.filter((t) => t.teamId === g.id).map((t) => ({ value: t.id, label: t.name, group: g.name }))
+  );
 
   const p = person.performance;
   const shown = allWork ? person.current : person.current.slice(0, FIRST);
@@ -193,7 +197,7 @@ export function PersonDetail({
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
           <p className="truncate text-sm text-muted">
             {person.jobTitleName ?? "No position set"}
-            {person.teamName && <> · {person.teamName}</>}
+            {person.departmentName && <> · {person.departmentName}</>}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
@@ -246,49 +250,34 @@ export function PersonDetail({
                 <div className={labelCls}>
                   <span className="flex items-center justify-between gap-2">
                     Position
-                    <button type="button" onClick={() => setManaging((m) => !m)} className="text-xs text-muted hover:text-foreground">
-                      {managing ? "Done" : "Manage"}
-                    </button>
+                    <Organisation departments={teams} positions={titles} className="text-xs text-muted transition-colors hover:text-foreground">
+                      Manage
+                    </Organisation>
                   </span>
                   <Dropdown
                     value={form.jobTitleId}
                     placeholder="No position"
                     create
                     onChange={pickPosition}
-                    options={[{ value: "", label: "No position" }, ...jobTitles.map((j) => ({ value: j.id, label: j.name }))]}
+                    options={[{ value: "", label: "No position" }, ...positionOptions]}
                   />
                 </div>
                 <div className={labelCls}>
                   Department
-                  <Dropdown
-                    defaultValue={form.teamId}
-                    placeholder="No department"
-                    onChange={(v) => set("teamId", v)}
-                    options={[{ value: "", label: "No department" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
-                  />
-                </div>
-
-                {/* pulled up by one row gap, so it takes no room while closed */}
-                <div className="col-span-full -mt-3 text-xs text-muted">
-                  <Reveal open={managing}>
-                    {/* shared by everyone: removing one only clears the label */}
-                    <div className="mt-3 flex flex-wrap gap-1.5 rounded-xl border border-border bg-surface-2/50 p-2.5">
-                      {jobTitles.map((j) => (
-                        <span key={j.id} className="group flex items-center gap-1 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-muted">
-                          {j.name}
-                          <ConfirmButton
-                            confirm="Remove"
-                            message={`Remove the position "${j.name}"? Anyone who holds it keeps their access; only the label is cleared.`}
-                            className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
-                            onConfirm={() => removeTitle(j.id)}
-                          >
-                            <Trash2 size={11} />
-                          </ConfirmButton>
-                        </span>
-                      ))}
-                      {jobTitles.length === 0 && <span className="px-1 text-xs">Type a new one into Position to add it.</span>}
-                    </div>
-                  </Reveal>
+                  {position?.teamId || form.role === "admin" ? (
+                    // decided for them: shown, not picked
+                    <span className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-surface-2/40 px-3 py-2 text-sm text-foreground">
+                      <span className="truncate">{departmentName(department) ?? "Whole company"}</span>
+                      <span className="shrink-0 text-xs text-muted">{position?.teamId ? "From position" : "Admin"}</span>
+                    </span>
+                  ) : (
+                    <Dropdown
+                      value={form.teamId}
+                      placeholder="No department"
+                      onChange={(v) => set("teamId", v)}
+                      options={[{ value: "", label: "No department" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
+                    />
+                  )}
                 </div>
 
                 <div className={labelCls}>
@@ -296,11 +285,7 @@ export function PersonDetail({
                   <Dropdown
                     defaultValue={form.role}
                     onChange={(v) => set("role", v)}
-                    options={[
-                      { value: "admin", label: "Admin: Every team" },
-                      { value: "core", label: "Core: Their whole team" },
-                      { value: "employee", label: "Member: Their own work" },
-                    ]}
+                    options={(["admin", "core", "employee"] as Role[]).map((r) => ({ value: r, label: ROLE_REACH[r] }))}
                   />
                 </div>
                 <div className={labelCls}>
@@ -321,7 +306,7 @@ export function PersonDetail({
                   />
                 </div>
                 <p className="col-span-full -mt-1 text-xs text-muted">
-                  Can see: {canSeeSummary(form.role as Role, form.email, teams.find((t) => t.id === form.teamId))}
+                  Can see: {canSeeSummary(form.role as Role, form.email, teams.find((t) => t.id === department))}
                   {isSelf && form.role !== "admin" && person.role === "admin" && " You can't remove your own admin access."}
                 </p>
 
@@ -381,7 +366,7 @@ export function PersonDetail({
           ) : (
             <dl className="fade-in grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
               <Fact label="Position">{person.jobTitleName}</Fact>
-              <Fact label="Department">{person.teamName}</Fact>
+              <Fact label="Department">{person.departmentName ?? (person.role === "admin" ? "Whole company" : null)}</Fact>
               <Fact label="Access">{ROLE_LABEL[person.role]}</Fact>
               <Fact label="Joined">
                 {person.joinedAt && (

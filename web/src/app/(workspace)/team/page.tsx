@@ -44,7 +44,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
       include: { team: true, jobTitle: true },
       orderBy: [{ employment: "asc" }, { name: "asc" }],
     }),
-    prisma.team.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.team.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { members: { where: { employment: { not: "former" } } } } } } }),
     prisma.jobTitle.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
 
@@ -147,6 +147,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     teamId: p.teamId,
     // shown under Editors / Operations / … as the rest of the app shows them
     teamName: displayTeam(p)?.name ?? null,
+    // the department itself: Operations for an editor, none for an admin
+    // who spans the company
+    departmentName: p.team?.name ?? null,
     shownTeam: displayTeam(p)?.slug ?? null,
     jobTitleId: p.jobTitleId,
     jobTitleName: p.jobTitle?.name ?? null,
@@ -168,8 +171,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     <div className="h-full">
       <PeopleDirectory
         people={records}
-        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug }))}
-        jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name }))}
+        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.members }))}
+        jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name, teamId: j.teamId, people: people.filter((p) => p.jobTitleId === j.id && p.employment !== "former").length }))}
         canEdit={canEdit}
         meId={me.id}
         openFirst={person}

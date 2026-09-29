@@ -53,15 +53,21 @@ model Team {
   sortOrder Int       @default(0)
   members   User[]
   taskTags  TaskTag[]
+  jobTitles JobTitle[]
 }
 
 // What a person is called — "Video editor", "Project manager", "Social media
 // manager". Purely descriptive: it never grants access (Role does that), so
 // admin can add and remove these freely without touching permissions.
+// Each belongs to a department, and whoever holds it sits in that
+// department; one with no department is a leadership title that spans the
+// whole company ("Chief Executive Officer").
 model JobTitle {
-  id        String @id @default(uuid())
-  name      String @unique
-  sortOrder Int    @default(0)
+  id        String  @id @default(uuid())
+  name      String  @unique
+  sortOrder Int     @default(0)
+  team      Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId    String?
   users     User[]
 }
 

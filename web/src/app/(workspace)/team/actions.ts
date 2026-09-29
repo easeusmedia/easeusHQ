@@ -6,7 +6,7 @@ import { canEditPeople, type Viewer } from "@/lib/scope";
 import { isStorablePicture } from "@/lib/photos";
 import { revalidatePath } from "next/cache";
 import type { EmploymentStatus, Role } from "@prisma/client";
-import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
+import { departmentFor, EMPLOYMENT_TYPE_LABEL, slugOf } from "@/lib/teams";
 
 export type PeopleFormState = { error?: string; success?: boolean };
 
@@ -88,6 +88,10 @@ export async function updatePerson(input: {
   const salary = input.salary.trim() ? Number(input.salary.replace(/[^0-9.]/g, "")) : null;
   if (salary !== null && !Number.isFinite(salary)) return { error: "That salary isn't a number." };
 
+  // the position decides the department (lib/teams), whatever was sent
+  const position = input.jobTitleId ? await prisma.jobTitle.findUnique({ where: { id: input.jobTitleId }, select: { teamId: true } }) : null;
+  if (input.jobTitleId && !position) return { error: "That position no longer exists." };
+
   await prisma.user.update({
     where: { id: input.id },
     data: {
@@ -95,7 +99,7 @@ export async function updatePerson(input: {
       email,
       phone: input.phone.trim() || null,
       role: input.role as Role,
-      teamId: input.teamId || null,
+      teamId: departmentFor(input.role, position?.teamId, input.teamId || null),
       jobTitleId: input.jobTitleId || null,
       joinedAt: day(input.joinedAt),
       salary,
@@ -112,34 +116,77 @@ export async function updatePerson(input: {
   return { success: true };
 }
 
+// Positions and departments. Nothing here revalidates: the page is heavy,
+// and whoever is editing the list keeps it in their own state and refreshes
+// once when they're done, rather than reloading the page on every change.
+
 // Job titles are descriptive and grant nothing (see schema.prisma), which
-// is exactly why admin can add and remove them freely.
-// Typed into the Position field: an existing one of the same name is simply
-// picked rather than refused.
-export async function createJobTitle(name: string): Promise<PeopleFormState & { id?: string }> {
+// is exactly why admin can add and remove them freely. One of the same name
+// is simply picked rather than refused. No department: a leadership title.
+export async function createJobTitle(name: string, teamId: string | null): Promise<PeopleFormState & { id?: string; name?: string; teamId?: string | null }> {
   const actor = await requirePeopleAdmin();
   if (!actor) return { error: "Only the admin can add a position." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the position a name." };
 
   const existing = await prisma.jobTitle.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
-  if (existing) return { success: true, id: existing.id };
+  if (existing) return { success: true, id: existing.id, name: existing.name, teamId: existing.teamId };
+  if (teamId && !(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
 
   const last = await prisma.jobTitle.findFirst({ orderBy: { sortOrder: "desc" } });
-  const created = await prisma.jobTitle.create({ data: { name: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 } });
-  revalidatePath("/team");
-  return { success: true, id: created.id };
+  const created = await prisma.jobTitle.create({ data: { name: trimmed, teamId, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  return { success: true, id: created.id, name: created.name, teamId: created.teamId };
 }
 
 export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
   if (!actor) return { error: "Only the admin can remove a position." };
 
-  // Unset it from whoever holds it rather than refusing — the title is a
+  // Unset it from whoever holds it rather than refusing: the title is a
   // label, and blocking the delete would mean hunting down every holder
-  // first. Their access is untouched either way; only the label goes.
+  // first. Their access and department are untouched; only the label goes.
   await prisma.user.updateMany({ where: { jobTitleId: id }, data: { jobTitleId: null } });
   await prisma.jobTitle.delete({ where: { id } });
-  revalidatePath("/team");
+  return { success: true };
+}
+
+// A new side of the agency. It works like the others from the start: its
+// core members see its work, and its task tags are offered to it.
+export async function createDepartment(name: string): Promise<PeopleFormState & { id?: string; name?: string; slug?: string }> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can add a department." };
+  const trimmed = name.trim();
+  const slug = slugOf(trimmed);
+  if (!slug) return { error: "Give the department a name." };
+  // "editors" is how Operations' editors are shown (lib/teams)
+  if (slug === "editors") return { error: "Editors are part of Operations. Add an editor position there instead." };
+
+  const clash = await prisma.team.findFirst({ where: { OR: [{ slug }, { name: { equals: trimmed, mode: "insensitive" } }] } });
+  if (clash) return { error: `"${clash.name}" already exists.` };
+
+  const last = await prisma.team.findFirst({ orderBy: { sortOrder: "desc" } });
+  const created = await prisma.team.create({ data: { name: trimmed, slug, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  return { success: true, id: created.id, name: created.name, slug: created.slug };
+}
+
+// Only an empty department goes: who sits in one decides what they can see,
+// so moving people out is a choice made person by person. Operations stays;
+// the editing queue and client feedback are built on it. Its positions go
+// with it; its task tags become shared by everyone.
+export async function deleteDepartment(id: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can remove a department." };
+  const team = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { members: true } } } });
+  if (!team) return { success: true };
+  if (team.slug === "operations") return { error: "Operations can't be removed: the editing queue runs on it." };
+  if (team._count.members) {
+    return { error: `${team.name} still has ${team._count.members} ${team._count.members === 1 ? "person" : "people"}. Move them to another department first.` };
+  }
+
+  await prisma.$transaction([
+    prisma.taskTag.updateMany({ where: { teamId: id }, data: { teamId: null } }),
+    prisma.jobTitle.deleteMany({ where: { teamId: id } }),
+    prisma.team.delete({ where: { id } }),
+  ]);
   return { success: true };
 }
