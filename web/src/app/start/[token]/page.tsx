@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 // — the link ops makes under Contracts. It works until the form is sent.
 export default async function StartPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const contract = await prisma.contract.findUnique({ where: { token }, select: { status: true, details: true } });
+  const contract = await prisma.contract.findUnique({ where: { token }, select: { status: true, details: true, name: true } });
 
   if (!contract) {
     return (
@@ -41,7 +41,7 @@ export default async function StartPage({ params }: { params: Promise<{ token: s
           : `We have your details. Your agreement will be sent${to ? ` to ${to}` : ""} for e-signature shortly.`;
     return (
       // where they are: signed (every step done), sent (signing), or with us
-      <Shell step={contract.status === "signed" ? 4 : contract.status === "sent" ? 3 : 2}>
+      <Shell step={contract.status === "signed" ? 4 : contract.status === "sent" ? 3 : 2} name={contract.name}>
         <div className="fade-in flex flex-col items-start">
           <span className="badge-lit emerald flex size-11 items-center justify-center rounded-2xl">
             <Check size={20} />
@@ -55,7 +55,7 @@ export default async function StartPage({ params }: { params: Promise<{ token: s
   }
 
   return (
-    <Shell>
+    <Shell name={contract.name}>
       <IntakeForm token={token} />
     </Shell>
   );

@@ -79,8 +79,8 @@ function peaks(seed, list, baseY) {
     // shoulders and steps down the slopes (none right at a summit, which
     // stays a clean point), and a crumpled edge, rougher where it's highest
     const fromTop = Math.min(1, Math.min(...list.map((p) => Math.abs(x - p.x))) / 90);
-    const shoulders = (n(x / 75 + 40, 4) - 0.5) * 70 * fromTop;
-    const rough = (n(x / 14, 5) - 0.5) * (top < 420 ? 16 : 10);
+    const shoulders = (n(x / 75 + 40, 4) - 0.5) * 70 * fromTop + (n(x / 28 + 90, 4) - 0.5) * 30 * fromTop;
+    const rough = (n(x / 14, 5) - 0.5) * (top < 420 ? 16 : 10) + (n(x / 5 + 7, 3) - 0.5) * 5;
     return [x, Math.min(baseY + 40, top + shoulders + rough)];
   });
 }
@@ -89,20 +89,30 @@ const line = (pts) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${
 const fill = (pts) => `${line(pts)} L${W + 40} ${H + 40} L-40 ${H + 40} Z`;
 const yAt = (pts, x) => pts.reduce((best, p) => (Math.abs(p[0] - x) < Math.abs(best[0] - x) ? p : best))[1];
 
-// Snow in the gullies: short strokes running down the slope from the
-// ridge, brighter and longer on the lit (left) faces and near the top
+// Snow in the couloirs: many short marks scattered over the faces below
+// the ridge, running down the fall line, densest and brightest near the
+// top and on the lit (left) faces, thinning with depth
 function gullies(seed, pts, from, to, summitX, strength) {
   const r = rng(seed);
   const out = [];
   for (const [x, y] of pts) {
-    if (x < from || x > to || r() > 0.75) continue;
+    if (x < from || x > to) continue;
     const lit = x < summitX;
     const height = Math.max(0, 1 - (y - 230) / 420);
-    const len = (30 + r() * 140) * (0.4 + height);
-    // down and away from the summit, following the fall line
-    const dx = (lit ? -1 : 1) * len * (0.25 + r() * 0.35);
-    const o = (lit ? 0.16 : 0.06) * strength * (0.4 + height) * (0.5 + r() * 0.5);
-    out.push(`<path d="M${x.toFixed(1)} ${(y + 2).toFixed(1)} q ${(dx * 0.4).toFixed(1)} ${(len * 0.5).toFixed(1)} ${dx.toFixed(1)} ${len.toFixed(1)}" stroke-opacity="${o.toFixed(3)}" stroke-width="${(0.6 + r() * 0.9).toFixed(2)}"/>`);
+    const marks = Math.round((lit ? 3 : 1.5) * (0.4 + height) * strength);
+    for (let m = 0; m < marks; m++) {
+      const depth = r() * r();
+      const sy = y + 4 + depth * 260;
+      const sx = x + (r() - 0.5) * 10 + (lit ? -1 : 1) * depth * 60;
+      const len = (8 + r() * 34) * (1 - depth * 0.6);
+      const dx = (lit ? -1 : 1) * len * (0.2 + r() * 0.35);
+      const bend = (r() - 0.5) * len * 0.35;
+      const o = (lit ? 0.2 : 0.07) * strength * (0.35 + height) * (1 - depth) * (0.5 + r() * 0.5);
+      if (o < 0.012) continue;
+      out.push(
+        `<path d="M${sx.toFixed(1)} ${sy.toFixed(1)} q ${(dx * 0.5 + bend).toFixed(1)} ${(len * 0.5).toFixed(1)} ${dx.toFixed(1)} ${len.toFixed(1)}" stroke-opacity="${o.toFixed(3)}" stroke-width="${(0.5 + r() * 1.1).toFixed(2)}"/>`
+      );
+    }
   }
   return out.join("");
 }
@@ -121,11 +131,37 @@ const nuptse = peaks(13, [
 // the lit face of Everest: summit, down the left ridge, back up a fold
 const summitAt = everest.findIndex(([x]) => x >= SUMMIT.x);
 const leftRidge = everest.filter(([x]) => x > 250 && x <= SUMMIT.x);
-const face = `${line(leftRidge)} L${SUMMIT.x - 60} 700 L${leftRidge[0][0] + 40} 700 Z`;
+// the fold between the lit face and the shade wanders down, not straight
+const foldPts = (() => {
+  const n = noise(501);
+  return Array.from({ length: 24 }, (_, i) => {
+    const t = i / 23;
+    return [SUMMIT.x - 60 * t + (n(i / 3) - 0.5) * 34 * t, SUMMIT.y + (720 - SUMMIT.y) * t];
+  });
+})();
+const face = `${line(leftRidge)} ${foldPts.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(" ")} L${leftRidge[0][0] + 40} 700 Z`;
+
+// the faces turned from the light: from the fold (where the lit face
+// ends) across to the right ridge, for Everest and for Lhotse
+const wander = (seed, x0, y0, drift) => {
+  const n = noise(seed);
+  return Array.from({ length: 24 }, (_, i) => {
+    const t = i / 23;
+    return [x0 + drift * t + (n(i / 3) - 0.5) * 34 * t, y0 + (720 - y0) * t];
+  });
+};
+const toPath = (pts) => pts.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+// the lowest point of the ridge between two x's: where one face ends
+const saddle = (from, to) => everest.filter(([x]) => x > from && x < to).reduce((a, b) => (b[1] > a[1] ? b : a));
+const lhotseTop = everest.filter(([x]) => x > 660 && x < 760).reduce((a, b) => (b[1] < a[1] ? b : a));
+const col = saddle(SUMMIT.x + 20, lhotseTop[0] - 20);
+const shadowFace = `${line(everest.filter(([x]) => x >= SUMMIT.x && x <= col[0]))} ${toPath(wander(503, col[0], col[1], 40))} ${toPath([...foldPts].reverse())} Z`;
+const lhotseEnd = saddle(lhotseTop[0] + 40, 1000);
+const lhotseShadow = `${line(everest.filter(([x]) => x >= lhotseTop[0] && x <= lhotseEnd[0]))} ${toPath(wander(504, lhotseEnd[0], lhotseEnd[1], 30))} ${toPath(wander(502, lhotseTop[0], lhotseTop[1], -30).reverse())} Z`;
 
 const stars = (() => {
   const r = rng(3);
-  return Array.from({ length: 140 }, () => [r() * W, r() * 420, 0.35 + r() * 0.85, 0.06 + r() * 0.45]);
+  return Array.from({ length: 90 }, () => [r() * W, r() * 380, 0.3 + r() * 0.7, 0.04 + r() * 0.28]);
 })();
 
 const far1 = range(21, 610, 150, 260);
@@ -135,7 +171,12 @@ const near2 = range(89, 905, 120, 300);
 
 const summitRidge = everest.slice(summitAt - 70, summitAt + 70);
 
-const mist = (y, h, o) => `<rect x="-60" y="${y}" width="${W + 120}" height="${h}" fill="url(#mist)" opacity="${o}" filter="url(#haze)"/>`;
+// a band of haze, and wisps of fog drifting through it
+const mist = (y, h, o) =>
+  `<rect x="-60" y="${y}" width="${W + 120}" height="${h}" fill="url(#mist)" opacity="${(o * 0.6).toFixed(2)}" filter="url(#haze)"/>` +
+  `<rect x="-60" y="${y - h * 0.2}" width="${W + 120}" height="${h * 1.4}" fill="#fff" filter="url(#fog)" mask="url(#fogfade)" opacity="${o.toFixed(2)}"/>`;
+// the grain of rock inside a shape: pale streaks, and darker weathering
+const tex = (d, light) => `<path d="${d}" fill="#fff" filter="url(#rocktex)" opacity="${light}"/>`;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 1.5}" height="${H * 1.5}">
 <defs>
@@ -143,6 +184,36 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <stop offset="0" stop-color="#02060f"/><stop offset="0.32" stop-color="#071528"/>
     <stop offset="0.52" stop-color="#11315a"/><stop offset="0.64" stop-color="#2a5d97"/><stop offset="0.72" stop-color="#1d4674"/><stop offset="1" stop-color="#081626"/>
   </linearGradient>
+  <radialGradient id="warm" cx="260" cy="500" r="820" gradientTransform="translate(0 375) scale(1 0.25)" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#f4ad7d" stop-opacity="0.5"/><stop offset="0.4" stop-color="#d9947a" stop-opacity="0.2"/><stop offset="1" stop-color="#d9947a" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="shade" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
+    <stop offset="0" stop-color="#030812" stop-opacity="0.36"/><stop offset="1" stop-color="#030812" stop-opacity="0.08"/>
+  </linearGradient>
+  <!-- rock: streaks running down the slopes, kept inside each shape -->
+  <filter id="rocktex" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.014 0.022" numOctaves="5" seed="9"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.74  0 0 0 0 0.95  0 0 0 -2.4 1.3"/>
+    <feComposite in2="SourceGraphic" operator="in"/>
+  </filter>
+  <filter id="rockdark" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.004" numOctaves="4" seed="21"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.01  0 0 0 0 0.03  0 0 0 0 0.07  0 0 0 -1.8 1.05"/>
+    <feComposite in2="SourceGraphic" operator="in"/>
+  </filter>
+  <filter id="grain" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="5" stitchTiles="stitch"/>
+    <feColorMatrix type="saturate" values="0"/>
+  </filter>
+  <!-- mist that drifts in wisps rather than lying in a band -->
+  <filter id="fog" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.018" numOctaves="4" seed="4"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.76  0 0 0 0 0.96  0 0 0 1.6 -0.55"/>
+  </filter>
+  <linearGradient id="fogband" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+  </linearGradient>
+  <mask id="fogfade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fogband)"/></mask>
   <radialGradient id="dawn" cx="${SUMMIT.x}" cy="600" r="700" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#a9d0ff" stop-opacity="0.5"/><stop offset="0.3" stop-color="#5a9fea" stop-opacity="0.22"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
   </radialGradient>
@@ -178,34 +249,41 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
 <g fill="#e6f0ff">${stars.map(([x, y, r, o]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(2)}" opacity="${o.toFixed(2)}"/>`).join("")}</g>
 <rect width="${W}" height="${H}" fill="url(#dawn)"/>
 
+<rect width="${W}" height="${H}" fill="url(#warm)"/>
 <path d="${fill(far1)}" fill="url(#far1)" filter="url(#far)"/>
+${tex(fill(far1), 0.05)}
 ${mist(560, 140, 0.35)}
 <path d="${fill(far2)}" fill="url(#far2)"/>
+${tex(fill(far2), 0.06)}
 ${mist(610, 150, 0.28)}
 
 <path d="${fill(everest)}" fill="url(#rock)"/>
+${tex(fill(everest), 0.08)}
 <path d="${face}" fill="url(#lit)" filter="url(#soft)"/>
+<path d="${shadowFace}" fill="url(#shade)"/>
+<path d="${lhotseShadow}" fill="url(#shade)"/>
 <g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(101, everest, 250, 1250, SUMMIT.x, 1)}</g>
-<path d="${line(summitRidge)}" fill="none" stroke="url(#edge)" stroke-width="7" opacity="0.45" filter="url(#soft)"/>
-<path d="${line(summitRidge)}" fill="none" stroke="url(#edge)" stroke-width="1.5"/>
 ${mist(640, 130, 0.22)}
 
 <path d="${fill(nuptse)}" fill="url(#wall)"/>
+${tex(fill(nuptse), 0.06)}
 <g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(202, nuptse, 60, 560, 330, 0.7)}</g>
-<path d="${line(nuptse.filter(([x]) => x > 40 && x < 620))}" fill="none" stroke="#8fbef5" stroke-opacity="0.22" stroke-width="1"/>
 ${mist(720, 120, 0.16)}
 
 <path d="${fill(near1)}" fill="url(#near1)"/>
+${tex(fill(near1), 0.04)}
 <path d="${fill(near2)}" fill="#050d1a"/>
+<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.045" style="mix-blend-mode:overlay"/>
 </svg>`;
 
 mkdirSync("public/start", { recursive: true });
 const out = process.argv[2] ?? "public/start/everest.webp";
 await sharp(Buffer.from(svg)).webp({ quality: 84 }).toFile(out);
 
-// the stretch of ridge around the summit, for the page's glint
+// the stretch of ridge around the summit, for the page's glint, and its top
+const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.webp (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.webp (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n`
 );
 console.log("ok");
