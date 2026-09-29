@@ -354,7 +354,7 @@ export async function listTaskTags() {
 // Ops adding a kind of work that wasn't in the seed list. It lands on the
 // creator's own team, so a Sales tag stays in Sales. New tags default to
 // client-facing — the common case — and can be flipped later.
-export async function createTaskTag(name: string): Promise<{ error?: string }> {
+export async function createTaskTag(name: string): Promise<{ error?: string; tag?: { id: string; name: string; clientFacing: boolean; group: string | null } }> {
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can add a tag." };
   const trimmed = name.trim();
@@ -364,12 +364,13 @@ export async function createTaskTag(name: string): Promise<{ error?: string }> {
   if (existing) return { error: `"${existing.name}" already exists.` };
 
   const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
-  await prisma.taskTag.create({
+  const tag = await prisma.taskTag.create({
     data: { name: trimmed, teamId: user.teamId, sortOrder: (last?.sortOrder ?? 0) + 1 },
+    include: { team: { select: { name: true } } },
   });
   revalidatePath("/board");
   revalidatePath("/my-tasks");
-  return {};
+  return { tag: { id: tag.id, name: tag.name, clientFacing: tag.clientFacing, group: tag.team?.name ?? null } };
 }
 
 // A core member curates their own team's vocabulary; admin curates anyone's.

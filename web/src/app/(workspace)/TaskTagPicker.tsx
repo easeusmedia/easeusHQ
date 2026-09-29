@@ -5,7 +5,8 @@ import { Plus, X } from "lucide-react";
 import { createTaskTag, deleteTaskTag } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 
-export type TaskTagOption = { id: string; name: string; clientFacing: boolean };
+// group: the department it belongs to; none means every department's
+export type TaskTagOption = { id: string; name: string; clientFacing: boolean; group?: string | null };
 
 // Deliberately uncolored. The client tags elsewhere carry a colour because
 // there are a handful of them on a page; these sit on every task card at
@@ -54,9 +55,13 @@ export function TaskTagPicker({
   const [managing, setManaging] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // a newly added tag arrives via the reload in add() below, so there is
-  // no optimistic local list to merge here
-  const all = tags;
+  // added and removed here, shown at once rather than after reloading the
+  // page; the page's own refresh brings them in with the rest
+  const [added, setAdded] = useState<TaskTagOption[]>([]);
+  const [removed, setRemoved] = useState<string[]>([]);
+  const all = [...tags, ...added.filter((a) => !tags.some((t) => t.id === a.id))].filter((t) => !removed.includes(t.id));
+  // listed under their department once there's more than one
+  const groups = [...new Set(all.map((t) => t.group ?? null))];
 
   function toggle(id: string) {
     const next = picked.includes(id) ? [] : [id];
@@ -78,7 +83,7 @@ export function TaskTagPicker({
       return;
     }
     setPicked((p) => p.filter((x) => x !== id));
-    window.location.reload();
+    setRemoved((r) => [...r, id]);
   }
 
   async function add() {
@@ -92,8 +97,68 @@ export function TaskTagPicker({
     setError(null);
     setNewName("");
     setAdding(false);
-    window.location.reload();
+    if (res.tag) setAdded((a) => [...a, res.tag!]);
   }
+
+  function chip(t: TaskTagOption) {
+    const on = picked.includes(t.id);
+    return (
+      <span
+        key={t.id}
+        className={`group/tag flex items-center rounded-md border text-xs ${
+          on ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => !managing && toggle(t.id)}
+          className={`px-2 py-1 ${managing ? "cursor-default" : "hover:text-foreground"}`}
+        >
+          {t.name}
+        </button>
+        {canManage && managing && (
+          <ConfirmButton
+            confirm="Delete"
+            message={`Delete the tag "${t.name}" everywhere? Every task and file tagged with it loses the tag. This can't be undone.`}
+            className="pr-1.5 text-muted hover:text-red-400"
+            onConfirm={() => remove(t.id)}
+          >
+            <X size={11} aria-label={`Delete the tag ${t.name}`} />
+          </ConfirmButton>
+        )}
+      </span>
+    );
+  }
+
+  const addControl = adding ? (
+    <span className="flex items-center gap-1">
+      <input
+        autoFocus
+        value={newName}
+        onChange={(e) => setNewName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+          }
+          if (e.key === "Escape") setAdding(false);
+        }}
+        placeholder="Tag name"
+        className="w-28 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
+      />
+      <button type="button" onClick={add} className="btn-ghost rounded-md px-2 py-1 text-xs">
+        Add
+      </button>
+    </span>
+  ) : (
+    <button
+      type="button"
+      onClick={() => setAdding(true)}
+      className="btn-add flex items-center gap-1 rounded-md px-2 py-1 text-xs"
+    >
+      <Plus size={11} /> Tag
+    </button>
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -109,66 +174,17 @@ export function TaskTagPicker({
         </>
       )}
 
-      <div className="flex flex-wrap gap-1.5">
-        {all.map((t) => {
-          const on = picked.includes(t.id);
-          return (
-            <span
-              key={t.id}
-              className={`group/tag flex items-center rounded-md border text-xs ${
-                on ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => !managing && toggle(t.id)}
-                className={`px-2 py-1 ${managing ? "cursor-default" : "hover:text-foreground"}`}
-              >
-                {t.name}
-              </button>
-              {canManage && managing && (
-                <ConfirmButton
-                  confirm="Delete"
-                  message={`Delete the tag "${t.name}" everywhere? Every task and file tagged with it loses the tag. This can't be undone.`}
-                  className="pr-1.5 text-muted hover:text-red-400"
-                  onConfirm={() => remove(t.id)}
-                >
-                  <X size={11} aria-label={`Delete the tag ${t.name}`} />
-                </ConfirmButton>
-              )}
-            </span>
-          );
-        })}
-        {adding ? (
-          <span className="flex items-center gap-1">
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  add();
-                }
-                if (e.key === "Escape") setAdding(false);
-              }}
-              placeholder="Tag name"
-              className="w-28 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
-            />
-            <button type="button" onClick={add} className="btn-ghost rounded-md px-2 py-1 text-xs">
-              Add
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="btn-add flex items-center gap-1 rounded-md px-2 py-1 text-xs"
-          >
-            <Plus size={11} /> Tag
-          </button>
-        )}
-      </div>
+      {groups.map((g, i) => (
+        <div key={g ?? "every"} className="flex flex-col gap-1.5">
+          {groups.length > 1 && <p className="text-[11px] font-medium text-muted/70">{g ?? "Every department"}</p>}
+          <div className="flex flex-wrap gap-1.5">
+            {all.filter((t) => (t.group ?? null) === g).map(chip)}
+            {/* adding goes at the end of the list */}
+            {i === groups.length - 1 && addControl}
+          </div>
+        </div>
+      ))}
+      {groups.length === 0 && <div className="flex flex-wrap gap-1.5">{addControl}</div>}
       {canManage && (
         <button
           type="button"

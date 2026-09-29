@@ -10,7 +10,7 @@ import { createJobTitle, updatePerson, updatePersonPhoto } from "./actions";
 import { Organisation } from "./Organisation";
 import { PhotoEdit } from "../PhotoEdit";
 import { ProfileHead } from "../ProfileHead";
-import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type Option, type PersonRecord, type Position } from "./PeopleDirectory";
+import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type Option, type PersonRecord, type Position, type WorkTag } from "./PeopleDirectory";
 import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { seesEveryTeam } from "@/lib/scope";
@@ -97,12 +97,14 @@ export function PersonDetail({
   person,
   teams,
   jobTitles,
+  workTags,
   canEdit,
   isSelf,
 }: {
   person: PersonRecord;
   teams: Department[];
   jobTitles: Position[];
+  workTags: WorkTag[];
   canEdit: boolean;
   isSelf: boolean;
 }) {
@@ -250,7 +252,7 @@ export function PersonDetail({
                 <div className={labelCls}>
                   <span className="flex items-center justify-between gap-2">
                     Position
-                    <Organisation departments={teams} positions={titles} className="text-xs text-muted transition-colors hover:text-foreground">
+                    <Organisation departments={teams} positions={titles} workTags={workTags} className="text-xs text-muted transition-colors hover:text-foreground">
                       Manage
                     </Organisation>
                   </span>

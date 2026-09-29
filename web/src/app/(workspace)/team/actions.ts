@@ -190,3 +190,29 @@ export async function deleteDepartment(id: string): Promise<PeopleFormState> {
   ]);
   return { success: true };
 }
+
+// A department's work tags: the kinds of work its tasks are labelled with
+// ("Reel", "Proposal"), offered on the Type chip to that department. Same
+// rule as positions: one of the same name anywhere is refused, not doubled.
+export async function createWorkTag(name: string, teamId: string): Promise<PeopleFormState & { id?: string; name?: string }> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can add a work tag." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the work tag a name." };
+
+  const existing = await prisma.taskTag.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } }, include: { team: true } });
+  if (existing) return { error: `"${existing.name}" already exists${existing.team ? `, under ${existing.team.name}` : ""}.` };
+  if (!(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
+
+  const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
+  const created = await prisma.taskTag.create({ data: { name: trimmed, teamId, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  return { success: true, id: created.id, name: created.name };
+}
+
+// Every task tagged with it loses the tag; the tasks themselves stay.
+export async function deleteWorkTag(id: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only the admin can remove a work tag." };
+  await prisma.taskTag.deleteMany({ where: { id } });
+  return { success: true };
+}

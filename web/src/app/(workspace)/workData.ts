@@ -53,7 +53,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
           include: { assignedTo: assignee, tags: true, project: { include: { client: true } } },
         })
       : Promise.resolve([]),
-    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),
     // who work can be handed to: anyone, your own team, or only you
     prisma.user.findMany({
       where: everyTeam
@@ -87,7 +87,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     // whole rows: they render as the editing board's own cards, which open
     // the task and move its stage under the editing queue's rules
     queueTasks: queueTasks.map((t) => ({ ...t, assignedTo: t.assignedTo && person(t.assignedTo) })),
-    taskTags: taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing })),
+    taskTags: taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing, group: t.team?.name ?? null })),
     assignable,
   };
 }

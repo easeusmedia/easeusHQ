@@ -56,6 +56,8 @@ export type Option = { id: string; name: string; slug?: string };
 // many current people each has
 export type Department = Option & { people: number };
 export type Position = { id: string; name: string; teamId: string | null; people: number };
+// a kind of work a department's tasks are labelled with, and how many use it
+export type WorkTag = { id: string; name: string; teamId: string | null; uses: number };
 
 const FORMER = "Former employees";
 const ADMIN = "Admin";
@@ -91,6 +93,7 @@ export function PeopleDirectory({
   people,
   teams,
   jobTitles,
+  workTags,
   canEdit,
   meId,
   openFirst,
@@ -98,6 +101,7 @@ export function PeopleDirectory({
   people: PersonRecord[];
   teams: Department[];
   jobTitles: Position[];
+  workTags: WorkTag[];
   canEdit: boolean;
   meId: string;
   openFirst?: string;
@@ -161,11 +165,12 @@ export function PeopleDirectory({
               <Organisation
                 departments={teams}
                 positions={jobTitles}
+                workTags={workTags}
                 className="group/tip relative flex w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-muted transition-colors hover:text-foreground"
               >
                 <Network size={15} />
                 <span className="pointer-events-none absolute top-full right-0 z-20 mt-1.5 whitespace-nowrap panel rounded-lg px-2.5 py-1.5 text-xs text-foreground opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100">
-                  Departments and positions
+                  Departments
                 </span>
               </Organisation>
             )}
@@ -233,6 +238,7 @@ export function PeopleDirectory({
             person={open}
             teams={teams}
             jobTitles={jobTitles}
+            workTags={workTags}
             canEdit={canEdit}
             isSelf={open.id === meId}
           />

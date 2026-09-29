@@ -38,7 +38,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   const where = seesEveryTeam(viewer) ? {} : { teamId: viewer.teamId };
 
-  const [people, teams, jobTitles] = await Promise.all([
+  const [people, teams, jobTitles, workTags] = await Promise.all([
     prisma.user.findMany({
       where,
       include: { team: true, jobTitle: true },
@@ -46,6 +46,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     }),
     prisma.team.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { members: { where: { employment: { not: "former" } } } } } } }),
     prisma.jobTitle.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    canEdit
+      ? prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { _count: { select: { tasks: true, workTasks: true } } } })
+      : [],
   ]);
 
   // What the roster is carrying now and what it finished in the last 30
@@ -173,6 +176,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         people={records}
         teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.members }))}
         jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name, teamId: j.teamId, people: people.filter((p) => p.jobTitleId === j.id && p.employment !== "former").length }))}
+        workTags={workTags.map((t) => ({ id: t.id, name: t.name, teamId: t.teamId, uses: t._count.tasks + t._count.workTasks }))}
         canEdit={canEdit}
         meId={me.id}
         openFirst={person}

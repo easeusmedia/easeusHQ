@@ -58,7 +58,7 @@ export default async function CalendarPage({
       include: { client: { select: { id: true, name: true } } },
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
-    prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),
   ]);
   const me = users.find((u) => u.id === sessionUserId);
   if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
@@ -69,7 +69,12 @@ export default async function CalendarPage({
     actingUserId: me.id,
     actingRole: me.role as Role,
     // the same kinds of work this person picks from on the Board
-    taskTags: visible.OR ? allTags.filter((t) => !t.teamId || t.teamId === me.teamId) : allTags,
+    taskTags: (visible.OR ? allTags.filter((t) => !t.teamId || t.teamId === me.teamId) : allTags).map((t) => ({
+      id: t.id,
+      name: t.name,
+      clientFacing: t.clientFacing,
+      group: t.team?.name ?? null,
+    })),
   };
 
   const days: Record<string, DayEntry[]> = {};
