@@ -15,7 +15,7 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
     <div className="flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
       <div className="panel flex w-full max-w-[1120px] rounded-none lg:min-h-[640px] lg:rounded-[28px] lg:p-2.5">
         <aside className="relative hidden w-[44%] shrink-0 flex-col overflow-hidden rounded-[20px] panel-soft p-8 lg:flex">
-          <Everest />
+          <Eclipse />
           <div className="relative flex items-center gap-2">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
             <span className="text-[13px] font-medium tracking-tight">Easeus Media</span>
@@ -65,18 +65,16 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
   );
 }
 
-// Everest at night, drawn rather than photographed: the far range, the
-// massif and Lhotse beside it, Nuptse's long wall in front, all dark; the
-// ridge line lit in the app's blue, brightest at the summit, with a soft
-// light rising behind it and a little grain. It fills the top of the panel
-// and fades out before the words, so they stay calm.
-const RIDGE = "M96 400 L160 334 L200 302 L232 276 L260 240 L284 200 L300 162 L318 112 L332 134 L348 158 L366 170 L388 150 L410 176 L440 206 L474 240 L508 276 L546 312 L600 350";
-const NUPTSE = "M0 352 L52 322 L104 300 L148 270 L176 256 L204 266 L238 292 L276 330 L318 372 L346 400";
-
-function Everest() {
+// Drawn, not photographed: a dark sphere caught at the edge of the light,
+// its rim lit in the app's blue and brightest at the top, a soft bloom
+// around it, a haze just inside the edge, and one fine orbit passing behind
+// and in front. It fills the top of the panel and fades out before the
+// words, so they stay calm.
+function Eclipse() {
   const grain =
     "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")";
-  const fade = "linear-gradient(to bottom, black 0%, black 58%, transparent 96%)";
+  const fade = "linear-gradient(to bottom, black 0%, black 55%, transparent 95%)";
+  const orbit = { cx: 300, cy: 262, rx: 286, ry: 52 };
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
       <svg
@@ -86,72 +84,56 @@ function Everest() {
         style={{ maskImage: fade, WebkitMaskImage: fade }}
       >
         <defs>
-          <linearGradient id="ev-rock" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#18202c" />
-            <stop offset="1" stopColor="#0c0f14" />
-          </linearGradient>
-          <linearGradient id="ev-far" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#141a24" />
-            <stop offset="1" stopColor="#0e1218" />
-          </linearGradient>
-          <linearGradient id="ev-near" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#121822" />
-            <stop offset="1" stopColor="#0b0e13" />
-          </linearGradient>
-          <radialGradient id="ev-edge" cx="318" cy="112" r="300" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#cfe2ff" stopOpacity="0.95" />
-            <stop offset="0.3" stopColor="#4b95e6" stopOpacity="0.7" />
-            <stop offset="1" stopColor="#4b95e6" stopOpacity="0.08" />
-          </radialGradient>
-          <radialGradient id="ev-halo" cx="318" cy="130" r="190" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#4b95e6" stopOpacity="0.35" />
+          <radialGradient id="ec-bloom" cx="300" cy="330" r="300" gradientUnits="userSpaceOnUse">
+            <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0" />
+            <stop offset="0.66" stopColor="#4b95e6" stopOpacity="0.32" />
             <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
           </radialGradient>
-          <linearGradient id="ev-face" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#a9c6ee" stopOpacity="0.22" />
-            <stop offset="1" stopColor="#a9c6ee" stopOpacity="0" />
+          <linearGradient id="ec-rim" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#eef4ff" />
+            <stop offset="0.18" stopColor="#7db3f2" />
+            <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0" />
           </linearGradient>
-          <linearGradient id="ev-near-edge" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#8fb4e6" stopOpacity="0.05" />
-            <stop offset="0.6" stopColor="#8fb4e6" stopOpacity="0.35" />
-            <stop offset="1" stopColor="#8fb4e6" stopOpacity="0.08" />
-          </linearGradient>
-          <filter id="ev-soft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3.5" />
+          <radialGradient id="ec-body" cx="300" cy="150" r="380" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#1a2536" />
+            <stop offset="0.55" stopColor="#0f141c" />
+            <stop offset="1" stopColor="#0a0d12" />
+          </radialGradient>
+          <clipPath id="ec-inside">
+            <circle cx="300" cy="330" r="190" />
+          </clipPath>
+          {/* the orbit's near half: below its own centre line */}
+          <clipPath id="ec-near">
+            <rect x="-100" y={orbit.cy} width="800" height="200" />
+          </clipPath>
+          <filter id="ec-blur8" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="8" />
+          </filter>
+          <filter id="ec-blur16" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="16" />
           </filter>
         </defs>
-        {/* the light behind the summit, and a few stars */}
-        <circle cx="318" cy="130" r="190" fill="url(#ev-halo)" />
+        <circle cx="300" cy="330" r="300" fill="url(#ec-bloom)" />
         <g fill="#dbe8ff">
-          <circle cx="92" cy="58" r="0.9" opacity="0.5" />
-          <circle cx="168" cy="96" r="0.7" opacity="0.35" />
-          <circle cx="452" cy="64" r="0.9" opacity="0.45" />
-          <circle cx="530" cy="120" r="0.7" opacity="0.3" />
-          <circle cx="232" cy="40" r="0.6" opacity="0.3" />
-          <circle cx="398" cy="34" r="0.7" opacity="0.4" />
+          <circle cx="96" cy="70" r="0.9" opacity="0.45" />
+          <circle cx="170" cy="120" r="0.7" opacity="0.3" />
+          <circle cx="470" cy="52" r="0.9" opacity="0.4" />
+          <circle cx="520" cy="140" r="0.7" opacity="0.28" />
+          <circle cx="246" cy="36" r="0.6" opacity="0.3" />
+          <circle cx="386" cy="92" r="0.6" opacity="0.25" />
         </g>
-        {/* the far range */}
-        <path
-          d="M0 268 L46 246 L84 258 L132 214 L166 230 L204 204 L236 222 L262 212 L300 240 L340 226 L380 238 L420 208 L456 228 L500 194 L546 226 L600 210 L600 400 L0 400 Z"
-          fill="url(#ev-far)"
-          stroke="#8fb4e6"
-          strokeOpacity="0.16"
-        />
-        {/* Everest and Lhotse, their snow, and the faces fading as they fall */}
-        <path d={`${RIDGE} L600 400 Z`} fill="url(#ev-rock)" />
-        <path d="M318 112 L332 134 L322 150 L312 142 L300 162 Z" fill="#cfe2ff" opacity="0.07" />
-        <path d="M388 150 L400 164 L392 172 L381 160 Z" fill="#cfe2ff" opacity="0.05" />
-        <g stroke="url(#ev-face)" strokeWidth="0.9" fill="none">
-          <path d="M318 112 L308 176 L296 236" />
-          <path d="M318 112 L334 170 L344 220" />
-          <path d="M388 150 L384 196 L392 236" />
+        <g transform={`rotate(-7 ${orbit.cx} ${orbit.cy})`}>
+          <ellipse {...orbit} fill="none" stroke="#8fb4e6" strokeOpacity="0.13" />
         </g>
-        {/* the ridge, lit: a soft glow under a fine line */}
-        <path d={RIDGE} fill="none" stroke="url(#ev-edge)" strokeWidth="5" opacity="0.45" filter="url(#ev-soft)" />
-        <path d={RIDGE} fill="none" stroke="url(#ev-edge)" strokeWidth="1.2" strokeLinejoin="round" />
-        {/* Nuptse, the long wall in front */}
-        <path d={`${NUPTSE} L0 400 Z`} fill="url(#ev-near)" />
-        <path d={NUPTSE} fill="none" stroke="url(#ev-near-edge)" strokeLinejoin="round" />
+        <circle cx="300" cy="330" r="190" fill="url(#ec-body)" />
+        <g clipPath="url(#ec-inside)">
+          <circle cx="300" cy="330" r="190" fill="none" stroke="#4b95e6" strokeOpacity="0.35" strokeWidth="36" filter="url(#ec-blur16)" />
+        </g>
+        <circle cx="300" cy="330" r="190" fill="none" stroke="url(#ec-rim)" strokeWidth="7" filter="url(#ec-blur8)" opacity="0.75" />
+        <circle cx="300" cy="330" r="190" fill="none" stroke="url(#ec-rim)" strokeWidth="1.3" />
+        <g transform={`rotate(-7 ${orbit.cx} ${orbit.cy})`}>
+          <ellipse {...orbit} fill="none" stroke="#8fb4e6" strokeOpacity="0.2" clipPath="url(#ec-near)" />
+        </g>
       </svg>
       <div className="absolute inset-0 opacity-[0.14] mix-blend-overlay" style={{ backgroundImage: grain }} />
     </div>
