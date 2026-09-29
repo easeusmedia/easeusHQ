@@ -290,7 +290,7 @@ export function Assistant({ name }: { name: string }) {
 
       <div
         onClick={() => setFull(false)}
-        className={`fixed inset-0 z-40 bg-black/25 transition-opacity ${EASE} ${open && full ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity ${EASE} ${open && full ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
 
       <aside
@@ -300,7 +300,7 @@ export function Assistant({ name }: { name: string }) {
           full ? "inset-3 md:inset-10" : "bottom-3 right-3 top-3 w-[min(27rem,calc(100vw-1.5rem))]"
         } ${open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-10 opacity-0"}`}
       >
-        <header className="flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3">
+        <header className="flex items-center gap-2.5 border-b border-border px-4 py-3">
           <Mark />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Nyra</p>
@@ -335,7 +335,7 @@ export function Assistant({ name }: { name: string }) {
                 </div>
                 <div className="flex flex-col gap-2">
                   {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => send(s)} className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-white/[0.07]">
+                    <button key={s} onClick={() => send(s)} className="rounded-xl border border-border bg-surface-2/40 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-surface-2">
                       {s}
                     </button>
                   ))}
@@ -354,7 +354,7 @@ export function Assistant({ name }: { name: string }) {
                   {m.proposals?.map((p, pi) => {
                     const outcome = m.outcome?.[pi];
                     return (
-                      <div key={pi} className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
+                      <div key={pi} className="rounded-xl border border-border bg-surface-2/40 p-3">
                         <p className="text-[11px] text-muted">Change to confirm</p>
                         <p className="font-medium">{p.title}</p>
                         <dl className="mt-2 flex flex-col gap-1 text-xs">
@@ -418,9 +418,9 @@ export function Assistant({ name }: { name: string }) {
             e.preventDefault();
             send(input);
           }}
-          className="border-t border-white/[0.06] p-3"
+          className="border-t border-border p-3"
         >
-          <div className={`mx-auto flex items-end gap-2 rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 transition-colors focus-within:border-white/20 ${full ? "max-w-3xl" : ""}`}>
+          <div className={`mx-auto flex items-end gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 transition-colors focus-within:border-hover ${full ? "max-w-3xl" : ""}`}>
             <textarea
               ref={inputRef}
               rows={1}
