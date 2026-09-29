@@ -7,11 +7,11 @@
 //
 //   node scripts/everest-scene.mjs
 //
-// Writes vector files the page draws at whatever size and zoom it's shown
-// at (public/start/everest.svg, the scene; everest-stars.svg, the night
-// sky the page turns; everest-sky.png, the sky's shape, which keeps the
-// stars off the mountains) and src/app/start/everestRidge.ts (the
-// summit's ridge line, for the glint that travels it).
+// Writes public/start/everest.svg (the scene, stars and all, a vector file
+// sharp at any size and zoom, with no filters heavy enough to stall a
+// redraw), public/start/grain.png (the page's grain) and
+// src/app/start/everestRidge.ts (the summit, its ridge line and the stars
+// the page twinkles).
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -162,24 +162,43 @@ const shadowFace = `${line(everest.filter(([x]) => x >= SUMMIT.x && x <= col[0])
 const lhotseEnd = saddle(lhotseTop[0] + 40, 1000);
 const lhotseShadow = `${line(everest.filter(([x]) => x >= lhotseTop[0] && x <= lhotseEnd[0]))} ${toPath(wander(504, lhotseEnd[0], lhotseEnd[1], 30))} ${toPath(wander(502, lhotseTop[0], lhotseTop[1], -30).reverse())} Z`;
 
-const stars = (() => {
-  const r = rng(3);
-  return [];
-})();
-
 const far1 = range(21, 610, 150, 260);
 const far2 = range(34, 640, 170, 210);
 const near1 = range(55, 800, 150, 240);
 const near2 = range(89, 905, 120, 300);
 
+// the skyline: the highest land at each x (every range shares the x's)
+const skyline = everest.map((_, i) => Math.min(...[far1, far2, everest, nuptse, near1, near2].map((pts) => pts[i][1])));
+const skyAt = (x) => skyline[Math.max(0, Math.min(N, Math.round(((x + 40) / (W + 80)) * N)))];
+
+// A clear night sky: fine stars, blue-white and a few warm, a scatter of
+// brighter ones and a few that shine; none on a mountain, and dimming into
+// the glow near the horizon
+const stars = (() => {
+  const r = rng(29);
+  const out = [];
+  for (let i = 0; i < 1400; i++) {
+    const x = r() * W;
+    const y = r() * 620;
+    const k = r();
+    const room = skyAt(x) - y;
+    const tint = r() < 0.12 ? "#ffe8d0" : r() < 0.45 ? "#d4e3ff" : "#ffffff";
+    if (room < 8) continue;
+    const rad = k < 0.86 ? 0.4 + r() * 0.45 : k < 0.97 ? 0.8 + r() * 0.5 : 1.2 + r() * 0.5;
+    const o = (k < 0.86 ? 0.3 + r() * 0.45 : 0.65 + r() * 0.35) * Math.min(1, room / 180);
+    out.push({ x, y, rad, o, tint });
+  }
+  return out;
+})();
+// the ones that twinkle on the page, from the brighter stars in the upper
+// sky; the page draws them, so the scene leaves them out
+const twinkles = stars.filter((s) => s.rad > 0.75 && s.y < 420).slice(0, 36);
+const still = stars.filter((s) => !twinkles.includes(s));
+
 const summitRidge = everest.slice(summitAt - 70, summitAt + 70);
 
-// a band of haze, and wisps of fog drifting through it
-const mist = (y, h, o) =>
-  `<rect x="-60" y="${y}" width="${W + 120}" height="${h}" fill="url(#mist)" opacity="${(o * 0.6).toFixed(2)}" filter="url(#haze)"/>` +
-  `<rect x="-60" y="${y - h * 0.2}" width="${W + 120}" height="${h * 1.4}" fill="#fff" filter="url(#fog)" mask="url(#fogfade)" opacity="${o.toFixed(2)}"/>`;
-// the grain of rock inside a shape: pale streaks, and darker weathering
-const tex = (d, light) => `<path d="${d}" fill="#fff" filter="url(#rocktex)" opacity="${light}"/>`;
+// a band of haze (soft by its own gradient: no blur to redraw on zoom)
+const mist = (y, h, o) => `<rect x="-60" y="${y}" width="${W + 120}" height="${h}" fill="url(#mist)" opacity="${o}"/>`;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W * 1.5}" height="${H * 1.5}">
 <defs>
@@ -187,50 +206,26 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <stop offset="0" stop-color="#02060f"/><stop offset="0.32" stop-color="#071528"/>
     <stop offset="0.52" stop-color="#11315a"/><stop offset="0.64" stop-color="#2a5d97"/><stop offset="0.72" stop-color="#1d4674"/><stop offset="1" stop-color="#081626"/>
   </linearGradient>
-  <radialGradient id="warm" cx="260" cy="500" r="820" gradientTransform="translate(0 375) scale(1 0.25)" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#f4ad7d" stop-opacity="0.5"/><stop offset="0.4" stop-color="#d9947a" stop-opacity="0.2"/><stop offset="1" stop-color="#d9947a" stop-opacity="0"/>
+  <radialGradient id="warm" cx="240" cy="470" r="620" gradientTransform="translate(0 367.2) scale(1 0.22)" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#ffc49a" stop-opacity="0.42"/><stop offset="0.4" stop-color="#e59c80" stop-opacity="0.14"/><stop offset="1" stop-color="#f0a57e" stop-opacity="0"/>
   </radialGradient>
   <linearGradient id="shade" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
-    <stop offset="0" stop-color="#030812" stop-opacity="0.36"/><stop offset="1" stop-color="#030812" stop-opacity="0.08"/>
+    <stop offset="0" stop-color="#030812" stop-opacity="0.2"/><stop offset="1" stop-color="#030812" stop-opacity="0"/>
   </linearGradient>
-  <!-- rock: streaks running down the slopes, kept inside each shape -->
-  <filter id="rocktex" x="0" y="0" width="100%" height="100%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.014 0.022" numOctaves="5" seed="9"/>
-    <feColorMatrix type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.74  0 0 0 0 0.95  0 0 0 -2.4 1.3"/>
-    <feComposite in2="SourceGraphic" operator="in"/>
-  </filter>
-  <filter id="rockdark" x="0" y="0" width="100%" height="100%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.004" numOctaves="4" seed="21"/>
-    <feColorMatrix type="matrix" values="0 0 0 0 0.01  0 0 0 0 0.03  0 0 0 0 0.07  0 0 0 -1.8 1.05"/>
-    <feComposite in2="SourceGraphic" operator="in"/>
-  </filter>
-  <filter id="grain" x="0" y="0" width="100%" height="100%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="5" stitchTiles="stitch"/>
-    <feColorMatrix type="saturate" values="0"/>
-  </filter>
-  <!-- mist that drifts in wisps rather than lying in a band -->
-  <filter id="fog" x="0" y="0" width="100%" height="100%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.018" numOctaves="4" seed="4"/>
-    <feColorMatrix type="matrix" values="0 0 0 0 0.62  0 0 0 0 0.76  0 0 0 0 0.96  0 0 0 1.6 -0.55"/>
-  </filter>
-  <linearGradient id="fogband" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
-  </linearGradient>
-  <mask id="fogfade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fogband)"/></mask>
   <radialGradient id="dawn" cx="${SUMMIT.x}" cy="600" r="700" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#a9d0ff" stop-opacity="0.5"/><stop offset="0.3" stop-color="#5a9fea" stop-opacity="0.22"/><stop offset="1" stop-color="#4b95e6" stop-opacity="0"/>
   </radialGradient>
   <linearGradient id="far1" gradientUnits="userSpaceOnUse" x1="0" y1="450" x2="0" y2="700">
-    <stop offset="0" stop-color="#2a4d78"/><stop offset="1" stop-color="#1b3a5f"/>
+    <stop offset="0" stop-color="#3a6aa3"/><stop offset="1" stop-color="#26507f"/>
   </linearGradient>
   <linearGradient id="far2" gradientUnits="userSpaceOnUse" x1="0" y1="460" x2="0" y2="720">
-    <stop offset="0" stop-color="#1f3f66"/><stop offset="1" stop-color="#142e4f"/>
+    <stop offset="0" stop-color="#2b5688"/><stop offset="1" stop-color="#1b3e68"/>
   </linearGradient>
   <linearGradient id="rock" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
     <stop offset="0" stop-color="#1c3a61"/><stop offset="0.55" stop-color="#13294a"/><stop offset="1" stop-color="#0d1e36"/>
   </linearGradient>
   <linearGradient id="lit" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="700">
-    <stop offset="0" stop-color="#c9e0ff" stop-opacity="0.34"/><stop offset="0.45" stop-color="#6fa5e6" stop-opacity="0.12"/><stop offset="1" stop-color="#6fa5e6" stop-opacity="0"/>
+    <stop offset="0" stop-color="#d6e8ff" stop-opacity="0.42"/><stop offset="0.45" stop-color="#6fa5e6" stop-opacity="0.14"/><stop offset="1" stop-color="#6fa5e6" stop-opacity="0"/>
   </linearGradient>
   <linearGradient id="wall" gradientUnits="userSpaceOnUse" x1="0" y1="380" x2="0" y2="780">
     <stop offset="0" stop-color="#152f52"/><stop offset="1" stop-color="#0b182c"/>
@@ -244,41 +239,36 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
   <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#9cc6f7" stop-opacity="0"/><stop offset="0.5" stop-color="#9cc6f7" stop-opacity="1"/><stop offset="1" stop-color="#9cc6f7" stop-opacity="0"/>
   </linearGradient>
-  <filter id="soft" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
+  <filter id="soft" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="2.5"/></filter>
   <filter id="lit-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
-  <filter id="snow-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="0.9"/></filter>
-  <filter id="haze" x="-10%" y="-80%" width="120%" height="260%"><feGaussianBlur stdDeviation="20"/></filter>
-  <filter id="far" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0.8"/></filter>
+  <radialGradient id="shine"><stop offset="0" stop-color="#dfe9ff" stop-opacity="0.5"/><stop offset="0.35" stop-color="#9fc0ff" stop-opacity="0.16"/><stop offset="1" stop-color="#9fc0ff" stop-opacity="0"/></radialGradient>
 </defs>
 <rect width="${W}" height="${H}" fill="url(#sky)"/>
-<g fill="#e6f0ff">${stars.map(([x, y, r, o]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(2)}" opacity="${o.toFixed(2)}"/>`).join("")}</g>
+<g>${still.map((t) => `<circle cx="${t.x.toFixed(0)}" cy="${t.y.toFixed(0)}" r="${t.rad.toFixed(2)}" fill="${t.tint}" opacity="${t.o.toFixed(2)}"/>`).join("")}</g>
+${stars.filter((t) => t.rad > 1.3 && t.o > 0.75).slice(0, 5).map((t) => `<circle cx="${t.x.toFixed(0)}" cy="${t.y.toFixed(0)}" r="9" fill="url(#shine)"/>`).join("")}
 <rect width="${W}" height="${H}" fill="url(#dawn)"/>
-
 <rect width="${W}" height="${H}" fill="url(#warm)"/>
-<path d="${fill(far1)}" fill="url(#far1)" filter="url(#far)"/>
-${tex(fill(far1), 0.05)}
-${mist(560, 140, 0.35)}
+
+<path d="${fill(far1)}" fill="url(#far1)"/>
+${mist(560, 140, 0.3)}
 <path d="${fill(far2)}" fill="url(#far2)"/>
-${tex(fill(far2), 0.06)}
-${mist(610, 150, 0.28)}
+${mist(610, 150, 0.24)}
 
 <path d="${fill(everest)}" fill="url(#rock)"/>
-${tex(fill(everest), 0.08)}
 <path d="${face}" fill="url(#lit)" filter="url(#lit-soft)"/>
-<path d="${shadowFace}" fill="url(#shade)"/>
-<path d="${lhotseShadow}" fill="url(#shade)"/>
-<g fill="none" stroke="#dbeaff" stroke-linecap="round" filter="url(#snow-soft)">${gullies(101, everest, 250, 1250, SUMMIT.x, 1)}</g>
-${mist(640, 130, 0.22)}
+<g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(101, everest, 250, 1250, SUMMIT.x, 0.85)}</g>
+<!-- first light along the summit ridge: a thin line, brightest at the top and fading out down both sides -->
+<path d="${line(summitRidge)}" fill="none" stroke="url(#edge)" stroke-width="3" opacity="0.35" filter="url(#soft)"/>
+<path d="${line(summitRidge)}" fill="none" stroke="url(#edge)" stroke-width="1.1" stroke-linejoin="round"/>
+${mist(640, 130, 0.2)}
 
 <path d="${fill(nuptse)}" fill="url(#wall)"/>
-${tex(fill(nuptse), 0.06)}
-<g fill="none" stroke="#dbeaff" stroke-linecap="round" filter="url(#snow-soft)">${gullies(202, nuptse, 60, 560, 330, 0.7)}</g>
-${mist(720, 120, 0.16)}
+<g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(202, nuptse, 60, 560, 330, 0.6)}</g>
+<path d="${line(nuptse.filter(([x]) => x > 40 && x < 620))}" fill="none" stroke="#8fbef5" stroke-opacity="0.22" stroke-width="0.8"/>
+${mist(720, 120, 0.14)}
 
 <path d="${fill(near1)}" fill="url(#near1)"/>
-${tex(fill(near1), 0.04)}
 <path d="${fill(near2)}" fill="#050d1a"/>
-<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.09" style="mix-blend-mode:overlay"/>
 </svg>`;
 
 mkdirSync("public/start", { recursive: true });
@@ -287,52 +277,22 @@ const tidy = (svgText) => svgText.replace(/(\d+\.\d)\d+/g, "$1");
 // high quality: smooth skies band at the usual settings
 writeFileSync("public/start/everest.svg", tidy(svg));
 
-// the sky's shape (white) against the land (black), for the page's stars,
-// which move and must never cross a mountain
-const land = [far1, far2, everest, nuptse, near1, near2].map((pts) => `<path d="${fill(pts)}" fill="#000"/>`).join("");
-const skySvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W / 2}" height="${H / 2}"><rect width="${W}" height="${H}" fill="#fff"/>${land}</svg>`;
-// as a CSS mask: opaque sky, clear land
-const skyAlpha = await sharp(Buffer.from(skySvg)).blur(1.2).greyscale().raw().toBuffer({ resolveWithObject: true });
-const px = skyAlpha.info.width * skyAlpha.info.height;
-const rgba = Buffer.alloc(px * 4, 255);
-for (let i = 0; i < px; i++) rgba[i * 4 + 3] = skyAlpha.data[i * skyAlpha.info.channels];
-await sharp(rgba, { raw: { width: skyAlpha.info.width, height: skyAlpha.info.height, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/everest-sky.png");
-
-// The night sky on its own (transparent), for the page to turn slowly: a
-// clear sky full of stars, as it looks from high up on a clear night.
-// Thousands of fine ones, blue-white and a few warm, a scatter of
-// brighter ones, and a dozen that shine with a soft glow. Drawn larger than
-// the picture (GX by GY, the picture at its middle) so turning never shows
-// an edge.
-const GX = 2400;
-const GY = 1600;
-const starfield = (() => {
-  const r = rng(29);
-  const tint = () => (r() < 0.12 ? "#ffe8d0" : r() < 0.45 ? "#d4e3ff" : "#ffffff");
-  const dots = [];
-  for (let i = 0; i < 3800; i++) {
-    const k = r();
-    const rad = k < 0.86 ? 0.35 + r() * 0.4 : k < 0.97 ? 0.7 + r() * 0.5 : 1.1 + r() * 0.5;
-    const o = k < 0.86 ? 0.28 + r() * 0.45 : 0.6 + r() * 0.4;
-    dots.push(`<circle cx="${(r() * GX).toFixed(0)}" cy="${(r() * GY).toFixed(0)}" r="${rad.toFixed(2)}" fill="${tint()}" opacity="${o.toFixed(2)}"/>`);
-  }
-  // the few that shine: a point and a soft glow round it
-  for (let i = 0; i < 14; i++) {
-    const x = (r() * GX).toFixed(0);
-    const y = (r() * GY).toFixed(0);
-    dots.push(`<circle cx="${x}" cy="${y}" r="${(7 + r() * 5).toFixed(1)}" fill="url(#glow)"/><circle cx="${x}" cy="${y}" r="${(1.4 + r() * 0.6).toFixed(2)}" fill="#fff"/>`);
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${GX} ${GY}" width="${GX}" height="${GY}">
-<defs><radialGradient id="glow"><stop offset="0" stop-color="#dfe9ff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#9fc0ff" stop-opacity="0.18"/><stop offset="1" stop-color="#9fc0ff" stop-opacity="0"/></radialGradient></defs>
-${dots.join("")}
-</svg>`;
-})();
-writeFileSync("public/start/everest-stars.svg", tidy(starfield));
+// Grain, laid over the page as a small repeating tile: it keeps the
+// gradients from banding, and a bitmap tile costs nothing to redraw on zoom
+const G = 160;
+const gr = rng(5);
+const grain = Buffer.alloc(G * G * 4);
+for (let i = 0; i < G * G; i++) {
+  const v = gr() < 0.5 ? 0 : 255;
+  grain.fill(v, i * 4, i * 4 + 3);
+  grain[i * 4 + 3] = Math.round(gr() * 12);
+}
+await sharp(grain, { raw: { width: G, height: G, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/grain.png");
 
 // the stretch of ridge around the summit, for the page's glint, and its top
 const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-stars.svg, the night sky, drawn larger than the picture and centred on it\nexport const STARFIELD = { width: ${GX}, height: ${GY} };\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// bright stars in the scene, for the page to twinkle: x, y, radius\nexport const TWINKLES: [number, number, number][] = ${JSON.stringify(twinkles.map((t) => [Math.round(t.x), Math.round(t.y), +t.rad.toFixed(2)]))};\n`
 );
 console.log("ok");

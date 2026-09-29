@@ -678,8 +678,8 @@ dialog[open]::backdrop {
 
 /* The agreement page's Everest (start/Shell.tsx). Slow on purpose: the
    halo behind the client's name at the summit breathes, and now and then a
-   fine glint runs the ridge (its motion is the SVG's own; this only hides
-   it). Both still for anyone who's asked for less motion. */
+   fine glint runs the ridge. All still for anyone who's asked for less
+   motion. */
 .ev-halo {
   animation: ev-halo 7s ease-in-out infinite alternate;
 }
@@ -740,28 +740,40 @@ dialog[open]::backdrop {
     transform: translateY(-3px);
   }
 }
-/* the stars twinkle, each on its own clock, and the whole sky turns a few
-   degrees about a point far off to the top right, over a minute and a half;
-   now and then one falls */
+/* the brighter stars twinkle, each on its own clock; now and then one
+   falls; and every so often a short spark of light runs the summit ridge
+   (the path is measured as 100 long: a 6-long dash, and a gap longer than
+   the path so only one ever shows) */
 .ev-star {
-  opacity: 0.5;
+  opacity: 0.9;
   animation: ev-twinkle 4s ease-in-out infinite alternate;
 }
 @keyframes ev-twinkle {
   to {
-    opacity: 0.1;
+    opacity: 0.15;
   }
 }
-.ev-sky {
-  will-change: transform;
-  animation: ev-sky 90s ease-in-out infinite alternate;
+.ev-glint {
+  stroke-dasharray: 6 200;
+  stroke-dashoffset: 6;
+  opacity: 0;
+  animation: ev-glint 12s ease-in-out 2s infinite;
 }
-@keyframes ev-sky {
-  from {
-    transform: rotate(-3deg);
+@keyframes ev-glint {
+  0% {
+    stroke-dashoffset: 6;
+    opacity: 0;
   }
-  to {
-    transform: rotate(3deg);
+  8% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    stroke-dashoffset: -100;
+    opacity: 0;
   }
 }
 .ev-meteor {
@@ -789,8 +801,7 @@ dialog[open]::backdrop {
   .ev-halo,
   .ev-tag,
   .ev-bob,
-  .ev-star,
-  .ev-sky {
+  .ev-star {
     animation: none;
   }
   .ev-meteor {

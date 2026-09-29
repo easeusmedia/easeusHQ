@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { FileText, Flag, PenLine, UserRound, type LucideIcon } from "lucide-react";
-import { SCENE, STARFIELD, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
+import { SCENE, SUMMIT, SUMMIT_RIDGE, TWINKLES } from "./everestRidge";
 
 // The frame every /start page sits in, over Everest at blue hour: the
 // mountain fills the screen (the goal we help clients reach: the top), with
@@ -27,7 +27,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
         <div aria-hidden className="absolute inset-0 hidden rounded-[inherit] bg-[#07090d]/35 backdrop-blur-xl lg:block" style={FRAME_MASK} />
         {/* the window: nothing between the peak and the eye but a shade
             at the foot, so the words there read */}
-        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-35% via-black/45 via-70% to-black/90 p-9 lg:flex">
+        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-45% via-black/25 via-70% to-black/65 p-9 lg:flex">
           <div className="relative flex items-center gap-2">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
             <span className="text-[13px] font-medium tracking-tight">Easeus Media</span>
@@ -81,13 +81,6 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
   );
 }
 
-// Everest at blue hour, filling the screen (public/start/everest.webp,
-// rendered by scripts/everest-render.py), with in the same frame so they
-// line up: the client's name at the summit, pointing at the top, a halo
-// behind it; and now and then a fine glint of light running the ridge, a
-// hairline seen only where a soft spot of light passes, so it fades in and
-// out at both ends (globals.css, .ev-*; still for reduced motion). The
-// summit sits in the left third, where the card's window is.
 // The frame's frost: everything but the window, which sits inside the 10px
 // padding and is half the width inside it
 const FRAME_MASK: React.CSSProperties = {
@@ -99,113 +92,51 @@ const FRAME_MASK: React.CSSProperties = {
   WebkitMaskComposite: "xor",
 };
 
-// Stars across the sky (x, y, radius, when and how fast each twinkles); the
-// sky's own shape keeps them off the mountains as the sky turns
-const STARS: [number, number, number, number, number][] = (() => {
-  let seed = 7;
-  const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-  const out: [number, number, number, number, number][] = [];
-  while (out.length < 70) {
-    const x = r() * 1600;
-    const y = r() * 520;
-    out.push([Math.round(x), Math.round(y), 0.5 + r() * 0.9, Math.round(r() * 60) / 10, 3 + Math.round(r() * 40) / 10]);
-  }
-  return out;
-})();
-
 // what the client reads on hovering over their name at the summit
 const SUMMIT_NOTE = "Anyone can point at the top. We're the ones who'll get you there.";
 
 
+// Everest at blue hour, filling the screen (public/start/everest.svg, drawn
+// by scripts/everest-scene.mjs, stars and all), with in the same frame so
+// they line up: the stars that twinkle, one that falls now and then, a
+// glint of first light running the summit ridge, and the client's name at
+// the summit with a halo behind it (globals.css, .ev-*; still for reduced
+// motion). Nothing large moves, so nothing large is redrawn: zooming stays
+// clean, and the glass over it has nothing to keep re-blurring.
 function Scene({ name }: { name?: string | null }) {
   const { width, height } = SCENE;
   const label = name?.trim();
-  // the night sky's box, in the picture's own units: drawn larger than the
-  // picture so turning never shows an edge
-  const gx = (width - STARFIELD.width) / 2;
-  const gy = (height - STARFIELD.height) / 2;
-  // the far-off point the sky turns about, within that box
-  const pivot = { x: 1500 - gx, y: -700 - gy };
-  const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+  // where a point of the picture lands on screen: the picture covers the
+  // screen from its middle, at whichever scale fills it
+  const scale = `max(100cqw / ${width}, 100cqh / ${height})`;
+  const at = (x: number, y: number) => ({
+    left: `calc(50% + ${x - width / 2} * ${scale})`,
+    top: `calc(50% + ${y - height / 2} * ${scale})`,
+  });
   return (
     <>
-      {/* 1. the scene: a vector drawing, sharp at any size or zoom, drawn once */}
       {/* eslint-disable-next-line @next/next/no-img-element -- a vector file; there's nothing for next/image to optimise */}
       <img src="/start/everest.svg" alt="" aria-hidden fetchPriority="high" className="pointer-events-none fixed inset-0 h-full w-full object-cover" />
 
-      {/* 2. the night sky, turning slowly on its own layer (the browser
-          turns it without redrawing it): a clear sky full of stars, kept to
-          the sky's shape so none ever crosses a mountain */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{
-            width: `max(100vw, ${(width / height) * 100}vh)`,
-            height: `max(100vh, ${(height / width) * 100}vw)`,
-            maskImage: "url(/start/everest-sky.png)",
-            maskSize: "100% 100%",
-            WebkitMaskImage: "url(/start/everest-sky.png)",
-            WebkitMaskSize: "100% 100%",
-          }}
-        >
-          <div
-            className="ev-sky absolute"
-            style={{
-              left: pct(gx, width),
-              top: pct(gy, height),
-              width: pct(STARFIELD.width, width),
-              height: pct(STARFIELD.height, height),
-              transformOrigin: `${pct(pivot.x, STARFIELD.width)} ${pct(pivot.y, STARFIELD.height)}`,
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- a vector file */}
-            <img src="/start/everest-stars.svg" alt="" className="h-full w-full" />
-            <svg viewBox={`0 0 ${STARFIELD.width} ${STARFIELD.height}`} className="absolute inset-0 h-full w-full" fill="#e8f0ff">
-              {STARS.map(([x, y, r, d, t], i) => (
-                <circle key={i} cx={x - gx} cy={y - gy} r={r} className="ev-star" style={{ animationDelay: `${d}s`, animationDuration: `${t}s` }} />
-              ))}
-            </svg>
-          </div>
-          <svg viewBox={`0 0 ${width} ${height}`} className="absolute inset-0 h-full w-full">
-            <defs>
-              <linearGradient id="sc-meteor" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
-                <stop offset="1" stopColor="#fff" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
-          </svg>
-        </div>
-      </div>
-
-      {/* 3. over it all: the fades, the glint on the ridge, and the
-          message at the summit */}
       <svg
         aria-hidden
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid slice"
-        className="fixed inset-0 h-full w-full"
-        pointerEvents="none"
+        className="pointer-events-none fixed inset-0 h-full w-full"
       >
         <defs>
-          <radialGradient id="sc-spot">
-            <stop offset="0" stopColor="#fff" />
+          <linearGradient id="sc-meteor" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
             <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-          <mask id="sc-glint" maskUnits="userSpaceOnUse" x="0" y="0" width={width} height={height}>
-            <circle r="55" fill="url(#sc-spot)">
-              <animateMotion dur="12s" begin="2s" repeatCount="indefinite" path={SUMMIT_RIDGE} keyPoints="0;1;1" keyTimes="0;0.55;1" calcMode="linear" />
-              <animate attributeName="opacity" dur="12s" begin="2s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.1;0.45;0.55;1" />
-            </circle>
-          </mask>
+          </linearGradient>
           <radialGradient id="sc-vignette" cx={SUMMIT.x + 60} cy="380" r="1050" gradientUnits="userSpaceOnUse">
-            <stop offset="0.35" stopColor="#000" stopOpacity="0" />
-            <stop offset="0.75" stopColor="#000" stopOpacity="0.28" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.5" />
+            <stop offset="0.45" stopColor="#000" stopOpacity="0" />
+            <stop offset="0.8" stopColor="#000" stopOpacity="0.14" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.32" />
           </radialGradient>
           <linearGradient id="sc-foot" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0.55" stopColor="#000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.85" />
+            <stop offset="0.6" stopColor="#000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.55" />
           </linearGradient>
           <radialGradient id="sc-halo">
             <stop offset="0" stopColor="#7db3f2" stopOpacity="0.4" />
@@ -213,21 +144,33 @@ function Scene({ name }: { name?: string | null }) {
             <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
           </radialGradient>
         </defs>
-        {/* the foot of the picture sinks into black, and everything away
-            from the peak falls into shadow, so the eye goes to the form */}
+        {/* the foot of the picture and its far edges fall a little into
+            shadow, so the eye goes to the peak and the form */}
         <rect width={width} height={height} fill="url(#sc-foot)" />
         <rect width={width} height={height} fill="url(#sc-vignette)" />
-        <path d={SUMMIT_RIDGE} fill="none" stroke="#eef5ff" strokeWidth="0.9" strokeLinejoin="round" mask="url(#sc-glint)" className="ev-glint" />
-        {label && (
-          <g transform={`translate(${SUMMIT.x} ${SUMMIT.y})`}>
-            <ellipse cx="0" cy="-40" rx="130" ry="60" fill="url(#sc-halo)" className="ev-halo" />
-            <foreignObject x="-210" y="-121" width="420" height="120">
-              {/* A message over the peak: a box with a small pointer in the
-                  middle of its foot, the pointer's tip on the summit. A thin
-                  blue stroke with the Nyra button's moving light round it;
-                  it floats, hops now and then for attention, and hovering it
-                  brings up a line above. */}
-              <div className="ev-bob flex h-full flex-col-reverse items-center pb-[8px]">
+        <g fill="#f2f6ff">
+          {TWINKLES.map(([x, y, r], i) => (
+            <circle key={i} cx={x} cy={y} r={r + 0.15} className="ev-star" style={{ animationDelay: `${(i * 0.37) % 6}s`, animationDuration: `${3 + ((i * 0.53) % 4)}s` }} />
+          ))}
+        </g>
+        <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
+        {/* first light running up the ridge to the top and down the far side */}
+        <path d={SUMMIT_RIDGE} pathLength={100} fill="none" stroke="#f4f8ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="ev-glint" />
+        {label && <ellipse cx={SUMMIT.x} cy={SUMMIT.y - 40} rx="130" ry="60" fill="url(#sc-halo)" className="ev-halo" />}
+      </svg>
+
+      {/* grain over the picture, a small tile, against banding */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 bg-[url(/start/grain.png)] bg-[length:160px]" />
+
+      {label && (
+        // A message over the peak: a box with a small pointer in the middle
+        // of its foot, the pointer's tip on the summit. A thin blue stroke
+        // with the Nyra button's moving light round it; it floats, hops now
+        // and then for attention, and hovering it brings up a line above.
+        <div aria-hidden className="pointer-events-none fixed inset-0 [container-type:size]">
+          <div className="absolute" style={at(SUMMIT.x, SUMMIT.y)}>
+            <div className="absolute bottom-2 left-0 -translate-x-1/2">
+              <div className="ev-bob flex flex-col-reverse items-center">
                 <span className="ev-tag peer pointer-events-auto relative">
                   <span className="nyra-glow relative block" style={{ borderRadius: 10 }}>
                     <span className="relative flex cursor-default items-center gap-2 rounded-[10px] border border-accent/40 bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground shadow-[0_8px_28px_rgba(0,0,0,0.45),0_0_22px_rgba(75,149,230,0.25)]">
@@ -238,14 +181,14 @@ function Scene({ name }: { name?: string | null }) {
                   {/* the pointer: part of the box, the same fill and stroke */}
                   <span className="absolute top-full left-1/2 -mt-[6px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-accent/40 bg-surface-2" />
                 </span>
-                <p className="mb-3 max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
+                <p className="mb-3 w-max max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
                   {SUMMIT_NOTE}
                 </p>
               </div>
-            </foreignObject>
-          </g>
-        )}
-      </svg>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
