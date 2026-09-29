@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Users } from "lucide-react";
+import { Check, UserPlus } from "lucide-react";
 import { topLayer, useCloseOnScroll, usePopover } from "../popover";
 import { setClientEditors } from "./actions";
+import { Avatar } from "../TaskCard";
 
 // Which members (everyone outside the core team) can see this client. A
 // member sees only the clients given to them here, and on each only their
@@ -39,7 +40,9 @@ export function EditorAccess({ clientId, editors, given }: { clientId: string; e
     }
   }
 
-  const names = editors.filter((e) => picked.includes(e.id)).map((e) => e.name.split(" ")[0]);
+  const people = editors.filter((e) => picked.includes(e.id));
+  // how many faces the button stacks before "+N"
+  const FACES = 4;
 
   return (
     <div ref={ref} className="relative">
@@ -53,10 +56,29 @@ export function EditorAccess({ clientId, editors, given }: { clientId: string; e
           place(triggerRef.current, { width: 256, align: "end" });
           setOpen(true);
         }}
-        className="btn btn-sm flex items-center gap-2 border border-border bg-surface-2 text-muted hover:text-foreground"
+        aria-label={people.length ? `Can see this client: ${people.map((e) => e.name).join(", ")}` : "Give someone access to this client"}
+        title={people.length ? people.map((e) => e.name).join(", ") : "Give access"}
+        className="flex h-8 items-center rounded-full border border-border bg-surface-2 px-1 text-muted transition-colors hover:border-hover hover:text-foreground"
       >
-        <Users size={13} />
-        {names.length === 0 ? "Give access" : names.length <= 2 ? names.join(", ") : `${names.length} people`}
+        {people.length === 0 ? (
+          <span className="flex items-center gap-1.5 px-1.5 text-xs">
+            <UserPlus size={13} /> Give access
+          </span>
+        ) : (
+          // who can see it, their faces overlapping
+          <span className="flex items-center -space-x-1.5">
+            {people.slice(0, FACES).map((e) => (
+              <span key={e.id} className="flex rounded-full ring-2 ring-surface-2">
+                <Avatar name={e.name} size={22} presence={false} />
+              </span>
+            ))}
+            {people.length > FACES && (
+              <span className="flex size-[22px] items-center justify-center rounded-full bg-hover text-[10px] font-medium text-foreground ring-2 ring-surface-2">
+                +{people.length - FACES}
+              </span>
+            )}
+          </span>
+        )}
       </button>
       {open && position && (
         <div
@@ -66,7 +88,8 @@ export function EditorAccess({ clientId, editors, given }: { clientId: string; e
         >
           <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-muted/70">Can see this client</p>
           {editors.map((e) => (
-            <button key={e.id} type="button" onClick={() => toggle(e.id)} className="menu-item px-2.5 py-2 text-sm">
+            <button key={e.id} type="button" onClick={() => toggle(e.id)} className="menu-item px-2.5 py-1.5 text-sm">
+              <Avatar name={e.name} size={24} presence={false} />
               <span className="min-w-0 flex-1 truncate">{e.name}</span>
               {picked.includes(e.id) && <Check size={13} className="shrink-0 text-accent" />}
             </button>

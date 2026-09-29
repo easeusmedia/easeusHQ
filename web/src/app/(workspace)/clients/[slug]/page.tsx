@@ -199,7 +199,7 @@ export default async function ClientDetailPage({
       <div className="mb-8 flex flex-wrap items-start gap-4">
         {/* a floor under the name: past it, the buttons wrap to their own
             line rather than squeezing the name away and the logo up */}
-        <div className="min-w-72 flex-1">
+        <div className="min-w-[min(360px,100%)] flex-1">
         <ProfileHead photo={<PhotoEdit name={client.name} src={clientLogoSrc(client)} size="fill" save={updateClientAvatar.bind(null, client.id)} />}>
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">

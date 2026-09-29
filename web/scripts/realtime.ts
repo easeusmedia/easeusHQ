@@ -24,17 +24,23 @@ for (const kind of ["tables", "sequences", "functions"]) {
   await run(`alter default privileges for role postgres in schema public revoke all on ${kind} from anon, authenticated`);
 }
 
-// 2. The signal: which table changed, nothing else. A failure to send must
-// never fail the write it's about.
+// 2. The signal: which table changed, nothing else, sent over Realtime; and
+// a counter bumped with it, which /api/pulse reads. A sequence rather than
+// a row: it takes no lock, so writes never queue behind one another, and a
+// bump is seen by every connection at once (Postgres's own write counters
+// can take seconds to show). A failure here must never fail the write.
+await run(`create sequence if not exists public.hq_change_seq`);
 await run(`
   create or replace function public.hq_changed() returns trigger
   language plpgsql security definer set search_path = '' as $$
   begin
+    perform nextval('public.hq_change_seq');
     perform realtime.send(jsonb_build_object('table', tg_table_name), 'changed', 'hq-changes', false);
     return null;
   exception when others then
     return null;
   end $$`);
+await run(`revoke all on sequence public.hq_change_seq from anon, authenticated`);
 await run(`revoke all on function public.hq_changed() from public, anon, authenticated`);
 
 // 3. On every table the pages show, once per statement (a sync that writes

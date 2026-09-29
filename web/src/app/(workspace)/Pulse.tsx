@@ -12,12 +12,13 @@ import { emitPulse, type PulseData } from "./pulseStore";
 // second. A burst (a Notion sync) refreshes at most once every so often,
 // and a tab that isn't being looked at catches up when it's looked at.
 //
-// Behind that, every 15s (only while visible, and on coming back to it) it
-// asks /api/pulse whether anything changed: the backstop if the live line
-// drops, and what marks you active and feeds the delivery chime and client
-// messages.
-export function Pulse({ intervalMs = 15000, live }: { intervalMs?: number; live?: { url: string; key: string } | null }) {
+// Behind that, every so often (only while visible, and on coming back to
+// it) it asks /api/pulse whether anything changed: the backstop if the live
+// line drops, and what marks you active and feeds the delivery chime and
+// client messages. With no live line it's all there is, so it asks often.
+export function Pulse({ live }: { live?: { url: string; key: string } | null }) {
   const router = useRouter();
+  const intervalMs = live ? 30_000 : 5_000;
   const url = live?.url;
   const key = live?.key;
   useEffect(() => {

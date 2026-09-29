@@ -6,15 +6,6 @@ import { ACTIVE_WINDOW_MS } from "@/app/(workspace)/presence/constants";
 
 export const dynamic = "force-dynamic";
 
-// The tables whose rows the pages show. Not User (its lastSeenAt moves on
-// every visit; who's online is counted apart, below) nor the analytics
-// scrape tables and settings, which change in the background all day.
-const WATCHED = [
-  "Task", "TaskTag", "Tag", "Project", "ProjectAsset", "Client", "ClientDocument", "Deliverable",
-  "OnboardingStep", "ClientTemplate", "Invoice", "WorkTask", "Message", "ClientFeedback",
-  "ClientInvite", "Contract", "Team", "JobTitle", "Feedback",
-];
-
 // What an open tab asks every few seconds (see Pulse.tsx), in one light GET:
 // has anything it shows changed since it last asked, and — for the people
 // they're for — tasks just delivered and client messages. It also marks the
@@ -29,10 +20,9 @@ export async function GET() {
   const [user, ops, writes, online, approvals, feedback] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { role: true, email: true, teamId: true } }),
     prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
-    // every insert, update and delete Postgres has counted on those tables:
-    // a number that moves whenever any of their rows does, deletes included
-    prisma.$queryRaw<{ n: bigint | null }[]>`
-      select sum(n_tup_ins + n_tup_upd + n_tup_del) as n from pg_stat_user_tables where relname = any(${WATCHED})`.catch(() => null),
+    // a counter every write to a table the pages show bumps the moment it
+    // happens (scripts/realtime.ts): it moves whenever any of their rows do
+    prisma.$queryRaw<{ n: bigint | null }[]>`select last_value as n from public.hq_change_seq`.catch(() => null),
     prisma.user.findMany({
       where: { lastSeenAt: { gt: new Date(now.getTime() - ACTIVE_WINDOW_MS) } },
       select: { id: true },
