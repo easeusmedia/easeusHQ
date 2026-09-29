@@ -678,9 +678,8 @@ dialog[open]::backdrop {
 
 /* The agreement page's Everest (start/Shell.tsx). Slow on purpose: the
    light behind the range rises as the page opens and then breathes; now
-   and then a glint travels up the ridge, over the summit and down; the
-   stars barely twinkle. All of it still for anyone who's asked for less
-   motion. */
+   and then a glint travels up the ridge, over the summit and down. Both
+   still for anyone who's asked for less motion. */
 .ev-dawn {
   animation:
     ev-dawn-rise 5s cubic-bezier(0.22, 1, 0.36, 1) both,
@@ -728,18 +727,8 @@ dialog[open]::backdrop {
     opacity: 0;
   }
 }
-.ev-star {
-  opacity: 0.45;
-  animation: ev-twinkle 5.5s ease-in-out infinite alternate;
-}
-@keyframes ev-twinkle {
-  to {
-    opacity: 0.12;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .ev-dawn,
-  .ev-star {
+  .ev-dawn {
     animation: none;
   }
   .ev-sweep {

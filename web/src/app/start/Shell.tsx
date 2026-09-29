@@ -1,10 +1,13 @@
 import Image from "next/image";
 import { FileText, PenLine, UserRound, type LucideIcon } from "lucide-react";
+import { SCENE, SUMMIT_RIDGE } from "./everestRidge";
 
-// The frame every /start page sits in: one stroked dark card on the app's
-// own dark ground, in two even halves — how it works on the left (desktop
-// only), the page itself on the right. step: where the client is, lit on
-// the left.
+// The frame every /start page sits in, over Everest before dawn: the
+// mountain fills the screen (the goal we help clients reach: the top), and
+// a glass card sits on it in two even halves. On the left, a clear window
+// onto the peak and how this works (desktop only); on the right, the page
+// itself on dark frosted glass that blurs the range behind it. step: where
+// the client is, lit on the left.
 const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
   { Icon: UserRound, title: "Your details", body: "Who you are, and who signs." },
   { Icon: FileText, title: "Your agreement", body: "We prepare it from what you share." },
@@ -13,10 +16,12 @@ const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
 
 export function Shell({ children, step = 1 }: { children: React.ReactNode; step?: 1 | 2 | 3 | 4 }) {
   return (
-    <div className="flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
-      <div className="panel flex w-full max-w-[1120px] rounded-none lg:min-h-[640px] lg:rounded-[28px] lg:p-2.5">
-        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] panel-soft p-9 lg:flex">
-          <Everest />
+    <div className="relative flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
+      <Scene />
+      <div className="relative flex w-full max-w-[1120px] rounded-none border-white/10 bg-[#050a12]/30 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
+        {/* the window: nothing between the peak and the eye but a shade
+            at the foot, so the words there read */}
+        <aside className="relative hidden w-1/2 shrink-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-gradient-to-b from-transparent from-45% to-[#040810]/85 p-9 lg:flex">
           <div className="relative flex items-center gap-2">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
             <span className="text-[13px] font-medium tracking-tight">Easeus Media</span>
@@ -53,7 +58,8 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
           <p className="relative mt-10 text-xs text-muted/70">Easeus Media: Your New Age Media Distribution Partner.</p>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col px-6 py-8 sm:px-10 lg:px-12 lg:py-12">
+        {/* dark frosted glass: the range goes soft behind the form */}
+        <div className="flex min-w-0 flex-1 flex-col bg-[#080c13]/80 px-6 py-8 backdrop-blur-2xl sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.06] lg:px-12 lg:py-12">
           {/* on a phone the left side is gone, so the name comes along here */}
           <div className="mb-10 flex items-center gap-2 lg:hidden">
             <Image src="/logo.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" priority />
@@ -66,115 +72,35 @@ export function Shell({ children, step = 1 }: { children: React.ReactNode; step?
   );
 }
 
-// Everest before dawn, drawn rather than photographed: the far range, the
-// massif and Lhotse beside it, Nuptse's long wall in front, all dark; the
-// ridge line lit in the app's blue, brightest at the summit, and a little
-// grain. It moves, slowly: the light behind the range rises as the page
-// opens and then breathes, a glint travels the ridge over the summit now
-// and then, and the stars barely twinkle (globals.css, .ev-*; still for
-// anyone who's asked for less motion). It fills the top of the panel and
-// fades out before the words, so they stay calm.
-const RIDGE = "M96 400 L160 334 L200 302 L232 276 L260 240 L284 200 L300 162 L318 112 L332 134 L348 158 L366 170 L388 150 L410 176 L440 206 L474 240 L508 276 L546 312 L600 350";
-// x, y, radius, and when each starts its twinkle
-const STARS: [number, number, number, number][] = [
-  [92, 58, 0.9, 0],
-  [168, 96, 0.7, 2.1],
-  [452, 64, 0.9, 1.2],
-  [530, 120, 0.7, 3.4],
-  [232, 40, 0.6, 4.6],
-  [398, 34, 0.7, 0.7],
-];
-const NUPTSE = "M0 352 L52 322 L104 300 L148 270 L176 256 L204 266 L238 292 L276 330 L318 372 L346 400";
-
-function Everest() {
-  const grain =
-    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>\")";
-  const fade = "linear-gradient(to bottom, black 0%, black 58%, transparent 96%)";
+// Everest before dawn, filling the screen (public/start/everest.webp, drawn
+// by scripts/everest-scene.mjs), with a little life on top in the same
+// frame so it lines up with the ridge: the light behind the summit breathes
+// and a glint now and then travels the ridge over the top (globals.css,
+// .ev-*; still for anyone who's asked for less motion). The summit sits in
+// the left third, where the card's window is.
+function Scene() {
+  const { width, height } = SCENE;
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      <svg
-        viewBox="0 0 600 400"
-        preserveAspectRatio="xMidYMax slice"
-        className="absolute inset-x-0 top-0 h-[64%] w-full"
-        style={{ maskImage: fade, WebkitMaskImage: fade }}
-      >
-        <defs>
-          <linearGradient id="ev-rock" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#18202c" />
-            <stop offset="1" stopColor="#0c0f14" />
-          </linearGradient>
-          <linearGradient id="ev-far" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#141a24" />
-            <stop offset="1" stopColor="#0e1218" />
-          </linearGradient>
-          <linearGradient id="ev-near" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#121822" />
-            <stop offset="1" stopColor="#0b0e13" />
-          </linearGradient>
-          <radialGradient id="ev-edge" cx="318" cy="112" r="300" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#cfe2ff" stopOpacity="0.95" />
-            <stop offset="0.3" stopColor="#4b95e6" stopOpacity="0.7" />
-            <stop offset="1" stopColor="#4b95e6" stopOpacity="0.08" />
-          </radialGradient>
-          <radialGradient id="ev-halo" cx="318" cy="130" r="190" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#4b95e6" stopOpacity="0.35" />
-            <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="ev-horizon" cx="318" cy="250" r="330" gradientTransform="translate(0 175) scale(1 0.3)" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#7db3f2" stopOpacity="0.45" />
-            <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0.14" />
-            <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="ev-face" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#a9c6ee" stopOpacity="0.22" />
-            <stop offset="1" stopColor="#a9c6ee" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="ev-near-edge" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#8fb4e6" stopOpacity="0.05" />
-            <stop offset="0.6" stopColor="#8fb4e6" stopOpacity="0.35" />
-            <stop offset="1" stopColor="#8fb4e6" stopOpacity="0.08" />
-          </linearGradient>
-          <filter id="ev-soft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3.5" />
-          </filter>
-        </defs>
-        {/* the dawn: light behind the summit and along the horizon, rising */}
-        <g className="ev-dawn">
-          <circle cx="318" cy="130" r="190" fill="url(#ev-halo)" />
-          <rect x="0" y="150" width="600" height="200" fill="url(#ev-horizon)" />
-        </g>
-        <g fill="#dbe8ff">
-          {STARS.map(([cx, cy, r, delay]) => (
-            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} className="ev-star" style={{ animationDelay: `${delay}s` }} />
-          ))}
-        </g>
-        {/* the far range */}
-        <path
-          d="M0 268 L46 246 L84 258 L132 214 L166 230 L204 204 L236 222 L262 212 L300 240 L340 226 L380 238 L420 208 L456 228 L500 194 L546 226 L600 210 L600 400 L0 400 Z"
-          fill="url(#ev-far)"
-          stroke="#8fb4e6"
-          strokeOpacity="0.16"
-        />
-        {/* Everest and Lhotse, their snow, and the faces fading as they fall */}
-        <path d={`${RIDGE} L600 400 Z`} fill="url(#ev-rock)" />
-        <path d="M318 112 L332 134 L322 150 L312 142 L300 162 Z" fill="#cfe2ff" opacity="0.07" />
-        <path d="M388 150 L400 164 L392 172 L381 160 Z" fill="#cfe2ff" opacity="0.05" />
-        <g stroke="url(#ev-face)" strokeWidth="0.9" fill="none">
-          <path d="M318 112 L308 176 L296 236" />
-          <path d="M318 112 L334 170 L344 220" />
-          <path d="M388 150 L384 196 L392 236" />
-        </g>
-        {/* the ridge, lit: a soft glow under a fine line */}
-        <path d={RIDGE} fill="none" stroke="url(#ev-edge)" strokeWidth="5" opacity="0.45" filter="url(#ev-soft)" />
-        <path d={RIDGE} fill="none" stroke="url(#ev-edge)" strokeWidth="1.2" strokeLinejoin="round" />
-        {/* the glint: a short bright stretch of the ridge, carried along it */}
-        <path d={RIDGE} pathLength={1} fill="none" stroke="#dcebff" strokeWidth="6" strokeLinecap="round" strokeDasharray="0.07 0.93" filter="url(#ev-soft)" className="ev-sweep" />
-        <path d={RIDGE} pathLength={1} fill="none" stroke="#f4f8ff" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="0.035 0.965" className="ev-sweep" />
-        {/* Nuptse, the long wall in front */}
-        <path d={`${NUPTSE} L0 400 Z`} fill="url(#ev-near)" />
-        <path d={NUPTSE} fill="none" stroke="url(#ev-near-edge)" strokeLinejoin="round" />
-      </svg>
-      <div className="absolute inset-0 opacity-[0.14] mix-blend-overlay" style={{ backgroundImage: grain }} />
-    </div>
+    <svg
+      aria-hidden
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid slice"
+      className="pointer-events-none fixed inset-0 h-full w-full"
+    >
+      <defs>
+        <radialGradient id="sc-glow" cx="520" cy="300" r="260" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#9cc8ff" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
+        </radialGradient>
+        <filter id="sc-soft" x="-20%" y="-50%" width="140%" height="200%">
+          <feGaussianBlur stdDeviation="5" />
+        </filter>
+      </defs>
+      <image href="/start/everest.webp" width={width} height={height} />
+      <circle cx="520" cy="300" r="260" fill="url(#sc-glow)" className="ev-dawn" style={{ mixBlendMode: "screen" }} />
+      {/* the glint: a short bright stretch of the ridge, carried over the summit */}
+      <path d={SUMMIT_RIDGE} pathLength={1} fill="none" stroke="#dcebff" strokeWidth="8" strokeLinecap="round" strokeDasharray="0.06 0.94" filter="url(#sc-soft)" className="ev-sweep" />
+      <path d={SUMMIT_RIDGE} pathLength={1} fill="none" stroke="#f4f8ff" strokeWidth="2" strokeLinecap="round" strokeDasharray="0.03 0.97" className="ev-sweep" />
+    </svg>
   );
 }
