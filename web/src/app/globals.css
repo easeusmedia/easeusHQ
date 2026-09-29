@@ -753,8 +753,7 @@ dialog[open]::backdrop {
   }
 }
 .ev-sky {
-  transform-box: view-box;
-  transform-origin: 1500px -700px;
+  will-change: transform;
   animation: ev-sky 90s ease-in-out infinite alternate;
 }
 @keyframes ev-sky {

@@ -7,7 +7,10 @@
 //
 //   node scripts/everest-scene.mjs
 //
-// Writes public/start/everest.webp and src/app/start/everestRidge.ts (the
+// Writes vector files the page draws at whatever size and zoom it's shown
+// at (public/start/everest.svg, the scene; everest-galaxy.svg, the Milky
+// Way the page turns; everest-sky.png, the sky's shape, which keeps the
+// stars off the mountains) and src/app/start/everestRidge.ts (the
 // summit's ridge line, for the glint that travels it).
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -242,6 +245,8 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <stop offset="0" stop-color="#9cc6f7" stop-opacity="0"/><stop offset="0.5" stop-color="#9cc6f7" stop-opacity="1"/><stop offset="1" stop-color="#9cc6f7" stop-opacity="0"/>
   </linearGradient>
   <filter id="soft" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
+  <filter id="lit-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"/></filter>
+  <filter id="snow-soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="0.9"/></filter>
   <filter id="haze" x="-10%" y="-80%" width="120%" height="260%"><feGaussianBlur stdDeviation="20"/></filter>
   <filter id="far" x="0" y="0" width="100%" height="100%"><feGaussianBlur stdDeviation="0.8"/></filter>
 </defs>
@@ -259,33 +264,39 @@ ${mist(610, 150, 0.28)}
 
 <path d="${fill(everest)}" fill="url(#rock)"/>
 ${tex(fill(everest), 0.08)}
-<path d="${face}" fill="url(#lit)" filter="url(#soft)"/>
+<path d="${face}" fill="url(#lit)" filter="url(#lit-soft)"/>
 <path d="${shadowFace}" fill="url(#shade)"/>
 <path d="${lhotseShadow}" fill="url(#shade)"/>
-<g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(101, everest, 250, 1250, SUMMIT.x, 1)}</g>
+<g fill="none" stroke="#dbeaff" stroke-linecap="round" filter="url(#snow-soft)">${gullies(101, everest, 250, 1250, SUMMIT.x, 1)}</g>
 ${mist(640, 130, 0.22)}
 
 <path d="${fill(nuptse)}" fill="url(#wall)"/>
 ${tex(fill(nuptse), 0.06)}
-<g fill="none" stroke="#dbeaff" stroke-linecap="round">${gullies(202, nuptse, 60, 560, 330, 0.7)}</g>
+<g fill="none" stroke="#dbeaff" stroke-linecap="round" filter="url(#snow-soft)">${gullies(202, nuptse, 60, 560, 330, 0.7)}</g>
 ${mist(720, 120, 0.16)}
 
 <path d="${fill(near1)}" fill="url(#near1)"/>
 ${tex(fill(near1), 0.04)}
 <path d="${fill(near2)}" fill="#050d1a"/>
-<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.07" style="mix-blend-mode:overlay"/>
+<rect width="${W}" height="${H}" fill="#fff" filter="url(#grain)" opacity="0.09" style="mix-blend-mode:overlay"/>
 </svg>`;
 
 mkdirSync("public/start", { recursive: true });
-const out = process.argv[2] ?? "public/start/everest.webp";
+// numbers to one decimal: the same picture, a lighter file
+const tidy = (svgText) => svgText.replace(/(\d+\.\d)\d+/g, "$1");
 // high quality: smooth skies band at the usual settings
-await sharp(Buffer.from(svg)).webp({ quality: 95, smartSubsample: true, effort: 6 }).toFile(out);
+writeFileSync("public/start/everest.svg", tidy(svg));
 
 // the sky's shape (white) against the land (black), for the page's stars,
 // which move and must never cross a mountain
 const land = [far1, far2, everest, nuptse, near1, near2].map((pts) => `<path d="${fill(pts)}" fill="#000"/>`).join("");
 const skySvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W / 2}" height="${H / 2}"><rect width="${W}" height="${H}" fill="#fff"/>${land}</svg>`;
-await sharp(Buffer.from(skySvg)).blur(1.2).greyscale().png({ compressionLevel: 9, palette: true }).toFile("public/start/everest-sky.png");
+// as a CSS mask: opaque sky, clear land
+const skyAlpha = await sharp(Buffer.from(skySvg)).blur(1.2).greyscale().raw().toBuffer({ resolveWithObject: true });
+const px = skyAlpha.info.width * skyAlpha.info.height;
+const rgba = Buffer.alloc(px * 4, 255);
+for (let i = 0; i < px; i++) rgba[i * 4 + 3] = skyAlpha.data[i * skyAlpha.info.channels];
+await sharp(rgba, { raw: { width: skyAlpha.info.width, height: skyAlpha.info.height, channels: 4 } }).png({ compressionLevel: 9 }).toFile("public/start/everest-sky.png");
 
 // The Milky Way, on its own (transparent) so the page can turn it slowly
 // across the sky: a band of star clouds in blue and violet, a darker dust
@@ -302,8 +313,8 @@ const galaxy = (() => {
   const core = GX * 0.34; // the bright heart of it
   const glow = (x) => 0.55 + 0.45 * Math.exp(-(((x - core) / (GX * 0.16)) ** 2));
   const stars = [];
-  for (let i = 0; i < 7000; i++) {
-    const inBand = i < 5200;
+  for (let i = 0; i < 4200; i++) {
+    const inBand = i < 3200;
     const x = r() * GX * 1.1 - GX * 0.05;
     const across = gauss() * (inBand ? 150 * glow(x) : 420);
     const bright = r() < 0.03;
@@ -335,12 +346,12 @@ const galaxy = (() => {
 </g>
 </svg>`;
 })();
-await sharp(Buffer.from(galaxy)).webp({ quality: 80, alphaQuality: 85, effort: 6 }).toFile("public/start/everest-galaxy.webp");
+writeFileSync("public/start/everest-galaxy.svg", tidy(galaxy));
 
 // the stretch of ridge around the summit, for the page's glint, and its top
 const top = summitRidge.reduce((a, b) => (b[1] < a[1] ? b : a));
 writeFileSync(
   "src/app/start/everestRidge.ts",
-  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.webp (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-galaxy.webp, drawn larger than the picture and centred on it\nexport const GALAXY = { width: ${GX}, height: ${GY} };\n`
+  `// Written by scripts/everest-scene.mjs: the ridge around the summit in\n// public/start/everest.svg (viewBox 0 0 ${W} ${H}), for the glint that travels it.\nexport const SCENE = { width: ${W}, height: ${H} };\nexport const SUMMIT = { x: ${top[0].toFixed(1)}, y: ${top[1].toFixed(1)} };\nexport const SUMMIT_RIDGE = "${line(summitRidge)}";\n// public/start/everest-galaxy.svg, drawn larger than the picture and centred on it\nexport const GALAXY = { width: ${GX}, height: ${GY} };\n`
 );
 console.log("ok");
