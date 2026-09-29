@@ -17,6 +17,7 @@ import { ClientDock } from "./clients/ClientDock";
 import { PeopleProvider } from "./photos";
 import { ACTIVE_WINDOW_MS } from "./presence/constants";
 import { clientLogoSrc } from "@/lib/photos";
+import { liveLine } from "@/lib/live";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   // read server-side so the very first paint already matches the user's
@@ -68,7 +69,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   return (
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
     <div className="flex h-screen bg-background text-foreground">
-      <Pulse />
+      <Pulse live={liveLine()} />
       <Sidebar
         isOps={isOps}
         canSeeFinance={canEditPeople(sessionUser)}
