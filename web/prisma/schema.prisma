@@ -197,6 +197,9 @@ model User {
   performanceLogged PerformanceEntry[] @relation("PerformanceLogged")
   focusAreas        FocusArea[]
   salaryPayments    SalaryPayment[]
+  // the clients an editor (role employee) has been given: the only ones
+  // they see, and only their own work on each
+  visibleClients    Client[]      @relation("ClientEditors")
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -226,6 +229,8 @@ model Client {
   status    String   @default("current")
   // free text — real clients span far more than doctors/podcasts (e.g. Neelkamal TMT is a steel company)
   niche     String?
+  // the editors ops has given this client to; no one else in that role sees it
+  editors   User[]   @relation("ClientEditors")
   // the four things the real Notion onboarding form collects, kept as
   // separate fields rather than one free-text blob so they're usable
   contact   String? // primary contact's name

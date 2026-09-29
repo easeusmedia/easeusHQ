@@ -22,6 +22,8 @@ export default async function MyTasksPage() {
     include: { team: true },
   });
   if (!me) redirect("/login");
+  // an editor's work is the Board's editing queue (lib/scope isEditor)
+  if (me.role === "employee" && me.team?.slug === "operations") redirect("/board");
 
   const work = await loadWork({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }, "mine", { withQueue: false });
 

@@ -44,6 +44,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/login");
   if (!project) notFound();
+  // an editor sees a client through its own page only (their work and its
+  // documents), which also decides whether they may see it at all
+  if (me.role === "employee") redirect(`/clients/${project.client.slug}`);
 
   const editors = assignOptionsFor(me, users);
   const boardProjects = project.client.projects.map((p) => ({
@@ -114,15 +117,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           files: project.assets.length,
         }}
         invoice={
-          me.role !== "employee" ? (
-            <InvoicePicker
-              key={inBatch?.key ?? "none"}
-              projectId={project.id}
-              value={inBatch?.key ?? "none"}
-              options={invoiceOptions}
-              numbered={!monthly}
-            />
-          ) : undefined
+          <InvoicePicker
+            key={inBatch?.key ?? "none"}
+            projectId={project.id}
+            value={inBatch?.key ?? "none"}
+            options={invoiceOptions}
+            numbered={!monthly}
+          />
         }
       />
 
@@ -155,7 +156,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           {/* every task made here is pre-scoped to this project — no
               hunting it back out of a list of every project on the board */}
           <li>
-            <NewTaskRow projects={boardProjects} editors={editors} defaultProjectId={project.id} canCreateProject={me?.role !== "employee"} />
+            <NewTaskRow projects={boardProjects} editors={editors} defaultProjectId={project.id} canCreateProject />
           </li>
         </ul>
       </section>

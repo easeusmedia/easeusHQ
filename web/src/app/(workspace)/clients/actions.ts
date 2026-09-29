@@ -228,6 +228,16 @@ export async function updateClientStatus(clientId: string, status: string): Prom
   return {};
 }
 
+// Which editors can see this client (lib/scope visibleClientWhere). Ops
+// only, and only ever members: the team sees every client already.
+export async function setClientEditors(clientId: string, editorIds: string[]): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only the operations team can choose who sees a client." };
+  const editors = await prisma.user.findMany({ where: { id: { in: editorIds }, role: "employee" }, select: { id: true } });
+  await prisma.client.update({ where: { id: clientId }, data: { editors: { set: editors } } });
+  revalidatePath("/clients", "layout");
+  return {};
+}
+
 // The client's own page at their address, for anyone not signed in (see
 // proxy.ts). Ops only; off by default.
 export async function setClientSharing(clientId: string, enabled: boolean): Promise<{ error?: string }> {

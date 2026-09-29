@@ -31,6 +31,9 @@ import { ProfileHead } from "../../ProfileHead";
 import { PhotoEdit } from "../../PhotoEdit";
 import { ClientTags } from "../ClientTags";
 import { listTags, updateClientAvatar } from "../actions";
+import { ClientDocuments } from "../ClientInfo";
+import { EditorAccess } from "../EditorAccess";
+import { Avatar } from "../../TaskCard";
 
 export const dynamic = "force-dynamic";
 // the Notion import runs as a server action from this page and talks to
@@ -38,6 +41,27 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const shortDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+// The client and everything its page shows of it
+function loadClient(slug: string) {
+  return prisma.client.findUnique({
+    where: { slug },
+    include: {
+      projects: {
+        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+        include: {
+          _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
+        },
+      },
+      invoices: { orderBy: { createdAt: "desc" } },
+      deliverables: { orderBy: { sortOrder: "asc" } },
+      onboarding: { orderBy: { sortOrder: "asc" } },
+      documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      tags: true,
+      editors: { select: { id: true } },
+    },
+  });
+}
 
 export default async function ClientDetailPage({
   params,
@@ -53,22 +77,7 @@ export default async function ClientDetailPage({
   const [sessionUserId, users, client, opsTeam, allTags, tokens] = await Promise.all([
     getSessionUserId(),
     getAllUsers(),
-    prisma.client.findUnique({
-      where: { slug },
-      include: {
-        projects: {
-          orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
-          include: {
-            _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
-          },
-        },
-        invoices: { orderBy: { createdAt: "desc" } },
-        deliverables: { orderBy: { sortOrder: "asc" } },
-        onboarding: { orderBy: { sortOrder: "asc" } },
-        documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-        tags: true,
-      },
-    }),
+    loadClient(slug),
     prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
     listTags(),
     // whether the Apify tokens the Analytics tab scrapes with are set up
@@ -84,6 +93,13 @@ export default async function ClientDetailPage({
   // that isn't everybody's business.
   const canSeeBilling = isAbhishekOrAdmin(me);
   if (!client) notFound();
+
+  // An editor sees a client only once it's been given to them, and then
+  // only their own work on it and the documents they edit by (lib/scope)
+  if (me.role === "employee") {
+    if (!client.editors.some((e) => e.id === me.id)) notFound();
+    return <EditorClientPage client={client} me={me} users={users} />;
+  }
 
   // client messages: admin/Abhishek and Operations' core members only
   const canSeeFeedback = seesClientFeedback(me, opsTeam?.id ?? null);
@@ -134,7 +150,6 @@ export default async function ClientDetailPage({
   const tasksPerProject = new Map(taskCounts.map((r) => [r.projectId, r._count._all]));
   const plan = planFor(client.contentPlan);
   const scraping = tokens.length > 0;
-  const canPlan = me.role !== "employee";
 
   const projectCards = client.projects.map((p) => ({
     id: p.id,
@@ -159,6 +174,9 @@ export default async function ClientDetailPage({
       </Link>
 
       <div className="mb-8 flex flex-wrap items-start gap-4">
+        {/* a floor under the name: past it, the buttons wrap to their own
+            line rather than squeezing the name away and the logo up */}
+        <div className="min-w-72 flex-1">
         <ProfileHead photo={<PhotoEdit name={client.name} src={clientLogoSrc(client)} size="fill" save={updateClientAvatar.bind(null, client.id)} />}>
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">
@@ -169,9 +187,12 @@ export default async function ClientDetailPage({
             <ClientTags clientId={client.id} clientTags={client.tags} allTags={allTags} />
           </div>
         </ProfileHead>
+        </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start">
           {/* the client's own page at this address, for the team to switch on */}
-          {me.role !== "employee" && <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />}
+          {/* who among the editors can see this client at all */}
+          <EditorAccess clientId={client.id} editors={users.filter((u) => u.role === "employee" && u.employment !== "former" && u.teamId === opsTeam?.id).map((u) => ({ id: u.id, name: u.name }))} given={client.editors.map((e) => e.id)} />
+          <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />
           {canSeeFeedback && (client.shareEnabled || feedback.length > 0) && (
             <ClientMessages
               clientId={client.id}
@@ -266,10 +287,10 @@ export default async function ClientDetailPage({
                   initialShow={show}
                   initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
-                  canMoveInvoices={me.role !== "employee"}
+                  canMoveInvoices
                   plan={plan}
                   // what a new project's tasks are, and when — beside Projects
-                  blueprint={canPlan ? <BlueprintButton clientId={client.id} plan={plan} /> : undefined}
+                  blueprint={<BlueprintButton clientId={client.id} plan={plan} />}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                 />
@@ -314,7 +335,7 @@ export default async function ClientDetailPage({
                   instagram: client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"),
                 }}
                 ready={{ youtube: scraping, instagram: scraping }}
-                canEdit={me.role !== "employee"}
+                canEdit
                 today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
               />
             ),
@@ -362,6 +383,93 @@ export default async function ClientDetailPage({
                   }}
                 />
               </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+// What an editor sees of a client: its name, their own tasks on it, and
+// the documents they edit by (its information, SOP, checklist and
+// resources, plus any written for it), all read-only. No billing, no
+// analytics, nobody else's work, and no contact details or meeting notes.
+async function EditorClientPage({
+  client,
+  me,
+  users,
+}: {
+  client: NonNullable<Awaited<ReturnType<typeof loadClient>>>;
+  me: Awaited<ReturnType<typeof getAllUsers>>[number];
+  users: Awaited<ReturnType<typeof getAllUsers>>;
+}) {
+  const [tasks, taskTags] = await Promise.all([
+    prisma.task.findMany({
+      where: { status: { in: ACTIVE_STATUSES }, projectId: { in: client.projects.map((p) => p.id) }, assignedToId: me.id },
+      orderBy: { createdAt: "desc" },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+    }),
+    prisma.taskTag.findMany({
+      where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
+  const logo = clientLogoSrc(client);
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <Link href="/clients" className="mb-6 flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
+        <ArrowLeft size={14} /> Clients
+      </Link>
+      <div className="mb-8 flex">
+        <ProfileHead
+          photo={
+            logo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a data: URI, not an optimizable remote asset
+              <img src={logo} alt="" className="photo" style={{ width: "100%", height: "100%" }} />
+            ) : (
+              <Avatar name={client.name} size="fill" presence={false} />
+            )
+          }
+        >
+          <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+          {client.niche && <p className="mt-1 text-sm text-muted">{client.niche}</p>}
+        </ProfileHead>
+      </div>
+      <ClientTabs
+        width=""
+        tabs={[
+          {
+            key: "tasks",
+            label: "Your tasks",
+            count: tasks.length,
+            bleed: true,
+            content:
+              tasks.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">Nothing of yours for {client.name} right now.</p>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <Board
+                    tasks={tasks}
+                    projects={client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }))}
+                    editors={assignOptionsFor(me, users)}
+                    actingUserId={me.id}
+                    actingRole={me.role as Role}
+                    canCreate={false}
+                    taskTags={taskTags}
+                  />
+                </div>
+              ),
+          },
+          {
+            key: "info",
+            label: "Client info",
+            content: (
+              <ClientDocuments
+                docs={{ brandGuidelines: client.brandGuidelines, sop: client.sop, qualityChecklist: client.qualityChecklist, resources: client.resources }}
+                custom={client.documents.map((d) => ({ id: d.id, title: d.title, content: d.content }))}
+              />
             ),
           },
         ]}

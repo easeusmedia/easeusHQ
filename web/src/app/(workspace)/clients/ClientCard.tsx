@@ -75,7 +75,8 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
 
       {/* where they stand: the status, and the plan beside it */}
       <div className="relative -ml-2 flex min-h-7 flex-wrap items-center gap-1.5">
-        <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
+        {/* only for whoever can change it; the board leaves it out for an editor */}
+        {onStatusChange && <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />}
         {client.tags.slice(0, 2).map((t) => (
           <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
         ))}
@@ -114,7 +115,7 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
         <ListChecks size={13} className={client.activeTasks > 0 ? "text-accent" : "text-muted"} />
         <span className={`tabular-nums ${client.activeTasks > 0 ? "text-foreground" : "text-muted"}`}>{client.activeTasks}</span>
       </span>
-      <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
+      {onStatusChange && <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />}
       <ArrowUpRight size={15} className="hidden shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 sm:block" />
     </PrefetchLink>
   );

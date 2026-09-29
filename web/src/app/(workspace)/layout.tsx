@@ -8,7 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { Pulse } from "./Pulse";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, seesClientFeedback } from "@/lib/scope";
+import { canEditPeople, isEditor, seesClientFeedback } from "@/lib/scope";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { Assistant } from "./assistant/Assistant";
 import { getUnreadBySender } from "./presence/actions";
@@ -37,7 +37,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     // the current clients: the sidebar's tree and the client bar — everyone sees them
     prisma.client.findMany({
       where: { status: "current" },
-      select: { id: true, slug: true, name: true, avatarUrl: true },
+      select: { id: true, slug: true, name: true, avatarUrl: true, editors: { select: { id: true } } },
       // the same order as the Clients dashboard
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -52,7 +52,11 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const isOps = isAdmin || sessionUser.role === "core"; // Calendar access — unchanged, still every core member
   const contractsWaiting = isOps ? draftContracts : 0;
   const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
-  const currentClients = clientRows.map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
+  // an editor has only the clients given to them (lib/scope)
+  const editor = isEditor(sessionUser, opsTeam?.id ?? null);
+  const currentClients = clientRows
+    .filter((c) => sessionUser.role !== "employee" || c.editors.some((e) => e.id === sessionUser.id))
+    .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
@@ -70,6 +74,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
         fullAccess={isAbhishekOrAdmin(sessionUser)}
+        isEditor={editor}
         sessionUserId={sessionUser.id}
         unreadBySender={unreadBySender}
         contractsWaiting={contractsWaiting}

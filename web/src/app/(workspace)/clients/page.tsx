@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { visibleClientWhere } from "@/lib/scope";
 import { ClientsSyncButton } from "./ClientsSyncButton";
 import { ClientsBoard } from "./ClientsBoard";
 import type { ClientCardData } from "./ClientCard";
@@ -11,27 +12,27 @@ import { clientLogoSrc } from "@/lib/photos";
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
-  // one round: the clients don't wait on who's asking
-  const [sessionUserId, users, clients] = await Promise.all([
-    getSessionUserId(),
-    getAllUsers(),
-    prisma.client.findMany({
-      include: {
-        tags: true,
-        // counting only what's live — a card claiming "12 active projects"
-        // when they all wrapped months ago is worse than no number
-        projects: {
-          where: { status: { not: "completed" } },
-          include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES } } } } } },
-        },
-      },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-  ]);
+  const [sessionUserId, users] = await Promise.all([getSessionUserId(), getAllUsers()]);
   if (!sessionUserId) redirect("/login");
   const me = users.find((u) => u.id === sessionUserId);
-  // Open to the whole team: everyone should be able to see what's
-  // happening for a client, whatever their role. Rearranging them or
+  if (!me) redirect("/login");
+  // an editor sees only the clients given to them, and counts only their
+  // own work on each (lib/scope)
+  const editor = me.role === "employee";
+  const clients = await prisma.client.findMany({
+    where: visibleClientWhere(me),
+    include: {
+      tags: true,
+      // counting only what's live — a card claiming "12 active projects"
+      // when they all wrapped months ago is worse than no number
+      projects: {
+        where: { status: { not: "completed" } },
+        include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES }, ...(editor ? { assignedToId: me.id } : {}) } } } } },
+      },
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  // Open to the whole team, bar editors (above). Rearranging them or
   // changing their status is for ops.
 
   const cards: ClientCardData[] = clients.map((c) => ({
@@ -43,14 +44,15 @@ export default async function ClientsPage() {
     niche: c.niche,
     logo: clientLogoSrc(c),
     tags: c.tags,
-    activeProjects: c.projects.length,
+    // an editor's count is the projects with their own work in hand
+    activeProjects: editor ? c.projects.filter((p) => p._count.tasks > 0).length : c.projects.length,
     activeTasks: c.projects.reduce((sum, p) => sum + p._count.tasks, 0),
   }));
 
   return (
     <>
-      <ClientsBoard clients={cards} canArrange={!!me && me.role !== "employee"} />
-      <ClientsSyncButton />
+      <ClientsBoard clients={cards} canArrange={!editor} />
+      {!editor && <ClientsSyncButton />}
     </>
   );
 }

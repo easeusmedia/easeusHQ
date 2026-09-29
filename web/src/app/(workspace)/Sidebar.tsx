@@ -128,6 +128,7 @@ export function Sidebar({
   canSeeFinance = false,
   name,
   fullAccess,
+  isEditor = false,
   sessionUserId,
   unreadBySender,
   contractsWaiting = 0,
@@ -141,6 +142,8 @@ export function Sidebar({
   name: string;
   // admin and the developer: the Integrations page
   fullAccess: boolean;
+  // an editor's work is the Board's editing queue: no My tasks
+  isEditor?: boolean;
   sessionUserId: string;
   unreadBySender: Record<string, number>;
   // contracts whose client has sent the form, waiting on ops
@@ -218,7 +221,7 @@ export function Sidebar({
   }
 
   const groups = [
-    { label: "Main", items: MAIN },
+    { label: "Main", items: isEditor ? MAIN.filter((i) => i.href !== "/my-tasks") : MAIN },
     {
       label: "Manage",
       items: isOps

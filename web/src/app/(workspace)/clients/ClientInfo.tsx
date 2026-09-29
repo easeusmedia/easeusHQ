@@ -19,7 +19,9 @@ import { ConfirmButton } from "../ConfirmButton";
 import { Reveal } from "../Reveal";
 import { closeOnBackdrop } from "../dialog";
 
-type Doc = { key: ClientDocType; label: string; icon: typeof Palette; hint: string };
+// key: which of the five it is; a client's own extra documents are shown
+// read-only through the same section, so theirs is only a React key there
+type Doc = { key: ClientDocType | string; label: string; icon: typeof Palette; hint: string };
 
 // The four documents every client has. Same four everywhere — this is the
 // one template, whatever shape the client's Notion page happened to grow in.
@@ -44,7 +46,7 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
 
   async function save() {
     setSaving(true);
-    await updateClientDoc(clientId, doc.key, value);
+    await updateClientDoc(clientId, doc.key as ClientDocType, value);
     setSaving(false);
     setEditing(false);
     router.refresh();
@@ -104,14 +106,19 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
 }
 
 // The same document sections, read-only — what a client sees of their own
-// documents on their shared page. Only the ones actually written.
-export function ClientDocuments({ docs }: { docs: Record<ClientDocType, string | null> }) {
-  const written = DOCS.filter((d) => docs[d.key]?.trim());
-  if (written.length === 0) return <p className="text-sm text-muted">Nothing here yet.</p>;
+// documents on their shared page, and an editor of the client's. Only the
+// ones actually written; any left out of `docs` aren't shown.
+export function ClientDocuments({ docs, custom = [] }: { docs: Partial<Record<ClientDocType, string | null>>; custom?: CustomDoc[] }) {
+  const written = DOCS.filter((d) => docs[d.key as ClientDocType]?.trim());
+  const extra = custom.filter((d) => d.content?.trim());
+  if (written.length + extra.length === 0) return <p className="text-sm text-muted">Nothing here yet.</p>;
   return (
     <div className="flex flex-col gap-3">
       {written.map((doc) => (
-        <DocSection key={doc.key} clientId="" doc={doc} content={docs[doc.key]} readOnly />
+        <DocSection key={doc.key} clientId="" doc={doc} content={docs[doc.key as ClientDocType] ?? null} readOnly />
+      ))}
+      {extra.map((d) => (
+        <DocSection key={d.id} clientId="" doc={{ key: d.id, label: d.title, icon: FileText, hint: "Written for this client" }} content={d.content} readOnly />
       ))}
     </div>
   );
@@ -317,7 +324,7 @@ export function ClientInfo({
       </section>
 
       {DOCS.map((doc) => (
-        <DocSection key={doc.key} clientId={clientId} doc={doc} content={docs[doc.key]} />
+        <DocSection key={doc.key} clientId={clientId} doc={doc} content={docs[doc.key as ClientDocType]} />
       ))}
 
       {/* whatever else this client needs written down — the five above are

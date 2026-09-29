@@ -178,15 +178,16 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
             className={`transition-opacity ${view === "grid" ? "h-full" : ""} ${canArrange ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === client.id ? "opacity-40" : ""}`}
           >
             {view === "grid" ? (
-              <ClientCard client={client} onStatusChange={commitStatus} />
+              <ClientCard client={client} onStatusChange={canArrange ? commitStatus : undefined} />
             ) : (
-              <ClientRow client={client} onStatusChange={commitStatus} />
+              <ClientRow client={client} onStatusChange={canArrange ? commitStatus : undefined} />
             )}
           </div>
         ))}
         {/* adding a client only makes sense into the live group */}
-        {activeGroup === "current" && <AddClientCard variant={view === "grid" ? "card" : "row"} />}
-        {visible.length === 0 && activeGroup !== "current" && (
+        {canArrange && activeGroup === "current" && <AddClientCard variant={view === "grid" ? "card" : "row"} />}
+        {!canArrange && visible.length === 0 && <p className="text-sm text-muted">No clients have been shared with you yet.</p>}
+        {canArrange && visible.length === 0 && activeGroup !== "current" && (
           <p className="text-xs text-muted">Drag a client onto this tab to move it here.</p>
         )}
       </div>

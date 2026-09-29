@@ -5,9 +5,11 @@ import {
   canEditPeople,
   canEditTag,
   canSeeMember,
+  isEditor,
   seesEveryTeam,
   seesClientFeedback,
   viewScope,
+  visibleClientWhere,
   visibleTagWhere,
   type Viewer,
 } from "./scope.ts";
@@ -89,4 +91,13 @@ test("client feedback: admin, Abhishek and Operations core only", () => {
   assert.equal(seesClientFeedback({ role: "core", email: "p@x", teamId: "team-sales" }, ops), false);
   assert.equal(seesClientFeedback({ role: "employee", email: "e@x", teamId: ops }, ops), false);
   assert.equal(seesClientFeedback({ role: "core", email: "n@x", teamId: null }, null), false);
+});
+
+test("an editor sees only the clients given to them; the team sees them all", () => {
+  assert.deepEqual(visibleClientWhere(sparsh), { editors: { some: { id: "u-sparsh" } } });
+  assert.deepEqual(visibleClientWhere(arpit), {});
+  assert.deepEqual(visibleClientWhere(ashmit), {});
+  assert.equal(isEditor(sparsh, OPS), true);
+  assert.equal(isEditor(arpit, OPS), false);
+  assert.equal(isEditor({ role: "employee", teamId: SALES }, OPS), false);
 });

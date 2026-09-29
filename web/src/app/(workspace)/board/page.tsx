@@ -6,7 +6,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
-import { seesEveryTeam, visibleTagWhere } from "@/lib/scope";
+import { seesEveryTeam, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
 import { loadWork } from "../workData";
@@ -39,7 +39,13 @@ export default async function TasksPage({
   if (!sessionUserId) redirect("/login");
   // a project set up before names were required can still have "" — fall
   // back to its type so the new/reassign-task dropdown never shows a blank
-  const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
+  // an editor adds work only for the clients given to them (lib/scope)
+  const signedIn = users.find((u) => u.id === sessionUserId);
+  const theirs =
+    signedIn?.role === "employee"
+      ? new Set((await prisma.client.findMany({ where: visibleClientWhere(signedIn), select: { id: true } })).map((c) => c.id))
+      : null;
+  const projects = rawProjects.filter((p) => !theirs || theirs.has(p.clientId)).map((p) => ({ ...p, name: p.name || p.type }));
 
   const actingUser = users.find((u) => u.id === sessionUserId);
 

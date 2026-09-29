@@ -84,3 +84,17 @@ export function seesClientFeedback(user: Pick<Viewer, "role" | "email" | "teamId
   if (seesEveryTeam(user)) return true;
   return user.role === "core" && !!user.teamId && user.teamId === operationsTeamId;
 }
+
+// Which clients someone sees. The team sees every client; a member (an
+// editor) only the ones ops has given them, so a new client isn't shown
+// to every editor the day it signs.
+export function visibleClientWhere(user: Pick<Viewer, "id" | "role" | "email">): Record<string, unknown> {
+  if (user.role !== "employee" || seesEveryTeam(user)) return {};
+  return { editors: { some: { id: user.id } } };
+}
+
+// An editor: a member of Operations. They work from the Board's editing
+// queue, and see a client only as far as their own work on it goes.
+export function isEditor(user: Pick<Viewer, "role" | "teamId">, operationsTeamId: string | null): boolean {
+  return user.role === "employee" && !!operationsTeamId && user.teamId === operationsTeamId;
+}
