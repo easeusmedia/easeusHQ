@@ -694,8 +694,24 @@ dialog[open]::backdrop {
     ev-plant 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) 0.6s both,
     ev-hop 6s ease-out 3s infinite;
 }
-.ev-tag:hover {
+.ev-hold:hover .ev-tag {
   animation-play-state: paused;
+}
+/* the halo behind the message breathes, and so does the light along the
+   ridge */
+.ev-halo {
+  animation: ev-breathe 7s ease-in-out infinite alternate;
+}
+.ev-edge {
+  animation: ev-breathe 5s ease-in-out infinite alternate;
+}
+@keyframes ev-breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes ev-plant {
   0% {
@@ -726,40 +742,29 @@ dialog[open]::backdrop {
     transform: scale(0.97);
   }
 }
-/* the brighter stars twinkle, each on its own clock; now and then one
-   falls; and every so often a short spark of light runs the summit ridge
-   (the path is measured as 100 long: a 6-long dash, and a gap longer than
-   the path so only one ever shows) */
+/* the stars drift, the far ones slower than the near, over a minute or
+   more, and the brighter ones twinkle, each on its own clock; now and then
+   one falls */
+.ev-drift-far {
+  animation: ev-drift 110s ease-in-out infinite alternate;
+}
+.ev-drift-near {
+  animation: ev-drift 70s ease-in-out infinite alternate-reverse;
+}
+@keyframes ev-drift {
+  from {
+    transform: translate(-9px, -3px);
+  }
+  to {
+    transform: translate(9px, 3px);
+  }
+}
 .ev-star {
-  opacity: 0.9;
   animation: ev-twinkle 4s ease-in-out infinite alternate;
 }
 @keyframes ev-twinkle {
   to {
-    opacity: 0.15;
-  }
-}
-.ev-glint {
-  stroke-dasharray: 6 200;
-  stroke-dashoffset: 6;
-  opacity: 0;
-  animation: ev-glint 12s ease-in-out 2s infinite;
-}
-@keyframes ev-glint {
-  0% {
-    stroke-dashoffset: 6;
-    opacity: 0;
-  }
-  8% {
-    opacity: 1;
-  }
-  46% {
-    opacity: 1;
-  }
-  55%,
-  100% {
-    stroke-dashoffset: -100;
-    opacity: 0;
+    opacity: 0.2;
   }
 }
 .ev-meteor {
@@ -785,13 +790,14 @@ dialog[open]::backdrop {
 }
 @media (prefers-reduced-motion: reduce) {
   .ev-tag,
+  .ev-halo,
+  .ev-edge,
+  .ev-drift-far,
+  .ev-drift-near,
   .ev-star {
     animation: none;
   }
   .ev-meteor {
-    display: none;
-  }
-  .ev-glint {
     display: none;
   }
 }

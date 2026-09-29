@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { FileText, Flag, PenLine, UserRound, type LucideIcon } from "lucide-react";
-import { SCENE, SUMMIT, SUMMIT_RIDGE, TWINKLES } from "./everestRidge";
+import { RIDGE_GLOW, SCENE, STARS, SUMMIT } from "./everestRidge";
 
 // The frame every /start page sits in, over Everest at blue hour: the
 // mountain fills the screen (the goal we help clients reach: the top), with
@@ -64,9 +64,9 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
           <p className="relative mt-10 text-xs text-muted/70">Easeus Media: Your New Age Media Distribution Partner.</p>
         </aside>
 
-        {/* dark frosted glass: the range goes soft behind the form, lit
-            faintly along its top edge like a pane */}
-        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
+        {/* frosted glass: the range goes soft behind the form and its blues
+            come through, lit faintly along its top edge like a pane */}
+        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0a1019]/50 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-[28px] backdrop-saturate-150 sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
           {/* the sheen a pane of glass catches, top left */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
           {/* on a phone the left side is gone, so the name comes along here */}
@@ -93,16 +93,17 @@ const FRAME_MASK: React.CSSProperties = {
 };
 
 // what the client reads on hovering over their name at the summit
-const SUMMIT_NOTE = "You bring the vision. We'll handle the climb.";
+const SUMMIT_NOTE = "The summit is waiting, and we're here to take you to the top.";
 
 
-// Everest by night, filling the screen (public/start/everest.webp, drawn by
-// scripts/everest-scene.mjs), with in the same frame so they line up: the
-// stars that twinkle, one that falls now and then, a glint of light running
-// the summit ridge, and a message for the client planted on the summit
-// (globals.css, .ev-*; still for reduced motion). Nothing large moves, so
-// nothing large is redrawn: zooming stays clean, and the glass over it has
-// nothing to keep re-blurring.
+// Everest at blue hour, filling the screen (public/start/everest.webp, drawn
+// by scripts/everest-scene.mjs), with in the same frame so they line up: the
+// stars, softly glowing, drifting and twinkling, one falling now and then;
+// a line of light along the summit ridge, widest at the top and tapering
+// away down both sides, breathing; and a message for the client on the
+// summit with a halo behind it (globals.css, .ev-*; still for reduced
+// motion). The picture itself never moves or redraws, so zooming stays
+// clean.
 function Scene({ name }: { name?: string | null }) {
   const { width, height } = SCENE;
   const label = name?.trim();
@@ -134,6 +135,26 @@ function Scene({ name }: { name?: string | null }) {
             <stop offset="0.8" stopColor="#000" stopOpacity="0.14" />
             <stop offset="1" stopColor="#000" stopOpacity="0.32" />
           </radialGradient>
+          <radialGradient id="sc-star">
+            <stop offset="0" stopColor="#dfe9ff" stopOpacity="0.5" />
+            <stop offset="0.4" stopColor="#9fc0ff" stopOpacity="0.14" />
+            <stop offset="1" stopColor="#9fc0ff" stopOpacity="0" />
+          </radialGradient>
+          {/* the ridge light: white at the top, the app's blue toward its ends */}
+          <linearGradient id="sc-edge" gradientUnits="userSpaceOnUse" x1={RIDGE_GLOW.from} y1="0" x2={RIDGE_GLOW.to} y2="0">
+            <stop offset="0" stopColor="#4b95e6" />
+            <stop offset={(SUMMIT.x - RIDGE_GLOW.from) / (RIDGE_GLOW.to - RIDGE_GLOW.from) - 0.2} stopColor="#9cc6ff" />
+            <stop offset={(SUMMIT.x - RIDGE_GLOW.from) / (RIDGE_GLOW.to - RIDGE_GLOW.from)} stopColor="#f5f9ff" />
+            <stop offset="1" stopColor="#4b95e6" />
+          </linearGradient>
+          <filter id="sc-soften" x="-10%" y="-40%" width="120%" height="180%">
+            <feGaussianBlur stdDeviation="3" />
+          </filter>
+          <radialGradient id="sc-halo">
+            <stop offset="0" stopColor="#7db3f2" stopOpacity="0.4" />
+            <stop offset="0.5" stopColor="#4b95e6" stopOpacity="0.12" />
+            <stop offset="1" stopColor="#4b95e6" stopOpacity="0" />
+          </radialGradient>
           <linearGradient id="sc-foot" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0.6" stopColor="#000" stopOpacity="0" />
             <stop offset="1" stopColor="#000" stopOpacity="0.55" />
@@ -143,41 +164,55 @@ function Scene({ name }: { name?: string | null }) {
             shadow, so the eye goes to the peak and the form */}
         <rect width={width} height={height} fill="url(#sc-foot)" />
         <rect width={width} height={height} fill="url(#sc-vignette)" />
-        <g fill="#f2f6ff">
-          {TWINKLES.map(([x, y, r], i) => (
-            <circle key={i} cx={x} cy={y} r={r + 0.15} className="ev-star" style={{ animationDelay: `${(i * 0.37) % 6}s`, animationDuration: `${3 + ((i * 0.53) % 4)}s` }} />
+        {/* the stars: the faint ones drift slowly, the bright ones, each
+            with its own soft glow, a little further, so the sky has depth */}
+        <g fill="#f2f6ff" className="ev-drift-far">
+          {STARS.filter(([, , r]) => r < 0.85).map(([x, y, r, o], i) => (
+            <circle key={i} cx={x} cy={y} r={r} opacity={o} />
+          ))}
+        </g>
+        <g fill="#f4f8ff" className="ev-drift-near">
+          {STARS.filter(([, , r]) => r >= 0.85).map(([x, y, r, o], i) => (
+            <g key={i} opacity={o}>
+              <circle cx={x} cy={y} r={r * 5} fill="url(#sc-star)" />
+              <circle cx={x} cy={y} r={r} className={i % 3 ? undefined : "ev-star"} style={i % 3 ? undefined : { animationDelay: `${(i * 0.7) % 5}s`, animationDuration: `${3 + ((i * 0.9) % 3)}s` }} />
+            </g>
           ))}
         </g>
         <line x1="1240" y1="70" x2="1180" y2="92" stroke="url(#sc-meteor)" strokeWidth="1.2" strokeLinecap="round" className="ev-meteor" />
-        {/* first light running up the ridge to the top and down the far side */}
-        <path d={SUMMIT_RIDGE} pathLength={100} fill="none" stroke="#f4f8ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="ev-glint" />
+        {/* the light along the ridge: a soft bloom, and a fine bright line */}
+        <path d={RIDGE_GLOW.bloom} fill="url(#sc-edge)" filter="url(#sc-soften)" className="ev-edge" />
+        <path d={RIDGE_GLOW.line} fill="url(#sc-edge)" />
+        {label && <ellipse cx={SUMMIT.x} cy={SUMMIT.y - 40} rx="130" ry="60" fill="url(#sc-halo)" className="ev-halo" />}
       </svg>
 
-      {/* grain over the picture, a small tile, against banding */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 bg-[url(/start/grain.png)] bg-[length:160px]" />
-
       {label && (
-        // A message planted on the summit: a box with a small pointer in
-        // the middle of its foot, the tip on the peak. One thin blue stroke
-        // with the Nyra button's light running round it. It springs up
-        // from the peak as the page opens, gives a quick hop now and then,
-        // and hovering it brings up a line above.
+        // A message on the summit: a box with a small pointer in the middle
+        // of its foot, the tip on the peak. One thin blue stroke with the
+        // Nyra button's light running round it. It springs up from the peak
+        // as the page opens and gives a quick hop now and then; hovering it
+        // brings up a line above, which stays while the pointer is on
+        // either.
         <div aria-hidden className="pointer-events-none fixed inset-0 [container-type:size]">
           <div className="absolute" style={at(SUMMIT.x, SUMMIT.y)}>
-            <div className="absolute bottom-1.5 left-0 flex -translate-x-1/2 flex-col-reverse items-center">
-              <span className="ev-tag peer pointer-events-auto relative">
+            <div className="ev-hold group absolute bottom-1.5 left-0 flex -translate-x-1/2 flex-col-reverse items-center">
+              <span className="ev-tag pointer-events-auto relative">
                 <span className="nyra-glow nyra-line relative block rounded-[11px] bg-[#2a4a72] p-px">
                   <span className="flex cursor-default items-center gap-2 rounded-[10px] bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground">
                     <Flag size={14} className="shrink-0 text-accent" />
-                    {label}, we&apos;re here to take you to the top
+                    Hey {label}, we want you here
                   </span>
                 </span>
                 {/* the pointer: the box's own fill and stroke */}
                 <span className="absolute top-full left-1/2 -mt-[6.5px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-[#2a4a72] bg-surface-2" />
               </span>
-              <p className="mb-3 w-max max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
-                {SUMMIT_NOTE}
-              </p>
+              {/* padding, not margin, below the line: the pointer can cross
+                  from the box to it without letting go */}
+              <span className="pointer-events-none translate-y-1 pb-3 opacity-0 transition-[opacity,translate] delay-150 duration-300 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-hover:delay-0">
+                <span className="block w-max max-w-[260px] rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85">
+                  {SUMMIT_NOTE}
+                </span>
+              </span>
             </div>
           </div>
         </div>
