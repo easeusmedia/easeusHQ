@@ -105,11 +105,6 @@ export function DatePicker({
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  // where the calendar goes: fixed to the window like the dropdowns (see
-  // popover.ts), so a scrolling panel or dialog can't cut it off, and
-  // nudged left when the field sits near the window's right edge
-  const [shift, setShift] = useState(0);
-  const [panelWidth, setPanelWidth] = useState(320);
   const selected = useMemo(() => parse(value), [value]);
   // the day highlighted inside the open calendar, which only becomes the
   // real value on "Choose date" — so browsing months (or clicking around)
@@ -145,12 +140,8 @@ export function DatePicker({
     setMode("days");
     const trigger = triggerRef.current;
     if (!trigger) return;
-    // 20rem, or the window less a margin on a phone
-    const width = Math.min(20 * parseFloat(getComputedStyle(document.documentElement).fontSize), window.innerWidth - 16);
-    const left = trigger.getBoundingClientRect().left;
-    setPanelWidth(width);
-    setShift(Math.max(8, Math.min(left, window.innerWidth - width - 8)) - left);
-    place(trigger);
+    // 20rem (the window less a margin on a phone), kept inside the window
+    place(trigger, { width: 20 * parseFloat(getComputedStyle(document.documentElement).fontSize) });
     setOpen(true);
   }
 
@@ -203,6 +194,8 @@ export function DatePicker({
       {pill ? (
         <button
           ref={triggerRef}
+          aria-haspopup="dialog"
+          aria-expanded={open}
           type="button"
           onClick={() => (open ? setOpen(false) : openPanel())}
           className={`${chip(!!selected)}`}
@@ -213,6 +206,8 @@ export function DatePicker({
       ) : (
         <button
           ref={triggerRef}
+          aria-haspopup="dialog"
+          aria-expanded={open}
           type="button"
           onClick={() => (open ? setOpen(false) : openPanel())}
           // py-2, like a text input and a Dropdown, so a date field sits level
@@ -231,7 +226,7 @@ export function DatePicker({
       {open && position && (
         <div
           {...topLayer}
-          style={{ top: position.top, bottom: position.bottom, left: position.left + shift, width: panelWidth }}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
           className="pop-in fixed z-50 rounded-xl popover p-3 shadow-2xl"
         >
           <div className="mb-3 flex items-center justify-between gap-2">

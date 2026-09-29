@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { fitAcross } from "@/lib/fit";
 
 // Where to draw a menu so its own container can't cut it off.
 //
@@ -59,10 +60,14 @@ function fixedContainingBlock(el: HTMLElement): HTMLElement | null {
 export function usePopover(estimatedHeight: number) {
   const [position, setPosition] = useState<PopoverPosition | null>(null);
 
+  // width: the menu's own width, when it's wider than its trigger; align
+  // "end" hangs it from the trigger's right edge. Either way it's fitted
+  // inside the window (lib/fit.ts), so no menu is ever cut off at a side.
   const place = useCallback(
-    (trigger: HTMLElement | null) => {
+    (trigger: HTMLElement | null, across: { width?: number; align?: "start" | "end" } = {}) => {
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
+      const fit = fitAcross(rect, window.innerWidth, across);
       // flip above when there isn't room below and there is room above
       const below = window.innerHeight - rect.bottom;
       const flip = below < estimatedHeight && rect.top > below;
@@ -75,13 +80,13 @@ export function usePopover(estimatedHeight: number) {
       const baseTop = hostRect ? hostRect.top + parseFloat(hostStyle!.borderTopWidth || "0") : 0;
       const baseLeft = hostRect ? hostRect.left + parseFloat(hostStyle!.borderLeftWidth || "0") : 0;
       if (flip && TOP_LAYER) {
-        setPosition({ bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width });
+        setPosition({ bottom: window.innerHeight - rect.top + 4, left: fit.left, width: fit.width });
         return;
       }
       // and never off the top or bottom of the window
       const wanted = flip ? rect.top - estimatedHeight - 4 : rect.bottom + 4;
       const top = Math.max(8, Math.min(wanted, window.innerHeight - estimatedHeight - 8));
-      setPosition({ top: top - baseTop, left: rect.left - baseLeft, width: rect.width });
+      setPosition({ top: top - baseTop, left: fit.left - baseLeft, width: fit.width });
     },
     [estimatedHeight]
   );

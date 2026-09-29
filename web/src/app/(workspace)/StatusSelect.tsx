@@ -163,7 +163,9 @@ export function StatusSelect({
 
   function toggle() {
     if (open) return setOpen(false);
-    place(triggerRef.current);
+    // never narrower than the longest stage name; the pill's menu hangs from
+    // its right edge, being wider than the pill
+    place(triggerRef.current, { width: 176, align: variant === "pill" ? "end" : "start" });
     setOpen(true);
   }
 
@@ -302,6 +304,8 @@ export function StatusSelect({
       <div ref={menuRef} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
         <button
           ref={triggerRef}
+          aria-haspopup="menu"
+          aria-expanded={open}
           type="button"
           onClick={toggle}
           className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}
@@ -312,10 +316,8 @@ export function StatusSelect({
         {open && position && (
           <div
             {...topLayer}
-            // right-aligned to the pill: the menu (11rem) is wider than the
-            // pill it hangs off, so left-aligning pushed it past the edge
-            style={{ top: position.top, bottom: position.bottom, left: Math.max(8, position.left + position.width - 176) }}
-            className="pop-in fixed z-50 w-44 rounded-md popover py-1 shadow-lg"
+            style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
+            className="pop-in fixed z-50 rounded-md popover py-1 shadow-lg"
           >
             {options.map((to) => (
               <button
@@ -353,6 +355,8 @@ export function StatusSelect({
       )}
       <button
         ref={triggerRef}
+          aria-haspopup="menu"
+          aria-expanded={open}
         type="button"
         onClick={toggle}
         className="btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1"
@@ -363,13 +367,7 @@ export function StatusSelect({
       {open && position && (
         <div
           {...topLayer}
-          // never narrower than the longest stage name, and kept on screen
-          style={{
-            top: position.top,
-            bottom: position.bottom,
-            left: Math.max(8, Math.min(position.left, window.innerWidth - Math.max(position.width, 176) - 8)),
-            width: Math.max(position.width, 176),
-          }}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
           className="pop-in fixed z-50 rounded-md popover py-1 shadow-lg"
         >
           {dropdownOptions.map((to) => (

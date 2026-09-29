@@ -72,7 +72,7 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
       </button>
 
       {open && (
-        <div className="pop-in absolute left-0 top-full z-20 mt-1 w-56 rounded-lg popover p-1 shadow-xl">
+        <div className="pop-in absolute left-0 top-full z-20 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-lg popover p-1 shadow-xl">
           {!creating ? (
             <>
               <div className="max-h-48 overflow-y-auto">

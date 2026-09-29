@@ -129,10 +129,12 @@ export function TagPill({
     <div ref={ref} className="relative inline-block">
       <button
         ref={triggerRef}
+          aria-haspopup="menu"
+          aria-expanded={open}
         type="button"
         onClick={() => {
           if (open) return setOpen(false);
-          place(triggerRef.current);
+          place(triggerRef.current, { width: 340 });
           setOpen(true);
         }}
         className={pill(names.length > 0)}
@@ -143,7 +145,7 @@ export function TagPill({
       {open && position && (
         <div
           {...topLayer}
-          style={{ top: position.top, bottom: position.bottom, left: position.left, width: 340 }}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
           className="pop-in fixed z-50 rounded-xl popover p-3 shadow-2xl"
         >
           <TaskTagPicker

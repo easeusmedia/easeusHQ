@@ -105,7 +105,7 @@ export function Dropdown({
   function openList() {
     setQuery("");
     setMore(0);
-    place(triggerRef.current);
+    place(triggerRef.current, { width: pill ? 208 : 0 });
     setOpen(true);
   }
 
@@ -121,6 +121,8 @@ export function Dropdown({
       {pill ? (
         <button
           ref={triggerRef}
+          aria-haspopup="listbox"
+          aria-expanded={open}
           type="button"
           onClick={() => (open ? setOpen(false) : openList())}
           className={`max-w-56 ${chip(!!current)}`}
@@ -131,6 +133,8 @@ export function Dropdown({
       ) : (
         <button
           ref={triggerRef}
+          aria-haspopup="listbox"
+          aria-expanded={open}
           type="button"
           onClick={() => (open ? setOpen(false) : openList())}
           className={`flex w-full items-center justify-between border border-border bg-surface-2 text-left ${s.trigger}`}
@@ -150,7 +154,7 @@ export function Dropdown({
             top: position.top,
             bottom: position.bottom,
             left: position.left,
-            width: pill ? Math.max(position.width, 208) : position.width,
+            width: position.width,
           }}
           className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-md popover py-1 shadow-lg"
         >

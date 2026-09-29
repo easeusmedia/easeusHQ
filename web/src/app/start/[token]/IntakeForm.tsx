@@ -427,7 +427,7 @@ function DialPicker({ iso, onChange }: { iso: string; onChange: (iso: string) =>
         <ChevronDown size={14} className="text-white/40" />
       </button>
       {open && (
-        <div className="fade-in popover absolute left-0 top-full z-20 mt-1.5 w-72 overflow-hidden rounded-xl">
+        <div className="fade-in popover absolute left-0 top-full z-20 mt-1.5 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl">
           <input
             autoFocus
             value={query}
