@@ -105,7 +105,7 @@ const STARS: [number, number, number, number, number][] = (() => {
   let seed = 7;
   const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const out: [number, number, number, number, number][] = [];
-  while (out.length < 70) {
+  while (out.length < 30) {
     const x = r() * 1600;
     const y = r() * 520;
     out.push([Math.round(x), Math.round(y), 0.5 + r() * 0.9, Math.round(r() * 60) / 10, 3 + Math.round(r() * 40) / 10]);
@@ -114,7 +114,7 @@ const STARS: [number, number, number, number, number][] = (() => {
 })();
 
 // what the client reads on hovering over their name at the summit
-const SUMMIT_NOTE = "Anyone can point at the top. We're the ones who'll get you there.";
+const SUMMIT_NOTE = "The summit is waiting, and we're here to take you to the top.";
 
 
 function Scene({ name }: { name?: string | null }) {
@@ -229,14 +229,17 @@ function Scene({ name }: { name?: string | null }) {
                   brings up a line above. */}
               <div className="ev-bob flex h-full flex-col-reverse items-center pb-[8px]">
                 <span className="ev-tag peer pointer-events-auto relative">
-                  <span className="nyra-glow relative block" style={{ borderRadius: 10 }}>
-                    <span className="relative flex cursor-default items-center gap-2 rounded-[10px] border border-accent/40 bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground shadow-[0_8px_28px_rgba(0,0,0,0.45),0_0_22px_rgba(75,149,230,0.25)]">
+                  {/* one box: a thin blue edge (the 1px of the frame showing
+                      round it) with the Nyra light running along it; no
+                      shadow or haze outside it */}
+                  <span className="nyra-glow nyra-line relative block rounded-[11px] bg-[#2a4a72] p-px">
+                    <span className="relative flex cursor-default items-center gap-2 rounded-[10px] bg-surface-2 px-3.5 py-2 text-[14px] whitespace-nowrap text-foreground">
                       <Flag size={14} className="shrink-0 text-accent" />
                       Hey {label}, we want you here
                     </span>
                   </span>
                   {/* the pointer: part of the box, the same fill and stroke */}
-                  <span className="absolute top-full left-1/2 -mt-[6px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-accent/40 bg-surface-2" />
+                  <span className="absolute top-full left-1/2 -mt-[6.5px] size-3 -translate-x-1/2 rotate-45 border-r border-b border-[#2a4a72] bg-surface-2" />
                 </span>
                 <p className="mb-3 max-w-[260px] translate-y-1 rounded-xl border border-white/15 bg-[#0a1322]/90 px-3 py-2 text-center text-[12px] leading-snug text-white/85 opacity-0 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-[opacity,translate] duration-300 ease-out peer-hover:translate-y-0 peer-hover:opacity-100">
                   {SUMMIT_NOTE}

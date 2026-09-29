@@ -664,6 +664,13 @@ dialog[open]::backdrop {
 .nyra-glow:hover::after {
   opacity: 0.65;
 }
+/* only the light on the edge: no halo spilling round it */
+.nyra-line::after {
+  display: none;
+}
+.nyra-line::before {
+  inset: 0;
+}
 @keyframes nyra-orbit {
   to {
     --nyra-angle: 360deg;

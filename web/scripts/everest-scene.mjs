@@ -187,9 +187,18 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
     <stop offset="0" stop-color="#02060f"/><stop offset="0.32" stop-color="#071528"/>
     <stop offset="0.52" stop-color="#11315a"/><stop offset="0.64" stop-color="#2a5d97"/><stop offset="0.72" stop-color="#1d4674"/><stop offset="1" stop-color="#081626"/>
   </linearGradient>
-  <radialGradient id="warm" cx="260" cy="500" r="820" gradientTransform="translate(0 375) scale(1 0.25)" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#f4ad7d" stop-opacity="0.5"/><stop offset="0.4" stop-color="#d9947a" stop-opacity="0.2"/><stop offset="1" stop-color="#d9947a" stop-opacity="0"/>
+  <!-- a new dawn low on the left: a wide warm wash up into the blue, and a
+       bright orange heart on the horizon behind the far ranges -->
+  <radialGradient id="warm" cx="280" cy="520" r="1050" gradientTransform="translate(0 322.4) scale(1 0.38)" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#ffa05a" stop-opacity="0.78"/><stop offset="0.35" stop-color="#e8744a" stop-opacity="0.36"/><stop offset="0.7" stop-color="#7a3350" stop-opacity="0.1"/><stop offset="1" stop-color="#7a3350" stop-opacity="0"/>
   </radialGradient>
+  <radialGradient id="dawn-core" cx="270" cy="522" r="640" gradientTransform="translate(0 427.9) scale(1 0.18)" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#ffe9c8" stop-opacity="0.95"/><stop offset="0.15" stop-color="#ffbe78" stop-opacity="0.8"/><stop offset="0.42" stop-color="#ff8d42" stop-opacity="0.45"/><stop offset="0.75" stop-color="#e8663a" stop-opacity="0.14"/><stop offset="1" stop-color="#e8663a" stop-opacity="0"/>
+  </radialGradient>
+  <!-- the far ridge's top catches it -->
+  <linearGradient id="dawn-rim" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="800" y2="0">
+    <stop offset="0" stop-color="#ffb070" stop-opacity="0.45"/><stop offset="0.3" stop-color="#ffc58f" stop-opacity="0.7"/><stop offset="0.65" stop-color="#ff9b5c" stop-opacity="0.2"/><stop offset="1" stop-color="#ff9b5c" stop-opacity="0"/>
+  </linearGradient>
   <linearGradient id="shade" gradientUnits="userSpaceOnUse" x1="0" y1="${SUMMIT.y}" x2="0" y2="720">
     <stop offset="0" stop-color="#030812" stop-opacity="0.36"/><stop offset="1" stop-color="#030812" stop-opacity="0.08"/>
   </linearGradient>
@@ -255,7 +264,9 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
 <rect width="${W}" height="${H}" fill="url(#dawn)"/>
 
 <rect width="${W}" height="${H}" fill="url(#warm)"/>
+<rect width="${W}" height="${H}" fill="url(#dawn-core)"/>
 <path d="${fill(far1)}" fill="url(#far1)" filter="url(#far)"/>
+<path d="${line(far1)}" fill="none" stroke="url(#dawn-rim)" stroke-width="1"/>
 ${tex(fill(far1), 0.05)}
 ${mist(560, 140, 0.35)}
 <path d="${fill(far2)}" fill="url(#far2)"/>
@@ -300,8 +311,8 @@ await sharp(rgba, { raw: { width: skyAlpha.info.width, height: skyAlpha.info.hei
 
 // The night sky on its own (transparent), for the page to turn slowly: a
 // clear sky full of stars, as it looks from high up on a clear night.
-// Thousands of fine ones, blue-white and a few warm, a scatter of
-// brighter ones, and a dozen that shine with a soft glow. Drawn larger than
+// Fine ones, blue-white and a few warm, a scatter of brighter ones,
+// and a handful that shine with a soft glow. Drawn larger than
 // the picture (GX by GY, the picture at its middle) so turning never shows
 // an edge.
 const GX = 2400;
@@ -310,14 +321,14 @@ const starfield = (() => {
   const r = rng(29);
   const tint = () => (r() < 0.12 ? "#ffe8d0" : r() < 0.45 ? "#d4e3ff" : "#ffffff");
   const dots = [];
-  for (let i = 0; i < 3800; i++) {
+  for (let i = 0; i < 1300; i++) {
     const k = r();
     const rad = k < 0.86 ? 0.35 + r() * 0.4 : k < 0.97 ? 0.7 + r() * 0.5 : 1.1 + r() * 0.5;
     const o = k < 0.86 ? 0.28 + r() * 0.45 : 0.6 + r() * 0.4;
     dots.push(`<circle cx="${(r() * GX).toFixed(0)}" cy="${(r() * GY).toFixed(0)}" r="${rad.toFixed(2)}" fill="${tint()}" opacity="${o.toFixed(2)}"/>`);
   }
   // the few that shine: a point and a soft glow round it
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 7; i++) {
     const x = (r() * GX).toFixed(0);
     const y = (r() * GY).toFixed(0);
     dots.push(`<circle cx="${x}" cy="${y}" r="${(7 + r() * 5).toFixed(1)}" fill="url(#glow)"/><circle cx="${x}" cy="${y}" r="${(1.4 + r() * 0.6).toFixed(2)}" fill="#fff"/>`);
