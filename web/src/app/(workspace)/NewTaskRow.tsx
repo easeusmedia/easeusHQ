@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { Building2, CalendarClock, Link2, Megaphone, MoreHorizontal, Send, User, X } from "lucide-react";
+import { Building2, CalendarClock, Link2, MoreHorizontal, Send, User, X } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
 import { ADD_BUTTON, ADD_ROW, PlusBadge } from "./AddButton";
 import { useNewProject } from "./useNewProject";
@@ -59,7 +59,6 @@ export function NewTaskRow({
       assignedToId: editors.length === 1 ? editors[0].id : "",
       dueDate: "",
       deliveryDate: "",
-      postDate: "",
       scheduledFor: "",
       rawLink: "",
       tagIds: [] as string[],
@@ -148,7 +147,6 @@ export function NewTaskRow({
     data.set("assignedToId", f.assignedToId);
     data.set("dueDate", f.dueDate);
     data.set("deliveryDate", f.internal ? "" : f.deliveryDate);
-    data.set("postDate", f.internal ? "" : f.postDate);
     data.set("scheduledFor", f.scheduledFor);
     data.set("rawLink", f.rawLink);
     data.set("editingNotes", f.notes);
@@ -283,15 +281,6 @@ export function NewTaskRow({
                 value={f.deliveryDate}
                 onChange={(v) => set({ deliveryDate: v })}
                 placeholder="Delivery"
-              />
-            )}
-            {/* the day it goes live on their channel */}
-            {!f.internal && (
-              <DatePicker
-                pill={{ icon: <Megaphone size={12} className="text-pink-400" />, label: "Posting" }}
-                value={f.postDate}
-                onChange={(v) => set({ postDate: v })}
-                placeholder="Posting"
               />
             )}
             {taskTags.length > 0 && (

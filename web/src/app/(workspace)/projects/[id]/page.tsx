@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { seesEveryTeam } from "@/lib/scope";
+import { seesEveryTeam, seesPostings } from "@/lib/scope";
+import { deliveredAt } from "@/lib/delivered";
+import { indiaDay } from "@/lib/due";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
@@ -82,6 +84,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
+  const deliveredFiles = done.filter((t) => t.status === "delivered_and_uploaded");
+  // when each was really delivered, and whether this person plans postings
+  const [delivered, ops] = await Promise.all([
+    deliveredAt(deliveredFiles.map((t) => t.id)),
+    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
+  ]);
 
   return (
     <div>
@@ -164,9 +172,16 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <ProjectFiles
         projectId={project.id}
         assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link, tags: a.tags }))}
-        delivered={done
-          .filter((t) => t.status === "delivered_and_uploaded")
-          .map((t) => ({ id: t.id, title: t.title, link: t.driveLink, at: t.updatedAt.toISOString(), tags: t.tags.map((g) => ({ id: g.id, name: g.name })) }))}
+        delivered={deliveredFiles.map((t) => ({
+          id: t.id,
+          title: t.title,
+          link: t.driveLink,
+          // the day it was marked delivered; failing that, the day it was due to reach them
+          at: (delivered.get(t.id) ?? t.deliveryDate ?? t.updatedAt).toISOString(),
+          post: t.postDate ? indiaDay(t.postDate) : null,
+          tags: t.tags.map((g) => ({ id: g.id, name: g.name })),
+        }))}
+        canPost={seesPostings(me, ops?.id ?? null)}
         // the kinds of work this person picks from on a task: their team's, and shared ones
         tagOptions={allTags
           .filter((t) => seesEveryTeam(me) || !t.teamId || t.teamId === me.teamId)

@@ -4,11 +4,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { visibleTagWhere } from "@/lib/scope";
+import { seesPostings, visibleTagWhere } from "@/lib/scope";
 import type { Role } from "@/lib/workflow";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
-import { parseStageChange } from "@/lib/stages";
+import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
 import { addDays, mondayOf, spanOf, stretchOpen } from "@/lib/timeline";
 import { CalendarGrid, type DayEntry } from "./CalendarGrid";
@@ -70,6 +70,22 @@ export default async function CalendarPage({
   if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
   const env = envFor(me, users, projects, allTags);
 
+  // what goes live on the clients' channels, each day: Operations' to see
+  const ops = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
+  const postings: Record<string, DayEntry[]> = {};
+  if (seesPostings(me, ops?.id ?? null)) {
+    for (const t of tasks) {
+      if (!t.postDate || t.postDate < monthStart || t.postDate >= monthEnd) continue;
+      (postings[dateKey(t.postDate)] ??= []).push({
+        taskId: t.id,
+        title: t.title,
+        clientName: t.project.client.name,
+        status: t.status,
+        actorName: t.assignedTo?.name ?? "Unassigned",
+      });
+    }
+  }
+
   const delivered = await deliveredDays(tasks);
   const days: Record<string, DayEntry[]> = {};
   for (let d = new Date(monthStart); d < rangeEnd; d.setUTCDate(d.getUTCDate() + 1)) {
@@ -122,7 +138,7 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      <CalendarGrid year={year} month={monthIndex} days={days} tasks={tasks} env={env} />
+      <CalendarGrid year={year} month={monthIndex} days={days} postings={postings} tasks={tasks} env={env} />
     </>
   );
 }
@@ -132,23 +148,13 @@ type Users = Awaited<ReturnType<typeof getAllUsers>>;
 // Only work that's anyone's now: tasks of people who've left aren't counted
 const ON_STAFF = { AND: [{ OR: [{ assignedToId: null }, { assignedTo: { employment: { not: "former" as const } } }] }] };
 
-// The day each delivered task left the board: its last move to delivered,
-// from the activity log. Not updatedAt, which moves with any later edit (a
-// Notion sync) and kept delivered work "open" for weeks. One delivered with
-// no move recorded (arrived from Notion already done) was never open on the
+// The day each delivered task left the board (lib/delivered). One with no
+// move recorded arrived from Notion already done: it was never open on the
 // board, so it leaves the day it was made.
 async function deliveredDays(tasks: { id: string; status: string; createdAt: Date }[]): Promise<Map<string, string>> {
   const done = tasks.filter((t) => t.status === "delivered_and_uploaded");
-  const logs = done.length
-    ? await prisma.activityLog.findMany({
-        where: { entity: "Task", entityId: { in: done.map((t) => t.id) } },
-        select: { entityId: true, action: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      })
-    : [];
-  const at = new Map<string, string>();
-  for (const l of logs) if (parseStageChange(l.action)?.to === "delivered_and_uploaded") at.set(l.entityId, dateKey(l.createdAt));
-  return new Map(done.map((t) => [t.id, at.get(t.id) ?? dateKey(t.createdAt)]));
+  const at = await deliveredAt(done.map((t) => t.id));
+  return new Map(done.map((t) => [t.id, dateKey(at.get(t.id) ?? t.createdAt)]));
 }
 
 // what a task's own window needs, the same as the Board passes it

@@ -44,23 +44,24 @@ export const maxDuration = 60;
 
 const shortDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-// A client's dated work for the week calendar: deliveries and postings from
-// two months back to four ahead, whatever stage it's at (a reel usually
-// goes live after it's delivered). Only one person's, for an editor.
-async function weekEntries(projectIds: string[], assignedToId?: string): Promise<WeekEntry[]> {
+// A client's dated work for the week calendar: deliveries, and postings for
+// Operations only (lib/scope seesPostings), from two months back to four
+// ahead, whatever stage it's at (a reel goes live after it's delivered).
+// Only one person's, for an editor.
+async function weekEntries(projectIds: string[], { assignedToId, postings }: { assignedToId?: string; postings: boolean }): Promise<WeekEntry[]> {
   const from = new Date(Date.now() - 60 * 86_400_000);
   const to = new Date(Date.now() + 120 * 86_400_000);
   const tasks = await prisma.task.findMany({
     where: {
       projectId: { in: projectIds },
       ...(assignedToId ? { assignedToId } : {}),
-      OR: [{ deliveryDate: { gte: from, lte: to } }, { postDate: { gte: from, lte: to } }],
+      OR: [{ deliveryDate: { gte: from, lte: to } }, ...(postings ? [{ postDate: { gte: from, lte: to } }] : [])],
     },
     select: { title: true, deliveryDate: true, postDate: true },
   });
   return tasks.flatMap((t) => [
     ...(t.deliveryDate ? [{ day: indiaDay(t.deliveryDate), kind: "delivery" as const, title: t.title }] : []),
-    ...(t.postDate ? [{ day: indiaDay(t.postDate), kind: "posting" as const, title: t.title }] : []),
+    ...(postings && t.postDate ? [{ day: indiaDay(t.postDate), kind: "posting" as const, title: t.title }] : []),
   ]);
 }
 
@@ -160,7 +161,7 @@ export default async function ClientDetailPage({
     // how many tasks each project carries in total (the active count above
     // is filtered) — the delete confirmation says what would go with it
     prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } }),
-    weekEntries(projectIds),
+    weekEntries(projectIds, { postings: canSeeFeedback }),
   ]);
   // the client's work splits two ways on the Overview: what they'll receive,
   // and what's done for them behind the scenes
@@ -439,7 +440,7 @@ async function EditorClientPage({
       where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
-    weekEntries(client.projects.map((p) => p.id), me.id),
+    weekEntries(client.projects.map((p) => p.id), { assignedToId: me.id, postings: false }),
   ]);
   const logo = clientLogoSrc(client);
 

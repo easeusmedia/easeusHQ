@@ -98,3 +98,8 @@ export function visibleClientWhere(user: Pick<Viewer, "id" | "role" | "email">):
 export function isEditor(user: Pick<Viewer, "role" | "teamId">, operationsTeamId: string | null): boolean {
   return user.role === "employee" && !!operationsTeamId && user.teamId === operationsTeamId;
 }
+
+// Posting dates (when delivered work goes live on a client's channel) are
+// Operations' to plan: the same people who run client work, and no one in
+// another department.
+export const seesPostings = seesClientFeedback;

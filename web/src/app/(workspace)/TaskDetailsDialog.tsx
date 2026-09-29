@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useActionState } from "react";
-import { BookOpen, Building2, CalendarClock, ChevronRight, Clapperboard, ExternalLink, FolderCheck, Link2, Megaphone, MoreHorizontal, Package, Pencil, Send, Trash2, User } from "lucide-react";
+import { BookOpen, Building2, CalendarClock, ChevronRight, Clapperboard, ExternalLink, FolderCheck, Link2, MoreHorizontal, Package, Pencil, Send, Trash2, User } from "lucide-react";
 import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesGlyph, linkify } from "./NotesButton";
@@ -87,7 +87,6 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   const [internal, setInternal] = useState(task.internal);
   const [due, setDue] = useState(task.dueDate ? istDay(task.dueDate) : "");
   const [delivery, setDelivery] = useState(task.deliveryDate ? istDay(task.deliveryDate) : "");
-  const [post, setPost] = useState(task.postDate ? istDay(task.postDate) : "");
   const [scheduled, setScheduled] = useState(task.scheduledFor ? istDay(task.scheduledFor) : "");
   const clientOf = (id: string | null) => projects.find((p) => p.id === id)?.client.id ?? "";
   const [clientId, setClientId] = useState(clientOf(task.projectId));
@@ -121,7 +120,6 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
     // what's saved now, not what was typed before a Cancel
     setDue(task.dueDate ? istDay(task.dueDate) : "");
     setDelivery(task.deliveryDate ? istDay(task.deliveryDate) : "");
-    setPost(task.postDate ? istDay(task.postDate) : "");
     setScheduled(task.scheduledFor ? istDay(task.scheduledFor) : "");
     setClientId(clientOf(task.projectId));
     setProjectId(task.projectId ?? "");
@@ -227,7 +225,6 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <input type="hidden" name="projectId" value={projectId} />
                 <input type="hidden" name="dueDate" value={due} />
                 <input type="hidden" name="deliveryDate" value={internal ? "" : delivery} />
-                <input type="hidden" name="postDate" value={internal ? "" : post} />
                 <input type="hidden" name="scheduledFor" value={scheduled} />
                 <input type="hidden" name="tagsPresent" value="1" />
                 {tagIds.map((id) => (
@@ -301,15 +298,6 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                         value={delivery}
                         onChange={setDelivery}
                         placeholder="Delivery"
-                      />
-                    )}
-                    {/* the day it goes live on their channel */}
-                    {!internal && (
-                      <DatePicker
-                        pill={{ icon: <Megaphone size={12} className="text-pink-400" />, label: "Posting" }}
-                        value={post}
-                        onChange={setPost}
-                        placeholder="Posting"
                       />
                     )}
                     {taskTags.length > 0 && (

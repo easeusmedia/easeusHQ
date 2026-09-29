@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, AudioLines, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpRight, AudioLines, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Megaphone, Pencil, Plus, Trash2, X } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { Dropdown } from "../Dropdown";
-import { addProjectAsset, updateProjectAsset, deleteProjectAsset } from "../clients/actions";
+import { addProjectAsset, updateProjectAsset, deleteProjectAsset, setPostDate } from "../clients/actions";
+import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { formatDate } from "../TaskCard";
 import { TaskTagChip } from "../TaskTagPicker";
@@ -21,8 +22,33 @@ const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 tex
 // imported rows are wrong (wrong link, wrong bucket, a placeholder that
 // never got filled), and there was previously no way to fix any of it
 // short of editing the database by hand.
-// A task that's been delivered, as the file it produced.
-export type DeliveredFile = { id: string; title: string; link: string | null; at: string; tags?: Tag[] };
+// A task that's been delivered, as the file it produced: when it was
+// delivered, and the day it goes live on the client's channel (yyyy-mm-dd)
+export type DeliveredFile = { id: string; title: string; link: string | null; at: string; post?: string | null; tags?: Tag[] };
+
+// A delivered file's posting day: set here, saved at once
+function PostingDate({ taskId, initial }: { taskId: string; initial: string | null }) {
+  const [day, setDay] = useState(initial ?? "");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span className="relative z-10 flex shrink-0 items-center gap-2" title={error ?? "When it goes live on their channel"}>
+      <DatePicker
+        pill={{ icon: <Megaphone size={12} className="text-pink-400" />, label: "Posting" }}
+        value={day}
+        placeholder="Posting"
+        onChange={async (v) => {
+          const before = day;
+          setDay(v);
+          const res = await setPostDate(taskId, v);
+          if (res.error) {
+            setDay(before);
+            setError(res.error);
+          } else setError(null);
+        }}
+      />
+    </span>
+  );
+}
 
 // A file's type when it has no tag yet, in the same words the tags use —
 // the Notion import spelled the types a dozen ways ("Reels", "TRAILER"…).
@@ -65,7 +91,7 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData };
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; post?: string | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -76,6 +102,7 @@ export function ProjectFiles({
   assets,
   delivered = [],
   readOnly = false,
+  canPost = false,
   tagOptions = [],
 }: {
   projectId: string;
@@ -86,6 +113,8 @@ export function ProjectFiles({
   delivered?: DeliveredFile[];
   // the client's own page: the files, without the controls
   readOnly?: boolean;
+  // Operations: a posting date on each delivered file (lib/scope seesPostings)
+  canPost?: boolean;
   // the tags a file can be given (the same as a task's kinds of work)
   tagOptions?: Tag[];
 }) {
@@ -103,7 +132,9 @@ export function ProjectFiles({
       name: d.title,
       type: "delivered",
       link: d.link,
-      sub: `Delivered ${formatDate(d.at)}`,
+      // untagged, it's already filed under "Delivered": just the day
+      sub: d.tags?.length ? `Delivered ${formatDate(d.at)}` : formatDate(d.at),
+      post: d.post ?? null,
       ...kindsOf(d.tags, "Delivered"),
     })),
     ...assets.map((a) => ({ id: a.id, name: a.name, type: a.contentType, link: a.link, sub: source(a.link), asset: a, ...kindsOf(a.tags, typeKind(a.contentType)) })),
@@ -233,6 +264,7 @@ export function ProjectFiles({
                       <span className="truncate">· {r.sub}</span>
                     </span>
                   </span>
+                  {canPost && !readOnly && r.type === "delivered" && <PostingDate taskId={r.id} initial={r.post ?? null} />}
                   {r.link && (
                     <ArrowUpRight
                       size={15}

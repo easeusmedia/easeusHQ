@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ListChecks } from "lucide-react";
+import { ListChecks, Megaphone } from "lucide-react";
 import type { TaskStatus, Role } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { Avatar, type TaskCardData } from "../TaskCard";
@@ -33,12 +33,15 @@ export function CalendarGrid({
   year,
   month, // 0-indexed
   days,
+  postings = {},
   tasks,
   env,
 }: {
   year: number;
   month: number;
   days: Record<string, DayEntry[]>;
+  // delivered work going live that day (Operations only)
+  postings?: Record<string, DayEntry[]>;
   tasks: TaskCardData[];
   env: TaskEnv;
 }) {
@@ -73,6 +76,7 @@ export function CalendarGrid({
   }
 
   const selectedEntries = selected ? (days[selected] ?? []) : [];
+  const selectedPosts = selected ? (postings[selected] ?? []) : [];
   const selectedLabel = selected
     ? new Date(`${selected}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
     : "";
@@ -95,20 +99,21 @@ export function CalendarGrid({
             if (day === null) return <div key={i} className={`min-h-28 bg-black/20 ${edges}`} />;
             const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             const entries = days[key] ?? [];
+            const posts = postings[key] ?? [];
             const isToday = key === todayKey;
             const future = key > todayKey;
 
             return (
               <div
                 key={i}
-                role={entries.length ? "button" : undefined}
-                tabIndex={entries.length ? 0 : undefined}
+                role={entries.length + posts.length ? "button" : undefined}
+                tabIndex={entries.length + posts.length ? 0 : undefined}
                 aria-current={isToday ? "date" : undefined}
-                onClick={() => entries.length > 0 && showDay(key)}
-                onKeyDown={(e) => e.key === "Enter" && entries.length > 0 && showDay(key)}
+                onClick={() => entries.length + posts.length > 0 && showDay(key)}
+                onKeyDown={(e) => e.key === "Enter" && entries.length + posts.length > 0 && showDay(key)}
                 className={`flex min-h-24 flex-col gap-2 p-2 text-left transition-colors duration-150 ${edges} ${
                   isToday ? "bg-accent/[0.07] shadow-[inset_0_0_0_1px_rgba(75,149,230,0.45)]" : ""
-                } ${entries.length ? "cursor-pointer hover:bg-white/[0.03]" : ""} ${future ? "opacity-50" : ""}`}
+                } ${entries.length + posts.length ? "cursor-pointer hover:bg-white/[0.03]" : ""} ${future && !posts.length ? "opacity-50" : ""}`}
               >
                 <span
                   className={`flex size-6 items-center justify-center rounded-full text-xs tabular-nums ${
@@ -122,6 +127,12 @@ export function CalendarGrid({
                   <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-foreground/85">
                     <ListChecks size={12} className="text-sky-400" />
                     {entries.length} task{entries.length === 1 ? "" : "s"}
+                  </span>
+                )}
+                {posts.length > 0 && (
+                  <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-foreground/85">
+                    <Megaphone size={12} className="text-pink-400" />
+                    {posts.length} posting{posts.length === 1 ? "" : "s"}
                   </span>
                 )}
               </div>
@@ -140,30 +151,44 @@ export function CalendarGrid({
         <div className="px-5 pb-3 pt-5">
           <p className="text-base font-medium">{selectedLabel}</p>
         </div>
-        <p className="flex items-center gap-1.5 px-5 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted/70">
-          <ListChecks size={12} className="text-sky-400" />
-          Tasks · {selectedEntries.length}
-        </p>
-        <ul className="max-h-96 divide-y divide-white/[0.05] overflow-y-auto border-y border-white/[0.06]">
-          {selectedEntries.map((e) => (
-            <li key={e.taskId}>
-              <button
-                type="button"
-                onClick={() => showTask(e.taskId)}
-                className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-white/[0.03]"
-              >
-                <span className={`size-2 shrink-0 rounded-full ${STAGE[e.status].dot}`} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{e.title}</span>
-                  <span className="block truncate text-xs text-muted">
-                    {e.clientName} · {STAGE[e.status].label}
-                  </span>
-                </span>
-                <Avatar name={e.actorName} size={22} presence={false} />
-              </button>
-            </li>
-          ))}
-        </ul>
+        {/* the day's open tasks, then what went live, each only if there's any */}
+        <div className="max-h-[28rem] overflow-y-auto border-y border-white/[0.06]">
+          {(
+            [
+              ["Tasks", ListChecks, "text-sky-400", selectedEntries],
+              ["Postings", Megaphone, "text-pink-400", selectedPosts],
+            ] as const
+          )
+            .filter(([, , , list]) => list.length > 0)
+            .map(([label, Icon, tone, list]) => (
+              <section key={label} className="pt-3">
+                <p className="flex items-center gap-1.5 px-5 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted/70">
+                  <Icon size={12} className={tone} />
+                  {label} · {list.length}
+                </p>
+                <ul className="divide-y divide-white/[0.05] border-t border-white/[0.06]">
+                  {list.map((e) => (
+                    <li key={e.taskId}>
+                      <button
+                        type="button"
+                        onClick={() => showTask(e.taskId)}
+                        className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-white/[0.03]"
+                      >
+                        <span className={`size-2 shrink-0 rounded-full ${STAGE[e.status].dot}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm">{e.title}</span>
+                          <span className="block truncate text-xs text-muted">
+                            {e.clientName} · {STAGE[e.status].label}
+                          </span>
+                        </span>
+                        <Avatar name={e.actorName} size={22} presence={false} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+        </div>
         <div className="flex justify-end px-5 py-3">
           <button type="button" onClick={() => dayRef.current?.close()} className="btn btn-ghost">
             Close

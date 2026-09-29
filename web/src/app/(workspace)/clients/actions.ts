@@ -228,6 +228,19 @@ export async function updateClientStatus(clientId: string, status: string): Prom
   return {};
 }
 
+// When a delivered piece goes live on the client's channel: set from the
+// project's files once it's delivered, and planned only by Operations
+// (lib/scope seesPostings). Empty clears it.
+export async function setPostDate(taskId: string, day: string): Promise<{ error?: string }> {
+  if (!(await requireFeedbackViewer())) return { error: "Only Operations can plan postings." };
+  if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "That isn't a date." };
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+  if (!task) return { error: "That task no longer exists." };
+  if (task.status !== "delivered_and_uploaded") return { error: "A posting date comes once it's delivered." };
+  await prisma.task.update({ where: { id: taskId }, data: { postDate: day ? new Date(day) : null } });
+  return {};
+}
+
 // Which members can see this client (lib/scope visibleClientWhere). Ops
 // only, and only ever members: the core team sees every client already.
 // Nothing to revalidate: the picker keeps its own ticks, so the page isn't
