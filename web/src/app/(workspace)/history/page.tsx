@@ -5,6 +5,7 @@ import { getAllUsers } from "@/lib/users";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import type { TaskStatus } from "@/lib/workflow";
 import { assigneeWhere } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { HistoryItem } from "@/lib/history";
 import { displayTeam } from "@/lib/teams";
@@ -33,7 +34,8 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   const actingUser = users.find((u) => u.id === sessionUserId);
   if (!actingUser) return null;
 
-  const viewer = { id: actingUser.id, role: actingUser.role, email: actingUser.email, teamId: actingUser.teamId };
+  const viewer = await getViewer();
+  if (!viewer) return null;
   const scope = assigneeWhere(viewer);
 
   const [tasks, workTasks, logs] = await Promise.all([

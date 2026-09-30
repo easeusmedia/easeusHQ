@@ -14,7 +14,7 @@ type Person = { id: string; name: string; team?: { slug: string; name: string } 
 // An editing-queue task: a whole row, shown with the editing board's own
 // card and list row, so it opens and changes stage here exactly as it does
 // there — Frame.io link on the way to approval, Drive link on delivery.
-export type QueueCardData = Omit<TaskCardData, "assignedTo"> & { assignedTo: Person | null };
+export type QueueCardData = Omit<TaskCardData, "assignedTo"> & { assignedTo: Person | null; teamSlug?: string | null };
 
 // What those cards need beyond the task itself, passed down once
 export type QueueEnv = {

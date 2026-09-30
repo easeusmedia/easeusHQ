@@ -37,15 +37,17 @@ export const NOTION_STATUS: Record<TaskStatus, string> = {
   delivered_and_uploaded: "Delivered and uploaded",
 };
 
-// Whose work gets mirrored: Operations, minus the admin. Core members and
-// editors alike — Jyotsna, Arpit, Abhishek and the editors — but not Ashmit
-// (he runs the place rather than working the queue) and not Sales, whose
-// work has no business in a database called Editing Queue.
+// Whose work gets mirrored: Production and Client success, the people
+// who work the client queue — Abhishek, Jyotsna, Arpit and the editors —
+// but not Ashmit (in no department: he runs the place rather than working
+// the queue) and not Sales, whose work has no business in a database
+// called Editing Queue.
 //
-// Derived from team and role rather than a list of names, so someone joining
-// Operations is covered without anyone remembering to add them here.
+// Derived from department rather than a list of names, so someone joining
+// is covered without anyone remembering to add them here.
+const MIRRORED = ["production", "client-success"];
 export function pushesToNotion(user: { role: string; teamSlug: string | null }): boolean {
-  return user.teamSlug === "operations" && user.role !== "admin";
+  return !!user.teamSlug && MIRRORED.includes(user.teamSlug);
 }
 
 // Where a work task lives in Notion, by who it's assigned to: their own

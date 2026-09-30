@@ -2,102 +2,100 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assigneeWhere,
+  canAssign,
   canEditPeople,
   canEditTag,
   canSeeMember,
-  isEditor,
+  canSetAccess,
+  peopleWhere,
+  runsClients,
+  runsProduction,
   seesEveryTeam,
-  seesClientFeedback,
-  viewScope,
   visibleClientWhere,
   visibleTagWhere,
+  worksTheBoard,
   type Viewer,
 } from "./scope.ts";
 
-const OPS = "team-ops";
-const SALES = "team-sales";
+const PROD = { id: "t-prod", slug: "production" };
+const CS = { id: "t-cs", slug: "client-success" };
+const SALES = { id: "t-sales", slug: "sales" };
 
-const ashmit: Viewer = { id: "u-ashmit", role: "admin", email: "ashmit@easeus.media", teamId: OPS };
-const abhishek: Viewer = { id: "u-abhi", role: "core", email: "abhishek@easeus.media", teamId: OPS };
-const arpit: Viewer = { id: "u-arpit", role: "core", email: "arpit@easeus.media", teamId: OPS };
-const pankaj: Viewer = { id: "u-pankaj", role: "core", email: "pankaj@easeus.media", teamId: SALES };
-const sparsh: Viewer = { id: "u-sparsh", role: "employee", email: "sparsh@easeus.media", teamId: OPS };
+const ashmit: Viewer = { id: "u-ashmit", role: "admin", email: "ashmit@easeus.media", teamId: null, departments: [] };
+const abhishek: Viewer = { id: "u-abhishek", role: "admin", email: "abhishek@easeus.media", teamId: PROD.id, departments: [PROD] };
+const jyotsna: Viewer = { id: "u-jyotsna", role: "core", email: "j@easeus.media", teamId: CS.id, departments: [CS, PROD] };
+const pankaj: Viewer = { id: "u-pankaj", role: "core", email: "p@easeus.media", teamId: SALES.id, departments: [SALES] };
+const sparsh: Viewer = { id: "u-sparsh", role: "employee", email: "s@easeus.media", teamId: PROD.id, departments: [PROD] };
+const unplaced: Viewer = { id: "u-new", role: "core", email: "n@easeus.media", teamId: null, departments: [] };
 
-test("admin and Abhishek see every team; other core members do not", () => {
-  assert.equal(seesEveryTeam(ashmit), true);
-  assert.equal(seesEveryTeam(abhishek), true); // core by role, full access by identity
-  assert.equal(seesEveryTeam(arpit), false);
-  assert.equal(seesEveryTeam(pankaj), false);
-});
+const person = (v: Viewer) => ({ id: v.id, role: v.role, teamId: v.teamId, departmentIds: v.departments.map((d) => d.id) });
 
-test("a core member's scope is their own team; an employee's is themselves", () => {
-  assert.deepEqual(viewScope(ashmit), "all");
-  assert.deepEqual(viewScope(arpit), { teamId: OPS });
-  assert.deepEqual(viewScope(pankaj), { teamId: SALES });
-  assert.equal(viewScope(sparsh), null);
-});
-
-test("a core member with no team set falls back to themselves, not to everything", () => {
-  const stray: Viewer = { id: "u-x", role: "core", email: "x@easeus.media", teamId: null };
-  assert.equal(viewScope(stray), null);
-  assert.deepEqual(assigneeWhere(stray), { assignedToId: "u-x" });
-});
-
-test("the task filter matches the scope", () => {
+test("Founders see everything; a Member only their own work", () => {
   assert.deepEqual(assigneeWhere(ashmit), {});
-  assert.deepEqual(assigneeWhere(arpit), { assignedTo: { teamId: OPS } });
-  assert.deepEqual(assigneeWhere(sparsh), { assignedToId: "u-sparsh" });
+  assert.deepEqual(assigneeWhere(abhishek), {});
+  assert.deepEqual(assigneeWhere(sparsh), { assignedToId: sparsh.id });
+  assert.equal(seesEveryTeam(abhishek), true);
+  assert.equal(seesEveryTeam(jyotsna), false);
 });
 
-test("Sales core cannot see Operations people, and vice versa", () => {
-  assert.equal(canSeeMember(pankaj, sparsh), false);
-  assert.equal(canSeeMember(arpit, pankaj), false);
-  assert.equal(canSeeMember(arpit, sparsh), true); // same team
-  assert.equal(canSeeMember(ashmit, pankaj), true); // admin sees all
+test("a Lead sees their departments' work and their own, never a Founder's", () => {
+  assert.deepEqual(assigneeWhere(jyotsna), {
+    OR: [{ assignedToId: jyotsna.id }, { teamId: { in: [CS.id, PROD.id] }, NOT: { assignedTo: { role: "admin" } } }],
+  });
+  // a Lead with no department sees only themselves
+  assert.deepEqual(assigneeWhere(unplaced), {
+    OR: [{ assignedToId: unplaced.id }, { teamId: { in: [] }, NOT: { assignedTo: { role: "admin" } } }],
+  });
 });
 
-test("everyone can see themselves, including an employee", () => {
-  assert.equal(canSeeMember(sparsh, sparsh), true);
-  assert.equal(canSeeMember(pankaj, pankaj), true);
+test("the directory: a Lead sees the non-Founders in their departments", () => {
+  assert.deepEqual(peopleWhere(ashmit), {});
+  assert.deepEqual(peopleWhere(sparsh), { id: sparsh.id });
+  assert.deepEqual(peopleWhere(pankaj), {
+    OR: [{ id: pankaj.id }, { role: { not: "admin" }, OR: [{ teamId: { in: [SALES.id] } }, { departments: { some: { id: { in: [SALES.id] } } } }] }],
+  });
+  assert.equal(canSeeMember(jyotsna, person(sparsh)), true);
+  assert.equal(canSeeMember(jyotsna, person(abhishek)), false); // never upward
+  assert.equal(canSeeMember(pankaj, person(sparsh)), false); // another department
+  assert.equal(canSeeMember(sparsh, person(jyotsna)), false);
+  assert.equal(canSeeMember(sparsh, person(sparsh)), true);
 });
 
-test("only admin/Abhishek edit employment records", () => {
+test("work is handed down the levels only", () => {
+  assert.equal(canAssign(ashmit, person(jyotsna)), true);
+  assert.equal(canAssign(jyotsna, person(sparsh)), true);
+  assert.equal(canAssign(jyotsna, person(pankaj)), false); // Lead to Lead
+  assert.equal(canAssign(jyotsna, person(abhishek)), false); // upward
+  assert.equal(canAssign(pankaj, person(sparsh)), false); // not their department
+  assert.equal(canAssign(sparsh, person(sparsh)), true);
+  assert.equal(canAssign(sparsh, person(jyotsna)), false);
+});
+
+test("a Lead sets a Member's departments and roles; only a Founder sets anyone's", () => {
+  assert.equal(canSetAccess(jyotsna, person(sparsh)), true);
+  assert.equal(canSetAccess(jyotsna, person(pankaj)), false);
+  assert.equal(canSetAccess(ashmit, person(jyotsna)), true);
+  assert.equal(canSetAccess(sparsh, person(sparsh)), false);
   assert.equal(canEditPeople(ashmit), true);
-  assert.equal(canEditPeople(abhishek), true);
-  assert.equal(canEditPeople(arpit), false);
-  assert.equal(canEditPeople(sparsh), false);
+  assert.equal(canEditPeople(jyotsna), false);
 });
 
-test("a team only sees its own tags, plus shared ones", () => {
+test("what each department's features are for", () => {
+  assert.equal(runsClients(jyotsna), true);
+  assert.equal(runsClients(pankaj), false);
+  assert.equal(runsClients(ashmit), true);
+  assert.equal(runsProduction(jyotsna), true);
+  assert.equal(runsProduction(pankaj), false);
+  assert.equal(worksTheBoard(sparsh), true);
+  assert.equal(worksTheBoard(jyotsna), false);
+});
+
+test("kinds of work follow departments; clients are all visible except to a Member", () => {
   assert.deepEqual(visibleTagWhere(ashmit), {});
-  assert.deepEqual(visibleTagWhere(pankaj), { OR: [{ teamId: null }, { teamId: SALES }] });
-});
-
-test("core members curate only their own team's tags", () => {
-  assert.equal(canEditTag(arpit, { teamId: OPS }), true);
-  assert.equal(canEditTag(arpit, { teamId: SALES }), false);
-  // a shared tag is everyone's, so no single team may delete it
-  assert.equal(canEditTag(arpit, { teamId: null }), false);
-  assert.equal(canEditTag(ashmit, { teamId: null }), true);
-  // an employee never curates tags
-  assert.equal(canEditTag(sparsh, { teamId: OPS }), false);
-});
-
-test("client feedback: admin, Abhishek and Operations core only", () => {
-  const ops = "team-ops";
-  assert.equal(seesClientFeedback({ role: "admin", email: "a@x", teamId: null }, ops), true);
-  assert.equal(seesClientFeedback({ role: "core", email: "abhishek@easeus.media", teamId: null }, ops), true);
-  assert.equal(seesClientFeedback({ role: "core", email: "j@x", teamId: ops }, ops), true);
-  assert.equal(seesClientFeedback({ role: "core", email: "p@x", teamId: "team-sales" }, ops), false);
-  assert.equal(seesClientFeedback({ role: "employee", email: "e@x", teamId: ops }, ops), false);
-  assert.equal(seesClientFeedback({ role: "core", email: "n@x", teamId: null }, null), false);
-});
-
-test("an editor sees only the clients given to them; the team sees them all", () => {
-  assert.deepEqual(visibleClientWhere(sparsh), { editors: { some: { id: "u-sparsh" } } });
-  assert.deepEqual(visibleClientWhere(arpit), {});
-  assert.deepEqual(visibleClientWhere(ashmit), {});
-  assert.equal(isEditor(sparsh, OPS), true);
-  assert.equal(isEditor(arpit, OPS), false);
-  assert.equal(isEditor({ role: "employee", teamId: SALES }, OPS), false);
+  assert.deepEqual(visibleTagWhere(pankaj), { OR: [{ teamId: null }, { teamId: { in: [SALES.id] } }] });
+  assert.equal(canEditTag(pankaj, { teamId: SALES.id }), true);
+  assert.equal(canEditTag(pankaj, { teamId: PROD.id }), false);
+  assert.equal(canEditTag(pankaj, { teamId: null }), false);
+  assert.deepEqual(visibleClientWhere(jyotsna), {});
+  assert.deepEqual(visibleClientWhere(sparsh), { editors: { some: { id: sparsh.id } } });
 });

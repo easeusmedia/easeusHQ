@@ -120,11 +120,12 @@ export function letterOf(score: number | null, s: Pick<VideoScoring, "bands">): 
 // moves out of Sent for approval that mean it's been reviewed
 const GRADED_MOVES = ["revision_requested", "sent_for_client_approval", "final_export_ready", "delivered_and_uploaded"];
 
-// Whether this move is a video's first review, which core grades: the first
-// time it's moved on from Sent for approval, if it has no grade yet.
+// Whether this move is a video's (or a design's) first review, which a
+// Founder grades: the first time it's moved on from Sent for approval, if
+// it has no grade yet.
 export function needsGrade(task: { status: string; inspectionGrade?: string | null; assignedTo?: unknown; assignedToId?: string | null }, to: string, role: string): boolean {
   const assigned = task.assignedToId !== undefined ? !!task.assignedToId : !!task.assignedTo;
-  return role !== "employee" && assigned && task.status === "sent_for_approval" && !task.inspectionGrade && GRADED_MOVES.includes(to);
+  return role === "admin" && assigned && task.status === "sent_for_approval" && !task.inspectionGrade && GRADED_MOVES.includes(to);
 }
 
 // ---------- days ----------

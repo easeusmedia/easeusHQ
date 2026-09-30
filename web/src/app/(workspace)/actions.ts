@@ -1,10 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { ACTIVE_STATUSES, ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
+import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflowOf, type Role, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
-import { canEditTag } from "@/lib/scope";
+import { assigneeWhere, canAssign, canEditTag } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
@@ -50,9 +51,9 @@ export async function logout() {
 // just fix and resubmit.
 export type TaskFormState = { error?: string; success?: boolean };
 
-// An editor (Operations, not core): their videos are measured by type
-// (a reel, a trailer), on the Performance page.
-const editsVideos = (u: { role: string; team: { slug: string } | null }) => u.role === "employee" && u.team?.slug === "operations";
+// A Member in Production (an editor, a designer): their work is measured by
+// type (a reel, a trailer, a thumbnail), on the Performance page.
+const editsVideos = (u: { role: string; team: { slug: string } | null }) => u.role === "employee" && u.team?.slug === "production";
 const TYPE_NEEDED = "Pick the type of work (Reel, Trailer, Podcast editing…) before giving this to an editor.";
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
@@ -84,8 +85,15 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (!projectId) {
     return { error: clientId ? "That client has no project yet. Add one with + New." : "Pick the client this task is for." };
   }
-  if (actor.role === "employee" && assignedToId && assignedToId !== actor.id) {
-    return { error: "You can only add tasks for yourself." };
+  // work goes down the levels: a Member adds their own, a Lead also for
+  // the Members in their departments (lib/scope canAssign)
+  const viewer = await getViewer();
+  if (!viewer) return { error: "Your session has ended. Please sign in again." };
+  if (assignedToId && assignedToId !== viewer.id) {
+    const target = await prisma.user.findUnique({ where: { id: assignedToId }, select: { id: true, role: true, teamId: true, departments: { select: { id: true } } } });
+    if (!target || !canAssign(viewer, { ...target, departmentIds: target.departments.map((d) => d.id) })) {
+      return { error: viewer.role === "employee" ? "You can only add tasks for yourself." : "You can only give work to the Members in your departments." };
+    }
   }
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const deliveryDateInput = String(formData.get("deliveryDate") ?? "").trim();
@@ -104,9 +112,12 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: "That person is no longer on the team. Please choose someone else." };
   }
   // an editor's work is measured by its type, so it needs one
-  if (assignee && editsVideos(assignee) && !formData.getAll("tagIds").map(String).some(Boolean)) {
+  const tagIds = formData.getAll("tagIds").map(String).filter(Boolean);
+  if (assignee && editsVideos(assignee) && !tagIds.length) {
     return { error: TYPE_NEEDED };
   }
+  // its kind of work decides how it moves and whose department it's in
+  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("workflow") ?? ""));
 
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
@@ -128,7 +139,9 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       editingNotes,
       sortOrder: Date.now(),
       internal,
-      tags: { connect: formData.getAll("tagIds").map(String).filter(Boolean).map((id) => ({ id })) },
+      workflow,
+      teamId,
+      tags: { connect: tagIds.map((id) => ({ id })) },
     },
     // status defaults to "queued"
   });
@@ -139,12 +152,25 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   // there. Deliberately not awaited for correctness: if Notion is slow or
   // down, the task is still created here and the next sync picks it up as
   // unmirrored — creating a task must never depend on someone else's API.
-  if (assignee && pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
+  if (workflow === "video" && assignee && pushesToNotion({ role: assignee.role, teamSlug: assignee.team?.slug ?? null })) {
     await createInNotion(task.id).catch(() => {});
   }
 
   revalidatePath("/board");
   return { success: true };
+}
+
+// A task's workflow and department, from its kind of work: the first kind
+// that has them, else the assignee's department (or Production, where the
+// editing queue lives). Exported for My tasks, which adds client work too.
+export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string): Promise<{ workflow: Workflow; teamId: string | null }> {
+  const [tags, assignee, production] = await Promise.all([
+    tagIds.length ? prisma.taskTag.findMany({ where: { id: { in: tagIds } }, select: { workflow: true, teamId: true, sortOrder: true }, orderBy: { sortOrder: "asc" } }) : [],
+    assignedToId ? prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true } }) : null,
+    prisma.team.findUnique({ where: { slug: "production" }, select: { id: true } }),
+  ]);
+  const kind = tags[0];
+  return { workflow: workflowOf(kind?.workflow ?? fallback), teamId: kind?.teamId ?? assignee?.teamId ?? production?.id ?? null };
 }
 
 type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number; grade?: string };
@@ -167,19 +193,20 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
     const isAssignee = task.assignedToId === actingUserId;
 
-    if (!canTransition(task.status, to, { role: actingRole, isAssignee })) {
+    if (!canTransition(task.status, to, { role: actingRole, isAssignee }, task.workflow)) {
       return { error: "You can't move this task to that stage." };
     }
 
     // hard rule, not just a UI nicety: a task can't be marked delivered
     // without a Drive link on record — enforced here so it holds regardless
     // of which UI path (button, dropdown, or a future API caller) triggers it
-    if (to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
+    const video = workflowOf(task.workflow) === "video";
+    if (video && to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
       return { error: "Add a Drive link before marking this delivered." };
     }
     // same rule for review: nobody, internal or client, can review a cut
     // there's no link to
-    if ((to === "sent_for_approval" || to === "sent_for_client_approval") && !frameioLink && !task.frameioLink) {
+    if (workflowOf(task.workflow) !== "todo" && (to === "sent_for_approval" || to === "sent_for_client_approval") && !frameioLink && !task.frameioLink) {
       return { error: "Add the Frame.io link before sending this for approval." };
     }
     // the quality inspection grades a video on first review: the first time
@@ -277,6 +304,17 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   const title = String(formData.get("title") ?? "").trim();
   const projectId = String(formData.get("projectId") ?? "") || undefined;
   const assignedToId = String(formData.get("assignedToId") ?? "") || null;
+  // a Lead edits the work they can see, and hands it only down the levels
+  const viewer = await getViewer();
+  if (!viewer) return { error: "Your session has ended. Please sign in again." };
+  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true } });
+  if (!current) return { error: "You can't change this task." };
+  if (assignedToId && assignedToId !== current.assignedToId && assignedToId !== viewer.id) {
+    const target = await prisma.user.findUnique({ where: { id: assignedToId }, select: { id: true, role: true, teamId: true, departments: { select: { id: true } } } });
+    if (!target || !canAssign(viewer, { ...target, departmentIds: target.departments.map((d) => d.id) })) {
+      return { error: "You can only give work to the Members in your departments." };
+    }
+  }
   // nothing new goes to someone who's left; a task already on them can
   // still be saved without being handed to anyone else
   if (
@@ -347,12 +385,17 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     if (!typed) return { error: TYPE_NEEDED };
   }
 
+  // a new kind of work can change how it moves, if its stage fits the new one
+  const placed = formData.has("tagsPresent") ? await placeTask(tagIds, assignedToId) : null;
+  const replace = placed && WORKFLOW_STAGES[placed.workflow].includes(current.status) ? placed : placed && { teamId: placed.teamId };
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
       title,
       projectId,
       assignedToId,
+      ...(replace ?? {}),
       rawLink,
       editingNotes,
       ...(frameioLink !== undefined ? { frameioLink } : {}),
@@ -413,7 +456,8 @@ export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> 
 
   const tag = await prisma.taskTag.findUnique({ where: { id: tagId }, select: { teamId: true } });
   if (!tag) return { error: "That tag is already gone." };
-  if (!canEditTag({ id: user.id, role: user.role, email: user.email, teamId: user.teamId }, tag)) {
+  const viewer = await getViewer();
+  if (!viewer || !canEditTag(viewer, tag)) {
     return { error: "That tag belongs to another team." };
   }
 
@@ -769,8 +813,8 @@ export async function pushToNotion(): Promise<NotionSyncResult> {
           // at "Final export ready" months after the client had the file.
           { notionPageId: { not: null } },
           // and anything still live that belongs there but isn't yet: the
-          // same people as pushesToNotion — Operations, minus the admin
-          { status: { in: ACTIVE_STATUSES }, assignedTo: { role: { not: "admin" }, team: { slug: "operations" } } },
+          // same people as pushesToNotion — Production and Client success
+          { status: { in: ACTIVE_STATUSES }, workflow: "video", assignedTo: { team: { slug: { in: ["production", "client-success"] } } } },
         ],
       },
       select: { id: true, title: true, notionPageId: true },

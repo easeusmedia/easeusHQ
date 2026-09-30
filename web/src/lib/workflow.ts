@@ -69,6 +69,25 @@ export const LIVE_WORK_TASK = {
   OR: [{ projectId: null }, { project: { client: { status: "current" } } }],
 };
 
+// How a task moves, from its kind of work (TaskTag.workflow). Every one is
+// a fixed set of the same stages, so grading, Frame.io, Drive and Notion
+// keep working whichever it is:
+//   video   the editing stages above
+//   design  queued, in progress, sent for approval, revision requested, and
+//           done ("Final export ready"), graded like a video
+//   todo    to do, done
+// Done is always delivered_and_uploaded, so History and every "finished"
+// count mean the same thing for all three.
+export type Workflow = "video" | "design" | "todo";
+export const WORKFLOWS: Workflow[] = ["video", "design", "todo"];
+export const WORKFLOW_LABEL: Record<Workflow, string> = { video: "Video", design: "Design", todo: "To-do" };
+export const WORKFLOW_STAGES: Record<Workflow, TaskStatus[]> = {
+  video: ALL_STATUSES,
+  design: ["queued", "editing", "sent_for_approval", "revision_requested", "delivered_and_uploaded"],
+  todo: ["queued", "delivered_and_uploaded"],
+};
+export const workflowOf = (w: string | null | undefined): Workflow => (w === "design" || w === "todo" ? w : "video");
+
 export type Role = "admin" | "core" | "employee";
 
 export type Actor = { role: Role; isAssignee: boolean };
@@ -114,8 +133,12 @@ export function nextStatuses(from: TaskStatus): TaskStatus[] {
   return TRANSITIONS[from].map((r) => r.to);
 }
 
-export function canTransition(from: TaskStatus, to: TaskStatus, actor: Actor): boolean {
+export function canTransition(from: TaskStatus, to: TaskStatus, actor: Actor, workflow?: string | null): boolean {
+  const stages = WORKFLOW_STAGES[workflowOf(workflow)];
+  if (!stages.includes(to)) return false;
   if (actor.role !== "employee") return true; // ops has full manual control over the queue
+  // a to-do is ticked off (or reopened) by whoever it's on
+  if (workflowOf(workflow) === "todo") return actor.isAssignee;
 
   const rule = TRANSITIONS[from].find((r) => r.to === to);
   if (!rule) return false;
@@ -134,8 +157,11 @@ export function canTransition(from: TaskStatus, to: TaskStatus, actor: Actor): b
 // already started to drift.
 export function availableStatuses(
   from: TaskStatus,
-  actor: { role: Role; isAssignee: boolean }
+  actor: { role: Role; isAssignee: boolean },
+  workflow?: string | null
 ): TaskStatus[] {
-  if (actor.role === "admin" || actor.role === "core") return ALL_STATUSES.filter((s) => s !== from);
-  return nextStatuses(from).filter((to) => canTransition(from, to, actor));
+  const stages = WORKFLOW_STAGES[workflowOf(workflow)];
+  if (actor.role === "admin" || actor.role === "core") return stages.filter((s) => s !== from);
+  if (workflowOf(workflow) === "todo") return actor.isAssignee ? stages.filter((s) => s !== from) : [];
+  return nextStatuses(from).filter((to) => canTransition(from, to, actor, workflow));
 }

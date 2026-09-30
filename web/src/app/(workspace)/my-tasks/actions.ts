@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { assigneeWhere, canSeeMember, type Viewer } from "@/lib/scope";
+import { assigneeWhere, canAssign, type Viewer } from "@/lib/scope";
 import { pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
@@ -20,7 +20,7 @@ export type WorkTaskFormState = { error?: string; success?: boolean };
 // in by whoever's calling.
 async function requireRealUser() {
   const sessionUserId = await getSessionUserId();
-  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
+  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId }, include: { departments: { select: { id: true, slug: true } } } }) : null;
   if (!user) throw new Error("Your session has ended. Please sign in again.");
   return user;
 }
@@ -41,10 +41,18 @@ function cleanLinks(links: WorkTaskLink[]): WorkTaskLink[] {
 async function resolveAssignee(me: Viewer, requested: string | undefined, current?: string | null): Promise<string> {
   if (!requested || requested === me.id) return me.id;
   if (requested === current) return requested;
-  const target = await prisma.user.findUnique({ where: { id: requested }, select: { id: true, teamId: true, employment: true } });
-  // fail closed, onto yourself
-  if (!target || target.employment === "former" || !canSeeMember(me, target)) return me.id;
+  const target = await prisma.user.findUnique({ where: { id: requested }, select: { id: true, role: true, teamId: true, employment: true, departments: { select: { id: true } } } });
+  // down the levels only (lib/scope canAssign); fail closed, onto yourself
+  if (!target || target.employment === "former" || !canAssign(me, { ...target, departmentIds: target.departments.map((d) => d.id) })) return me.id;
   return target.id;
+}
+
+// The department a work task belongs to (whose Leads see it): its kind of
+// work's, else the assignee's own
+async function departmentOf(tagIds: string[], assignedToId: string): Promise<string | null> {
+  const tag = tagIds.length ? await prisma.taskTag.findFirst({ where: { id: { in: tagIds }, teamId: { not: null } }, select: { teamId: true } }) : null;
+  if (tag) return tag.teamId;
+  return (await prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true } }))?.teamId ?? null;
 }
 
 // Which project a task hangs off, from what the person actually chose.
@@ -85,6 +93,7 @@ export async function createWorkTask(input: {
       links: cleanLinks(input.links),
       attachments: input.attachments,
       tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
+      teamId: await departmentOf(input.tagIds ?? [], assignedToId),
       createdById: me.id,
       assignedToId,
       sortOrder: Date.now(),
@@ -123,8 +132,8 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
   const me = await requireRealUser().catch(() => null);
   if (!me || me.role === "employee") return { pushed: 0, skipped: 0, error: "Only the operations team can sync." };
 
-  // their own team's work, or everyone's for whoever sees every team
-  const viewer = { id: me.id, role: me.role, email: me.email, teamId: me.teamId };
+  // the work they may see (lib/scope)
+  const viewer = me;
   // anyone whose work has a home in Notion: a core member with their own
   // workbook, or an Operations editor whose work belongs in the shared queue
   const tasks = await prisma.workTask.findMany({
@@ -140,7 +149,7 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
               assignedTo: {
                 OR: [
                   { notionWorkbookDbId: { not: null } },
-                  { role: { not: "admin" }, team: { slug: "operations" } },
+                  { team: { slug: { in: ["production", "client-success"] } } },
                 ],
               },
             },
@@ -170,10 +179,10 @@ async function assertCanTouch(taskId: string) {
   const me = await requireRealUser();
   const task = await prisma.workTask.findUnique({ where: { id: taskId }, include: { assignedTo: { select: { id: true, teamId: true } } } });
   if (!task) throw new Error("This task no longer exists.");
-  // yours, one you handed out, or — for a core member — anything in the
-  // team they can see on the Board (admin and Abhishek: any team)
+  // yours, one you handed out, or — for a Lead — anything they can see on
+  // the Board (a Founder: anything)
   const mine = task.assignedToId === me.id || task.createdById === me.id;
-  const teamLead = me.role !== "employee" && canSeeMember(me, task.assignedTo);
+  const teamLead = me.role !== "employee" && (await prisma.workTask.count({ where: { AND: [{ id: taskId }, assigneeWhere(me)] } })) > 0;
   if (!mine && !teamLead && !isAbhishekOrAdmin(me)) {
     throw new Error("Only the person assigned to this task can change it.");
   }

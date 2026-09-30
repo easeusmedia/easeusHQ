@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { seesEveryTeam, seesPostings } from "@/lib/scope";
+import { isFounder, isLead, runsClients } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
 import { getSessionUserId } from "@/lib/auth";
@@ -23,8 +24,9 @@ export const dynamic = "force-dynamic";
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // one round: none of these needs another's answer
-  const [sessionUserId, users, project, typeCounts, allTags] = await Promise.all([
+  const [sessionUserId, viewer, users, project, typeCounts, allTags] = await Promise.all([
     getSessionUserId(),
+    getViewer(),
     getAllUsers(),
     prisma.project.findUnique({
       where: { id },
@@ -44,13 +46,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   ]);
   if (!sessionUserId) redirect("/login");
   const me = users.find((u) => u.id === sessionUserId);
-  if (!me) redirect("/login");
+  if (!me || !viewer) redirect("/login");
   if (!project) notFound();
+  // a Lead never sees a Founder's work (lib/scope)
+  if (isLead(viewer)) {
+    const founders = new Set(users.filter((u) => isFounder(u)).map((u) => u.id));
+    project.tasks = project.tasks.filter((t) => !t.assignedToId || !founders.has(t.assignedToId));
+  }
   // an editor sees a client through its own page only (their work and its
   // documents), which also decides whether they may see it at all
   if (me.role === "employee") redirect(`/clients/${project.client.slug}`);
 
-  const editors = assignOptionsFor(me, users);
+  const editors = assignOptionsFor(viewer, users);
   const boardProjects = project.client.projects.map((p) => ({
     id: p.id,
     name: p.name || p.type,
@@ -86,10 +93,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const deliveredFiles = done.filter((t) => t.status === "delivered_and_uploaded");
   // when each was really delivered, and whether this person plans postings
-  const [delivered, ops] = await Promise.all([
-    deliveredAt(deliveredFiles.map((t) => t.id)),
-    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
-  ]);
+  const delivered = await deliveredAt(deliveredFiles.map((t) => t.id));
 
   return (
     <div>
@@ -181,10 +185,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           post: t.postDate ? indiaDay(t.postDate) : null,
           tags: t.tags.map((g) => ({ id: g.id, name: g.name })),
         }))}
-        canPost={seesPostings(me, ops?.id ?? null)}
+        canPost={runsClients(viewer)}
         // the kinds of work this person picks from on a task: their team's, and shared ones
         tagOptions={allTags
-          .filter((t) => seesEveryTeam(me) || !t.teamId || t.teamId === me.teamId)
+          .filter((t) => isFounder(viewer) || !t.teamId || viewer.departments.some((d) => d.id === t.teamId))
           .map((t) => ({ id: t.id, name: t.name }))}
       />
     </div>

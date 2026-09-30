@@ -49,11 +49,16 @@ export function assignableEditors<T extends { role: string; employment: string }
   return users.filter((u) => u.role === "employee" && onStaff(u));
 }
 
-// Who a person may hand editing work to: an editor only ever to themselves;
-// everyone else to any editor still on the team.
-export function assignOptionsFor<T extends { id: string; role: string; employment: string }>(
-  actor: { id: string; role: string },
+// Who a person may hand work to, down the levels (lib/scope canAssign): a
+// Member only to themselves; a Founder to any Member still on the team, or
+// themselves; a Lead to the Members in their departments, or themselves.
+export function assignOptionsFor<T extends { id: string; role: string; employment: string; teamId?: string | null }>(
+  actor: { id: string; role: string; departments?: { id: string }[] },
   users: T[]
 ): T[] {
-  return actor.role === "employee" ? users.filter((u) => u.id === actor.id) : assignableEditors(users);
+  if (actor.role === "employee") return users.filter((u) => u.id === actor.id);
+  const depts = actor.departments?.map((d) => d.id) ?? [];
+  return users.filter(
+    (u) => onStaff(u) && (u.id === actor.id || (u.role === "employee" && (actor.role === "admin" || (!!u.teamId && depts.includes(u.teamId)))))
+  );
 }

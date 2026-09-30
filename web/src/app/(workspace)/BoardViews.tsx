@@ -2,6 +2,9 @@
 
 import { useSearchParams } from "next/navigation";
 import { EditorsView } from "./EditorsView";
+import type { Column } from "./Board";
+import { STAGE, stageLabel } from "@/lib/stages";
+import { WORKFLOW_STAGES } from "@/lib/workflow";
 import { NotionSyncButton } from "./NotionSyncButton";
 import { ScopeToggle } from "./ScopeToggle";
 import { WorkTaskView } from "./my-tasks/WorkTaskView";
@@ -9,7 +12,12 @@ import type { GroupBy } from "@/lib/workTaskStages";
 import type { WorkTaskCardData } from "./my-tasks/WorkTaskCard";
 import type { QueueCardData, QueueEnv } from "./my-tasks/grouping";
 
-type EditorsProps = Omit<React.ComponentProps<typeof EditorsView>, "switcher">;
+type EditorsProps = Omit<React.ComponentProps<typeof EditorsView>, "switcher" | "columns">;
+
+// the design queue's columns: its own stages, by its own names, up to done
+const DESIGN_COLUMNS: Column[] = WORKFLOW_STAGES.design
+  .filter((s) => s !== "delivered_and_uploaded")
+  .map((status) => ({ status, label: stageLabel(status, "design"), dot: STAGE[status].dot }));
 
 // Everything the Board shows, already loaded, switched here in the browser.
 // Changing Editors / a team / Everyone used to be a trip to the server and a
@@ -19,12 +27,14 @@ export function BoardViews({
   scopes,
   initialScope,
   editors,
+  design,
   work,
   canSyncNotion,
 }: {
   scopes: { key: string; label: string }[];
   initialScope: string;
   editors: EditorsProps;
+  design: EditorsProps;
   // the widest work this person may see; teams are filtered out of it
   work: {
     tasks: WorkTaskCardData[];
@@ -50,7 +60,8 @@ export function BoardViews({
   }
 
   const switcher = scopes.length > 1 && <ScopeToggle options={scopes} active={scope} onSelect={select} />;
-  const inScope = (team?: { slug: string } | null) => scope === "all" || scope === "mine" || team?.slug === scope;
+  const inScope = (slug?: string | null) => scope === "all" || scope === "mine" || slug === scope;
+  const queue = scope === "editors" || scope === "design";
   const groupOptions: GroupBy[] = scope === "all" ? ["person", "team"] : ["person"];
 
   return (
@@ -60,11 +71,14 @@ export function BoardViews({
         <EditorsView {...editors} switcher={switcher} />
         {scope === "editors" && canSyncNotion && <NotionSyncButton />}
       </div>
+      <div hidden={scope !== "design"}>
+        <EditorsView {...design} columns={DESIGN_COLUMNS} workflow="design" switcher={switcher} />
+      </div>
       {work && (
-        <div hidden={scope === "editors"}>
+        <div hidden={queue}>
           <WorkTaskView
-            tasks={work.tasks.filter((t) => inScope(t.assignedTo.team))}
-            queueTasks={work.queueTasks.filter((t) => inScope(t.assignedTo?.team))}
+            tasks={work.tasks.filter((t) => inScope(t.teamSlug))}
+            queueTasks={work.queueTasks.filter((t) => inScope(t.teamSlug))}
             queueEnv={work.queueEnv}
             groupOptions={groupOptions}
             teams={work.teams}

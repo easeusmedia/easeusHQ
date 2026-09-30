@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { seesClientFeedback } from "@/lib/scope";
+import { runsClients } from "@/lib/scope";
 import { ACTIVE_WINDOW_MS } from "@/app/(workspace)/presence/constants";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +17,8 @@ export async function GET() {
   if (!userId) return NextResponse.json({ signedOut: true }, { status: 401 });
   const now = new Date();
 
-  const [user, ops, writes, online, approvals, feedback] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { role: true, email: true, teamId: true } }),
-    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
+  const [user, writes, online, approvals, feedback] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { role: true, departments: { select: { id: true, slug: true } } } }),
     // a counter every write to a table the pages show bumps the moment it
     // happens (scripts/realtime.ts): it moves whenever any of their rows do
     prisma.$queryRaw<{ n: bigint | null }[]>`select last_value as n from public.hq_change_seq`.catch(() => null),
@@ -49,7 +48,7 @@ export async function GET() {
       : null,
   ]);
 
-  const seesFeedback = !!user && seesClientFeedback(user, ops?.id ?? null);
+  const seesFeedback = !!user && runsClients(user);
   return NextResponse.json(
     {
       // if the count can't be read, a fresh value each time: the page then

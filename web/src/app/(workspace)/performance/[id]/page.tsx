@@ -27,7 +27,9 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
   if (!me) redirect("/login");
   // an editor sees only their own
   if (me.role === "employee" && me.id !== id) redirect(`/performance/${me.id}`);
-  const canEdit = me.role !== "employee";
+  // grading is a Founder's: a Lead has no Performance page
+  if (me.role === "core") redirect("/board");
+  const canEdit = me.role === "admin";
   // numbers are for core; an editor sees letters
   const numbers = canEdit;
 

@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
-import { assignOptionsFor, getAllUsers } from "@/lib/users";
+import { getAllUsers, onStaff } from "@/lib/users";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
-import { seesEveryTeam, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
 import { loadWork } from "../workData";
@@ -19,108 +19,80 @@ export default async function TasksPage({
   searchParams: Promise<{ scope?: string }>;
 }) {
   const { scope } = await searchParams;
-  const [sessionUserId, users, teams, rawProjects, tasks] = await Promise.all([
-    getSessionUserId(),
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  const member = isMember(viewer);
+
+  const [users, teams, rawProjects, tasks, kinds] = await Promise.all([
     getAllUsers(),
     prisma.team.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, slug: true, name: true } }),
     prisma.project.findMany({
-      where: { client: { status: "current" } },
+      where: { client: { status: "current", ...visibleClientWhere(viewer) } },
       include: { client: true },
       // newest first within each client: a task form lists a client's
       // latest few projects and searches for the rest
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
+    // the Production queues: video and design work this person may see
     prisma.task.findMany({
-      where: LIVE_TASK,
+      where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }] },
       orderBy: { createdAt: "desc" },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
+    // the kinds of work this person's roles offer, and the ones they may label with
+    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { role: { select: { holders: { where: { id: viewer.id }, select: { id: true } } } } } }),
   ]);
-  if (!sessionUserId) redirect("/login");
   // a project set up before names were required can still have "" — fall
   // back to its type so the new/reassign-task dropdown never shows a blank
-  // an editor adds work only for the clients given to them (lib/scope)
-  const signedIn = users.find((u) => u.id === sessionUserId);
-  const theirs =
-    signedIn?.role === "employee"
-      ? new Set((await prisma.client.findMany({ where: visibleClientWhere(signedIn), select: { id: true } })).map((c) => c.id))
-      : null;
-  const projects = rawProjects.filter((p) => !theirs || theirs.has(p.clientId)).map((p) => ({ ...p, name: p.name || p.type }));
+  const projects = rawProjects.map((p) => ({ ...p, name: p.name || p.type }));
 
-  const actingUser = users.find((u) => u.id === sessionUserId);
+  const actingUser = users.find((u) => u.id === viewer.id);
+  if (!actingUser) redirect("/login");
 
-  if (!actingUser) {
-    return (
-      <>
-        <h1 className="mb-6 text-xl font-semibold">No users yet</h1>
-        <p className="text-sm text-muted">
-          Run the seed script (<code>npx prisma db seed</code>) once <code>DATABASE_URL</code> is set.
-        </p>
-      </>
-    );
-  }
+  // Who Production work can go to: a Member only themselves; a Founder any
+  // Member, or themselves; a Lead the Members in their departments, or
+  // themselves (lib/scope canAssign)
+  const deptIds = viewer.departments.map((d) => d.id);
+  const editors = member
+    ? users.filter((u) => u.id === viewer.id)
+    : users.filter((u) => onStaff(u) && (u.id === viewer.id || (u.role === "employee" && (isFounder(viewer) || (!!u.teamId && deptIds.includes(u.teamId))))));
 
-  const isEditor = actingUser.role === "employee";
-  // an editor only ever assigns to themselves (the server holds them to it too)
-  const editors = assignOptionsFor(actingUser, users);
-
-  // One switch, centred: Editors (the editing queue, the thing the studio
-  // runs on), then whose work — editors' edits included, laid out by person
-  // or team. Only admin and Abhishek see every team and Everyone. A core
-  // member sees their own team, plus the editing queue if that team is
-  // Operations (the editors are Operations). An editor only ever gets their
-  // own editing queue, so no switch at all.
-  const viewer = { id: actingUser.id, role: actingUser.role, email: actingUser.email, teamId: actingUser.teamId };
-  const everyTeam = seesEveryTeam(viewer);
-  const myTeam = teams.find((t) => t.id === actingUser.teamId);
-  const teamScopes = isEditor
+  // The switch: the Production queues (Video, Design) for whoever works or
+  // runs them, then each department's work for whoever runs it. A Member
+  // gets the queues their roles work in, and nothing else.
+  const mine = new Set(kinds.filter((k) => k.role?.holders.length).map((k) => k.workflow));
+  const hasOwn = (w: string) => tasks.some((t) => t.workflow === w && t.assignedToId === viewer.id);
+  const queue = (w: "video" | "design") => (member ? mine.has(w) || hasOwn(w) : runsProduction(viewer) || mine.has(w) || hasOwn(w));
+  const teamScopes = member
     ? []
     : [
-        ...(everyTeam ? teams : myTeam ? [myTeam] : []).map((t) => ({ key: t.slug, label: t.name })),
-        ...(everyTeam ? [{ key: "all", label: "Everyone" }] : []),
+        ...(isFounder(viewer) ? teams : teams.filter((t) => deptIds.includes(t.id))).map((t) => ({ key: t.slug, label: t.name })),
+        ...(isFounder(viewer) ? [{ key: "all", label: "Everyone" }] : []),
       ];
   const scopes = [
-    ...(isEditor || everyTeam || myTeam?.slug === "operations" ? [{ key: "editors", label: "Editors" }] : []),
+    ...(queue("video") ? [{ key: "editors", label: "Video" }] : []),
+    ...(queue("design") ? [{ key: "design", label: "Design" }] : []),
     ...teamScopes,
   ];
   // "org" (what a client page links to) means the widest team view you have
   const wanted = scope === "org" ? teamScopes.at(-1)?.key : scope;
   const initialScope = scopes.find((s) => s.key === wanted)?.key ?? scopes[0]?.key ?? "mine";
 
-  // Everything this person may switch between, loaded once — the switch
-  // itself happens in the browser (BoardViews). The team views read the
-  // widest work they can see and filter it down to one team.
-  const widest = everyTeam ? "all" : isEditor ? null : (myTeam?.slug ?? "mine");
-
-  // a scheduled-for-the-future task stays off the assigned editor's board
-  // until that date — ops/admin (the `else` below) always sees everything
-  const visibleTasks = isEditor
-    ? tasks.filter((t) => t.assignedToId === actingUser.id && (!t.scheduledFor || t.scheduledFor <= new Date()))
-    : tasks;
+  // a scheduled-for-the-future task stays off the assigned Member's board
+  // until that date — Founders and Leads always see everything
+  const visibleTasks = member ? tasks.filter((t) => !t.scheduledFor || t.scheduledFor <= new Date()) : tasks;
 
   const canSyncNotion = isAbhishekOrAdmin(actingUser);
-
-  // the team work and this person's kinds of work, together — only their
-  // own team's kinds (plus any shared ones): Sales never has to pick past
-  // "Colour correction"
-  const [work, taskTags] = await Promise.all([
-    widest ? loadWork(viewer, widest, { withQueue: true }) : null,
-    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-  ]);
+  const work = member ? null : await loadWork(viewer, "all", { withQueue: true });
+  const tagOptions = kinds.map((k) => ({ id: k.id, name: k.name, clientFacing: k.clientFacing, workflow: k.workflow }));
+  const env = { projects, editors, actingUserId: actingUser.id, actingRole: actingUser.role as Role };
 
   return (
     <BoardViews
       scopes={scopes.length ? scopes : [{ key: "mine", label: "Mine" }]}
       initialScope={initialScope}
-      editors={{
-        // the same view for everyone — pre-filtered to an editor's own tasks
-        tasks: visibleTasks,
-        projects,
-        editors,
-        actingUserId: actingUser.id,
-        actingRole: actingUser.role as Role,
-        taskTags,
-      }}
+      editors={{ ...env, tasks: visibleTasks.filter((t) => t.workflow !== "design"), taskTags: tagOptions.filter((k) => k.workflow === "video") }}
+      design={{ ...env, tasks: visibleTasks.filter((t) => t.workflow === "design"), taskTags: tagOptions.filter((k) => k.workflow === "design") }}
       work={
         work && {
           tasks: work.tasks,

@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, CheckCircle2, Copy } from "lucide-react";
 import { moveTask } from "./actions";
 import { linkProblem, pickLink } from "@/lib/links";
-import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
+import { STATUS_STYLE, extraFieldFor } from "./TaskCard";
+import { stageLabel } from "@/lib/stages";
 import { copyFrameioFileToDrive, frameioFileForTask, type DeliverableFile } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
 import { closeOnBackdrop } from "./dialog";
@@ -23,6 +24,7 @@ export function StatusSelect({
   variant = "block",
   needsGradeOn,
   onGrade,
+  workflow,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
@@ -38,6 +40,8 @@ export function StatusSelect({
   // the grade given with the move, as it's sent (null if the move fails),
   // so the card can take its colour without waiting
   onGrade?: (grade: string | null) => void;
+  // video, design or todo: which stage names and prompts it gets
+  workflow?: string | null;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -129,7 +133,7 @@ export function StatusSelect({
   function pick(to: TaskStatus) {
     setOpen(false);
     setError(null);
-    const extra = EXTRA_FIELD[to];
+    const extra = extraFieldFor(to, workflow);
     const gradeIt = needsGradeOn?.(to) ?? false;
     if (extra || gradeIt) {
       setPendingTo(to);
@@ -158,7 +162,7 @@ export function StatusSelect({
   // afterwards, leaving nowhere to fix it.
   async function confirmDialog() {
     if (!pendingTo || submitting) return;
-    const extra = EXTRA_FIELD[pendingTo];
+    const extra = extraFieldFor(pendingTo, workflow);
     const fields: Record<string, string> = {};
     if (extra) {
       const value = pickLink(inputValue);
@@ -193,7 +197,7 @@ export function StatusSelect({
     setOpen(true);
   }
 
-  const extraField = pendingTo ? EXTRA_FIELD[pendingTo] : undefined;
+  const extraField = pendingTo ? extraFieldFor(pendingTo, workflow) : undefined;
   // whether Frame.io is offering to do this delivery for them
   const hasOffer = fio.state !== "idle" && fio.state !== "unavailable" && !!fio.files?.length;
 
@@ -235,7 +239,7 @@ export function StatusSelect({
               <>
             <p className="text-sm font-medium">{extraField.label}</p>
             <p className="text-xs text-muted">
-              Required before moving this to {STATUS_LABEL[pendingTo!]}.
+              Required before moving this to {stageLabel(pendingTo!, workflow)}.
             </p>
 
             {/* The file Frame.io already has, offered as the whole answer:
@@ -327,11 +331,11 @@ export function StatusSelect({
   if (options.length === 0) {
     return variant === "pill" ? (
       <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}>
-        {STATUS_LABEL[optimisticStatus]}
+        {stageLabel(optimisticStatus, workflow)}
       </span>
     ) : (
       <span className="block rounded-md border border-border bg-surface-2 px-3 py-2 text-center text-xs text-muted">
-        {STATUS_LABEL[optimisticStatus]}
+        {stageLabel(optimisticStatus, workflow)}
       </span>
     );
   }
@@ -347,7 +351,7 @@ export function StatusSelect({
           onClick={toggle}
           className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}
         >
-          {STATUS_LABEL[optimisticStatus]}
+          {stageLabel(optimisticStatus, workflow)}
           <ChevronDown size={11} />
         </button>
         {open && position && (
@@ -363,7 +367,7 @@ export function StatusSelect({
                 onClick={() => pick(to)}
                 className="menu-item px-2.5 py-1.5 text-xs"
               >
-                {STATUS_LABEL[to]}
+                {stageLabel(to, workflow)}
               </button>
             ))}
           </div>
@@ -398,7 +402,7 @@ export function StatusSelect({
         onClick={toggle}
         className="btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1"
       >
-        <span className="truncate">{STATUS_LABEL[optimisticStatus]}</span>
+        <span className="truncate">{stageLabel(optimisticStatus, workflow)}</span>
         <ChevronDown size={13} className="shrink-0" />
       </button>
       {open && position && (
@@ -414,7 +418,7 @@ export function StatusSelect({
               onClick={() => pick(to)}
               className="menu-item px-2.5 py-1.5 text-xs"
             >
-              {STATUS_LABEL[to]}
+              {stageLabel(to, workflow)}
             </button>
           ))}
         </div>

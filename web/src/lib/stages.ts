@@ -1,4 +1,4 @@
-import type { TaskStatus } from "./workflow";
+import { workflowOf, type TaskStatus } from "./workflow.ts";
 
 // How every task stage is labelled and coloured, in one plain module so
 // both client and server components can read it. It used to live in
@@ -58,6 +58,16 @@ export const STAGE: Record<
     link: { field: "driveLink", label: "Drive" },
   },
 };
+
+// A stage's name in a task's own workflow: a design's "In progress" and
+// "Final export ready", a to-do's "To do" and "Done"
+const NAMES: Record<string, Partial<Record<TaskStatus, string>>> = {
+  design: { editing: "In progress", delivered_and_uploaded: "Final export ready" },
+  todo: { queued: "To do", delivered_and_uploaded: "Done" },
+};
+export function stageLabel(status: TaskStatus, workflow?: string | null): string {
+  return NAMES[workflowOf(workflow)]?.[status] ?? STAGE[status].label;
+}
 
 // ---- the activity log's stage lines ----
 //

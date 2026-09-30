@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assigneeWhere } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { STAGE, parseStageChange } from "@/lib/stages";
 import { displayTeam } from "@/lib/teams";
 import { exportRow, toCsv, unionRows, type ExportEvent } from "@/lib/taskExport";
@@ -43,7 +44,9 @@ export async function GET(request: Request) {
   const group = params.get("group");
   const grouped = group && group !== "list" ? (group as GroupBy) : null;
 
-  const scope = assigneeWhere({ id: user.id, role: user.role, email: user.email, teamId: user.teamId });
+  const viewer = await getViewer();
+  if (!viewer) return new Response("Sign in first.", { status: 401 });
+  const scope = assigneeWhere(viewer);
   const person = { select: { id: true, name: true, role: true, team: { select: { slug: true, name: true } } } };
   const project = { select: { name: true, type: true, client: { select: { name: true } } } };
 

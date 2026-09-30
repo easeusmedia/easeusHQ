@@ -29,9 +29,10 @@ test("whichever link exists is used when only one is set", () => {
 });
 
 test("only Operations, and not the admin, mirrors into the Editing Queue", () => {
-  assert.equal(pushesToNotion({ role: "employee", teamSlug: "operations" }), true); // editors
-  assert.equal(pushesToNotion({ role: "core", teamSlug: "operations" }), true); // Jyotsna, Arpit, Abhishek
-  assert.equal(pushesToNotion({ role: "admin", teamSlug: "operations" }), false); // Ashmit
+  assert.equal(pushesToNotion({ role: "employee", teamSlug: "production" }), true); // editors
+  assert.equal(pushesToNotion({ role: "core", teamSlug: "client-success" }), true); // Jyotsna, Arpit
+  assert.equal(pushesToNotion({ role: "admin", teamSlug: "production" }), true); // Abhishek
+  assert.equal(pushesToNotion({ role: "admin", teamSlug: null }), false); // Ashmit
   assert.equal(pushesToNotion({ role: "core", teamSlug: "sales" }), false); // Pankaj
   assert.equal(pushesToNotion({ role: "employee", teamSlug: null }), false); // unplaced: fail closed
 });
@@ -61,11 +62,11 @@ test("a row we have no client for stays unmatched rather than landing on the wro
 
 test("a work task goes to its person's own workbook, the queue for other Operations, nowhere else", () => {
   // Abhishek, Arpit, Jyotsna: their own workbooks, whatever their team
-  assert.equal(workTaskHome({ role: "core", teamSlug: "operations", workbookId: "wb-abhishek" }), "workbook");
+  assert.equal(workTaskHome({ role: "admin", teamSlug: "production", workbookId: "wb-abhishek" }), "workbook");
   // an editor with no workbook: the shared Editing Queue
-  assert.equal(workTaskHome({ role: "employee", teamSlug: "operations", workbookId: null }), "queue");
+  assert.equal(workTaskHome({ role: "employee", teamSlug: "production", workbookId: null }), "queue");
   // the admin and Sales: not in Notion at all
-  assert.equal(workTaskHome({ role: "admin", teamSlug: "operations", workbookId: null }), null);
+  assert.equal(workTaskHome({ role: "admin", teamSlug: null, workbookId: null }), null);
   assert.equal(workTaskHome({ role: "core", teamSlug: "sales", workbookId: null }), null);
 });
 

@@ -32,6 +32,8 @@ export type WorkTaskCardData = {
   project: { name: string; client: { name: string } } | null;
   assignedTo: { id: string; name: string; team?: { slug: string; name: string } | null };
   createdBy: { id: string; name: string };
+  // its department's slug, for the Board's department views
+  teamSlug?: string | null;
 };
 
 

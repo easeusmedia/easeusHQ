@@ -3,7 +3,7 @@
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Trash2, X } from "lucide-react";
-import { TaskCard, STATUS_STYLE, EXTRA_FIELD, tierFor, type TaskCardData } from "./TaskCard";
+import { TaskCard, STATUS_STYLE, extraFieldFor, tierFor, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { StickyColumns, scrollPageNearEdge } from "./StickyColumns";
 import { TaskRow } from "./TaskRow";
@@ -65,6 +65,7 @@ export function Board({
   columns = BOARD_COLUMNS,
   taskTags = [],
   layout = "board",
+  workflow,
 }: {
   tasks: TaskCardData[];
   projects: Project[];
@@ -77,6 +78,8 @@ export function Board({
   // the same tasks, same drag-and-drop and same rules, as columns of cards
   // or as a list of rows grouped by stage
   layout?: "board" | "list";
+  // the queue this board is (video or design): new tasks follow it
+  workflow?: string;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -169,7 +172,7 @@ export function Board({
     if (!task) return false;
     if (task.status === to) return true; // reordering within the same column, not a status change
     const isAssignee = task.assignedTo?.id === actingUserId;
-    return canTransition(task.status, to, { role: actingRole, isAssignee });
+    return canTransition(task.status, to, { role: actingRole, isAssignee }, task.workflow);
   }
 
   // Figures out where in the column the drop should land by comparing the
@@ -231,7 +234,7 @@ export function Board({
       commitReorder(taskId, sortOrder);
       return;
     }
-    const extra = EXTRA_FIELD[to];
+    const extra = extraFieldFor(to, draggedTask?.workflow);
     const grading = !!draggedTask && needsGrade(draggedTask, to, actingRole);
     if (extra || grading) {
       setPending({ taskId, to, sortOrder, grading });
@@ -245,7 +248,7 @@ export function Board({
 
   function confirmDialog() {
     if (!pending) return;
-    const extra = EXTRA_FIELD[pending.to];
+    const extra = extraFieldFor(pending.to, optimisticTasks.find((t) => t.id === pending.taskId)?.workflow);
     const fields: Record<string, string> = {};
     // checked before the prompt closes, so a bad link can be fixed right
     // here instead of failing afterwards and needing the drag done again
@@ -263,7 +266,7 @@ export function Board({
     setPending(null);
   }
 
-  const extraField = pending ? EXTRA_FIELD[pending.to] : undefined;
+  const extraField = pending ? extraFieldFor(pending.to, optimisticTasks.find((t) => t.id === pending.taskId)?.workflow) : undefined;
 
   // a list's heading: a dot, the stage, a count — quieter than the board's pill
   function listTitle(col: Column) {
@@ -313,7 +316,7 @@ export function Board({
         }}
       >
         {addRow && (
-          <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" />
+          <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" workflow={workflow} />
         )}
         {columnTasks.map((task) => (
           <div
@@ -482,7 +485,7 @@ export function Board({
             header: stageHeader(col),
             body: (
               <section className="flex min-w-0 flex-1 flex-col gap-3">
-                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
+                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} workflow={workflow} />}
                 {dropZone(col)}
               </section>
             ),

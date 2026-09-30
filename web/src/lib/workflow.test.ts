@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ALL_STATUSES, availableStatuses, canTransition, nextStatuses } from "./workflow.ts";
+import { stageLabel } from "./stages.ts";
 
 test("the assigned editor can carry their own task through their 3 stages", () => {
   const assignee = { role: "employee" as const, isAssignee: true };
@@ -64,4 +65,19 @@ test("availableStatuses: an editor only gets moves the workflow actually allows"
 
   // someone else's task offers nothing at all
   assert.deepEqual(availableStatuses("editing", { role: "employee", isAssignee: false }), []);
+});
+
+test("a design moves through its own five stages, and a to-do through two", () => {
+  const founder = { role: "admin" as const, isAssignee: false };
+  assert.deepEqual(availableStatuses("sent_for_approval", founder, "design"), ["queued", "editing", "revision_requested", "delivered_and_uploaded"]);
+  assert.equal(canTransition("sent_for_approval", "sent_for_client_approval", founder, "design"), false);
+  // the designer's own steps are an editor's
+  assert.deepEqual(availableStatuses("editing", { role: "employee", isAssignee: true }, "design"), ["sent_for_approval", "queued"]);
+  // whoever a to-do is on ticks it off, or reopens it
+  assert.deepEqual(availableStatuses("queued", { role: "employee", isAssignee: true }, "todo"), ["delivered_and_uploaded"]);
+  assert.deepEqual(availableStatuses("queued", { role: "employee", isAssignee: false }, "todo"), []);
+  assert.equal(stageLabel("editing", "design"), "In progress");
+  assert.equal(stageLabel("delivered_and_uploaded", "design"), "Final export ready");
+  assert.equal(stageLabel("queued", "todo"), "To do");
+  assert.equal(stageLabel("editing", "video"), "Editing");
 });

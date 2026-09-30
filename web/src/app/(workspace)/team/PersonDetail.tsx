@@ -6,15 +6,15 @@ import { ArrowUpRight, History, Mail, PenLine, Phone } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { createJobTitle, updatePerson, updatePersonPhoto } from "./actions";
+import { createJobTitle, setAccess, updatePerson, updatePersonPhoto } from "./actions";
 import { Organisation } from "./Organisation";
 import { PhotoEdit } from "../PhotoEdit";
 import { ProfileHead } from "../ProfileHead";
 import { DUE_TONE } from "../TaskCard";
-import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type Option, type PersonRecord, type Position, type WorkTag } from "./PeopleDirectory";
+import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type PersonRecord, type Position, type WorkTag } from "./PeopleDirectory";
 import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
-import { seesEveryTeam } from "@/lib/scope";
+import { LEVEL_NOTE } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
 import { GradeBadge, ScoreTile } from "../performance/ui";
 import { LETTER_LABEL } from "@/lib/videoScore";
@@ -44,21 +44,84 @@ function tenure(joined: string, today: string) {
 const hours = (h: number) => (h >= 48 ? `${Math.round(h / 24)}d` : `${h}h`);
 const inr = (v: string) => `₹${Number(v).toLocaleString("en-IN")}`;
 
-// The same rule the Board applies (see tasks/page.tsx and lib/scope.ts),
-// spelled out, so whoever sets Department and Access sees what it grants
-// before saving rather than finding out from the person.
-function canSeeSummary(role: Role, email: string, team: Option | undefined): string {
-  if (seesEveryTeam({ role, email: email.trim().toLowerCase() })) {
-    return "Everything: every department's work and the editing queue.";
+// What a level reaches (lib/scope), spelled out, so whoever sets it sees
+// what it grants before saving rather than finding out from the person.
+function canSeeSummary(role: Role): string {
+  return `${LEVEL_NOTE[role]}.`;
+}
+
+const chip = (on: boolean, editable: boolean) =>
+  `rounded-md border px-2 py-1 text-xs transition-colors ${on ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted"} ${editable ? (on ? "hover:bg-accent/25" : "hover:text-foreground") : "cursor-default"}`;
+
+// The departments someone works in or (a Lead) runs, and the roles they
+// hold: each a chip, saved the moment it's switched. Those the viewer may
+// not change are shown only if they're on.
+function DepartmentsAndRoles({ person, teams, roles, editableTeamIds }: { person: PersonRecord; teams: Department[]; roles: Position[]; editableTeamIds: string[] }) {
+  const [departmentIds, setDepartmentIds] = useState(person.departmentIds);
+  const [roleIds, setRoleIds] = useState(person.roleIds);
+  const [error, setError] = useState<string | null>(null);
+  const editable = (teamId: string | null) => person.canSetAccess && !!teamId && editableTeamIds.includes(teamId);
+  const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+
+  async function save(next: { departmentIds: string[]; roleIds: string[] }) {
+    const before = { departmentIds, roleIds };
+    setDepartmentIds(next.departmentIds);
+    setRoleIds(next.roleIds);
+    setError(null);
+    const res = await setAccess(person.id, next);
+    if (res.error) {
+      setDepartmentIds(before.departmentIds);
+      setRoleIds(before.roleIds);
+      setError(res.error);
+    }
   }
-  const ops = team?.slug === "operations";
-  if (role === "core") {
-    if (!team) return "Only their own work. Give them a department to show them its work.";
-    return ops
-      ? `All of ${team.name}'s work, and every editor's tasks on the editing queue.`
-      : `All of ${team.name}'s work.`;
-  }
-  return ops ? "Only their own work, including their own editing tasks." : "Only their own work.";
+
+  const founder = person.role === "admin";
+  const shownTeams = teams.filter((t) => editable(t.id) || departmentIds.includes(t.id));
+  const groups = teams
+    .map((t) => ({ team: t, roles: roles.filter((r) => r.teamId === t.id && (editable(t.id) || roleIds.includes(r.id))) }))
+    .filter((g) => g.roles.length);
+
+  return (
+    <Section title="Departments and roles" aside={person.role === "employee" ? "Where their work goes" : person.role === "core" ? "The departments they run" : undefined}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs text-muted">Departments</p>
+          {founder ? (
+            <p className="text-sm">Every department</p>
+          ) : shownTeams.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {shownTeams.map((t) => (
+                <button key={t.id} type="button" disabled={!editable(t.id)} onClick={() => save({ departmentIds: flip(departmentIds, t.id), roleIds })} className={chip(departmentIds.includes(t.id), editable(t.id))}>
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted/60">None yet</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted">Roles</p>
+          {groups.length ? (
+            groups.map((g) => (
+              <div key={g.team.id} className="flex flex-wrap items-center gap-1.5">
+                <span className="w-24 shrink-0 text-xs text-muted/70">{g.team.name}</span>
+                {g.roles.map((r) => (
+                  <button key={r.id} type="button" disabled={!editable(g.team.id)} onClick={() => save({ departmentIds, roleIds: flip(roleIds, r.id) })} className={chip(roleIds.includes(r.id), editable(g.team.id))}>
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted/60">None yet</p>
+          )}
+        </div>
+        {error && <p className="text-xs text-red-300">{error}</p>}
+      </div>
+    </Section>
+  );
 }
 
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
@@ -101,6 +164,7 @@ export function PersonDetail({
   jobTitles,
   workTags,
   canEdit,
+  editableTeamIds,
   isSelf,
 }: {
   person: PersonRecord;
@@ -108,6 +172,7 @@ export function PersonDetail({
   jobTitles: Position[];
   workTags: WorkTag[];
   canEdit: boolean;
+  editableTeamIds: string[];
   isSelf: boolean;
 }) {
   const today = indiaDay(new Date());
@@ -272,7 +337,7 @@ export function PersonDetail({
                     // decided for them: shown, not picked
                     <span className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-surface-2/40 px-3 py-2 text-sm text-foreground">
                       <span className="truncate">{departmentName(department) ?? "Whole company"}</span>
-                      <span className="shrink-0 text-xs text-muted">{position?.teamId ? "From position" : "Admin"}</span>
+                      <span className="shrink-0 text-xs text-muted">{position?.teamId ? "From position" : "Founder"}</span>
                     </span>
                   ) : (
                     <Dropdown
@@ -285,7 +350,7 @@ export function PersonDetail({
                 </div>
 
                 <div className={labelCls}>
-                  Access
+                  Level
                   <Dropdown
                     defaultValue={form.role}
                     onChange={(v) => set("role", v)}
@@ -310,8 +375,8 @@ export function PersonDetail({
                   />
                 </div>
                 <p className="col-span-full -mt-1 text-xs text-muted">
-                  Can see: {canSeeSummary(form.role as Role, form.email, teams.find((t) => t.id === department))}
-                  {isSelf && form.role !== "admin" && person.role === "admin" && " You can't remove your own admin access."}
+                  {canSeeSummary(form.role as Role)}
+                  {isSelf && form.role !== "admin" && person.role === "admin" && " You can't remove your own Founder level."}
                 </p>
 
                 <div className={labelCls}>
@@ -371,7 +436,7 @@ export function PersonDetail({
             <dl className="fade-in grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
               <Fact label="Position">{person.jobTitleName}</Fact>
               <Fact label="Department">{person.departmentName ?? (person.role === "admin" ? "Whole company" : null)}</Fact>
-              <Fact label="Access">{ROLE_LABEL[person.role]}</Fact>
+              <Fact label="Level">{ROLE_LABEL[person.role]}</Fact>
               <Fact label="Joined">
                 {person.joinedAt && (
                   <>
@@ -393,6 +458,8 @@ export function PersonDetail({
             </dl>
           )}
         </Section>
+
+        <DepartmentsAndRoles person={person} teams={teams} roles={jobTitles} editableTeamIds={editableTeamIds} />
 
         <Section
           title="Current work"

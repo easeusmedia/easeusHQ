@@ -27,7 +27,9 @@ export default async function VideoPage({ params }: { params: Promise<{ id: stri
   const sessionId = await getSessionUserId();
   const me = sessionId ? await prisma.user.findUnique({ where: { id: sessionId }, select: { id: true, role: true } }) : null;
   if (!me) redirect("/login");
-  const canEdit = me.role !== "employee";
+  // grading is a Founder's: a Lead has no Performance page
+  if (me.role === "core") redirect("/board");
+  const canEdit = me.role === "admin";
   const numbers = canEdit;
 
   const [loaded, task] = await Promise.all([

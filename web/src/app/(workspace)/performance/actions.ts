@@ -3,6 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId, requireOps } from "@/lib/auth";
+
+// grading and feedback are a Founder's (lib/scope)
+async function requireFounder() {
+  const me = await requireOps();
+  return me?.role === "admin" ? me : null;
+}
 import { canEditPeople } from "@/lib/scope";
 import { isLetter, LETTERS, VIDEO_SCORING_KEY, withVideoScoringDefaults, type VideoScoring } from "@/lib/videoScore";
 import { refreshAllVideoScores, refreshVideoScores } from "@/lib/videoScores";
@@ -24,7 +30,7 @@ const done = () => revalidatePath("/performance", "layout");
 export async function saveScoring(input: VideoScoring): Promise<Result> {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id }, select: { role: true, email: true } }) : null;
-  if (!me || !canEditPeople(me)) return { error: "Only the admin can change the scoring." };
+  if (!me || !canEditPeople(me)) return { error: "Only a Founder can change the scoring." };
 
   const s = withVideoScoringDefaults({});
   const numbers = (from: Record<string, unknown> | undefined, keys: string[], min: number, max: number) => {
@@ -87,8 +93,8 @@ export async function saveScoring(input: VideoScoring): Promise<Result> {
 // A video's grade from the quality inspection, set or changed after the
 // move that first asked for it (or cleared). Core only.
 export async function setGrade(taskId: string, grade: string | null): Promise<Result> {
-  const me = await requireOps();
-  if (!me) return { error: "Only core members can grade videos." };
+  const me = await requireFounder();
+  if (!me) return { error: "Only a Founder can grade videos." };
   if (grade !== null && !isLetter(grade)) return { error: "Pick S, A+, A, B, C or D." };
   // raw, so updatedAt (which History reads as when the work last moved) stays put
   await prisma.$executeRaw`UPDATE "Task" SET "inspectionGrade" = ${grade}, "inspectedAt" = ${grade ? new Date() : null}, "inspectedById" = ${grade ? me.id : null} WHERE id = ${taskId}`;
@@ -117,7 +123,7 @@ const cleanCategory = (input: CategoryInput) => {
 
 // A type of mistake, for sorting Frame.io comments into. Core only.
 export async function addCategory(input: CategoryInput): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change the types." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change the types." };
   const c = cleanCategory(input);
   if ("error" in c) return c;
   if (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } })) return { error: "There's already a type with that name." };
@@ -130,7 +136,7 @@ export async function addCategory(input: CategoryInput): Promise<Result> {
 
 // Renaming carries every mistake filed under it along.
 export async function updateCategory(id: string, input: CategoryInput): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change the types." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change the types." };
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
   if (!before) return { error: "That type is gone." };
   const c = cleanCategory(input);
@@ -148,7 +154,7 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
 
 // Its mistakes move to Others.
 export async function deleteCategory(id: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change the types." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change the types." };
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
   if (!before) return {};
   if (before.name === "Others") return { error: "Others stays: it's where anything unsorted goes." };
@@ -166,7 +172,7 @@ export async function deleteCategory(id: string): Promise<Result> {
 // Sort with AI: only when core clicks it. Claude re-sorts the Frame.io
 // comments given that nobody has sorted by hand.
 export async function sortWithAi(ids: string[]): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can re-sort feedback." };
+  if (!(await requireFounder())) return { error: "Only a Founder can re-sort feedback." };
   try {
     await aiSortEntries(ids.slice(0, 200));
     const tasks = await prisma.performanceEntry.findMany({ where: { id: { in: ids } }, select: { taskId: true } });
@@ -232,8 +238,8 @@ async function clean(input: EntryInput, frameioPraise = false) {
 
 // Written in by core: a mistake, a creative change, praise, a concern, or a tip.
 export async function logEntry(input: EntryInput): Promise<Result> {
-  const me = await requireOps();
-  if (!me) return { error: "Only core members can add feedback." };
+  const me = await requireFounder();
+  if (!me) return { error: "Only a Founder can add feedback." };
   const c = await clean(input);
   if ("error" in c) return c;
   await prisma.performanceEntry.create({ data: { ...c.data, editorId: input.editorId, source: "manual", by: me.name, loggedById: me.id, reviewed: true } });
@@ -244,7 +250,7 @@ export async function logEntry(input: EntryInput): Promise<Result> {
 
 // Anything can be put right, whether it came from Frame.io, Notion or a person.
 export async function updateEntry(id: string, input: EntryInput): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change feedback." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change feedback." };
   const before = await prisma.performanceEntry.findUnique({ where: { id }, select: { source: true, taskId: true } });
   if (!before) return { error: "That feedback is gone." };
   const c = await clean(input, before.source === "frameio");
@@ -260,7 +266,7 @@ export async function updateEntry(id: string, input: EntryInput): Promise<Result
 // one click, and it stops (or starts) counting. Its type is kept, so it
 // goes back where it was.
 export async function setCreative(id: string, creative: boolean): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change feedback." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change feedback." };
   const e = await prisma.performanceEntry.findUnique({ where: { id }, select: { category: true, taskId: true } });
   if (!e) return { error: "That's gone." };
   await prisma.performanceEntry.update({ where: { id }, data: { kind: creative ? "creative" : "mistake", category: e.category ?? "Others", reviewed: true } });
@@ -270,7 +276,7 @@ export async function setCreative(id: string, creative: boolean): Promise<Result
 }
 
 export async function deleteEntry(id: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can remove feedback." };
+  if (!(await requireFounder())) return { error: "Only a Founder can remove feedback." };
   const gone = await prisma.performanceEntry.delete({ where: { id }, select: { taskId: true } });
   await refreshVideoScores([gone.taskId], { wide: true });
   done();
@@ -279,7 +285,7 @@ export async function deleteEntry(id: string): Promise<Result> {
 
 // The Sync button: new Frame.io review comments, sorted, with snapshots.
 export async function syncFeedback(): Promise<Result & { added?: number; mistakes?: number; snapshots?: number }> {
-  if (!(await requireOps())) return { error: "Only core members can sync feedback." };
+  if (!(await requireFounder())) return { error: "Only a Founder can sync feedback." };
   try {
     const res = await syncFrameioFeedback();
     done();
@@ -293,7 +299,7 @@ export async function syncFeedback(): Promise<Result & { added?: number; mistake
 
 // A video left out of (or put back into) the editor's numbers.
 export async function setTaskExcluded(taskId: string, excluded: boolean): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change what counts." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change what counts." };
   // raw, so the task's updatedAt stays put: History and these numbers read
   // it as when the work was delivered, where the stage log doesn't say
   await prisma.$executeRaw`UPDATE "Task" SET "kpiExcluded" = ${excluded} WHERE id = ${taskId}`;
@@ -304,7 +310,7 @@ export async function setTaskExcluded(taskId: string, excluded: boolean): Promis
 // A video's type, put right: it sets the standard its speed is judged by and
 // what it counts for in output.
 export async function setTaskType(taskId: string, type: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change a video's type." };
+  if (!(await requireFounder())) return { error: "Only a Founder can change a video's type." };
   const tag = await prisma.taskTag.findUnique({ where: { name: type }, select: { id: true } });
   if (!tag) return { error: "That type doesn't exist." };
   const before = await prisma.task.findUnique({ where: { id: taskId }, select: { updatedAt: true } });

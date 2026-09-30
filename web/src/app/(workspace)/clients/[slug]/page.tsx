@@ -6,7 +6,8 @@ import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { seesClientFeedback, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { clientLogoSrc } from "@/lib/photos";
 import { Board } from "../../Board";
@@ -97,11 +98,11 @@ export default async function ClientDetailPage({
   const { tab, show, layout } = await searchParams;
   // Two rounds of queries rather than nine in a row: everything that needs
   // nothing else first, then everything that needs the client or you.
-  const [sessionUserId, users, client, opsTeam, allTags, tokens] = await Promise.all([
+  const [sessionUserId, viewer, users, client, allTags, tokens] = await Promise.all([
     getSessionUserId(),
+    getViewer(),
     getAllUsers(),
     loadClient(slug),
-    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
     listTags(),
     // whether the Apify tokens the Analytics tab scrapes with are set up
     // (Integrations) — the same for YouTube and Instagram
@@ -109,7 +110,7 @@ export default async function ClientDetailPage({
   ]);
   if (!sessionUserId) redirect("/login");
   const me = users.find((u) => u.id === sessionUserId);
-  if (!me) redirect("/login");
+  if (!me || !viewer) redirect("/login");
   // Open to the whole team: everyone should be able to see what's
   // happening for a client, whatever their role. Billing stays admin-only
   // (see the canSeeBilling tab below) — that's the one part of a client
@@ -121,20 +122,22 @@ export default async function ClientDetailPage({
   // only their own work on it and the documents they edit by (lib/scope)
   if (me.role === "employee") {
     if (!client.editors.some((e) => e.id === me.id)) notFound();
-    return <EditorClientPage client={client} me={me} users={users} />;
+    return <EditorClientPage client={client} me={me} viewer={viewer} users={users} />;
   }
 
-  // client messages: admin/Abhishek and Operations' core members only
-  const canSeeFeedback = seesClientFeedback(me, opsTeam?.id ?? null);
+  // client messages: Founders and Client success's Leads only
+  const canSeeFeedback = runsClients(viewer);
   const projectIds = client.projects.map((p) => p.id);
-  const editors = assignOptionsFor(me, users);
+  const editors = assignOptionsFor(viewer, users);
+  // a Lead sees the work of their departments here, never a Founder's
+  const seen = assigneeWhere(viewer);
 
   const [feedback, tasks, deliveredSinceInvoice, clientWorkTasks, taskTags, taskCounts, week] = await Promise.all([
     canSeeFeedback
       ? prisma.clientFeedback.findMany({ where: { clientId: client.id }, orderBy: { createdAt: "desc" }, take: 50 })
       : Promise.resolve([]),
     prisma.task.findMany({
-      where: { status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } },
+      where: { AND: [{ status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } }, seen] },
       orderBy: { createdAt: "desc" },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
@@ -148,14 +151,14 @@ export default async function ClientDetailPage({
     // work tasks sitting on one of this client's projects — a different
     // system from the editing queue, and previously invisible here
     prisma.workTask.findMany({
-      where: { projectId: { in: projectIds }, status: { not: "done" } },
+      where: { AND: [{ projectId: { in: projectIds }, status: { not: "done" } }, seen] },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: true },
       orderBy: [{ status: "asc" }, { sortOrder: "asc" }],
     }),
     // only this person's own team's kinds of work (plus any shared ones) —
     // Sales never has to pick past "Colour correction"
     prisma.taskTag.findMany({
-      where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
+      where: visibleTagWhere(viewer),
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     // how many tasks each project carries in total (the active count above
@@ -424,10 +427,12 @@ export default async function ClientDetailPage({
 async function EditorClientPage({
   client,
   me,
+  viewer,
   users,
 }: {
   client: NonNullable<Awaited<ReturnType<typeof loadClient>>>;
   me: Awaited<ReturnType<typeof getAllUsers>>[number];
+  viewer: Viewer;
   users: Awaited<ReturnType<typeof getAllUsers>>;
 }) {
   const [tasks, taskTags, week] = await Promise.all([
@@ -437,7 +442,7 @@ async function EditorClientPage({
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
     prisma.taskTag.findMany({
-      where: visibleTagWhere({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }),
+      where: visibleTagWhere(viewer),
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     weekEntries(client.projects.map((p) => p.id), { assignedToId: me.id, postings: false }),
@@ -481,7 +486,7 @@ async function EditorClientPage({
                   <Board
                     tasks={tasks}
                     projects={client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }))}
-                    editors={assignOptionsFor(me, users)}
+                    editors={assignOptionsFor(viewer, users)}
                     actingUserId={me.id}
                     actingRole={me.role as Role}
                     canCreate={false}

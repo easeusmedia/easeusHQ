@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { displayTeam } from "@/lib/teams";
 import { LIVE_TASK } from "@/lib/workflow";
 import { dayOf } from "@/lib/editorKpi";
 import { summarise } from "@/lib/videoScore";
@@ -16,14 +15,19 @@ export async function loadCategories() {
 // the moment a day starts in India
 const startOf = (day: string) => new Date(`${day}T00:00:00+05:30`);
 
-// The editors: everyone on the team who edits (Operations, not core).
+// The people whose work is graded: the Members in Production (the editors,
+// a designer).
 export async function loadEditors(editorId?: string) {
-  const people = await prisma.user.findMany({
-    where: { employment: { not: "former" }, ...(editorId ? { id: editorId } : {}) },
+  return prisma.user.findMany({
+    where: {
+      employment: { not: "former" },
+      role: "employee",
+      OR: [{ team: { slug: "production" } }, { departments: { some: { slug: "production" } } }],
+      ...(editorId ? { id: editorId } : {}),
+    },
     include: { team: true, jobTitle: true },
     orderBy: { name: "asc" },
   });
-  return people.filter((p) => displayTeam(p)?.slug === "editors");
 }
 
 export type FeedbackRow = {

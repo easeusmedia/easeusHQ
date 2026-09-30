@@ -2,104 +2,143 @@ import type { Role } from "@prisma/client";
 
 // Who can see whose work.
 //
-// Three concentric rings, and every list in the app is filtered by exactly
-// one of them rather than each page inventing its own rule:
+// Three levels, and every list in the app is filtered by exactly one rule
+// rather than each page inventing its own:
 //
-//   admin / Abhishek  → every team, everyone's work
-//   core              → their own team's work, for every member of it
-//   employee          → their own work only
+//   Founder (admin)  → everything, everyone's work
+//   Lead (core)      → the work in the departments they've been given, of
+//                      everyone but the Founders
+//   Member (employee)→ their own work only
 //
-// Team is the unit, not role: "the Operations core team sees Operations" is
-// the requirement, so a core member with no team set sees only themselves
-// (fail closed) rather than accidentally seeing everything.
+// Nobody sees upward: a Lead never sees a Founder's work or access, and a
+// Member sees no one else's. Departments are the unit a Lead sees by; a
+// Lead with none sees only themselves (fail closed).
 export type Viewer = {
   id: string;
   role: Role;
   email: string;
   teamId: string | null;
+  // the departments they work in or (a Lead) run
+  departments: { id: string; slug: string }[];
 };
 
-// Abhishek is the developer and sits at admin level wherever access is
-// gated, even though his role is core — same rule as lib/actingUser.ts,
-// which this deliberately mirrors rather than re-deciding.
-const FULL_ACCESS_EMAIL = "abhishek@easeus.media";
+export const LEVEL_LABEL: Record<Role, string> = { admin: "Founder", core: "Lead", employee: "Member" };
+export const LEVEL_NOTE: Record<Role, string> = {
+  admin: "Sees and runs everything",
+  core: "Sees and assigns the work in their departments",
+  employee: "Sees their own work",
+};
 
-export function seesEveryTeam(user: Pick<Viewer, "role" | "email">): boolean {
-  return user.role === "admin" || user.email === FULL_ACCESS_EMAIL;
+// The departments the app's own features are built on: the editing queue
+// is Production's, clients and their feedback are Client success's.
+export const DEPT = { production: "production", clientSuccess: "client-success", sales: "sales" } as const;
+
+export const isFounder = (u: { role: string }) => u.role === "admin";
+export const isLead = (u: { role: string }) => u.role === "core";
+export const isMember = (u: { role: string }) => u.role === "employee";
+
+const inDepartment = (u: Pick<Viewer, "departments">, slug: string) => u.departments.some((d) => d.slug === slug);
+const departmentIds = (u: Pick<Viewer, "departments">) => u.departments.map((d) => d.id);
+
+export function seesEveryTeam(user: { role: string }): boolean {
+  return isFounder(user);
 }
 
-// How wide this person's view is. "all" is unrestricted; a team id means
-// that team only; null means just themselves.
-export function viewScope(user: Viewer): "all" | { teamId: string } | null {
-  if (seesEveryTeam(user)) return "all";
-  if (user.role === "core" && user.teamId) return { teamId: user.teamId };
-  return null;
+// Clients' feedback, posting dates and client records: Founders, and the
+// Leads of Client success.
+export function runsClients(user: Pick<Viewer, "role" | "departments">): boolean {
+  return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.clientSuccess));
 }
 
-// A Prisma `where` fragment for any model with an assignee, expressed in
-// terms of that assignee's own fields. Used for WorkTask.assignedTo and
-// Task.assignedTo alike, so one rule covers both task systems.
+// The editing queue, to see and hand out: Founders, and Production's Leads.
+export function runsProduction(user: Pick<Viewer, "role" | "departments">): boolean {
+  return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.production));
+}
+
+// A Member in Production (an editor, a designer): they work from the
+// Board, and see a client only as far as their own work on it goes.
+export function worksTheBoard(user: Pick<Viewer, "role" | "departments">): boolean {
+  return isMember(user) && inDepartment(user, DEPT.production);
+}
+
+// A Prisma `where` for Task and WorkTask alike: whose work this person
+// sees. A Lead sees their departments' work, their own, and never a
+// Founder's.
 export function assigneeWhere(user: Viewer): Record<string, unknown> {
-  const scope = viewScope(user);
-  if (scope === "all") return {};
-  if (scope === null) return { assignedToId: user.id };
-  return { assignedTo: { teamId: scope.teamId } };
+  if (isFounder(user)) return {};
+  if (isLead(user)) {
+    return {
+      OR: [
+        { assignedToId: user.id },
+        // unassigned work included; works for WorkTask's required assignee too
+        { teamId: { in: departmentIds(user) }, NOT: { assignedTo: { role: "admin" } } },
+      ],
+    };
+  }
+  return { assignedToId: user.id };
+}
+
+// The people someone sees in the directory and can hand work to: a Lead,
+// the non-Founders in their departments; a Member, themselves.
+export function peopleWhere(user: Viewer): Record<string, unknown> {
+  if (isFounder(user)) return {};
+  if (isLead(user)) {
+    const ids = departmentIds(user);
+    return { OR: [{ id: user.id }, { role: { not: "admin" }, OR: [{ teamId: { in: ids } }, { departments: { some: { id: { in: ids } } } }] }] };
+  }
+  return { id: user.id };
 }
 
 // Whether `viewer` may open `target`'s profile and work history.
-export function canSeeMember(viewer: Viewer, target: Pick<Viewer, "id" | "teamId">): boolean {
-  if (viewer.id === target.id) return true; // always yourself
-  const scope = viewScope(viewer);
-  if (scope === "all") return true;
-  if (scope === null) return false;
-  return !!target.teamId && target.teamId === scope.teamId;
+export function canSeeMember(viewer: Viewer, target: { id: string; role: string; teamId: string | null; departmentIds?: string[] }): boolean {
+  if (viewer.id === target.id) return true;
+  if (isFounder(viewer)) return true;
+  if (!isLead(viewer) || isFounder(target)) return false;
+  const mine = departmentIds(viewer);
+  return (!!target.teamId && mine.includes(target.teamId)) || (target.departmentIds ?? []).some((d) => mine.includes(d));
 }
 
-// Only admin (and Abhishek) change what someone is paid, what they're
-// called, or what they can see. A core member runs their team's work, not
-// its employment terms.
-export function canEditPeople(user: Pick<Viewer, "role" | "email">): boolean {
-  return seesEveryTeam(user);
+// Who can hand work to whom: down the levels. A Founder to anyone; a Lead
+// to themselves and the Members in their departments; a Member to
+// themselves.
+export function canAssign(viewer: Viewer, target: { id: string; role: string; teamId: string | null; departmentIds?: string[] }): boolean {
+  if (viewer.id === target.id || isFounder(viewer)) return true;
+  return isLead(viewer) && isMember(target) && canSeeMember(viewer, target);
 }
 
-// Tags belong to a team, so a picker only ever offers the kinds of work
-// that team actually does. Shared tags (no team) are offered to everyone;
-// someone who sees every team gets the lot.
+// A Member's departments and roles: a Founder sets anyone's; a Lead sets a
+// Member's, within their own departments.
+export function canSetAccess(viewer: Viewer, target: { id: string; role: string; teamId: string | null; departmentIds?: string[] }): boolean {
+  if (isFounder(viewer)) return true;
+  return isLead(viewer) && isMember(target) && canSeeMember(viewer, target);
+}
+
+// Only Founders change what someone is paid, what they're called, or their
+// level.
+export function canEditPeople(user: { role: string }): boolean {
+  return isFounder(user);
+}
+
+// Kinds of work belong to a department, so a picker only offers the kinds
+// someone's departments do. Shared ones (no department) go to everyone; a
+// Founder gets the lot.
 export function visibleTagWhere(user: Viewer): Record<string, unknown> {
-  if (seesEveryTeam(user)) return {};
-  return { OR: [{ teamId: null }, ...(user.teamId ? [{ teamId: user.teamId }] : [])] };
+  if (isFounder(user)) return {};
+  return { OR: [{ teamId: null }, { teamId: { in: departmentIds(user) } }] };
 }
 
-// Core members curate their own team's vocabulary; admin curates anyone's.
-// Nobody can delete a shared tag except someone who sees every team.
+// Leads curate their departments' kinds of work; Founders anyone's. Only a
+// Founder deletes a shared one.
 export function canEditTag(user: Viewer, tag: { teamId: string | null }): boolean {
-  if (seesEveryTeam(user)) return true;
-  if (user.role !== "core" || !user.teamId) return false;
-  return tag.teamId === user.teamId;
+  if (isFounder(user)) return true;
+  if (!isLead(user) || !tag.teamId) return false;
+  return departmentIds(user).includes(tag.teamId);
 }
 
-// What clients write from their shared page is for whoever runs client work:
-// admin and Abhishek, and Operations' core members — not editors, not Sales.
-export function seesClientFeedback(user: Pick<Viewer, "role" | "email" | "teamId">, operationsTeamId: string | null): boolean {
-  if (seesEveryTeam(user)) return true;
-  return user.role === "core" && !!user.teamId && user.teamId === operationsTeamId;
-}
-
-// Which clients someone sees. The team sees every client; a member (an
-// editor) only the ones ops has given them, so a new client isn't shown
-// to every editor the day it signs.
-export function visibleClientWhere(user: Pick<Viewer, "id" | "role" | "email">): Record<string, unknown> {
-  if (user.role !== "employee" || seesEveryTeam(user)) return {};
+// Which clients someone sees. Founders and Leads see every client; a
+// Member only the ones given to them, so a new client isn't shown to every
+// editor the day it signs.
+export function visibleClientWhere(user: Pick<Viewer, "id" | "role">): Record<string, unknown> {
+  if (!isMember(user)) return {};
   return { editors: { some: { id: user.id } } };
 }
-
-// An editor: a member of Operations. They work from the Board's editing
-// queue, and see a client only as far as their own work on it goes.
-export function isEditor(user: Pick<Viewer, "role" | "teamId">, operationsTeamId: string | null): boolean {
-  return user.role === "employee" && !!operationsTeamId && user.teamId === operationsTeamId;
-}
-
-// Posting dates (when delivered work goes live on a client's channel) are
-// Operations' to plan: the same people who run client work, and no one in
-// another department.
-export const seesPostings = seesClientFeedback;

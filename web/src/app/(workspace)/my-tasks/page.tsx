@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { loadWork } from "../workData";
+import { getViewer } from "@/lib/viewer";
+import { worksTheBoard } from "@/lib/scope";
 import { WorkTaskView } from "./WorkTaskView";
 import { WorkNotionSyncButton } from "./WorkNotionSyncButton";
 
@@ -22,10 +24,12 @@ export default async function MyTasksPage() {
     include: { team: true },
   });
   if (!me) redirect("/login");
-  // an editor's work is the Board's editing queue (lib/scope isEditor)
-  if (me.role === "employee" && me.team?.slug === "operations") redirect("/board");
+  // a Member in Production works from the Board (lib/scope worksTheBoard)
+  const viewer = await getViewer();
+  if (!viewer) redirect("/login");
+  if (worksTheBoard(viewer)) redirect("/board");
 
-  const work = await loadWork({ id: me.id, role: me.role, email: me.email, teamId: me.teamId }, "mine", { withQueue: false });
+  const work = await loadWork(viewer, "mine", { withQueue: false });
 
   return (
     <WorkTaskView
@@ -47,7 +51,7 @@ export default async function MyTasksPage() {
         // anyone whose work has a home in Notion — a core member with their
         // own workbook, or Operations
         me.role !== "employee" &&
-        (!!me.notionWorkbookDbId || me.team?.slug === "operations") && <WorkNotionSyncButton />
+        (!!me.notionWorkbookDbId || me.team?.slug === "production" || me.team?.slug === "client-success") && <WorkNotionSyncButton />
       }
     />
   );

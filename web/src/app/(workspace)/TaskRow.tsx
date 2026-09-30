@@ -52,10 +52,14 @@ export function TaskRow({
   const spec = STAGE[task.status].link;
   const href = task[spec.field];
 
-  const options = availableStatuses(task.status, {
-    role: actingRole,
-    isAssignee: task.assignedTo?.id === actingUserId,
-  });
+  const options = availableStatuses(
+    task.status,
+    {
+      role: actingRole,
+      isAssignee: task.assignedTo?.id === actingUserId,
+    },
+    task.workflow
+  );
 
   return (
     <>
@@ -157,6 +161,7 @@ export function TaskRow({
             variant="pill"
             needsGradeOn={(to) => needsGrade(task, to, actingRole)}
             onGrade={onGrade}
+            workflow={task.workflow}
           />
         </StageColumn>
       </div>

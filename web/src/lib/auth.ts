@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import { onStaff } from "./users";
 import { COOKIE_NAME, sign, unsign } from "./sessionToken";
-import { seesClientFeedback } from "./scope";
+import { runsClients } from "./scope";
 
 export { hashPassword, verifyPassword } from "./password";
 
@@ -49,11 +49,10 @@ export async function requireOps() {
   return user && user.role !== "employee" ? user : null;
 }
 
-// The signed-in user if they may read client feedback (see
-// seesClientFeedback), otherwise null.
+// The signed-in user if they may read client feedback (see runsClients),
+// otherwise null.
 export async function requireFeedbackViewer() {
-  const user = await requireOps();
-  if (!user) return null;
-  const ops = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
-  return seesClientFeedback(user, ops?.id ?? null) ? user : null;
+  const sessionUserId = await getSessionUserId();
+  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId }, include: { departments: { select: { id: true, slug: true } } } }) : null;
+  return user && runsClients(user) ? user : null;
 }

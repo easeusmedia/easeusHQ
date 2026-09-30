@@ -125,6 +125,7 @@ export function ClientFace({ client, size }: { client: SidebarClient; size: numb
 
 export function Sidebar({
   isOps = false,
+  isFounder = false,
   canSeeFinance = false,
   name,
   fullAccess,
@@ -137,6 +138,8 @@ export function Sidebar({
   initialOpen,
 }: {
   isOps?: boolean;
+  // a Founder: Home, and Performance (grading is theirs)
+  isFounder?: boolean;
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;
@@ -241,8 +244,8 @@ export function Sidebar({
         ? [
             // core members see their own team here (read-only); admin edits everyone
             { href: "/team", label: "Employees", hint: "Everyone's record and current work", Icon: UsersRound },
-            // how each editor is doing, week by week, and what keeps coming back
-            { href: "/performance", label: "Performance", hint: "Editor grades, feedback and issues", Icon: Gauge },
+            // how each editor and designer is doing: a Founder's to grade
+            ...(isFounder ? [{ href: "/performance", label: "Performance", hint: "Grades, feedback and issues", Icon: Gauge }] : []),
             ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),
             // client contracts, from the form to the signed copy
             { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting },

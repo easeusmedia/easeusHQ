@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Board } from "./Board";
+import { Board, type Column } from "./Board";
 import { Toolbar, ViewToggle, type View } from "./ViewToggle";
 import type { TaskCardData } from "./TaskCard";
 import type { TaskTagOption } from "./TaskTagPicker";
@@ -14,8 +14,11 @@ type Props = {
   actingUserId: string;
   actingRole: Role;
   taskTags: TaskTagOption[];
-  // the Board's Editors / team / Everyone switch, if this person has one
+  // the Board's Video / Design / department switch, if this person has one
   switcher?: React.ReactNode;
+  // its own stages, for a queue other than the video one
+  columns?: Column[];
+  workflow?: string;
 };
 
 // The editing queue, as the kanban board or as a list grouped by stage —

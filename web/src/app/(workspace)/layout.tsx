@@ -9,7 +9,8 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isEditor, seesClientFeedback } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, runsClients, worksTheBoard } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { Assistant } from "./assistant/Assistant";
 import { getUnreadBySender } from "./presence/actions";
@@ -31,11 +32,11 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // Everything the frame needs, asked for at once: this renders on every
   // page, so its queries running one after another was a fixed cost on
   // every click.
-  const [sessionUserId, users, unreadBySender, opsTeam, clientRows, draftContracts] = await Promise.all([
+  const [sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts] = await Promise.all([
     getSessionUserId(),
+    getViewer(),
     getAllUsers().catch(() => []),
     getUnreadBySender().catch(() => ({})),
-    prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } }),
     // the current clients: the sidebar's tree and the client bar — everyone sees them
     prisma.client.findMany({
       where: { status: "current" },
@@ -48,16 +49,16 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   ]);
   if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
-  if (!sessionUser) redirect("/login"); // stale/deleted-user cookie
+  if (!sessionUser || !viewer) redirect("/login"); // stale/deleted-user cookie
 
-  const isAdmin = sessionUser.role === "admin";
-  const isOps = isAdmin || sessionUser.role === "core"; // Calendar access — unchanged, still every core member
+  // Founders and Leads run things; Members do their own work
+  const isOps = !isMember(viewer);
   const contractsWaiting = isOps ? draftContracts : 0;
-  const hearsFromClients = seesClientFeedback(sessionUser, opsTeam?.id ?? null);
+  const hearsFromClients = runsClients(viewer);
   // an editor has only the clients given to them (lib/scope)
-  const editor = isEditor(sessionUser, opsTeam?.id ?? null);
+  const editor = worksTheBoard(viewer);
   const currentClients = clientRows
-    .filter((c) => sessionUser.role !== "employee" || c.editors.some((e) => e.id === sessionUser.id))
+    .filter((c) => !isMember(viewer) || c.editors.some((e) => e.id === sessionUser.id))
     .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
@@ -74,6 +75,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <Spotlight />
       <Sidebar
         isOps={isOps}
+        isFounder={isFounder(viewer)}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
         fullAccess={isAbhishekOrAdmin(sessionUser)}

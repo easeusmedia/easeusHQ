@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { canEditPeople, type Viewer } from "@/lib/scope";
+import { canEditPeople, canSetAccess, isFounder, type Viewer } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { isStorablePicture } from "@/lib/photos";
 import { revalidatePath } from "next/cache";
 import type { EmploymentStatus, Role } from "@prisma/client";
@@ -19,7 +20,7 @@ async function requirePeopleAdmin(): Promise<Viewer | null> {
   if (!sessionUserId) return null;
   const actor = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { id: true, role: true, email: true, teamId: true },
+    select: { id: true, role: true, email: true, teamId: true, departments: { select: { id: true, slug: true } } },
   });
   if (!actor || !canEditPeople(actor)) return null;
   return actor;
@@ -116,6 +117,40 @@ export async function updatePerson(input: {
   return { success: true };
 }
 
+// Someone's departments and roles. A Founder sets anyone's; a Lead a
+// Member's, and only within their own departments: whatever the Member has
+// elsewhere is kept as it is, whatever was sent (lib/scope canSetAccess).
+export async function setAccess(personId: string, input: { departmentIds: string[]; roleIds: string[] }): Promise<PeopleFormState> {
+  const actor = await getViewer();
+  if (!actor) return { error: "Your session has ended. Please sign in again." };
+  const target = await prisma.user.findUnique({
+    where: { id: personId },
+    select: { id: true, role: true, teamId: true, departments: { select: { id: true } }, roles: { select: { id: true, teamId: true } } },
+  });
+  if (!target) return { error: "That person no longer exists." };
+  if (!canSetAccess(actor, { ...target, departmentIds: target.departments.map((d) => d.id) })) {
+    return { error: "You can only change the departments and roles of the Members in your departments." };
+  }
+
+  const founder = isFounder(actor);
+  const mine = new Set(actor.departments.map((d) => d.id));
+  const [teams, roles] = await Promise.all([
+    prisma.team.findMany({ where: { id: { in: input.departmentIds } }, select: { id: true } }),
+    prisma.jobTitle.findMany({ where: { id: { in: input.roleIds } }, select: { id: true, teamId: true } }),
+  ]);
+  // a Lead changes only what's within their departments
+  const yours = (teamId: string | null) => founder || (!!teamId && mine.has(teamId));
+  const departmentIds = [...target.departments.map((d) => d.id).filter((id) => !yours(id)), ...teams.map((t) => t.id).filter(yours)];
+  const roleIds = [...target.roles.filter((r) => !yours(r.teamId)).map((r) => r.id), ...roles.filter((r) => yours(r.teamId)).map((r) => r.id)];
+
+  await prisma.user.update({
+    where: { id: personId },
+    data: { departments: { set: [...new Set(departmentIds)].map((id) => ({ id })) }, roles: { set: [...new Set(roleIds)].map((id) => ({ id })) } },
+  });
+  revalidatePath("/team");
+  return { success: true };
+}
+
 // Positions and departments. Nothing here revalidates: the page is heavy,
 // and whoever is editing the list keeps it in their own state and refreshes
 // once when they're done, rather than reloading the page on every change.
@@ -158,8 +193,6 @@ export async function createDepartment(name: string): Promise<PeopleFormState & 
   const trimmed = name.trim();
   const slug = slugOf(trimmed);
   if (!slug) return { error: "Give the department a name." };
-  // "editors" is how Operations' editors are shown (lib/teams)
-  if (slug === "editors") return { error: "Editors are part of Operations. Add an editor position there instead." };
 
   const clash = await prisma.team.findFirst({ where: { OR: [{ slug }, { name: { equals: trimmed, mode: "insensitive" } }] } });
   if (clash) return { error: `"${clash.name}" already exists.` };
@@ -170,15 +203,15 @@ export async function createDepartment(name: string): Promise<PeopleFormState & 
 }
 
 // Only an empty department goes: who sits in one decides what they can see,
-// so moving people out is a choice made person by person. Operations stays;
-// the editing queue and client feedback are built on it. Its positions go
-// with it; its task tags become shared by everyone.
+// so moving people out is a choice made person by person. Production and
+// Client success stay: the editing queue and client feedback are built on
+// them. Its roles go with it; its kinds of work become shared by everyone.
 export async function deleteDepartment(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
   if (!actor) return { error: "Only the admin can remove a department." };
   const team = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { members: true } } } });
   if (!team) return { success: true };
-  if (team.slug === "operations") return { error: "Operations can't be removed: the editing queue runs on it." };
+  if (team.slug === "production" || team.slug === "client-success") return { error: `${team.name} can't be removed: the ${team.slug === "production" ? "editing queue" : "client work"} runs on it.` };
   if (team._count.members) {
     return { error: `${team.name} still has ${team._count.members} ${team._count.members === 1 ? "person" : "people"}. Move them to another department first.` };
   }
@@ -205,8 +238,24 @@ export async function createWorkTag(name: string, teamId: string): Promise<Peopl
   if (!(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
 
   const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
-  const created = await prisma.taskTag.create({ data: { name: trimmed, teamId, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  // a new kind in a department that isn't Production is a to-do by default
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { slug: true } });
+  const created = await prisma.taskTag.create({ data: { name: trimmed, teamId, workflow: team?.slug === "production" ? "video" : "todo", sortOrder: (last?.sortOrder ?? 0) + 1 } });
   return { success: true, id: created.id, name: created.name };
+}
+
+// Which role does a kind of work, and how its tasks move (video, design or
+// todo). Tasks already made keep the workflow they started with.
+export async function updateWorkTag(id: string, input: { roleId?: string | null; workflow?: string }): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only a Founder can change a kind of work." };
+  if (input.workflow !== undefined && !["video", "design", "todo"].includes(input.workflow)) return { error: "That isn't a workflow." };
+  if (input.roleId && !(await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { id: true } }))) return { error: "That role no longer exists." };
+  await prisma.taskTag.update({
+    where: { id },
+    data: { ...(input.roleId !== undefined ? { roleId: input.roleId } : {}), ...(input.workflow !== undefined ? { workflow: input.workflow } : {}) },
+  });
+  return { success: true };
 }
 
 // Every task tagged with it loses the tag; the tasks themselves stay.

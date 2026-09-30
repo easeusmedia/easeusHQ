@@ -8,7 +8,7 @@ import { NotesButton } from "./NotesButton";
 import { useOnline, usePhoto } from "./photos";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { StatusSelect } from "./StatusSelect";
-import { availableStatuses, type Role, type TaskStatus } from "@/lib/workflow";
+import { availableStatuses, workflowOf, type Role, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
 import { CalendarClock, RotateCcw, EyeOff } from "lucide-react";
@@ -37,6 +37,15 @@ export const EXTRA_FIELD: Partial<Record<TaskStatus, { field: "frameioLink" | "d
   // on the Frame.io comment thread, no need to duplicate them here
   delivered_and_uploaded: { field: "driveLink", label: "Final Drive link", placeholder: "https://drive.google.com/…" },
 };
+
+// The same, by workflow: a design is reviewed from a link too, but nothing
+// is uploaded to Drive when it's done; a to-do just gets ticked off.
+export function extraFieldFor(to: TaskStatus, workflow?: string | null) {
+  const w = workflowOf(workflow);
+  if (w === "todo") return undefined;
+  if (w === "design") return to === "sent_for_approval" ? { field: "frameioLink" as const, label: "Review link", placeholder: "https://…" } : undefined;
+  return EXTRA_FIELD[to];
+}
 
 // which single link matters most on the card depends on where the task is
 // in the workflow — the raw footage while it's being cut, the Frame.io
@@ -168,6 +177,8 @@ export type TaskCardData = {
   sortOrder: number;
   tags: { id: string; name: string }[];
   internal: boolean;
+  // video, design or todo (lib/workflow.ts)
+  workflow?: string;
   project: { name: string; type: string; client: { name: string } };
   // the quality inspection's grade, and "S" (gold) or "A+" (green) by Quality
   inspectionGrade?: string | null;
@@ -294,7 +305,7 @@ export function TaskCard({
 }) {
   const isAssignee = task.assignedTo?.id === actingUserId;
   const canManage = actingRole === "admin" || actingRole === "core";
-  const options = availableStatuses(task.status, { role: actingRole, isAssignee });
+  const options = availableStatuses(task.status, { role: actingRole, isAssignee }, task.workflow);
 
   const { tier, onGrade } = useTierGuess(task);
   const cardLinkSpec = STATUS_LINK[task.status];
@@ -412,6 +423,7 @@ export function TaskCard({
                     links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
           needsGradeOn={(to) => needsGrade(task, to, actingRole)}
           onGrade={onGrade}
+          workflow={task.workflow}
         />
       </div>
 

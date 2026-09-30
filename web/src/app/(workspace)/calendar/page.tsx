@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { seesPostings, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import type { Role } from "@/lib/workflow";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
@@ -47,6 +48,8 @@ export default async function CalendarPage({
   // users + tasks run together instead of waiting on the role check first
   // (a wasted task query for the rare employee who lands here directly is
   // cheaper than a second sequential round trip for every real visit)
+  const viewer = await getViewer();
+  if (!viewer || viewer.role === "employee") redirect("/board"); // Founders and Leads only — a management view
   const [users, tasks, projects, allTags] = await Promise.all([
     getAllUsers(),
     // A task counts on a given day if it was actually sitting in the
@@ -55,7 +58,7 @@ export default async function CalendarPage({
     // live board, so it stops counting from that day on (see page.tsx's
     // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
     prisma.task.findMany({
-      where: { project: { client: { status: "current" } }, createdAt: { lt: rangeEnd }, ...ON_STAFF },
+      where: { AND: [{ project: { client: { status: "current" } }, createdAt: { lt: rangeEnd }, ...ON_STAFF }, assigneeWhere(viewer)] },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
     // for a task's own window: the projects it can move to, the tags on offer
@@ -67,13 +70,12 @@ export default async function CalendarPage({
     prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),
   ]);
   const me = users.find((u) => u.id === sessionUserId);
-  if (!me || me.role === "employee") redirect("/board"); // admin/core only — a management view
-  const env = envFor(me, users, projects, allTags);
+  if (!me) redirect("/board");
+  const env = envFor(viewer, users, projects, allTags);
 
-  // what goes live on the clients' channels, each day: Operations' to see
-  const ops = await prisma.team.findUnique({ where: { slug: "operations" }, select: { id: true } });
+  // what goes live on the clients' channels, each day: Client success's to see
   const postings: Record<string, DayEntry[]> = {};
-  if (seesPostings(me, ops?.id ?? null)) {
+  if (runsClients(viewer)) {
     for (const t of tasks) {
       if (!t.postDate || t.postDate < monthStart || t.postDate >= monthEnd) continue;
       (postings[dateKey(t.postDate)] ??= []).push({
@@ -159,7 +161,7 @@ async function deliveredDays(tasks: { id: string; status: string; createdAt: Dat
 
 // what a task's own window needs, the same as the Board passes it
 function envFor(
-  me: Users[number],
+  me: Viewer,
   users: Users,
   projects: { id: string; name: string; type: string; client: { id: string; name: string } }[],
   allTags: { id: string; name: string; clientFacing: boolean; teamId: string | null; team: { name: string } | null }[]
@@ -214,14 +216,21 @@ async function TimelinePage({ sessionUserId, week }: { sessionUserId: string; we
   const weekStart = mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(week ?? "") ? week! : today);
   const weekEnd = addDays(weekStart, 6);
 
+  const viewer = await getViewer();
+  if (!viewer || viewer.role === "employee") redirect("/board"); // Founders and Leads only — a management view
   const [users, tasks, projects, allTags] = await Promise.all([
     getAllUsers(),
     // what's open, and what was finished since the week began
     prisma.task.findMany({
       where: {
-        project: { client: { status: "current" } },
-        OR: [{ status: { in: ACTIVE_STATUSES } }, { updatedAt: { gte: new Date(`${weekStart}T00:00:00+05:30`) } }],
-        ...ON_STAFF,
+        AND: [
+          {
+            project: { client: { status: "current" } },
+            OR: [{ status: { in: ACTIVE_STATUSES } }, { updatedAt: { gte: new Date(`${weekStart}T00:00:00+05:30`) } }],
+            ...ON_STAFF,
+          },
+          assigneeWhere(viewer),
+        ],
       },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: { createdAt: "asc" },
@@ -288,7 +297,7 @@ async function TimelinePage({ sessionUserId, week }: { sessionUserId: string; we
           </Link>
         </div>
       </div>
-      <CalendarTimeline weekStart={weekStart} today={today} items={items} tasks={tasks} env={envFor(me, users, projects, allTags)} />
+      <CalendarTimeline weekStart={weekStart} today={today} items={items} tasks={tasks} env={envFor(viewer, users, projects, allTags)} />
     </>
   );
 }

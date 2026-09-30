@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { userPhotoSrc } from "@/lib/photos";
-import { canEditPeople, seesEveryTeam, type Viewer } from "@/lib/scope";
+import { canEditPeople, canSetAccess, isFounder, peopleWhere } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { PeopleDirectory, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
 import { totals, type HistoryItem } from "@/lib/history";
 import { indiaDay } from "@/lib/due";
@@ -26,23 +27,21 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const me = await prisma.user.findUnique({
-    where: { id: sessionUserId },
-    select: { id: true, role: true, email: true, teamId: true },
-  });
+  const me = await getViewer();
   if (!me) redirect("/login");
 
-  const viewer: Viewer = me;
+  const viewer = me;
   const canEdit = canEditPeople(viewer);
-  // an employee has no directory to look at — their own record is their own
+  // a Member has no directory to look at — their own record is their own
   if (me.role === "employee") redirect("/board");
 
-  const where = seesEveryTeam(viewer) ? {} : { teamId: viewer.teamId };
+  // a Lead sees the people in their departments, never a Founder
+  const where = peopleWhere(viewer);
 
   const [people, teams, jobTitles, workTags] = await Promise.all([
     prisma.user.findMany({
       where,
-      include: { team: true, jobTitle: true },
+      include: { team: true, jobTitle: true, departments: { select: { id: true } }, roles: { select: { id: true } } },
       orderBy: [{ employment: "asc" }, { name: "asc" }],
     }),
     prisma.team.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { members: { where: { employment: { not: "former" } } } } } } }),
@@ -172,6 +171,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     overdue: currentFor(p.id).filter((t) => t.due && t.due < today).length,
     performance: performanceFor(p.id),
     editorKpi: editorKpiFor(p.id),
+    departmentIds: p.departments.map((d) => d.id),
+    roleIds: p.roles.map((r) => r.id),
+    canSetAccess: canSetAccess(viewer, { ...p, departmentIds: p.departments.map((d) => d.id) }),
   }));
 
   return (
@@ -180,8 +182,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         people={records}
         teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.members }))}
         jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name, teamId: j.teamId, people: people.filter((p) => p.jobTitleId === j.id && p.employment !== "former").length }))}
-        workTags={workTags.map((t) => ({ id: t.id, name: t.name, teamId: t.teamId, uses: t._count.tasks + t._count.workTasks }))}
+        workTags={workTags.map((t) => ({ id: t.id, name: t.name, teamId: t.teamId, uses: t._count.tasks + t._count.workTasks, roleId: t.roleId, workflow: t.workflow }))}
         canEdit={canEdit}
+        editableTeamIds={isFounder(viewer) ? teams.map((t) => t.id) : viewer.departments.map((d) => d.id)}
         meId={me.id}
         openFirst={person}
       />

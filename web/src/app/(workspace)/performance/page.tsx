@@ -24,6 +24,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
   if (!me) redirect("/login");
   if (me.role === "employee") redirect(`/performance/${me.id}`);
+  // grading is a Founder's: a Lead has no Performance page
+  if (me.role === "core") redirect("/board");
 
   const q = await searchParams;
   const today = dayOf(new Date());

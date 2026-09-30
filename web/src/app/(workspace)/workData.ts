@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
-import { seesEveryTeam, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { assigneeWhere, isFounder, isLead, peopleWhere, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { displayTeam } from "@/lib/teams";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { WorkTaskLink, WorkTaskAttachment } from "./my-tasks/actions";
@@ -9,8 +9,9 @@ import type { WorkTaskLink, WorkTaskAttachment } from "./my-tasks/actions";
 // own work tasks) and the Board's team views (everyone's work in a team, or
 // every team, including editors' editing-queue tasks).
 
-// "mine", "all", or a team's slug
-export type WorkScope = string;
+// "mine" (your own), or "all": everything you may see (lib/scope), which the
+// Board splits by department in the browser
+export type WorkScope = "mine" | "all";
 
 const assignee = {
   select: {
@@ -21,16 +22,12 @@ const assignee = {
 };
 
 type Assignee = { id: string; name: string; role: string; team: { slug: string; name: string } | null };
-// shown under the team they belong to on screen: an Operations editor under
-// Editors, the admin under none (lib/teams) — so the Operations tab is only
-// Operations. What this person may *see* is unchanged; that's lib/scope.
+// shown under the department they belong to
 const person = (u: Assignee) => ({ id: u.id, name: u.name, team: displayTeam(u) });
 
 export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: { withQueue: boolean }) {
-  const everyTeam = seesEveryTeam(viewer);
-  // one filter for both kinds of task: yours, one team's (everyone on it,
-  // whatever their role), or everything
-  const where = scope === "mine" ? { assignedToId: viewer.id } : scope === "all" ? {} : { assignedTo: { team: { slug: scope } } };
+  // one filter for both kinds of task: yours, or all you may see
+  const where = scope === "mine" ? { assignedToId: viewer.id } : assigneeWhere(viewer);
 
   const [projects, workTasks, queueTasks, taskTags, assignable] = await Promise.all([
     prisma.project.findMany({
@@ -42,24 +39,24 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     }),
     prisma.workTask.findMany({
       // finished work belongs to History, not to a board
-      where: { ...where, ...LIVE_WORK_TASK },
-      include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      where: { AND: [where, LIVE_WORK_TASK] },
+      include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, team: { select: { slug: true } } },
       orderBy: { sortOrder: "asc" },
     }),
     withQueue
       ? prisma.task.findMany({
-          where: { ...where, ...LIVE_TASK },
+          where: { AND: [where, LIVE_TASK] },
           orderBy: { createdAt: "desc" },
-          include: { assignedTo: assignee, tags: true, project: { include: { client: true } } },
+          include: { assignedTo: assignee, tags: true, project: { include: { client: true } }, team: { select: { slug: true } } },
         })
       : Promise.resolve([]),
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),
-    // who work can be handed to: anyone, your own team, or only you
+    // who work can be handed to: down the levels (lib/scope canAssign)
     prisma.user.findMany({
-      where: everyTeam
+      where: isFounder(viewer)
         ? { employment: "active" }
-        : viewer.role === "core" && viewer.teamId
-          ? { teamId: viewer.teamId, employment: "active" }
+        : isLead(viewer)
+          ? { employment: "active", OR: [{ id: viewer.id }, { AND: [peopleWhere(viewer), { role: "employee" }] }] }
           : { id: viewer.id },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
@@ -83,10 +80,12 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       project: t.project ? { name: t.project.name || t.project.type, client: { name: t.project.client.name } } : null,
       assignedTo: person(t.assignedTo),
       createdBy: { id: t.createdBy.id, name: t.createdBy.name },
+      // its department, which the Board's department views split by
+      teamSlug: t.team?.slug ?? t.assignedTo.team?.slug ?? null,
     })),
     // whole rows: they render as the editing board's own cards, which open
     // the task and move its stage under the editing queue's rules
-    queueTasks: queueTasks.map((t) => ({ ...t, assignedTo: t.assignedTo && person(t.assignedTo) })),
+    queueTasks: queueTasks.map(({ team, ...t }) => ({ ...t, teamSlug: team?.slug ?? t.assignedTo?.team?.slug ?? null, assignedTo: t.assignedTo && person(t.assignedTo) })),
     taskTags: taskTags.map((t) => ({ id: t.id, name: t.name, clientFacing: t.clientFacing, group: t.team?.name ?? null })),
     assignable,
   };

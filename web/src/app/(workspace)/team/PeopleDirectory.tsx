@@ -50,6 +50,11 @@ export type PersonRecord = {
   // an editor's month as the Performance page reads it; null for everyone else
   // this week's letter from their videos, the number only for those who may see it
   editorKpi: { letter: Letter | null; score: number | null; videos: number; parts: { part: Part; letter: Letter | null; score: number | null; fact?: string }[] } | null;
+  // the departments they work in or run, and the roles they hold
+  departmentIds: string[];
+  roleIds: string[];
+  // whether the viewer may change those (lib/scope canSetAccess)
+  canSetAccess: boolean;
 };
 
 export type Option = { id: string; name: string; slug?: string };
@@ -58,10 +63,10 @@ export type Option = { id: string; name: string; slug?: string };
 export type Department = Option & { people: number };
 export type Position = { id: string; name: string; teamId: string | null; people: number };
 // a kind of work a department's tasks are labelled with, and how many use it
-export type WorkTag = { id: string; name: string; teamId: string | null; uses: number };
+export type WorkTag = { id: string; name: string; teamId: string | null; uses: number; roleId?: string | null; workflow?: string };
 
 const FORMER = "Former employees";
-const ADMIN = "Admin";
+const ADMIN = "Founders";
 
 export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
   active: "Active",
@@ -69,16 +74,15 @@ export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
   former: "Former",
 };
 
+// a level's name (lib/scope LEVEL_LABEL), and what it reaches
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: "Admin",
-  core: "Core",
+  admin: "Founder",
+  core: "Lead",
   employee: "Member",
 };
-
-// what each access level reaches, in the same words as Department
 export const ROLE_REACH: Record<Role, string> = {
-  admin: "Admin: Everything",
-  core: "Core: Their department",
+  admin: "Founder: Everything",
+  core: "Lead: Their departments",
   employee: "Member: Their own work",
 };
 
@@ -96,6 +100,7 @@ export function PeopleDirectory({
   jobTitles,
   workTags,
   canEdit,
+  editableTeamIds,
   meId,
   openFirst,
 }: {
@@ -104,6 +109,8 @@ export function PeopleDirectory({
   jobTitles: Position[];
   workTags: WorkTag[];
   canEdit: boolean;
+  // the departments whose access the viewer may give (all, for a Founder)
+  editableTeamIds: string[];
   meId: string;
   openFirst?: string;
 }) {
@@ -241,6 +248,7 @@ export function PeopleDirectory({
             jobTitles={jobTitles}
             workTags={workTags}
             canEdit={canEdit}
+            editableTeamIds={editableTeamIds}
             isSelf={open.id === meId}
           />
         ) : (

@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
-import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag } from "./actions";
+import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, updateWorkTag } from "./actions";
+import { Dropdown } from "../Dropdown";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
 
@@ -101,6 +102,65 @@ function ChipRow({
   );
 }
 
+const FLOWS = [
+  ["video", "Video"],
+  ["design", "Design"],
+  ["todo", "To-do"],
+] as const;
+
+// A kind of work: which of its department's roles does it, and how its
+// tasks move (the Video stages, the Design stages, or a to-do)
+function KindRow({
+  tag,
+  roles,
+  message,
+  onChange,
+  onRemove,
+}: {
+  tag: WorkTag;
+  roles: { id: string; name: string }[];
+  message: string;
+  onChange: (patch: { roleId?: string | null; workflow?: string }) => void;
+  onRemove: () => void;
+}) {
+  const flow = tag.workflow ?? "video";
+  return (
+    <div className="group flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-surface-2/40 px-2.5 py-1.5 text-xs">
+      <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+      <div className="w-36">
+        <Dropdown
+          size="sm"
+          value={tag.roleId ?? ""}
+          placeholder="No role"
+          onChange={(v) => onChange({ roleId: v || null })}
+          options={[{ value: "", label: "No role" }, ...roles.map((r) => ({ value: r.id, label: r.name }))]}
+        />
+      </div>
+      <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Stages">
+        {FLOWS.map(([w, label]) => (
+          <button
+            key={w}
+            type="button"
+            aria-pressed={flow === w}
+            onClick={() => flow !== w && onChange({ workflow: w })}
+            className={`rounded px-1.5 py-0.5 transition-colors ${flow === w ? "bg-white/[0.08] text-foreground" : "text-muted hover:text-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <ConfirmButton
+        confirm="Remove"
+        message={message}
+        className="text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+        onConfirm={onRemove}
+      >
+        <X size={11} />
+      </ConfirmButton>
+    </div>
+  );
+}
+
 // How the agency is laid out: its departments, and in each the positions
 // people hold and the work tags its tasks are labelled with. Leadership
 // titles (no department) span the whole company. Changes save as they're
@@ -162,7 +222,19 @@ export function Organisation({
     if (res.error || !res.id) return fail(res.error ?? "That work tag couldn't be added.");
     setError(null);
     setChanged(true);
-    setTags((all) => [...all, { id: res.id!, name: res.name!, teamId, uses: 0 }]);
+    setTags((all) => [...all, { id: res.id!, name: res.name!, teamId, uses: 0, roleId: null, workflow: teams.find((t) => t.id === teamId)?.slug === "production" ? "video" : "todo" }]);
+  }
+
+  async function changeTag(id: string, patch: { roleId?: string | null; workflow?: string }) {
+    const before = tags;
+    setTags((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const res = await updateWorkTag(id, patch);
+    if (res.error) {
+      setTags(before);
+      return setError(res.error);
+    }
+    setError(null);
+    setChanged(true);
   }
 
   async function removeTag(id: string) {
@@ -192,14 +264,14 @@ export function Organisation({
   const holders = (id: string) => titles.find((t) => t.id === id)?.people ?? 0;
   const uses = (id: string) => tags.find((t) => t.id === id)?.uses ?? 0;
   const positionMessage = (t: { id: string; name: string }) =>
-    `Remove the position "${t.name}"?${holders(t.id) ? ` ${people(holders(t.id))} will have no position; their access and department stay as they are.` : ""}`;
+    `Remove the role "${t.name}"?${holders(t.id) ? ` ${people(holders(t.id))} will lose it; their level and department stay as they are.` : ""}`;
   const tagMessage = (t: { id: string; name: string }) =>
-    `Remove the work tag "${t.name}"?${uses(t.id) ? ` ${uses(t.id)} ${uses(t.id) === 1 ? "task loses it" : "tasks lose it"}; the tasks stay.` : ""}`;
+    `Remove the kind of work "${t.name}"?${uses(t.id) ? ` ${uses(t.id)} ${uses(t.id) === 1 ? "task loses it" : "tasks lose it"}; the tasks stay.` : ""}`;
   const shared = tags.filter((t) => !t.teamId);
 
   const sections = [
     { id: null, name: "Leadership", note: "Spans the whole company", removable: false },
-    ...teams.map((t) => ({ id: t.id, name: t.name, note: people(t.people), removable: t.slug !== "operations" && t.people === 0 })),
+    ...teams.map((t) => ({ id: t.id, name: t.name, note: people(t.people), removable: t.slug !== "production" && t.slug !== "client-success" && t.people === 0 })),
   ];
 
   return (
@@ -217,7 +289,7 @@ export function Organisation({
           <div>
             <h2 className="text-base font-semibold">Departments</h2>
             <p className="mt-0.5 text-xs text-muted">
-              Each position belongs to a department, and whoever holds it sits there. Work tags are what that department&apos;s tasks can be labelled with. Leadership positions span the whole company.
+              Each role belongs to a department. Each kind of work is done by a role, and moves through the Video stages, the Design stages, or as a to-do. Leadership titles span the whole company.
             </p>
           </div>
           <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="rounded-md p-1 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
@@ -235,7 +307,7 @@ export function Organisation({
                 {s.removable && (
                   <ConfirmButton
                     confirm="Remove"
-                    message={`Remove the ${s.name} department and its positions? Its work tags stay, shared by every department.`}
+                    message={`Remove the ${s.name} department and its roles? Its kinds of work stay, shared by every department.`}
                     className="rounded-md p-1 text-muted transition-colors hover:text-red-400"
                     onConfirm={() => removeDepartment(s.id!)}
                   >
@@ -245,24 +317,31 @@ export function Organisation({
               </div>
               <div className="flex flex-col gap-3">
                 <ChipRow
-                  label="Positions"
+                  label={s.id ? "Roles" : "Titles"}
                   items={titles.filter((t) => t.teamId === s.id)}
                   count={holders}
                   confirm={positionMessage}
                   onRemove={removePosition}
-                  add="Add position"
+                  add={s.id ? "Add role" : "Add title"}
                   onAdd={(name) => addPosition(name, s.id)}
                 />
                 {s.id && (
-                  <ChipRow
-                    label="Work tags"
-                    items={tags.filter((t) => t.teamId === s.id)}
-                    count={() => 0}
-                    confirm={tagMessage}
-                    onRemove={removeTag}
-                    add="Add work tag"
-                    onAdd={(name) => addTag(name, s.id!)}
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[11px] font-medium text-muted/70">Kinds of work</p>
+                    {tags
+                      .filter((t) => t.teamId === s.id)
+                      .map((t) => (
+                        <KindRow
+                          key={t.id}
+                          tag={t}
+                          roles={titles.filter((r) => r.teamId === s.id)}
+                          message={tagMessage(t)}
+                          onChange={(patch) => changeTag(t.id, patch)}
+                          onRemove={() => removeTag(t.id)}
+                        />
+                      ))}
+                    <AddInline label="Add kind of work" onAdd={(name) => addTag(name, s.id!)} />
+                  </div>
                 )}
               </div>
             </section>

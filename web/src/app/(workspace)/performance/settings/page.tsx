@@ -17,12 +17,14 @@ export default async function PerformanceSettingsPage({ searchParams }: { search
   const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
   if (!me) redirect("/login");
   if (me.role === "employee") redirect(`/performance/${me.id}`);
+  // grading is a Founder's: a Lead has no Performance page
+  if (me.role === "core") redirect("/board");
 
   const [{ tab }, scoring, categories, kinds] = await Promise.all([
     searchParams,
     loadVideoScoring(),
     loadCategories(),
-    prisma.taskTag.findMany({ where: { team: { slug: "operations" } }, select: { name: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.taskTag.findMany({ where: { workflow: { in: ["video", "design"] } }, select: { name: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
   return (

@@ -54,6 +54,11 @@ model Team {
   members   User[]
   taskTags  TaskTag[]
   jobTitles JobTitle[]
+  // who works in it or (for a Lead) runs it: what a Lead sees, where a
+  // Member's work goes (lib/scope.ts)
+  access    User[]     @relation("UserDepartments")
+  tasks     Task[]
+  workTasks WorkTask[]
 }
 
 // What a person is called — "Video editor", "Project manager", "Social media
@@ -63,12 +68,17 @@ model Team {
 // department; one with no department is a leadership title that spans the
 // whole company ("Chief Executive Officer").
 model JobTitle {
-  id        String  @id @default(uuid())
-  name      String  @unique
-  sortOrder Int     @default(0)
-  team      Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  id        String    @id @default(uuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  team      Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
   teamId    String?
   users     User[]
+  // A position is also a role: what someone does (Video editor, Reel
+  // curator). A person holds any number, and each role offers its kinds of
+  // work when they add a task. jobTitle stays the one shown under a name.
+  holders   User[]    @relation("UserRoles")
+  kinds     TaskTag[]
 }
 
 // A personal work item — "audio pass for this episode," "record intro VO"
@@ -149,10 +159,15 @@ model User {
   lastSeenAt   DateTime?
 
   // --- org placement: who they work with, what they're called ---
-  team       Team?     @relation(fields: [teamId], references: [id])
-  teamId     String?
-  jobTitle   JobTitle? @relation(fields: [jobTitleId], references: [id])
-  jobTitleId String?
+  team        Team?      @relation(fields: [teamId], references: [id])
+  teamId      String?
+  jobTitle    JobTitle?  @relation(fields: [jobTitleId], references: [id])
+  jobTitleId  String?
+  // Level is `role` above: admin = Founder, core = Lead, employee = Member.
+  // A Lead sees the work in these departments; a Member works in them.
+  departments Team[]     @relation("UserDepartments")
+  // what they do, each offering its kinds of work (JobTitle)
+  roles       JobTitle[] @relation("UserRoles")
 
   // --- the people record itself, admin-only to edit ---
   phone        String?
@@ -471,6 +486,12 @@ model TaskTag {
   // "Cold outreach". null means shared by everyone.
   team         Team?          @relation(fields: [teamId], references: [id])
   teamId       String?
+  // the role that does this kind of work, and how its tasks move:
+  // "video" (the editing stages), "design" (queued to final export, graded)
+  // or "todo" (to do, done). See lib/workflows.ts
+  role         JobTitle?      @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  roleId       String?
+  workflow     String         @default("video")
   tasks        Task[]
   workTasks    WorkTask[]
   assets       ProjectAsset[]
@@ -598,6 +619,13 @@ model Task {
   // was a deliverable, which is why the default is false.
   internal Boolean   @default(false)
 
+  // how it moves (lib/workflows.ts): "video", "design" or "todo", from its
+  // kind of work when it's added
+  workflow String  @default("video")
+  // the department it belongs to: whose Leads see it (lib/scope.ts)
+  team     Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId   String?
+
   // True when *this app* created the Notion page, rather than the row having
   // been pulled in from Notion. It decides which side wins on sync: a task
   // born here pushes its status and links up; a task born in Notion keeps
@@ -649,6 +677,10 @@ model WorkTask {
   // manual drag-to-reorder within a status column — same float-midpoint
   // trick as Task.sortOrder
   sortOrder Float          @default(0)
+
+  // the department it belongs to: whose Leads see it (lib/scope.ts)
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId String?
 
   createdBy    User   @relation("WorkTasksCreated", fields: [createdById], references: [id])
   createdById  String
