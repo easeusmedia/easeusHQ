@@ -175,6 +175,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     departmentIds: p.departments.map((d) => d.id),
     roleIds: p.roles.map((r) => r.id),
     canSetAccess: canSetAccess(viewer, { ...p, departmentIds: p.departments.map((d) => d.id) }),
+    fullAccess: isFounder(p),
   }));
 
   return (

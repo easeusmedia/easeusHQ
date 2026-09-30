@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { prisma } from "./prisma";
 import { onStaff } from "./users";
 import { COOKIE_NAME, sign, unsign } from "./sessionToken";
-import { runsClients } from "./scope";
+import { isFounder, runsClients } from "./scope";
 
 export { hashPassword, verifyPassword } from "./password";
 
@@ -32,10 +32,10 @@ export const getSessionUserId = cache(async (): Promise<string | null> => {
   const as = store.get(VIEW_AS_COOKIE)?.value;
   if (!as || as === id || head.get("next-action")) return id;
   const [me, them] = await Promise.all([
-    prisma.user.findUnique({ where: { id }, select: { role: true } }),
+    prisma.user.findUnique({ where: { id }, select: { role: true, email: true } }),
     prisma.user.findUnique({ where: { id: as }, select: { employment: true } }),
   ]);
-  return me?.role === "admin" && them && onStaff(them) ? as : id;
+  return me && isFounder(me) && them && onStaff(them) ? as : id;
 });
 
 export async function createSession(userId: string) {

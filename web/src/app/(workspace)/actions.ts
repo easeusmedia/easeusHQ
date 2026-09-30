@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflowOf, type Role, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
-import { assigneeWhere, canAssign, canEditTag } from "@/lib/scope";
+import { assigneeWhere, canAssign, canEditTag, effectiveRole } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
@@ -36,7 +36,7 @@ function requireLinkOrNull(value: string, label: string): string | null {
 // editor claiming to be admin in a form used to be taken at their word.
 async function sessionActor() {
   const id = await getSessionUserId();
-  return id ? prisma.user.findUnique({ where: { id }, select: { id: true, role: true } }) : null;
+  return id ? prisma.user.findUnique({ where: { id }, select: { id: true, role: true, email: true } }) : null;
 }
 
 export async function logout() {
@@ -188,7 +188,7 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     const actor = await sessionActor();
     if (!actor) return { error: "Your session has ended. Please sign in again." };
     const actingUserId = actor.id;
-    const actingRole = actor.role as Role;
+    const actingRole = effectiveRole(actor) as Role;
     const frameioLink = extras.frameioLink ? requireLinkOrNull(extras.frameioLink, "Frame.io link") : null;
     const driveLink = extras.driveLink ? requireLinkOrNull(extras.driveLink, "Drive link") : null;
 

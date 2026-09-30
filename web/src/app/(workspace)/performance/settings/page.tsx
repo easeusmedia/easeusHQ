@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { canEditPeople } from "@/lib/scope";
+import { canEditPeople, isFounder } from "@/lib/scope";
 import { ClientTabs } from "../../clients/ClientTabs";
 import { loadCategories, loadVideoScoring } from "../data";
 import { ScoringForm, TypesPanel } from "./forms";
@@ -18,7 +18,7 @@ export default async function PerformanceSettingsPage({ searchParams }: { search
   if (!me) redirect("/login");
   if (me.role === "employee") redirect(`/performance/${me.id}`);
   // grading is a Founder's: a Lead has no Performance page
-  if (me.role === "core") redirect("/board");
+  if (me.role === "core" && !isFounder(me)) redirect("/board");
 
   const [{ tab }, scoring, categories, kinds] = await Promise.all([
     searchParams,

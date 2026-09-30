@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "./prisma";
 import { userPhotoSrc } from "./photos";
+import { isFounder } from "./scope";
 
 // De-duplicated across one request — layout.tsx and whichever page renders
 // alongside it both need the users list, and Prisma calls (unlike fetch())
@@ -53,12 +54,12 @@ export function assignableEditors<T extends { role: string; employment: string }
 // Member only to themselves; a Founder to any Member still on the team, or
 // themselves; a Lead to the Members in their departments, or themselves.
 export function assignOptionsFor<T extends { id: string; role: string; employment: string; teamId?: string | null }>(
-  actor: { id: string; role: string; departments?: { id: string }[] },
+  actor: { id: string; role: string; email?: string | null; departments?: { id: string }[] },
   users: T[]
 ): T[] {
   if (actor.role === "employee") return users.filter((u) => u.id === actor.id);
   const depts = actor.departments?.map((d) => d.id) ?? [];
   return users.filter(
-    (u) => onStaff(u) && (u.id === actor.id || (u.role === "employee" && (actor.role === "admin" || (!!u.teamId && depts.includes(u.teamId)))))
+    (u) => onStaff(u) && (u.id === actor.id || (u.role === "employee" && (isFounder(actor) || (!!u.teamId && depts.includes(u.teamId)))))
   );
 }

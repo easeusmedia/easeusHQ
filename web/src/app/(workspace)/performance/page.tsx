@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isFounder } from "@/lib/scope";
 import { redirect } from "next/navigation";
 import { Settings2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   if (!me) redirect("/login");
   if (me.role === "employee") redirect(`/performance/${me.id}`);
   // grading is a Founder's: a Lead has no Performance page
-  if (me.role === "core") redirect("/board");
+  if (me.role === "core" && !isFounder(me)) redirect("/board");
 
   const q = await searchParams;
   const today = dayOf(new Date());

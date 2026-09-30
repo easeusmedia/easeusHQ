@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { isFounder } from "@/lib/scope";
 import { dayOf, hoursLabel, shortDay } from "@/lib/editorKpi";
 import { STAGE } from "@/lib/stages";
 import { LETTER_LABEL, PART_LABEL, type Letter, type Part } from "@/lib/videoScore";
@@ -25,11 +26,11 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export default async function VideoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sessionId = await getSessionUserId();
-  const me = sessionId ? await prisma.user.findUnique({ where: { id: sessionId }, select: { id: true, role: true } }) : null;
+  const me = sessionId ? await prisma.user.findUnique({ where: { id: sessionId }, select: { id: true, role: true, email: true } }) : null;
   if (!me) redirect("/login");
   // grading is a Founder's: a Lead has no Performance page
-  if (me.role === "core") redirect("/board");
-  const canEdit = me.role === "admin";
+  if (me.role === "core" && !isFounder(me)) redirect("/board");
+  const canEdit = isFounder(me);
   const numbers = canEdit;
 
   const [loaded, task] = await Promise.all([

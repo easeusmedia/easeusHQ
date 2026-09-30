@@ -7,9 +7,9 @@ import { getSessionUserId, requireOps } from "@/lib/auth";
 // grading and feedback are a Founder's (lib/scope)
 async function requireFounder() {
   const me = await requireOps();
-  return me?.role === "admin" ? me : null;
+  return me && isFounder(me) ? me : null;
 }
-import { canEditPeople } from "@/lib/scope";
+import { canEditPeople, isFounder } from "@/lib/scope";
 import { isLetter, LETTERS, VIDEO_SCORING_KEY, withVideoScoringDefaults, type VideoScoring } from "@/lib/videoScore";
 import { refreshAllVideoScores, refreshVideoScores } from "@/lib/videoScores";
 import { aiSortEntries, syncFrameioFeedback } from "@/lib/frameioFeedback";

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { isFounder, isLead, runsClients } from "@/lib/scope";
+import { effectiveRole, isFounder, isLead, runsClients } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
@@ -161,7 +161,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                 editors={editors}
                 projects={boardProjects}
                 actingUserId={me.id}
-                actingRole={me.role as Role}
+                actingRole={effectiveRole(me) as Role}
               />
             </li>
           ))}

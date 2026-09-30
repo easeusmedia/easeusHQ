@@ -6,7 +6,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { assigneeWhere, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { clientLogoSrc } from "@/lib/photos";
@@ -278,7 +278,7 @@ export default async function ClientDetailPage({
                     editors={editors}
                     projects={boardProjects}
                     actingUserId={me.id}
-                    actingRole={me.role as Role}
+                    actingRole={effectiveRole(me) as Role}
                     taskTags={taskTags}
                   />
                 </section>
@@ -303,7 +303,7 @@ export default async function ClientDetailPage({
                       editors={editors}
                       projects={boardProjects}
                       actingUserId={me.id}
-                      actingRole={me.role as Role}
+                      actingRole={effectiveRole(me) as Role}
                       taskTags={taskTags}
                     />
                   </section>
@@ -341,7 +341,7 @@ export default async function ClientDetailPage({
                   projects={boardProjects}
                   editors={editors}
                   actingUserId={me.id}
-                  actingRole={me.role as Role}
+                  actingRole={effectiveRole(me) as Role}
                   canCreate
                   taskTags={taskTags}
                 />
@@ -488,7 +488,7 @@ async function EditorClientPage({
                     projects={client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }))}
                     editors={assignOptionsFor(viewer, users)}
                     actingUserId={me.id}
-                    actingRole={me.role as Role}
+                    actingRole={effectiveRole(me) as Role}
                     canCreate={false}
                     taskTags={taskTags}
                   />

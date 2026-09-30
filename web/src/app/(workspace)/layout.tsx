@@ -57,7 +57,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const realUser = users.find((u) => u.id === realUserId);
   const viewingAs = realUserId !== sessionUserId;
   const viewAsPeople =
-    realUser?.role === "admin" ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
+    realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
   // Founders and Leads run things; Members do their own work
   const isOps = !isMember(viewer);

@@ -55,6 +55,8 @@ export type PersonRecord = {
   roleIds: string[];
   // whether the viewer may change those (lib/scope canSetAccess)
   canSetAccess: boolean;
+  // sees and runs everything (Level 1, or the developer)
+  fullAccess: boolean;
 };
 
 export type Option = { id: string; name: string; slug?: string };
@@ -67,7 +69,7 @@ export type Position = { id: string; name: string; teamId: string | null; people
 export type WorkTag = { id: string; name: string; teamId: string | null; uses: number; roleId?: string | null; workflow?: string };
 
 const FORMER = "Former employees";
-const ADMIN = "Level 1";
+const LEVELS: Role[] = ["admin", "core", "employee"];
 
 export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
   active: "Active",
@@ -123,36 +125,26 @@ export function PeopleDirectory({
     const q = query.trim().toLowerCase();
     return people.filter(
       (p) =>
-        (team === "all" || (team === "former" ? p.employment === "former" : p.shownTeam === team && p.employment !== "former")) &&
+        (team === "all" || (team === "former" ? p.employment === "former" : p.role === team && p.employment !== "former")) &&
         (!q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || (p.jobTitleName ?? "").toLowerCase().includes(q))
     );
   }, [people, query, team]);
 
   const open = people.find((p) => p.id === openId) ?? null;
 
-  // the filter chips are the teams people are shown under, not the teams
-  // in the data — so Editors is its own chip and Operations is only its core
-  const shownTeams = [
-    ...new Map(
-      people.filter((p) => p.employment !== "former" && p.shownTeam).map((p) => [p.shownTeam!, p.teamName ?? p.shownTeam!])
-    ).entries(),
-  ].map(([id, name]) => ({ id, name }));
+  // the filter chips: each level there's someone at, then Former
+  const shownTeams = LEVELS.filter((r) => people.some((p) => p.role === r && p.employment !== "former")).map((r) => ({ id: r, name: ROLE_LABEL[r] }));
 
-  // Grouped by team, because that's the question this page is usually
-  // answering — "who's on Operations right now". Former employees are their
-  // own category at the bottom rather than sitting inside a team they've
-  // left: their record stays readable (their finished work is still part of
-  // the agency's history) but they're plainly not part of the active roster.
+  // Grouped by level: Level 1, 2 and 3, then former employees at the
+  // bottom, their record still readable but plainly off the roster
   const groups = useMemo(() => {
     const byGroup = new Map<string, PersonRecord[]>();
     for (const p of filtered) {
-      // the admin runs the agency rather than sitting in one team
-      const key = p.employment === "former" ? FORMER : p.role === "admin" ? ADMIN : p.teamName ?? "No team";
+      const key = p.employment === "former" ? FORMER : ROLE_LABEL[p.role];
       if (!byGroup.has(key)) byGroup.set(key, []);
       byGroup.get(key)!.push(p);
     }
-    // Admin first, former employees last, the teams as they come between
-    const rank = (k: string) => (k === ADMIN ? -1 : k === FORMER ? 1 : 0);
+    const rank = (k: string) => (k === FORMER ? 9 : LEVELS.findIndex((r) => ROLE_LABEL[r] === k));
     return [...byGroup.entries()].sort(([a], [b]) => rank(a) - rank(b));
   }, [filtered]);
 
@@ -224,7 +216,8 @@ export function PeopleDirectory({
                           </span>
                         )}
                       </span>
-                      <span className="block truncate text-xs text-muted">{p.jobTitleName ?? ROLE_LABEL[p.role]}</span>
+                      {/* one line, not every role: their first, or what they do instead */}
+                      <span className="block truncate text-xs text-muted">{p.jobTitleName?.split(", ")[0] ?? (p.fullAccess ? "Runs everything" : "No role yet")}</span>
                     </span>
                     {p.current.length > 0 && (
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-xs tabular-nums text-muted">

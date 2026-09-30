@@ -5,6 +5,7 @@ import { verifyPassword } from "@/lib/password";
 import { createSession } from "@/lib/auth";
 import { onStaff } from "@/lib/users";
 import { redirect } from "next/navigation";
+import { isFounder } from "@/lib/scope";
 
 export type LoginState = { error?: string };
 
@@ -20,5 +21,5 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   await createSession(user.id);
   // a Founder starts on Home; everyone else on the Board
-  redirect(user.role === "admin" ? "/home" : "/board");
+  redirect(isFounder(user) ? "/home" : "/board");
 }

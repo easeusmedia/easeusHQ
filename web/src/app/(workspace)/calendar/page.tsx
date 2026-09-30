@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { assigneeWhere, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import type { Role } from "@/lib/workflow";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -171,7 +171,7 @@ function envFor(
     editors: assignOptionsFor(me, users).map((u) => ({ id: u.id, name: u.name })),
     projects: projects.map((p) => ({ id: p.id, name: p.name || p.type, client: p.client })),
     actingUserId: me.id,
-    actingRole: me.role as Role,
+    actingRole: effectiveRole(me) as Role,
     // the same kinds of work this person picks from on the Board
     taskTags: (visible.OR ? allTags.filter((t) => !t.teamId || t.teamId === me.teamId) : allTags).map((t) => ({
       id: t.id,

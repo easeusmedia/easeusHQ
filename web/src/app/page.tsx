@@ -4,6 +4,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isFounder } from "@/lib/scope";
 import { Clapperboard, Eye, FolderOpen, HardDrive, type LucideIcon } from "lucide-react";
 import { PublicShell } from "./PublicShell";
 
@@ -29,7 +30,10 @@ const FEATURES: { Icon: LucideIcon; tint: string; title: string; body: string }[
 export default async function Home() {
   const id = await getSessionUserId();
   // a Founder starts on Home; everyone else on the Board
-  if (id) redirect((await prisma.user.findUnique({ where: { id }, select: { role: true } }))?.role === "admin" ? "/home" : "/board");
+  if (id) {
+    const me = await prisma.user.findUnique({ where: { id }, select: { role: true, email: true } });
+    redirect(me && isFounder(me) ? "/home" : "/board");
+  }
 
   return (
     <PublicShell>

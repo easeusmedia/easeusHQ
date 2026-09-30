@@ -5,7 +5,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
-import { assigneeWhere, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
@@ -72,7 +72,7 @@ export default async function TasksPage({
 
   const canSyncNotion = isAbhishekOrAdmin(actingUser);
   const tagOptions = kinds.map((k) => ({ id: k.id, name: k.name, clientFacing: k.clientFacing, workflow: k.workflow }));
-  const env = { projects, editors, actingUserId: actingUser.id, actingRole: actingUser.role as Role };
+  const env = { projects, editors, actingUserId: actingUser.id, actingRole: effectiveRole(actingUser) as Role };
 
   return (
     <BoardViews

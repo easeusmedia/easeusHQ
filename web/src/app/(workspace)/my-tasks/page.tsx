@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
 import { getViewer } from "@/lib/viewer";
-import { assigneeWhere, isMember, worksTheBoard } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, isMember, worksTheBoard } from "@/lib/scope";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { dayOf } from "@/lib/editorKpi";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -81,7 +81,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         editors={assignOptionsFor(viewer, users).map((u) => ({ id: u.id, name: u.name }))}
         taskTags={work.taskTags}
         actingUserId={viewer.id}
-        actingRole={viewer.role}
+        actingRole={effectiveRole(viewer)}
         team={team && { todos: team.tasks.filter((t) => t.assignedTo.id !== viewer.id), tasks: teamTasks }}
         initialView={view === "team" ? "team" : "mine"}
       />

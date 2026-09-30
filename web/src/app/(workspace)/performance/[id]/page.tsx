@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { isFounder } from "@/lib/scope";
 import { chartSpans, dayOf, periodFrom } from "@/lib/editorKpi";
 import { LETTER_LABEL } from "@/lib/videoScore";
 import { Avatar } from "../../TaskCard";
@@ -23,13 +24,13 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
   const { id } = await params;
   const q = await searchParams;
   const sessionId = await getSessionUserId();
-  const me = sessionId ? await prisma.user.findUnique({ where: { id: sessionId }, select: { id: true, role: true } }) : null;
+  const me = sessionId ? await prisma.user.findUnique({ where: { id: sessionId }, select: { id: true, role: true, email: true } }) : null;
   if (!me) redirect("/login");
   // an editor sees only their own
   if (me.role === "employee" && me.id !== id) redirect(`/performance/${me.id}`);
   // grading is a Founder's: a Lead has no Performance page
-  if (me.role === "core") redirect("/board");
-  const canEdit = me.role === "admin";
+  if (me.role === "core" && !isFounder(me)) redirect("/board");
+  const canEdit = isFounder(me);
   // numbers are for core; an editor sees letters
   const numbers = canEdit;
 
