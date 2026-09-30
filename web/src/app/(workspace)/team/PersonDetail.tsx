@@ -468,7 +468,7 @@ export function PersonDetail({
               </span>
               <div className="grid flex-1 grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
                 {person.editorKpi.parts.map((r) => (
-                  <PartScore key={r.part} part={r.part} value={r.value} max={r.max} lines={r.lines} />
+                  <PartScore key={r.part} part={r.part} value={r.value} max={r.max} fact={r.fact} />
                 ))}
               </div>
             </div>

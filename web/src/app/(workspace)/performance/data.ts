@@ -32,6 +32,18 @@ export async function loadEditors(editorId?: string) {
   return people.filter((p) => displayTeam(p)?.slug === "editors");
 }
 
+// The first day anything was recorded about the editors (or one of them):
+// where "All time" starts.
+export async function firstDay(editorId?: string): Promise<string | undefined> {
+  const ids = (await loadEditors(editorId)).map((e) => e.id);
+  const [entry, task] = await Promise.all([
+    prisma.performanceEntry.aggregate({ where: { editorId: { in: ids } }, _min: { at: true } }),
+    prisma.task.aggregate({ where: { assignedToId: { in: ids } }, _min: { createdAt: true } }),
+  ]);
+  const days = [entry._min.at, task._min.createdAt].filter((d): d is Date => !!d).map(dayOf).sort();
+  return days[0];
+}
+
 export type FeedbackRow = {
   id: string;
   editorId: string;

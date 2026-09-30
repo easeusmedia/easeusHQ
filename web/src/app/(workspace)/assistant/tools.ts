@@ -9,7 +9,7 @@ import { collectedIn, isOverdue, ledger, payroll, upcoming } from "@/lib/finance
 import { clipText } from "@/lib/assistant";
 import type { Tool } from "@/lib/ai";
 import { loadPerformance } from "../performance/data";
-import { qualityLines, quantityLines, ratingLines } from "../performance/shared";
+import { facts } from "../performance/shared";
 import { billingCycle, loadFinance, money } from "../finance/data";
 
 // What the admin's assistant can read and propose, and nothing else: the
@@ -55,7 +55,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "performance",
-    description: "Editors' grade (A+ to D) and score out of 10 for a month (yyyy-mm, default this one), the average of its weeks, and its parts: Quantity (output and speed), Quality (mistakes per video) and Rating (praise and concerns). Leave out person for every editor.",
+    description: "Editors' grade (A+ to D) and score out of 10 for a month (yyyy-mm, default this one), the average of its weeks, and its parts: Quantity (output and speed), Quality (mistakes per video) and Feedback (praise and concerns). Leave out person for every editor.",
     input_schema: { type: "object", properties: { person: { type: "string" }, month: { type: "string" } } },
   },
   {
@@ -80,7 +80,7 @@ export const TOOLS: Tool[] = [
   {
     name: "propose",
     description:
-      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|positive|negative|guidance, category (a mistake's type, or the feedback type praise or a concern is about), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
+      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|positive|negative|guidance (a tip, not scored), category (a mistake's type, or the feedback type praise or a concern is about), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
     input_schema: {
       type: "object",
       properties: {
@@ -160,11 +160,12 @@ async function editorLine(id: string, name: string, month: string) {
   const cats = k.byCategory.map((c) => `${c.category} ${c.count}${c.repeats ? ` (${c.repeats} repeated)` : ""}`).join(", ");
   const s = data.scoring;
   const max = partMax(s);
+  const f = facts(k);
   return [
-    `${name}, ${month}${period.current ? " so far" : ""}: ${k.grade ?? "no grade"}, ${k.total ?? "–"} of 10${k.weeks > 1 ? `, the average of ${k.weeks} weeks` : ""} (Quantity ${k.quantity ?? "–"}/${max.quantity}, Quality ${k.quality ?? "–"}/${max.quality}, Rating ${k.rating ?? "–"}/${max.rating})`,
-    `Quantity: ${quantityLines(k).join("; ")} (output ${s.outputPoints} points against ${s.reelsPerDay} reels a working day; speed ${s.speedPoints} points, each video timed from Editing to Sent for approval)`,
-    `Quality: ${qualityLines(k).join("; ")}${cats ? ` · by type: ${cats}` : ""} (${s.qualityPoints}, less ${s.mistakePoints} a mistake per video; a repeat, the same type on another video within 90 days, counts ${s.repeatWeight}×)`,
-    `Rating: ${ratingLines(k).join("; ")} (starts at ${s.ratingStart} of ${s.ratingPoints} each week)`,
+    `${name}, ${month}${period.current ? " so far" : ""}: ${k.grade ?? "no grade"}, ${k.total ?? "–"} of 10${k.weeks > 1 ? `, the average of ${k.weeks} weeks` : ""} (Quantity ${k.quantity ?? "–"}/${max.quantity}, Quality ${k.quality ?? "–"}/${max.quality}, Feedback ${k.feedback ?? "–"}/${max.feedback})`,
+    `Quantity: ${f.quantity} (target ${s.reelsPerDay} reels a working day; ${s.speedPoints} of its points for speed, each video timed from Editing to Sent for approval)`,
+    `Quality: ${f.quality}${k.revisions ? `, ${k.revisions} revisions` : ""}${cats ? ` · by type: ${cats}` : ""} (each mistake takes its type's points off, a revision ${s.revisionPoints}, a repeat ${s.repeatMultiplier}×, per video)`,
+    `Feedback: ${f.feedback}, net ${k.net >= 0 ? "+" : ""}${k.net} (starts at ${s.feedbackStart} of ${s.feedbackPoints} each week)`,
     k.editHours !== null ? `Typical time from Editing to Sent for approval: ${hoursLabel(k.editHours)}` : "",
   ]
     .filter(Boolean)

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   averageWeeks,
+  chartSpans,
   DEFAULT_SCORING,
   gradeOf,
   periodFrom,
@@ -36,7 +37,7 @@ const task = (over: Partial<KpiTask>): KpiTask => ({
   moves: [],
   ...over,
 });
-const point = (over: Partial<ScoreEntry> = {}): ScoreEntry => ({ kind: "mistake", category: "Typos", count: 1, points: null, weight: 1, repeat: false, ...over });
+const point = (over: Partial<ScoreEntry> = {}): ScoreEntry => ({ kind: "mistake", category: "Typos", count: 1, points: null, weight: 0.5, repeat: false, ...over });
 
 test("hours are clock time, Sundays skipped", () => {
   assert.equal(workHours(ist("28T10:00:00"), ist("28T13:30:00"), S), 3.5);
@@ -89,7 +90,7 @@ test("a repeat is the same category on a different video within 90 days", () => 
 const reel = (minutes = 180) =>
   videoFacts(task({ tags: ["Reel"], moves: [mv("28T10:00:00", "queued", "editing"), { at: new Date(ist("28T10:00:00").getTime() + minutes * 60_000), from: "editing", to: "sent_for_approval" }] }), S);
 
-test("quantity: 2.5 for output against 2 reels a day, 1.5 for speed", () => {
+test("quantity: 4, of which 1.5 is speed, against 2 reels a day", () => {
   // 2 reels in a day, both inside 3.5 hours: 4
   assert.equal(scorePeriod({ videos: [reel(), reel()], entries: [], workDays: 1 }, S).quantity, 4);
   // 1 of 2, and it took too long: 2.5 × 0.5 + 1.5 × 0
@@ -99,7 +100,7 @@ test("quantity: 2.5 for output against 2 reels a day, 1.5 for speed", () => {
   assert.equal(scorePeriod({ videos: [untimed], entries: [], workDays: 1 }, S).quantity, 2);
 });
 
-test("quality: 4, less half a point for each mistake per video; repeats double, revisions count, types weigh", () => {
+test("quality: 4, less each mistake's points per video; repeats double, revisions count", () => {
   const two = [reel(), reel()];
   assert.equal(scorePeriod({ videos: two, entries: [], workDays: 1 }, S).quality, 4);
   // 2 mistakes over 2 videos
@@ -108,27 +109,29 @@ test("quality: 4, less half a point for each mistake per video; repeats double, 
   const k = scorePeriod({ videos: two, entries: [point(), point({ repeat: true })], workDays: 1 }, S);
   assert.equal(k.quality, 3.3);
   assert.equal(k.repeated, 1);
-  // ten creative notes at a tenth each: one mistake's worth
-  assert.equal(scorePeriod({ videos: two, entries: [point({ category: "Creative", weight: 0.1, count: 10 })], workDays: 1 }, S).quality, 3.8);
+  // ten creative notes at 0.05 each: one typo's worth
+  assert.equal(scorePeriod({ videos: two, entries: [point({ category: "Creative", weight: 0.05, count: 10 })], workDays: 1 }, S).quality, 3.8);
+  // a revision takes 0.5 too
+  assert.equal(scorePeriod({ videos: [{ ...reel(), internalRevisions: 1 }, reel()], entries: [], workDays: 1 }, S).quality, 3.8);
   // feedback, praise and notes aren't mistakes
   assert.equal(scorePeriod({ videos: two, entries: [point({ kind: "guidance" }), point({ kind: "note" })], workDays: 1 }, S).quality, 4);
 });
 
-test("rating starts at 1: praise adds, a concern takes off; the total is out of 10", () => {
+test("feedback starts at 1: praise adds, a concern takes off; the total is out of 10", () => {
   const two = [reel(), reel()];
   const none = scorePeriod({ videos: two, entries: [], workDays: 1 }, S);
-  assert.equal(none.rating, 1);
+  assert.equal(none.feedback, 1);
   assert.equal(none.total, 9);
   assert.equal(none.grade, "A+");
   // Frame.io praise is worth 1, core's is worth what they gave it
   const some = scorePeriod({ videos: two, entries: [point({ kind: "positive" }), point({ kind: "negative", points: 0.5 })], workDays: 1 }, S);
-  assert.equal(some.rating, 1.5);
+  assert.equal(some.feedback, 1.5);
   assert.equal(some.total, 9.5);
-  assert.equal(scorePeriod({ videos: two, entries: [point({ kind: "negative", points: 4 })], workDays: 1 }, S).rating, 0);
+  assert.equal(scorePeriod({ videos: two, entries: [point({ kind: "negative", points: 4 })], workDays: 1 }, S).feedback, 0);
 });
 
 test("a part with nothing to score is left out and the rest scaled to 10", () => {
-  // nothing finished in a working day: output 0, no quality; 0 + rating 1 of 6
+  // nothing finished in a working day: output 0, no quality; 0 + feedback 1 of 6
   const idle = scorePeriod({ videos: [], entries: [], workDays: 1 }, S);
   assert.equal(idle.quality, null);
   assert.equal(idle.total, 1.7);
@@ -153,7 +156,7 @@ test("a month is the average of its weeks, metric by metric", () => {
   const month = averageWeeks(good, [good, weak, idle], S);
   assert.equal(month.quantity, 2.7);
   assert.equal(month.quality, 3.5);
-  assert.equal(month.rating, 1);
+  assert.equal(month.feedback, 1);
   assert.equal(month.total, 7.2);
   assert.equal(month.weeks, 2);
 });
@@ -168,6 +171,15 @@ test("periods: a week, a month, a range, each with the one before", () => {
   // never in the future; anything unreadable is this week
   assert.equal(periodFrom({ view: "week", week: "2026-12-01" }, "2026-09-30").from, "2026-09-28");
   assert.equal(periodFrom({ view: "day" }, "2026-09-30").kind, "week");
+  const all = periodFrom({ view: "all" }, "2026-09-30", "2026-06-15");
+  assert.deepEqual([all.kind, all.from, all.to], ["all", "2026-06-15", "2026-09-30"]);
+});
+
+test("charts: 8 weeks for a week, 6 months for a month, a long stretch by month", () => {
+  assert.deepEqual(chartSpans({ kind: "week", from: "2026-09-28", to: "2026-09-30" }).map((s) => s.label).slice(-2), ["21 Sep", "28 Sep"]);
+  assert.equal(chartSpans({ kind: "month", from: "2026-09-01", to: "2026-09-30" }).length, 6);
+  assert.equal(chartSpans({ kind: "range", from: "2026-09-01", to: "2026-09-30" }).length, 5);
+  assert.deepEqual(chartSpans({ kind: "all", from: "2026-06-15", to: "2026-09-30" }).map((s) => s.label), ["Jun", "Jul", "Aug", "Sep"]);
 });
 
 test("history runs oldest first", () => {
@@ -178,7 +190,7 @@ test("history runs oldest first", () => {
 test("saved scoring keeps the defaults for anything it doesn't set", () => {
   const s = withScoringDefaults({ reelsPerDay: 3, grades: { A: 7.5 } });
   assert.equal(s.reelsPerDay, 3);
-  assert.equal(s.outputPoints, 2.5);
+  assert.equal(s.quantityPoints, 4);
   assert.deepEqual(s.grades, { "A+": 9, A: 7.5, B: 6.5, C: 5 });
   assert.equal(s.types.Trailer.units, 3);
 });

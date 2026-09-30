@@ -17,9 +17,9 @@ const done = () => revalidatePath("/performance", "layout");
 
 // ---------- scoring ----------
 
-// How the score is worked out: the 10 points metric by metric, the grades,
+// How the score is worked out: the 10 points part by part, the grades,
 // the working week, reels a day, each type's standard and what it counts
-// for, what a mistake, revision and repeat cost Quality, and where Rating
+// for, what a revision and a repeat cost Quality, and where Feedback
 // starts. Admin only.
 export async function saveScoring(input: Scoring): Promise<Result> {
   const id = await getSessionUserId();
@@ -28,15 +28,14 @@ export async function saveScoring(input: Scoring): Promise<Result> {
 
   const s = withScoringDefaults({});
   const checks: [keyof Scoring, number, number][] = [
-    ["outputPoints", 0, 10],
-    ["speedPoints", 0, 10],
+    ["quantityPoints", 0, 10],
     ["qualityPoints", 0, 10],
-    ["ratingPoints", 0, 10],
+    ["feedbackPoints", 0, 10],
+    ["speedPoints", 0, 10],
     ["reelsPerDay", 0.1, 50],
-    ["mistakePoints", 0, 10],
-    ["revisionWeight", 0, 10],
-    ["repeatWeight", 1, 10],
-    ["ratingStart", 0, 10],
+    ["revisionPoints", 0, 10],
+    ["repeatMultiplier", 1, 10],
+    ["feedbackStart", 0, 10],
     ["praisePoints", 0, 10],
   ];
   for (const [key, min, max] of checks) {
@@ -44,8 +43,9 @@ export async function saveScoring(input: Scoring): Promise<Result> {
     if (n === null) return { error: "One of those numbers isn't sensible." };
     (s as Record<string, unknown>)[key] = n;
   }
-  if (Math.abs(s.outputPoints + s.speedPoints + s.qualityPoints + s.ratingPoints - 10) > 0.01) return { error: "The four metrics should add up to 10 points." };
-  if (s.ratingStart > s.ratingPoints) return { error: "Rating can't start above its own points." };
+  if (Math.abs(s.quantityPoints + s.qualityPoints + s.feedbackPoints - 10) > 0.01) return { error: "Quantity, Quality and Feedback should add up to 10." };
+  if (s.speedPoints > s.quantityPoints) return { error: "Speed is part of Quantity, so it can't be more than Quantity." };
+  if (s.feedbackStart > s.feedbackPoints) return { error: "Feedback can't start above its own points." };
   const grades = (["A+", "A", "B", "C"] as const).map((g) => num(input.grades?.[g], 0, 10));
   if (grades.some((g) => g === null) || grades.some((g, i) => i > 0 && g! >= grades[i - 1]!)) return { error: "Each grade needs a lower score than the one above it." };
   s.grades = { "A+": grades[0]!, A: grades[1]!, B: grades[2]!, C: grades[3]! };
@@ -73,8 +73,9 @@ const cleanCategory = (input: CategoryInput) => {
   const name = input.name.trim();
   if (!name) return { error: "Give it a name." };
   const group = input.group === "feedback" ? "feedback" : "mistake";
-  const weight = group === "mistake" ? num(input.weight, 0, 5) : 0;
-  if (weight === null) return { error: "A mistake type counts between 0 and 5 mistakes." };
+  // for a mistake type, the Quality points one takes off
+  const weight = group === "mistake" ? num(input.weight, 0, 10) : 0;
+  if (weight === null) return { error: "Points off should be between 0 and 10." };
   const keywords = input.keywords
     .split(",")
     .map((k) => k.trim())
@@ -129,21 +130,6 @@ export async function deleteCategory(id: string): Promise<Result> {
 }
 
 // ---------- feedback ----------
-
-// A Frame.io comment re-sorted by hand: into a mistake type, or out of
-// Quality as praise (worth the Frame.io praise points), feedback (never
-// scored) or not feedback at all.
-export async function sortEntry(id: string, to: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can re-sort feedback." };
-  if (to === "positive" || to === "guidance" || to === "note") {
-    await prisma.performanceEntry.update({ where: { id }, data: { kind: to, category: null, points: null, count: 1, reviewed: true } });
-  } else {
-    if (!(await prisma.feedbackCategory.findFirst({ where: { name: to, group: "mistake" } }))) return { error: "That mistake type doesn't exist." };
-    await prisma.performanceEntry.update({ where: { id }, data: { kind: "mistake", category: to, points: null, reviewed: true } });
-  }
-  done();
-  return {};
-}
 
 // Sort with AI: only when core clicks it. Claude re-sorts the Frame.io
 // comments given that nobody has sorted by hand.

@@ -12,7 +12,7 @@ import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
 import { partMax, periodFrom } from "@/lib/editorKpi";
 import { loadPerformance } from "../performance/data";
-import { qualityLines, quantityLines, ratingLines } from "../performance/shared";
+import { facts } from "../performance/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -89,14 +89,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     if (!kpiData.editors.some((e) => e.id === id)) return null;
     const k = kpiData.score(week.from, week.to, id);
     const max = partMax(kpiData.scoring);
+    const f = facts(k);
     return {
       total: k.total,
       grade: k.grade,
-      parts: [
-        { part: "quantity" as const, value: k.quantity, max: max.quantity, lines: quantityLines(k).slice(0, 1) },
-        { part: "quality" as const, value: k.quality, max: max.quality, lines: qualityLines(k).slice(0, 1) },
-        { part: "rating" as const, value: k.rating, max: max.rating, lines: ratingLines(k).slice(0, 1) },
-      ],
+      parts: (["quantity", "quality", "feedback"] as const).map((part) => ({ part, value: k[part], max: max[part], fact: f[part] })),
     };
   };
 
