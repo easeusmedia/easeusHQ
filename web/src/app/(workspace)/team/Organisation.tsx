@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
-import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, setRoleWorkflow } from "./actions";
+import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
 
@@ -59,20 +59,8 @@ function AddInline({ label, onAdd, small }: { label: string; onAdd: (name: strin
   );
 }
 
-const FLOWS = [
-  ["video", "Video"],
-  ["design", "Design"],
-  ["todo", "To-do"],
-] as const;
-const FLOW_NOTE: Record<string, string> = {
-  video: "Its tasks go through the editing stages, graded on first review",
-  design: "Its tasks go from queued to final export, graded on first review",
-  todo: "Its tasks are to-dos, ticked off when done",
-};
-
 // How the agency is laid out: its departments, each with its roles, and each
-// role with how its tasks move and the kinds of work "Add task" offers for
-// it. Changes save as they're made; the page refreshes once, on closing.
+// role with the kinds of work "Add task" offers for it. Changes save as they're made; the page refreshes once, on closing.
 export function Organisation({
   departments,
   positions,
@@ -141,18 +129,6 @@ export function Organisation({
     setRoles((all) => all.filter((r) => r.id !== id));
     setTags((all) => all.map((t) => (t.roleId === id ? { ...t, roleId: null } : t)));
   }
-  async function changeFlow(id: string, workflow: string) {
-    const before = { roles, tags };
-    setRoles((all) => all.map((r) => (r.id === id ? { ...r, workflow } : r)));
-    setTags((all) => all.map((t) => (t.roleId === id ? { ...t, workflow } : t)));
-    const res = await setRoleWorkflow(id, workflow);
-    if (res.error) {
-      setRoles(before.roles);
-      setTags(before.tags);
-      return setError(res.error);
-    }
-    done();
-  }
   async function addKind(name: string, role: Position) {
     const res = await createWorkTag(name, role.teamId!, role.id);
     if (res.error || !res.id) return fail(res.error ?? "That kind of work couldn't be added.");
@@ -184,7 +160,7 @@ export function Organisation({
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-background/80 px-5 py-4 backdrop-blur">
           <div>
             <h2 className="text-base font-semibold">Departments and roles</h2>
-            <p className="mt-0.5 text-xs text-muted">Each department has its roles. A role decides how its tasks move, and its kinds of work are what Add task offers the people who hold it.</p>
+            <p className="mt-0.5 text-xs text-muted">Each department has its roles, and each role its kinds of work: what Add task offers the people who hold it.</p>
           </div>
           <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="rounded-md p-1 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
             <X size={16} />
@@ -214,7 +190,6 @@ export function Organisation({
                 </div>
                 <div className="flex flex-col divide-y divide-border/50">
                   {inTeam.map((r) => {
-                    const flow = r.workflow ?? "todo";
                     return (
                       <div key={r.id} className="group flex flex-col gap-2 py-2.5 first:pt-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -222,29 +197,14 @@ export function Organisation({
                             {r.name}
                             {r.people > 0 && <span className="ml-1.5 text-xs text-muted">{people(r.people)}</span>}
                           </span>
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex rounded-full border border-border p-0.5 text-[11px]" role="group" aria-label="How its tasks move" title={FLOW_NOTE[flow]}>
-                              {FLOWS.map(([w, label]) => (
-                                <button
-                                  key={w}
-                                  type="button"
-                                  aria-pressed={flow === w}
-                                  onClick={() => flow !== w && changeFlow(r.id, w)}
-                                  className={`rounded-full px-2 py-0.5 transition-colors ${flow === w ? "bg-white/[0.1] text-foreground" : "text-muted hover:text-foreground"}`}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                            <ConfirmButton
-                              confirm="Remove"
-                              message={roleMessage(r)}
-                              className="rounded-md p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
-                              onConfirm={() => removeRole(r.id)}
-                            >
-                              <X size={12} />
-                            </ConfirmButton>
-                          </div>
+                          <ConfirmButton
+                            confirm="Remove"
+                            message={roleMessage(r)}
+                            className="rounded-md p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+                            onConfirm={() => removeRole(r.id)}
+                          >
+                            <X size={12} />
+                          </ConfirmButton>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
                           {tags

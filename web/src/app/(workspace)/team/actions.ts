@@ -242,19 +242,6 @@ export async function createWorkTag(name: string, teamId: string, roleId?: strin
   return { success: true, id: created.id, name: created.name, workflow: created.workflow };
 }
 
-// How a role's tasks move (video, design or todo), and so its kinds of
-// work's. Tasks already made keep the stages they started with.
-export async function setRoleWorkflow(id: string, workflow: string): Promise<PeopleFormState> {
-  const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only Level 1 can change a role." };
-  if (!["video", "design", "todo"].includes(workflow)) return { error: "That isn't a workflow." };
-  await prisma.$transaction([
-    prisma.jobTitle.update({ where: { id }, data: { workflow } }),
-    prisma.taskTag.updateMany({ where: { roleId: id }, data: { workflow } }),
-  ]);
-  return { success: true };
-}
-
 // Every task tagged with it loses the tag; the tasks themselves stay.
 export async function deleteWorkTag(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
