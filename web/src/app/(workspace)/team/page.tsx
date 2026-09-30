@@ -41,10 +41,10 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const [people, teams, jobTitles, workTags] = await Promise.all([
     prisma.user.findMany({
       where,
-      include: { team: true, jobTitle: true, departments: { select: { id: true } }, roles: { select: { id: true } } },
+      include: { team: true, jobTitle: true, departments: { select: { id: true } }, roles: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } } },
       orderBy: [{ employment: "asc" }, { name: "asc" }],
     }),
-    prisma.team.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { members: { where: { employment: { not: "former" } } } } } } }),
+    prisma.team.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { access: { where: { employment: { not: "former" } } } } } } }),
     prisma.jobTitle.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     canEdit
       ? prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { _count: { select: { tasks: true, workTasks: true } } } })
@@ -158,7 +158,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     departmentName: p.team?.name ?? null,
     shownTeam: displayTeam(p)?.slug ?? null,
     jobTitleId: p.jobTitleId,
-    jobTitleName: p.jobTitle?.name ?? null,
+    // what they do: their roles (positions are gone)
+    jobTitleName: p.roles.map((r) => r.name).join(", ") || null,
     joinedAt: dueOf(p.joinedAt),
     birthday: dueOf(p.birthday),
     emergencyContact: p.emergencyContact,
@@ -180,8 +181,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     <div className="h-full">
       <PeopleDirectory
         people={records}
-        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.members }))}
-        jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name, teamId: j.teamId, people: people.filter((p) => p.jobTitleId === j.id && p.employment !== "former").length }))}
+        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.access }))}
+        jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name, teamId: j.teamId, workflow: j.workflow, people: people.filter((p) => p.employment !== "former" && p.roles.some((r) => r.id === j.id)).length }))}
         workTags={workTags.map((t) => ({ id: t.id, name: t.name, teamId: t.teamId, uses: t._count.tasks + t._count.workTasks, roleId: t.roleId, workflow: t.workflow }))}
         canEdit={canEdit}
         editableTeamIds={isFounder(viewer) ? teams.map((t) => t.id) : viewer.departments.map((d) => d.id)}

@@ -4,10 +4,11 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { House, SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
+import { Eye, House, SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
+import { viewAs } from "./viewAs";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
@@ -126,6 +127,7 @@ export function ClientFace({ client, size }: { client: SidebarClient; size: numb
 export function Sidebar({
   isOps = false,
   isFounder = false,
+  viewAsPeople = null,
   canSeeFinance = false,
   name,
   fullAccess,
@@ -140,6 +142,8 @@ export function Sidebar({
   isOps?: boolean;
   // a Founder: Home, and Performance (grading is theirs)
   isFounder?: boolean;
+  // everyone a Level 1 can view the app as (null for anyone else)
+  viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;
@@ -164,6 +168,7 @@ export function Sidebar({
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [viewAsOpen, setViewAsOpen] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const [photoState, setPhotoState] = useState<string | null>(null);
   const hasPhoto = !!usePhoto(name);
@@ -503,6 +508,34 @@ export function Sidebar({
               </button>
             )}
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
+            {/* Level 1: the app as someone else sees it */}
+            {viewAsPeople && (
+              <>
+                <button type="button" onClick={() => setViewAsOpen((v) => !v)} className="menu-item px-2.5 py-2 text-sm">
+                  <Eye size={15} />
+                  View as
+                </button>
+                {viewAsOpen && (
+                  <div className="fade-in mx-1 mb-1 max-h-56 overflow-y-auto rounded-xl bg-white/[0.03] p-1">
+                    {viewAsPeople.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={async () => {
+                          await viewAs(p.id);
+                          router.replace("/");
+          router.refresh();
+                        }}
+                        className="menu-item justify-between px-2.5 py-1.5 text-sm"
+                      >
+                        <span className="truncate">{p.name}</span>
+                        <span className="shrink-0 text-xs text-muted">{p.level}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
             {/* admin-only: what the app is joined up to outside itself */}
             {fullAccess && (
               <PrefetchLink

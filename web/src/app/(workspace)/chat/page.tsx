@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUserId } from "@/lib/auth";
+import { getRealUserId as getSessionUserId } from "@/lib/auth";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { listConversations } from "../presence/actions";
 import { ChatDashboard, type ChatPerson } from "./ChatDashboard";

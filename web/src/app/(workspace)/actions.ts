@@ -117,7 +117,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: TYPE_NEEDED };
   }
   // its kind of work decides how it moves and whose department it's in
-  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("workflow") ?? ""));
+  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("workflow") ?? ""), String(formData.get("roleId") ?? "") || undefined);
 
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
@@ -163,13 +163,15 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 // A task's workflow and department, from its kind of work: the first kind
 // that has them, else the assignee's department (or Production, where the
 // editing queue lives). Exported for My tasks, which adds client work too.
-export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string): Promise<{ workflow: Workflow; teamId: string | null }> {
-  const [tags, assignee, production] = await Promise.all([
+export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string, roleId?: string): Promise<{ workflow: Workflow; teamId: string | null }> {
+  const [tags, assignee, production, role] = await Promise.all([
     tagIds.length ? prisma.taskTag.findMany({ where: { id: { in: tagIds } }, select: { workflow: true, teamId: true, sortOrder: true }, orderBy: { sortOrder: "asc" } }) : [],
     assignedToId ? prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true } }) : null,
     prisma.team.findUnique({ where: { slug: "production" }, select: { id: true } }),
+    // a role picked with no kind of work of its own
+    roleId ? prisma.jobTitle.findUnique({ where: { id: roleId }, select: { workflow: true, teamId: true } }) : null,
   ]);
-  const kind = tags[0];
+  const kind = tags[0] ?? role;
   return { workflow: workflowOf(kind?.workflow ?? fallback), teamId: kind?.teamId ?? assignee?.teamId ?? production?.id ?? null };
 }
 
@@ -814,7 +816,7 @@ export async function pushToNotion(): Promise<NotionSyncResult> {
           { notionPageId: { not: null } },
           // and anything still live that belongs there but isn't yet: the
           // same people as pushesToNotion — Production and Client success
-          { status: { in: ACTIVE_STATUSES }, workflow: "video", assignedTo: { team: { slug: { in: ["production", "client-success"] } } } },
+          { status: { in: ACTIVE_STATUSES }, workflow: "video", assignedTo: { team: { slug: { in: ["production", "client-services"] } } } },
         ],
       },
       select: { id: true, title: true, notionPageId: true },

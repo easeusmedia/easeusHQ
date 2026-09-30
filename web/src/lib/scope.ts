@@ -5,10 +5,10 @@ import type { Role } from "@prisma/client";
 // Three levels, and every list in the app is filtered by exactly one rule
 // rather than each page inventing its own:
 //
-//   Founder (admin)  → everything, everyone's work
-//   Lead (core)      → the work in the departments they've been given, of
-//                      everyone but the Founders
-//   Member (employee)→ their own work only
+//   Level 1 (admin)    → everything, everyone's work
+//   Level 2 (core)     → the work in the departments they've been given, of
+//                        everyone but Level 1
+//   Level 3 (employee) → their own work only
 //
 // Nobody sees upward: a Lead never sees a Founder's work or access, and a
 // Member sees no one else's. Departments are the unit a Lead sees by; a
@@ -22,7 +22,7 @@ export type Viewer = {
   departments: { id: string; slug: string }[];
 };
 
-export const LEVEL_LABEL: Record<Role, string> = { admin: "Founder", core: "Lead", employee: "Member" };
+export const LEVEL_LABEL: Record<Role, string> = { admin: "Level 1", core: "Level 2", employee: "Level 3" };
 export const LEVEL_NOTE: Record<Role, string> = {
   admin: "Sees and runs everything",
   core: "Sees and assigns the work in their departments",
@@ -30,8 +30,9 @@ export const LEVEL_NOTE: Record<Role, string> = {
 };
 
 // The departments the app's own features are built on: the editing queue
-// is Production's, clients and their feedback are Client success's.
-export const DEPT = { production: "production", clientSuccess: "client-success", sales: "sales" } as const;
+// is Production's; clients, their feedback and posting dates are Client
+// Services', Marketing & Growth's and Operations'.
+export const DEPT = { production: "production", clientServices: "client-services", growth: "growth", operations: "operations", sales: "sales" } as const;
 
 export const isFounder = (u: { role: string }) => u.role === "admin";
 export const isLead = (u: { role: string }) => u.role === "core";
@@ -44,10 +45,10 @@ export function seesEveryTeam(user: { role: string }): boolean {
   return isFounder(user);
 }
 
-// Clients' feedback, posting dates and client records: Founders, and the
-// Leads of Client success.
+// Clients' feedback, posting dates and client records: Level 1, and the
+// Leads of Client Services, Marketing & Growth and Operations.
 export function runsClients(user: Pick<Viewer, "role" | "departments">): boolean {
-  return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.clientSuccess));
+  return isFounder(user) || (isLead(user) && [DEPT.clientServices, DEPT.growth, DEPT.operations].some((d) => inDepartment(user, d)));
 }
 
 // The editing queue, to see and hand out: Founders, and Production's Leads.

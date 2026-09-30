@@ -69,6 +69,31 @@ export function stageLabel(status: TaskStatus, workflow?: string | null): string
   return NAMES[workflowOf(workflow)]?.[status] ?? STAGE[status].label;
 }
 
+// What each stage means, in a line: shown on hover and in the stage menu,
+// so nobody has to guess what "Final export ready" asks of them
+const MEANING: Record<string, Partial<Record<TaskStatus, string>>> = {
+  video: {
+    queued: "Assigned, and waiting for the editor to start.",
+    editing: "The editor is working on it.",
+    sent_for_approval: "The editor has handed in a cut, waiting for our review.",
+    revision_requested: "Sent back with changes to make.",
+    sent_for_client_approval: "Passed our review. The client is looking at it.",
+    final_export_ready: "The client approved it. The final file is being exported.",
+    delivered_and_uploaded: "Finished: the final file is uploaded for the client.",
+  },
+  design: {
+    queued: "Assigned, and waiting for the designer to start.",
+    editing: "The designer is working on it.",
+    sent_for_approval: "The designer has handed it in, waiting for our review.",
+    revision_requested: "Sent back with changes to make.",
+    delivered_and_uploaded: "Approved and exported. Done.",
+  },
+  todo: { queued: "Not done yet.", delivered_and_uploaded: "Done." },
+};
+export function stageMeaning(status: TaskStatus, workflow?: string | null): string {
+  return MEANING[workflowOf(workflow)]?.[status] ?? MEANING.video[status] ?? "";
+}
+
 // ---- the activity log's stage lines ----
 //
 // A stage change is stored as one string: "queued → editing". A sync writes

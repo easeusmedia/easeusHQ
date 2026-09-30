@@ -70,6 +70,8 @@ async function projectFor(input: { clientId?: string; projectId?: string }): Pro
 
 export async function createWorkTask(input: {
   assignedToId?: string;
+  // a role picked with no kind of work of its own: its department
+  roleId?: string;
   title: string;
   notes: string;
   tagIds?: string[];
@@ -93,7 +95,7 @@ export async function createWorkTask(input: {
       links: cleanLinks(input.links),
       attachments: input.attachments,
       tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
-      teamId: await departmentOf(input.tagIds ?? [], assignedToId),
+      teamId: input.roleId && !input.tagIds?.length ? ((await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { teamId: true } }))?.teamId ?? null) : await departmentOf(input.tagIds ?? [], assignedToId),
       createdById: me.id,
       assignedToId,
       sortOrder: Date.now(),
@@ -149,7 +151,7 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
               assignedTo: {
                 OR: [
                   { notionWorkbookDbId: { not: null } },
-                  { team: { slug: { in: ["production", "client-success"] } } },
+                  { team: { slug: { in: ["production", "client-services"] } } },
                 ],
               },
             },

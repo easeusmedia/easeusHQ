@@ -61,12 +61,13 @@ export type Option = { id: string; name: string; slug?: string };
 // a department, and a position filed under one (none: leadership), with how
 // many current people each has
 export type Department = Option & { people: number };
-export type Position = { id: string; name: string; teamId: string | null; people: number };
+// a role, in its department, with how its tasks move
+export type Position = { id: string; name: string; teamId: string | null; people: number; workflow?: string };
 // a kind of work a department's tasks are labelled with, and how many use it
 export type WorkTag = { id: string; name: string; teamId: string | null; uses: number; roleId?: string | null; workflow?: string };
 
 const FORMER = "Former employees";
-const ADMIN = "Founders";
+const ADMIN = "Level 1";
 
 export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
   active: "Active",
@@ -76,14 +77,14 @@ export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
 
 // a level's name (lib/scope LEVEL_LABEL), and what it reaches
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: "Founder",
-  core: "Lead",
-  employee: "Member",
+  admin: "Level 1",
+  core: "Level 2",
+  employee: "Level 3",
 };
 export const ROLE_REACH: Record<Role, string> = {
-  admin: "Founder: Everything",
-  core: "Lead: Their departments",
-  employee: "Member: Their own work",
+  admin: "Level 1: Everything",
+  core: "Level 2: Their departments",
+  employee: "Level 3: Their own work",
 };
 
 // a person's photo (or initials) and online dot — the shared avatar

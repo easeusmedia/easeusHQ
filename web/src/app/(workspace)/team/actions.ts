@@ -7,7 +7,7 @@ import { getViewer } from "@/lib/viewer";
 import { isStorablePicture } from "@/lib/photos";
 import { revalidatePath } from "next/cache";
 import type { EmploymentStatus, Role } from "@prisma/client";
-import { departmentFor, EMPLOYMENT_TYPE_LABEL, slugOf } from "@/lib/teams";
+import { EMPLOYMENT_TYPE_LABEL, slugOf } from "@/lib/teams";
 
 export type PeopleFormState = { error?: string; success?: boolean };
 
@@ -33,7 +33,7 @@ export async function updatePersonPhoto(userId: string, dataUrl: string | null):
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) return { error: "Your session has ended. Please sign in again." };
   if (userId !== sessionUserId && !(await requirePeopleAdmin())) {
-    return { error: "Only the admin can change someone else's photo." };
+    return { error: "Only Level 1 can change someone else's photo." };
   }
   if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That image couldn't be used. Please try a JPEG or PNG." };
 
@@ -56,8 +56,6 @@ export async function updatePerson(input: {
   email: string;
   phone: string;
   role: string;
-  teamId: string;
-  jobTitleId: string;
   joinedAt: string;
   salary: string;
   employment: string;
@@ -67,7 +65,7 @@ export async function updatePerson(input: {
   notes: string;
 }): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can change someone's record." };
+  if (!actor) return { error: "Only Level 1 can change someone's record." };
 
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
@@ -77,10 +75,10 @@ export async function updatePerson(input: {
   if (!EMPLOYMENT.includes(input.employment as EmploymentStatus)) return { error: "That isn't a valid status." };
   if (input.employmentType && !EMPLOYMENT_TYPES.includes(input.employmentType)) return { error: "That isn't a valid employment type." };
 
-  // Nobody can strip their own admin access — one misclick would lock the
+  // Nobody can strip their own Level 1 — one misclick would lock the
   // only person who can undo it out of the thing they'd need to undo it.
   if (input.id === actor.id && input.role !== "admin" && actor.role === "admin") {
-    return { error: "You can't remove your own admin access." };
+    return { error: "You can't take away your own Level 1." };
   }
 
   const clash = await prisma.user.findFirst({ where: { email, id: { not: input.id } }, select: { id: true } });
@@ -89,10 +87,6 @@ export async function updatePerson(input: {
   const salary = input.salary.trim() ? Number(input.salary.replace(/[^0-9.]/g, "")) : null;
   if (salary !== null && !Number.isFinite(salary)) return { error: "That salary isn't a number." };
 
-  // the position decides the department (lib/teams), whatever was sent
-  const position = input.jobTitleId ? await prisma.jobTitle.findUnique({ where: { id: input.jobTitleId }, select: { teamId: true } }) : null;
-  if (input.jobTitleId && !position) return { error: "That position no longer exists." };
-
   await prisma.user.update({
     where: { id: input.id },
     data: {
@@ -100,8 +94,6 @@ export async function updatePerson(input: {
       email,
       phone: input.phone.trim() || null,
       role: input.role as Role,
-      teamId: departmentFor(input.role, position?.teamId, input.teamId || null),
-      jobTitleId: input.jobTitleId || null,
       joinedAt: day(input.joinedAt),
       salary,
       employment: input.employment as EmploymentStatus,
@@ -140,12 +132,17 @@ export async function setAccess(personId: string, input: { departmentIds: string
   ]);
   // a Lead changes only what's within their departments
   const yours = (teamId: string | null) => founder || (!!teamId && mine.has(teamId));
-  const departmentIds = [...target.departments.map((d) => d.id).filter((id) => !yours(id)), ...teams.map((t) => t.id).filter(yours)];
-  const roleIds = [...target.roles.filter((r) => !yours(r.teamId)).map((r) => r.id), ...roles.filter((r) => yours(r.teamId)).map((r) => r.id)];
+  const departmentIds = [...new Set([...target.departments.map((d) => d.id).filter((id) => !yours(id)), ...teams.map((t) => t.id).filter(yours)])];
+  // a role only ever sits inside one of their departments
+  const roleIds = [...new Set([...target.roles.filter((r) => !yours(r.teamId)).map((r) => r.id), ...roles.filter((r) => yours(r.teamId)).map((r) => r.id)])].filter((id) =>
+    departmentIds.includes([...target.roles, ...roles].find((r) => r.id === id)?.teamId ?? "")
+  );
+  // the department they're shown under: the one they had, while they're still in it
+  const teamId = target.teamId && departmentIds.includes(target.teamId) ? target.teamId : (departmentIds[0] ?? null);
 
   await prisma.user.update({
     where: { id: personId },
-    data: { departments: { set: [...new Set(departmentIds)].map((id) => ({ id })) }, roles: { set: [...new Set(roleIds)].map((id) => ({ id })) } },
+    data: { teamId, departments: { set: departmentIds.map((id) => ({ id })) }, roles: { set: roleIds.map((id) => ({ id })) } },
   });
   revalidatePath("/team");
   return { success: true };
@@ -160,9 +157,9 @@ export async function setAccess(personId: string, input: { departmentIds: string
 // is simply picked rather than refused. No department: a leadership title.
 export async function createJobTitle(name: string, teamId: string | null): Promise<PeopleFormState & { id?: string; name?: string; teamId?: string | null }> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can add a position." };
+  if (!actor) return { error: "Only Level 1 can add a role." };
   const trimmed = name.trim();
-  if (!trimmed) return { error: "Give the position a name." };
+  if (!trimmed) return { error: "Give the role a name." };
 
   const existing = await prisma.jobTitle.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" } } });
   if (existing) return { success: true, id: existing.id, name: existing.name, teamId: existing.teamId };
@@ -175,7 +172,7 @@ export async function createJobTitle(name: string, teamId: string | null): Promi
 
 export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can remove a position." };
+  if (!actor) return { error: "Only Level 1 can remove a role." };
 
   // Unset it from whoever holds it rather than refusing: the title is a
   // label, and blocking the delete would mean hunting down every holder
@@ -189,7 +186,7 @@ export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
 // core members see its work, and its task tags are offered to it.
 export async function createDepartment(name: string): Promise<PeopleFormState & { id?: string; name?: string; slug?: string }> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can add a department." };
+  if (!actor) return { error: "Only Level 1 can add a department." };
   const trimmed = name.trim();
   const slug = slugOf(trimmed);
   if (!slug) return { error: "Give the department a name." };
@@ -208,12 +205,13 @@ export async function createDepartment(name: string): Promise<PeopleFormState & 
 // them. Its roles go with it; its kinds of work become shared by everyone.
 export async function deleteDepartment(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can remove a department." };
-  const team = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { members: true } } } });
+  if (!actor) return { error: "Only Level 1 can remove a department." };
+  const team = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { members: true, access: true } } } });
   if (!team) return { success: true };
-  if (team.slug === "production" || team.slug === "client-success") return { error: `${team.name} can't be removed: the ${team.slug === "production" ? "editing queue" : "client work"} runs on it.` };
-  if (team._count.members) {
-    return { error: `${team.name} still has ${team._count.members} ${team._count.members === 1 ? "person" : "people"}. Move them to another department first.` };
+  const inIt = Math.max(team._count.members, team._count.access);
+  if (team.slug === "production" || team.slug === "client-services") return { error: `${team.name} can't be removed: the ${team.slug === "production" ? "editing queue" : "client work"} runs on it.` };
+  if (inIt) {
+    return { error: `${team.name} still has ${inIt} ${inIt === 1 ? "person" : "people"}. Take them out of it first.` };
   }
 
   await prisma.$transaction([
@@ -227,9 +225,9 @@ export async function deleteDepartment(id: string): Promise<PeopleFormState> {
 // A department's work tags: the kinds of work its tasks are labelled with
 // ("Reel", "Proposal"), offered on the Type chip to that department. Same
 // rule as positions: one of the same name anywhere is refused, not doubled.
-export async function createWorkTag(name: string, teamId: string): Promise<PeopleFormState & { id?: string; name?: string }> {
+export async function createWorkTag(name: string, teamId: string, roleId?: string): Promise<PeopleFormState & { id?: string; name?: string; workflow?: string }> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can add a work tag." };
+  if (!actor) return { error: "Only Level 1 can add a work tag." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the work tag a name." };
 
@@ -238,30 +236,29 @@ export async function createWorkTag(name: string, teamId: string): Promise<Peopl
   if (!(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
 
   const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
-  // a new kind in a department that isn't Production is a to-do by default
-  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { slug: true } });
-  const created = await prisma.taskTag.create({ data: { name: trimmed, teamId, workflow: team?.slug === "production" ? "video" : "todo", sortOrder: (last?.sortOrder ?? 0) + 1 } });
-  return { success: true, id: created.id, name: created.name };
+  // it moves as its role's tasks do
+  const role = roleId ? await prisma.jobTitle.findUnique({ where: { id: roleId }, select: { workflow: true } }) : null;
+  const created = await prisma.taskTag.create({ data: { name: trimmed, teamId, roleId: role ? roleId : null, workflow: role?.workflow ?? "todo", sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  return { success: true, id: created.id, name: created.name, workflow: created.workflow };
 }
 
-// Which role does a kind of work, and how its tasks move (video, design or
-// todo). Tasks already made keep the workflow they started with.
-export async function updateWorkTag(id: string, input: { roleId?: string | null; workflow?: string }): Promise<PeopleFormState> {
+// How a role's tasks move (video, design or todo), and so its kinds of
+// work's. Tasks already made keep the stages they started with.
+export async function setRoleWorkflow(id: string, workflow: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only a Founder can change a kind of work." };
-  if (input.workflow !== undefined && !["video", "design", "todo"].includes(input.workflow)) return { error: "That isn't a workflow." };
-  if (input.roleId && !(await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { id: true } }))) return { error: "That role no longer exists." };
-  await prisma.taskTag.update({
-    where: { id },
-    data: { ...(input.roleId !== undefined ? { roleId: input.roleId } : {}), ...(input.workflow !== undefined ? { workflow: input.workflow } : {}) },
-  });
+  if (!actor) return { error: "Only Level 1 can change a role." };
+  if (!["video", "design", "todo"].includes(workflow)) return { error: "That isn't a workflow." };
+  await prisma.$transaction([
+    prisma.jobTitle.update({ where: { id }, data: { workflow } }),
+    prisma.taskTag.updateMany({ where: { roleId: id }, data: { workflow } }),
+  ]);
   return { success: true };
 }
 
 // Every task tagged with it loses the tag; the tasks themselves stay.
 export async function deleteWorkTag(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only the admin can remove a work tag." };
+  if (!actor) return { error: "Only Level 1 can remove a work tag." };
   await prisma.taskTag.deleteMany({ where: { id } });
   return { success: true };
 }

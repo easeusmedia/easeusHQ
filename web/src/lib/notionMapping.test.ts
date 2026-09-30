@@ -30,7 +30,7 @@ test("whichever link exists is used when only one is set", () => {
 
 test("only Operations, and not the admin, mirrors into the Editing Queue", () => {
   assert.equal(pushesToNotion({ role: "employee", teamSlug: "production" }), true); // editors
-  assert.equal(pushesToNotion({ role: "core", teamSlug: "client-success" }), true); // Jyotsna, Arpit
+  assert.equal(pushesToNotion({ role: "core", teamSlug: "client-services" }), true); // Jyotsna, Arpit
   assert.equal(pushesToNotion({ role: "admin", teamSlug: "production" }), true); // Abhishek
   assert.equal(pushesToNotion({ role: "admin", teamSlug: null }), false); // Ashmit
   assert.equal(pushesToNotion({ role: "core", teamSlug: "sales" }), false); // Pankaj

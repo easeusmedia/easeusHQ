@@ -4,8 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
-import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, updateWorkTag } from "./actions";
-import { Dropdown } from "../Dropdown";
+import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, setRoleWorkflow } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
 
@@ -13,7 +12,7 @@ const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
 // A button that turns into a field: Enter adds, Escape (or leaving it empty)
 // puts the button back. Escape is kept from closing the dialog around it.
-function AddInline({ label, onAdd }: { label: string; onAdd: (name: string) => Promise<string | undefined> }) {
+function AddInline({ label, onAdd, small }: { label: string; onAdd: (name: string) => Promise<string | undefined>; small?: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,9 +28,10 @@ function AddInline({ label, onAdd }: { label: string; onAdd: (name: string) => P
     }
   }
 
+  const size = small ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs";
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted transition-colors hover:border-hover hover:text-foreground">
+      <button type="button" onClick={() => setOpen(true)} className={`flex items-center gap-1 rounded-full border border-dashed border-border text-muted transition-colors hover:border-hover hover:text-foreground ${size}`}>
         <Plus size={11} /> {label}
       </button>
     );
@@ -54,51 +54,8 @@ function AddInline({ label, onAdd }: { label: string; onAdd: (name: string) => P
         }
       }}
       placeholder={`${label}, then Enter`}
-      className="w-48 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-hover disabled:opacity-60"
+      className={`w-48 rounded-full border border-border bg-surface-2 text-foreground outline-none focus:border-hover disabled:opacity-60 ${size}`}
     />
-  );
-}
-
-// A labelled row of removable chips, with a way to add another.
-function ChipRow({
-  label,
-  items,
-  count,
-  confirm,
-  onRemove,
-  add,
-  onAdd,
-}: {
-  label: string;
-  items: { id: string; name: string }[];
-  // the small number beside a chip, when there's one worth showing
-  count: (id: string) => number;
-  confirm: (item: { id: string; name: string }) => string;
-  onRemove: (id: string) => void;
-  add: string;
-  onAdd: (name: string) => Promise<string | undefined>;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-[11px] font-medium text-muted/70">{label}</p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {items.map((t) => (
-          <span key={t.id} className="group flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs">
-            {t.name}
-            {count(t.id) > 0 && <span className="text-muted">{count(t.id)}</span>}
-            <ConfirmButton
-              confirm="Remove"
-              message={confirm(t)}
-              className="text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
-              onConfirm={() => onRemove(t.id)}
-            >
-              <X size={11} />
-            </ConfirmButton>
-          </span>
-        ))}
-        <AddInline label={add} onAdd={onAdd} />
-      </div>
-    </div>
   );
 }
 
@@ -107,64 +64,15 @@ const FLOWS = [
   ["design", "Design"],
   ["todo", "To-do"],
 ] as const;
+const FLOW_NOTE: Record<string, string> = {
+  video: "Its tasks go through the editing stages, graded on first review",
+  design: "Its tasks go from queued to final export, graded on first review",
+  todo: "Its tasks are to-dos, ticked off when done",
+};
 
-// A kind of work: which of its department's roles does it, and how its
-// tasks move (the Video stages, the Design stages, or a to-do)
-function KindRow({
-  tag,
-  roles,
-  message,
-  onChange,
-  onRemove,
-}: {
-  tag: WorkTag;
-  roles: { id: string; name: string }[];
-  message: string;
-  onChange: (patch: { roleId?: string | null; workflow?: string }) => void;
-  onRemove: () => void;
-}) {
-  const flow = tag.workflow ?? "video";
-  return (
-    <div className="group flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-surface-2/40 px-2.5 py-1.5 text-xs">
-      <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-      <div className="w-36">
-        <Dropdown
-          size="sm"
-          value={tag.roleId ?? ""}
-          placeholder="No role"
-          onChange={(v) => onChange({ roleId: v || null })}
-          options={[{ value: "", label: "No role" }, ...roles.map((r) => ({ value: r.id, label: r.name }))]}
-        />
-      </div>
-      <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Stages">
-        {FLOWS.map(([w, label]) => (
-          <button
-            key={w}
-            type="button"
-            aria-pressed={flow === w}
-            onClick={() => flow !== w && onChange({ workflow: w })}
-            className={`rounded px-1.5 py-0.5 transition-colors ${flow === w ? "bg-white/[0.08] text-foreground" : "text-muted hover:text-foreground"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <ConfirmButton
-        confirm="Remove"
-        message={message}
-        className="text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
-        onConfirm={onRemove}
-      >
-        <X size={11} />
-      </ConfirmButton>
-    </div>
-  );
-}
-
-// How the agency is laid out: its departments, and in each the positions
-// people hold and the work tags its tasks are labelled with. Leadership
-// titles (no department) span the whole company. Changes save as they're
-// made and are kept here; the page refreshes once, on closing.
+// How the agency is laid out: its departments, each with its roles, and each
+// role with how its tasks move and the kinds of work "Add task" offers for
+// it. Changes save as they're made; the page refreshes once, on closing.
 export function Organisation({
   departments,
   positions,
@@ -181,98 +89,86 @@ export function Organisation({
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [teams, setTeams] = useState(departments);
-  const [titles, setTitles] = useState(positions);
+  const [roles, setRoles] = useState(positions);
   const [tags, setTags] = useState(workTags);
   const [changed, setChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function open() {
     setTeams(departments);
-    setTitles(positions);
+    setRoles(positions);
     setTags(workTags);
     setChanged(false);
     setError(null);
     ref.current?.showModal();
   }
 
-  // the reason it wasn't added, shown and handed back so the field stays open
+  // the reason it wasn't done, shown and handed back so a field stays open
   function fail(message: string) {
     setError(message);
     return message;
   }
-
-  async function addPosition(name: string, teamId: string | null) {
-    const res = await createJobTitle(name, teamId);
-    if (res.error || !res.id) return fail(res.error ?? "That position couldn't be added.");
-    if (res.teamId !== teamId) return fail(`"${res.name}" already exists, under ${teams.find((t) => t.id === res.teamId)?.name ?? "Leadership"}.`);
+  function done() {
     setError(null);
     setChanged(true);
-    setTitles((all) => (all.some((t) => t.id === res.id) ? all : [...all, { id: res.id!, name: res.name!, teamId, people: 0 }]));
-  }
-
-  async function removePosition(id: string) {
-    const res = await deleteJobTitle(id);
-    if (res.error) return setError(res.error);
-    setChanged(true);
-    setTitles((all) => all.filter((t) => t.id !== id));
-  }
-
-  async function addTag(name: string, teamId: string) {
-    const res = await createWorkTag(name, teamId);
-    if (res.error || !res.id) return fail(res.error ?? "That work tag couldn't be added.");
-    setError(null);
-    setChanged(true);
-    setTags((all) => [...all, { id: res.id!, name: res.name!, teamId, uses: 0, roleId: null, workflow: teams.find((t) => t.id === teamId)?.slug === "production" ? "video" : "todo" }]);
-  }
-
-  async function changeTag(id: string, patch: { roleId?: string | null; workflow?: string }) {
-    const before = tags;
-    setTags((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    const res = await updateWorkTag(id, patch);
-    if (res.error) {
-      setTags(before);
-      return setError(res.error);
-    }
-    setError(null);
-    setChanged(true);
-  }
-
-  async function removeTag(id: string) {
-    const res = await deleteWorkTag(id);
-    if (res.error) return setError(res.error);
-    setChanged(true);
-    setTags((all) => all.filter((t) => t.id !== id));
   }
 
   async function addDepartment(name: string) {
     const res = await createDepartment(name);
     if (res.error || !res.id) return fail(res.error ?? "That department couldn't be added.");
-    setError(null);
-    setChanged(true);
+    done();
     setTeams((all) => [...all, { id: res.id!, name: res.name!, slug: res.slug, people: 0 }]);
   }
-
   async function removeDepartment(id: string) {
     const res = await deleteDepartment(id);
     if (res.error) return setError(res.error);
-    setChanged(true);
+    done();
     setTeams((all) => all.filter((t) => t.id !== id));
-    setTitles((all) => all.filter((t) => t.teamId !== id));
+    setRoles((all) => all.filter((r) => r.teamId !== id));
     setTags((all) => all.map((t) => (t.teamId === id ? { ...t, teamId: null } : t)));
   }
+  async function addRole(name: string, teamId: string) {
+    const res = await createJobTitle(name, teamId);
+    if (res.error || !res.id) return fail(res.error ?? "That role couldn't be added.");
+    if (res.teamId !== teamId) return fail(`"${res.name}" already exists, under ${teams.find((t) => t.id === res.teamId)?.name ?? "another department"}.`);
+    done();
+    setRoles((all) => (all.some((r) => r.id === res.id) ? all : [...all, { id: res.id!, name: res.name!, teamId, people: 0, workflow: "todo" }]));
+  }
+  async function removeRole(id: string) {
+    const res = await deleteJobTitle(id);
+    if (res.error) return setError(res.error);
+    done();
+    setRoles((all) => all.filter((r) => r.id !== id));
+    setTags((all) => all.map((t) => (t.roleId === id ? { ...t, roleId: null } : t)));
+  }
+  async function changeFlow(id: string, workflow: string) {
+    const before = { roles, tags };
+    setRoles((all) => all.map((r) => (r.id === id ? { ...r, workflow } : r)));
+    setTags((all) => all.map((t) => (t.roleId === id ? { ...t, workflow } : t)));
+    const res = await setRoleWorkflow(id, workflow);
+    if (res.error) {
+      setRoles(before.roles);
+      setTags(before.tags);
+      return setError(res.error);
+    }
+    done();
+  }
+  async function addKind(name: string, role: Position) {
+    const res = await createWorkTag(name, role.teamId!, role.id);
+    if (res.error || !res.id) return fail(res.error ?? "That kind of work couldn't be added.");
+    done();
+    setTags((all) => [...all, { id: res.id!, name: res.name!, teamId: role.teamId, uses: 0, roleId: role.id, workflow: res.workflow }]);
+  }
+  async function removeKind(id: string) {
+    const res = await deleteWorkTag(id);
+    if (res.error) return setError(res.error);
+    done();
+    setTags((all) => all.filter((t) => t.id !== id));
+  }
 
-  const holders = (id: string) => titles.find((t) => t.id === id)?.people ?? 0;
-  const uses = (id: string) => tags.find((t) => t.id === id)?.uses ?? 0;
-  const positionMessage = (t: { id: string; name: string }) =>
-    `Remove the role "${t.name}"?${holders(t.id) ? ` ${people(holders(t.id))} will lose it; their level and department stay as they are.` : ""}`;
-  const tagMessage = (t: { id: string; name: string }) =>
-    `Remove the kind of work "${t.name}"?${uses(t.id) ? ` ${uses(t.id)} ${uses(t.id) === 1 ? "task loses it" : "tasks lose it"}; the tasks stay.` : ""}`;
-  const shared = tags.filter((t) => !t.teamId);
-
-  const sections = [
-    { id: null, name: "Leadership", note: "Spans the whole company", removable: false },
-    ...teams.map((t) => ({ id: t.id, name: t.name, note: people(t.people), removable: t.slug !== "production" && t.slug !== "client-success" && t.people === 0 })),
-  ];
+  const kindMessage = (t: WorkTag) =>
+    `Remove "${t.name}"?${t.uses ? ` ${t.uses} ${t.uses === 1 ? "task loses it" : "tasks lose it"}; the tasks stay.` : ""}`;
+  const roleMessage = (r: Position) => `Remove the role "${r.name}"?${r.people ? ` ${people(r.people)} will lose it.` : ""}`;
 
   return (
     <>
@@ -283,93 +179,102 @@ export function Organisation({
         ref={ref}
         {...closeOnBackdrop}
         onClose={() => changed && router.refresh()}
-        className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(40rem,calc(100vh-2rem))] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(44rem,calc(100vh-2rem))] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-background/80 px-5 py-4 backdrop-blur">
           <div>
-            <h2 className="text-base font-semibold">Departments</h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Each role belongs to a department. Each kind of work is done by a role, and moves through the Video stages, the Design stages, or as a to-do. Leadership titles span the whole company.
-            </p>
+            <h2 className="text-base font-semibold">Departments and roles</h2>
+            <p className="mt-0.5 text-xs text-muted">Each department has its roles. A role decides how its tasks move, and its kinds of work are what Add task offers the people who hold it.</p>
           </div>
           <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="rounded-md p-1 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
             <X size={16} />
           </button>
         </header>
 
-        <div className="flex flex-col divide-y divide-border">
-          {sections.map((s) => (
-            <section key={s.id ?? "leadership"} className="px-5 py-4">
-              <div className="mb-2.5 flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">
-                  {s.name} <span className="ml-1 text-xs font-normal text-muted">{s.note}</span>
-                </p>
-                {s.removable && (
-                  <ConfirmButton
-                    confirm="Remove"
-                    message={`Remove the ${s.name} department and its roles? Its kinds of work stay, shared by every department.`}
-                    className="rounded-md p-1 text-muted transition-colors hover:text-red-400"
-                    onConfirm={() => removeDepartment(s.id!)}
-                  >
-                    <Trash2 size={13} />
-                  </ConfirmButton>
-                )}
-              </div>
-              <div className="flex flex-col gap-3">
-                <ChipRow
-                  label={s.id ? "Roles" : "Titles"}
-                  items={titles.filter((t) => t.teamId === s.id)}
-                  count={holders}
-                  confirm={positionMessage}
-                  onRemove={removePosition}
-                  add={s.id ? "Add role" : "Add title"}
-                  onAdd={(name) => addPosition(name, s.id)}
-                />
-                {s.id && (
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[11px] font-medium text-muted/70">Kinds of work</p>
-                    {tags
-                      .filter((t) => t.teamId === s.id)
-                      .map((t) => (
-                        <KindRow
-                          key={t.id}
-                          tag={t}
-                          roles={titles.filter((r) => r.teamId === s.id)}
-                          message={tagMessage(t)}
-                          onChange={(patch) => changeTag(t.id, patch)}
-                          onRemove={() => removeTag(t.id)}
-                        />
-                      ))}
-                    <AddInline label="Add kind of work" onAdd={(name) => addTag(name, s.id!)} />
-                  </div>
-                )}
-              </div>
-            </section>
-          ))}
-          {/* from before tags belonged to a department, or a removed one's */}
-          {shared.length > 0 && (
-            <section className="px-5 py-4">
-              <p className="mb-2.5 text-sm font-medium">
-                Every department <span className="ml-1 text-xs font-normal text-muted">Offered to everyone</span>
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {shared.map((t) => (
-                  <span key={t.id} className="group flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs">
-                    {t.name}
+        <div className="flex flex-col gap-3 p-4">
+          {teams.map((t) => {
+            const inTeam = roles.filter((r) => r.teamId === t.id);
+            const removable = t.slug !== "production" && t.slug !== "client-services" && t.people === 0;
+            return (
+              <section key={t.id} className="rounded-xl border border-border bg-surface-2/30 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">
+                    {t.name} <span className="ml-1 text-xs font-normal text-muted">{people(t.people)}</span>
+                  </p>
+                  {removable && (
                     <ConfirmButton
                       confirm="Remove"
-                      message={tagMessage(t)}
-                      className="text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
-                      onConfirm={() => removeTag(t.id)}
+                      message={`Remove ${t.name} and its roles? Its kinds of work stay, shared by every department.`}
+                      className="rounded-md p-1 text-muted transition-colors hover:text-red-400"
+                      onConfirm={() => removeDepartment(t.id)}
                     >
-                      <X size={11} />
+                      <Trash2 size={13} />
                     </ConfirmButton>
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-          <div className="px-5 py-4">
+                  )}
+                </div>
+                <div className="flex flex-col divide-y divide-border/50">
+                  {inTeam.map((r) => {
+                    const flow = r.workflow ?? "todo";
+                    return (
+                      <div key={r.id} className="group flex flex-col gap-2 py-2.5 first:pt-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm">
+                            {r.name}
+                            {r.people > 0 && <span className="ml-1.5 text-xs text-muted">{people(r.people)}</span>}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex rounded-full border border-border p-0.5 text-[11px]" role="group" aria-label="How its tasks move" title={FLOW_NOTE[flow]}>
+                              {FLOWS.map(([w, label]) => (
+                                <button
+                                  key={w}
+                                  type="button"
+                                  aria-pressed={flow === w}
+                                  onClick={() => flow !== w && changeFlow(r.id, w)}
+                                  className={`rounded-full px-2 py-0.5 transition-colors ${flow === w ? "bg-white/[0.1] text-foreground" : "text-muted hover:text-foreground"}`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <ConfirmButton
+                              confirm="Remove"
+                              message={roleMessage(r)}
+                              className="rounded-md p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+                              onConfirm={() => removeRole(r.id)}
+                            >
+                              <X size={12} />
+                            </ConfirmButton>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {tags
+                            .filter((k) => k.roleId === r.id)
+                            .map((k) => (
+                              <span key={k.id} className="group/k flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-foreground/80">
+                                {k.name}
+                                <ConfirmButton
+                                  confirm="Remove"
+                                  message={kindMessage(k)}
+                                  className="text-muted opacity-0 transition-opacity group-hover/k:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+                                  onConfirm={() => removeKind(k.id)}
+                                >
+                                  <X size={10} />
+                                </ConfirmButton>
+                              </span>
+                            ))}
+                          <AddInline small label="Kind of work" onAdd={(name) => addKind(name, r)} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-2">
+                  <AddInline label="Add role" onAdd={(name) => addRole(name, t.id)} />
+                </div>
+              </section>
+            );
+          })}
+          <div className="pt-1">
             <AddInline label="Add department" onAdd={addDepartment} />
           </div>
         </div>

@@ -5,23 +5,27 @@ import type { TaskStatus } from "./workflow";
 // task board's equivalent of stages.ts, deliberately much shorter than the
 // client editing-queue pipeline (see the WorkTaskStatus comment in
 // schema.prisma for why these are two separate systems).
-export const WORK_TASK_STAGE: Record<WorkTaskStatus, { label: string; dot: string; pill: string }> = {
+export const WORK_TASK_STAGE: Record<WorkTaskStatus, { label: string; dot: string; pill: string; meaning: string }> = {
   todo: {
+    meaning: "Not started yet.",
     label: "Up next",
     dot: "bg-neutral-400",
     pill: "bg-surface text-muted border-border",
   },
   in_progress: {
+    meaning: "Being worked on.",
     label: "In progress",
     dot: "bg-blue-400",
     pill: "bg-blue-400/15 text-blue-300 border-blue-400/30",
   },
   in_review: {
+    meaning: "Done, and waiting for someone to check it.",
     label: "In review",
     dot: "bg-purple-400",
     pill: "bg-purple-400/15 text-purple-300 border-purple-400/30",
   },
   done: {
+    meaning: "Finished.",
     label: "Completed",
     dot: "bg-green-400",
     pill: "bg-green-400/15 text-green-300 border-green-400/30",

@@ -37,15 +37,14 @@ export const NOTION_STATUS: Record<TaskStatus, string> = {
   delivered_and_uploaded: "Delivered and uploaded",
 };
 
-// Whose work gets mirrored: Production and Client success, the people
-// who work the client queue — Abhishek, Jyotsna, Arpit and the editors —
-// but not Ashmit (in no department: he runs the place rather than working
-// the queue) and not Sales, whose work has no business in a database
-// called Editing Queue.
+// Whose work gets mirrored: Production and Client Services, the people who
+// work the client queue — Jyotsna, Arpit and the editors — but not Level 1
+// (in no department: they run the place rather than working the queue) and
+// not Sales, whose work has no business in a database called Editing Queue.
 //
 // Derived from department rather than a list of names, so someone joining
 // is covered without anyone remembering to add them here.
-const MIRRORED = ["production", "client-success"];
+const MIRRORED = ["production", "client-services"];
 export function pushesToNotion(user: { role: string; teamSlug: string | null }): boolean {
   return !!user.teamSlug && MIRRORED.includes(user.teamSlug);
 }

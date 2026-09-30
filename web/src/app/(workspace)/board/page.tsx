@@ -23,7 +23,7 @@ export default async function TasksPage({
   if (!viewer) redirect("/login");
   const member = isMember(viewer);
 
-  const [users, teams, rawProjects, tasks, kinds] = await Promise.all([
+  const [users, teams, rawProjects, tasks, kinds, held] = await Promise.all([
     getAllUsers(),
     prisma.team.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, slug: true, name: true } }),
     prisma.project.findMany({
@@ -40,7 +40,9 @@ export default async function TasksPage({
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
     }),
     // the kinds of work this person's roles offer, and the ones they may label with
-    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { role: { select: { holders: { where: { id: viewer.id }, select: { id: true } } } } } }),
+    prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    // how the roles this person holds move: which queues are theirs
+    prisma.jobTitle.findMany({ where: { holders: { some: { id: viewer.id } } }, select: { workflow: true } }),
   ]);
   // a project set up before names were required can still have "" — fall
   // back to its type so the new/reassign-task dropdown never shows a blank
@@ -60,7 +62,7 @@ export default async function TasksPage({
   // The switch: the Production queues (Video, Design) for whoever works or
   // runs them, then each department's work for whoever runs it. A Member
   // gets the queues their roles work in, and nothing else.
-  const mine = new Set(kinds.filter((k) => k.role?.holders.length).map((k) => k.workflow));
+  const mine = new Set(held.map((r) => r.workflow));
   const hasOwn = (w: string) => tasks.some((t) => t.workflow === w && t.assignedToId === viewer.id);
   const queue = (w: "video" | "design") => (member ? mine.has(w) || hasOwn(w) : runsProduction(viewer) || mine.has(w) || hasOwn(w));
   const teamScopes = member

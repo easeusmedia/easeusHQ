@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getRealUserId as getSessionUserId } from "@/lib/auth";
 import { runsClients } from "@/lib/scope";
 import { ACTIVE_WINDOW_MS } from "@/app/(workspace)/presence/constants";
 

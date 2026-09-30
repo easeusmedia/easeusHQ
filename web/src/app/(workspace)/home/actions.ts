@@ -29,3 +29,22 @@ export async function scheduleMeeting(input: { title: string; day: string; time:
   revalidatePath("/home");
   return {};
 }
+
+// A line on Home's Notices, for Level 1: a reminder, a deadline, anything
+export async function addNotice(body: string): Promise<{ error?: string }> {
+  const me = await getViewer();
+  if (!me || !isFounder(me)) return { error: "Only Level 1 can add a notice." };
+  const text = body.trim();
+  if (!text) return { error: "Write the notice first." };
+  await prisma.notice.create({ data: { body: text.slice(0, 500), by: me.name } });
+  revalidatePath("/home");
+  return {};
+}
+
+export async function clearNotice(id: string): Promise<{ error?: string }> {
+  const me = await getViewer();
+  if (!me || !isFounder(me)) return { error: "Only Level 1 can clear a notice." };
+  await prisma.notice.deleteMany({ where: { id } });
+  revalidatePath("/home");
+  return {};
+}

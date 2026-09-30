@@ -7,7 +7,7 @@ import { ChevronDown, CheckCircle2, Copy } from "lucide-react";
 import { moveTask } from "./actions";
 import { linkProblem, pickLink } from "@/lib/links";
 import { STATUS_STYLE, extraFieldFor } from "./TaskCard";
-import { stageLabel } from "@/lib/stages";
+import { stageLabel, stageMeaning } from "@/lib/stages";
 import { copyFrameioFileToDrive, frameioFileForTask, type DeliverableFile } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
 import { closeOnBackdrop } from "./dialog";
@@ -185,7 +185,8 @@ export function StatusSelect({
 
   // same escape as Dropdown: a board column scrolls its own cards, so an
   // absolute menu on a card near the bottom lost most of its options
-  const { position, place } = usePopover(Math.min(320, options.length * 30 + 8));
+  // each option is a name and a line on what it means
+  const { position, place } = usePopover(Math.min(420, options.length * 46 + 8));
   const close = useCallback(() => setOpen(false), []);
   useCloseOnScroll(open, close);
 
@@ -193,7 +194,7 @@ export function StatusSelect({
     if (open) return setOpen(false);
     // never narrower than the longest stage name; the pill's menu hangs from
     // its right edge, being wider than the pill
-    place(triggerRef.current, { width: 176, align: variant === "pill" ? "end" : "start" });
+    place(triggerRef.current, { width: 240, align: variant === "pill" ? "end" : "start" });
     setOpen(true);
   }
 
@@ -349,6 +350,7 @@ export function StatusSelect({
           aria-expanded={open}
           type="button"
           onClick={toggle}
+          title={stageMeaning(optimisticStatus, workflow)}
           className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[optimisticStatus]}`}
         >
           {stageLabel(optimisticStatus, workflow)}
@@ -365,9 +367,10 @@ export function StatusSelect({
                 key={to}
                 type="button"
                 onClick={() => pick(to)}
-                className="menu-item px-2.5 py-1.5 text-xs"
+                className="menu-item flex-col items-start gap-0 px-2.5 py-1.5 text-xs"
               >
                 {stageLabel(to, workflow)}
+                <span className="text-[11px] leading-snug text-muted">{stageMeaning(to, workflow)}</span>
               </button>
             ))}
           </div>
@@ -400,6 +403,7 @@ export function StatusSelect({
           aria-expanded={open}
         type="button"
         onClick={toggle}
+        title={stageMeaning(optimisticStatus, workflow)}
         className="btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1"
       >
         <span className="truncate">{stageLabel(optimisticStatus, workflow)}</span>
@@ -416,9 +420,10 @@ export function StatusSelect({
               key={to}
               type="button"
               onClick={() => pick(to)}
-              className="menu-item px-2.5 py-1.5 text-xs"
+              className="menu-item flex-col items-start gap-0 px-2.5 py-1.5 text-xs"
             >
               {stageLabel(to, workflow)}
+              <span className="text-[11px] leading-snug text-muted">{stageMeaning(to, workflow)}</span>
             </button>
           ))}
         </div>

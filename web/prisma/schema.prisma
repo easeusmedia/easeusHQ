@@ -79,6 +79,9 @@ model JobTitle {
   // work when they add a task. jobTitle stays the one shown under a name.
   holders   User[]    @relation("UserRoles")
   kinds     TaskTag[]
+  // how this role's tasks move: "video", "design" or "todo" (its kinds of
+  // work follow it; lib/workflow.ts)
+  workflow  String    @default("todo")
 }
 
 // A personal work item — "audio pass for this episode," "record intro VO"
@@ -1011,4 +1014,14 @@ model FeedbackSnapshot {
   entryId   String           @id
   image     Bytes
   createdAt DateTime         @default(now())
+}
+
+// Something a Level 1 wants in front of them on Home: a reminder, a
+// deadline, anything worth a line. Shown until it's cleared.
+model Notice {
+  id        String   @id @default(uuid())
+  body      String   @db.Text
+  // who wrote it, by name (a note, not an access record)
+  by        String?
+  createdAt DateTime @default(now())
 }

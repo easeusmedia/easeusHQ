@@ -6,13 +6,13 @@ import { ArrowUpRight, History, Mail, PenLine, Phone } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { createJobTitle, setAccess, updatePerson, updatePersonPhoto } from "./actions";
+import { setAccess, updatePerson, updatePersonPhoto } from "./actions";
 import { Organisation } from "./Organisation";
 import { PhotoEdit } from "../PhotoEdit";
 import { ProfileHead } from "../ProfileHead";
 import { DUE_TONE } from "../TaskCard";
 import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type PersonRecord, type Position, type WorkTag } from "./PeopleDirectory";
-import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
+import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { LEVEL_NOTE } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
@@ -53,10 +53,24 @@ function canSeeSummary(role: Role): string {
 const chip = (on: boolean, editable: boolean) =>
   `rounded-md border px-2 py-1 text-xs transition-colors ${on ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted"} ${editable ? (on ? "hover:bg-accent/25" : "hover:text-foreground") : "cursor-default"}`;
 
-// The departments someone works in or (a Lead) runs, and the roles they
-// hold: each a chip, saved the moment it's switched. Those the viewer may
-// not change are shown only if they're on.
-function DepartmentsAndRoles({ person, teams, roles, editableTeamIds }: { person: PersonRecord; teams: Department[]; roles: Position[]; editableTeamIds: string[] }) {
+// Level, then departments, then the roles inside those departments: each a
+// chip, saved the moment it's switched. Taking a department away takes its
+// roles with it. Those the viewer may not change are shown only if on.
+function DepartmentsAndRoles({
+  person,
+  teams,
+  roles,
+  workTags,
+  editableTeamIds,
+  canManage,
+}: {
+  person: PersonRecord;
+  teams: Department[];
+  roles: Position[];
+  workTags: WorkTag[];
+  editableTeamIds: string[];
+  canManage: boolean;
+}) {
   const [departmentIds, setDepartmentIds] = useState(person.departmentIds);
   const [roleIds, setRoleIds] = useState(person.roleIds);
   const [error, setError] = useState<string | null>(null);
@@ -64,11 +78,13 @@ function DepartmentsAndRoles({ person, teams, roles, editableTeamIds }: { person
   const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
   async function save(next: { departmentIds: string[]; roleIds: string[] }) {
+    // a role only ever sits inside one of their departments
+    const kept = { departmentIds: next.departmentIds, roleIds: next.roleIds.filter((r) => next.departmentIds.includes(roles.find((x) => x.id === r)?.teamId ?? "")) };
     const before = { departmentIds, roleIds };
-    setDepartmentIds(next.departmentIds);
-    setRoleIds(next.roleIds);
+    setDepartmentIds(kept.departmentIds);
+    setRoleIds(kept.roleIds);
     setError(null);
-    const res = await setAccess(person.id, next);
+    const res = await setAccess(person.id, kept);
     if (res.error) {
       setDepartmentIds(before.departmentIds);
       setRoleIds(before.roleIds);
@@ -76,50 +92,66 @@ function DepartmentsAndRoles({ person, teams, roles, editableTeamIds }: { person
     }
   }
 
-  const founder = person.role === "admin";
+  const levelOne = person.role === "admin";
   const shownTeams = teams.filter((t) => editable(t.id) || departmentIds.includes(t.id));
   const groups = teams
+    .filter((t) => departmentIds.includes(t.id))
     .map((t) => ({ team: t, roles: roles.filter((r) => r.teamId === t.id && (editable(t.id) || roleIds.includes(r.id))) }))
     .filter((g) => g.roles.length);
 
   return (
-    <Section title="Departments and roles" aside={person.role === "employee" ? "Where their work goes" : person.role === "core" ? "The departments they run" : undefined}>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs text-muted">Departments</p>
-          {founder ? (
-            <p className="text-sm">Every department</p>
-          ) : shownTeams.length ? (
-            <div className="flex flex-wrap gap-1.5">
-              {shownTeams.map((t) => (
-                <button key={t.id} type="button" disabled={!editable(t.id)} onClick={() => save({ departmentIds: flip(departmentIds, t.id), roleIds })} className={chip(departmentIds.includes(t.id), editable(t.id))}>
-                  {t.name}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted/60">None yet</p>
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted">Roles</p>
-          {groups.length ? (
-            groups.map((g) => (
-              <div key={g.team.id} className="flex flex-wrap items-center gap-1.5">
-                <span className="w-24 shrink-0 text-xs text-muted/70">{g.team.name}</span>
-                {g.roles.map((r) => (
-                  <button key={r.id} type="button" disabled={!editable(g.team.id)} onClick={() => save({ departmentIds, roleIds: flip(roleIds, r.id) })} className={chip(roleIds.includes(r.id), editable(g.team.id))}>
-                    {r.name}
+    <Section
+      title="Departments and roles"
+      aside={
+        canManage && (
+          <Organisation departments={teams} positions={roles} workTags={workTags} className="text-xs text-muted transition-colors hover:text-foreground">
+            Manage departments
+          </Organisation>
+        )
+      }
+    >
+      {levelOne ? (
+        <p className="text-sm text-muted">Level 1 sees every department and oversees the work, so it has no departments or roles of its own.</p>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted">Departments</p>
+            {shownTeams.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {shownTeams.map((t) => (
+                  <button key={t.id} type="button" disabled={!editable(t.id)} onClick={() => save({ departmentIds: flip(departmentIds, t.id), roleIds })} className={chip(departmentIds.includes(t.id), editable(t.id))}>
+                    {t.name}
                   </button>
                 ))}
               </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted/60">None yet</p>
-          )}
+            ) : (
+              <p className="text-sm text-muted/60">None yet</p>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted">Roles</p>
+            {groups.length ? (
+              <div className="flex flex-col gap-3">
+                {groups.map((g) => (
+                  <div key={g.team.id} className="flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
+                    <span className="w-32 shrink-0 text-xs font-medium text-foreground/80">{g.team.name}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {g.roles.map((r) => (
+                        <button key={r.id} type="button" disabled={!editable(g.team.id)} onClick={() => save({ departmentIds, roleIds: flip(roleIds, r.id) })} className={chip(roleIds.includes(r.id), editable(g.team.id))}>
+                          {r.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted/60">{departmentIds.length ? "None yet" : "Pick a department first"}</p>
+            )}
+          </div>
         </div>
-        {error && <p className="text-xs text-red-300">{error}</p>}
-      </div>
+      )}
+      {error && <p className="mt-3 text-xs text-red-300">{error}</p>}
     </Section>
   );
 }
@@ -181,8 +213,6 @@ export function PersonDetail({
     email: person.email,
     phone: person.phone ?? "",
     role: person.role as string,
-    teamId: person.teamId ?? "",
-    jobTitleId: person.jobTitleId ?? "",
     joinedAt: person.joinedAt ?? "",
     salary: person.salary ?? "",
     employment: person.employment as string,
@@ -196,10 +226,6 @@ export function PersonDetail({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allWork, setAllWork] = useState(false);
-  // positions added from the field itself, listed at once without
-  // reloading the page; the next refresh brings them in with the rest
-  const [added, setAdded] = useState<Position[]>([]);
-  const titles = [...jobTitles, ...added.filter((a) => !jobTitles.some((j) => j.id === a.id))];
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -224,27 +250,6 @@ export function PersonDetail({
     setEditing(false);
   }
 
-  // Where they sit follows their position (lib/teams); the department
-  // field is only a choice when the position doesn't decide it.
-  const position = titles.find((t) => t.id === form.jobTitleId);
-  const department = departmentFor(form.role, position?.teamId, form.teamId || null);
-  const departmentName = (id: string | null) => teams.find((t) => t.id === id)?.name;
-
-  // A position typed into the list that isn't one yet arrives as its name,
-  // and is filed under the department they're in now (Leadership if none).
-  async function pickPosition(v: string) {
-    if (!v || titles.some((j) => j.id === v)) return set("jobTitleId", v);
-    const res = await createJobTitle(v, department);
-    if (res.error || !res.id) return setError(res.error ?? "That position couldn't be added.");
-    setAdded((a) => [...a, { id: res.id!, name: res.name!, teamId: res.teamId ?? null, people: 0 }]);
-    set("jobTitleId", res.id);
-  }
-
-  // listed under their department, Leadership first
-  const groups = [{ id: null as string | null, name: "Leadership" }, ...teams];
-  const positionOptions = groups.flatMap((g) =>
-    titles.filter((t) => t.teamId === g.id).map((t) => ({ value: t.id, label: t.name, group: g.name }))
-  );
 
   const p = person.performance;
   const shown = allWork ? person.current : person.current.slice(0, FIRST);
@@ -265,8 +270,7 @@ export function PersonDetail({
         >
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
           <p className="truncate text-sm text-muted">
-            {person.jobTitleName ?? "No position set"}
-            {person.departmentName && <> · {person.departmentName}</>}
+            {[ROLE_LABEL[person.role], person.jobTitleName].filter(Boolean).join(" · ")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
@@ -316,39 +320,6 @@ export function PersonDetail({
                   Name
                   <input value={form.name} onChange={(e) => set("name", e.target.value)} className={field} />
                 </label>
-                <div className={labelCls}>
-                  <span className="flex items-center justify-between gap-2">
-                    Position
-                    <Organisation departments={teams} positions={titles} workTags={workTags} className="text-xs text-muted transition-colors hover:text-foreground">
-                      Manage
-                    </Organisation>
-                  </span>
-                  <Dropdown
-                    value={form.jobTitleId}
-                    placeholder="No position"
-                    create
-                    onChange={pickPosition}
-                    options={[{ value: "", label: "No position" }, ...positionOptions]}
-                  />
-                </div>
-                <div className={labelCls}>
-                  Department
-                  {position?.teamId || form.role === "admin" ? (
-                    // decided for them: shown, not picked
-                    <span className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-surface-2/40 px-3 py-2 text-sm text-foreground">
-                      <span className="truncate">{departmentName(department) ?? "Whole company"}</span>
-                      <span className="shrink-0 text-xs text-muted">{position?.teamId ? "From position" : "Founder"}</span>
-                    </span>
-                  ) : (
-                    <Dropdown
-                      value={form.teamId}
-                      placeholder="No department"
-                      onChange={(v) => set("teamId", v)}
-                      options={[{ value: "", label: "No department" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
-                    />
-                  )}
-                </div>
-
                 <div className={labelCls}>
                   Level
                   <Dropdown
@@ -434,8 +405,6 @@ export function PersonDetail({
             </div>
           ) : (
             <dl className="fade-in grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
-              <Fact label="Position">{person.jobTitleName}</Fact>
-              <Fact label="Department">{person.departmentName ?? (person.role === "admin" ? "Whole company" : null)}</Fact>
               <Fact label="Level">{ROLE_LABEL[person.role]}</Fact>
               <Fact label="Joined">
                 {person.joinedAt && (
@@ -459,7 +428,7 @@ export function PersonDetail({
           )}
         </Section>
 
-        <DepartmentsAndRoles person={person} teams={teams} roles={jobTitles} editableTeamIds={editableTeamIds} />
+        <DepartmentsAndRoles person={person} teams={teams} roles={jobTitles} workTags={workTags} editableTeamIds={editableTeamIds} canManage={canEdit} />
 
         <Section
           title="Current work"

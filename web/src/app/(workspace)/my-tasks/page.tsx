@@ -38,11 +38,11 @@ export default async function MyTasksPage() {
       select: { id: true, title: true, updatedAt: true, workflow: true, project: { select: { client: { select: { name: true } } } } },
       orderBy: { updatedAt: "desc" },
     }),
-    // the kinds of work your roles do: what "Add task" offers
-    prisma.taskTag.findMany({
-      where: { role: { holders: { some: { id: viewer.id } } } },
-      select: { id: true, name: true, workflow: true, clientFacing: true, team: { select: { name: true } } },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    // your roles and their kinds of work: what "Add task" offers
+    prisma.jobTitle.findMany({
+      where: { holders: { some: { id: viewer.id } } },
+      select: { id: true, name: true, workflow: true, team: { select: { name: true } }, kinds: { select: { id: true, name: true, workflow: true, clientFacing: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
+      orderBy: { sortOrder: "asc" },
     }),
     prisma.user.findUnique({ where: { id: viewer.id }, select: { notionWorkbookDbId: true, team: { select: { slug: true } } } }),
   ]);
@@ -57,7 +57,12 @@ export default async function MyTasksPage() {
           ...done.map((t) => ({ id: t.id, title: t.title, kind: "todo" as const, at: (t.completedAt ?? since).toISOString(), client: null })),
           ...doneTasks.map((t) => ({ id: t.id, title: t.title, kind: "task" as const, workflow: t.workflow, at: t.updatedAt.toISOString(), client: t.project.client.name })),
         ].sort((a, b) => b.at.localeCompare(a.at))}
-        kinds={kinds.map((k) => ({ id: k.id, name: k.name, workflow: k.workflow, clientFacing: k.clientFacing, department: k.team?.name ?? null }))}
+        // each role's kinds of work, or the role itself when it has none
+        kinds={kinds.flatMap((r) =>
+          r.kinds.length
+            ? r.kinds.map((k) => ({ id: k.id, name: k.name, workflow: k.workflow, clientFacing: k.clientFacing, department: r.team?.name ?? null }))
+            : [{ id: `role:${r.id}`, name: r.name, workflow: r.workflow, clientFacing: false, department: r.team?.name ?? null }]
+        )}
         projects={work.projects}
         assignees={work.assignable}
         editors={assignOptionsFor(viewer, users).map((u) => ({ id: u.id, name: u.name }))}
@@ -65,7 +70,7 @@ export default async function MyTasksPage() {
         actingUserId={viewer.id}
         actingRole={viewer.role}
       />
-      {(!!me?.notionWorkbookDbId || me?.team?.slug === "production" || me?.team?.slug === "client-success") && (
+      {(!!me?.notionWorkbookDbId || me?.team?.slug === "production" || me?.team?.slug === "client-services") && (
         <div className="mt-8 flex justify-center">
           <WorkNotionSyncButton />
         </div>

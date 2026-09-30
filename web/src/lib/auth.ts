@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { prisma } from "./prisma";
 import { onStaff } from "./users";
 import { COOKIE_NAME, sign, unsign } from "./sessionToken";
@@ -11,13 +11,31 @@ export { hashPassword, verifyPassword } from "./password";
 // former ends their access at once, cookie or not: every page, action and
 // route asks here, so their next click or live refresh lands on the login
 // page. cache(): one lookup per request however many callers ask.
-export const getSessionUserId = cache(async (): Promise<string | null> => {
+export const getRealUserId = cache(async (): Promise<string | null> => {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   const id = token ? unsign(token) : null;
   if (!id) return null;
   const user = await prisma.user.findUnique({ where: { id }, select: { employment: true } });
   return user && onStaff(user) ? id : null;
+});
+
+// "View as": a Level 1 can look at the app as someone else sees it. The
+// cookie only names who; it counts only while the real person signed in is
+// Level 1, and only for looking: anything saved (a server action, which
+// carries the next-action header) still runs as the real person.
+export const VIEW_AS_COOKIE = "hq-view-as";
+export const getSessionUserId = cache(async (): Promise<string | null> => {
+  const id = await getRealUserId();
+  if (!id) return null;
+  const [store, head] = await Promise.all([cookies(), headers()]);
+  const as = store.get(VIEW_AS_COOKIE)?.value;
+  if (!as || as === id || head.get("next-action")) return id;
+  const [me, them] = await Promise.all([
+    prisma.user.findUnique({ where: { id }, select: { role: true } }),
+    prisma.user.findUnique({ where: { id: as }, select: { employment: true } }),
+  ]);
+  return me?.role === "admin" && them && onStaff(them) ? as : id;
 });
 
 export async function createSession(userId: string) {

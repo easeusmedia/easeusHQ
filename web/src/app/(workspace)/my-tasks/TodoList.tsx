@@ -298,9 +298,28 @@ const blank = { title: "", notes: "", due: "", kindId: "", clientId: "", project
 // rest: a video or a design needs its client and goes through its stages;
 // anything with a client is client work (on the client's page, in
 // History); anything else is a to-do of your own.
-function Composer({ kinds, projects, assignees, actingUserId }: Env & { kinds: TodoKind[] }) {
+export function Composer({
+  kinds,
+  projects,
+  assignees,
+  actingUserId,
+  startOpen = false,
+  onClose,
+}: {
+  kinds: TodoKind[];
+  projects: Project[];
+  assignees: { id: string; name: string }[];
+  actingUserId: string;
+  // Home opens it from its New task button, and hides it again on Cancel
+  startOpen?: boolean;
+  onClose?: () => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(startOpen);
+  const setOpen = (v: boolean) => {
+    setOpenState(v);
+    if (!v) onClose?.();
+  };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -327,13 +346,15 @@ function Composer({ kinds, projects, assignees, actingUserId }: Env & { kinds: T
       data.set("dueDate", f.due);
       data.set("editingNotes", f.notes);
       data.set("tagsPresent", "1");
-      if (kind) data.append("tagIds", kind.id);
+      if (kind?.id.startsWith("role:")) data.set("roleId", kind.id.slice(5));
+      else if (kind) data.append("tagIds", kind.id);
       data.set("workflow", kind?.workflow ?? "todo");
       // work done for the client that they never receive as a file
       if ((kind?.workflow ?? "todo") === "todo" && !kind?.clientFacing) data.set("internal", "on");
       res = await createTask({}, data);
     } else {
-      res = await createWorkTask({ title: f.title, notes: f.notes, dueDate: f.due, tagIds: kind ? [kind.id] : [], projectId: "", links: [], attachments: [], assignedToId });
+      const role = kind?.id.startsWith("role:") ? kind.id.slice(5) : undefined;
+      res = await createWorkTask({ title: f.title, notes: f.notes, dueDate: f.due, tagIds: kind && !role ? [kind.id] : [], roleId: role, projectId: "", links: [], attachments: [], assignedToId });
     }
     setBusy(false);
     if (res.error) return setError(res.error);

@@ -18,7 +18,7 @@ import {
 } from "./scope.ts";
 
 const PROD = { id: "t-prod", slug: "production" };
-const CS = { id: "t-cs", slug: "client-success" };
+const CS = { id: "t-cs", slug: "client-services" };
 const SALES = { id: "t-sales", slug: "sales" };
 
 const ashmit: Viewer = { id: "u-ashmit", role: "admin", email: "ashmit@easeus.media", teamId: null, departments: [] };

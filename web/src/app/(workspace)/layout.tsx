@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getRealUserId, getSessionUserId } from "@/lib/auth";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
@@ -9,7 +9,8 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isFounder, isMember, runsClients, worksTheBoard } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard } from "@/lib/scope";
+import { ViewAsBanner } from "./ViewAsBanner";
 import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { Assistant } from "./assistant/Assistant";
@@ -32,7 +33,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // Everything the frame needs, asked for at once: this renders on every
   // page, so its queries running one after another was a fixed cost on
   // every click.
-  const [sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts] = await Promise.all([
+  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts] = await Promise.all([
+    getRealUserId(),
     getSessionUserId(),
     getViewer(),
     getAllUsers().catch(() => []),
@@ -50,6 +52,12 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
   if (!sessionUser || !viewer) redirect("/login"); // stale/deleted-user cookie
+  // a Level 1 looking as someone else (lib/auth): who they really are, and
+  // everyone they could look as
+  const realUser = users.find((u) => u.id === realUserId);
+  const viewingAs = realUserId !== sessionUserId;
+  const viewAsPeople =
+    realUser?.role === "admin" ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
   // Founders and Leads run things; Members do their own work
   const isOps = !isMember(viewer);
@@ -72,10 +80,12 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
     <div className="flex h-screen bg-background text-foreground">
       <Pulse live={liveLine()} />
+      {viewingAs && <ViewAsBanner name={sessionUser.name} level={LEVEL_LABEL[sessionUser.role]} />}
       <Spotlight />
       <Sidebar
         isOps={isOps}
         isFounder={isFounder(viewer)}
+        viewAsPeople={viewAsPeople}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
         fullAccess={isAbhishekOrAdmin(sessionUser)}

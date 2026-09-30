@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getRealUserId as getSessionUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export type ThreadMessage = { id: string; fromId: string; body: string; createdAt: Date };
