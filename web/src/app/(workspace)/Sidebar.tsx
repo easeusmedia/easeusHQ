@@ -9,6 +9,7 @@ import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
 import { viewAs } from "./viewAs";
+import { Reveal } from "./Reveal";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
@@ -511,12 +512,13 @@ export function Sidebar({
             {/* Level 1: the app as someone else sees it */}
             {viewAsPeople && (
               <>
-                <button type="button" onClick={() => setViewAsOpen((v) => !v)} className="menu-item px-2.5 py-2 text-sm">
+                <button type="button" aria-expanded={viewAsOpen} onClick={() => setViewAsOpen((v) => !v)} className="menu-item px-2.5 py-2 text-sm">
                   <Eye size={15} />
                   View as
+                  <ChevronDown size={14} className={`ml-auto text-muted transition-transform duration-200 ${viewAsOpen ? "rotate-180" : ""}`} />
                 </button>
-                {viewAsOpen && (
-                  <div className="fade-in mx-1 mb-1 max-h-56 overflow-y-auto rounded-xl bg-white/[0.03] p-1">
+                <Reveal open={viewAsOpen}>
+                  <div className="mx-1 mb-1 max-h-56 overflow-y-auto rounded-xl bg-white/[0.03] p-1">
                     {viewAsPeople.map((p) => (
                       <button
                         key={p.id}
@@ -524,7 +526,7 @@ export function Sidebar({
                         onClick={async () => {
                           await viewAs(p.id);
                           router.replace("/");
-          router.refresh();
+                          router.refresh();
                         }}
                         className="menu-item justify-between px-2.5 py-1.5 text-sm"
                       >
@@ -533,7 +535,7 @@ export function Sidebar({
                       </button>
                     ))}
                   </div>
-                )}
+                </Reveal>
               </>
             )}
             {/* admin-only: what the app is joined up to outside itself */}
