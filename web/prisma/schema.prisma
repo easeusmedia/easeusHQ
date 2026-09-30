@@ -781,13 +781,12 @@ model PerformanceEntry {
   clientId      String?
   project       Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
   projectId     String?
-  // mistake: a point on the work, counted against Quality by its category
+  // mistake: a mistake in the work, counted against Quality by its type
   // positive | negative: praise or a concern, adding or taking its points
-  //   off Appraisal (always has points, except Frame.io praise, which is
+  //   off Feedback (always has points, except Frame.io praise, which is
   //   worth the scoring's "Frame.io praise" amount)
-  // guidance: feedback to help them grow, from Frame.io comments that say
-  //   "feedback", or core's own; never scored
-  // note: not feedback at all (a question, a fragment); not scored
+  // guidance: a tip (a creative suggestion, advice, anything else); never
+  //   scored
   kind          String
   // a mistake's kind: Typos, Subtitles, Sound…
   category      String?
@@ -938,23 +937,15 @@ model AiUsage {
 
 // Something an editor is working on improving ("Sound design"), kept open
 // week after week, for months if need be, until ops marks it improved. The
-// Notion review's "Active Feedbacks", made to last. A focus area that
-// tracks a kind of mistake counts every confirmed mistake of that kind
-// since it was raised, so it's plain whether it's still coming up.
-// A kind of feedback on an editor's work, set up by core: Typos, UK/US
-// spelling, Creative… Every Frame.io comment is sorted into one of these
-// by its keywords (no AI), correctable by hand. weight is how much one
-// counts against Quality: 1 a full mistake, 0.5 half, 0 recorded but not
-// counted. keywords: words or phrases, comma-separated, that put a comment
-// here.
-//
-// group: mistake (what Frame.io comments are sorted into, counted against
-// Quality) or feedback (what praise and concerns are about: Communication,
-// Deadlines…). description: what it means, shown behind the (i) beside it.
+// A type of mistake in an editor's work, set up by core: Typos, UK/US
+// spelling, Sound… Every Frame.io comment that's a mistake is sorted into
+// one by its keywords (no AI), correctable by hand. weight: the Quality
+// points one takes off (0.5; 0 recorded but not counted). keywords: words
+// or phrases, comma-separated, that put a comment here. description: what
+// it means, shown behind the (i) beside it.
 model FeedbackCategory {
   id          String   @id @default(uuid())
   name        String   @unique
-  group       String   @default("mistake")
   description String?
   weight      Float    @default(1)
   // whether the same kind again, on another video, counts as a repeat

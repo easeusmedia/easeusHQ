@@ -6,16 +6,17 @@ import { getSessionUserId } from "@/lib/auth";
 import { chartSpans, dayOf, partMax, periodFrom } from "@/lib/editorKpi";
 import { Avatar } from "../../TaskCard";
 import { ClientTabs } from "../../clients/ClientTabs";
-import { AddFeedbackButton, Delta, FeedbackList, GradeBadge, MistakeList, PartScore, PeriodBar, Total, type VideoRow, VideoTable } from "../ui";
-import { MistakeBars, ScoreBars } from "../charts";
+import { STAGE } from "@/lib/stages";
+import { AddFeedbackButton, Delta, FeedbackList, GradeBadge, MistakeList, PartScore, PeriodBar, Total, type WorkRow, WorkTable } from "../ui";
+import { MistakeBars, ScoreLine } from "../charts";
 import { firstDay, loadPerformance, loadScoring, repeatedMistakes } from "../data";
 import { AGAINST, facts, periodQuery } from "../shared";
 
 export const dynamic = "force-dynamic";
 
 // One editor's scorecard: the grade and total out of 10 for the period and
-// its three parts, their score over time, their mistakes by type, and then
-// the mistakes, feedback and videos themselves. Core can add and correct
+// its three parts, their score week by week, their mistakes by type, and
+// then the mistakes, feedback (praise, concerns, tips) and work themselves. Core can add and correct
 // any of it. An editor sees their own, read-only.
 export default async function EditorPerformancePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -54,24 +55,31 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
   const byType = repeatedMistakes(data.feedback, period.from, period.to, id).map((r) => ({ ...r, description: describe.get(r.category) ?? null }));
 
   const inPeriod = data.feedback.filter((e) => e.day >= period.from && e.day <= period.to);
-  const mistakes = inPeriod.filter((e) => e.kind === "mistake" || e.kind === "note");
-  const said = inPeriod.filter((e) => e.kind === "positive" || e.kind === "negative" || e.kind === "guidance");
-  const videos: VideoRow[] = data.videos
-    .filter((v) => v.completedDay && v.completedDay >= period.from && v.completedDay <= period.to)
-    .sort((a, b) => (b.completedDay ?? "").localeCompare(a.completedDay ?? ""))
-    .map((v) => ({
-      id: v.id,
-      title: v.title,
-      where: [v.client, v.project].filter(Boolean).join(" · "),
-      type: v.type,
-      guessed: v.guessed,
-      completed: v.completedDay,
-      editHours: v.editHours,
-      standardHours: v.standardHours,
-      withinStandard: v.withinStandard,
-      revisions: v.internalRevisions + v.clientRevisions,
-      excluded: v.excluded,
-    }));
+  const mistakes = inPeriod.filter((e) => e.kind === "mistake");
+  const said = inPeriod.filter((e) => e.kind !== "mistake");
+  const row = (v: (typeof data.videos)[number], done: boolean): WorkRow => ({
+    id: v.id,
+    title: v.title,
+    where: [v.client, v.project].filter(Boolean).join(" · "),
+    type: v.type,
+    guessed: v.guessed,
+    done: done ? v.completedDay : null,
+    stage: done ? null : { label: STAGE[v.status].label, pill: STAGE[v.status].pill },
+    editHours: v.editHours,
+    standardHours: v.standardHours,
+    withinStandard: v.withinStandard,
+    revisions: v.internalRevisions + v.clientRevisions,
+    excluded: v.excluded,
+  });
+  // what went to the client in the period, and, in one running to today,
+  // what they're still on
+  const work: WorkRow[] = [
+    ...data.videos
+      .filter((v) => v.editorId === id && v.completedDay && v.completedDay >= period.from && v.completedDay <= period.to)
+      .sort((a, b) => (b.completedDay ?? "").localeCompare(a.completedDay ?? ""))
+      .map((v) => row(v, true)),
+    ...(period.to >= today ? data.videos.filter((v) => v.editorId === id && !v.completedDay && v.status !== "delivered_and_uploaded").map((v) => row(v, false)) : []),
+  ];
   const open = data.open.filter((t) => t.assignedToId === id);
   const tasks = [...new Map([...open, ...data.videos].map((t) => [t.id, { id: t.id, title: t.title }])).values()];
   const dialog = {
@@ -124,8 +132,8 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className={card}>
-          <h2 className="mb-5 text-base font-semibold">Score over time</h2>
-          <ScoreBars
+          <h2 className="mb-5 text-base font-semibold">Week by week</h2>
+          <ScoreLine
             spans={spans.map((s) => {
               const k = data.score(s.from, s.to, id);
               return { label: s.label, title: s.title, total: k.total, grade: k.grade, quantity: k.quantity, quality: k.quality, feedback: k.feedback };
@@ -143,9 +151,9 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
         width=""
         initialTab={q.tab}
         tabs={[
-          { key: "mistakes", label: "Mistakes", count: mistakes.filter((e) => e.kind === "mistake").length, content: <MistakeList entries={mistakes} canEdit={canEdit} {...dialog} /> },
+          { key: "mistakes", label: "Mistakes", count: mistakes.length, content: <MistakeList entries={mistakes} canEdit={canEdit} {...dialog} /> },
           { key: "feedback", label: "Feedback", count: said.length, content: <FeedbackList entries={said} canEdit={canEdit} {...dialog} /> },
-          { key: "videos", label: "Videos", count: videos.length, content: <VideoTable rows={videos} types={kinds.map((k) => k.name)} canEdit={canEdit} /> },
+          { key: "work", label: "Work", count: work.filter((w) => w.done).length, content: <WorkTable rows={work} types={kinds.map((k) => k.name)} canEdit={canEdit} /> },
         ]}
       />
     </div>

@@ -14,7 +14,9 @@
 //     on another video, within 90 days) twice its points; averaged per
 //     video, so delivering more is never punished.
 //   Feedback, 2 points: starts at 1 each week; praise adds its points, a
-//     concern takes its points off. Frame.io praise is worth 1.
+//     concern takes its points off, a tip does neither. Frame.io praise is
+//     worth 1; Frame.io comments with the tip words (bgm, pacing…: creative
+//     suggestions, not mistakes) are tips.
 // A part with nothing to score (no video finished, say) is left out and
 // the rest scaled to 10. A month, or any longer stretch, is the average of
 // its weeks, part by part, added up.
@@ -53,6 +55,9 @@ export type Scoring = {
   // where Feedback starts each week, and what a Frame.io praise adds
   feedbackStart: number;
   praisePoints: number;
+  // words that make a Frame.io comment a tip, not a mistake: creative
+  // suggestions (comma-separated)
+  tipWords: string;
   // the lowest total for each grade; below C is D
   grades: Record<Exclude<Grade, "D">, number>;
 };
@@ -73,6 +78,7 @@ export const DEFAULT_SCORING: Scoring = {
   repeatMultiplier: 2,
   feedbackStart: 1,
   praisePoints: 1,
+  tipWords: "music, bgm, song, pace, pacing, vibe, style, feel, b-roll, broll, hook, intro, outro, colour grade, color grade, try, instead, prefer, suggest",
   grades: { "A+": 9, A: 8, B: 6.5, C: 5 },
 };
 export const SCORING_KEY = "performance.scoring";
@@ -94,6 +100,7 @@ export function withScoringDefaults(saved: unknown): Scoring {
     repeatMultiplier: num("repeatMultiplier"),
     feedbackStart: num("feedbackStart"),
     praisePoints: num("praisePoints"),
+    tipWords: typeof s.tipWords === "string" ? s.tipWords : DEFAULT_SCORING.tipWords,
     grades: {
       "A+": typeof g["A+"] === "number" ? g["A+"] : DEFAULT_SCORING.grades["A+"],
       A: typeof g.A === "number" ? g.A : DEFAULT_SCORING.grades.A,
@@ -110,7 +117,7 @@ export function gradeOf(total: number | null, s: Pick<Scoring, "grades">): Grade
 }
 
 // what a feedback entry can be
-export const ENTRY_KINDS = { mistake: "Mistake", positive: "Praise", negative: "Concern", guidance: "Tip", note: "Not feedback" } as const;
+export const ENTRY_KINDS = { mistake: "Mistake", positive: "Praise", negative: "Concern", guidance: "Tip" } as const;
 
 // ---------- days and hours (India, +5:30 all year) ----------
 
@@ -527,14 +534,9 @@ export function trendSpans(kind: "week" | "month", to: string, n: number): Span[
   });
 }
 
-// What a period's chart shows: the last 8 weeks for a week, the last 6
-// months for a month; a range or all time, its own weeks, or its months
-// when there are more than 12 weeks.
-export function chartSpans(p: Pick<Period, "kind" | "from" | "to">): Span[] {
-  if (p.kind === "week") return trendSpans("week", p.to, 8);
-  if (p.kind === "month") return trendSpans("month", p.to, 6);
+// The weeks a period's chart shows, week by week: the 12 up to its end, or
+// every week of a longer stretch (up to a year).
+export function chartSpans(p: Pick<Period, "from" | "to">): Span[] {
   const weeks = Math.ceil((daysBetween(mondayOf(p.from), p.to) + 1) / 7);
-  if (weeks <= 12) return trendSpans("week", p.to, weeks);
-  const months = (Number(p.to.slice(0, 4)) - Number(p.from.slice(0, 4))) * 12 + Number(p.to.slice(5, 7)) - Number(p.from.slice(5, 7)) + 1;
-  return trendSpans("month", p.to, months);
+  return trendSpans("week", p.to, Math.min(52, Math.max(12, weeks)));
 }

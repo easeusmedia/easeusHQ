@@ -60,32 +60,35 @@ export async function saveScoring(input: Scoring): Promise<Result> {
     s.types[kind.trim()] = { hours, units };
   }
   if (!Object.keys(s.types).length) return { error: "Keep at least one type of work." };
+  s.tipWords = String(input.tipWords ?? "")
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .join(", ");
   const value = JSON.stringify(s);
   await prisma.appSetting.upsert({ where: { key: SCORING_KEY }, create: { key: SCORING_KEY, value }, update: { value } });
   done();
   return {};
 }
 
-// ---------- mistake types and feedback types ----------
+// ---------- mistake types ----------
 
-type CategoryInput = { name: string; group: string; description: string; weight: number; keywords: string; repeats: boolean };
+type CategoryInput = { name: string; description: string; weight: number; keywords: string; repeats: boolean };
 const cleanCategory = (input: CategoryInput) => {
   const name = input.name.trim();
   if (!name) return { error: "Give it a name." };
-  const group = input.group === "feedback" ? "feedback" : "mistake";
-  // for a mistake type, the Quality points one takes off
-  const weight = group === "mistake" ? num(input.weight, 0, 10) : 0;
+  // the Quality points one takes off
+  const weight = num(input.weight, 0, 10);
   if (weight === null) return { error: "Points off should be between 0 and 10." };
   const keywords = input.keywords
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean)
     .join(", ");
-  return { data: { name, group, description: input.description.trim() || null, weight, keywords: keywords || null, repeats: group === "mistake" && !!input.repeats } };
+  return { data: { name, description: input.description.trim() || null, weight, keywords: keywords || null, repeats: !!input.repeats } };
 };
 
-// A kind of mistake (for sorting Frame.io comments into) or of feedback
-// (what praise and concerns are about). Core only.
+// A type of mistake, for sorting Frame.io comments into. Core only.
 export async function addCategory(input: CategoryInput): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can change the types." };
   const c = cleanCategory(input);
@@ -97,32 +100,31 @@ export async function addCategory(input: CategoryInput): Promise<Result> {
   return {};
 }
 
-// Renaming carries everything filed under it along.
+// Renaming carries every mistake filed under it along.
 export async function updateCategory(id: string, input: CategoryInput): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can change the types." };
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
   if (!before) return { error: "That type is gone." };
-  const c = cleanCategory({ ...input, group: before.group });
+  const c = cleanCategory(input);
   if ("error" in c) return c;
   if (before.name === "Others" && c.data.name !== "Others") return { error: "Others stays: it's where anything unsorted goes." };
   if (c.data.name !== before.name && (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } }))) return { error: "There's already a type with that name." };
   await prisma.$transaction([
     prisma.feedbackCategory.update({ where: { id }, data: c.data }),
-    prisma.performanceEntry.updateMany({ where: { category: before.name }, data: { category: c.data.name } }),
+    prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: c.data.name } }),
   ]);
   done();
   return {};
 }
 
-// A mistake type's mistakes move to Others; feedback about a feedback type
-// keeps its points and loses the type.
+// Its mistakes move to Others.
 export async function deleteCategory(id: string): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can change the types." };
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
   if (!before) return {};
   if (before.name === "Others") return { error: "Others stays: it's where anything unsorted goes." };
   await prisma.$transaction([
-    prisma.performanceEntry.updateMany({ where: { category: before.name }, data: { category: before.group === "mistake" ? "Others" : null } }),
+    prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: "Others" } }),
     prisma.feedbackCategory.delete({ where: { id } }),
   ]);
   done();
@@ -146,10 +148,10 @@ export async function sortWithAi(ids: string[]): Promise<Result> {
 
 export type EntryInput = {
   editorId: string;
-  // mistake | positive (praise) | negative (a concern) | guidance (feedback,
-  // never scored) | note (not feedback at all)
+  // mistake | positive (praise) | negative (a concern) | guidance (a tip,
+  // never scored)
   kind: string;
-  // a mistake's type, or the feedback type praise or a concern is about
+  // a mistake's type
   category: string;
   body: string;
   count: number;
@@ -162,7 +164,7 @@ export type EntryInput = {
 };
 
 async function clean(input: EntryInput, frameioPraise = false) {
-  if (!["mistake", "positive", "negative", "guidance", "note"].includes(input.kind)) return { error: "Pick what kind of feedback this is." };
+  if (!["mistake", "positive", "negative", "guidance"].includes(input.kind)) return { error: "Pick what kind of feedback this is." };
   const body = input.body.trim();
   if (!body) return { error: "Write what it was about." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return { error: "Pick the day it happened." };
@@ -179,7 +181,7 @@ async function clean(input: EntryInput, frameioPraise = false) {
   return {
     data: {
       kind: input.kind,
-      category: mistake ? input.category.trim() || "Others" : input.kind === "note" ? null : input.category.trim() || null,
+      category: mistake ? input.category.trim() || "Others" : null,
       body,
       count: mistake ? count : 1,
       points: scored ? points : null,
@@ -192,7 +194,7 @@ async function clean(input: EntryInput, frameioPraise = false) {
   };
 }
 
-// Written in by core: a mistake, praise, a concern, or feedback.
+// Written in by core: a mistake, praise, a concern, or a tip.
 export async function logEntry(input: EntryInput): Promise<Result> {
   const me = await requireOps();
   if (!me) return { error: "Only core members can add feedback." };

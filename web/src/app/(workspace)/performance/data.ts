@@ -14,7 +14,7 @@ export async function loadScoring(): Promise<Scoring> {
   }
 }
 
-// mistake types and feedback types, each with what it means
+// the mistake types, each with what it means
 export async function loadCategories() {
   return prisma.feedbackCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
 }
@@ -172,6 +172,7 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
         scoring
       ),
       editorId: t.assignedToId!,
+      status: t.status,
       project: t.project.name || t.project.type,
       excluded: t.kpiExcluded,
     };
@@ -179,14 +180,13 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
 
   // which mistakes repeat an earlier one, editor by editor, in the types
   // where a repeat counts
-  const mistakeTypes = categories.filter((c) => c.group === "mistake");
-  const repeatable = new Set(mistakeTypes.filter((c) => c.repeats).map((c) => c.name));
+  const repeatable = new Set(categories.filter((c) => c.repeats).map((c) => c.name));
   const repeated = new Set<string>();
   for (const id of ids) {
     const mine = entries.filter((e) => e.editorId === id && e.kind === "mistake" && repeatable.has(e.category ?? "Others"));
     for (const r of repeats(mine.map((e) => ({ id: e.id, category: e.category ?? "Others", taskId: e.taskId, at: e.at })))) repeated.add(r);
   }
-  const weightOf = new Map(mistakeTypes.map((c) => [c.name, c.weight]));
+  const weightOf = new Map(categories.map((c) => [c.name, c.weight]));
   const feedback: FeedbackRow[] = entries
     .filter((e) => e.at >= since)
     .map((e) => ({
@@ -248,7 +248,7 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
     return weeks.length > 1 ? averageWeeks(whole, weeks.map((w) => scoreAsOne(w.from, w.to, who)), scoring) : whole;
   };
 
-  return { editors, scoring, categories, mistakeTypes, today, videos, feedback, open, score };
+  return { editors, scoring, categories, today, videos, feedback, open, score };
 }
 
 export type PerformanceData = Awaited<ReturnType<typeof loadPerformance>>;

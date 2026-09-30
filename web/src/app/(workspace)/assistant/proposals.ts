@@ -135,9 +135,8 @@ export async function prepare(input: { action?: string; ref?: string; changes?: 
       const day = isDay(c.day) ? str(c.day) : indiaDay(new Date());
       const mistake = kind === "mistake";
       const scored = kind === "positive" || kind === "negative";
-      const types = await prisma.feedbackCategory.findMany({ where: { group: mistake ? "mistake" : "feedback" }, select: { name: true } });
-      const named = types.find((m) => m.name.toLowerCase() === str(c.category).toLowerCase())?.name;
-      const category = mistake ? (named ?? "Others") : scored ? (named ?? null) : null;
+      const types = mistake ? await prisma.feedbackCategory.findMany({ select: { name: true } }) : [];
+      const category = mistake ? (types.find((m) => m.name.toLowerCase() === str(c.category).toLowerCase())?.name ?? "Others") : null;
       const asked = Number(c.points);
       // praise and concerns always carry the points given; nothing is assumed
       if (scored && !(Number.isFinite(asked) && asked > 0 && asked <= 10)) return `Say how many points it ${kind === "positive" ? "adds" : "takes off"}.`;

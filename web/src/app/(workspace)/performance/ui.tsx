@@ -20,8 +20,9 @@ import {
   Plus,
   Repeat2,
   Sparkles,
-  StickyNote,
   Tag,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   X,
   type LucideIcon,
@@ -259,7 +260,7 @@ export type FeedbackView = {
 };
 export type TaskOption = { id: string; title: string };
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
-export type CategoryView = { id: string; name: string; group: string; description: string | null; weight: number; keywords: string | null; repeats: boolean };
+export type CategoryView = { id: string; name: string; description: string | null; weight: number; keywords: string | null; repeats: boolean };
 
 const describe = (categories: CategoryView[], name: string | null) => categories.find((c) => c.name === name)?.description;
 
@@ -290,15 +291,15 @@ type DialogProps = {
   today: string;
 };
 
-// what's being written: feedback carries points (+ adds, − takes off), a
-// tip carries none, a mistake has a type and a count
-type Kind = "feedback" | "guidance" | "mistake" | "note";
+// what's being written: praise adds its points, a concern takes them off,
+// a tip carries none, a mistake has a type and a count
+type Kind = "positive" | "negative" | "guidance" | "mistake";
 const KINDS: { key: Kind; label: string; Icon: LucideIcon; placeholder: string }[] = [
-  { key: "feedback", label: "Feedback", Icon: MessageSquareHeart, placeholder: "What did they do well, or not so well?" },
+  { key: "positive", label: "Praise", Icon: ThumbsUp, placeholder: "What did they do well?" },
+  { key: "negative", label: "Concern", Icon: ThumbsDown, placeholder: "What wasn't right?" },
   { key: "guidance", label: "Tip", Icon: Lightbulb, placeholder: "A pointer for next time" },
-  { key: "mistake", label: "Mistake", Icon: CircleAlert, placeholder: "What was wrong?" },
+  { key: "mistake", label: "Mistake", Icon: CircleAlert, placeholder: "What was the mistake?" },
 ];
-const NOTE = { key: "note" as Kind, label: "Not feedback", Icon: StickyNote, placeholder: "" };
 
 // a chip's way back to nothing, offered once something's picked (so an
 // empty chip shows its own name, not "No video")
@@ -327,11 +328,10 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
   const { run, error } = useRun();
   const ref = useRef<HTMLDialogElement>(null);
   const text = useRef<HTMLTextAreaElement>(null);
-  const kindOf = (k?: string): Kind => (k === "positive" || k === "negative" ? "feedback" : k === "guidance" || k === "mistake" || k === "note" ? k : "feedback");
   const [f, setF] = useState(() => ({
-    kind: kindOf(entry?.kind),
-    // signed: + praise, − a concern; 0 until they're given
-    points: entry?.kind === "positive" ? (entry.points ?? scoring.praisePoints) : entry?.kind === "negative" ? -(entry.points ?? 0) : 0,
+    kind: (KINDS.some((k) => k.key === entry?.kind) ? entry!.kind : "positive") as Kind,
+    // how many points praise adds or a concern takes off; 0 until given
+    points: entry?.kind === "positive" ? (entry.points ?? scoring.praisePoints) : entry?.kind === "negative" ? (entry.points ?? 0) : 0,
     category: entry?.category ?? "",
     body: entry?.body ?? "",
     count: entry?.count ?? 1,
@@ -354,20 +354,19 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
     if (!open && d.open) d.close();
   }, [open]);
 
-  const kinds = entry && entry.source !== "manual" ? [...KINDS, NOTE] : KINDS;
-  const kind = kinds.find((k) => k.key === f.kind) ?? kinds[0];
-  const types = categories.filter((c) => c.group === (f.kind === "mistake" ? "mistake" : "feedback"));
+  const kind = KINDS.find((k) => k.key === f.kind)!;
+  const scored = f.kind === "positive" || f.kind === "negative";
   const client = clients.find((c) => c.id === f.clientId);
-  const missing = !f.body.trim() ? "Write what it's about." : f.kind === "feedback" && f.points === 0 ? "Give it points: + adds, − takes off." : null;
+  const missing = !f.body.trim() ? "Write what it's about." : scored && f.points === 0 ? "Give it points." : null;
 
   async function save() {
     const input: EntryInput = {
       editorId,
-      kind: f.kind === "feedback" ? (f.points > 0 ? "positive" : "negative") : f.kind,
-      category: f.kind === "note" ? "" : f.category,
+      kind: f.kind,
+      category: f.kind === "mistake" ? f.category : "",
       body: f.body,
       count: f.count,
-      points: f.kind === "feedback" ? Math.abs(f.points) : null,
+      points: scored ? f.points : null,
       day: f.day,
       taskId: f.taskId,
       clientId: f.clientId,
@@ -383,11 +382,11 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
     <dialog ref={ref} onClose={onClose} className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground">
       <div className="flex items-center justify-between gap-3 px-5 pt-4">
         <div className="flex flex-wrap gap-1 rounded-lg bg-surface-2/60 p-0.5">
-          {kinds.map((k) => (
+          {KINDS.map((k) => (
             <button
               key={k.key}
               type="button"
-              onClick={() => set({ kind: k.key, category: k.key === f.kind ? f.category : "" })}
+              onClick={() => set({ kind: k.key })}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${f.kind === k.key ? "bg-surface-2 text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}
             >
               <k.Icon size={14} />
@@ -412,26 +411,20 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
       />
 
       <div className="flex flex-wrap items-center gap-1.5 px-5 pt-3 pb-4">
-        {f.kind === "feedback" && (
-          <>
-            <StepChip
-              value={f.points}
-              onChange={(n) => set({ points: n })}
-              step={0.5}
-              min={-5}
-              max={5}
-              show={f.points === 0 ? "Points" : `${f.points > 0 ? "+" : "−"}${Math.abs(f.points)}`}
-              tone={f.points > 0 ? "text-accent" : f.points < 0 ? "text-rose-300" : "text-muted"}
-            />
-            <Dropdown pill={{ icon: <Tag size={12} className="text-amber-400" /> }} value={f.category} placeholder="About" onChange={(v) => set({ category: v })} options={[...clearable(f.category, "Nothing in particular"), ...types.map((c) => ({ value: c.name, label: c.name }))]} />
-          </>
-        )}
-        {f.kind === "guidance" && (
-          <Dropdown pill={{ icon: <Tag size={12} className="text-amber-400" /> }} value={f.category} placeholder="About" onChange={(v) => set({ category: v })} options={[...clearable(f.category, "Nothing in particular"), ...types.map((c) => ({ value: c.name, label: c.name }))]} />
+        {scored && (
+          <StepChip
+            value={f.points}
+            onChange={(n) => set({ points: n })}
+            step={0.5}
+            min={0}
+            max={5}
+            show={f.points === 0 ? "Points" : `${f.kind === "positive" ? "+" : "−"}${f.points}`}
+            tone={f.points === 0 ? "text-muted" : f.kind === "positive" ? "text-accent" : "text-rose-300"}
+          />
         )}
         {f.kind === "mistake" && (
           <>
-            <Dropdown pill={{ icon: <Tag size={12} className="text-rose-400" /> }} value={f.category} placeholder="Type" onChange={(v) => set({ category: v })} options={types.map((c) => ({ value: c.name, label: c.name }))} />
+            <Dropdown pill={{ icon: <Tag size={12} className="text-rose-400" /> }} value={f.category} placeholder="Type" onChange={(v) => set({ category: v })} options={categories.map((c) => ({ value: c.name, label: c.name }))} />
             <StepChip value={f.count} onChange={(n) => set({ count: n })} step={1} min={1} max={99} show={`×${f.count}`} />
           </>
         )}
@@ -444,7 +437,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
           onChange={(v) => set({ taskId: v })}
           options={[...clearable(f.taskId, "No video"), ...tasks.map((t) => ({ value: t.id, label: t.title }))]}
         />
-        {f.kind !== "note" && clients.length > 0 && (
+        {clients.length > 0 && (
           <Dropdown
             pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
             value={f.clientId}
@@ -454,7 +447,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
             options={[...clearable(f.clientId, "No client"), ...clients.map((c) => ({ value: c.id, label: c.name }))]}
           />
         )}
-        {f.kind !== "note" && client && (
+        {client && (
           <Dropdown
             pill={{ icon: <FolderOpen size={12} className="text-violet-400" /> }}
             value={f.projectId}
@@ -574,13 +567,12 @@ const Tile = ({ Icon, tone }: { Icon: LucideIcon; tone: string }) => (
 // The mistakes found in their work, each Frame.io comment with its frame.
 export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
   const { run, error } = useRun();
-  const [filter, setFilter] = useState<"all" | "repeats" | "other">("all");
+  const [filter, setFilter] = useState<"all" | "repeats">("all");
   const [type, setType] = useState("");
   const [editing, setEditing] = useState<FeedbackView | null>(null);
   const [sorting, setSorting] = useState(false);
-  const mistakes = entries.filter((e) => e.kind === "mistake");
-  const shown = (filter === "other" ? entries.filter((e) => e.kind === "note") : filter === "repeats" ? mistakes.filter((e) => e.repeat) : mistakes).filter((e) => !type || e.category === type);
-  const used = [...new Set(mistakes.map((e) => e.category ?? "Others"))];
+  const shown = entries.filter((e) => (filter === "all" || e.repeat) && (!type || e.category === type));
+  const used = [...new Set(entries.map((e) => e.category ?? "Others"))];
   // what Sort with AI would touch: Frame.io comments nobody has sorted by hand
   const unsorted = entries.filter((e) => e.source === "frameio" && !e.reviewed);
 
@@ -591,9 +583,8 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
           value={filter}
           onChange={setFilter}
           options={[
-            { key: "all", label: "All", count: mistakes.length },
-            { key: "repeats", label: "Repeats", count: mistakes.filter((e) => e.repeat).length },
-            { key: "other", label: "Not feedback", count: entries.length - mistakes.length },
+            { key: "all", label: "All", count: entries.length },
+            { key: "repeats", label: "Repeats", count: entries.filter((e) => e.repeat).length },
           ]}
         />
         <div className="flex items-center gap-2">
@@ -611,7 +602,7 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
               <Sparkles size={13} /> {sorting ? "Sorting…" : "Sort with AI"}
             </button>
           )}
-          {used.length > 1 && filter !== "other" && (
+          {used.length > 1 && (
             <div className="w-44">
               <Dropdown value={type} placeholder="Every type" onChange={setType} options={[{ value: "", label: "Every type" }, ...used.map((c) => ({ value: c, label: c }))]} />
             </div>
@@ -630,25 +621,21 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
               canEdit={canEdit}
               onEdit={() => setEditing(e)}
               run={run}
-              lead={<Tile Icon={e.kind === "mistake" ? CircleAlert : StickyNote} tone="bg-surface-2/70 text-muted" />}
+              lead={<Tile Icon={CircleAlert} tone="bg-surface-2/70 text-muted" />}
               tags={
-                e.kind === "mistake" ? (
-                  <>
-                    <span className="flex items-center gap-1 text-foreground/85">
-                      {e.category ?? "Others"}
-                      {e.count > 1 && <span className="text-muted">×{e.count}</span>}
-                      <Info label={e.category ?? "Others"} text={describe(dialog.categories, e.category ?? "Others")} />
+                <>
+                  <span className="flex items-center gap-1 text-foreground/85">
+                    {e.category ?? "Others"}
+                    {e.count > 1 && <span className="text-muted">×{e.count}</span>}
+                    <Info label={e.category ?? "Others"} text={describe(dialog.categories, e.category ?? "Others")} />
+                  </span>
+                  {e.repeat && (
+                    <span className="flex items-center gap-1 text-rose-300">
+                      <Repeat2 size={13} /> Repeat
                     </span>
-                    {e.repeat && (
-                      <span className="flex items-center gap-1 text-rose-300">
-                        <Repeat2 size={13} /> Repeat
-                      </span>
-                    )}
-                    {!e.counted && <span title="From before their work was tracked here">Not counted</span>}
-                  </>
-                ) : (
-                  <span>Not feedback</span>
-                )
+                  )}
+                  {!e.counted && <span title="From before their work was tracked here">Not counted</span>}
+                </>
               }
             />
           ))}
@@ -660,43 +647,39 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
   );
 }
 
-// Everything core has said to them: praise and concerns with their points,
-// and tips, which carry none.
+const SAID: Record<string, { label: string; Icon: LucideIcon; tone: string; text: string }> = {
+  positive: { label: "Praise", Icon: ThumbsUp, tone: "bg-accent/15 text-accent", text: "text-accent" },
+  negative: { label: "Concern", Icon: ThumbsDown, tone: "bg-rose-300/10 text-rose-300", text: "text-rose-300" },
+  guidance: { label: "Tip", Icon: Lightbulb, tone: "bg-amber-300/10 text-amber-300", text: "text-amber-300" },
+};
+
+// Everything said to them that isn't a mistake: praise adds its points,
+// a concern takes them off, a tip is just a tip.
 export function FeedbackList({ entries, canEdit, ...dialog }: ListProps) {
   const { run, error } = useRun();
   const [filter, setFilter] = useState<"all" | "positive" | "negative" | "guidance">("all");
-  const [type, setType] = useState("");
   const [editing, setEditing] = useState<FeedbackView | null>(null);
-  const shown = entries.filter((e) => (filter === "all" || e.kind === filter) && (!type || e.category === type));
+  const shown = entries.filter((e) => filter === "all" || e.kind === filter);
   const count = (k: string) => entries.filter((e) => e.kind === k).length;
-  const used = [...new Set(entries.map((e) => e.category).filter((c): c is string => !!c))];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Filters
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { key: "all", label: "All", count: entries.length },
-            { key: "positive", label: "Praise", count: count("positive") },
-            { key: "negative", label: "Concerns", count: count("negative") },
-            { key: "guidance", label: "Tips", count: count("guidance") },
-          ]}
-        />
-        {used.length > 0 && (
-          <div className="w-44">
-            <Dropdown value={type} placeholder="Every type" onChange={setType} options={[{ value: "", label: "Every type" }, ...used.map((c) => ({ value: c, label: c }))]} />
-          </div>
-        )}
-      </div>
+      <Filters
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { key: "all", label: "All", count: entries.length },
+          { key: "positive", label: "Praise", count: count("positive") },
+          { key: "negative", label: "Concerns", count: count("negative") },
+          { key: "guidance", label: "Tips", count: count("guidance") },
+        ]}
+      />
       {shown.length === 0 ? (
         <Empty>No feedback here.</Empty>
       ) : (
         <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface/40">
           {shown.map((e) => {
-            const tip = e.kind === "guidance";
-            const up = e.kind === "positive";
+            const k = SAID[e.kind] ?? SAID.guidance;
             return (
               <Row
                 key={e.id}
@@ -704,24 +687,17 @@ export function FeedbackList({ entries, canEdit, ...dialog }: ListProps) {
                 canEdit={canEdit}
                 onEdit={() => setEditing(e)}
                 run={run}
-                lead={<Tile Icon={tip ? Lightbulb : MessageSquareHeart} tone={tip ? "bg-amber-300/10 text-amber-300" : up ? "bg-accent/15 text-accent" : "bg-rose-300/10 text-rose-300"} />}
+                lead={<Tile Icon={k.Icon} tone={k.tone} />}
                 tags={
-                  <>
-                    {tip ? (
-                      <span className="text-amber-300">Tip</span>
-                    ) : (
-                      <span className={`font-medium tabular-nums ${up ? "text-accent" : "text-rose-300"}`}>
-                        {up ? "+" : "−"}
+                  <span className={`flex items-center gap-1.5 ${k.text}`}>
+                    {e.kind !== "guidance" && (
+                      <span className="font-medium tabular-nums">
+                        {e.kind === "positive" ? "+" : "−"}
                         {e.points ?? dialog.scoring.praisePoints}
                       </span>
                     )}
-                    {e.category && (
-                      <span className="flex items-center gap-1 text-foreground/85">
-                        {e.category}
-                        <Info label={e.category} text={describe(dialog.categories, e.category)} />
-                      </span>
-                    )}
-                  </>
+                    {k.label}
+                  </span>
                 }
               />
             );
@@ -734,15 +710,18 @@ export function FeedbackList({ entries, canEdit, ...dialog }: ListProps) {
   );
 }
 
-// ---------- videos ----------
+// ---------- work ----------
 
-export type VideoRow = {
+export type WorkRow = {
   id: string;
   title: string;
   where: string;
   type: string;
   guessed: boolean;
-  completed: string | null;
+  // the day it went to the client, when it counts in this period
+  done: string | null;
+  // where it is now, when it isn't done: its stage and that stage's colours
+  stage: { label: string; pill: string } | null;
   editHours: number | null;
   standardHours: number;
   withinStandard: boolean | null;
@@ -750,21 +729,22 @@ export type VideoRow = {
   excluded: boolean;
 };
 
-// What they completed: each video's type (core can set it), its time from
-// Editing to Sent for approval against its standard, and its revisions.
-// One that shouldn't count can be left out.
-export function VideoTable({ rows, types, canEdit }: { rows: VideoRow[]; types: string[]; canEdit: boolean }) {
+// Their work: what went to the client in the period, which is what counts,
+// and what they're still on. Each with its type (core can set it), its time
+// from Editing to Sent for approval against its standard, and its
+// revisions. A piece that shouldn't count can be left out.
+export function WorkTable({ rows, types, canEdit }: { rows: WorkRow[]; types: string[]; canEdit: boolean }) {
   const { run, error } = useRun();
-  if (rows.length === 0) return <Empty>No videos finished here.</Empty>;
-  const ROW = "grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-4 px-4 md:grid-cols-[minmax(0,1fr)_10rem_5rem_7.5rem_5.5rem_5.5rem]";
+  if (rows.length === 0) return <Empty>No work here.</Empty>;
+  const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 md:grid-cols-[minmax(0,1fr)_10rem_11rem_7.5rem_5.5rem_5.5rem]";
   return (
     <div className="flex flex-col gap-2">
       <div className="overflow-hidden rounded-2xl border border-border bg-surface/40 text-sm">
         <div className={`${ROW} py-3 text-muted`}>
-          <span>Video</span>
+          <span>Work</span>
           <span className="hidden md:block">Type</span>
-          <span className="hidden md:block">Done</span>
-          <span className="text-right">Time</span>
+          <span className="text-right md:text-left">Stage</span>
+          <span className="hidden text-right md:block">Time</span>
           <span className="hidden text-right md:block">Revisions</span>
           <span className="hidden md:block" />
         </div>
@@ -781,13 +761,21 @@ export function VideoTable({ rows, types, canEdit }: { rows: VideoRow[]; types: 
                 <span className="text-muted">{v.type}</span>
               )}
             </span>
-            <span className="hidden text-muted md:block">{v.completed ? shortDay(v.completed) : "–"}</span>
-            <span className="text-right tabular-nums whitespace-nowrap" title={`Editing to Sent for approval, against ${hoursLabel(v.standardHours)}`}>
+            <span className="justify-self-end md:justify-self-start">
+              {v.done ? (
+                <span className="whitespace-nowrap text-foreground">Sent to client {shortDay(v.done)}</span>
+              ) : v.stage ? (
+                <span className={`rounded-full border px-2.5 py-0.5 text-sm whitespace-nowrap ${v.stage.pill}`} title="Counts once it's sent to the client">
+                  {v.stage.label}
+                </span>
+              ) : null}
+            </span>
+            <span className="hidden text-right tabular-nums whitespace-nowrap md:block" title={`Editing to Sent for approval, against ${hoursLabel(v.standardHours)}`}>
               <span className={v.withinStandard === false ? "text-rose-300" : v.withinStandard ? "text-foreground" : "text-muted"}>{v.editHours === null ? "–" : hoursLabel(v.editHours)}</span>
               <span className="text-muted"> / {hoursLabel(v.standardHours)}</span>
             </span>
             <span className="hidden text-right tabular-nums md:block">{v.revisions}</span>
-            {canEdit ? (
+            {canEdit && v.done ? (
               <button onClick={() => run(() => setTaskExcluded(v.id, !v.excluded))} className="hidden justify-self-end text-muted hover:text-foreground md:block">
                 {v.excluded ? "Count it" : "Leave out"}
               </button>

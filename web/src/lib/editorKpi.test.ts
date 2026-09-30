@@ -175,11 +175,10 @@ test("periods: a week, a month, a range, each with the one before", () => {
   assert.deepEqual([all.kind, all.from, all.to], ["all", "2026-06-15", "2026-09-30"]);
 });
 
-test("charts: 8 weeks for a week, 6 months for a month, a long stretch by month", () => {
-  assert.deepEqual(chartSpans({ kind: "week", from: "2026-09-28", to: "2026-09-30" }).map((s) => s.label).slice(-2), ["21 Sep", "28 Sep"]);
-  assert.equal(chartSpans({ kind: "month", from: "2026-09-01", to: "2026-09-30" }).length, 6);
-  assert.equal(chartSpans({ kind: "range", from: "2026-09-01", to: "2026-09-30" }).length, 5);
-  assert.deepEqual(chartSpans({ kind: "all", from: "2026-06-15", to: "2026-09-30" }).map((s) => s.label), ["Jun", "Jul", "Aug", "Sep"]);
+test("charts: week by week, 12 weeks or the whole stretch", () => {
+  assert.deepEqual(chartSpans({ from: "2026-09-28", to: "2026-09-30" }).map((s) => s.label).slice(-2), ["21 Sep", "28 Sep"]);
+  assert.equal(chartSpans({ from: "2026-09-01", to: "2026-09-30" }).length, 12);
+  assert.equal(chartSpans({ from: "2026-01-05", to: "2026-09-30" }).length, 39);
 });
 
 test("history runs oldest first", () => {

@@ -85,7 +85,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
           </ul>
 
           <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
-            <h2 className="mb-4 text-base font-semibold">Scores over time</h2>
+            <h2 className="mb-4 text-base font-semibold">Week by week</h2>
             <TeamChart series={cards.map((c) => ({ name: c.e.name, values: c.series }))} spans={spans} />
           </section>
         </>

@@ -153,8 +153,13 @@ export function ScoringForm({ scoring, kinds }: { scoring: Scoring; kinds: strin
         </Card>
 
         <Card title={F.label} icon={<F.Icon size={16} className="text-muted" />}>
-          {field("Starts each week at", "feedbackStart", { suffix: `of ${d.feedbackPoints}` })}
+          <p className="-mt-2 text-sm text-muted">Praise adds points, a concern takes them off, a tip does neither.</p>
+          {field("Every week starts at", "feedbackStart", { suffix: `of ${d.feedbackPoints}` })}
           {field("Praise on Frame.io", "praisePoints", { prefix: "+" })}
+          <label className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
+            <span className="text-sm text-muted">Frame.io comments with these words are tips, not mistakes</span>
+            <textarea value={d.tipWords} onChange={(e) => set({ tipWords: e.target.value })} rows={3} className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
+          </label>
         </Card>
       </div>
 
@@ -171,10 +176,10 @@ const Field = ({ label: text, children }: { label: string; children: React.React
   </label>
 );
 
-// A type's fields, opened from its row: its name and what it means, and
-// for a mistake type the points one takes off, whether repeats count, and
-// the keywords that sort a Frame.io comment into it
-function TypeForm({ start, mistake, onSave, onRemove, onCancel }: { start: Draft; mistake: boolean; onSave: (d: Draft) => Promise<boolean>; onRemove?: () => void; onCancel: () => void }) {
+// A mistake type's fields, opened from its row: its name, the points one
+// takes off, whether repeats count, what it means, and the keywords that
+// sort a Frame.io comment into it
+function TypeForm({ start, onSave, onRemove, onCancel }: { start: Draft; onSave: (d: Draft) => Promise<boolean>; onRemove?: () => void; onCancel: () => void }) {
   const [d, setD] = useState(start);
   const [busy, setBusy] = useState(false);
   return (
@@ -183,29 +188,27 @@ function TypeForm({ start, mistake, onSave, onRemove, onCancel }: { start: Draft
         <Field label="Name">
           <input value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} className={`${input} font-medium`} autoFocus={!start.name} />
         </Field>
-        {mistake && (
-          <span className="flex items-center gap-2 pb-0.5">
-            <Num value={d.weight} onChange={(n) => n !== null && setD({ ...d, weight: n })} prefix="−" suffix="points" />
-            <button
-              type="button"
-              onClick={() => setD({ ...d, repeats: !d.repeats })}
-              title="The same type again, on another video, counts as a repeat"
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm whitespace-nowrap ${d.repeats ? "bg-rose-300/10 text-rose-300" : "bg-surface text-muted"}`}
-            >
-              <Repeat2 size={14} /> {d.repeats ? "Repeats count" : "No repeats"}
-            </button>
-          </span>
-        )}
+        <span className="flex items-center gap-2 pb-0.5">
+          <Num value={d.weight} onChange={(n) => n !== null && setD({ ...d, weight: n })} prefix="−" suffix="points" />
+          <button
+            type="button"
+            onClick={() => setD({ ...d, repeats: !d.repeats })}
+            title="The same type again, on another video, counts as a repeat"
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm whitespace-nowrap ${d.repeats ? "bg-rose-300/10 text-rose-300" : "bg-surface text-muted"}`}
+          >
+            <Repeat2 size={14} /> {d.repeats ? "Repeats count" : "No repeats"}
+          </button>
+        </span>
       </div>
       <Field label="What it means">
         <textarea value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} rows={2} className={`${input} resize-none`} />
       </Field>
-      <Field label={mistake ? "Keywords that sort a Frame.io comment here" : "Keywords that sort a Frame.io comment here, as feedback that isn't scored"}>
-        <input value={d.keywords} onChange={(e) => setD({ ...d, keywords: e.target.value })} placeholder={mistake ? "typo, spelling, misspelled" : "bgm, pacing, vibe"} className={input} />
+      <Field label="Keywords that sort a Frame.io comment here">
+        <input value={d.keywords} onChange={(e) => setD({ ...d, keywords: e.target.value })} placeholder="typo, spelling, misspelled" className={input} />
       </Field>
       <div className="flex items-center justify-end gap-2">
         {onRemove && (
-          <ConfirmButton confirm="Remove" message={`Remove ${start.name}?${mistake ? " Its mistakes move to Others." : ""}`} className="btn btn-ghost mr-auto flex items-center gap-1.5 text-muted hover:text-red-400" onConfirm={onRemove}>
+          <ConfirmButton confirm="Remove" message={`Remove ${start.name}? Its mistakes move to Others.`} className="btn btn-ghost mr-auto flex items-center gap-1.5 text-muted hover:text-red-400" onConfirm={onRemove}>
             <Trash2 size={14} /> Remove
           </ConfirmButton>
         )}
@@ -228,47 +231,41 @@ function TypeForm({ start, mistake, onSave, onRemove, onCancel }: { start: Draft
   );
 }
 
-// The mistake types Frame.io comments are sorted into, or the feedback
-// types praise and concerns are about: a row each, opened to edit.
-export function TypesPanel({ group, types }: { group: "mistake" | "feedback"; types: CategoryView[] }) {
+// The mistake types Frame.io comments are sorted into: a row each, opened
+// to edit.
+export function TypesPanel({ types }: { types: CategoryView[] }) {
   const { run, error } = useRun();
-  const mistake = group === "mistake";
   const [open, setOpen] = useState<string | null>(null);
   const draft = (c?: CategoryView): Draft => ({ name: c?.name ?? "", description: c?.description ?? "", weight: c?.weight ?? 0.5, keywords: c?.keywords ?? "", repeats: c?.repeats ?? true });
 
   return (
     <div className="flex flex-col gap-3">
       <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface/40">
-        {mistake && (
-          <li className="flex items-center gap-4 px-4 py-2.5 text-sm text-muted">
-            <span className="w-44 shrink-0">Type</span>
-            <span className="hidden flex-1 sm:block">What it means</span>
-            <span className="ml-auto sm:ml-0">Points off, each</span>
-            <span className="w-4 shrink-0" />
-          </li>
-        )}
+        <li className="flex items-center gap-4 px-4 py-2.5 text-sm text-muted">
+          <span className="w-44 shrink-0">Type</span>
+          <span className="hidden flex-1 sm:block">What it means</span>
+          <span className="ml-auto sm:ml-0">Points off, each</span>
+          <span className="w-4 shrink-0" />
+        </li>
         {types.map((c) => (
           <li key={c.id}>
             <button onClick={() => setOpen(open === c.id ? null : c.id)} className="flex w-full items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.02]">
               <span className="w-44 shrink-0 truncate text-base">{c.name}</span>
               <span className="hidden min-w-0 flex-1 truncate text-sm text-muted sm:block">{c.description}</span>
-              {mistake && (
-                <span className="ml-auto flex shrink-0 items-center gap-3 text-sm tabular-nums sm:ml-0">
-                  {c.repeats && <Repeat2 size={14} className="text-rose-300" aria-label="Repeats count" />}
-                  <span className="w-10 text-right">−{c.weight}</span>
-                </span>
-              )}
-              <ChevronDown size={16} className={`shrink-0 text-muted transition-transform ${mistake ? "" : "ml-auto"} ${open === c.id ? "rotate-180" : ""}`} />
+              <span className="ml-auto flex shrink-0 items-center gap-3 text-sm tabular-nums sm:ml-0">
+                {c.repeats && <Repeat2 size={14} className="text-rose-300" aria-label="Repeats count" />}
+                <span className="w-10 text-right">−{c.weight}</span>
+              </span>
+              <ChevronDown size={16} className={`shrink-0 text-muted transition-transform ${open === c.id ? "rotate-180" : ""}`} />
             </button>
             <Reveal open={open === c.id}>
               {open === c.id && (
                 <TypeForm
                   start={draft(c)}
-                  mistake={mistake}
                   onCancel={() => setOpen(null)}
                   onRemove={c.name === "Others" ? undefined : () => run(() => deleteCategory(c.id)).then((ok) => ok && setOpen(null))}
                   onSave={async (d) => {
-                    const ok = await run(() => updateCategory(c.id, { ...d, group }));
+                    const ok = await run(() => updateCategory(c.id, d));
                     if (ok) setOpen(null);
                     return ok;
                   }}
@@ -279,16 +276,15 @@ export function TypesPanel({ group, types }: { group: "mistake" | "feedback"; ty
         ))}
         <li>
           <button onClick={() => setOpen(open === "new" ? null : "new")} className="flex w-full items-center gap-2 px-4 py-3.5 text-left text-sm text-muted transition-colors hover:bg-white/[0.02] hover:text-foreground">
-            <Plus size={15} /> New {mistake ? "mistake" : "feedback"} type
+            <Plus size={15} /> New mistake type
           </button>
           <Reveal open={open === "new"}>
             {open === "new" && (
               <TypeForm
                 start={draft()}
-                mistake={mistake}
                 onCancel={() => setOpen(null)}
                 onSave={async (d) => {
-                  const ok = await run(() => addCategory({ ...d, group }));
+                  const ok = await run(() => addCategory(d));
                   if (ok) setOpen(null);
                   return ok;
                 }}

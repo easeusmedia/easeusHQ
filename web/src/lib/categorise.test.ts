@@ -1,33 +1,37 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { categorise, STARTING_KEYWORDS } from "./categorise.ts";
+import { DEFAULT_SCORING } from "./editorKpi.ts";
 
-const CATS = Object.entries(STARTING_KEYWORDS).map(([name, keywords]) => ({ name, keywords, group: name === "Creative" ? "feedback" : "mistake" }));
+const CATS = Object.entries(STARTING_KEYWORDS).map(([name, keywords]) => ({ name, keywords }));
+const sort = (text: string, fromClient = false) => categorise(text, CATS, fromClient, DEFAULT_SCORING.tipWords);
 
 test("a comment goes to the category whose keywords it uses", () => {
-  assert.deepEqual(categorise("There's a typo in the second line", CATS), { kind: "mistake", category: "Typos" });
-  assert.deepEqual(categorise("Use UK spelling: organisation", CATS), { kind: "mistake", category: "UK/US spelling" });
-  // Creative is a feedback type: a suggestion, never a mistake
-  assert.deepEqual(categorise("Change the bgm here, it's not the vibe", CATS), { kind: "guidance", category: "Creative" });
-  assert.deepEqual(categorise("The Website is shaking in the beginning?", CATS), { kind: "mistake", category: "Visual glitches" });
-  assert.deepEqual(categorise("Subtitles are out of sync", CATS), { kind: "mistake", category: "Subtitles" });
+  assert.deepEqual(sort("There's a typo in the second line"), { kind: "mistake", category: "Typos" });
+  assert.deepEqual(sort("Use UK spelling: organisation"), { kind: "mistake", category: "UK/US spelling" });
+  // a creative suggestion is a tip, never a mistake
+  assert.deepEqual(sort("Change the bgm here, it's not the vibe"), { kind: "guidance", category: null });
+  // unless a mistake type's words say more
+  assert.deepEqual(sort("The bgm audio is too loud"), { kind: "mistake", category: "Sound" });
+  assert.deepEqual(sort("The Website is shaking in the beginning?"), { kind: "mistake", category: "Visual glitches" });
+  assert.deepEqual(sort("Subtitles are out of sync"), { kind: "mistake", category: "Subtitles" });
 });
 
 test("whole words only: 'subs' isn't found inside 'subscribe'", () => {
-  assert.notEqual(categorise("Add a subscribe button at the end please", CATS).category, "Subtitles");
+  assert.notEqual(sort("Add a subscribe button at the end please").category, "Subtitles");
 });
 
 test("ours saying 'feedback' is feedback, never scored; the client's isn't", () => {
-  assert.deepEqual(categorise("Feedback: use this kind of hook in future, it keeps them watching", CATS), { kind: "guidance", category: null });
-  assert.deepEqual(categorise("feedback use this to enhance the visual", CATS), { kind: "guidance", category: null });
-  assert.equal(categorise("Feedback: the font is too small", CATS, true).kind, "mistake");
+  assert.deepEqual(sort("Feedback: use this kind of hook in future, it keeps them watching"), { kind: "guidance", category: null });
+  assert.deepEqual(sort("feedback use this to enhance the visual"), { kind: "guidance", category: null });
+  assert.equal(sort("Feedback: the font is too small", true).kind, "mistake");
 });
 
-test("praise is praise unless it asks for something; a word or two that matches nothing isn't feedback; the rest goes to Others", () => {
-  assert.deepEqual(categorise("Nice!!!", CATS), { kind: "positive", category: null });
-  assert.deepEqual(categorise("Great pacing, best one yet", CATS), { kind: "positive", category: null });
-  assert.deepEqual(categorise("Good, but change the font", CATS), { kind: "mistake", category: "Typography" });
-  assert.deepEqual(categorise("This transition is not good", CATS), { kind: "mistake", category: "Animation" });
-  assert.deepEqual(categorise("Because", CATS), { kind: "note", category: null });
-  assert.deepEqual(categorise("Can we make this part slightly shorter", CATS), { kind: "mistake", category: "Others" });
+test("praise is praise unless it asks for something; a word or two that matches nothing is a tip; the rest goes to Others", () => {
+  assert.deepEqual(sort("Nice!!!"), { kind: "positive", category: null });
+  assert.deepEqual(sort("Great pacing, best one yet"), { kind: "positive", category: null });
+  assert.deepEqual(sort("Good, but change the font"), { kind: "mistake", category: "Typography" });
+  assert.deepEqual(sort("This transition is not good"), { kind: "mistake", category: "Animation" });
+  assert.deepEqual(sort("Because"), { kind: "guidance", category: null });
+  assert.deepEqual(sort("Can we make this part slightly shorter"), { kind: "mistake", category: "Others" });
 });

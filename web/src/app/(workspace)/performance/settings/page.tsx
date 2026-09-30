@@ -11,7 +11,7 @@ import { ScoringForm, TypesPanel } from "./forms";
 export const dynamic = "force-dynamic";
 
 // How editors are scored, in one place: the scoring (admin), and the
-// mistake types and feedback types with what each means (core).
+// mistake types with what each means and costs (core).
 export default async function PerformanceSettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
@@ -40,8 +40,7 @@ export default async function PerformanceSettingsPage({ searchParams }: { search
             label: "Scoring",
             content: canEditPeople(me) ? <ScoringForm scoring={scoring} kinds={kinds.map((k) => k.name)} /> : <p className="text-sm text-muted">Only the admin can change the scoring.</p>,
           },
-          { key: "mistakes", label: "Mistake types", count: categories.filter((c) => c.group === "mistake").length, content: <TypesPanel group="mistake" types={categories.filter((c) => c.group === "mistake")} /> },
-          { key: "feedback", label: "Feedback types", count: categories.filter((c) => c.group === "feedback").length, content: <TypesPanel group="feedback" types={categories.filter((c) => c.group === "feedback")} /> },
+          { key: "mistakes", label: "Mistake types", count: categories.length, content: <TypesPanel types={categories} /> },
         ]}
       />
     </div>
