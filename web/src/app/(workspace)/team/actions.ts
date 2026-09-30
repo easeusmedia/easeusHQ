@@ -182,6 +182,30 @@ export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
   return { success: true };
 }
 
+// A department's or a role's new name. Only the name changes: the
+// department's address (its slug), what it grants and everyone in it stay.
+export async function renameDepartment(id: string, name: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only Level 1 can rename a department." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the department a name." };
+  const clash = await prisma.team.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" }, id: { not: id } } });
+  if (clash) return { error: `"${clash.name}" already exists.` };
+  await prisma.team.update({ where: { id }, data: { name: trimmed } });
+  return { success: true };
+}
+
+export async function renameRole(id: string, name: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only Level 1 can rename a role." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the role a name." };
+  const clash = await prisma.jobTitle.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" }, id: { not: id } } });
+  if (clash) return { error: `"${clash.name}" already exists.` };
+  await prisma.jobTitle.update({ where: { id }, data: { name: trimmed } });
+  return { success: true };
+}
+
 // A new side of the agency. It works like the others from the start: its
 // core members see its work, and its task tags are offered to it.
 export async function createDepartment(name: string): Promise<PeopleFormState & { id?: string; name?: string; slug?: string }> {

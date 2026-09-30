@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
-import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag } from "./actions";
+import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, renameDepartment, renameRole } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
 
@@ -55,6 +55,55 @@ function AddInline({ label, onAdd, small }: { label: string; onAdd: (name: strin
       }}
       placeholder={`${label}, then Enter`}
       className={`w-48 rounded-full border border-border bg-surface-2 text-foreground outline-none focus:border-hover disabled:opacity-60 ${size}`}
+    />
+  );
+}
+
+// A name that turns into a field when clicked: Enter (or leaving it) saves,
+// Escape puts it back as it was
+function EditableName({ name, onSave, className = "" }: { name: string; onSave: (name: string) => Promise<string | undefined>; className?: string }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!value.trim() || value.trim() === name) {
+      setValue(name);
+      return setEditing(false);
+    }
+    setBusy(true);
+    const error = await onSave(value);
+    setBusy(false);
+    if (error) setValue(name);
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <button type="button" onClick={() => setEditing(true)} title="Rename" className={`group/name flex items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}>
+        {name}
+        <Pencil size={11} className="text-muted opacity-0 transition-opacity group-hover/name:opacity-100" />
+      </button>
+    );
+  }
+  return (
+    <input
+      autoFocus
+      value={value}
+      disabled={busy}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          save();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          setValue(name);
+          setEditing(false);
+        }
+      }}
+      className={`w-56 rounded-md border border-border bg-surface-2 px-2 py-0.5 text-foreground outline-none focus:border-hover disabled:opacity-60 ${className}`}
     />
   );
 }
@@ -122,6 +171,18 @@ export function Organisation({
     done();
     setRoles((all) => (all.some((r) => r.id === res.id) ? all : [...all, { id: res.id!, name: res.name!, teamId, people: 0, workflow: "todo" }]));
   }
+  async function renameTeam(id: string, name: string) {
+    const res = await renameDepartment(id, name);
+    if (res.error) return fail(res.error);
+    done();
+    setTeams((all) => all.map((t) => (t.id === id ? { ...t, name: name.trim() } : t)));
+  }
+  async function renameOneRole(id: string, name: string) {
+    const res = await renameRole(id, name);
+    if (res.error) return fail(res.error);
+    done();
+    setRoles((all) => all.map((r) => (r.id === id ? { ...r, name: name.trim() } : r)));
+  }
   async function removeRole(id: string) {
     const res = await deleteJobTitle(id);
     if (res.error) return setError(res.error);
@@ -170,33 +231,31 @@ export function Organisation({
         <div className="flex flex-col gap-3 p-4">
           {teams.map((t) => {
             const inTeam = roles.filter((r) => r.teamId === t.id);
-            const removable = t.slug !== "production" && t.slug !== "client-services" && t.people === 0;
             return (
               <section key={t.id} className="rounded-xl border border-border bg-surface-2/30 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">
-                    {t.name} <span className="ml-1 text-xs font-normal text-muted">{people(t.people)}</span>
-                  </p>
-                  {removable && (
-                    <ConfirmButton
-                      confirm="Remove"
-                      message={`Remove ${t.name} and its roles? Its kinds of work stay, shared by every department.`}
-                      className="rounded-md p-1 text-muted transition-colors hover:text-red-400"
-                      onConfirm={() => removeDepartment(t.id)}
-                    >
-                      <Trash2 size={13} />
-                    </ConfirmButton>
-                  )}
+                  <div className="flex items-baseline gap-2">
+                    <EditableName name={t.name} onSave={(name) => renameTeam(t.id, name)} className="text-sm font-semibold" />
+                    <span className="text-xs text-muted">{people(t.people)}</span>
+                  </div>
+                  <ConfirmButton
+                    confirm="Remove"
+                    message={`Remove ${t.name} and its roles? Its kinds of work stay, shared by every department.`}
+                    className="rounded-md p-1 text-muted transition-colors hover:text-red-400"
+                    onConfirm={() => removeDepartment(t.id)}
+                  >
+                    <Trash2 size={13} />
+                  </ConfirmButton>
                 </div>
                 <div className="flex flex-col divide-y divide-border/50">
                   {inTeam.map((r) => {
                     return (
                       <div key={r.id} className="group flex flex-col gap-2 py-2.5 first:pt-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm">
-                            {r.name}
-                            {r.people > 0 && <span className="ml-1.5 text-xs text-muted">{people(r.people)}</span>}
-                          </span>
+                          <div className="flex items-baseline gap-1.5">
+                            <EditableName name={r.name} onSave={(name) => renameOneRole(r.id, name)} className="text-sm" />
+                            {r.people > 0 && <span className="text-xs text-muted">{people(r.people)}</span>}
+                          </div>
                           <ConfirmButton
                             confirm="Remove"
                             message={roleMessage(r)}
