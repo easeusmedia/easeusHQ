@@ -136,7 +136,7 @@ export const weekday = (day: string) => new Date(`${day}T00:00:00Z`).getUTCDay()
 const midnight = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - IST);
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / DAY);
 
-export const isWorkDay = (day: string, s: Pick<Scoring, "workDays">) => s.workDays.includes(weekday(day));
+export const isWorkDay = (day: string, s: { workDays: number[] }) => s.workDays.includes(weekday(day));
 
 // Hours between two moments, skipping days that aren't working days
 // (Sundays). Editors keep their own hours, so it's clock time.
@@ -180,7 +180,7 @@ const GUESSES: [RegExp, string][] = [
   [/\breels?\b|\bshorts?\b/i, "Reel"],
 ];
 
-export function workType(tags: string[], title: string, s: Pick<Scoring, "types">): { type: string; guessed: boolean } {
+export function workType(tags: string[], title: string, s: { types: Record<string, unknown> }): { type: string; guessed: boolean } {
   const tagged = tags.find((x) => x in s.types) ?? tags[0];
   if (tagged) return { type: tagged, guessed: false };
   return { type: GUESSES.find(([re]) => re.test(title))?.[1] ?? "Reel", guessed: true };
