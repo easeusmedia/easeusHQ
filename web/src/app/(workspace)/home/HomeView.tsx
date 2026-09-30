@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, FileSignature, Layers, ListChecks, MessageSquare, Plus, Receipt, StickyNote, Users, Video, X } from "lucide-react";
 import { Avatar } from "../TaskCard";
+import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { closeOnBackdrop } from "../dialog";
@@ -222,12 +223,16 @@ export function HomeView({
             <h1 className="mt-1.5 text-3xl font-semibold tracking-tight sm:text-4xl">{greeting}</h1>
             <p className="text-3xl font-semibold tracking-tight text-foreground/35 sm:text-4xl">Here&apos;s everything in motion.</p>
           </div>
+          {/* a matched pair, in the app's own "New …" look (AddButton) */}
           <div className="flex gap-2">
-            <button type="button" onClick={newTask} className={`${BUTTON} bg-accent text-white hover:bg-accent/85`}>
-              <Plus size={16} /> New task
+            <button type="button" onClick={newTask} className={ADD_BUTTON}>
+              <PlusBadge /> New task
             </button>
-            <button type="button" onClick={() => meetingRef.current?.open(day)} className={`${BUTTON} border border-white/[0.1] bg-white/[0.04] text-foreground hover:bg-white/[0.08]`}>
-              <Video size={16} /> New meeting
+            <button type="button" onClick={() => meetingRef.current?.open(day)} className={ADD_BUTTON}>
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
+                <Video size={11} />
+              </span>
+              New meeting
             </button>
           </div>
         </div>
