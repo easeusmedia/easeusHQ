@@ -186,6 +186,11 @@ export type FrameioComment = {
   // when someone ticked it done in Frame.io (our editors tick what they've
   // fixed); null while it's open
   completedAt: string | null;
+  // where it was left: the account and the cut's file, and the frame
+  // (Frame.io counts a comment's timestamp in frames), for its snapshot
+  accountId: string;
+  fileId: string;
+  frame: number | null;
 };
 
 // Every review comment on a share, across every cut of every video in it.
@@ -206,7 +211,7 @@ export async function shareComments(shareId: string): Promise<FrameioComment[]> 
   );
   const lists = await Promise.all(cuts.map(({ v }) => api(`/accounts/${accountId}/files/${v.id}/comments?include=owner`)));
   return lists.flatMap((body, i) =>
-    ((body?.data ?? []) as { id: string; text?: string; created_at?: string; completed_at?: string | null; owner?: { name?: string; email?: string } }[])
+    ((body?.data ?? []) as { id: string; text?: string; created_at?: string; completed_at?: string | null; timestamp?: number | null; owner?: { name?: string; email?: string } }[])
       .filter((c) => c.text?.trim())
       .map((c) => ({
         id: c.id,
@@ -216,6 +221,9 @@ export async function shareComments(shareId: string): Promise<FrameioComment[]> 
         byEmail: c.owner?.email ?? null,
         version: cuts[i].version,
         completedAt: c.completed_at ?? null,
+        accountId,
+        fileId: cuts[i].v.id,
+        frame: typeof c.timestamp === "number" ? c.timestamp : null,
       }))
   );
 }
@@ -245,4 +253,13 @@ export async function shareFiles(shareId: string): Promise<FrameioFile[]> {
       createdAt: f.created_at ?? null,
       downloadUrl: f.media_links?.original?.download_url ?? null,
     }));
+}
+
+// A cut's smallest playable copy (Frame.io's 180p proxy), for taking a
+// low-resolution snapshot of a frame. A short-lived signed address, fetched
+// when it's used; null when Frame.io hasn't made one.
+export async function smallVideoUrl(accountId: string, fileId: string): Promise<string | null> {
+  const body = await api(`/accounts/${accountId}/files/${fileId}?include=media_links.video_h264_180`);
+  const link = body?.data?.media_links?.video_h264_180;
+  return link?.download_url ?? link?.url ?? null;
 }

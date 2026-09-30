@@ -5,7 +5,8 @@ import { ALL_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
-import { ENTRY_KINDS, MISTAKE_CATEGORIES } from "@/lib/editorKpi";
+import { ENTRY_KINDS } from "@/lib/editorKpi";
+import { loadScoring } from "../performance/data";
 import type { WorkTaskStatus } from "@prisma/client";
 import { moveTask } from "../actions";
 import { moveWorkTask } from "../my-tasks/actions";
@@ -129,22 +130,27 @@ export async function prepare(input: { action?: string; ref?: string; changes?: 
       const p = await findPerson(ref);
       if (!("id" in p)) return p.none ? "No one by that name." : `Who? ${p.options.join(", ")}`;
       const kind = str(c.kind) || "mistake";
-      if (!(kind in ENTRY_KINDS)) return `Kind is one of ${Object.keys(ENTRY_KINDS).join(", ")}.`;
+      if (!["mistake", "positive", "negative"].includes(kind)) return "Kind is mistake, positive or negative.";
       const body = str(c.body);
       if (!body) return "Say what the feedback is.";
       const day = isDay(c.day) ? str(c.day) : indiaDay(new Date());
-      const category = kind === "mistake" ? MISTAKE_CATEGORIES.find((m) => m.toLowerCase() === str(c.category).toLowerCase()) ?? "Others" : null;
+      const mistake = kind === "mistake";
+      const names = (await prisma.feedbackCategory.findMany({ select: { name: true } })).map((x) => x.name);
+      const category = mistake ? (names.find((m) => m.toLowerCase() === str(c.category).toLowerCase()) ?? "Others") : str(c.category) || null;
+      const scoring = await loadScoring();
+      const asked = Number(c.points);
+      const points = mistake ? null : Number.isFinite(asked) && asked > 0 && asked <= 5 ? asked : kind === "positive" ? scoring.praisePoints : scoring.concernPoints;
       return {
         action: "feedback",
         target: "person",
         targetId: p.id,
         title: `Feedback for ${p.name}`,
         lines: [
-          { field: "Kind", from: "", to: category ? `${ENTRY_KINDS.mistake} · ${category}` : ENTRY_KINDS[kind as keyof typeof ENTRY_KINDS] },
+          { field: "Kind", from: "", to: mistake ? `A mistake · ${category}` : `${ENTRY_KINDS[kind as keyof typeof ENTRY_KINDS]}${category ? ` · ${category}` : ""} · ${kind === "positive" ? "+" : "−"}${points}` },
           { field: "Day", from: "", to: day },
           { field: "What", from: "", to: body },
         ],
-        values: { kind, category, body, day },
+        values: { kind, category, body, day, points },
       };
     }
 
@@ -175,7 +181,7 @@ export async function apply(p: Proposal, actorId: string): Promise<string | null
             : p.action === "employee"
               ? Object.fromEntries(Object.entries(p.values).map(([k, v]) => [k, v ?? ""]))
               : p.action === "feedback"
-                ? { kind: p.values.kind, category: p.values.category, body: p.values.body, day: p.values.day }
+                ? { kind: p.values.kind, category: p.values.category, body: p.values.body, day: p.values.day, points: p.values.points }
                 : { status: p.values.status },
   });
   if (typeof fresh === "string") return fresh;
@@ -219,6 +225,7 @@ export async function apply(p: Proposal, actorId: string): Promise<string | null
         editorId: fresh.targetId,
         kind: String(v.kind),
         category: v.category ? String(v.category) : null,
+        points: typeof v.points === "number" ? v.points : null,
         body: String(v.body),
         at: new Date(`${v.day}T12:00:00+05:30`),
         source: "manual",

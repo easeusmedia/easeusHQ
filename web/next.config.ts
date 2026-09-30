@@ -2,6 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  // ffmpeg takes the feedback snapshots (lib/snapshots.ts): kept as a real
+  // package so it finds its own binary, and the binary shipped with every
+  // function that syncs Frame.io
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/performance": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/performance/[id]": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/cron/analytics": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
   experimental: {
     // files attached for the contract assistant ride in the action's body —
     // up to 4MB of them, within Vercel's 4.5MB request limit

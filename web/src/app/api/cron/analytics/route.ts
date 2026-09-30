@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { collect, dailySync } from "@/lib/contentSync";
 import { trackContracts } from "@/app/(workspace)/contracts/tracking";
 import { syncFrameioFeedback } from "@/lib/frameioFeedback";
+import { clearOldSnapshots } from "@/lib/snapshots";
 
 // The daily refresh of every client's public YouTube and Instagram numbers
 // (vercel.json runs it at 2am India time). Safe to call any time by anyone:
@@ -22,7 +23,10 @@ export async function GET(request: Request) {
   await trackContracts().catch(() => {});
   const result = await dailySync(origin);
   // last, so a slow Frame.io can't hold up the rest: yesterday's review
-  // comments into the editors' feedback log (only new ones reach Claude)
+  // comments into the editors' feedback log, sorted by keywords, with
+  // snapshots
   await syncFrameioFeedback().catch(() => {});
+  // feedback snapshots older than four months go; their text stays
+  await clearOldSnapshots().catch(() => {});
   return NextResponse.json(result);
 }

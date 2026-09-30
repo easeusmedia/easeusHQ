@@ -24,7 +24,7 @@ export function SyncFrameio() {
     setSaid(
       !res.added
         ? "No new comments."
-        : `${res.added} new comment${res.added === 1 ? "" : "s"}${res.sorted ? `, ${res.mistakes} sorted as mistakes` : ", to sort by hand"}.`
+        : `${res.added} new comment${res.added === 1 ? "" : "s"}, ${res.mistakes} sorted as feedback points.`
     );
     router.refresh();
     // a passing note, not a fixture of the header

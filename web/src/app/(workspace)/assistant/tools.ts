@@ -4,12 +4,12 @@ import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { hoursLabel, ENTRY_KINDS, MISTAKE_CATEGORIES, PART_LABEL, periodFrom, type Part } from "@/lib/editorKpi";
+import { hoursLabel, ENTRY_KINDS, periodFrom } from "@/lib/editorKpi";
 import { collectedIn, isOverdue, ledger, payroll, upcoming } from "@/lib/finance";
 import { clipText } from "@/lib/assistant";
 import type { Tool } from "@/lib/ai";
 import { loadPerformance } from "../performance/data";
-import { partText } from "../performance/shared";
+import { feedbackLines, qualityLines, quantityLines } from "../performance/shared";
 import { billingCycle, loadFinance, money } from "../finance/data";
 
 // What the admin's assistant can read and propose, and nothing else: the
@@ -80,7 +80,7 @@ export const TOOLS: Tool[] = [
   {
     name: "propose",
     description:
-      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind, category, body, day}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
+      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|positive|negative, category (a mistake's category, or what praise or negative feedback is about), body, day, points (for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
     input_schema: {
       type: "object",
       properties: {
@@ -156,27 +156,14 @@ async function editorLine(id: string, name: string, month: string) {
   const period = periodFrom({ view: "month", month }, today());
   const data = await loadPerformance({ from: period.from, editorId: id });
   if (!data.editors.length) return null;
-  const t = data.targets;
   const k = data.score(period.from, period.to, id);
-  const cats = k.byCategory.map(([c, n]) => `${c} ${n}`).join(", ");
-  const issues = data.issues.filter((i) => !i.resolvedDay);
-  // each part says what it measures, so it can't be misread
-  const MEANS: Record<Part, string> = {
-    quality: `confirmed mistakes per video (a client's catch counts ${t.clientMistakeWeight}×), fewer is better`,
-    output: "reel-equivalents completed / target for the working days so far",
-    speed: `% of videos edited within their type's standard time, from ${k.rated} timed`,
-    revisions: "times sent back per video, fewer is better",
-    issues: "recurring issues open (each costs 20 points; each Frame.io comment passed over costs 5)",
-  };
-  const parts = (Object.keys(PART_LABEL) as Part[])
-    .map((p) => `${PART_LABEL[p]}: ${partText(p, k)} ${MEANS[p]} (aim ${k.parts[p].target}; scores ${k.parts[p].points ?? "–"} of 100; counts ${k.parts[p].weight}%)`)
-    .join("\n");
+  const cats = k.byCategory.map((c) => `${c.category} ${c.count}${c.repeats ? ` (${c.repeats} repeated)` : ""}`).join(", ");
   return [
-    `${name}, ${month}${period.current ? " so far" : ""}: grade ${k.grade ?? (k.enough ? "–" : "not graded, fewer than two videos")}, score ${k.score ?? "–"} of 100 · completed ${k.completed} of ${k.assigned} given (${k.units} reel-equivalents)`,
-    parts,
-    `Confirmed mistakes ${k.mistakes}${cats ? ` (${cats})` : ""} · feedback points ${k.feedback}, unresolved ${k.unresolved} · sent back ${k.internalRevisions} times by our review, ${k.clientRevisions} by clients · typical edit time ${k.editHours === null ? "unknown" : hoursLabel(k.editHours, t)}`,
-    k.toConfirm ? `Frame.io mistakes waiting for core to confirm (not counted yet): ${k.toConfirm}` : "",
-    issues.length ? `Issue queue (open until resolved): ${issues.map((i) => `${i.title}${i.count ? `, ${i.count} times on ${i.videos} videos` : ""} since ${i.openedDay}`).join("; ")}` : "No open issues",
+    `${name}, ${month}${period.current ? " so far" : ""}: ${k.total ?? "–"} of ${k.max || 15} (Quantity ${k.quantity ?? "–"}/5, Quality ${k.quality ?? "–"}/5, Feedback ${k.feedback ?? "not scored, none given"}/5)`,
+    `Quantity: ${quantityLines(k).join("; ")} (target ${data.scoring.reelsPerDay} reels a working day; each video timed from Editing to Sent for approval)`,
+    `Quality: ${qualityLines(k).join("; ")}${cats ? ` · by category: ${cats}` : ""} (5, less ${data.scoring.mistakePoints} a mistake per video; a repeat, the same category on another video within 90 days, counts ${data.scoring.repeatWeight}×)`,
+    `Feedback: ${feedbackLines(k).join("; ")} (starts at ${data.scoring.feedbackStart})`,
+    k.editHours !== null ? `Typical time from Editing to Sent for approval: ${hoursLabel(k.editHours)}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -278,7 +265,7 @@ async function performance({ person: who, month }: { person?: string; month?: st
   const team = data.score(period.from, period.to);
   const lines = await Promise.all(data.editors.map((e) => editorLine(e.id, e.name, m)));
   return [
-    `Team, ${m}: completed ${team.completed} (${team.units} reel-equivalents) · mistakes ${team.mistakesPerVideo ?? "–"} per video · sent back ${team.revisions ?? "–"} per video · within standard ${team.onStandardPct ?? "–"}%`,
+    `Team, ${m}: completed ${team.completed} (${team.units} reels' worth) · ${team.mistakes} mistakes (${team.repeated} repeated) · ${team.within} of ${team.timed} timed videos within time`,
     ...lines.filter(Boolean),
   ].join("\n");
 }
@@ -409,4 +396,4 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
 }
 
 export { person as personSummary, client as clientSummary, overview as overviewOf, performance as performanceOf, feedback as feedbackOf };
-export const VALID = { taskStatuses: ALL_STATUSES, categories: MISTAKE_CATEGORIES, kinds: Object.keys(ENTRY_KINDS) };
+export const VALID = { taskStatuses: ALL_STATUSES, kinds: Object.keys(ENTRY_KINDS) };

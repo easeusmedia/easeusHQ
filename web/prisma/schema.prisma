@@ -195,7 +195,6 @@ model User {
   messagesReceived  Message[]     @relation("MessagesReceived")
   performance       PerformanceEntry[] @relation("PerformanceAbout")
   performanceLogged PerformanceEntry[] @relation("PerformanceLogged")
-  focusAreas        FocusArea[]
   leaveDays         LeaveDay[]
   salaryPayments    SalaryPayment[]
   // the clients an editor (role employee) has been given: the only ones
@@ -777,13 +776,22 @@ model PerformanceEntry {
   editorId    String
   task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
   taskId      String?
-  // mistake | creative | praise | note
+  // mistake (a feedback point on the work, counted in Quality by its
+  // category), praise | note (from Frame.io, shown, not scored),
+  // positive | negative (core's own feedback, counted in the Feedback score)
   kind        String
   // a mistake's kind: Typos, Subtitles, Sound…
   category    String?
   body        String   @db.Text
   // how many times it happened (the Notion log counted a mistake per week)
   count       Int      @default(1)
+  // for positive or negative feedback: how many points it adds or takes off
+  points      Float?
+  // where a Frame.io comment was left: the cut's file and the frame, for
+  // its snapshot
+  frameioFileId String?
+  frame         Int?
+  snapshot      FeedbackSnapshot?
   at          DateTime
   // manual | frameio | notion, and the id there, so a sync never repeats one
   source      String   @default("manual")
@@ -924,30 +932,32 @@ model AiUsage {
 // Notion review's "Active Feedbacks", made to last. A focus area that
 // tracks a kind of mistake counts every confirmed mistake of that kind
 // since it was raised, so it's plain whether it's still coming up.
-// An issue in an editor's queue: something they keep getting wrong, kept
-// in view until it stops. Opened by core, or automatically when a kind of
-// mistake turns up on two different videos within 30 days
-// (lib/editorKpi.ts, issuePlan). Resolved by core; if that kind of mistake
-// comes back afterwards, it reopens on its own. (Called a focus area when
-// it was manual only; the table kept the name.)
-model FocusArea {
-  id         String    @id @default(uuid())
-  editor     User      @relation(fields: [editorId], references: [id], onDelete: Cascade)
-  editorId   String
-  title      String
-  // the kind of mistake it tracks, when there is one (Sound, Subtitles…)
-  category   String?
-  note       String?   @db.Text
-  openedAt   DateTime  @default(now())
-  resolvedAt DateTime?
-  // opened by the app rather than by a person
-  auto       Boolean   @default(false)
-  // how many times it has come back after being resolved, and the last time
-  reopens    Int       @default(0)
-  reopenedAt DateTime?
-  createdAt  DateTime  @default(now())
+// A kind of feedback on an editor's work, set up by core: Typos, UK/US
+// spelling, Creative… Every Frame.io comment is sorted into one of these
+// by its keywords (no AI), correctable by hand. weight is how much one
+// counts against Quality: 1 a full mistake, 0.5 half, 0 recorded but not
+// counted. keywords: words or phrases, comma-separated, that put a comment
+// here.
+model FeedbackCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  weight    Float    @default(1)
+  // whether the same kind again, on another video, counts as a repeat
+  // (a typo again, yes; another creative note, usually not)
+  repeats   Boolean  @default(true)
+  keywords  String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
 
-  @@index([editorId])
+// A small picture of the frame a Frame.io comment was left on, so the
+// editor can see exactly what was meant. Low resolution, and kept about
+// four months (the nightly job clears older ones); the comment's text stays.
+model FeedbackSnapshot {
+  entry     PerformanceEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entryId   String           @id
+  image     Bytes
+  createdAt DateTime         @default(now())
 }
 
 // A day an editor was away (leave, a holiday), so it isn't counted against

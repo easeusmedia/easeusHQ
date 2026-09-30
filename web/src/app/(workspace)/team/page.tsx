@@ -10,9 +10,9 @@ import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
-import { PART_LABEL, periodFrom, type Part } from "@/lib/editorKpi";
+import { periodFrom } from "@/lib/editorKpi";
 import { loadPerformance } from "../performance/data";
-import { partNote, partText } from "../performance/shared";
+import { feedbackLines, qualityLines, quantityLines } from "../performance/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -89,10 +89,13 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     if (!kpiData.editors.some((e) => e.id === id)) return null;
     const k = kpiData.score(week.from, week.to, id);
     return {
-      score: k.score,
-      grade: k.grade,
-      light: !k.enough && k.completed > 0,
-      parts: (Object.keys(PART_LABEL) as Part[]).map((p) => ({ label: PART_LABEL[p], text: partText(p, k), points: k.parts[p].points, note: partNote(p, k) })),
+      total: k.total,
+      max: k.max,
+      parts: [
+        { part: "quantity" as const, value: k.quantity, lines: quantityLines(k).slice(0, 1) },
+        { part: "quality" as const, value: k.quality, lines: qualityLines(k).slice(0, 1) },
+        { part: "feedback" as const, value: k.feedback, lines: feedbackLines(k).slice(0, 1) },
+      ],
     };
   };
 

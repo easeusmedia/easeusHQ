@@ -1,39 +1,32 @@
-import { hoursLabel, type Kpis, type Part, type Period, type PeriodKind, type Targets } from "@/lib/editorKpi";
+import { hoursLabel, type Kpis, type Period, type PeriodKind } from "@/lib/editorKpi";
 
 // the query that puts a page on this period; empty for this week, the default
 export function periodQuery(p: Pick<Period, "kind" | "from" | "to" | "current">): string {
+  if (p.kind === "day") return `view=day&day=${p.from}`;
   if (p.kind === "week") return p.current ? "" : `view=week&week=${p.from}`;
   if (p.kind === "month") return `view=month&month=${p.from.slice(0, 7)}`;
   return `view=range&from=${p.from}&to=${p.to}`;
 }
 
 // what a period is compared with
-export const AGAINST: Record<PeriodKind, string> = { week: "last week", month: "last month", range: "the days before" };
+export const AGAINST: Record<PeriodKind, string> = { day: "the day before", week: "last week", month: "last month", range: "the days before" };
 
-// the number each part is read as, in its own terms
-export function partText(part: Part, k: Kpis): string {
-  const v = k.parts[part].value;
-  if (v === null) return "–";
-  if (part === "speed") return `${v}%`;
-  if (part === "output") return `${v}/${k.parts.output.target}`;
-  return String(v);
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// what's behind each of the three scores, in a line or two
+export function quantityLines(k: Kpis): string[] {
+  return [
+    `${k.units} of ${k.target} reels${k.byType.length > 1 || k.byType[0]?.type !== "Reel" ? ` · ${k.byType.map((t) => `${t.count} ${t.type.toLowerCase()}`).join(", ")}` : ""}`,
+    k.timed ? `${k.within} of ${plural(k.timed, "video")} within time${k.editHours !== null ? ` · typical ${hoursLabel(k.editHours)}` : ""}` : "No video timed yet",
+  ];
 }
 
-export function partNote(part: Part, k: Kpis): string {
-  const target = k.parts[part].target;
-  switch (part) {
-    case "quality":
-      return `mistakes a video · aim ${target}`;
-    case "output":
-      return "reel-equivalents · aim 100%";
-    case "speed":
-      return k.rated < 2 ? `timed on ${k.rated} video${k.rated === 1 ? "" : "s"} · too few to judge` : `within standard · aim ${target}%`;
-    case "revisions":
-      return `sent back a video · aim ${target}`;
-    case "issues":
-      return k.stale ? `open · ${k.stale} passed over` : "open issues · aim 0";
-  }
+export function qualityLines(k: Kpis): string[] {
+  if (!k.completed) return [k.mistakes ? `${plural(k.mistakes, "mistake")}, no video finished yet` : "No video finished yet"];
+  return [`${plural(k.mistakes, "mistake")}${k.repeated ? `, ${k.repeated} repeated` : ""} · ${plural(k.revisions, "revision")}`, `${k.perVideo} a video, over ${plural(k.completed, "video")}`];
 }
 
-// "4h", "1.5d"
-export const hours = (h: number | null, t: Targets) => (h === null ? "–" : hoursLabel(h, t));
+export function feedbackLines(k: Kpis): string[] {
+  if (!k.positive && !k.negative) return ["None this period, so not counted"];
+  return [`${plural(k.positive, "praise", "praise")} · ${k.negative} negative`, `${k.net >= 0 ? "+" : ""}${k.net} on the starting point`];
+}
