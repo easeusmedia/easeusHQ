@@ -613,11 +613,23 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs
 
-  feedback    Feedback[]
-  performance PerformanceEntry[]
+  feedback        Feedback[]
+  performance     PerformanceEntry[]
   // left out of the editor's numbers: reassigned mid-way, a test, anything
   // ops decides shouldn't count for or against them
-  kpiExcluded Boolean            @default(false)
+  kpiExcluded     Boolean            @default(false)
+  // the quality inspection's grade on first review (S, A+, A, B, C, D),
+  // when, and by whom (a user id)
+  inspectionGrade String?
+  inspectedAt     DateTime?
+  inspectedById   String?
+  // the video's Quality and overall scores out of 100 (lib/videoScore.ts),
+  // kept here so any card or row can be tinted without working them out:
+  // recomputed on every move, grade, feedback change and Frame.io sync
+  qualityScore    Float?
+  videoScore      Float?
+  // "S" (a gold card) or "A+" (a green one) by Quality; null otherwise
+  tier            String?
 }
 
 // A personal/team work item — see the WorkTaskStatus comment above for how
@@ -948,6 +960,9 @@ model FeedbackCategory {
   name        String   @unique
   description String?
   weight      Float    @default(1)
+  // the video system's points off a video's Quality for one (lib/videoScore.ts);
+  // weight above is the old scorecard's, kept until the new one ships
+  points      Float    @default(2)
   // whether the same kind again, on another video, counts as a repeat
   // (a typo again, yes; another creative note, usually not)
   repeats     Boolean  @default(true)

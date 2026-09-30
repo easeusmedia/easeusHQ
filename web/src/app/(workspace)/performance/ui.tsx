@@ -11,10 +11,9 @@ import {
   CircleAlert,
   Clapperboard,
   FolderOpen,
-  Gauge,
+  Handshake,
   Info as InfoIcon,
   Lightbulb,
-  MessageSquareHeart,
   Minus,
   Palette,
   PenLine,
@@ -24,18 +23,24 @@ import {
   Tag,
   ThumbsDown,
   ThumbsUp,
+  Timer,
   Trash2,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { addDays, GRADE_LABEL, hoursLabel, shiftMonth, shortDay, type Grade, type Part, type PeriodKind, type Scoring } from "@/lib/editorKpi";
+import Link from "next/link";
+import { addDays, shiftMonth, shortDay, type PeriodKind } from "@/lib/editorKpi";
+import { LETTER_LABEL, PART_LABEL, type Letter, type Part, type VideoScoring } from "@/lib/videoScore";
+import { GRADE_STYLE } from "../gradeStyle";
+import { TierMark, tierClass } from "../TaskCard";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { chip } from "../chip";
 import { topLayer, useCloseOnScroll, usePopover } from "../popover";
-import { deleteEntry, logEntry, setCreative, setTaskExcluded, setTaskType, sortWithAi, updateEntry, type EntryInput } from "./actions";
+import { deleteEntry, logEntry, setCreative, setGrade, sortWithAi, updateEntry, type EntryInput } from "./actions";
+import { GradePicker } from "../GradePicker";
 
 // a server action, then the page again; its error, if any, for the caller to show
 export function useRun() {
@@ -161,34 +166,13 @@ export function Info({ label, text }: { label: string; text: string | null | und
 
 // ---------- scores ----------
 
-const GRADE_STYLE: Record<Grade, string> = {
-  "A+": "bg-accent/20 text-accent ring-1 ring-accent/40",
-  A: "bg-accent/12 text-accent",
-  B: "bg-foreground/[0.07] text-foreground/85",
-  C: "bg-amber-300/10 text-amber-300",
-  D: "bg-rose-300/10 text-rose-300",
-};
-
-// The grade as a letter in a tile
-export function GradeBadge({ grade, size = "md" }: { grade: Grade | null; size?: "sm" | "md" | "lg" }) {
+// A letter in a tile: gold for S, green for A+, down to D
+export function GradeBadge({ grade, size = "md" }: { grade: Letter | null; size?: "sm" | "md" | "lg" }) {
   const box = { sm: "size-8 text-sm rounded-lg", md: "size-12 text-xl rounded-xl", lg: "size-16 text-3xl rounded-2xl" }[size];
   return <span className={`grid shrink-0 place-items-center font-semibold tracking-tight ${box} ${grade ? GRADE_STYLE[grade] : "bg-foreground/[0.05] text-muted"}`}>{grade ?? "–"}</span>;
 }
 
-// "8.4 / 10", and what the grade means
-export function Total({ total, grade, size = "md" }: { total: number | null; grade?: Grade | null; size?: "md" | "lg" }) {
-  return (
-    <span className="flex flex-col">
-      <span className="flex items-baseline gap-1 tabular-nums">
-        <span className={`font-semibold tracking-tight ${size === "lg" ? "text-4xl" : "text-3xl"} ${total === null ? "text-muted" : ""}`}>{total ?? "–"}</span>
-        {total !== null && <span className="text-base text-muted">/ 10</span>}
-      </span>
-      {grade !== undefined && <span className="text-sm text-muted">{grade ? GRADE_LABEL[grade] : "No score yet"}</span>}
-    </span>
-  );
-}
-
-// Up or down on the period before
+// Up or down on the period before, in points (core only)
 export function Delta({ now, before, against }: { now: number | null; before: number | null; against: string }) {
   if (now === null || before === null) return null;
   const d = round1(now - before);
@@ -205,31 +189,113 @@ export function Delta({ now, before, against }: { now: number | null; before: nu
   );
 }
 
-// the three parts: fixed colours, checked for colour-blind separation on this surface
-export const PART_COLOR: Record<Part, string> = { quantity: "#4b95e6", quality: "#199e70", feedback: "#d95926" };
-export const PART: Record<Part, { label: string; Icon: LucideIcon }> = {
-  quantity: { label: "Quantity", Icon: Gauge },
-  quality: { label: "Quality", Icon: Sparkles },
-  feedback: { label: "Feedback", Icon: MessageSquareHeart },
+export const PART: Record<Part, { label: string; Icon: LucideIcon; means: string }> = {
+  quality: { label: PART_LABEL.quality, Icon: Sparkles, means: "The quality inspection's grade on first review, less the mistakes we found in it (never more than one grade), plus praise, less concerns." },
+  efficiency: { label: PART_LABEL.efficiency, Icon: Timer, means: "Handed over on the day it was assigned (a podcast has a day more, a trailer two), revisions few and turned round the same day." },
+  client: { label: PART_LABEL.client, Icon: Handshake, means: "Accepted by the client in one go. Each creative change they ask for takes a little, each mistake they find takes more." },
 };
 
-// One part: its name, "3.2 / 4", a bar, and the one thing behind it
-export function PartScore({ part, value, max, fact }: { part: Part; value: number | null; max: number; fact?: string }) {
-  const { label, Icon } = PART[part];
+// One of a video's (or an editor's) three scores: its letter, the number
+// for core, and the one thing behind it
+export function ScoreTile({ part, letter, score, fact }: { part: Part; letter: Letter | null; score?: number | null; fact?: string }) {
+  const { label, Icon, means } = PART[part];
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted">
-        <Icon size={14} className="shrink-0 max-sm:hidden" />
-        <span className="truncate">{label}</span>
-      </span>
-      <span className="tabular-nums whitespace-nowrap">
-        <span className={`text-2xl font-semibold ${value === null ? "text-muted" : ""}`}>{value ?? "–"}</span>
-        <span className="text-sm text-muted"> / {max}</span>
-      </span>
-      <span className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.07]">
-        <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${((value ?? 0) / max) * 100}%`, background: PART_COLOR[part] }} />
-      </span>
-      {fact && <span className="truncate text-sm text-muted">{fact}</span>}
+    <div className="flex min-w-0 items-center gap-3">
+      <GradeBadge grade={letter} size="md" />
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-sm text-muted">
+          <Icon size={14} className="shrink-0 max-sm:hidden" />
+          <span className="truncate">{label}</span>
+          <Info label={label} text={means} />
+        </p>
+        <p className="truncate text-sm">
+          {score !== undefined && score !== null && <span className="mr-1.5 font-medium tabular-nums">{score}</span>}
+          <span className="text-muted">{fact ?? (letter ? LETTER_LABEL[letter] : "Pending")}</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export type VideoCardView = {
+  id: string;
+  title: string;
+  where: string;
+  day: string | null;
+  tier: string | null;
+  overall: Letter | null;
+  score: number | null;
+  parts: Record<Part, Letter | null>;
+  grade: Letter | null;
+  mistakes: number;
+};
+
+// One video as a card, tinted gold or green when it's rated S or A+: its
+// letter, its three part letters, and how many mistakes. Opens its page.
+export function VideoCard({ v, showScore }: { v: VideoCardView; showScore: boolean }) {
+  return (
+    <Link href={`/performance/video/${v.id}`} className={`card-surface card-interactive flex min-w-0 flex-col gap-3 rounded-xl p-4 ${tierClass(v.tier)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5">
+            <TierMark tier={v.tier} />
+            <span className="truncate text-base font-medium">{v.title}</span>
+          </span>
+          <span className="block truncate text-sm text-muted">
+            {v.where}
+            {v.day ? ` · ${shortDay(v.day)}` : ""}
+          </span>
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <GradeBadge grade={v.overall} size="sm" />
+          {showScore && v.score !== null && <span className="text-xs tabular-nums text-muted">{v.score}</span>}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+        {(Object.keys(PART) as Part[]).map((p) => (
+          <span key={p} className="flex items-center gap-1.5 whitespace-nowrap">
+            {PART[p].label.split(" ")[0]}
+            <span className={`rounded-md px-1.5 py-px text-xs font-semibold ${v.parts[p] ? GRADE_STYLE[v.parts[p]!] : "bg-foreground/[0.05] text-muted"}`}>{v.parts[p] ?? "–"}</span>
+          </span>
+        ))}
+        {!v.grade && <span className="text-amber-300/90">Awaiting grade</span>}
+        {v.mistakes > 0 && <span className="ml-auto">{v.mistakes} mistake{v.mistakes === 1 ? "" : "s"}</span>}
+      </div>
+    </Link>
+  );
+}
+
+// the videos of a stretch, as cards
+export function VideoGrid({ videos, showScore, empty = "No videos here." }: { videos: VideoCardView[]; showScore: boolean; empty?: string }) {
+  if (!videos.length) return <Empty>{empty}</Empty>;
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {videos.map((v) => (
+        <VideoCard key={v.id} v={v} showScore={showScore} />
+      ))}
+    </div>
+  );
+}
+
+// The quality inspection's grade on a video's page: core picks or changes
+// it, and every score follows
+export function GradeControl({ taskId, grade }: { taskId: string; grade: Letter | null }) {
+  const { run, error } = useRun();
+  const [value, setValue] = useState<string>(grade ?? "");
+  const [saving, setSaving] = useState(false);
+  return (
+    <div className="flex flex-col gap-2">
+      <GradePicker
+        value={value}
+        onChange={async (g) => {
+          setValue(g);
+          setSaving(true);
+          await run(() => setGrade(taskId, g));
+          setSaving(false);
+        }}
+      />
+      {saving && <p className="text-xs text-muted">Saving…</p>}
+      {error && <p className="text-sm text-red-300">{error}</p>}
     </div>
   );
 }
@@ -261,7 +327,7 @@ export type FeedbackView = {
 };
 export type TaskOption = { id: string; title: string };
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
-export type CategoryView = { id: string; name: string; description: string | null; weight: number; keywords: string | null; repeats: boolean };
+export type CategoryView = { id: string; name: string; description: string | null; points: number; keywords: string | null; repeats: boolean };
 
 const describe = (categories: CategoryView[], name: string | null) => categories.find((c) => c.name === name)?.description;
 
@@ -288,7 +354,7 @@ type DialogProps = {
   tasks: TaskOption[];
   clients: ClientOption[];
   categories: CategoryView[];
-  scoring: Scoring;
+  scoring: VideoScoring;
   today: string;
 };
 
@@ -333,8 +399,10 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
   const text = useRef<HTMLTextAreaElement>(null);
   const [f, setF] = useState(() => ({
     kind: (KINDS.some((k) => k.key === entry?.kind) ? entry!.kind : "positive") as Kind,
-    // how many points praise adds or a concern takes off; 0 until given
-    points: entry?.kind === "positive" ? (entry.points ?? scoring.praisePoints) : entry?.kind === "negative" ? (entry.points ?? 0) : 0,
+    // how many points praise adds to its video's Quality, or a concern takes off
+    points: entry?.kind === "positive" ? (entry.points ?? scoring.praisePoints) : entry?.kind === "negative" ? (entry.points ?? scoring.concernPoints) : scoring.praisePoints,
+    // found at the client stage: counts against Client acceptance, not Quality
+    fromClient: entry?.fromClient ?? false,
     category: entry?.category ?? "",
     body: entry?.body ?? "",
     count: entry?.count ?? 1,
@@ -370,6 +438,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
       body: f.body,
       count: f.count,
       points: scored ? f.points : null,
+      fromClient: (f.kind === "mistake" || f.kind === "creative") && f.fromClient,
       day: f.day,
       taskId: f.taskId,
       clientId: f.clientId,
@@ -389,7 +458,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
             <button
               key={k.key}
               type="button"
-              onClick={() => set({ kind: k.key })}
+              onClick={() => set({ kind: k.key, ...(k.key !== f.kind && (k.key === "positive" || k.key === "negative") ? { points: k.key === "positive" ? scoring.praisePoints : scoring.concernPoints } : {}) })}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${f.kind === k.key ? "bg-surface-2 text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}
             >
               <k.Icon size={14} />
@@ -418,9 +487,9 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
           <StepChip
             value={f.points}
             onChange={(n) => set({ points: n })}
-            step={0.5}
+            step={1}
             min={0}
-            max={5}
+            max={20}
             show={f.points === 0 ? "Points" : `${f.kind === "positive" ? "+" : "−"}${f.points}`}
             tone={f.points === 0 ? "text-muted" : f.kind === "positive" ? "text-accent" : "text-rose-300"}
           />
@@ -430,6 +499,12 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
             <Dropdown pill={{ icon: <Tag size={12} className="text-rose-400" /> }} value={f.category} placeholder="Type" onChange={(v) => set({ category: v })} options={categories.map((c) => ({ value: c.name, label: c.name }))} />
             <StepChip value={f.count} onChange={(n) => set({ count: n })} step={1} min={1} max={99} show={`×${f.count}`} />
           </>
+        )}
+        {(f.kind === "mistake" || f.kind === "creative") && (
+          <button type="button" onClick={() => set({ fromClient: !f.fromClient })} title="A mistake the client finds counts against Client acceptance; one we find, against Quality" className={chip(true)}>
+            <Handshake size={12} className={f.fromClient ? "text-amber-300" : "text-muted"} />
+            {f.fromClient ? "Found by the client" : "Found by us"}
+          </button>
         )}
         <DatePicker pill={{}} value={f.day} onChange={(v) => set({ day: v || today })} clearable={false} />
         <Dropdown
@@ -571,10 +646,10 @@ const Tile = ({ Icon, tone }: { Icon: LucideIcon; tone: string }) => (
 // The changes asked for on their work, each Frame.io comment with its
 // frame: mistakes, which count, and creative changes, which don't. Any one
 // switches between the two in a click.
-export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
+export function MistakeList({ entries, canEdit, initialType = "", ...dialog }: ListProps & { initialType?: string }) {
   const { run, error } = useRun();
   const [filter, setFilter] = useState<"mistakes" | "repeats" | "creative">("mistakes");
-  const [type, setType] = useState("");
+  const [type, setType] = useState(initialType);
   const [editing, setEditing] = useState<FeedbackView | null>(null);
   const [sorting, setSorting] = useState(false);
   const mistakes = entries.filter((e) => e.kind === "mistake");
@@ -646,7 +721,7 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
               lead={e.kind === "creative" ? <Tile Icon={Palette} tone="bg-violet-300/10 text-violet-300" /> : <Tile Icon={CircleAlert} tone="bg-surface-2/70 text-muted" />}
               tags={
                 e.kind === "creative" ? (
-                  <span className="text-violet-300">Creative change, not counted</span>
+                  <span className="text-violet-300">{e.fromClient ? "Creative change from the client" : "Creative change, not counted"}</span>
                 ) : (
                   <>
                     <span className="flex items-center gap-1 text-foreground/85">
@@ -659,6 +734,7 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
                         <Repeat2 size={13} /> Repeat
                       </span>
                     )}
+                    {e.fromClient && <span className="text-amber-300/90">Found by the client</span>}
                     {!e.counted && <span title="From before their work was tracked here">Not counted</span>}
                   </>
                 )
@@ -733,86 +809,6 @@ export function FeedbackList({ entries, canEdit, ...dialog }: ListProps) {
       )}
       {error && <p className="text-sm text-red-300">{error}</p>}
       {editing && <EntryDialog key={editing.id} open onClose={() => setEditing(null)} entry={editing} {...dialog} />}
-    </div>
-  );
-}
-
-// ---------- work ----------
-
-export type WorkRow = {
-  id: string;
-  title: string;
-  where: string;
-  type: string;
-  guessed: boolean;
-  // the day it went to the client, when it counts in this period
-  done: string | null;
-  // where it is now, when it isn't done: its stage and that stage's colours
-  stage: { label: string; pill: string } | null;
-  editHours: number | null;
-  standardHours: number;
-  withinStandard: boolean | null;
-  revisions: number;
-  excluded: boolean;
-};
-
-// Their work: what went to the client in the period, which is what counts,
-// and what they're still on. Each with its type (core can set it), its time
-// from Editing to Sent for approval against its standard, and its
-// revisions. A piece that shouldn't count can be left out.
-export function WorkTable({ rows, types, canEdit }: { rows: WorkRow[]; types: string[]; canEdit: boolean }) {
-  const { run, error } = useRun();
-  if (rows.length === 0) return <Empty>No work here.</Empty>;
-  const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 md:grid-cols-[minmax(0,1fr)_10rem_11rem_7.5rem_5.5rem_5.5rem]";
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="overflow-hidden rounded-2xl border border-border bg-surface/40 text-sm">
-        <div className={`${ROW} py-3 text-muted`}>
-          <span>Work</span>
-          <span className="hidden md:block">Type</span>
-          <span className="text-right md:text-left">Stage</span>
-          <span className="hidden text-right md:block">Time</span>
-          <span className="hidden text-right md:block">Revisions</span>
-          <span className="hidden md:block" />
-        </div>
-        {rows.map((v) => (
-          <div key={v.id} className={`${ROW} border-t border-border/60 py-3 ${v.excluded ? "opacity-45" : ""}`}>
-            <span className="min-w-0">
-              <span className="block truncate text-base">{v.title}</span>
-              <span className="block truncate text-muted">{v.where}</span>
-            </span>
-            <span className="hidden min-w-0 md:block">
-              {canEdit ? (
-                <Dropdown value={v.guessed ? "" : v.type} placeholder={`${v.type}?`} onChange={(t) => t && run(() => setTaskType(v.id, t))} options={types.map((t) => ({ value: t, label: t }))} />
-              ) : (
-                <span className="text-muted">{v.type}</span>
-              )}
-            </span>
-            <span className="justify-self-end md:justify-self-start">
-              {v.done ? (
-                <span className="whitespace-nowrap text-foreground">Sent to client {shortDay(v.done)}</span>
-              ) : v.stage ? (
-                <span className={`rounded-full border px-2.5 py-0.5 text-sm whitespace-nowrap ${v.stage.pill}`} title="Counts once it's sent to the client">
-                  {v.stage.label}
-                </span>
-              ) : null}
-            </span>
-            <span className="hidden text-right tabular-nums whitespace-nowrap md:block" title={`Editing to Sent for approval, against ${hoursLabel(v.standardHours)}`}>
-              <span className={v.withinStandard === false ? "text-rose-300" : v.withinStandard ? "text-foreground" : "text-muted"}>{v.editHours === null ? "–" : hoursLabel(v.editHours)}</span>
-              <span className="text-muted"> / {hoursLabel(v.standardHours)}</span>
-            </span>
-            <span className="hidden text-right tabular-nums md:block">{v.revisions}</span>
-            {canEdit && v.done ? (
-              <button onClick={() => run(() => setTaskExcluded(v.id, !v.excluded))} className="hidden justify-self-end text-muted hover:text-foreground md:block">
-                {v.excluded ? "Count it" : "Leave out"}
-              </button>
-            ) : (
-              <span className="hidden md:block" />
-            )}
-          </div>
-        ))}
-      </div>
-      {error && <p className="text-sm text-red-300">{error}</p>}
     </div>
   );
 }

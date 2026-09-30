@@ -14,6 +14,7 @@ import { colorFor, initials } from "@/lib/avatar";
 import { CalendarClock, RotateCcw, EyeOff } from "lucide-react";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { dueState } from "@/lib/due";
+import { needsGrade } from "@/lib/videoScore";
 
 // kept as re-exports so the existing call sites don't all have to change —
 // STAGE in @/lib/stages is the single definition
@@ -168,7 +169,27 @@ export type TaskCardData = {
   tags: { id: string; name: string }[];
   internal: boolean;
   project: { name: string; type: string; client: { name: string } };
+  // the quality inspection's grade, and "S" (gold) or "A+" (green) by Quality
+  inspectionGrade?: string | null;
+  tier?: string | null;
 };
+
+// a video rated S (gold) or A+ (green): its card's tint, or its row's
+export const tierClass = (tier: string | null | undefined, row = false) =>
+  tier === "S" ? (row ? "tier-row-s" : "tier-s") : tier === "A+" ? (row ? "tier-row-aplus" : "tier-aplus") : "";
+
+// the S or A+ beside a rated video's title
+export function TierMark({ tier }: { tier: string | null | undefined }) {
+  if (tier !== "S" && tier !== "A+") return null;
+  return (
+    <span
+      title={tier === "S" ? "S: portfolio-worthy" : "A+: excellent"}
+      className={`shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold ${tier === "S" ? "bg-amber-300/15 text-amber-200" : "bg-emerald-400/15 text-emerald-300"}`}
+    >
+      {tier}
+    </span>
+  );
+}
 
 // `presence`: whether to show the green online dot. On everywhere a person
 // appears, except where the avatar is your own account button.
@@ -276,7 +297,7 @@ export function TaskCard({
   return (
     <div
       onClick={() => detailsRef.current?.open()}
-      className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm"
+      className={`card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm ${tierClass(task.tier)}`}
     >
       {/* Delete on hover, in the top-right corner, for the people who can delete in the task's own
           dialog (admin and core), asking first; the rest of editing lives
@@ -294,7 +315,10 @@ export function TaskCard({
       <p className="min-w-0 truncate pr-7 text-xs text-muted">{clientName}</p>
 
       <div className="flex items-start justify-between gap-2">
-        <p className="font-medium leading-snug">{task.title}</p>
+        <p className="flex min-w-0 items-start gap-1.5 font-medium leading-snug">
+          <TierMark tier={task.tier} />
+          <span className="min-w-0">{task.title}</span>
+        </p>
         <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2">
           {task.revisionCount > 0 && (
             <span className="group/rev relative flex items-center gap-1 rounded-full bg-orange-400/15 px-1.5 py-0.5 text-xs font-medium text-orange-300">
@@ -373,6 +397,7 @@ export function TaskCard({
           currentStatus={task.status}
           options={options}
                     links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+          needsGradeOn={(to) => needsGrade(task, to, actingRole)}
         />
       </div>
 

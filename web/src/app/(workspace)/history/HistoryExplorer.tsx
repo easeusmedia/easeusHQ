@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { TierMark, tierClass } from "../TaskCard";
 import { CircleCheck, Clock, Download, ExternalLink, Filter, RotateCcw, Search, Timer, UsersRound } from "lucide-react";
 import { StatTile } from "../StatTile";
 import { ConfirmButton } from "../ConfirmButton";
@@ -290,10 +291,13 @@ export function HistoryExplorer({
                       setOpenId(i.id);
                       dialogRef.current?.showModal();
                     }}
-                    className="cursor-pointer border-t border-border hover:bg-surface-2"
+                    className={`cursor-pointer border-t border-border hover:bg-surface-2 ${tierClass(i.tier, true)}`}
                   >
                     <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(i.completedAt)}</td>
                     <td className="px-3 py-2">
+                      <span className="mr-1.5 inline-flex align-middle">
+                        <TierMark tier={i.tier} />
+                      </span>
                       {i.title}
                       {i.kind === "internal" && <span className="ml-2 text-xs text-muted">Own work</span>}
                     </td>

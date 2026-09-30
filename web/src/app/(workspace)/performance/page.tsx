@@ -3,20 +3,22 @@ import { redirect } from "next/navigation";
 import { Settings2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { chartSpans, dayOf, partMax, periodFrom } from "@/lib/editorKpi";
+import { chartSpans, dayOf, periodFrom } from "@/lib/editorKpi";
+import { LETTER_LABEL, PART_LABEL } from "@/lib/videoScore";
 import { Avatar } from "../TaskCard";
-import { Delta, GradeBadge, PartScore, PeriodBar, Total } from "./ui";
+import { Delta, GradeBadge, PeriodBar } from "./ui";
 import { TeamChart } from "./charts";
 import { SyncFrameio } from "./SyncFrameio";
-import { firstDay, loadPerformance, loadScoring } from "./data";
-import { AGAINST, facts, periodQuery } from "./shared";
+import { firstDay, loadPerformance } from "./data";
+import { AGAINST, periodQuery } from "./shared";
+import { GRADE_STYLE } from "../gradeStyle";
 
 export const dynamic = "force-dynamic";
 
-// The editors at a glance, for core: each one's grade and total out of 10
-// for the week, month or stretch chosen, and its three parts, with every
-// editor's score over time on one chart. An editor who comes here is
-// taken to their own.
+// The editors at a glance, for core: each one's average letter from their
+// videos over the week, month or stretch chosen, how many videos, how many
+// made S and A+, their three parts, and everyone's weeks on one chart. An
+// editor who comes here is taken to their own.
 export default async function PerformancePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
@@ -25,18 +27,17 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
   const q = await searchParams;
   const today = dayOf(new Date());
-  const [scoring, first] = await Promise.all([loadScoring(), q.view === "all" ? firstDay() : undefined]);
+  const first = q.view === "all" ? await firstDay() : undefined;
   const period = periodFrom(q, today, first);
   const spans = chartSpans(period);
   const data = await loadPerformance({ from: [period.prev.from, spans[0].from, period.from].sort()[0] });
   const query = periodQuery(period);
-  const max = partMax(scoring);
 
   const cards = data.editors.map((e) => ({
     e,
-    now: data.score(period.from, period.to, e.id),
-    before: period.kind === "all" ? null : data.score(period.prev.from, period.prev.to, e.id),
-    series: spans.map((s) => data.score(s.from, s.to, e.id).total),
+    now: data.summary(period.from, period.to, e.id),
+    before: period.kind === "all" ? null : data.summary(period.prev.from, period.prev.to, e.id),
+    weeks: spans.map((s) => data.summary(s.from, s.to, e.id)),
   }));
 
   return (
@@ -55,38 +56,54 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       ) : (
         <>
           <ul className="grid gap-4 lg:grid-cols-2">
-            {cards.map((c) => {
-              const f = facts(c.now);
-              return (
-                <li key={c.e.id} className="min-w-0">
-                  <Link href={`/performance/${c.e.id}${query ? `?${query}` : ""}`} className="flex h-full flex-col gap-6 rounded-2xl panel-soft panel-hover p-4 sm:p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <Avatar name={c.e.name} size={44} presence={false} />
-                        <span className="flex min-w-0 flex-col">
-                          <span className="truncate text-base font-medium">{c.e.name}</span>
-                          <Delta now={c.now.total} before={c.before?.total ?? null} against={AGAINST[period.kind]} />
+            {cards.map(({ e, now, before }) => (
+              <li key={e.id} className="min-w-0">
+                <Link href={`/performance/${e.id}${query ? `?${query}` : ""}`} className="flex h-full flex-col gap-5 rounded-2xl panel-soft panel-hover p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <Avatar name={e.name} size={44} presence={false} />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate text-base font-medium">{e.name}</span>
+                        <span className="flex flex-wrap items-center gap-2 text-sm text-muted">
+                          {now.videos} video{now.videos === 1 ? "" : "s"}
+                          {now.s > 0 && <span className="rounded-md bg-amber-300/15 px-1.5 py-px text-xs font-semibold text-amber-200">S ×{now.s}</span>}
+                          {now.aPlus > 0 && <span className="rounded-md bg-emerald-400/15 px-1.5 py-px text-xs font-semibold text-emerald-300">A+ ×{now.aPlus}</span>}
                         </span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <Total total={c.now.total} grade={c.now.grade} />
-                        <GradeBadge grade={c.now.grade} />
-                      </div>
+                      </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 sm:gap-6">
-                      <PartScore part="quantity" value={c.now.quantity} max={max.quantity} fact={f.quantity} />
-                      <PartScore part="quality" value={c.now.quality} max={max.quality} fact={f.quality} />
-                      <PartScore part="feedback" value={c.now.feedback} max={max.feedback} fact={f.feedback} />
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="flex flex-col items-end">
+                        <span className="text-base font-medium">{now.letter.overall ? LETTER_LABEL[now.letter.overall] : "No grade yet"}</span>
+                        {now.overall !== null && <span className="text-sm tabular-nums text-muted">{now.overall}</span>}
+                        <Delta now={now.overall} before={before?.overall ?? null} against={AGAINST[period.kind]} />
+                      </span>
+                      <GradeBadge grade={now.letter.overall} />
                     </div>
-                  </Link>
-                </li>
-              );
-            })}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 border-t border-border/60 pt-4">
+                    {(["quality", "efficiency", "client"] as const).map((p) => (
+                      <span key={p} className="flex min-w-0 items-center gap-2">
+                        <span className={`grid size-8 shrink-0 place-items-center rounded-lg text-sm font-semibold ${now.letter[p] ? GRADE_STYLE[now.letter[p]!] : "bg-foreground/[0.05] text-muted"}`}>{now.letter[p] ?? "–"}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm text-muted">{PART_LABEL[p]}</span>
+                          {now[p] !== null && <span className="block text-sm tabular-nums">{now[p]}</span>}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </Link>
+              </li>
+            ))}
           </ul>
 
           <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
             <h2 className="mb-4 text-base font-semibold">Week by week</h2>
-            <TeamChart series={cards.map((c) => ({ name: c.e.name, values: c.series }))} spans={spans} />
+            <TeamChart
+              series={cards.map((c) => ({ name: c.e.name, values: c.weeks.map((w) => w.overall), letters: c.weeks.map((w) => w.letter.overall) }))}
+              spans={spans}
+              bands={data.scoring.bands}
+              showScore
+            />
           </section>
         </>
       )}

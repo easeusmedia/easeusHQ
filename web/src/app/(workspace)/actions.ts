@@ -10,6 +10,8 @@ import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
 import { frameioConnected, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { handedOffStamp } from "@/lib/due";
+import { isLetter, needsGrade } from "@/lib/videoScore";
+import { refreshVideoScores } from "@/lib/videoScores";
 import { exportFolder, uploadFromUrl } from "@/lib/drive";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
@@ -145,7 +147,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   return { success: true };
 }
 
-type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number };
+type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number; grade?: string };
 
 // Returns {error} instead of throwing — moveTask/reorderTask are called
 // directly from client code (not a <form action>), and a thrown Server
@@ -180,6 +182,10 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     if ((to === "sent_for_approval" || to === "sent_for_client_approval") && !frameioLink && !task.frameioLink) {
       return { error: "Add the Frame.io link before sending this for approval." };
     }
+    // the quality inspection grades a video on first review: the first time
+    // core moves it on from Sent for approval (lib/videoScore.ts)
+    const grade = needsGrade(task, to, actingRole) ? extras.grade : undefined;
+    if (needsGrade(task, to, actingRole) && !isLetter(grade)) return { error: "Grade the video first: S, A+, A, B, C or D." };
 
     await prisma.task.update({
       where: { id: taskId },
@@ -193,12 +199,15 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
         ...(to === "revision_requested"
           ? { reviewedById: actingUserId, reviewNotes: extras.reviewNotes ?? null, revisionCount: { increment: 1 } }
           : {}),
+        ...(grade ? { inspectionGrade: grade, inspectedAt: new Date(), inspectedById: actingUserId } : {}),
       },
     });
     // the record the calendar view reads — "this task had activity today"
     await prisma.activityLog.create({
       data: { actorId: actingUserId, action: stageChangeAction(task.status, to), entity: "Task", entityId: taskId },
     });
+    // the move (and any grade) changes its scores; a failure here never undoes the move
+    await refreshVideoScores([taskId]).catch(() => {});
     revalidatePath("/board");
     return { success: true };
   } catch (err) {

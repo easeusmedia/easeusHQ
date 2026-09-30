@@ -28,7 +28,11 @@ import { addDays, dayOf, isWorkDay, settle, workType } from "./editorKpi.ts";
 export const LETTERS = ["S", "A+", "A", "B", "C", "D"] as const;
 export type Letter = (typeof LETTERS)[number];
 export const isLetter = (v: unknown): v is Letter => typeof v === "string" && (LETTERS as readonly string[]).includes(v);
-export const LETTER_LABEL: Record<Letter, string> = { S: "Portfolio", "A+": "Excellent", A: "Good", B: "Fair", C: "Needs work", D: "Poor" };
+export const LETTER_LABEL: Record<Letter, string> = { S: "Outstanding", "A+": "Excellent", A: "Good", B: "Fair", C: "Needs work", D: "Poor" };
+
+// a video's three scores
+export type Part = "quality" | "efficiency" | "client";
+export const PART_LABEL: Record<Part, string> = { quality: "Quality", efficiency: "Efficiency", client: "Client acceptance" };
 
 export type VideoScoring = {
   // the lowest score for each letter; below C is D
@@ -109,6 +113,18 @@ export function withVideoScoringDefaults(saved: unknown): VideoScoring {
 export function letterOf(score: number | null, s: Pick<VideoScoring, "bands">): Letter | null {
   if (score === null) return null;
   return (["S", "A+", "A", "B", "C"] as const).find((l) => score >= s.bands[l]) ?? "D";
+}
+
+// ---------- grading ----------
+
+// moves out of Sent for approval that mean it's been reviewed
+const GRADED_MOVES = ["revision_requested", "sent_for_client_approval", "final_export_ready", "delivered_and_uploaded"];
+
+// Whether this move is a video's first review, which core grades: the first
+// time it's moved on from Sent for approval, if it has no grade yet.
+export function needsGrade(task: { status: string; inspectionGrade?: string | null; assignedTo?: unknown; assignedToId?: string | null }, to: string, role: string): boolean {
+  const assigned = task.assignedToId !== undefined ? !!task.assignedToId : !!task.assignedTo;
+  return role !== "employee" && assigned && task.status === "sent_for_approval" && !task.inspectionGrade && GRADED_MOVES.includes(to);
 }
 
 // ---------- days ----------

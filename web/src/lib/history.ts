@@ -33,6 +33,8 @@ export type HistoryItem = {
   // is judged on when it was done.
   handedOffAt: Date | null;
   revisions: number;
+  // client work rated S (gold) or A+ (green) by the quality inspection
+  tier?: string | null;
 };
 
 const HOUR = 3_600_000;

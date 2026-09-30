@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId, requireOps } from "@/lib/auth";
 import { canEditPeople } from "@/lib/scope";
-import { SCORING_KEY, withScoringDefaults, type Scoring } from "@/lib/editorKpi";
+import { isLetter, LETTERS, VIDEO_SCORING_KEY, withVideoScoringDefaults, type VideoScoring } from "@/lib/videoScore";
+import { refreshAllVideoScores, refreshVideoScores } from "@/lib/videoScores";
 import { aiSortEntries, syncFrameioFeedback } from "@/lib/frameioFeedback";
 
 type Result = { error?: string };
@@ -17,47 +18,58 @@ const done = () => revalidatePath("/performance", "layout");
 
 // ---------- scoring ----------
 
-// How the score is worked out: the 10 points part by part, the grades,
-// the working week, reels a day, each type's standard and what it counts
-// for, what a revision and a repeat cost Quality, and where Feedback
-// starts. Admin only.
-export async function saveScoring(input: Scoring): Promise<Result> {
+// How a video is scored (lib/videoScore.ts): the letters' bands, what each
+// inspection grade starts at, the three parts' weights, and every point
+// each part gives or takes. Admin only; every video is rescored.
+export async function saveScoring(input: VideoScoring): Promise<Result> {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id }, select: { role: true, email: true } }) : null;
   if (!me || !canEditPeople(me)) return { error: "Only the admin can change the scoring." };
 
-  const s = withScoringDefaults({});
-  const checks: [keyof Scoring, number, number][] = [
-    ["quantityPoints", 0, 10],
-    ["qualityPoints", 0, 10],
-    ["feedbackPoints", 0, 10],
-    ["speedPoints", 0, 10],
-    ["reelsPerDay", 0.1, 50],
-    ["revisionPoints", 0, 10],
+  const s = withVideoScoringDefaults({});
+  const numbers = (from: Record<string, unknown> | undefined, keys: string[], min: number, max: number) => {
+    const out: Record<string, number> = {};
+    for (const k of keys) {
+      const n = num(from?.[k], min, max);
+      if (n === null) return null;
+      out[k] = n;
+    }
+    return out;
+  };
+  const bands = numbers(input.bands, ["S", "A+", "A", "B", "C"], 0, 100);
+  if (!bands || !(bands.S > bands["A+"] && bands["A+"] > bands.A && bands.A > bands.B && bands.B > bands.C)) return { error: "Each letter needs a lower score than the one above it." };
+  const base = numbers(input.base, [...LETTERS], 0, 100);
+  if (!base) return { error: "Each grade starts between 0 and 100." };
+  const weights = numbers(input.weights, ["quality", "efficiency", "client"], 0, 100);
+  if (!weights || weights.quality + weights.efficiency + weights.client <= 0) return { error: "The three weights can't all be 0." };
+  s.bands = bands as VideoScoring["bands"];
+  s.base = base as VideoScoring["base"];
+  s.weights = weights as VideoScoring["weights"];
+  const single: [keyof VideoScoring, number, number][] = [
+    ["mistakeCap", 0, 100],
     ["repeatMultiplier", 1, 10],
-    ["feedbackStart", 0, 10],
-    ["praisePoints", 0, 10],
+    ["praisePoints", 0, 50],
+    ["concernPoints", 0, 50],
+    ["cutoffHour", 0, 24],
+    ["lateDay", 0, 100],
+    ["revision", 0, 100],
+    ["lateRevisionDay", 0, 100],
+    ["clientCreative", 0, 100],
+    ["clientMistake", 0, 100],
   ];
-  for (const [key, min, max] of checks) {
+  for (const [key, min, max] of single) {
     const n = num(input[key], min, max);
     if (n === null) return { error: "One of those numbers isn't sensible." };
     (s as Record<string, unknown>)[key] = n;
   }
-  if (Math.abs(s.quantityPoints + s.qualityPoints + s.feedbackPoints - 10) > 0.01) return { error: "Quantity, Quality and Feedback should add up to 10." };
-  if (s.speedPoints > s.quantityPoints) return { error: "Speed is part of Quantity, so it can't be more than Quantity." };
-  if (s.feedbackStart > s.feedbackPoints) return { error: "Feedback can't start above its own points." };
-  const grades = (["A+", "A", "B", "C"] as const).map((g) => num(input.grades?.[g], 0, 10));
-  if (grades.some((g) => g === null) || grades.some((g, i) => i > 0 && g! >= grades[i - 1]!)) return { error: "Each grade needs a lower score than the one above it." };
-  s.grades = { "A+": grades[0]!, A: grades[1]!, B: grades[2]!, C: grades[3]! };
   const days = [...new Set((input.workDays ?? []).map(Number))].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).sort();
   if (!days.length) return { error: "Pick at least one working day." };
   s.workDays = days;
   s.types = {};
   for (const [kind, rule] of Object.entries(input.types ?? {})) {
-    const hours = num(rule?.hours, 0.1, 24 * 30);
-    const units = num(rule?.units, 0, 50);
-    if (hours === null || units === null || !kind.trim()) return { error: "Each type needs a time (in hours) and what it counts for." };
-    s.types[kind.trim()] = { hours, units };
+    const extra = num(rule?.days, 0, 30);
+    if (extra === null || !kind.trim()) return { error: "Each type needs its extra days, 0 or more." };
+    s.types[kind.trim()] = { days: extra };
   }
   if (!Object.keys(s.types).length) return { error: "Keep at least one type of work." };
   s.creativeWords = String(input.creativeWords ?? "")
@@ -66,26 +78,41 @@ export async function saveScoring(input: Scoring): Promise<Result> {
     .filter(Boolean)
     .join(", ");
   const value = JSON.stringify(s);
-  await prisma.appSetting.upsert({ where: { key: SCORING_KEY }, create: { key: SCORING_KEY, value }, update: { value } });
+  await prisma.appSetting.upsert({ where: { key: VIDEO_SCORING_KEY }, create: { key: VIDEO_SCORING_KEY, value }, update: { value } });
+  await refreshAllVideoScores();
   done();
+  return {};
+}
+
+// A video's grade from the quality inspection, set or changed after the
+// move that first asked for it (or cleared). Core only.
+export async function setGrade(taskId: string, grade: string | null): Promise<Result> {
+  const me = await requireOps();
+  if (!me) return { error: "Only core members can grade videos." };
+  if (grade !== null && !isLetter(grade)) return { error: "Pick S, A+, A, B, C or D." };
+  // raw, so updatedAt (which History reads as when the work last moved) stays put
+  await prisma.$executeRaw`UPDATE "Task" SET "inspectionGrade" = ${grade}, "inspectedAt" = ${grade ? new Date() : null}, "inspectedById" = ${grade ? me.id : null} WHERE id = ${taskId}`;
+  await refreshVideoScores([taskId]);
+  done();
+  revalidatePath("/board");
   return {};
 }
 
 // ---------- mistake types ----------
 
-type CategoryInput = { name: string; description: string; weight: number; keywords: string; repeats: boolean };
+type CategoryInput = { name: string; description: string; points: number; keywords: string; repeats: boolean };
 const cleanCategory = (input: CategoryInput) => {
   const name = input.name.trim();
   if (!name) return { error: "Give it a name." };
-  // the Quality points one takes off
-  const weight = num(input.weight, 0, 10);
-  if (weight === null) return { error: "Points off should be between 0 and 10." };
+  // the Quality points one takes off a video
+  const points = num(input.points, 0, 50);
+  if (points === null) return { error: "Points off should be between 0 and 50." };
   const keywords = input.keywords
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean)
     .join(", ");
-  return { data: { name, description: input.description.trim() || null, weight, keywords: keywords || null, repeats: !!input.repeats } };
+  return { data: { name, description: input.description.trim() || null, points, keywords: keywords || null, repeats: !!input.repeats } };
 };
 
 // A type of mistake, for sorting Frame.io comments into. Core only.
@@ -96,6 +123,7 @@ export async function addCategory(input: CategoryInput): Promise<Result> {
   if (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } })) return { error: "There's already a type with that name." };
   const last = await prisma.feedbackCategory.aggregate({ _max: { sortOrder: true } });
   await prisma.feedbackCategory.create({ data: { ...c.data, sortOrder: (last._max.sortOrder ?? 0) + 1 } });
+  await refreshAllVideoScores();
   done();
   return {};
 }
@@ -113,6 +141,7 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
     prisma.feedbackCategory.update({ where: { id }, data: c.data }),
     prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: c.data.name } }),
   ]);
+  await refreshAllVideoScores();
   done();
   return {};
 }
@@ -127,6 +156,7 @@ export async function deleteCategory(id: string): Promise<Result> {
     prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: "Others" } }),
     prisma.feedbackCategory.delete({ where: { id } }),
   ]);
+  await refreshAllVideoScores();
   done();
   return {};
 }
@@ -139,6 +169,8 @@ export async function sortWithAi(ids: string[]): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can re-sort feedback." };
   try {
     await aiSortEntries(ids.slice(0, 200));
+    const tasks = await prisma.performanceEntry.findMany({ where: { id: { in: ids } }, select: { taskId: true } });
+    await refreshVideoScores(tasks.map((t) => t.taskId));
     done();
     return {};
   } catch (err) {
@@ -158,6 +190,8 @@ export type EntryInput = {
   count: number;
   // praise and concerns: how many points they add or take off, required
   points: number | null;
+  // from the client stage: counts against Client acceptance, not Quality
+  fromClient: boolean;
   day: string; // yyyy-mm-dd
   taskId: string;
   clientId: string;
@@ -175,7 +209,7 @@ async function clean(input: EntryInput, frameioPraise = false) {
   if (mistake && (!Number.isFinite(count) || count < 1 || count > 99)) return { error: "Times should be between 1 and 99." };
   // Frame.io praise can stay at the usual amount; anything else needs its points
   const usual = frameioPraise && input.kind === "positive" && input.points === null;
-  const points = scored && !usual ? num(input.points, 0.1, 10) : null;
+  const points = scored && !usual ? num(input.points, 0.5, 50) : null;
   if (scored && !usual && points === null) return { error: `Give it points: how much it ${input.kind === "positive" ? "adds" : "takes off"}.` };
   const project = input.projectId ? await prisma.project.findUnique({ where: { id: input.projectId }, select: { clientId: true } }) : null;
   if (input.projectId && !project) return { error: "That project is gone." };
@@ -191,6 +225,7 @@ async function clean(input: EntryInput, frameioPraise = false) {
       taskId: input.taskId || null,
       clientId: project?.clientId ?? (input.clientId || null),
       projectId: input.projectId || null,
+      fromClient: !!input.fromClient,
     },
   };
 }
@@ -202,6 +237,7 @@ export async function logEntry(input: EntryInput): Promise<Result> {
   const c = await clean(input);
   if ("error" in c) return c;
   await prisma.performanceEntry.create({ data: { ...c.data, editorId: input.editorId, source: "manual", by: me.name, loggedById: me.id, reviewed: true } });
+  await refreshVideoScores([c.data.taskId]);
   done();
   return {};
 }
@@ -209,11 +245,13 @@ export async function logEntry(input: EntryInput): Promise<Result> {
 // Anything can be put right, whether it came from Frame.io, Notion or a person.
 export async function updateEntry(id: string, input: EntryInput): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can change feedback." };
-  const before = await prisma.performanceEntry.findUnique({ where: { id }, select: { source: true } });
+  const before = await prisma.performanceEntry.findUnique({ where: { id }, select: { source: true, taskId: true } });
   if (!before) return { error: "That feedback is gone." };
   const c = await clean(input, before.source === "frameio");
   if ("error" in c) return c;
   await prisma.performanceEntry.update({ where: { id }, data: { ...c.data, reviewed: true } });
+  // it may have moved from one video to another
+  await refreshVideoScores([before.taskId, c.data.taskId]);
   done();
   return {};
 }
@@ -223,16 +261,18 @@ export async function updateEntry(id: string, input: EntryInput): Promise<Result
 // goes back where it was.
 export async function setCreative(id: string, creative: boolean): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can change feedback." };
-  const e = await prisma.performanceEntry.findUnique({ where: { id }, select: { category: true } });
+  const e = await prisma.performanceEntry.findUnique({ where: { id }, select: { category: true, taskId: true } });
   if (!e) return { error: "That's gone." };
   await prisma.performanceEntry.update({ where: { id }, data: { kind: creative ? "creative" : "mistake", category: e.category ?? "Others", reviewed: true } });
+  await refreshVideoScores([e.taskId]);
   done();
   return {};
 }
 
 export async function deleteEntry(id: string): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can remove feedback." };
-  await prisma.performanceEntry.delete({ where: { id } });
+  const gone = await prisma.performanceEntry.delete({ where: { id }, select: { taskId: true } });
+  await refreshVideoScores([gone.taskId]);
   done();
   return {};
 }
@@ -273,6 +313,7 @@ export async function setTaskType(taskId: string, type: string): Promise<Result>
   // keep updatedAt where it was: History and these numbers read it as when
   // the work last moved
   await prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${before.updatedAt} WHERE id = ${taskId}`;
+  await refreshVideoScores([taskId]);
   done();
   return {};
 }

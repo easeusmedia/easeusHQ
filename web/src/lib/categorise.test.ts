@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { categorise, STARTING_KEYWORDS } from "./categorise.ts";
-import { DEFAULT_SCORING } from "./editorKpi.ts";
+import { DEFAULT_VIDEO_SCORING } from "./videoScore.ts";
 
 const CATS = Object.entries(STARTING_KEYWORDS).map(([name, keywords]) => ({ name, keywords }));
-const sort = (text: string, fromClient = false) => categorise(text, CATS, fromClient, DEFAULT_SCORING.creativeWords);
+const sort = (text: string, fromClient = false) => categorise(text, CATS, fromClient, DEFAULT_VIDEO_SCORING.creativeWords);
 
 test("a comment goes to the category whose keywords it uses", () => {
   assert.deepEqual(sort("There's a typo in the second line"), { kind: "mistake", category: "Typos" });

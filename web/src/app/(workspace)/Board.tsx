@@ -14,6 +14,8 @@ import { STAGE } from "@/lib/stages";
 import { ALL_STATUSES, canTransition, type Role, type TaskStatus } from "@/lib/workflow";
 import type { TaskTagOption } from "./TaskTagPicker";
 import { closeOnBackdrop } from "./dialog";
+import { GradePicker } from "./GradePicker";
+import { needsGrade } from "@/lib/videoScore";
 
 export type Column = { status: TaskStatus; label: string; dot: string };
 
@@ -100,8 +102,10 @@ export function Board({
     setSelected(new Set());
     router.refresh();
   }
-  const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number } | null>(null);
+  // a move waiting on a link, a grade (a video's first review), or both
+  const [pending, setPending] = useState<{ taskId: string; to: TaskStatus; sortOrder: number; grading: boolean } | null>(null);
   const [inputValue, setInputValue] = useState("");
+  const [grade, setGrade] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -224,9 +228,11 @@ export function Board({
       return;
     }
     const extra = EXTRA_FIELD[to];
-    if (extra) {
-      setPending({ taskId, to, sortOrder });
-      setInputValue(existingLinkValue(draggedTask, extra.field));
+    const grading = !!draggedTask && needsGrade(draggedTask, to, actingRole);
+    if (extra || grading) {
+      setPending({ taskId, to, sortOrder, grading });
+      setInputValue(extra ? existingLinkValue(draggedTask, extra.field) : "");
+      setGrade("");
       dialogRef.current?.showModal();
       return;
     }
@@ -236,12 +242,19 @@ export function Board({
   function confirmDialog() {
     if (!pending) return;
     const extra = EXTRA_FIELD[pending.to];
-    if (!extra) return;
+    const fields: Record<string, string> = {};
     // checked before the prompt closes, so a bad link can be fixed right
     // here instead of failing afterwards and needing the drag done again
-    const link = pickLink(inputValue);
-    if (!link) return setLinkError(linkProblem(inputValue, extra.label, extra.placeholder));
-    commitMove(pending.to, pending.taskId, pending.sortOrder, { [extra.field]: link });
+    if (extra) {
+      const link = pickLink(inputValue);
+      if (!link) return setLinkError(linkProblem(inputValue, extra.label, extra.placeholder));
+      fields[extra.field] = link;
+    }
+    if (pending.grading) {
+      if (!grade) return setLinkError("Pick a grade for this video.");
+      fields.grade = grade;
+    }
+    commitMove(pending.to, pending.taskId, pending.sortOrder, fields);
     dialogRef.current?.close();
     setPending(null);
   }
@@ -377,27 +390,42 @@ export function Board({
         // normally uses to center a <dialog> — so we center it explicitly.
         className="glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
-        {extraField && (
+        {(extraField || pending?.grading) && (
           <form
             method="dialog"
-            className="flex w-72 flex-col gap-2"
+            className="flex w-80 flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               confirmDialog();
             }}
           >
-            <p className="text-sm font-medium">{extraField.label}</p>
-            <input
-              autoFocus
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value);
-                setLinkError(null);
-              }}
-              placeholder={extraField.placeholder}
-              aria-invalid={!!linkError}
-              className={`rounded-md border bg-surface-2 px-2 py-1 text-sm ${linkError ? "border-red-400/60" : "border-border"}`}
-            />
+            {pending?.grading && (
+              <div className={extraField ? "mb-2" : ""}>
+                <GradePicker
+                  value={grade}
+                  onChange={(g) => {
+                    setGrade(g);
+                    setLinkError(null);
+                  }}
+                />
+              </div>
+            )}
+            {extraField && (
+              <>
+                <p className="text-sm font-medium">{extraField.label}</p>
+                <input
+                  autoFocus={!pending?.grading}
+                  value={inputValue}
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                    setLinkError(null);
+                  }}
+                  placeholder={extraField.placeholder}
+                  aria-invalid={!!linkError}
+                  className={`rounded-md border bg-surface-2 px-2 py-1 text-sm ${linkError ? "border-red-400/60" : "border-border"}`}
+                />
+              </>
+            )}
             {linkError && (
               <p role="alert" className="text-xs text-red-300">
                 {linkError}

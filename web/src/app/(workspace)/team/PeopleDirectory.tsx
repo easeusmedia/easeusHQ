@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Network, Search, Users2 } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
-import type { Grade, Part } from "@/lib/editorKpi";
+import type { Letter, Part } from "@/lib/videoScore";
 import { Avatar } from "../TaskCard";
 import { PersonDetail } from "./PersonDetail";
 import { Organisation } from "./Organisation";
@@ -48,7 +48,8 @@ export type PersonRecord = {
   // the last 30 days, scored as History scores them
   performance: { completed: number; onTimePct: number | null; medianTurnaround: number; revisionsPerTask: number };
   // an editor's month as the Performance page reads it; null for everyone else
-  editorKpi: { total: number | null; grade: Grade | null; parts: { part: Part; value: number | null; max: number; fact: string }[] } | null;
+  // this week's letter from their videos, the number only for those who may see it
+  editorKpi: { letter: Letter | null; score: number | null; videos: number; parts: { part: Part; letter: Letter | null; score: number | null; fact?: string }[] } | null;
 };
 
 export type Option = { id: string; name: string; slug?: string };

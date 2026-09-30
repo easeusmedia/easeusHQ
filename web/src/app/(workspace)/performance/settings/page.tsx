@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { canEditPeople } from "@/lib/scope";
 import { ClientTabs } from "../../clients/ClientTabs";
-import { loadCategories, loadScoring } from "../data";
+import { loadCategories, loadVideoScoring } from "../data";
 import { ScoringForm, TypesPanel } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export default async function PerformanceSettingsPage({ searchParams }: { search
 
   const [{ tab }, scoring, categories, kinds] = await Promise.all([
     searchParams,
-    loadScoring(),
+    loadVideoScoring(),
     loadCategories(),
     prisma.taskTag.findMany({ where: { team: { slug: "operations" } }, select: { name: true }, orderBy: { sortOrder: "asc" } }),
   ]);

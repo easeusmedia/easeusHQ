@@ -10,6 +10,7 @@ import { STATUS_LABEL, STATUS_STYLE, EXTRA_FIELD } from "./TaskCard";
 import { copyFrameioFileToDrive, frameioFileForTask, type DeliverableFile } from "./actions";
 import type { TaskStatus } from "@/lib/workflow";
 import { closeOnBackdrop } from "./dialog";
+import { GradePicker } from "./GradePicker";
 
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
 // picking a status calls the exact same moveTask() that dragging the card
@@ -20,6 +21,7 @@ export function StatusSelect({
   options,
   links,
   variant = "block",
+  needsGradeOn,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
@@ -30,6 +32,8 @@ export function StatusSelect({
   // same shape — so a row reads the same as before but the stage is now
   // something you can click and change in place.
   variant?: "block" | "pill";
+  // whether moving it here is its first review, which core grades
+  needsGradeOn?: (to: TaskStatus) => boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -45,6 +49,9 @@ export function StatusSelect({
     why?: string;
   }>({ state: "idle" });
   const [inputValue, setInputValue] = useState("");
+  // a video's first review: the grade it's given, before the move goes through
+  const [grading, setGrading] = useState(false);
+  const [grade, setGrade] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // shown instead of currentStatus — flips the instant you pick something,
@@ -119,13 +126,16 @@ export function StatusSelect({
     setOpen(false);
     setError(null);
     const extra = EXTRA_FIELD[to];
-    if (extra) {
+    const gradeIt = needsGradeOn?.(to) ?? false;
+    if (extra || gradeIt) {
       setPendingTo(to);
+      setGrading(gradeIt);
+      setGrade("");
       setFio({ state: "idle" });
-      if (to === "delivered_and_uploaded" && links.frameioLink) offerFrameio();
+      if (extra && to === "delivered_and_uploaded" && links.frameioLink) offerFrameio();
       // already has this link on file (e.g. resubmitting after a revision)
       // — prefill it instead of forcing a retype of the same link
-      const existing = extra.field === "frameioLink" || extra.field === "driveLink" ? links[extra.field] : null;
+      const existing = extra && (extra.field === "frameioLink" || extra.field === "driveLink") ? links[extra.field] : null;
       setInputValue(existing ?? "");
       dialogRef.current?.showModal();
       return;
@@ -145,12 +155,19 @@ export function StatusSelect({
   async function confirmDialog() {
     if (!pendingTo || submitting) return;
     const extra = EXTRA_FIELD[pendingTo];
-    if (!extra) return;
-    const value = pickLink(inputValue);
-    if (!value) return setError(linkProblem(inputValue, extra.label, extra.placeholder));
+    const fields: Record<string, string> = {};
+    if (extra) {
+      const value = pickLink(inputValue);
+      if (!value) return setError(linkProblem(inputValue, extra.label, extra.placeholder));
+      fields[extra.field] = value;
+    }
+    if (grading) {
+      if (!grade) return setError("Pick a grade for this video.");
+      fields.grade = grade;
+    }
     setError(null);
     setSubmitting(true);
-    const reason = await commit(pendingTo, { [extra.field]: value });
+    const reason = await commit(pendingTo, fields);
     setSubmitting(false);
     if (reason) return setError(reason);
     dialogRef.current?.close();
@@ -188,7 +205,7 @@ export function StatusSelect({
         {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(21rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 text-foreground"
       >
-        {extraField && (
+        {(extraField || grading) && (
           <form
             method="dialog"
             className="flex flex-col gap-2"
@@ -197,6 +214,19 @@ export function StatusSelect({
               confirmDialog();
             }}
           >
+            {grading && (
+              <div className={extraField ? "mb-2" : ""}>
+                <GradePicker
+                  value={grade}
+                  onChange={(g) => {
+                    setGrade(g);
+                    setError(null);
+                  }}
+                />
+              </div>
+            )}
+            {extraField && (
+              <>
             <p className="text-sm font-medium">{extraField.label}</p>
             <p className="text-xs text-muted">
               Required before moving this to {STATUS_LABEL[pendingTo!]}.
@@ -239,7 +269,7 @@ export function StatusSelect({
               ))}
             {hasOffer && <p className="text-[11px] text-muted">Or, if you re-rendered it yourself:</p>}
             <input
-              autoFocus={!hasOffer}
+              autoFocus={!hasOffer && !grading}
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -249,6 +279,8 @@ export function StatusSelect({
               aria-invalid={!!error}
               className={`rounded-md border bg-surface-2 px-2 py-1 text-sm ${error ? "border-red-400/60" : "border-border"}`}
             />
+              </>
+            )}
             {error && (
               <p role="alert" className="text-xs text-red-300">
                 {error}
@@ -272,7 +304,7 @@ export function StatusSelect({
             </div>
           </form>
         )}
-        {!extraField && error && (
+        {!extraField && !grading && error && (
           <div role="alert" className="flex flex-col gap-2">
             <p className="text-sm font-medium">The status couldn&apos;t be changed</p>
             <p className="text-sm text-muted">{error}</p>

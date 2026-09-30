@@ -349,6 +349,39 @@ dialog[open]::backdrop {
 .card-interactive {
   transition: background 0.15s ease, --spot 0.35s ease;
 }
+
+/* A video the quality inspection rated A+ (green) or S (gold: portfolio
+   worthy), wherever its card appears: the face and the edge take the
+   colour, and the pointer's spotlight still plays over it. Rows use the
+   .tier-row pair below. Set by Task.tier (lib/videoScores.ts). */
+.card-surface.tier-aplus,
+.card-surface.tier-aplus.card-interactive:hover {
+  background:
+    var(--spot-face),
+    linear-gradient(160deg, rgb(52 211 153 / 0.16) 0%, rgb(52 211 153 / 0.04) 60%, transparent 100%) padding-box,
+    linear-gradient(180deg, #16191e 0%, #121418 100%) padding-box,
+    var(--spot-edge),
+    linear-gradient(180deg, rgb(52 211 153 / 0.75) 0%, rgb(52 211 153 / 0.3) 55%, rgb(52 211 153 / 0.2) 100%) border-box;
+  box-shadow: 0 0 24px -12px rgb(52 211 153 / 0.45);
+}
+.card-surface.tier-s,
+.card-surface.tier-s.card-interactive:hover {
+  background:
+    var(--spot-face),
+    linear-gradient(160deg, rgb(252 211 77 / 0.24) 0%, rgb(252 211 77 / 0.07) 60%, rgb(252 211 77 / 0.03) 100%) padding-box,
+    linear-gradient(180deg, #17171a 0%, #131316 100%) padding-box,
+    var(--spot-edge),
+    linear-gradient(180deg, rgb(252 211 77 / 0.95) 0%, rgb(252 211 77 / 0.45) 55%, rgb(252 211 77 / 0.3) 100%) border-box;
+  box-shadow: 0 0 28px -10px rgb(252 211 77 / 0.55);
+}
+.tier-row-aplus {
+  background-image: linear-gradient(90deg, rgb(52 211 153 / 0.09), transparent 65%);
+  box-shadow: inset 3px 0 0 rgb(52 211 153 / 0.7);
+}
+.tier-row-s {
+  background-image: linear-gradient(90deg, rgb(252 211 77 / 0.11), transparent 65%);
+  box-shadow: inset 3px 0 0 rgb(252 211 77 / 0.85);
+}
 .card-interactive:hover {
   --spot: 1;
   background:

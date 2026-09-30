@@ -10,9 +10,9 @@ import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
-import { partMax, periodFrom } from "@/lib/editorKpi";
+import { periodFrom } from "@/lib/editorKpi";
 import { loadPerformance } from "../performance/data";
-import { facts } from "../performance/shared";
+import { summaryFacts } from "../performance/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -82,18 +82,18 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   const dueOf = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
-  // editors are read by the numbers on their Performance page, this week
+  // editors are read by their videos' grades (Performance), this week
   const week = periodFrom({}, today);
   const kpiData = await loadPerformance({ from: week.from });
   const editorKpiFor = (id: string) => {
     if (!kpiData.editors.some((e) => e.id === id)) return null;
-    const k = kpiData.score(week.from, week.to, id);
-    const max = partMax(kpiData.scoring);
-    const f = facts(k);
+    const sum = kpiData.summary(week.from, week.to, id);
+    const f = summaryFacts(sum);
     return {
-      total: k.total,
-      grade: k.grade,
-      parts: (["quantity", "quality", "feedback"] as const).map((part) => ({ part, value: k[part], max: max[part], fact: f[part] })),
+      letter: sum.letter.overall,
+      score: canEdit ? sum.overall : null,
+      videos: sum.videos,
+      parts: (["quality", "efficiency", "client"] as const).map((part) => ({ part, letter: sum.letter[part], score: canEdit ? sum[part] : null, fact: f[part] || undefined })),
     };
   };
 

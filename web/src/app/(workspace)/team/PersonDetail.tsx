@@ -16,7 +16,8 @@ import { departmentFor, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { seesEveryTeam } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
-import { GradeBadge, PartScore, Total } from "../performance/ui";
+import { GradeBadge, ScoreTile } from "../performance/ui";
+import { LETTER_LABEL } from "@/lib/videoScore";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 const labelCls = "flex min-w-0 flex-col gap-1 text-xs text-muted";
@@ -461,14 +462,22 @@ export function PersonDetail({
               </Link>
             }
           >
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col gap-5">
               <span className="flex items-center gap-3">
-                <GradeBadge grade={person.editorKpi.grade} />
-                <Total total={person.editorKpi.total} />
+                <GradeBadge grade={person.editorKpi.letter} />
+                <span className="flex flex-col">
+                  <span className="text-base font-medium">
+                    {person.editorKpi.letter ? LETTER_LABEL[person.editorKpi.letter] : "No grade yet"}
+                    {person.editorKpi.score !== null && <span className="ml-2 text-sm font-normal tabular-nums text-muted">{person.editorKpi.score}</span>}
+                  </span>
+                  <span className="text-sm text-muted">
+                    {person.editorKpi.videos} video{person.editorKpi.videos === 1 ? "" : "s"}
+                  </span>
+                </span>
               </span>
-              <div className="grid flex-1 grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
                 {person.editorKpi.parts.map((r) => (
-                  <PartScore key={r.part} part={r.part} value={r.value} max={r.max} fact={r.fact} />
+                  <ScoreTile key={r.part} part={r.part} letter={r.letter} score={r.score} fact={r.fact} />
                 ))}
               </div>
             </div>

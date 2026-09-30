@@ -3,7 +3,9 @@ import { frameioConnected, shareComments, shareIdFrom, type FrameioComment } fro
 import { claudeJson, claudeKey } from "./claude";
 import { takeSnapshots } from "./snapshots";
 import { categorise } from "./categorise";
-import { SCORING_KEY, withScoringDefaults } from "./editorKpi";
+import { parseStageChange } from "./stages";
+import { refreshVideoScores } from "./videoScores";
+import { VIDEO_SCORING_KEY, withVideoScoringDefaults } from "./videoScore";
 
 // Review comments from Frame.io, turned into the editor's feedback log.
 //
@@ -20,6 +22,7 @@ export const FEEDBACK_SYNCED = "frameio.feedbackSyncedAt";
 // review links on work that moved in the last this-many days
 const WINDOW_DAYS = 60;
 const BATCH = 40;
+const WITH_CLIENT = ["sent_for_client_approval", "final_export_ready", "delivered_and_uploaded"];
 
 function system(categories: { name: string; description: string | null; keywords: string | null }[]) {
   return `You sort the review comments left on a video editor's cuts in Frame.io, for a video agency's review of its editors. Each comment is from our own reviewers or from the client, and many are written in Hinglish.
@@ -60,7 +63,10 @@ const schema = (names: string[]) => ({
   additionalProperties: false,
 });
 
-type Found = FrameioComment & { taskId: string; taskTitle: string; editorId: string; fromClient: boolean };
+// byClient: the client wrote it. fromClient: it's from the client stage (the
+// client wrote it, or it was left once the video had gone to the client),
+// so it counts against Client acceptance, not Quality.
+type Found = FrameioComment & { taskId: string; taskTitle: string; editorId: string; byClient: boolean; fromClient: boolean };
 
 // Asked for, never automatic: Claude re-sorts these entries into the
 // categories. Only Frame.io comments nobody has sorted by hand; every call
@@ -106,6 +112,13 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
     }),
     prisma.user.findMany({ select: { email: true, name: true } }),
   ]);
+  // when each video first went to the client
+  const logs = await prisma.activityLog.findMany({ where: { entity: "Task", entityId: { in: tasks.map((t) => t.id) } }, select: { entityId: true, action: true, createdAt: true }, orderBy: { createdAt: "asc" } });
+  const withClient = new Map<string, Date>();
+  for (const l of logs) {
+    const to = parseStageChange(l.action)?.to;
+    if (to && WITH_CLIENT.includes(to) && !withClient.has(l.entityId)) withClient.set(l.entityId, l.createdAt);
+  }
   // our own reviewers: anyone with an account here, or on the agency's own login
   const emails = new Set(ours.map((u) => u.email.toLowerCase()));
   const isOurs = (c: FrameioComment) =>
@@ -118,7 +131,11 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
       tasks.slice(i, i + 6).map(async (t) => {
         const share = await shareIdFrom(t.frameioLink!);
         const comments = share ? await shareComments(share).catch(() => []) : [];
-        return comments.map((c) => ({ ...c, taskId: t.id, taskTitle: t.title, editorId: t.assignedToId!, fromClient: !isOurs(c) }));
+        return comments.map((c) => {
+          const byClient = !isOurs(c);
+          const since = withClient.get(t.id);
+          return { ...c, taskId: t.id, taskTitle: t.title, editorId: t.assignedToId!, byClient, fromClient: byClient || (!!since && new Date(c.createdAt) >= since) };
+        });
       })
     );
     found.push(...lists.flat());
@@ -144,10 +161,10 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
   // sorted by their words; free, and the same answer every time
   const [categories, scoring] = await Promise.all([
     prisma.feedbackCategory.findMany({ select: { name: true, keywords: true }, orderBy: { sortOrder: "asc" } }),
-    prisma.appSetting.findUnique({ where: { key: SCORING_KEY } }),
+    prisma.appSetting.findUnique({ where: { key: VIDEO_SCORING_KEY } }),
   ]);
-  const { creativeWords } = withScoringDefaults(JSON.parse(scoring?.value ?? "{}"));
-  const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories, c.fromClient, creativeWords)]));
+  const { creativeWords } = withVideoScoringDefaults(JSON.parse(scoring?.value ?? "{}"));
+  const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories, c.byClient, creativeWords)]));
   await prisma.performanceEntry.createMany({
     data: fresh.map((c) => {
       const s = sorted.get(c.id);
@@ -179,5 +196,7 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
   ).catch(() => 0);
   const now = new Date().toISOString();
   await prisma.appSetting.upsert({ where: { key: FEEDBACK_SYNCED }, create: { key: FEEDBACK_SYNCED, value: now }, update: { value: now } });
+  // new comments (and ones ticked done) change their videos' scores
+  if (fresh.length) await refreshVideoScores([...new Set(fresh.map((c) => c.taskId))]).catch(() => {});
   return { added: fresh.length, mistakes: [...sorted.values()].filter((s) => s.kind === "mistake").length, snapshots };
 }

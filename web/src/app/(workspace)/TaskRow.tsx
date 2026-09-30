@@ -2,13 +2,14 @@
 
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { AssigneeLabel, DueDate, StageColumn, type TaskCardData } from "./TaskCard";
+import { AssigneeLabel, DueDate, StageColumn, TierMark, tierClass, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { Checkbox } from "./Checkbox";
 import { StatusSelect } from "./StatusSelect";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { STAGE } from "@/lib/stages";
 import { availableStatuses, type Role } from "@/lib/workflow";
+import { needsGrade } from "@/lib/videoScore";
 
 // One task as a list row — the same click-to-open-details behaviour the
 // board cards have, so a task is editable everywhere it's shown rather
@@ -60,11 +61,11 @@ export function TaskRow({
       <div
         onClick={() => detailsRef.current?.open()}
         className={
-          flat
+          (flat
             ? `group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors duration-150 ${selected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`
             : `group flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                 selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
-              }`
+              }`) + ` ${tierClass(task.tier, true)}`
         }
       >
         {flat && (
@@ -109,7 +110,10 @@ export function TaskRow({
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm">{task.title}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <TierMark tier={task.tier} />
+            <span className="block truncate text-sm">{task.title}</span>
+          </span>
           <span className="block truncate text-xs text-muted">{subtitle}</span>
         </span>
 
@@ -150,6 +154,7 @@ export function TaskRow({
             options={options}
                         links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
             variant="pill"
+            needsGradeOn={(to) => needsGrade(task, to, actingRole)}
           />
         </StageColumn>
       </div>

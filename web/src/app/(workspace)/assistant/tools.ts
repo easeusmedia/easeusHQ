@@ -4,12 +4,11 @@ import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { hoursLabel, ENTRY_KINDS, partMax, periodFrom } from "@/lib/editorKpi";
+import { ENTRY_KINDS, periodFrom } from "@/lib/editorKpi";
 import { collectedIn, isOverdue, ledger, payroll, upcoming } from "@/lib/finance";
 import { clipText } from "@/lib/assistant";
 import type { Tool } from "@/lib/ai";
-import { loadPerformance } from "../performance/data";
-import { facts } from "../performance/shared";
+import { loadPerformance, repeatedMistakes } from "../performance/data";
 import { billingCycle, loadFinance, money } from "../finance/data";
 
 // What the admin's assistant can read and propose, and nothing else: the
@@ -55,7 +54,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "performance",
-    description: "Editors' grade (A+ to D) and score out of 10 for a month (yyyy-mm, default this one), the average of its weeks, and its parts: Quantity (output and speed), Quality (mistakes per video) and Feedback (praise and concerns). Leave out person for every editor.",
+    description: "Editors' grade (S, A+, A, B, C, D) for a month (yyyy-mm, default this one): the average of their videos' scores out of 100, and its parts: Quality (the inspection grade less mistakes), Efficiency (on time, few revisions) and Client acceptance (client changes and mistakes), with each video's grade. Leave out person for every editor.",
     input_schema: { type: "object", properties: { person: { type: "string" }, month: { type: "string" } } },
   },
   {
@@ -156,17 +155,16 @@ async function editorLine(id: string, name: string, month: string) {
   const period = periodFrom({ view: "month", month }, today());
   const data = await loadPerformance({ from: period.from, editorId: id });
   if (!data.editors.length) return null;
-  const k = data.score(period.from, period.to, id);
-  const cats = k.byCategory.map((c) => `${c.category} ${c.count}${c.repeats ? ` (${c.repeats} repeated)` : ""}`).join(", ");
-  const s = data.scoring;
-  const max = partMax(s);
-  const f = facts(k);
+  const sum = data.summary(period.from, period.to, id);
+  const videos = data.videosIn(period.from, period.to, id);
+  const cats = repeatedMistakes(data.feedback, period.from, period.to, id)
+    .map((c) => `${c.category} ${c.count}${c.repeats ? ` (${c.repeats} repeated)` : ""}`)
+    .join(", ");
   return [
-    `${name}, ${month}${period.current ? " so far" : ""}: ${k.grade ?? "no grade"}, ${k.total ?? "–"} of 10${k.weeks > 1 ? `, the average of ${k.weeks} weeks` : ""} (Quantity ${k.quantity ?? "–"}/${max.quantity}, Quality ${k.quality ?? "–"}/${max.quality}, Feedback ${k.feedback ?? "–"}/${max.feedback})`,
-    `Quantity: ${f.quantity} (target ${s.reelsPerDay} reels a working day; ${s.speedPoints} of its points for speed, each video timed from Editing to Sent for approval)`,
-    `Quality: ${f.quality}${k.revisions ? `, ${k.revisions} revisions` : ""}${cats ? ` · by type: ${cats}` : ""} (each mistake takes its type's points off, a revision ${s.revisionPoints}, a repeat ${s.repeatMultiplier}×, per video)`,
-    `Feedback: ${f.feedback}, net ${k.net >= 0 ? "+" : ""}${k.net} (starts at ${s.feedbackStart} of ${s.feedbackPoints} each week)`,
-    k.editHours !== null ? `Typical time from Editing to Sent for approval: ${hoursLabel(k.editHours)}` : "",
+    `${name}, ${month}${period.current ? " so far" : ""}: ${sum.letter.overall ?? "no grade"}${sum.overall !== null ? ` (${sum.overall})` : ""} over ${sum.videos} videos, ${sum.graded} graded · S ${sum.s}, A+ ${sum.aPlus}`,
+    `Quality ${sum.letter.quality ?? "–"} (${sum.quality ?? "–"}) · Efficiency ${sum.letter.efficiency ?? "–"} (${sum.efficiency ?? "–"}) · Client acceptance ${sum.letter.client ?? "–"} (${sum.client ?? "–"})`,
+    cats ? `Mistakes by type: ${cats}` : "",
+    ...videos.slice(0, 12).map((v) => `- ${v.title}: ${v.score.letter.overall ?? "awaiting grade"}${v.score.overall !== null ? ` (${v.score.overall})` : ""}, graded ${v.score.quality.grade ?? "–"}, ${v.score.quality.mistakes} mistakes, ${v.score.efficiency.late} days late, ${v.score.efficiency.ours} revisions`),
   ]
     .filter(Boolean)
     .join("\n");
@@ -265,12 +263,9 @@ async function performance({ person: who, month }: { person?: string; month?: st
   }
   const period = periodFrom({ view: "month", month: m }, today());
   const data = await loadPerformance({ from: period.from });
-  const team = data.score(period.from, period.to);
+  const team = data.summary(period.from, period.to);
   const lines = await Promise.all(data.editors.map((e) => editorLine(e.id, e.name, m)));
-  return [
-    `Team, ${m}: completed ${team.completed} (${team.units} reels' worth) · ${team.mistakes} mistakes (${team.repeated} repeated) · ${team.within} of ${team.timed} timed videos within time`,
-    ...lines.filter(Boolean),
-  ].join("\n");
+  return [`Team, ${m}: ${team.letter.overall ?? "no grade"}${team.overall !== null ? ` (${team.overall})` : ""} over ${team.videos} videos · S ${team.s}, A+ ${team.aPlus}`, ...lines.filter(Boolean)].join("\n");
 }
 
 async function feedback({ person: who, month, kind }: { person: string; month?: string; kind?: string }) {

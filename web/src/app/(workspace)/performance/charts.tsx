@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Repeat2 } from "lucide-react";
-import { GRADE_LABEL, type Grade, type Part } from "@/lib/editorKpi";
-import { Info, PART, PART_COLOR } from "./ui";
-
-const PARTS: Part[] = ["quantity", "quality", "feedback"];
+import { LETTER_LABEL, type Letter, type VideoScoring } from "@/lib/videoScore";
+import { Info } from "./ui";
 
 // a tooltip over a mark, kept inside the chart at either end
 function Tip({ at, n, children }: { at: number; n: number; children: React.ReactNode }) {
@@ -13,28 +12,33 @@ function Tip({ at, n, children }: { at: number; n: number; children: React.React
   return <div className={`pointer-events-none absolute bottom-full z-10 mb-2 w-52 rounded-xl popover px-3.5 py-2.5 text-sm shadow-lg ${side}`}>{children}</div>;
 }
 
-type Series = { name: string; color: string; values: (number | null)[] };
+type Series = { name: string; color: string; values: (number | null)[]; labels: (string | null)[] };
+type Bands = VideoScoring["bands"];
 
-// Week by week on a 0–10 scale: a line per series, broken where a week has
-// no score, and each week's number on its dot when `numbered`. Hover a
-// week for `tip`.
-function Lines({ series, spans, tip, numbered = false, height = 180 }: { series: Series[]; spans: { label: string }[]; tip: (i: number) => React.ReactNode; numbered?: boolean; height?: number }) {
+// the letters' floors, down the side and across the plot
+const FLOOR = 50;
+const y = (v: number) => 100 - ((Math.max(FLOOR, Math.min(100, v)) - FLOOR) / (100 - FLOOR)) * 100;
+
+// Week by week on the letters' scale (50 to 100, where C to S live): a
+// line per series, broken where a week has nothing, each week's letter (or
+// number) on its dot. Hover a week for `tip`.
+function Lines({ series, spans, bands, tip, numbered = false, height = 190 }: { series: Series[]; spans: { label: string }[]; bands: Bands; tip: (i: number) => React.ReactNode; numbered?: boolean; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const n = spans.length;
   const x = (i: number) => (n < 2 ? 50 : 3 + (i / (n - 1)) * 94);
-  const y = (v: number) => 100 - v * 10;
   const path = (values: (number | null)[]) =>
     values
       .map((v, i) => (v === null ? null : `${i && values[i - 1] !== null ? "L" : "M"}${x(i)},${y(v)}`))
       .filter(Boolean)
       .join(" ");
+  const floors = (Object.entries(bands) as [Letter, number][]).filter(([, v]) => v >= FLOOR);
 
   return (
     <div className="flex gap-3">
-      <div className="relative w-5 shrink-0 text-right text-sm text-muted tabular-nums" style={{ height }}>
-        {[10, 5, 0].map((v) => (
-          <span key={v} className="absolute right-0 -translate-y-1/2" style={{ top: `${y(v)}%` }}>
-            {v}
+      <div className="relative w-6 shrink-0 text-right text-xs font-medium text-muted" style={{ height }}>
+        {floors.map(([l, v]) => (
+          <span key={l} className="absolute right-0 -translate-y-1/2" style={{ top: `${y(v)}%` }}>
+            {l}
           </span>
         ))}
       </div>
@@ -49,9 +53,10 @@ function Lines({ series, spans, tip, numbered = false, height = 180 }: { series:
           }}
           onMouseLeave={() => setHover(null)}
         >
-          {[0, 50, 100].map((t) => (
-            <div key={t} className="absolute inset-x-0 border-t border-foreground/[0.06]" style={{ top: `${t}%` }} />
+          {floors.map(([l, v]) => (
+            <div key={l} className="absolute inset-x-0 border-t border-foreground/[0.06]" style={{ top: `${y(v)}%` }} />
           ))}
+          <div className="absolute inset-x-0 bottom-0 border-t border-border" />
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
             {hover !== null && <line x1={x(hover)} x2={x(hover)} y1="0" y2="100" stroke="currentColor" className="text-foreground/20" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
             {series.map((s) => (
@@ -63,7 +68,7 @@ function Lines({ series, spans, tip, numbered = false, height = 180 }: { series:
               v === null ? null : (
                 <span key={`${s.name}${i}`} className="pointer-events-none absolute" style={{ left: `${x(i)}%`, top: `${y(v)}%` }}>
                   <span className={`absolute rounded-full ring-2 ring-surface transition-[width,height] duration-150 ${hover === i ? "size-3" : "size-2"}`} style={{ translate: "-50% -50%", background: s.color }} />
-                  {numbered && <span className={`absolute bottom-2 -translate-x-1/2 text-sm tabular-nums ${hover === i ? "text-foreground" : "text-muted"}`}>{v}</span>}
+                  {numbered && <span className={`absolute bottom-2 -translate-x-1/2 text-sm font-medium tabular-nums ${hover === i ? "text-foreground" : "text-muted"}`}>{s.labels[i]}</span>}
                 </span>
               )
             )
@@ -92,43 +97,34 @@ function Lines({ series, spans, tip, numbered = false, height = 180 }: { series:
   );
 }
 
-export type SpanScore = { label: string; title: string; total: number | null; grade: Grade | null } & Record<Part, number | null>;
+export type WeekScore = { label: string; title: string; score: number | null; letter: Letter | null; videos: number };
 
-// One editor's total out of 10, week by week, each week's score on its
-// dot. Hover a week for its three parts.
-export function ScoreLine({ spans, max }: { spans: SpanScore[]; max: Record<Part, number> }) {
-  if (!spans.some((s) => s.total !== null)) return <p className="py-10 text-center text-sm text-muted">No scores yet.</p>;
+// One editor's weeks: the average of their videos' overall scores, a
+// letter on each week's dot (the number too, for core). Hover for it.
+export function WeeklyLine({ spans, bands, showScore }: { spans: WeekScore[]; bands: Bands; showScore: boolean }) {
+  if (!spans.some((s) => s.score !== null)) return <p className="py-10 text-center text-sm text-muted">No graded videos yet.</p>;
   return (
     <Lines
-      series={[{ name: "Total", color: PART_COLOR.quantity, values: spans.map((s) => s.total) }]}
+      series={[{ name: "Overall", color: "#4b95e6", values: spans.map((s) => s.score), labels: spans.map((s) => (showScore && s.score !== null ? String(s.score) : s.letter)) }]}
       spans={spans}
+      bands={bands}
       numbered
       tip={(i) => {
         const s = spans[i];
         return (
           <>
             <p className="text-muted">{s.title}</p>
-            {s.total === null ? (
-              <p className="mt-1">No work tracked</p>
+            {s.score === null ? (
+              <p className="mt-1">No graded videos</p>
             ) : (
-              <>
-                <p className="mt-0.5 mb-2 font-semibold text-foreground">
-                  {s.grade} · {s.total} <span className="font-normal text-muted">{GRADE_LABEL[s.grade!]}</span>
-                </p>
-                {PARTS.map((p) => (
-                  <p key={p} className="flex items-center justify-between gap-3">
-                    <span className="flex items-center gap-2 text-muted">
-                      <span className="size-2 rounded-[2px]" style={{ background: PART_COLOR[p] }} />
-                      {PART[p].label}
-                    </span>
-                    <span className="tabular-nums">
-                      {s[p] ?? "–"}
-                      <span className="text-muted"> / {max[p]}</span>
-                    </span>
-                  </p>
-                ))}
-              </>
+              <p className="mt-0.5 font-semibold text-foreground">
+                {s.letter}
+                {showScore ? ` · ${s.score}` : ""} <span className="font-normal text-muted">{LETTER_LABEL[s.letter!]}</span>
+              </p>
             )}
+            <p className="mt-1 text-muted">
+              {s.videos} video{s.videos === 1 ? "" : "s"}
+            </p>
           </>
         );
       }}
@@ -138,32 +134,36 @@ export function ScoreLine({ spans, max }: { spans: SpanScore[]; max: Record<Part
 
 export type MistakeRow = { category: string; description: string | null; count: number; repeats: number };
 
-// Mistakes by type, most first: a bar and the count, and how many were repeats
-export function MistakeBars({ rows }: { rows: MistakeRow[] }) {
+// Mistakes by type, most first: a bar and the count, how many were repeats;
+// each opens the list of them, with their frames
+// `href`: the page's own link to the Mistakes tab, which the type is added to
+export function MistakeBars({ rows, href }: { rows: MistakeRow[]; href: string }) {
   const top = Math.max(1, ...rows.map((r) => r.count));
   if (!rows.length) return <p className="py-10 text-center text-sm text-muted">No mistakes.</p>;
   return (
-    <ul className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-1">
       {rows.map((r) => (
-        <li key={r.category} className="flex flex-col gap-1.5">
-          <span className="flex items-center justify-between gap-3 text-sm">
-            <span className="flex min-w-0 items-center gap-1">
-              <span className="truncate">{r.category}</span>
-              <Info label={r.category} text={r.description} />
+        <li key={r.category}>
+          <Link href={`${href}&type=${encodeURIComponent(r.category)}`} scroll={false} className="flex flex-col gap-1.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/[0.03]">
+            <span className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="truncate">{r.category}</span>
+                <Info label={r.category} text={r.description} />
+              </span>
+              <span className="flex shrink-0 items-center gap-2.5 tabular-nums">
+                {r.repeats > 0 && (
+                  <span className="flex items-center gap-1 text-rose-300" title={`${r.repeats} repeated`}>
+                    <Repeat2 size={13} />
+                    {r.repeats}
+                  </span>
+                )}
+                <span className="font-medium">{r.count}</span>
+              </span>
             </span>
-            <span className="flex shrink-0 items-center gap-2.5 tabular-nums">
-              {r.repeats > 0 && (
-                <span className="flex items-center gap-1 text-rose-300" title={`${r.repeats} repeated`}>
-                  <Repeat2 size={13} />
-                  {r.repeats}
-                </span>
-              )}
-              <span className="font-medium">{r.count}</span>
+            <span className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.06]">
+              <span className="block h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${(r.count / top) * 100}%` }} />
             </span>
-          </span>
-          <span className="h-1.5 overflow-hidden rounded-full bg-foreground/[0.06]">
-            <span className="block h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${(r.count / top) * 100}%` }} />
-          </span>
+          </Link>
         </li>
       ))}
     </ul>
@@ -173,13 +173,13 @@ export function MistakeBars({ rows }: { rows: MistakeRow[] }) {
 // the series' colours, in a fixed order that follows the editor, not their rank
 const LINE_COLORS = ["#4b95e6", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9"];
 
-export type EditorSeries = { name: string; values: (number | null)[] };
+export type EditorSeries = { name: string; values: (number | null)[]; letters: (Letter | null)[] };
 
-// Each editor's total out of 10, week by week, one line each. Hover a week
-// for everyone's numbers.
-export function TeamChart({ series, spans }: { series: EditorSeries[]; spans: { label: string; title: string }[] }) {
-  if (!series.some((s) => s.values.some((v) => v !== null))) return <p className="py-10 text-center text-sm text-muted">No scores yet.</p>;
-  const lines = series.map((s, k) => ({ ...s, color: LINE_COLORS[k % LINE_COLORS.length] }));
+// Each editor's weeks, one line each, on the letters' scale. Hover a week
+// for everyone's.
+export function TeamChart({ series, spans, bands, showScore }: { series: EditorSeries[]; spans: { label: string; title: string }[]; bands: Bands; showScore: boolean }) {
+  if (!series.some((s) => s.values.some((v) => v !== null))) return <p className="py-10 text-center text-sm text-muted">No graded videos yet.</p>;
+  const lines = series.map((s, k) => ({ ...s, color: LINE_COLORS[k % LINE_COLORS.length], labels: s.letters }));
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
@@ -193,6 +193,7 @@ export function TeamChart({ series, spans }: { series: EditorSeries[]; spans: { 
       <Lines
         series={lines}
         spans={spans}
+        bands={bands}
         tip={(i) => (
           <>
             <p className="mb-1.5 text-muted">{spans[i].title}</p>
@@ -202,7 +203,10 @@ export function TeamChart({ series, spans }: { series: EditorSeries[]; spans: { 
                   <span className="size-2 shrink-0 rounded-full" style={{ background: s.color }} />
                   <span className="truncate">{s.name}</span>
                 </span>
-                <span className="shrink-0 tabular-nums">{s.values[i] ?? "–"}</span>
+                <span className="shrink-0 tabular-nums">
+                  {s.letters[i] ?? "–"}
+                  {showScore && s.values[i] !== null ? ` · ${s.values[i]}` : ""}
+                </span>
               </p>
             ))}
           </>

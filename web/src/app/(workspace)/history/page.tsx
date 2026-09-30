@@ -105,6 +105,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       dueDate: t.dueDate,
       handedOffAt: t.handedOffAt,
       revisions: t.revisionCount,
+      tier: t.tier,
     })),
     ...workTasks.map((t) => ({
       id: t.id,

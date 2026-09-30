@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Plus, Repeat2, Trash2, X } from "lucide-react";
-import { GRADE_LABEL, type Scoring } from "@/lib/editorKpi";
+import { LETTERS, LETTER_LABEL, type VideoScoring } from "@/lib/videoScore";
 import { Dropdown } from "../../Dropdown";
 import { ConfirmButton } from "../../ConfirmButton";
 import { Reveal } from "../../Reveal";
@@ -26,34 +26,33 @@ function Card({ title, icon, children }: { title: string; icon?: React.ReactNode
   );
 }
 
-// Every number the score is built from, set by the admin
-export function ScoringForm({ scoring, kinds }: { scoring: Scoring; kinds: string[] }) {
+// Every number a video's score is built from, set by the admin
+export function ScoringForm({ scoring, kinds }: { scoring: VideoScoring; kinds: string[] }) {
   const { run, error } = useRun();
   const [d, setD] = useState(scoring);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const set = (patch: Partial<Scoring>) => {
+  const set = (patch: Partial<VideoScoring>) => {
     setD((x) => ({ ...x, ...patch }));
     setSaved(false);
   };
   const changed = JSON.stringify(d) !== JSON.stringify(scoring);
   const unlisted = kinds.filter((k) => !(k in d.types));
-  const sum = Math.round((d.quantityPoints + d.qualityPoints + d.feedbackPoints) * 10) / 10;
-  const field = (text: string, key: keyof Scoring, extra: { prefix?: string; suffix?: string } = {}) => (
+  const field = (text: string, value: number, onChange: (n: number) => void, extra: { prefix?: string; suffix?: string } = {}) => (
     <div className={row}>
       <span className={label}>{text}</span>
-      <Num value={d[key] as number} onChange={(n) => n !== null && set({ [key]: n })} {...extra} />
+      <Num value={value} onChange={(n) => n !== null && onChange(n)} {...extra} />
     </div>
   );
-  const Q = PART.quantity;
-  const L = PART.quality;
-  const F = PART.feedback;
+  const Q = PART.quality;
+  const E = PART.efficiency;
+  const C = PART.client;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex min-h-9 items-center justify-end gap-3">
         {error && <span className="mr-auto text-sm text-red-300">{error}</span>}
-        {saved && !changed && <span className="text-sm text-muted">Saved</span>}
+        {saved && !changed && <span className="text-sm text-muted">Saved. Every video is rescored.</span>}
         {changed && (
           <button onClick={() => setD(scoring)} className="btn btn-ghost">
             Undo
@@ -71,37 +70,58 @@ export function ScoringForm({ scoring, kinds }: { scoring: Scoring; kinds: strin
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Score out of 10">
-          {field(Q.label, "quantityPoints", { suffix: "points" })}
-          {field(L.label, "qualityPoints", { suffix: "points" })}
-          {field(F.label, "feedbackPoints", { suffix: "points" })}
-          <p className={`border-t border-border/60 pt-3 text-right text-sm tabular-nums ${sum === 10 ? "text-muted" : "text-rose-300"}`}>Total {sum} / 10</p>
-        </Card>
 
-        <Card title="Grades">
-          {(["A+", "A", "B", "C"] as const).map((g) => (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="Letters">
+          {(["S", "A+", "A", "B", "C"] as const).map((g) => (
             <div key={g} className={row}>
               <span className="flex items-center gap-3">
                 <GradeBadge grade={g} size="sm" />
-                <span className={label}>{GRADE_LABEL[g]}</span>
+                <span className={label}>{LETTER_LABEL[g]}</span>
               </span>
-              <Num value={d.grades[g]} onChange={(n) => n !== null && set({ grades: { ...d.grades, [g]: n } })} suffix="and up" />
+              <Num value={d.bands[g]} onChange={(n) => n !== null && set({ bands: { ...d.bands, [g]: n } })} suffix="and up" />
             </div>
           ))}
           <div className={row}>
             <span className="flex items-center gap-3">
               <GradeBadge grade="D" size="sm" />
-              <span className={label}>{GRADE_LABEL.D}</span>
+              <span className={label}>{LETTER_LABEL.D}</span>
             </span>
-            <span className="text-sm text-muted">below {d.grades.C}</span>
+            <span className="text-sm text-muted">below {d.bands.C}</span>
           </div>
+        </Card>
+
+        <Card title="Your grade starts a video at">
+          {LETTERS.map((g) => (
+            <div key={g} className={row}>
+              <GradeBadge grade={g} size="sm" />
+              <Num value={d.base[g]} onChange={(n) => n !== null && set({ base: { ...d.base, [g]: n } })} suffix="of 100" />
+            </div>
+          ))}
+        </Card>
+
+        <Card title="Overall">
+          <p className="-mt-2 text-sm text-muted">How much each part counts.</p>
+          {field(Q.label, d.weights.quality, (n) => set({ weights: { ...d.weights, quality: n } }), { suffix: "%" })}
+          {field(E.label, d.weights.efficiency, (n) => set({ weights: { ...d.weights, efficiency: n } }), { suffix: "%" })}
+          {field(C.label, d.weights.client, (n) => set({ weights: { ...d.weights, client: n } }), { suffix: "%" })}
         </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title={Q.label} icon={<Q.Icon size={16} className="text-muted" />}>
-          {field("Target", "reelsPerDay", { suffix: "reels a day" })}
+          {field("Mistakes take off at most", d.mistakeCap, (n) => set({ mistakeCap: n }), { suffix: "points" })}
+          {field("A repeat counts", d.repeatMultiplier, (n) => set({ repeatMultiplier: n }), { prefix: "×" })}
+          {field("Each praise", d.praisePoints, (n) => set({ praisePoints: n }), { prefix: "+" })}
+          {field("Each concern", d.concernPoints, (n) => set({ concernPoints: n }), { prefix: "−" })}
+          <p className="text-sm text-muted">Each mistake type has its own points. See Mistake types.</p>
+          <label className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
+            <span className="text-sm text-muted">Frame.io comments with these words are creative changes, never mistakes</span>
+            <textarea value={d.creativeWords} onChange={(e) => set({ creativeWords: e.target.value })} rows={3} className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
+          </label>
+        </Card>
+
+        <Card title={E.label} icon={<E.Icon size={16} className="text-muted" />}>
           <div className={row}>
             <span className={label}>Working days</span>
             <span className="flex flex-wrap justify-end gap-1">
@@ -115,15 +135,17 @@ export function ScoringForm({ scoring, kinds }: { scoring: Scoring; kinds: strin
               })}
             </span>
           </div>
-          {field("Of which, speed", "speedPoints", { suffix: "points" })}
+          {field("Work after this hour counts from the next day", d.cutoffHour, (n) => set({ cutoffHour: n }), { suffix: ":00" })}
+          {field("Each day late", d.lateDay, (n) => set({ lateDay: n }), { prefix: "−" })}
+          {field("Each revision we ask for", d.revision, (n) => set({ revision: n }), { prefix: "−" })}
+          {field("Each day a revision is late", d.lateRevisionDay, (n) => set({ lateRevisionDay: n }), { prefix: "−" })}
           <div className="flex flex-col gap-1 border-t border-border/60 pt-3">
-            <p className="mb-1 text-sm font-medium">Time and worth, by type</p>
+            <p className="mb-1 text-sm font-medium">Extra days, by type</p>
             {Object.entries(d.types).map(([kind, rule]) => (
               <div key={kind} className={row}>
                 <span className={`${label} truncate`}>{kind}</span>
                 <span className="flex items-center gap-2">
-                  <Num value={rule.hours} onChange={(n) => n !== null && set({ types: { ...d.types, [kind]: { ...rule, hours: n } } })} suffix="h" />
-                  <Num value={rule.units} onChange={(n) => n !== null && set({ types: { ...d.types, [kind]: { ...rule, units: n } } })} suffix="reels" />
+                  <Num value={rule.days} onChange={(n) => n !== null && set({ types: { ...d.types, [kind]: { days: n } } })} suffix="days" />
                   <button
                     onClick={() => {
                       const next = { ...d.types };
@@ -140,34 +162,23 @@ export function ScoringForm({ scoring, kinds }: { scoring: Scoring; kinds: strin
             ))}
             {unlisted.length > 0 && (
               <div className="mt-1 w-40">
-                <Dropdown value="" placeholder="Add a type" options={unlisted.map((k) => ({ value: k, label: k }))} onChange={(k) => k && set({ types: { ...d.types, [k]: { hours: 3.5, units: 1 } } })} />
+                <Dropdown value="" placeholder="Add a type" options={unlisted.map((k) => ({ value: k, label: k }))} onChange={(k) => k && set({ types: { ...d.types, [k]: { days: 0 } } })} />
               </div>
             )}
           </div>
         </Card>
 
-        <Card title={L.label} icon={<L.Icon size={16} className="text-muted" />}>
-          {field("Each revision", "revisionPoints", { prefix: "−", suffix: "points" })}
-          {field("A repeat counts", "repeatMultiplier", { prefix: "×" })}
-          <p className="text-sm text-muted">Each mistake type has its own points. See Mistake types.</p>
-          <label className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
-            <span className="text-sm text-muted">Frame.io comments with these words are creative changes, never mistakes</span>
-            <textarea value={d.creativeWords} onChange={(e) => set({ creativeWords: e.target.value })} rows={3} className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
-          </label>
-        </Card>
-
-        <Card title={F.label} icon={<F.Icon size={16} className="text-muted" />}>
-          <p className="-mt-2 text-sm text-muted">Praise adds points, a concern takes them off, a tip does neither.</p>
-          {field("Every week starts at", "feedbackStart", { suffix: `of ${d.feedbackPoints}` })}
-          {field("Praise on Frame.io", "praisePoints", { prefix: "+" })}
+        <Card title={C.label} icon={<C.Icon size={16} className="text-muted" />}>
+          {field("Each creative change", d.clientCreative, (n) => set({ clientCreative: n }), { prefix: "−" })}
+          {field("Each mistake the client finds", d.clientMistake, (n) => set({ clientMistake: n }), { prefix: "−" })}
+          <p className="text-sm text-muted">Anything said once a video is with the client counts here, not in Quality.</p>
         </Card>
       </div>
-
     </div>
   );
 }
 
-type Draft = { name: string; description: string; weight: number; keywords: string; repeats: boolean };
+type Draft = { name: string; description: string; points: number; keywords: string; repeats: boolean };
 const input = "w-full min-w-0 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm";
 const Field = ({ label: text, children }: { label: string; children: React.ReactNode }) => (
   <label className="flex min-w-0 flex-col gap-1.5">
@@ -189,7 +200,7 @@ function TypeForm({ start, onSave, onRemove, onCancel }: { start: Draft; onSave:
           <input value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} className={`${input} font-medium`} autoFocus={!start.name} />
         </Field>
         <span className="flex items-center gap-2 pb-0.5">
-          <Num value={d.weight} onChange={(n) => n !== null && setD({ ...d, weight: n })} prefix="−" suffix="points" />
+          <Num value={d.points} onChange={(n) => n !== null && setD({ ...d, points: n })} prefix="−" suffix="points" />
           <button
             type="button"
             onClick={() => setD({ ...d, repeats: !d.repeats })}
@@ -236,7 +247,7 @@ function TypeForm({ start, onSave, onRemove, onCancel }: { start: Draft; onSave:
 export function TypesPanel({ types }: { types: CategoryView[] }) {
   const { run, error } = useRun();
   const [open, setOpen] = useState<string | null>(null);
-  const draft = (c?: CategoryView): Draft => ({ name: c?.name ?? "", description: c?.description ?? "", weight: c?.weight ?? 0.5, keywords: c?.keywords ?? "", repeats: c?.repeats ?? true });
+  const draft = (c?: CategoryView): Draft => ({ name: c?.name ?? "", description: c?.description ?? "", points: c?.points ?? 2, keywords: c?.keywords ?? "", repeats: c?.repeats ?? true });
 
   return (
     <div className="flex flex-col gap-3">
@@ -254,7 +265,7 @@ export function TypesPanel({ types }: { types: CategoryView[] }) {
               <span className="hidden min-w-0 flex-1 truncate text-sm text-muted sm:block">{c.description}</span>
               <span className="ml-auto flex shrink-0 items-center gap-3 text-sm tabular-nums sm:ml-0">
                 {c.repeats && <Repeat2 size={14} className="text-rose-300" aria-label="Repeats count" />}
-                <span className="w-10 text-right">−{c.weight}</span>
+                <span className="w-10 text-right">−{c.points}</span>
               </span>
               <ChevronDown size={16} className={`shrink-0 text-muted transition-transform ${open === c.id ? "rotate-180" : ""}`} />
             </button>
