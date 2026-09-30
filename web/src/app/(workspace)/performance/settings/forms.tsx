@@ -150,16 +150,16 @@ export function ScoringForm({ scoring, kinds }: { scoring: Scoring; kinds: strin
           {field("Each revision", "revisionPoints", { prefix: "−", suffix: "points" })}
           {field("A repeat counts", "repeatMultiplier", { prefix: "×" })}
           <p className="text-sm text-muted">Each mistake type has its own points. See Mistake types.</p>
+          <label className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
+            <span className="text-sm text-muted">Frame.io comments with these words are creative changes, never mistakes</span>
+            <textarea value={d.creativeWords} onChange={(e) => set({ creativeWords: e.target.value })} rows={3} className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
+          </label>
         </Card>
 
         <Card title={F.label} icon={<F.Icon size={16} className="text-muted" />}>
           <p className="-mt-2 text-sm text-muted">Praise adds points, a concern takes them off, a tip does neither.</p>
           {field("Every week starts at", "feedbackStart", { suffix: `of ${d.feedbackPoints}` })}
           {field("Praise on Frame.io", "praisePoints", { prefix: "+" })}
-          <label className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
-            <span className="text-sm text-muted">Frame.io comments with these words are tips, not mistakes</span>
-            <textarea value={d.tipWords} onChange={(e) => set({ tipWords: e.target.value })} rows={3} className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
-          </label>
         </Card>
       </div>
 

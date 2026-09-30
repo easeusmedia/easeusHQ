@@ -80,7 +80,7 @@ export const TOOLS: Tool[] = [
   {
     name: "propose",
     description:
-      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|positive|negative|guidance (a tip, not scored), category (a mistake's type, or the feedback type praise or a concern is about), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
+      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|creative (a change for that video only, not counted)|positive|negative|guidance (a tip for the future, not scored), category (a mistake's type), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
     input_schema: {
       type: "object",
       properties: {

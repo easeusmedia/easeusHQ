@@ -60,7 +60,7 @@ export async function saveScoring(input: Scoring): Promise<Result> {
     s.types[kind.trim()] = { hours, units };
   }
   if (!Object.keys(s.types).length) return { error: "Keep at least one type of work." };
-  s.tipWords = String(input.tipWords ?? "")
+  s.creativeWords = String(input.creativeWords ?? "")
     .split(",")
     .map((w) => w.trim())
     .filter(Boolean)
@@ -148,8 +148,9 @@ export async function sortWithAi(ids: string[]): Promise<Result> {
 
 export type EntryInput = {
   editorId: string;
-  // mistake | positive (praise) | negative (a concern) | guidance (a tip,
-  // never scored)
+  // mistake | creative (a change for that video only, never counted) |
+  // positive (praise) | negative (a concern) | guidance (a tip for the
+  // future, never scored)
   kind: string;
   // a mistake's type
   category: string;
@@ -164,7 +165,7 @@ export type EntryInput = {
 };
 
 async function clean(input: EntryInput, frameioPraise = false) {
-  if (!["mistake", "positive", "negative", "guidance"].includes(input.kind)) return { error: "Pick what kind of feedback this is." };
+  if (!["mistake", "creative", "positive", "negative", "guidance"].includes(input.kind)) return { error: "Pick what kind of feedback this is." };
   const body = input.body.trim();
   if (!body) return { error: "Write what it was about." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return { error: "Pick the day it happened." };
@@ -194,7 +195,7 @@ async function clean(input: EntryInput, frameioPraise = false) {
   };
 }
 
-// Written in by core: a mistake, praise, a concern, or a tip.
+// Written in by core: a mistake, a creative change, praise, a concern, or a tip.
 export async function logEntry(input: EntryInput): Promise<Result> {
   const me = await requireOps();
   if (!me) return { error: "Only core members can add feedback." };
@@ -213,6 +214,18 @@ export async function updateEntry(id: string, input: EntryInput): Promise<Result
   const c = await clean(input, before.source === "frameio");
   if ("error" in c) return c;
   await prisma.performanceEntry.update({ where: { id }, data: { ...c.data, reviewed: true } });
+  done();
+  return {};
+}
+
+// A mistake that was really a creative change for that video (or back):
+// one click, and it stops (or starts) counting. Its type is kept, so it
+// goes back where it was.
+export async function setCreative(id: string, creative: boolean): Promise<Result> {
+  if (!(await requireOps())) return { error: "Only core members can change feedback." };
+  const e = await prisma.performanceEntry.findUnique({ where: { id }, select: { category: true } });
+  if (!e) return { error: "That's gone." };
+  await prisma.performanceEntry.update({ where: { id }, data: { kind: creative ? "creative" : "mistake", category: e.category ?? "Others", reviewed: true } });
   done();
   return {};
 }

@@ -55,8 +55,9 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
   const byType = repeatedMistakes(data.feedback, period.from, period.to, id).map((r) => ({ ...r, description: describe.get(r.category) ?? null }));
 
   const inPeriod = data.feedback.filter((e) => e.day >= period.from && e.day <= period.to);
-  const mistakes = inPeriod.filter((e) => e.kind === "mistake");
-  const said = inPeriod.filter((e) => e.kind !== "mistake");
+  // changes asked for on the work (counted or creative), and what's said to them
+  const mistakes = inPeriod.filter((e) => e.kind === "mistake" || e.kind === "creative");
+  const said = inPeriod.filter((e) => e.kind === "positive" || e.kind === "negative" || e.kind === "guidance");
   const row = (v: (typeof data.videos)[number], done: boolean): WorkRow => ({
     id: v.id,
     title: v.title,
@@ -151,7 +152,7 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
         width=""
         initialTab={q.tab}
         tabs={[
-          { key: "mistakes", label: "Mistakes", count: mistakes.length, content: <MistakeList entries={mistakes} canEdit={canEdit} {...dialog} /> },
+          { key: "mistakes", label: "Mistakes", count: mistakes.filter((e) => e.kind === "mistake").length, content: <MistakeList entries={mistakes} canEdit={canEdit} {...dialog} /> },
           { key: "feedback", label: "Feedback", count: said.length, content: <FeedbackList entries={said} canEdit={canEdit} {...dialog} /> },
           { key: "work", label: "Work", count: work.filter((w) => w.done).length, content: <WorkTable rows={work} types={kinds.map((k) => k.name)} canEdit={canEdit} /> },
         ]}

@@ -10,8 +10,8 @@ import { SCORING_KEY, withScoringDefaults } from "./editorKpi";
 // Every comment left on an editor's review link becomes one entry against
 // them, sorted by its words (lib/categorise.ts, no AI): a mistake of one of
 // core's own types (Typos, UK/US spelling…, set up on the Performance
-// settings page), praise, or a tip (a creative suggestion, advice, or
-// anything that isn't a mistake). Core can correct any of it by hand, or ask Claude to
+// settings page), a creative change (for that video only, never counted),
+// praise, or a tip for them to work on from now on. Core can correct any of it by hand, or ask Claude to
 // re-sort (Sort with AI, only when clicked). Each comment's frame is kept as a small snapshot, and whether
 // the editor has ticked it done in Frame.io is read back on every sync.
 // Nothing here writes to Frame.io.
@@ -26,17 +26,18 @@ function system(categories: { name: string; description: string | null; keywords
 
 Give each comment one kind:
 - point: a mistake in this video that has to be fixed. Put it in the closest category below.
+- creative: a change for this video only that isn't an error: a creative preference (music, pacing, style, broll, a different take), a question, or a fragment.
 - praise: positive feedback on the work.
-- tip: anything else: a creative suggestion or preference (music, pacing, style, a different take), advice to help the editor grow, a question, or a fragment.
+- tip: advice for the editor to apply from now on, beyond this video.
 
 The categories:
 ${categories.map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ""}${c.keywords ? ` (for instance: ${c.keywords})` : ""}`).join("\n")}
 
-For praise and tips, the category is "None".`;
+For creative, praise and tips, the category is "None".`;
 }
 
-type Sorted = { items: { id: string; kind: "point" | "praise" | "tip"; category: string }[] };
-const AI_KIND = { praise: "positive", tip: "guidance" } as const;
+type Sorted = { items: { id: string; kind: "point" | "creative" | "praise" | "tip"; category: string }[] };
+const AI_KIND = { creative: "creative", praise: "positive", tip: "guidance" } as const;
 
 const schema = (names: string[]) => ({
   type: "object",
@@ -47,7 +48,7 @@ const schema = (names: string[]) => ({
         type: "object",
         properties: {
           id: { type: "string" },
-          kind: { type: "string", enum: ["point", "praise", "tip"] },
+          kind: { type: "string", enum: ["point", "creative", "praise", "tip"] },
           category: { type: "string", enum: [...names, "None"] },
         },
         required: ["id", "kind", "category"],
@@ -145,8 +146,8 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
     prisma.feedbackCategory.findMany({ select: { name: true, keywords: true }, orderBy: { sortOrder: "asc" } }),
     prisma.appSetting.findUnique({ where: { key: SCORING_KEY } }),
   ]);
-  const { tipWords } = withScoringDefaults(JSON.parse(scoring?.value ?? "{}"));
-  const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories, c.fromClient, tipWords)]));
+  const { creativeWords } = withScoringDefaults(JSON.parse(scoring?.value ?? "{}"));
+  const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories, c.fromClient, creativeWords)]));
   await prisma.performanceEntry.createMany({
     data: fresh.map((c) => {
       const s = sorted.get(c.id);

@@ -1,13 +1,14 @@
 // Sorting a Frame.io comment by its words: free, instant, and the same
-// answer every time. Everything is a mistake, praise, or a tip:
-//   1. ours (not the client's) and it says "feedback": a tip ("Feedback:
-//      use this in future");
+// answer every time. Each is a mistake, a creative change, praise, or a tip:
+//   1. ours (not the client's) and it says "feedback": a tip, for them to
+//      work on from now on ("Feedback: use this in future");
 //   2. praise ("Nice!", "Great pacing") with nothing asked for: praise,
 //      worth the scoring's Frame.io praise points;
-//   3. uses keywords: of the mistake types and the tip words (creative
-//      suggestions: bgm, pacing…), whichever it uses most, a mistake type
-//      winning a tie; the tip words make it a tip;
-//   4. a word or two that matches nothing: a tip, not scored;
+//   3. uses keywords: of the mistake types and the creative words (bgm,
+//      broll, pacing…), whichever it uses most, a mistake type winning a
+//      tie; the creative words make it a creative change (for that video
+//      only, never counted);
+//   4. a word or two that matches nothing: a creative change;
 //   5. anything else: a mistake under Others, for core to place.
 // Every one can be corrected by hand. Claude can re-sort on request (Sort
 // with AI), never on its own.
@@ -35,9 +36,9 @@ function uses(text: string, keyword: string) {
   return new RegExp(`${start}${escaped}${end}`, "iu").test(text);
 }
 
-export type Sorted = { kind: "mistake" | "positive" | "guidance"; category: string | null };
+export type Sorted = { kind: "mistake" | "creative" | "positive" | "guidance"; category: string | null };
 
-export function categorise(text: string, types: Keyworded[], fromClient = false, tipWords = ""): Sorted {
+export function categorise(text: string, types: Keyworded[], fromClient = false, creativeWords = ""): Sorted {
   const t = text.toLowerCase();
   if (!fromClient && uses(t, "feedback")) return { kind: "guidance", category: null };
   if (PRAISE.some((p) => uses(t, p)) && !ASKS.some((a) => uses(t, a))) return { kind: "positive", category: null };
@@ -47,10 +48,9 @@ export function categorise(text: string, types: Keyworded[], fromClient = false,
     const n = hits(c.keywords);
     if (n && (!best || n > best.hits)) best = { name: c.name, hits: n };
   }
-  const tip = hits(tipWords);
-  if (tip > (best?.hits ?? 0)) return { kind: "guidance", category: null };
+  if (hits(creativeWords) > (best?.hits ?? 0)) return { kind: "creative", category: null };
   if (best) return { kind: "mistake", category: best.name };
-  if (t.trim().split(/\s+/).length <= 2) return { kind: "guidance", category: null };
+  if (t.trim().split(/\s+/).length <= 2) return { kind: "creative", category: null };
   return { kind: "mistake", category: "Others" };
 }
 

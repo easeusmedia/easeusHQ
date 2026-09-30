@@ -16,6 +16,7 @@ import {
   Lightbulb,
   MessageSquareHeart,
   Minus,
+  Palette,
   PenLine,
   Plus,
   Repeat2,
@@ -34,7 +35,7 @@ import { ConfirmButton } from "../ConfirmButton";
 import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { chip } from "../chip";
 import { topLayer, useCloseOnScroll, usePopover } from "../popover";
-import { deleteEntry, logEntry, setTaskExcluded, setTaskType, sortWithAi, updateEntry, type EntryInput } from "./actions";
+import { deleteEntry, logEntry, setCreative, setTaskExcluded, setTaskType, sortWithAi, updateEntry, type EntryInput } from "./actions";
 
 // a server action, then the page again; its error, if any, for the caller to show
 export function useRun() {
@@ -292,13 +293,15 @@ type DialogProps = {
 };
 
 // what's being written: praise adds its points, a concern takes them off,
-// a tip carries none, a mistake has a type and a count
-type Kind = "positive" | "negative" | "guidance" | "mistake";
+// a tip (for the future) carries none, a mistake has a type and a count, a
+// creative change (for that video only) never counts
+type Kind = "positive" | "negative" | "guidance" | "mistake" | "creative";
 const KINDS: { key: Kind; label: string; Icon: LucideIcon; placeholder: string }[] = [
   { key: "positive", label: "Praise", Icon: ThumbsUp, placeholder: "What did they do well?" },
   { key: "negative", label: "Concern", Icon: ThumbsDown, placeholder: "What wasn't right?" },
   { key: "guidance", label: "Tip", Icon: Lightbulb, placeholder: "A pointer for next time" },
   { key: "mistake", label: "Mistake", Icon: CircleAlert, placeholder: "What was the mistake?" },
+  { key: "creative", label: "Creative", Icon: Palette, placeholder: "What change was asked for this video?" },
 ];
 
 // a chip's way back to nothing, offered once something's picked (so an
@@ -515,9 +518,10 @@ function Filters<K extends string>({ options, value, onChange }: { options: { ke
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="rounded-2xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted">{children}</p>;
 
 // edit and remove, for core
-function Actions({ e, onEdit, run, className }: { e: FeedbackView; onEdit: () => void; run: ReturnType<typeof useRun>["run"]; className: string }) {
+function Actions({ e, onEdit, run, className, extra }: { e: FeedbackView; onEdit: () => void; run: ReturnType<typeof useRun>["run"]; className: string; extra?: React.ReactNode }) {
   return (
     <div className={`flex shrink-0 gap-0.5 ${className}`}>
+      {extra}
       <button onClick={onEdit} aria-label="Edit" className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground">
         <PenLine size={14} />
       </button>
@@ -536,7 +540,7 @@ function Actions({ e, onEdit, run, className }: { e: FeedbackView; onEdit: () =>
 // One thing said about their work: the frame (or an icon), what was said,
 // and a line of what it is, when, and on what. Core can edit or remove it:
 // on hover at the end of the row, or on a phone, at the end of its line.
-function Row({ e, lead, tags, canEdit, onEdit, run }: { e: FeedbackView; lead: React.ReactNode; tags: React.ReactNode; canEdit: boolean; onEdit: () => void; run: ReturnType<typeof useRun>["run"] }) {
+function Row({ e, lead, tags, canEdit, onEdit, run, extra }: { e: FeedbackView; lead: React.ReactNode; tags: React.ReactNode; canEdit: boolean; onEdit: () => void; run: ReturnType<typeof useRun>["run"]; extra?: React.ReactNode }) {
   const on = e.taskTitle ?? ([e.clientName, e.projectName].filter(Boolean).join(" · ") || null);
   return (
     <li className="group flex gap-3 px-3.5 py-3.5 transition-colors hover:bg-white/[0.02] sm:gap-3.5 sm:px-4">
@@ -547,10 +551,10 @@ function Row({ e, lead, tags, canEdit, onEdit, run }: { e: FeedbackView; lead: R
           {tags}
           <span className="whitespace-nowrap">{shortDay(e.day)}</span>
           {on && <span className="max-w-full truncate sm:max-w-72">{on}</span>}
-          {canEdit && <Actions e={e} onEdit={onEdit} run={run} className="-my-1 ml-auto sm:hidden" />}
+          {canEdit && <Actions e={e} onEdit={onEdit} run={run} extra={extra} className="-my-1 ml-auto sm:hidden" />}
         </div>
       </div>
-      {canEdit && <Actions e={e} onEdit={onEdit} run={run} className="self-start opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-sm:hidden" />}
+      {canEdit && <Actions e={e} onEdit={onEdit} run={run} extra={extra} className="self-start opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-sm:hidden" />}
     </li>
   );
 }
@@ -564,17 +568,33 @@ const Tile = ({ Icon, tone }: { Icon: LucideIcon; tone: string }) => (
   </span>
 );
 
-// The mistakes found in their work, each Frame.io comment with its frame.
+// The changes asked for on their work, each Frame.io comment with its
+// frame: mistakes, which count, and creative changes, which don't. Any one
+// switches between the two in a click.
 export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
   const { run, error } = useRun();
-  const [filter, setFilter] = useState<"all" | "repeats">("all");
+  const [filter, setFilter] = useState<"mistakes" | "repeats" | "creative">("mistakes");
   const [type, setType] = useState("");
   const [editing, setEditing] = useState<FeedbackView | null>(null);
   const [sorting, setSorting] = useState(false);
-  const shown = entries.filter((e) => (filter === "all" || e.repeat) && (!type || e.category === type));
-  const used = [...new Set(entries.map((e) => e.category ?? "Others"))];
+  const mistakes = entries.filter((e) => e.kind === "mistake");
+  const shown = (filter === "creative" ? entries.filter((e) => e.kind === "creative") : filter === "repeats" ? mistakes.filter((e) => e.repeat) : mistakes).filter((e) => filter === "creative" || !type || e.category === type);
+  const used = [...new Set(mistakes.map((e) => e.category ?? "Others"))];
   // what Sort with AI would touch: Frame.io comments nobody has sorted by hand
   const unsorted = entries.filter((e) => e.source === "frameio" && !e.reviewed);
+  const flip = (e: FeedbackView) => {
+    const creative = e.kind === "creative";
+    return (
+      <button
+        onClick={() => run(() => setCreative(e.id, !creative))}
+        aria-label={creative ? "It's a mistake" : "It's a creative change"}
+        title={creative ? "It's a mistake: count it" : "It's a creative change: don't count it"}
+        className={`grid size-8 place-items-center rounded-lg hover:bg-surface-2 ${creative ? "text-violet-300 hover:text-foreground" : "text-muted hover:text-violet-300"}`}
+      >
+        <Palette size={14} />
+      </button>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -583,8 +603,9 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
           value={filter}
           onChange={setFilter}
           options={[
-            { key: "all", label: "All", count: entries.length },
-            { key: "repeats", label: "Repeats", count: entries.filter((e) => e.repeat).length },
+            { key: "mistakes", label: "Mistakes", count: mistakes.length },
+            { key: "repeats", label: "Repeats", count: mistakes.filter((e) => e.repeat).length },
+            { key: "creative", label: "Creative", count: entries.length - mistakes.length },
           ]}
         />
         <div className="flex items-center gap-2">
@@ -602,7 +623,7 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
               <Sparkles size={13} /> {sorting ? "Sorting…" : "Sort with AI"}
             </button>
           )}
-          {used.length > 1 && (
+          {used.length > 1 && filter !== "creative" && (
             <div className="w-44">
               <Dropdown value={type} placeholder="Every type" onChange={setType} options={[{ value: "", label: "Every type" }, ...used.map((c) => ({ value: c, label: c }))]} />
             </div>
@@ -611,7 +632,7 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
       </div>
 
       {shown.length === 0 ? (
-        <Empty>No mistakes here.</Empty>
+        <Empty>{filter === "creative" ? "No creative changes here." : "No mistakes here."}</Empty>
       ) : (
         <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface/40">
           {shown.map((e) => (
@@ -621,21 +642,26 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
               canEdit={canEdit}
               onEdit={() => setEditing(e)}
               run={run}
-              lead={<Tile Icon={CircleAlert} tone="bg-surface-2/70 text-muted" />}
+              extra={flip(e)}
+              lead={e.kind === "creative" ? <Tile Icon={Palette} tone="bg-violet-300/10 text-violet-300" /> : <Tile Icon={CircleAlert} tone="bg-surface-2/70 text-muted" />}
               tags={
-                <>
-                  <span className="flex items-center gap-1 text-foreground/85">
-                    {e.category ?? "Others"}
-                    {e.count > 1 && <span className="text-muted">×{e.count}</span>}
-                    <Info label={e.category ?? "Others"} text={describe(dialog.categories, e.category ?? "Others")} />
-                  </span>
-                  {e.repeat && (
-                    <span className="flex items-center gap-1 text-rose-300">
-                      <Repeat2 size={13} /> Repeat
+                e.kind === "creative" ? (
+                  <span className="text-violet-300">Creative change, not counted</span>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-foreground/85">
+                      {e.category ?? "Others"}
+                      {e.count > 1 && <span className="text-muted">×{e.count}</span>}
+                      <Info label={e.category ?? "Others"} text={describe(dialog.categories, e.category ?? "Others")} />
                     </span>
-                  )}
-                  {!e.counted && <span title="From before their work was tracked here">Not counted</span>}
-                </>
+                    {e.repeat && (
+                      <span className="flex items-center gap-1 text-rose-300">
+                        <Repeat2 size={13} /> Repeat
+                      </span>
+                    )}
+                    {!e.counted && <span title="From before their work was tracked here">Not counted</span>}
+                  </>
+                )
               }
             />
           ))}
@@ -653,8 +679,9 @@ const SAID: Record<string, { label: string; Icon: LucideIcon; tone: string; text
   guidance: { label: "Tip", Icon: Lightbulb, tone: "bg-amber-300/10 text-amber-300", text: "text-amber-300" },
 };
 
-// Everything said to them that isn't a mistake: praise adds its points,
-// a concern takes them off, a tip is just a tip.
+// What's said to them about their work as a whole: praise adds its
+// points, a concern takes them off, a tip is for them to work on from now
+// on and counts for nothing.
 export function FeedbackList({ entries, canEdit, ...dialog }: ListProps) {
   const { run, error } = useRun();
   const [filter, setFilter] = useState<"all" | "positive" | "negative" | "guidance">("all");

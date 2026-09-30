@@ -14,9 +14,11 @@
 //     on another video, within 90 days) twice its points; averaged per
 //     video, so delivering more is never punished.
 //   Feedback, 2 points: starts at 1 each week; praise adds its points, a
-//     concern takes its points off, a tip does neither. Frame.io praise is
-//     worth 1; Frame.io comments with the tip words (bgm, pacing…: creative
-//     suggestions, not mistakes) are tips.
+//     concern takes its points off, a tip (for them to work on from now on)
+//     does neither. Frame.io praise is worth 1.
+// A creative change (for that video only: music, pacing, a different take)
+// is neither a mistake nor feedback, and never counts. Frame.io comments
+// with the creative words (bgm, broll, pacing…) are creative changes.
 // A part with nothing to score (no video finished, say) is left out and
 // the rest scaled to 10. A month, or any longer stretch, is the average of
 // its weeks, part by part, added up.
@@ -55,9 +57,9 @@ export type Scoring = {
   // where Feedback starts each week, and what a Frame.io praise adds
   feedbackStart: number;
   praisePoints: number;
-  // words that make a Frame.io comment a tip, not a mistake: creative
-  // suggestions (comma-separated)
-  tipWords: string;
+  // words that make a Frame.io comment a creative change, not a mistake
+  // (comma-separated)
+  creativeWords: string;
   // the lowest total for each grade; below C is D
   grades: Record<Exclude<Grade, "D">, number>;
 };
@@ -78,7 +80,7 @@ export const DEFAULT_SCORING: Scoring = {
   repeatMultiplier: 2,
   feedbackStart: 1,
   praisePoints: 1,
-  tipWords: "music, bgm, song, pace, pacing, vibe, style, feel, b-roll, broll, hook, intro, outro, colour grade, color grade, try, instead, prefer, suggest",
+  creativeWords: "music, bgm, song, pace, pacing, vibe, style, feel, b-roll, broll, hook, intro, outro, colour grade, color grade, split screen, try, instead, prefer, suggest",
   grades: { "A+": 9, A: 8, B: 6.5, C: 5 },
 };
 export const SCORING_KEY = "performance.scoring";
@@ -100,7 +102,7 @@ export function withScoringDefaults(saved: unknown): Scoring {
     repeatMultiplier: num("repeatMultiplier"),
     feedbackStart: num("feedbackStart"),
     praisePoints: num("praisePoints"),
-    tipWords: typeof s.tipWords === "string" ? s.tipWords : DEFAULT_SCORING.tipWords,
+    creativeWords: typeof s.creativeWords === "string" ? s.creativeWords : DEFAULT_SCORING.creativeWords,
     grades: {
       "A+": typeof g["A+"] === "number" ? g["A+"] : DEFAULT_SCORING.grades["A+"],
       A: typeof g.A === "number" ? g.A : DEFAULT_SCORING.grades.A,
@@ -117,7 +119,7 @@ export function gradeOf(total: number | null, s: Pick<Scoring, "grades">): Grade
 }
 
 // what a feedback entry can be
-export const ENTRY_KINDS = { mistake: "Mistake", positive: "Praise", negative: "Concern", guidance: "Tip" } as const;
+export const ENTRY_KINDS = { mistake: "Mistake", creative: "Creative change", positive: "Praise", negative: "Concern", guidance: "Tip" } as const;
 
 // ---------- days and hours (India, +5:30 all year) ----------
 

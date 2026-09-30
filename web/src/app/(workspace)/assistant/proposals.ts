@@ -129,7 +129,7 @@ export async function prepare(input: { action?: string; ref?: string; changes?: 
       const p = await findPerson(ref);
       if (!("id" in p)) return p.none ? "No one by that name." : `Who? ${p.options.join(", ")}`;
       const kind = str(c.kind) || "mistake";
-      if (!["mistake", "positive", "negative", "guidance"].includes(kind)) return "Kind is mistake, positive, negative or guidance.";
+      if (!["mistake", "creative", "positive", "negative", "guidance"].includes(kind)) return "Kind is mistake, creative, positive, negative or guidance.";
       const body = str(c.body);
       if (!body) return "Say what the feedback is.";
       const day = isDay(c.day) ? str(c.day) : indiaDay(new Date());
