@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HoverDelete } from "./HoverDelete";
 import { deleteTasks } from "./actions";
@@ -174,6 +174,18 @@ export type TaskCardData = {
   tier?: string | null;
 };
 
+// the tier a grade gives before any mistakes are taken off
+export const tierFor = (grade: string) => (grade === "S" || grade === "A+" ? grade : null);
+
+// A card's tier while a grade it was just given is on its way: the guess
+// holds until the card comes back from the server in its new stage.
+export function useTierGuess(task: { status: string; tier?: string | null }) {
+  const [guess, setGuess] = useState<{ tier: string | null; stage: string } | null>(null);
+  const tier = guess && guess.stage === task.status ? guess.tier : (task.tier ?? null);
+  const onGrade = (grade: string | null) => setGuess(grade ? { tier: tierFor(grade), stage: task.status } : null);
+  return { tier, onGrade };
+}
+
 // a video rated S (gold) or A+ (green): its card's tint, or its row's
 export const tierClass = (tier: string | null | undefined, row = false) =>
   tier === "S" ? (row ? "tier-row-s" : "tier-s") : tier === "A+" ? (row ? "tier-row-aplus" : "tier-aplus") : "";
@@ -284,6 +296,7 @@ export function TaskCard({
   const canManage = actingRole === "admin" || actingRole === "core";
   const options = availableStatuses(task.status, { role: actingRole, isAssignee });
 
+  const { tier, onGrade } = useTierGuess(task);
   const cardLinkSpec = STATUS_LINK[task.status];
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
   const detailsRef = useRef<{ open: () => void }>(null);
@@ -297,7 +310,7 @@ export function TaskCard({
   return (
     <div
       onClick={() => detailsRef.current?.open()}
-      className={`card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm ${tierClass(task.tier)}`}
+      className={`card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm ${tierClass(tier)}`}
     >
       {/* Delete on hover, in the top-right corner, for the people who can delete in the task's own
           dialog (admin and core), asking first; the rest of editing lives
@@ -316,7 +329,7 @@ export function TaskCard({
 
       <div className="flex items-start justify-between gap-2">
         <p className="flex min-w-0 items-start gap-1.5 font-medium leading-snug">
-          <TierMark tier={task.tier} />
+          <TierMark tier={tier} />
           <span className="min-w-0">{task.title}</span>
         </p>
         <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-2">
@@ -398,6 +411,7 @@ export function TaskCard({
           options={options}
                     links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
           needsGradeOn={(to) => needsGrade(task, to, actingRole)}
+          onGrade={onGrade}
         />
       </div>
 

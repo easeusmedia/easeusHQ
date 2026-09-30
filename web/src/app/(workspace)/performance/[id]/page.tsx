@@ -15,7 +15,7 @@ import { AGAINST, bandMiddle, periodQuery, summaryFacts, videoCard } from "../sh
 export const dynamic = "force-dynamic";
 
 // One editor's scorecard, built from their videos: their average letter
-// for the period and its three parts, their S and A+ videos, their weeks,
+// for the period and its three parts, their weeks,
 // their mistakes by type, and then the videos, the mistakes and the
 // feedback themselves. Core adds and corrects; an editor sees their own,
 // in letters only.
@@ -113,10 +113,8 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
               {now.letter.overall ? LETTER_LABEL[now.letter.overall] : "No grade yet"}
               {numbers && now.overall !== null && <span className="ml-2 text-base font-normal text-muted tabular-nums">{now.overall}</span>}
             </span>
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+            <span className="text-sm text-muted">
               {now.videos} video{now.videos === 1 ? "" : "s"}
-              {now.s > 0 && <span className="rounded-md bg-amber-300/15 px-1.5 py-px text-xs font-semibold text-amber-200">S ×{now.s}</span>}
-              {now.aPlus > 0 && <span className="rounded-md bg-emerald-400/15 px-1.5 py-px text-xs font-semibold text-emerald-300">A+ ×{now.aPlus}</span>}
             </span>
             {numbers && <Delta now={now.overall} before={before?.overall ?? null} against={AGAINST[period.kind]} />}
           </div>

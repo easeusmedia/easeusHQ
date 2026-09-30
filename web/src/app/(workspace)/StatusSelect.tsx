@@ -22,6 +22,7 @@ export function StatusSelect({
   links,
   variant = "block",
   needsGradeOn,
+  onGrade,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
@@ -34,6 +35,9 @@ export function StatusSelect({
   variant?: "block" | "pill";
   // whether moving it here is its first review, which core grades
   needsGradeOn?: (to: TaskStatus) => boolean;
+  // the grade given with the move, as it's sent (null if the move fails),
+  // so the card can take its colour without waiting
+  onGrade?: (grade: string | null) => void;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -167,7 +171,9 @@ export function StatusSelect({
     }
     setError(null);
     setSubmitting(true);
+    if (fields.grade) onGrade?.(fields.grade);
     const reason = await commit(pendingTo, fields);
+    if (reason && fields.grade) onGrade?.(null);
     setSubmitting(false);
     if (reason) return setError(reason);
     dialogRef.current?.close();

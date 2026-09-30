@@ -197,6 +197,6 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
   const now = new Date().toISOString();
   await prisma.appSetting.upsert({ where: { key: FEEDBACK_SYNCED }, create: { key: FEEDBACK_SYNCED, value: now }, update: { value: now } });
   // new comments (and ones ticked done) change their videos' scores
-  if (fresh.length) await refreshVideoScores([...new Set(fresh.map((c) => c.taskId))]).catch(() => {});
+  if (fresh.length) await refreshVideoScores([...new Set(fresh.map((c) => c.taskId))], { wide: true }).catch(() => {});
   return { added: fresh.length, mistakes: [...sorted.values()].filter((s) => s.kind === "mistake").length, snapshots };
 }

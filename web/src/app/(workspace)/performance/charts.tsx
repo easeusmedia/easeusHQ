@@ -20,10 +20,15 @@ const FLOOR = 50;
 const y = (v: number) => 100 - ((Math.max(FLOOR, Math.min(100, v)) - FLOOR) / (100 - FLOOR)) * 100;
 
 // Week by week on the letters' scale (50 to 100, where C to S live): a
-// line per series, broken where a week has nothing, each week's letter (or
-// number) on its dot. Hover a week for `tip`.
-function Lines({ series, spans, bands, tip, numbered = false, height = 190 }: { series: Series[]; spans: { label: string }[]; bands: Bands; tip: (i: number) => React.ReactNode; numbered?: boolean; height?: number }) {
+// line per series from the first week anyone has a score (the empty weeks
+// before it say nothing), broken where a week has none, each week's letter
+// (or number) on its dot. Hover a week for `tip`, given its index in the
+// weeks passed in.
+function Lines({ series: all, spans: allSpans, bands, tip, numbered = false, height = 190 }: { series: Series[]; spans: { label: string }[]; bands: Bands; tip: (i: number) => React.ReactNode; numbered?: boolean; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
+  const start = Math.max(0, allSpans.findIndex((_, i) => all.some((s) => s.values[i] !== null)));
+  const spans = allSpans.slice(start);
+  const series = all.map((s) => ({ ...s, values: s.values.slice(start), labels: s.labels.slice(start) }));
   const n = spans.length;
   const x = (i: number) => (n < 2 ? 50 : 3 + (i / (n - 1)) * 94);
   const path = (values: (number | null)[]) =>
@@ -76,7 +81,7 @@ function Lines({ series, spans, bands, tip, numbered = false, height = 190 }: { 
           {hover !== null && (
             <div className="absolute inset-y-0" style={{ left: `${x(hover)}%` }}>
               <Tip at={hover} n={n}>
-                {tip(hover)}
+                {tip(hover + start)}
               </Tip>
             </div>
           )}
@@ -185,7 +190,7 @@ export function TeamChart({ series, spans, bands, showScore }: { series: EditorS
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
         {lines.map((s) => (
           <span key={s.name} className="flex items-center gap-2">
-            <span className="h-0.5 w-4 rounded-full" style={{ background: s.color }} />
+            <span className="size-2.5 rounded-full" style={{ background: s.color }} />
             {s.name}
           </span>
         ))}
@@ -194,6 +199,7 @@ export function TeamChart({ series, spans, bands, showScore }: { series: EditorS
         series={lines}
         spans={spans}
         bands={bands}
+        numbered
         tip={(i) => (
           <>
             <p className="mb-1.5 text-muted">{spans[i].title}</p>
@@ -203,10 +209,14 @@ export function TeamChart({ series, spans, bands, showScore }: { series: EditorS
                   <span className="size-2 shrink-0 rounded-full" style={{ background: s.color }} />
                   <span className="truncate">{s.name}</span>
                 </span>
-                <span className="shrink-0 tabular-nums">
-                  {s.letters[i] ?? "–"}
-                  {showScore && s.values[i] !== null ? ` · ${s.values[i]}` : ""}
-                </span>
+                {s.letters[i] ? (
+                  <span className="shrink-0 tabular-nums">
+                    {s.letters[i]}
+                    {showScore && s.values[i] !== null ? ` · ${s.values[i]}` : ""}
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-muted">No videos</span>
+                )}
               </p>
             ))}
           </>

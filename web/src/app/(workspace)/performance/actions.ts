@@ -170,7 +170,7 @@ export async function sortWithAi(ids: string[]): Promise<Result> {
   try {
     await aiSortEntries(ids.slice(0, 200));
     const tasks = await prisma.performanceEntry.findMany({ where: { id: { in: ids } }, select: { taskId: true } });
-    await refreshVideoScores(tasks.map((t) => t.taskId));
+    await refreshVideoScores(tasks.map((t) => t.taskId), { wide: true });
     done();
     return {};
   } catch (err) {
@@ -237,7 +237,7 @@ export async function logEntry(input: EntryInput): Promise<Result> {
   const c = await clean(input);
   if ("error" in c) return c;
   await prisma.performanceEntry.create({ data: { ...c.data, editorId: input.editorId, source: "manual", by: me.name, loggedById: me.id, reviewed: true } });
-  await refreshVideoScores([c.data.taskId]);
+  await refreshVideoScores([c.data.taskId], { wide: true });
   done();
   return {};
 }
@@ -251,7 +251,7 @@ export async function updateEntry(id: string, input: EntryInput): Promise<Result
   if ("error" in c) return c;
   await prisma.performanceEntry.update({ where: { id }, data: { ...c.data, reviewed: true } });
   // it may have moved from one video to another
-  await refreshVideoScores([before.taskId, c.data.taskId]);
+  await refreshVideoScores([before.taskId, c.data.taskId], { wide: true });
   done();
   return {};
 }
@@ -264,7 +264,7 @@ export async function setCreative(id: string, creative: boolean): Promise<Result
   const e = await prisma.performanceEntry.findUnique({ where: { id }, select: { category: true, taskId: true } });
   if (!e) return { error: "That's gone." };
   await prisma.performanceEntry.update({ where: { id }, data: { kind: creative ? "creative" : "mistake", category: e.category ?? "Others", reviewed: true } });
-  await refreshVideoScores([e.taskId]);
+  await refreshVideoScores([e.taskId], { wide: true });
   done();
   return {};
 }
@@ -272,7 +272,7 @@ export async function setCreative(id: string, creative: boolean): Promise<Result
 export async function deleteEntry(id: string): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can remove feedback." };
   const gone = await prisma.performanceEntry.delete({ where: { id }, select: { taskId: true } });
-  await refreshVideoScores([gone.taskId]);
+  await refreshVideoScores([gone.taskId], { wide: true });
   done();
   return {};
 }

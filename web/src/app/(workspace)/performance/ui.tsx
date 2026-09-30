@@ -18,7 +18,6 @@ import {
   Palette,
   PenLine,
   Plus,
-  Repeat2,
   Sparkles,
   Tag,
   ThumbsDown,
@@ -720,20 +719,13 @@ export function MistakeList({ entries, canEdit, initialType = "", ...dialog }: L
               extra={flip(e)}
               lead={e.kind === "creative" ? <Tile Icon={Palette} tone="bg-violet-300/10 text-violet-300" /> : <Tile Icon={CircleAlert} tone="bg-surface-2/70 text-muted" />}
               tags={
-                e.kind === "creative" ? (
-                  <span className="text-violet-300">{e.fromClient ? "Creative change from the client" : "Creative change, not counted"}</span>
-                ) : (
+                e.kind === "creative" ? null : (
                   <>
                     <span className="flex items-center gap-1 text-foreground/85">
                       {e.category ?? "Others"}
                       {e.count > 1 && <span className="text-muted">×{e.count}</span>}
                       <Info label={e.category ?? "Others"} text={describe(dialog.categories, e.category ?? "Others")} />
                     </span>
-                    {e.repeat && (
-                      <span className="flex items-center gap-1 text-rose-300">
-                        <Repeat2 size={13} /> Repeat
-                      </span>
-                    )}
                     {e.fromClient && <span className="text-amber-300/90">Found by the client</span>}
                     {!e.counted && <span title="From before their work was tracked here">Not counted</span>}
                   </>

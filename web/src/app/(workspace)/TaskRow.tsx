@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
-import { AssigneeLabel, DueDate, StageColumn, TierMark, tierClass, type TaskCardData } from "./TaskCard";
+import { AssigneeLabel, DueDate, StageColumn, TierMark, tierClass, useTierGuess, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { Checkbox } from "./Checkbox";
 import { StatusSelect } from "./StatusSelect";
@@ -44,6 +44,7 @@ export function TaskRow({
   onSelect?: (id: string) => void;
 }) {
   const detailsRef = useRef<{ open: () => void }>(null);
+  const { tier, onGrade } = useTierGuess(task);
 
   // whichever link matters at this stage — the same one the board card
   // shows. Openable straight from the row, so checking a cut doesn't mean
@@ -65,7 +66,7 @@ export function TaskRow({
             ? `group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors duration-150 ${selected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`
             : `group flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                 selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
-              }`) + ` ${tierClass(task.tier, true)}`
+              }`) + ` ${tierClass(tier, true)}`
         }
       >
         {flat && (
@@ -111,7 +112,7 @@ export function TaskRow({
         )}
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
-            <TierMark tier={task.tier} />
+            <TierMark tier={tier} />
             <span className="block truncate text-sm">{task.title}</span>
           </span>
           <span className="block truncate text-xs text-muted">{subtitle}</span>
@@ -155,6 +156,7 @@ export function TaskRow({
                         links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
             variant="pill"
             needsGradeOn={(to) => needsGrade(task, to, actingRole)}
+            onGrade={onGrade}
           />
         </StageColumn>
       </div>

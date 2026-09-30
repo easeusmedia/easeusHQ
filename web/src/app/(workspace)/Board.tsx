@@ -3,7 +3,7 @@
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Trash2, X } from "lucide-react";
-import { TaskCard, STATUS_STYLE, EXTRA_FIELD, type TaskCardData } from "./TaskCard";
+import { TaskCard, STATUS_STYLE, EXTRA_FIELD, tierFor, type TaskCardData } from "./TaskCard";
 import { NewTaskRow } from "./NewTaskRow";
 import { StickyColumns, scrollPageNearEdge } from "./StickyColumns";
 import { TaskRow } from "./TaskRow";
@@ -115,15 +115,19 @@ export function Board({
   // happens in the background instead of blocking the visual move
   const [optimisticTasks, applyOptimistic] = useOptimistic(
     tasks,
-    (state, update: { taskId: string; sortOrder: number; status?: TaskStatus }) =>
+    (state, update: { taskId: string; sortOrder: number; status?: TaskStatus; tier?: string | null }) =>
       state.map((t) =>
-        t.id === update.taskId ? { ...t, sortOrder: update.sortOrder, ...(update.status ? { status: update.status } : {}) } : t
+        t.id === update.taskId
+          ? { ...t, sortOrder: update.sortOrder, ...(update.status ? { status: update.status } : {}), ...(update.tier !== undefined ? { tier: update.tier } : {}) }
+          : t
       )
   );
 
   function commitMove(to: TaskStatus, taskId: string, sortOrder: number, extra: Record<string, string> = {}) {
     startTransition(async () => {
-      applyOptimistic({ taskId, sortOrder, status: to });
+      // a grade colours the card at once (gold for S, green for A+); the
+      // real tier, after mistakes, arrives with the refresh
+      applyOptimistic({ taskId, sortOrder, status: to, ...(extra.grade ? { tier: tierFor(extra.grade) } : {}) });
       try {
         const result = await moveTask(taskId, to, { ...extra, sortOrder });
         if (result?.error) {

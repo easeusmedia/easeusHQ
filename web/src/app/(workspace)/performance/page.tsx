@@ -64,10 +64,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                       <Avatar name={e.name} size={44} presence={false} />
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate text-base font-medium">{e.name}</span>
-                        <span className="flex flex-wrap items-center gap-2 text-sm text-muted">
+                        <span className="text-sm text-muted">
                           {now.videos} video{now.videos === 1 ? "" : "s"}
-                          {now.s > 0 && <span className="rounded-md bg-amber-300/15 px-1.5 py-px text-xs font-semibold text-amber-200">S ×{now.s}</span>}
-                          {now.aPlus > 0 && <span className="rounded-md bg-emerald-400/15 px-1.5 py-px text-xs font-semibold text-emerald-300">A+ ×{now.aPlus}</span>}
                         </span>
                       </span>
                     </div>
