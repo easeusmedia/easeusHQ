@@ -1,26 +1,25 @@
-// How an editor's work is scored: Quantity, Quality and Feedback, five
-// points each. Decided with the admin (30 Sep 2026):
+// How an editor's work is scored: out of 10, and a grade (A+ to D).
+// Decided with the admin (30 Sep 2026). Every number is adjustable on the
+// Performance settings page; these are the starting ones.
 //
-// Quantity (how much, and how fast): 3 points for output, reels completed
-//   against 2 a working day (Monday to Saturday, leave excluded), a trailer
-//   counting as 3 reels and a podcast episode as 2; 2 points for speed, the
-//   share of videos moved from Editing to Sent for approval within their
-//   type's standard (a reel 3.5 hours, a podcast a day, a trailer a day and
-//   a half), timed as it happens, Sundays and leave skipped. Hours are
-//   flexible, so it's clock time. With no video timed, output carries all 5.
+// Each week is scored on its own, over four metrics:
+//   Output, 2.5 points: reels completed against 2 a working day (Monday to
+//     Saturday), a trailer counting as 3 reels and a podcast episode as 2.
+//   Speed, 1.5 points: the share of videos moved from Editing to Sent for
+//     approval within their type's standard (a reel 3.5 hours, a podcast a
+//     day, a trailer a day and a half), clock time, Sundays skipped. With no
+//     video timed, output carries these points too.
+//   Quality, 4 points: loses half a point for every mistake per video, on
+//     average. A Frame.io comment counts by its mistake type's weight
+//     (Creative a tenth), a revision as one, a repeat (the same type again,
+//     on another video, within 90 days) twice. Per video, so delivering more
+//     is never punished.
+//   Rating, 2 points: starts at 1 each week; praise adds its points, a
+//     concern takes its points off. Frame.io praise is worth 1.
+// A metric with nothing to score (no video finished, say) is left out and
+// the rest scaled to 10. A month, or any longer stretch, is the average of
+// its weeks, metric by metric, added up.
 //
-// Quality (how clean the work is): starts at 5 and loses a point for every
-//   mistake per video, on average. Each feedback point from Frame.io counts
-//   by its category's weight (a creative note half a mistake, say); a
-//   revision counts as one; a mistake repeated (the same kind again, on
-//   another video, within 90 days) counts double. Per video, so delivering
-//   more is never punished.
-//
-// Feedback (core's own word on the editor): starts at 2.5; praise adds,
-//   negative feedback takes away, each by the points given, between 0 and
-//   5. Only scored in a period with some; otherwise the score is out of 10.
-//
-// Every number here is adjustable on the Performance page (Scoring).
 // Pure (no database, no React) so all of it is testable on its own.
 
 import { dueState, type DueState } from "./due.ts";
@@ -32,24 +31,31 @@ export type TypeRule = {
   units: number;
 };
 
+export const GRADES = ["A+", "A", "B", "C", "D"] as const;
+export type Grade = (typeof GRADES)[number];
+export const GRADE_LABEL: Record<Grade, string> = { "A+": "Outstanding", A: "Good", B: "Fair", C: "Needs work", D: "Poor" };
+
 export type Scoring = {
   // 0 Sunday … 6 Saturday
   workDays: number[];
   reelsPerDay: number;
   types: Record<string, TypeRule>;
-  // of Quantity's 5 points, how many are output; the rest are speed
-  volumePoints: number;
+  // the 10 points, metric by metric
+  outputPoints: number;
+  speedPoints: number;
+  qualityPoints: number;
+  ratingPoints: number;
   // Quality points lost for each mistake per video
   mistakePoints: number;
   // a revision counts as this many mistakes
   revisionWeight: number;
   // a repeated mistake counts as this many
   repeatWeight: number;
-  // where the Feedback score starts
-  feedbackStart: number;
-  // what praise and negative feedback are worth unless given another amount
+  // where Rating starts each week, and what a Frame.io praise adds
+  ratingStart: number;
   praisePoints: number;
-  concernPoints: number;
+  // the lowest total for each grade; below C is D
+  grades: Record<Exclude<Grade, "D">, number>;
 };
 
 export const DEFAULT_SCORING: Scoring = {
@@ -60,13 +66,16 @@ export const DEFAULT_SCORING: Scoring = {
     "Podcast editing": { hours: 24, units: 2 },
     Trailer: { hours: 36, units: 3 },
   },
-  volumePoints: 3,
-  mistakePoints: 1,
+  outputPoints: 2.5,
+  speedPoints: 1.5,
+  qualityPoints: 4,
+  ratingPoints: 2,
+  mistakePoints: 0.5,
   revisionWeight: 1,
   repeatWeight: 2,
-  feedbackStart: 2.5,
+  ratingStart: 1,
   praisePoints: 1,
-  concernPoints: 1,
+  grades: { "A+": 9, A: 8, B: 6.5, C: 5 },
 };
 export const SCORING_KEY = "performance.scoring";
 
@@ -74,22 +83,37 @@ export const SCORING_KEY = "performance.scoring";
 export function withScoringDefaults(saved: unknown): Scoring {
   const s = (saved && typeof saved === "object" ? saved : {}) as Partial<Scoring>;
   const num = <K extends keyof Scoring>(k: K) => (typeof s[k] === "number" ? (s[k] as number) : (DEFAULT_SCORING[k] as number));
+  const g = (s.grades && typeof s.grades === "object" ? s.grades : {}) as Partial<Scoring["grades"]>;
   return {
     workDays: Array.isArray(s.workDays) && s.workDays.length ? s.workDays : DEFAULT_SCORING.workDays,
     reelsPerDay: num("reelsPerDay"),
     types: s.types && typeof s.types === "object" && Object.keys(s.types).length ? s.types : { ...DEFAULT_SCORING.types },
-    volumePoints: num("volumePoints"),
+    outputPoints: num("outputPoints"),
+    speedPoints: num("speedPoints"),
+    qualityPoints: num("qualityPoints"),
+    ratingPoints: num("ratingPoints"),
     mistakePoints: num("mistakePoints"),
     revisionWeight: num("revisionWeight"),
     repeatWeight: num("repeatWeight"),
-    feedbackStart: num("feedbackStart"),
+    ratingStart: num("ratingStart"),
     praisePoints: num("praisePoints"),
-    concernPoints: num("concernPoints"),
+    grades: {
+      "A+": typeof g["A+"] === "number" ? g["A+"] : DEFAULT_SCORING.grades["A+"],
+      A: typeof g.A === "number" ? g.A : DEFAULT_SCORING.grades.A,
+      B: typeof g.B === "number" ? g.B : DEFAULT_SCORING.grades.B,
+      C: typeof g.C === "number" ? g.C : DEFAULT_SCORING.grades.C,
+    },
   };
 }
 
-// what Frame.io comments can be besides a feedback point, and core's own
-export const ENTRY_KINDS = { mistake: "Feedback point", praise: "Praise (Frame.io)", note: "Not feedback", positive: "Praise", negative: "Negative feedback" } as const;
+// a total out of 10, as a grade
+export function gradeOf(total: number | null, s: Pick<Scoring, "grades">): Grade | null {
+  if (total === null) return null;
+  return (["A+", "A", "B", "C"] as const).find((g) => total >= s.grades[g]) ?? "D";
+}
+
+// what a feedback entry can be
+export const ENTRY_KINDS = { mistake: "Mistake", positive: "Praise", negative: "Concern", guidance: "Feedback", note: "Not feedback" } as const;
 
 // ---------- days and hours (India, +5:30 all year) ----------
 
@@ -106,17 +130,17 @@ export const weekday = (day: string) => new Date(`${day}T00:00:00Z`).getUTCDay()
 const midnight = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - IST);
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / DAY);
 
-export const isWorkDay = (day: string, s: Pick<Scoring, "workDays">, leave: ReadonlySet<string>) => s.workDays.includes(weekday(day)) && !leave.has(day);
+export const isWorkDay = (day: string, s: Pick<Scoring, "workDays">) => s.workDays.includes(weekday(day));
 
 // Hours between two moments, skipping days that aren't working days
-// (Sundays) and leave. Editors keep their own hours, so it's clock time.
-export function workHours(from: Date, to: Date, s: Pick<Scoring, "workDays">, leave: ReadonlySet<string> = new Set()): number {
+// (Sundays). Editors keep their own hours, so it's clock time.
+export function workHours(from: Date, to: Date, s: Pick<Scoring, "workDays">): number {
   if (to <= from) return 0;
   let ms = 0;
   const last = dayOf(to);
   // ponytail: walks day by day; capped at a year, far past any real edit
   for (let day = dayOf(from), i = 0; day <= last && i < 366; day = addDays(day, 1), i++) {
-    if (!isWorkDay(day, s, leave)) continue;
+    if (!isWorkDay(day, s)) continue;
     const start = Math.max(midnight(day).getTime(), from.getTime());
     const end = Math.min(midnight(addDays(day, 1)).getTime(), to.getTime());
     if (end > start) ms += end - start;
@@ -124,16 +148,15 @@ export function workHours(from: Date, to: Date, s: Pick<Scoring, "workDays">, le
   return round1(ms / HOUR);
 }
 
-// Working days in a stretch (both ends included), leave excluded: what the
-// output target is measured against. Up to `now` only, today counting for
-// the share of it gone, so a day or week under way is judged on the time
-// it has had.
-export function workingDaysIn(from: string, to: string, s: Pick<Scoring, "workDays">, leave: ReadonlySet<string>, now?: Date): number {
+// Working days in a stretch (both ends included): what the output target
+// is measured against. Up to `now` only, today counting for the share of
+// it gone, so a day or week under way is judged on the time it has had.
+export function workingDaysIn(from: string, to: string, s: Pick<Scoring, "workDays">, now?: Date): number {
   const today = now ? dayOf(now) : null;
   let n = 0;
   for (let day = from, i = 0; day <= to && i < 400; day = addDays(day, 1), i++) {
     if (today && day > today) break;
-    if (!isWorkDay(day, s, leave)) continue;
+    if (!isWorkDay(day, s)) continue;
     n += today && day === today ? Math.min(1, Math.max(0, (now!.getTime() - midnight(day).getTime()) / DAY)) : 1;
   }
   return round2(n);
@@ -212,7 +235,7 @@ export type Video = ReturnType<typeof videoFacts>;
 // it (moved it to Editing) and first sent it on, how long that took against
 // its type's standard, how often it came back, and when it first reached
 // the client, which is when it's complete for them.
-export function videoFacts(task: KpiTask, s: Scoring, leave: ReadonlySet<string> = new Set()) {
+export function videoFacts(task: KpiTask, s: Scoring) {
   const moves = settle(task.moves);
   const { type, guessed } = workType(task.tags, task.title, s);
   const rule = ruleFor(type, s);
@@ -223,7 +246,7 @@ export function videoFacts(task: KpiTask, s: Scoring, leave: ReadonlySet<string>
   const sent = moved && handed ? (moved < handed ? moved : handed) : (moved ?? handed);
   const completedAt = task.handedOffAt ?? moves.find((m) => REACHED.includes(m.to))?.at ?? task.deliveredAt;
   // started only after it had already reached the client: that's rework, not the edit
-  const editHours = start && sent && !(completedAt && start > completedAt) ? workHours(start, sent, s, leave) : null;
+  const editHours = start && sent && !(completedAt && start > completedAt) ? workHours(start, sent, s) : null;
   const back = sentBack(moves);
   return {
     id: task.id,
@@ -250,7 +273,7 @@ export function videoFacts(task: KpiTask, s: Scoring, leave: ReadonlySet<string>
 
 export const REPEAT_DAYS = 90;
 
-// Which feedback points repeat an earlier one: the same category, on a
+// Which mistakes repeat an earlier one: the same type, on a
 // different video, within 90 days before it. (Two typos in one cut are two
 // mistakes, not a repeat; a typo in the next video is.) Ids of the repeats.
 export function repeats(points: { id: string; category: string; taskId: string | null; at: Date }[]): Set<string> {
@@ -270,7 +293,7 @@ export type ScoreEntry = {
   category: string | null;
   count: number;
   points: number | null;
-  // a feedback point: its category's weight, and whether it repeats one before
+  // a mistake: its type's weight, and whether it repeats one before
   weight: number;
   repeat: boolean;
 };
@@ -284,20 +307,37 @@ export type PeriodInput = {
   workDays: number;
 };
 
-const clamp5 = (n: number) => Math.min(5, Math.max(0, n));
+const clamp = (n: number, max: number) => Math.min(max, Math.max(0, n));
 
-// One editor's (or the team's) period, scored.
+export type Part = "quantity" | "quality" | "rating";
+
+// The parts that have a score, added up and scaled to 10: a part with
+// nothing to score doesn't count for or against. Nothing at all, no total.
+// what each part is out of
+export const partMax = (s: Scoring): Record<Part, number> => ({ quantity: round1(s.outputPoints + s.speedPoints), quality: s.qualityPoints, rating: s.ratingPoints });
+
+export function totalOf(parts: Record<Part, number | null>, s: Scoring): number | null {
+  const max = partMax(s);
+  // Rating alone isn't a week's work
+  if (parts.quantity === null && parts.quality === null) return null;
+  const scored = (Object.keys(max) as Part[]).filter((p) => parts[p] !== null);
+  const out = scored.reduce((n, p) => n + max[p], 0);
+  return out ? round1((10 * scored.reduce((n, p) => n + parts[p]!, 0)) / out) : null;
+}
+
+// One editor's (or the team's) stretch, scored as one. Within a week that's
+// the score; longer ones are the average of their weeks (averageWeeks).
 export function scorePeriod(input: PeriodInput, s: Scoring) {
   const { videos, entries } = input;
 
-  // Quantity
+  // Quantity: output and speed
   const units = round1(videos.reduce((n, v) => n + v.units, 0));
   const target = round1(input.workDays * s.reelsPerDay);
   const timed = videos.filter((v) => v.withinStandard !== null);
   const within = timed.filter((v) => v.withinStandard).length;
   const volume = target > 0 ? Math.min(1, units / target) : units > 0 ? 1 : null;
   const speed = timed.length ? within / timed.length : null;
-  const quantity = volume === null ? null : round1(speed === null ? 5 * volume : s.volumePoints * volume + (5 - s.volumePoints) * speed);
+  const quantity = volume === null ? null : round1(speed === null ? (s.outputPoints + s.speedPoints) * volume : s.outputPoints * volume + s.speedPoints * speed);
 
   // Quality
   const points = entries.filter((e) => e.kind === "mistake");
@@ -305,17 +345,15 @@ export function scorePeriod(input: PeriodInput, s: Scoring) {
   const repeated = points.filter((e) => e.repeat).reduce((n, e) => n + e.count, 0);
   const revisions = videos.reduce((n, v) => n + v.internalRevisions + v.clientRevisions, 0);
   const weighted = points.reduce((n, e) => n + e.count * e.weight * (e.repeat ? s.repeatWeight : 1), 0) + revisions * s.revisionWeight;
-  const quality = videos.length ? round1(clamp5(5 - (s.mistakePoints * weighted) / videos.length)) : null;
+  const quality = videos.length ? round1(clamp(s.qualityPoints - (s.mistakePoints * weighted) / videos.length, s.qualityPoints)) : null;
 
-  // Feedback
+  // Rating
   const positive = entries.filter((e) => e.kind === "positive");
   const negative = entries.filter((e) => e.kind === "negative");
-  const net = positive.reduce((n, e) => n + (e.points ?? s.praisePoints), 0) - negative.reduce((n, e) => n + (e.points ?? s.concernPoints), 0);
-  const feedback = positive.length + negative.length ? round1(clamp5(s.feedbackStart + net)) : null;
+  const net = positive.reduce((n, e) => n + (e.points ?? s.praisePoints), 0) - negative.reduce((n, e) => n + (e.points ?? 0), 0);
+  const rating = round1(clamp(s.ratingStart + net, s.ratingPoints));
 
-  const parts = [quantity, quality, feedback].filter((p): p is number => p !== null);
-  const total = parts.length ? round1(parts.reduce((a, b) => a + b, 0)) : null;
-  const max = parts.length * 5;
+  const total = totalOf({ quantity, quality, rating }, s);
 
   const types = new Map<string, Video[]>();
   for (const v of videos) types.set(v.type, [...(types.get(v.type) ?? []), v]);
@@ -329,12 +367,12 @@ export function scorePeriod(input: PeriodInput, s: Scoring) {
 
   return {
     total,
-    max,
-    // the total as a share, to compare periods scored out of 10 and 15
-    pct: total === null ? null : Math.round((100 * total) / max),
+    grade: gradeOf(total, s),
     quantity,
     quality,
-    feedback,
+    rating: total === null ? null : rating,
+    // how many weeks it's the average of; 1 for a week or a day
+    weeks: 1,
     // behind Quantity
     completed: videos.length,
     units,
@@ -352,11 +390,36 @@ export function scorePeriod(input: PeriodInput, s: Scoring) {
     revisions,
     perVideo: videos.length ? round1(weighted / videos.length) : null,
     byCategory: [...cats.entries()].map(([category, c]) => ({ category, ...c })).sort((a, b) => b.count - a.count),
-    // behind Feedback
+    // behind Rating
     positive: positive.length,
     negative: negative.length,
     net: round1(net),
   };
+}
+
+// The weeks (Monday to Sunday) a stretch covers, cut at its two ends.
+export function weekChunks(from: string, to: string): { from: string; to: string }[] {
+  const out: { from: string; to: string }[] = [];
+  for (let start = from, i = 0; start <= to && i < 60; i++) {
+    const sunday = addDays(mondayOf(start), 6);
+    out.push({ from: start, to: sunday < to ? sunday : to });
+    start = addDays(sunday, 1);
+  }
+  return out;
+}
+
+const mean = (xs: (number | null)[]) => {
+  const got = xs.filter((x): x is number => x !== null);
+  return got.length ? round1(got.reduce((a, b) => a + b, 0) / got.length) : null;
+};
+
+// A stretch longer than a week: the counts from all of it (`whole`), and
+// each metric the average of the weeks that scored it, added up again.
+export function averageWeeks(whole: Kpis, weeks: Kpis[], s: Scoring): Kpis {
+  const scored = weeks.filter((w) => w.total !== null);
+  const parts = { quantity: mean(scored.map((w) => w.quantity)), quality: mean(scored.map((w) => w.quality)), rating: mean(scored.map((w) => w.rating)) };
+  const total = totalOf(parts, s);
+  return { ...whole, ...parts, total, grade: gradeOf(total, s), weeks: scored.length };
 }
 
 export type Kpis = ReturnType<typeof scorePeriod>;
@@ -365,7 +428,6 @@ export type Kpis = ReturnType<typeof scorePeriod>;
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // "2026-09" moved by whole months
 export function shiftMonth(ym: string, by: number): string {
@@ -375,7 +437,6 @@ export function shiftMonth(ym: string, by: number): string {
 export const monthName = (ym: string, year = true) => `${MONTHS[Number(ym.slice(5, 7)) - 1]}${year ? ` ${ym.slice(0, 4)}` : ""}`;
 export const daysInMonth = (ym: string) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).getUTCDate();
 export const shortDay = (day: string) => `${Number(day.slice(8, 10))} ${SHORT[Number(day.slice(5, 7)) - 1]}`;
-export const dayName = (day: string) => `${WEEKDAYS[weekday(day)]} ${shortDay(day)}`;
 export const mondayOf = (day: string) => addDays(day, -((weekday(day) + 6) % 7));
 
 // "22–28 Sep", "29 Sep – 5 Oct"
@@ -384,14 +445,7 @@ export function spanLabel(from: string, to: string) {
   return from.slice(0, 7) === to.slice(0, 7) ? `${Number(from.slice(8))}–${shortDay(to)}` : `${shortDay(from)} – ${shortDay(to)}`;
 }
 
-// the working day before (or after) this one
-export function stepWorkDay(day: string, by: 1 | -1, workDays: number[]) {
-  let d = addDays(day, by);
-  for (let i = 0; i < 7 && !workDays.includes(weekday(d)); i++) d = addDays(d, by);
-  return d;
-}
-
-export type PeriodKind = "day" | "week" | "month" | "range";
+export type PeriodKind = "week" | "month" | "range";
 export type Period = {
   kind: PeriodKind;
   from: string;
@@ -405,15 +459,10 @@ export type Period = {
 
 const isDay = (v: string | undefined): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
 
-// The period a page is showing, from its query: a day, a week (any day in
-// it), a month, or a range of days. Never in the future; a range is at most
+// The period a page is showing, from its query: a week (any day in it), a
+// month, or a range of days. Never in the future; a range is at most
 // a year, and an unreadable one falls back to the last 30 days.
-export function periodFrom(q: { view?: string; day?: string; week?: string; month?: string; from?: string; to?: string }, today: string, workDays: number[] = DEFAULT_SCORING.workDays): Period {
-  if (q.view === "day") {
-    const day = isDay(q.day) && q.day <= today ? q.day : today;
-    const before = stepWorkDay(day, -1, workDays);
-    return { kind: "day", from: day, to: day, label: dayName(day), current: day === today, prev: { from: before, to: before } };
-  }
+export function periodFrom(q: { view?: string; week?: string; month?: string; from?: string; to?: string }, today: string): Period {
   if (q.view === "month") {
     const thisMonth = today.slice(0, 7);
     const ym = q.month && /^\d{4}-\d{2}$/.test(q.month) && q.month <= thisMonth ? q.month : thisMonth;
@@ -450,14 +499,9 @@ export function periodFrom(q: { view?: string; day?: string; week?: string; mont
   };
 }
 
-// The days (working ones), weeks or months leading up to and including the
-// one holding `to`, oldest first, for the history.
-export function trendSpans(kind: PeriodKind, to: string, n: number, workDays: number[] = DEFAULT_SCORING.workDays): { from: string; to: string; label: string }[] {
-  if (kind === "day") {
-    const days = [workDays.includes(weekday(to)) ? to : stepWorkDay(to, -1, workDays)];
-    while (days.length < n) days.unshift(stepWorkDay(days[0], -1, workDays));
-    return days.map((d) => ({ from: d, to: d, label: dayName(d) }));
-  }
+// The weeks or months leading up to and including the one holding `to`,
+// oldest first, for the history.
+export function trendSpans(kind: PeriodKind, to: string, n: number): { from: string; to: string; label: string }[] {
   if (kind === "month") {
     const ym = to.slice(0, 7);
     return Array.from({ length: n }, (_, i) => {

@@ -7,11 +7,11 @@ import { categorise } from "./categorise";
 // Review comments from Frame.io, turned into the editor's feedback log.
 //
 // Every comment left on an editor's review link becomes one entry against
-// them, sorted by its words (lib/categorise.ts, no AI) into one of core's
-// own categories (Typos, UK/US spelling, Creative…, set up on the
-// Performance page), or as praise, or as not feedback at all. Core can
-// re-sort any of it by hand, or ask Claude to (Sort with AI, only when
-// clicked). Each comment's frame is kept as a small snapshot, and whether
+// them, sorted by its words (lib/categorise.ts, no AI): a mistake of one of
+// core's own types (Typos, UK/US spelling, Creative…, set up on the
+// Performance settings page), praise, feedback to help them grow, or not
+// feedback at all. Core can correct any of it by hand, or ask Claude to
+// re-sort (Sort with AI, only when clicked). Each comment's frame is kept as a small snapshot, and whether
 // the editor has ticked it done in Frame.io is read back on every sync.
 // Nothing here writes to Frame.io.
 
@@ -20,21 +20,23 @@ export const FEEDBACK_SYNCED = "frameio.feedbackSyncedAt";
 const WINDOW_DAYS = 60;
 const BATCH = 40;
 
-function system(categories: { name: string; keywords: string | null }[]) {
+function system(categories: { name: string; description: string | null; keywords: string | null }[]) {
   return `You sort the review comments left on a video editor's cuts in Frame.io, for a video agency's review of its editors. Each comment is from our own reviewers or from the client, and many are written in Hinglish.
 
 Give each comment one kind:
-- point: feedback on the work, asking for something to be fixed or changed. Put it in the closest category below.
+- point: asks for something in this video to be fixed or changed. Put it in the closest category below.
 - praise: positive feedback on the work.
+- feedback: advice from our own reviewers to help the editor grow, rather than a fix for this video (it often says "feedback").
 - note: not feedback at all, such as a question, a reminder, a fragment or a lone word.
 
 The categories:
-${categories.map((c) => `- ${c.name}${c.keywords ? ` (for instance: ${c.keywords})` : ""}`).join("\n")}
+${categories.map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ""}${c.keywords ? ` (for instance: ${c.keywords})` : ""}`).join("\n")}
 
-For praise and notes, the category is "None".`;
+For praise, feedback and notes, the category is "None".`;
 }
 
-type Sorted = { items: { id: string; kind: "point" | "praise" | "note"; category: string }[] };
+type Sorted = { items: { id: string; kind: "point" | "praise" | "feedback" | "note"; category: string }[] };
+const AI_KIND = { praise: "positive", feedback: "guidance", note: "note" } as const;
 
 const schema = (names: string[]) => ({
   type: "object",
@@ -45,7 +47,7 @@ const schema = (names: string[]) => ({
         type: "object",
         properties: {
           id: { type: "string" },
-          kind: { type: "string", enum: ["point", "praise", "note"] },
+          kind: { type: "string", enum: ["point", "praise", "feedback", "note"] },
           category: { type: "string", enum: [...names, "None"] },
         },
         required: ["id", "kind", "category"],
@@ -69,7 +71,7 @@ export async function aiSortEntries(ids: string[]): Promise<number> {
       where: { id: { in: ids }, source: "frameio", reviewed: false },
       select: { id: true, body: true, fromClient: true, task: { select: { title: true } } },
     }),
-    prisma.feedbackCategory.findMany({ select: { name: true, keywords: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.feedbackCategory.findMany({ where: { group: "mistake" }, select: { name: true, description: true, keywords: true }, orderBy: { sortOrder: "asc" } }),
   ]);
   const names = categories.map((c) => c.name);
   const fallback = names.includes("Others") ? "Others" : (names.at(-1) ?? "Others");
@@ -82,7 +84,7 @@ export async function aiSortEntries(ids: string[]): Promise<number> {
       if (!batch.some((e) => e.id === r.id)) continue;
       await prisma.performanceEntry.update({
         where: { id: r.id },
-        data: r.kind === "point" ? { kind: "mistake", category: r.category !== "None" ? r.category : fallback } : { kind: r.kind, category: null },
+        data: r.kind === "point" ? { kind: "mistake", category: r.category !== "None" ? r.category : fallback } : { kind: AI_KIND[r.kind], category: null, points: null },
       });
       sorted++;
     }
@@ -139,8 +141,8 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
   }
 
   // sorted by their words; free, and the same answer every time
-  const categories = await prisma.feedbackCategory.findMany({ select: { name: true, keywords: true }, orderBy: { sortOrder: "asc" } });
-  const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories)]));
+  const categories = await prisma.feedbackCategory.findMany({ where: { group: "mistake" }, select: { name: true, keywords: true }, orderBy: { sortOrder: "asc" } });
+  const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories, c.fromClient)]));
   await prisma.performanceEntry.createMany({
     data: fresh.map((c) => {
       const s = sorted.get(c.id);

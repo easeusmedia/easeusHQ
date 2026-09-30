@@ -16,8 +16,17 @@ test("whole words only: 'subs' isn't found inside 'subscribe'", () => {
   assert.notEqual(categorise("Add a subscribe button at the end please", CATS).category, "Subtitles");
 });
 
-test("praise is praise; a word or two that matches nothing isn't feedback; the rest goes to Others", () => {
-  assert.deepEqual(categorise("Nice!!!", CATS), { kind: "praise", category: null });
+test("ours saying 'feedback' is feedback, never scored; the client's isn't", () => {
+  assert.deepEqual(categorise("Feedback: use this kind of hook in future, it keeps them watching", CATS), { kind: "guidance", category: null });
+  assert.deepEqual(categorise("feedback use this to enhance the visual", CATS), { kind: "guidance", category: null });
+  assert.equal(categorise("Feedback: the font is too small", CATS, true).kind, "mistake");
+});
+
+test("praise is praise unless it asks for something; a word or two that matches nothing isn't feedback; the rest goes to Others", () => {
+  assert.deepEqual(categorise("Nice!!!", CATS), { kind: "positive", category: null });
+  assert.deepEqual(categorise("Great pacing, best one yet", CATS), { kind: "positive", category: null });
+  assert.deepEqual(categorise("Good, but change the font", CATS), { kind: "mistake", category: "Typography" });
+  assert.deepEqual(categorise("This transition is not good", CATS), { kind: "mistake", category: "Animation" });
   assert.deepEqual(categorise("Because", CATS), { kind: "note", category: null });
   assert.deepEqual(categorise("Can we make this part slightly shorter", CATS), { kind: "mistake", category: "Others" });
 });

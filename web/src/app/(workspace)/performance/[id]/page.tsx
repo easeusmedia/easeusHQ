@@ -1,23 +1,24 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Repeat2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { addDays, dayOf, periodFrom, shortDay, trendSpans } from "@/lib/editorKpi";
+import { dayOf, GRADE_LABEL, partMax, periodFrom, trendSpans } from "@/lib/editorKpi";
 import { Avatar } from "../../TaskCard";
 import { ClientTabs } from "../../clients/ClientTabs";
-import { AddFeedbackButton, Delta, LeavePanel, MistakeList, PartScore, PeriodBar, PraiseList, Total, TrendStrip, type VideoRow, VideoTable } from "../ui";
+import { AddFeedbackButton, Delta, GradeBadge, GuidanceList, MistakeList, PartScore, PeriodBar, PraiseList, Total, type VideoRow, VideoTable } from "../ui";
+import { MistakeBars, ScoreChart } from "../charts";
 import { loadPerformance, loadScoring, repeatedMistakes } from "../data";
-import { AGAINST, feedbackLines, periodQuery, qualityLines, quantityLines } from "../shared";
+import { AGAINST, periodQuery, qualityLines, quantityLines, ratingLines } from "../shared";
 
 export const dynamic = "force-dynamic";
 
-// One editor's scorecard: the total and its three scores for the period,
-// the mistakes they keep repeating, and everything behind it in tabs: the
-// feedback on their work (each Frame.io comment with a picture of its
-// frame), core's praise and negative feedback, their videos, and their
-// history. Core can add feedback, re-sort any of it, set a video's type and
-// record leave. An editor sees their own, the same but read-only.
+// One editor's scorecard: the grade and the total out of 10 for the period,
+// its three parts, a chart of it week by week, their mistakes by type, and
+// everything behind it in tabs: the mistakes (each Frame.io comment with a
+// picture of its frame), the feedback given to help them grow, praise and
+// concerns, their videos and their history. Core can add and correct any
+// of it and set a video's type. An editor sees their own, read-only.
 export default async function EditorPerformancePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
   const q = await searchParams;
@@ -30,11 +31,19 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
 
   const today = dayOf(new Date());
   const scoring = await loadScoring();
-  const period = periodFrom(q, today, scoring.workDays);
-  const spans = trendSpans(period.kind === "range" ? "week" : period.kind, period.to, period.kind === "day" ? 12 : period.kind === "month" ? 6 : 8, scoring.workDays);
-  const [data, kinds] = await Promise.all([
+  const period = periodFrom(q, today);
+  const spans = trendSpans(period.kind === "range" ? "week" : period.kind, period.to, period.kind === "month" ? 6 : 10);
+  const [data, kinds, clients] = await Promise.all([
     loadPerformance({ from: [period.prev.from, spans[0].from, period.from].sort()[0], editorId: id }),
     prisma.taskTag.findMany({ where: { team: { slug: "operations" } }, select: { name: true }, orderBy: { sortOrder: "asc" } }),
+    // for tying feedback to a client or project, which only core does
+    canEdit
+      ? prisma.client.findMany({
+          where: { status: { not: "previous" } },
+          select: { id: true, name: true, projects: { select: { id: true, name: true, type: true }, orderBy: { createdAt: "desc" } } },
+          orderBy: { name: "asc" },
+        })
+      : [],
   ]);
   const editor = data.editors[0];
   if (!editor) notFound();
@@ -42,10 +51,13 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
   const now = data.score(period.from, period.to, id);
   const before = data.score(period.prev.from, period.prev.to, id);
   const history = spans.map((s) => ({ ...s, k: data.score(s.from, s.to, id) }));
-  const repeated = repeatedMistakes(data.feedback, period.from, period.to, id);
+  const max = partMax(scoring);
+  const describe = new Map(data.categories.map((c) => [c.name, c.description]));
+  const byType = repeatedMistakes(data.feedback, period.from, period.to, id).map((r) => ({ ...r, description: describe.get(r.category) ?? null }));
 
   const inPeriod = data.feedback.filter((e) => e.day >= period.from && e.day <= period.to);
-  const mistakes = inPeriod.filter((e) => e.kind === "mistake" || e.kind === "praise" || e.kind === "note");
+  const mistakes = inPeriod.filter((e) => e.kind === "mistake" || e.kind === "note");
+  const guidance = inPeriod.filter((e) => e.kind === "guidance");
   const praise = inPeriod.filter((e) => e.kind === "positive" || e.kind === "negative");
   const videos: VideoRow[] = data.videos
     .filter((v) => v.completedDay && v.completedDay >= period.from && v.completedDay <= period.to)
@@ -65,12 +77,19 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
     }));
   const open = data.open.filter((t) => t.assignedToId === id);
   const tasks = [...new Map([...open, ...data.videos].map((t) => [t.id, { id: t.id, title: t.title }])).values()];
-  const leave = data.leave.filter((l) => l.day >= addDays(today, -120)).map((l) => ({ id: l.id, day: l.day, note: l.note }));
-  const dialog = { editorId: id, tasks, categories: data.categories, scoring: data.scoring, today };
+  const dialog = {
+    editorId: id,
+    tasks,
+    clients: clients.map((c) => ({ id: c.id, name: c.name, projects: c.projects.map((p) => ({ id: p.id, name: p.name || p.type })) })),
+    categories: data.categories,
+    scoring,
+    today,
+  };
 
   const query = periodQuery(period);
   const card = "rounded-2xl border border-border bg-surface-2/30 p-5";
-  const HISTORY_ROW = "grid grid-cols-[minmax(0,1fr)_4.5rem_4rem_4rem_4rem] items-center gap-3 px-4 sm:grid-cols-[minmax(0,1fr)_5rem_4.5rem_4.5rem_4.5rem_4rem_4.5rem]";
+  const unit = period.kind === "month" ? "Month" : "Week";
+  const HISTORY_ROW = "grid grid-cols-[minmax(0,1fr)_3rem_4rem_4rem_4rem] items-center gap-3 px-4 sm:grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_4.5rem_4.5rem_4.5rem_4rem_4.5rem]";
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,68 +110,59 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <PeriodBar period={period} today={today} workDays={scoring.workDays} />
+            <PeriodBar period={period} today={today} />
             {canEdit && <AddFeedbackButton {...dialog} />}
           </div>
         </div>
       </div>
 
-      <section className={`${card} grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]`}>
-        <div className="flex flex-col justify-between gap-3 md:border-r md:border-border/60 md:pr-6">
-          <div>
-            <p className="text-xs text-muted">
-              {period.current ? { day: "Today", week: "This week", month: "This month", range: period.label }[period.kind] : period.label}
-              {period.current && period.kind !== "range" ? " so far" : ""}
-            </p>
-            <div className="mt-1">
-              <Total total={now.total} max={now.max} size="lg" />
-            </div>
-            <div className="mt-1.5">
-              <Delta now={now} before={before} against={AGAINST[period.kind]} />
+      <section className={`${card} grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)]`}>
+        <div className="flex flex-col gap-3 md:border-r md:border-border/60 md:pr-6">
+          <p className="text-xs text-muted">
+            {period.current ? { week: "This week", month: "This month", range: period.label }[period.kind] : period.label}
+            {period.current && period.kind !== "range" ? " so far" : ""}
+          </p>
+          <div className="flex items-center gap-4">
+            <GradeBadge grade={now.grade} size="lg" />
+            <div>
+              <Total total={now.total} />
+              <p className="text-sm text-muted">{now.grade ? GRADE_LABEL[now.grade] : "Nothing to score yet"}</p>
             </div>
           </div>
-          <TrendStrip values={history.map((h) => h.k.pct)} labels={history.map((h) => h.label)} height={40} />
+          <Delta now={now.total} before={before.total} against={AGAINST[period.kind]} />
+          {now.weeks > 1 && <p className="text-[11px] text-muted">The average of {now.weeks} weeks, metric by metric.</p>}
         </div>
         <div className="grid gap-6 sm:grid-cols-3">
-          <PartScore part="quantity" value={now.quantity} lines={quantityLines(now)} />
-          <PartScore part="quality" value={now.quality} lines={qualityLines(now)} />
-          <PartScore part="feedback" value={now.feedback} lines={feedbackLines(now)} />
+          <PartScore part="quantity" value={now.quantity} max={max.quantity} lines={quantityLines(now)} />
+          <PartScore part="quality" value={now.quality} max={max.quality} lines={qualityLines(now)} />
+          <PartScore part="rating" value={now.rating} max={max.rating} lines={ratingLines(now)} />
         </div>
       </section>
 
-      <section className={card}>
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <Repeat2 size={14} className="text-rose-300" /> Mistakes by category
-        </h2>
-        <p className="mt-0.5 text-xs text-muted">A repeat is the same kind of mistake again, on another video, within 90 days. It counts {scoring.repeatWeight}× against Quality.</p>
-        {repeated.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">No mistakes in this period.</p>
-        ) : (
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {repeated.map((r) => (
-              <li key={r.category} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${r.repeats ? "border-rose-300/25 bg-rose-300/[0.04]" : "border-border bg-surface/40"}`}>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{r.category}</span>
-                  <span className="block text-xs text-muted">
-                    {r.videos} video{r.videos === 1 ? "" : "s"} · last {shortDay(r.last)}
-                  </span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span className="block text-lg font-semibold tabular-nums">{r.count}</span>
-                  {r.repeats > 0 && <span className="block text-[11px] text-rose-300">{r.repeats} repeated</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <section className={card}>
+          <h2 className="text-sm font-semibold">{unit} by {unit.toLowerCase()}</h2>
+          <p className="mt-0.5 mb-4 text-xs text-muted">Each bar is the total out of 10, split by what each part gave it. The dashed lines are where each grade starts.</p>
+          <ScoreChart
+            weeks={history.map((h) => ({ label: h.label, total: h.k.total, grade: h.k.grade, quantity: h.k.quantity, quality: h.k.quality, rating: h.k.rating }))}
+            grades={scoring.grades}
+            max={max}
+          />
+        </section>
+        <section className={card}>
+          <h2 className="text-sm font-semibold">Mistakes by type</h2>
+          <p className="mt-0.5 mb-4 text-xs text-muted">A repeat is the same type again, on another video, within 90 days. It counts {scoring.repeatWeight}× against Quality.</p>
+          {byType.length === 0 ? <p className="text-sm text-muted">No mistakes in this period.</p> : <MistakeBars rows={byType} />}
+        </section>
+      </div>
 
       <ClientTabs
         width=""
         initialTab={q.tab}
         tabs={[
-          { key: "mistakes", label: "Feedback on the work", count: mistakes.filter((e) => e.kind === "mistake").length, content: <MistakeList entries={mistakes} canEdit={canEdit} {...dialog} /> },
-          { key: "feedback", label: "Praise and concerns", count: praise.length, content: <PraiseList entries={praise} canEdit={canEdit} {...dialog} /> },
+          { key: "mistakes", label: "Mistakes", count: mistakes.filter((e) => e.kind === "mistake").length, content: <MistakeList entries={mistakes} canEdit={canEdit} {...dialog} /> },
+          { key: "feedback", label: "Feedback", count: guidance.length, content: <GuidanceList entries={guidance} canEdit={canEdit} from="Abhishek" {...dialog} /> },
+          { key: "praise", label: "Praise and concerns", count: praise.length, content: <PraiseList entries={praise} canEdit={canEdit} {...dialog} /> },
           { key: "videos", label: "Videos", count: videos.length, content: <VideoTable rows={videos} types={kinds.map((k) => k.name)} canEdit={canEdit} /> },
           {
             key: "history",
@@ -160,24 +170,23 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
             content: (
               <div className="overflow-hidden rounded-2xl border border-border text-sm">
                 <div className={`${HISTORY_ROW} py-2.5 text-xs text-muted`}>
-                  <span>{{ day: "Day", week: "Week", month: "Month", range: "Week" }[period.kind]}</span>
+                  <span>{unit}</span>
+                  <span>Grade</span>
                   <span className="text-right">Total</span>
                   <span className="text-right">Quantity</span>
                   <span className="text-right">Quality</span>
-                  <span className="text-right">Feedback</span>
+                  <span className="hidden text-right sm:block">Rating</span>
                   <span className="hidden text-right sm:block">Videos</span>
                   <span className="hidden text-right sm:block">Mistakes</span>
                 </div>
                 {[...history].reverse().map((h) => (
                   <div key={h.from} className={`${HISTORY_ROW} border-t border-border/50 py-2.5`}>
                     <span className="truncate">{h.label}</span>
-                    <span className="text-right font-medium tabular-nums">
-                      {h.k.total ?? "–"}
-                      {h.k.total !== null && <span className="text-xs font-normal text-muted"> /{h.k.max}</span>}
-                    </span>
+                    <GradeBadge grade={h.k.grade} size="sm" />
+                    <span className="text-right font-medium tabular-nums">{h.k.total ?? "–"}</span>
                     <span className="text-right tabular-nums">{h.k.quantity ?? "–"}</span>
                     <span className="text-right tabular-nums">{h.k.quality ?? "–"}</span>
-                    <span className="text-right tabular-nums">{h.k.feedback ?? "–"}</span>
+                    <span className="hidden text-right tabular-nums sm:block">{h.k.rating ?? "–"}</span>
                     <span className="hidden text-right tabular-nums sm:block">{h.k.completed}</span>
                     <span className="hidden text-right tabular-nums sm:block">
                       {h.k.mistakes}
@@ -188,7 +197,6 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
               </div>
             ),
           },
-          ...(canEdit ? [{ key: "leave", label: "Leave", count: leave.length, content: <LeavePanel editorId={id} days={leave} today={today} /> }] : []),
         ]}
       />
     </div>

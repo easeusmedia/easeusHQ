@@ -6,7 +6,6 @@ import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { ENTRY_KINDS } from "@/lib/editorKpi";
-import { loadScoring } from "../performance/data";
 import type { WorkTaskStatus } from "@prisma/client";
 import { moveTask } from "../actions";
 import { moveWorkTask } from "../my-tasks/actions";
@@ -130,23 +129,26 @@ export async function prepare(input: { action?: string; ref?: string; changes?: 
       const p = await findPerson(ref);
       if (!("id" in p)) return p.none ? "No one by that name." : `Who? ${p.options.join(", ")}`;
       const kind = str(c.kind) || "mistake";
-      if (!["mistake", "positive", "negative"].includes(kind)) return "Kind is mistake, positive or negative.";
+      if (!["mistake", "positive", "negative", "guidance"].includes(kind)) return "Kind is mistake, positive, negative or guidance.";
       const body = str(c.body);
       if (!body) return "Say what the feedback is.";
       const day = isDay(c.day) ? str(c.day) : indiaDay(new Date());
       const mistake = kind === "mistake";
-      const names = (await prisma.feedbackCategory.findMany({ select: { name: true } })).map((x) => x.name);
-      const category = mistake ? (names.find((m) => m.toLowerCase() === str(c.category).toLowerCase()) ?? "Others") : str(c.category) || null;
-      const scoring = await loadScoring();
+      const scored = kind === "positive" || kind === "negative";
+      const types = await prisma.feedbackCategory.findMany({ where: { group: mistake ? "mistake" : "feedback" }, select: { name: true } });
+      const named = types.find((m) => m.name.toLowerCase() === str(c.category).toLowerCase())?.name;
+      const category = mistake ? (named ?? "Others") : scored ? (named ?? null) : null;
       const asked = Number(c.points);
-      const points = mistake ? null : Number.isFinite(asked) && asked > 0 && asked <= 5 ? asked : kind === "positive" ? scoring.praisePoints : scoring.concernPoints;
+      // praise and concerns always carry the points given; nothing is assumed
+      if (scored && !(Number.isFinite(asked) && asked > 0 && asked <= 10)) return `Say how many points it ${kind === "positive" ? "adds" : "takes off"}.`;
+      const points = scored ? asked : null;
       return {
         action: "feedback",
         target: "person",
         targetId: p.id,
         title: `Feedback for ${p.name}`,
         lines: [
-          { field: "Kind", from: "", to: mistake ? `A mistake · ${category}` : `${ENTRY_KINDS[kind as keyof typeof ENTRY_KINDS]}${category ? ` · ${category}` : ""} · ${kind === "positive" ? "+" : "−"}${points}` },
+          { field: "Kind", from: "", to: mistake ? `A mistake · ${category}` : `${ENTRY_KINDS[kind as keyof typeof ENTRY_KINDS]}${category ? ` · ${category}` : ""}${scored ? ` · ${kind === "positive" ? "+" : "−"}${points}` : ""}` },
           { field: "Day", from: "", to: day },
           { field: "What", from: "", to: body },
         ],

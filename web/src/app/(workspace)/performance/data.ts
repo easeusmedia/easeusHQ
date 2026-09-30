@@ -3,7 +3,7 @@ import { handoffUnknown } from "@/lib/due";
 import { displayTeam } from "@/lib/teams";
 import { LIVE_TASK } from "@/lib/workflow";
 import { parseStageChange } from "@/lib/stages";
-import { addDays, dayOf, repeats, REPEAT_DAYS, SCORING_KEY, scorePeriod, videoFacts, withScoringDefaults, workingDaysIn, type Kpis, type Scoring } from "@/lib/editorKpi";
+import { addDays, averageWeeks, dayOf, repeats, REPEAT_DAYS, SCORING_KEY, scorePeriod, videoFacts, weekChunks, withScoringDefaults, workingDaysIn, type Kpis, type Scoring } from "@/lib/editorKpi";
 
 export async function loadScoring(): Promise<Scoring> {
   const row = await prisma.appSetting.findUnique({ where: { key: SCORING_KEY } });
@@ -14,6 +14,7 @@ export async function loadScoring(): Promise<Scoring> {
   }
 }
 
+// mistake types and feedback types, each with what it means
 export async function loadCategories() {
   return prisma.feedbackCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
 }
@@ -43,6 +44,10 @@ export type FeedbackRow = {
   at: string;
   taskId: string | null;
   taskTitle: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  projectId: string | null;
+  projectName: string | null;
   fromClient: boolean;
   source: string;
   by: string | null;
@@ -58,7 +63,7 @@ export type FeedbackRow = {
 // Everything the Performance pages score, for the editors (or one of them)
 // from `from` up to today: what they completed, each video's stage
 // history, the feedback on their work (with which of it repeats an earlier
-// mistake), core's own feedback, and their leave.
+// mistake), and core's praise, concerns and feedback.
 export async function loadPerformance({ from, editorId }: { from: string; editorId?: string }) {
   const editors = await loadEditors(editorId);
   const ids = editors.map((e) => e.id);
@@ -66,7 +71,7 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
   // far enough back to tell whether the first mistakes in view repeat older ones
   const lookback = startOf(addDays(from, -REPEAT_DAYS));
 
-  const [scoring, categories, tasks, entries, leave, open, firsts] = await Promise.all([
+  const [scoring, categories, tasks, entries, open, firsts] = await Promise.all([
     loadScoring(),
     loadCategories(),
     // updatedAt only moves forward, so this catches everything completed since `from`
@@ -99,6 +104,10 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
         points: true,
         at: true,
         taskId: true,
+        clientId: true,
+        projectId: true,
+        client: { select: { name: true } },
+        project: { select: { name: true, type: true } },
         fromClient: true,
         source: true,
         by: true,
@@ -109,7 +118,6 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
       },
       orderBy: { at: "desc" },
     }),
-    prisma.leaveDay.findMany({ where: { editorId: { in: ids } }, orderBy: { day: "desc" } }),
     prisma.task.findMany({
       where: { assignedToId: { in: ids }, ...LIVE_TASK },
       select: { id: true, title: true, assignedToId: true, dueDate: true, handedOffAt: true },
@@ -128,8 +136,6 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
     const move = parseStageChange(l.action);
     if (move) movesOf.set(l.entityId, [...(movesOf.get(l.entityId) ?? []), { at: l.createdAt, from: move.from, to: move.to }]);
   }
-  const leaveOf = new Map<string, Set<string>>();
-  for (const l of leave) leaveOf.set(l.editorId, new Set([...(leaveOf.get(l.editorId) ?? []), l.day]));
   const trackedFrom = new Map(firsts.map((f) => [f.assignedToId!, f._min.createdAt ? dayOf(f._min.createdAt) : null]));
 
   const videos = tasks.map((t) => {
@@ -151,8 +157,7 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
           tags: t.tags.map((x) => x.name),
           moves,
         },
-        scoring,
-        leaveOf.get(t.assignedToId!) ?? new Set()
+        scoring
       ),
       editorId: t.assignedToId!,
       project: t.project.name || t.project.type,
@@ -160,15 +165,16 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
     };
   });
 
-  // which feedback points repeat an earlier mistake, editor by editor, in
-  // the categories where a repeat counts
-  const repeatable = new Set(categories.filter((c) => c.repeats).map((c) => c.name));
+  // which mistakes repeat an earlier one, editor by editor, in the types
+  // where a repeat counts
+  const mistakeTypes = categories.filter((c) => c.group === "mistake");
+  const repeatable = new Set(mistakeTypes.filter((c) => c.repeats).map((c) => c.name));
   const repeated = new Set<string>();
   for (const id of ids) {
     const mine = entries.filter((e) => e.editorId === id && e.kind === "mistake" && repeatable.has(e.category ?? "Others"));
     for (const r of repeats(mine.map((e) => ({ id: e.id, category: e.category ?? "Others", taskId: e.taskId, at: e.at })))) repeated.add(r);
   }
-  const weightOf = new Map(categories.map((c) => [c.name, c.weight]));
+  const weightOf = new Map(mistakeTypes.map((c) => [c.name, c.weight]));
   const feedback: FeedbackRow[] = entries
     .filter((e) => e.at >= since)
     .map((e) => ({
@@ -183,6 +189,10 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
       at: e.at.toISOString(),
       taskId: e.taskId,
       taskTitle: e.task?.title ?? null,
+      clientId: e.clientId,
+      clientName: e.client?.name ?? null,
+      projectId: e.projectId,
+      projectName: e.project ? e.project.name || e.project.type : null,
       fromClient: e.fromClient,
       source: e.source,
       by: e.by ?? e.loggedBy?.name ?? null,
@@ -195,10 +205,10 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
   const today = dayOf(new Date());
 
   // One editor's (or, with no one given, the team's) stretch of days,
-  // scored. Their leave comes off the working days the output target
-  // counts, which start when their work started being tracked here; a
-  // stretch running to today counts today for the share gone.
-  const score = (from: string, to: string, who?: string): Kpis => {
+  // scored as one: the working days the output target counts start when
+  // their work started being tracked here; a stretch running to today
+  // counts today for the share gone.
+  const scoreAsOne = (from: string, to: string, who?: string): Kpis => {
     const mine = (id: string) => !who || id === who;
     const now = to >= today ? new Date() : undefined;
     return scorePeriod(
@@ -211,14 +221,22 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
           .filter((p) => mine(p.id))
           .reduce((n, p) => {
             const tracked = trackedFrom.get(p.id);
-            return tracked && tracked <= to ? n + workingDaysIn(tracked > from ? tracked : from, to, scoring, leaveOf.get(p.id) ?? new Set(), now) : n;
+            return tracked && tracked <= to ? n + workingDaysIn(tracked > from ? tracked : from, to, scoring, now) : n;
           }, 0),
       },
       scoring
     );
   };
 
-  return { editors, scoring, categories, today, videos, feedback, leave, open, score };
+  // Scored week by week: a day or a week as it is, anything longer the
+  // average of its weeks, with the counts from all of it.
+  const score = (from: string, to: string, who?: string): Kpis => {
+    const whole = scoreAsOne(from, to, who);
+    const weeks = weekChunks(from, to);
+    return weeks.length > 1 ? averageWeeks(whole, weeks.map((w) => scoreAsOne(w.from, w.to, who)), scoring) : whole;
+  };
+
+  return { editors, scoring, categories, mistakeTypes, today, videos, feedback, open, score };
 }
 
 export type PerformanceData = Awaited<ReturnType<typeof loadPerformance>>;

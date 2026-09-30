@@ -17,9 +17,10 @@ const done = () => revalidatePath("/performance", "layout");
 
 // ---------- scoring ----------
 
-// How the score is worked out: the working week, reels a day, each type's
-// standard and what it counts for, how Quantity splits, what a mistake,
-// revision and repeat cost Quality, and where Feedback starts. Admin only.
+// How the score is worked out: the 10 points metric by metric, the grades,
+// the working week, reels a day, each type's standard and what it counts
+// for, what a mistake, revision and repeat cost Quality, and where Rating
+// starts. Admin only.
 export async function saveScoring(input: Scoring): Promise<Result> {
   const id = await getSessionUserId();
   const me = id ? await prisma.user.findUnique({ where: { id }, select: { role: true, email: true } }) : null;
@@ -27,20 +28,27 @@ export async function saveScoring(input: Scoring): Promise<Result> {
 
   const s = withScoringDefaults({});
   const checks: [keyof Scoring, number, number][] = [
+    ["outputPoints", 0, 10],
+    ["speedPoints", 0, 10],
+    ["qualityPoints", 0, 10],
+    ["ratingPoints", 0, 10],
     ["reelsPerDay", 0.1, 50],
-    ["volumePoints", 0, 5],
-    ["mistakePoints", 0, 5],
+    ["mistakePoints", 0, 10],
     ["revisionWeight", 0, 10],
     ["repeatWeight", 1, 10],
-    ["feedbackStart", 0, 5],
-    ["praisePoints", 0, 5],
-    ["concernPoints", 0, 5],
+    ["ratingStart", 0, 10],
+    ["praisePoints", 0, 10],
   ];
   for (const [key, min, max] of checks) {
     const n = num(input[key], min, max);
     if (n === null) return { error: "One of those numbers isn't sensible." };
     (s as Record<string, unknown>)[key] = n;
   }
+  if (Math.abs(s.outputPoints + s.speedPoints + s.qualityPoints + s.ratingPoints - 10) > 0.01) return { error: "The four metrics should add up to 10 points." };
+  if (s.ratingStart > s.ratingPoints) return { error: "Rating can't start above its own points." };
+  const grades = (["A+", "A", "B", "C"] as const).map((g) => num(input.grades?.[g], 0, 10));
+  if (grades.some((g) => g === null) || grades.some((g, i) => i > 0 && g! >= grades[i - 1]!)) return { error: "Each grade needs a lower score than the one above it." };
+  s.grades = { "A+": grades[0]!, A: grades[1]!, B: grades[2]!, C: grades[3]! };
   const days = [...new Set((input.workDays ?? []).map(Number))].filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).sort();
   if (!days.length) return { error: "Pick at least one working day." };
   s.workDays = days;
@@ -58,59 +66,62 @@ export async function saveScoring(input: Scoring): Promise<Result> {
   return {};
 }
 
-// ---------- categories ----------
+// ---------- mistake types and feedback types ----------
 
-type CategoryInput = { name: string; weight: number; keywords: string; repeats: boolean };
+type CategoryInput = { name: string; group: string; description: string; weight: number; keywords: string; repeats: boolean };
 const cleanCategory = (input: CategoryInput) => {
   const name = input.name.trim();
-  if (!name) return { error: "Give the category a name." };
-  const weight = num(input.weight, 0, 5);
-  if (weight === null) return { error: "A category counts between 0 and 5 mistakes." };
+  if (!name) return { error: "Give it a name." };
+  const group = input.group === "feedback" ? "feedback" : "mistake";
+  const weight = group === "mistake" ? num(input.weight, 0, 5) : 0;
+  if (weight === null) return { error: "A mistake type counts between 0 and 5 mistakes." };
   const keywords = input.keywords
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean)
     .join(", ");
-  return { data: { name, weight, keywords: keywords || null, repeats: !!input.repeats } };
+  return { data: { name, group, description: input.description.trim() || null, weight, keywords: group === "mistake" ? keywords || null : null, repeats: group === "mistake" && !!input.repeats } };
 };
 
-// A kind of feedback, for sorting Frame.io comments into. Core only.
+// A kind of mistake (for sorting Frame.io comments into) or of feedback
+// (what praise and concerns are about). Core only.
 export async function addCategory(input: CategoryInput): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change the categories." };
+  if (!(await requireOps())) return { error: "Only core members can change the types." };
   const c = cleanCategory(input);
   if ("error" in c) return c;
-  if (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } })) return { error: "There's already a category with that name." };
+  if (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } })) return { error: "There's already a type with that name." };
   const last = await prisma.feedbackCategory.aggregate({ _max: { sortOrder: true } });
   await prisma.feedbackCategory.create({ data: { ...c.data, sortOrder: (last._max.sortOrder ?? 0) + 1 } });
   done();
   return {};
 }
 
-// Renaming carries every feedback point in it along.
+// Renaming carries everything filed under it along.
 export async function updateCategory(id: string, input: CategoryInput): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change the categories." };
-  const c = cleanCategory(input);
-  if ("error" in c) return c;
+  if (!(await requireOps())) return { error: "Only core members can change the types." };
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
-  if (!before) return { error: "That category is gone." };
+  if (!before) return { error: "That type is gone." };
+  const c = cleanCategory({ ...input, group: before.group });
+  if ("error" in c) return c;
   if (before.name === "Others" && c.data.name !== "Others") return { error: "Others stays: it's where anything unsorted goes." };
-  if (c.data.name !== before.name && (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } }))) return { error: "There's already a category with that name." };
+  if (c.data.name !== before.name && (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } }))) return { error: "There's already a type with that name." };
   await prisma.$transaction([
     prisma.feedbackCategory.update({ where: { id }, data: c.data }),
-    prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: c.data.name } }),
+    prisma.performanceEntry.updateMany({ where: { category: before.name }, data: { category: c.data.name } }),
   ]);
   done();
   return {};
 }
 
-// Its feedback points move to Others.
+// A mistake type's mistakes move to Others; feedback about a feedback type
+// keeps its points and loses the type.
 export async function deleteCategory(id: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change the categories." };
+  if (!(await requireOps())) return { error: "Only core members can change the types." };
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
   if (!before) return {};
   if (before.name === "Others") return { error: "Others stays: it's where anything unsorted goes." };
   await prisma.$transaction([
-    prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: "Others" } }),
+    prisma.performanceEntry.updateMany({ where: { category: before.name }, data: { category: before.group === "mistake" ? "Others" : null } }),
     prisma.feedbackCategory.delete({ where: { id } }),
   ]);
   done();
@@ -119,15 +130,16 @@ export async function deleteCategory(id: string): Promise<Result> {
 
 // ---------- feedback ----------
 
-// A Frame.io comment re-sorted by hand: into a category, or out of the
-// score as praise or not feedback at all.
+// A Frame.io comment re-sorted by hand: into a mistake type, or out of
+// Quality as praise (worth the Frame.io praise points), feedback (never
+// scored) or not feedback at all.
 export async function sortEntry(id: string, to: string): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can re-sort feedback." };
-  if (to === "praise" || to === "note") {
-    await prisma.performanceEntry.update({ where: { id }, data: { kind: to, category: null, reviewed: true } });
+  if (to === "positive" || to === "guidance" || to === "note") {
+    await prisma.performanceEntry.update({ where: { id }, data: { kind: to, category: null, points: null, count: 1, reviewed: true } });
   } else {
-    if (!(await prisma.feedbackCategory.findUnique({ where: { name: to } }))) return { error: "That category doesn't exist." };
-    await prisma.performanceEntry.update({ where: { id }, data: { kind: "mistake", category: to, reviewed: true } });
+    if (!(await prisma.feedbackCategory.findFirst({ where: { name: to, group: "mistake" } }))) return { error: "That mistake type doesn't exist." };
+    await prisma.performanceEntry.update({ where: { id }, data: { kind: "mistake", category: to, points: null, reviewed: true } });
   }
   done();
   return {};
@@ -148,55 +160,69 @@ export async function sortWithAi(ids: string[]): Promise<Result> {
 
 export type EntryInput = {
   editorId: string;
-  // mistake (a feedback point on the work), or core's own: positive | negative
+  // mistake | positive (praise) | negative (a concern) | guidance (feedback,
+  // never scored) | note (not feedback at all)
   kind: string;
-  // a mistake's category; for positive or negative, what it's about
+  // a mistake's type, or the feedback type praise or a concern is about
   category: string;
   body: string;
   count: number;
-  points: number;
+  // praise and concerns: how many points they add or take off, required
+  points: number | null;
   day: string; // yyyy-mm-dd
   taskId: string;
+  clientId: string;
+  projectId: string;
 };
 
-function clean(input: EntryInput) {
-  if (!["mistake", "positive", "negative"].includes(input.kind)) return { error: "Pick what kind of feedback this is." };
+async function clean(input: EntryInput, frameioPraise = false) {
+  if (!["mistake", "positive", "negative", "guidance", "note"].includes(input.kind)) return { error: "Pick what kind of feedback this is." };
   const body = input.body.trim();
   if (!body) return { error: "Write what it was about." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day)) return { error: "Pick the day it happened." };
   const mistake = input.kind === "mistake";
+  const scored = input.kind === "positive" || input.kind === "negative";
   const count = Math.round(Number(input.count));
   if (mistake && (!Number.isFinite(count) || count < 1 || count > 99)) return { error: "Times should be between 1 and 99." };
-  const points = num(input.points, 0.1, 5);
-  if (!mistake && points === null) return { error: "Points should be between 0.1 and 5." };
+  // Frame.io praise can stay at the usual amount; anything else needs its points
+  const usual = frameioPraise && input.kind === "positive" && input.points === null;
+  const points = scored && !usual ? num(input.points, 0.1, 10) : null;
+  if (scored && !usual && points === null) return { error: `Give it points: how much it ${input.kind === "positive" ? "adds" : "takes off"}.` };
+  const project = input.projectId ? await prisma.project.findUnique({ where: { id: input.projectId }, select: { clientId: true } }) : null;
+  if (input.projectId && !project) return { error: "That project is gone." };
   return {
     data: {
       kind: input.kind,
-      category: input.category.trim() || (mistake ? "Others" : null),
+      category: mistake ? input.category.trim() || "Others" : scored ? input.category.trim() || null : null,
       body,
       count: mistake ? count : 1,
-      points: mistake ? null : points,
+      points: scored ? points : null,
       // midday in India, so the day never slips either way
       at: new Date(`${input.day}T12:00:00+05:30`),
       taskId: input.taskId || null,
+      clientId: project?.clientId ?? (input.clientId || null),
+      projectId: input.projectId || null,
     },
   };
 }
 
-// Written in by core: a mistake on the work, praise, or negative feedback.
+// Written in by core: a mistake, praise, a concern, or feedback.
 export async function logEntry(input: EntryInput): Promise<Result> {
   const me = await requireOps();
   if (!me) return { error: "Only core members can add feedback." };
-  const c = clean(input);
+  const c = await clean(input);
   if ("error" in c) return c;
   await prisma.performanceEntry.create({ data: { ...c.data, editorId: input.editorId, source: "manual", by: me.name, loggedById: me.id, reviewed: true } });
   done();
   return {};
 }
 
+// Anything can be put right, whether it came from Frame.io, Notion or a person.
 export async function updateEntry(id: string, input: EntryInput): Promise<Result> {
   if (!(await requireOps())) return { error: "Only core members can change feedback." };
-  const c = clean(input);
+  const before = await prisma.performanceEntry.findUnique({ where: { id }, select: { source: true } });
+  if (!before) return { error: "That feedback is gone." };
+  const c = await clean(input, before.source === "frameio");
   if ("error" in c) return c;
   await prisma.performanceEntry.update({ where: { id }, data: { ...c.data, reviewed: true } });
   done();
@@ -222,7 +248,7 @@ export async function syncFeedback(): Promise<Result & { added?: number; mistake
   }
 }
 
-// ---------- videos and leave ----------
+// ---------- videos ----------
 
 // A video left out of (or put back into) the editor's numbers.
 export async function setTaskExcluded(taskId: string, excluded: boolean): Promise<Result> {
@@ -246,26 +272,6 @@ export async function setTaskType(taskId: string, type: string): Promise<Result>
   // keep updatedAt where it was: History and these numbers read it as when
   // the work last moved
   await prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${before.updatedAt} WHERE id = ${taskId}`;
-  done();
-  return {};
-}
-
-// A day an editor was away, so it doesn't count against their output.
-export async function addLeave(editorId: string, day: string, note: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can record leave." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Pick a day." };
-  await prisma.leaveDay.upsert({
-    where: { editorId_day: { editorId, day } },
-    create: { editorId, day, note: note.trim() || null },
-    update: { note: note.trim() || null },
-  });
-  done();
-  return {};
-}
-
-export async function removeLeave(id: string): Promise<Result> {
-  if (!(await requireOps())) return { error: "Only core members can change leave." };
-  await prisma.leaveDay.delete({ where: { id } });
   done();
   return {};
 }

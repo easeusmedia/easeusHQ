@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   // A read with its relations (a client with its tags and projects) as one
   // SQL query rather than one per relation — each round trip to the
   // database is ~14ms from the server, so this is most of a page's wait.
@@ -47,10 +47,10 @@ enum EmploymentStatus {
 // own team's work and nobody else's, and task tags belong to a team so
 // Sales never has to scroll past "Colour correction".
 model Team {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  slug      String    @unique
-  sortOrder Int       @default(0)
+  id        String     @id @default(uuid())
+  name      String     @unique
+  slug      String     @unique
+  sortOrder Int        @default(0)
   members   User[]
   taskTags  TaskTag[]
   jobTitles JobTitle[]
@@ -183,23 +183,22 @@ model User {
   emergencyContact   String?
   notes              String?          @db.Text
 
-  tasksAssigned     Task[]        @relation("AssignedTasks")
-  tasksReviewed     Task[]        @relation("ReviewedTasks")
-  workTasksCreated  WorkTask[]    @relation("WorkTasksCreated")
-  workTasksAssigned WorkTask[]    @relation("WorkTasksAssigned")
+  tasksAssigned     Task[]             @relation("AssignedTasks")
+  tasksReviewed     Task[]             @relation("ReviewedTasks")
+  workTasksCreated  WorkTask[]         @relation("WorkTasksCreated")
+  workTasksAssigned WorkTask[]         @relation("WorkTasksAssigned")
   feedback          Feedback[]
   kpiSnapshots      KpiSnapshot[]
   activity          ActivityLog[]
   clientInvites     ClientInvite[]
-  messagesSent      Message[]     @relation("MessagesSent")
-  messagesReceived  Message[]     @relation("MessagesReceived")
+  messagesSent      Message[]          @relation("MessagesSent")
+  messagesReceived  Message[]          @relation("MessagesReceived")
   performance       PerformanceEntry[] @relation("PerformanceAbout")
   performanceLogged PerformanceEntry[] @relation("PerformanceLogged")
-  leaveDays         LeaveDay[]
   salaryPayments    SalaryPayment[]
   // the clients an editor (role employee) has been given: the only ones
   // they see, and only their own work on each
-  visibleClients    Client[]      @relation("ClientEditors")
+  visibleClients    Client[]           @relation("ClientEditors")
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -260,9 +259,10 @@ model Client {
   // anything ops needs to remember about working with this client
   notes            String? @db.Text
 
-  tags      Tag[]
-  invites   ClientInvite[]
-  documents ClientDocument[]
+  tags           Tag[]
+  invites        ClientInvite[]
+  documents      ClientDocument[]
+  editorFeedback PerformanceEntry[]
 
   // set only for clients pulled in by the Notion clients sync — same
   // idempotency trick as Task.notionPageId
@@ -312,12 +312,12 @@ model Client {
   // as filled in on the onboarding form
   socialLinks Json?
 
-  projects     Project[]
-  feedback     ClientFeedback[]
-  invoices     Invoice[]
-  deliverables Deliverable[]
-  onboarding   OnboardingStep[]
-  content      ContentItem[]
+  projects       Project[]
+  feedback       ClientFeedback[]
+  invoices       Invoice[]
+  deliverables   Deliverable[]
+  onboarding     OnboardingStep[]
+  content        ContentItem[]
   socialAccounts SocialAccount[]
 }
 
@@ -394,7 +394,6 @@ model ScrapeRun {
   doneAt    DateTime?
 }
 
-
 // The one shape every client gets, held as data so ops can change it
 // without a deploy. Exactly one row (id "default") — Notion enforced this
 // same structure by habit and a written SOP; here, creating a client
@@ -463,14 +462,14 @@ model Tag {
 // correction, channel management). It's the default for a task tagged this
 // way, not a hard rule — Task.internal is what each task actually goes by.
 model TaskTag {
-  id           String     @id @default(uuid())
-  name         String     @unique
-  clientFacing Boolean    @default(true)
-  sortOrder    Int        @default(0)
+  id           String         @id @default(uuid())
+  name         String         @unique
+  clientFacing Boolean        @default(true)
+  sortOrder    Int            @default(0)
   // Which side of the agency this kind of work belongs to. Sales shouldn't
   // have to pick past "Colour correction" and Operations shouldn't see
   // "Cold outreach". null means shared by everyone.
-  team         Team?      @relation(fields: [teamId], references: [id])
+  team         Team?          @relation(fields: [teamId], references: [id])
   teamId       String?
   tasks        Task[]
   workTasks    WorkTask[]
@@ -527,10 +526,11 @@ model Project {
   notionPageId  String?        @unique
   createdAt     DateTime       @default(now())
 
-  tasks     Task[]
-  invoices  Invoice[]
-  assets    ProjectAsset[]
-  workTasks WorkTask[]
+  tasks          Task[]
+  invoices       Invoice[]
+  assets         ProjectAsset[]
+  workTasks      WorkTask[]
+  editorFeedback PerformanceEntry[]
 }
 
 model Task {
@@ -575,13 +575,13 @@ model Task {
   // approved work gets a Drive link once the team uploads it there (output)
   frameioLink   String?
   driveLink     String?
-  reviewedBy    User?   @relation("ReviewedTasks", fields: [reviewedById], references: [id])
+  reviewedBy    User?     @relation("ReviewedTasks", fields: [reviewedById], references: [id])
   reviewedById  String?
   reviewNotes   String?
   // how many times ops has sent this back for revision — incremented on
   // every transition into revision_requested, never reset; a quick signal
   // for "this one's eaten a lot of back-and-forth"
-  revisionCount Int     @default(0)
+  revisionCount Int       @default(0)
   // The first time this task reached the client (or went past that point —
   // internal work skips straight to export). Set once and never moved: the
   // due date is the editor's deadline for exactly this, so a client
@@ -613,11 +613,11 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt // last status change — the basis for editor history/turnaround KPIs
 
-  feedback Feedback[]
+  feedback    Feedback[]
   performance PerformanceEntry[]
   // left out of the editor's numbers: reassigned mid-way, a test, anything
   // ops decides shouldn't count for or against them
-  kpiExcluded Boolean @default(false)
+  kpiExcluded Boolean            @default(false)
 }
 
 // A personal/team work item — see the WorkTaskStatus comment above for how
@@ -656,7 +656,7 @@ model WorkTask {
   // The row mirroring this task in Notion's Editing Queue, when it has one.
   // Work tasks only ever push up — they're born here, so there's no
   // pull-down direction to conflict with.
-  notionPageId String?
+  notionPageId     String?
   // which Notion database that page is in (a workbook, or the Editing
   // Queue): when the task is handed to someone else, a page in the wrong
   // person's Notion is taken out rather than updated in place
@@ -771,44 +771,53 @@ model SalaryPayment {
 // Some arrive on their own (Frame.io review comments, sorted by Claude; the
 // old Notion log), the rest ops writes in, and every one can be corrected.
 model PerformanceEntry {
-  id          String   @id @default(uuid())
-  editor      User     @relation("PerformanceAbout", fields: [editorId], references: [id], onDelete: Cascade)
-  editorId    String
-  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  taskId      String?
-  // mistake (a feedback point on the work, counted in Quality by its
-  // category), praise | note (from Frame.io, shown, not scored),
-  // positive | negative (core's own feedback, counted in the Feedback score)
-  kind        String
+  id            String            @id @default(uuid())
+  editor        User              @relation("PerformanceAbout", fields: [editorId], references: [id], onDelete: Cascade)
+  editorId      String
+  task          Task?             @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId        String?
+  // what it's about, if anything in particular: a client, a project
+  client        Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientId      String?
+  project       Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId     String?
+  // mistake: a point on the work, counted against Quality by its category
+  // positive | negative: praise or a concern, adding or taking its points
+  //   off Appraisal (always has points, except Frame.io praise, which is
+  //   worth the scoring's "Frame.io praise" amount)
+  // guidance: feedback to help them grow, from Frame.io comments that say
+  //   "feedback", or core's own; never scored
+  // note: not feedback at all (a question, a fragment); not scored
+  kind          String
   // a mistake's kind: Typos, Subtitles, Sound…
-  category    String?
-  body        String   @db.Text
+  category      String?
+  body          String            @db.Text
   // how many times it happened (the Notion log counted a mistake per week)
-  count       Int      @default(1)
+  count         Int               @default(1)
   // for positive or negative feedback: how many points it adds or takes off
-  points      Float?
+  points        Float?
   // where a Frame.io comment was left: the cut's file and the frame, for
   // its snapshot
   frameioFileId String?
   frame         Int?
   snapshot      FeedbackSnapshot?
-  at          DateTime
+  at            DateTime
   // manual | frameio | notion, and the id there, so a sync never repeats one
-  source      String   @default("manual")
-  sourceId    String?  @unique
+  source        String            @default("manual")
+  sourceId      String?           @unique
   // who said it: the reviewer on Frame.io, or whoever wrote it here
-  by          String?
-  fromClient  Boolean  @default(false)
+  by            String?
+  fromClient    Boolean           @default(false)
   // an automatic entry that someone has looked over or corrected
-  reviewed    Boolean  @default(false)
+  reviewed      Boolean           @default(false)
   // dealt with: for a Frame.io comment, when the editor ticked it done
   // there (read back on every sync); for anything else, when core marked
   // it so. Null = still open.
-  resolvedAt  DateTime?
-  loggedBy    User?    @relation("PerformanceLogged", fields: [loggedById], references: [id])
-  loggedById  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  resolvedAt    DateTime?
+  loggedBy      User?             @relation("PerformanceLogged", fields: [loggedById], references: [id])
+  loggedById    String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([editorId, at])
 }
@@ -828,13 +837,13 @@ model ActivityLog {
 // permission, it works until it's used, and ops can see who has filled
 // theirs in. Submitting one creates — or completes — the client's record.
 model ClientInvite {
-  id    String @id @default(uuid())
-  token String @unique
+  id    String  @id @default(uuid())
+  token String  @unique
   // what ops called them when the link was made, before the client says
   // what they'd rather be called
   name  String?
 
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User     @relation(fields: [createdById], references: [id])
   createdById String
   createdAt   DateTime @default(now())
 
@@ -938,16 +947,22 @@ model AiUsage {
 // counts against Quality: 1 a full mistake, 0.5 half, 0 recorded but not
 // counted. keywords: words or phrases, comma-separated, that put a comment
 // here.
+//
+// group: mistake (what Frame.io comments are sorted into, counted against
+// Quality) or feedback (what praise and concerns are about: Communication,
+// Deadlines…). description: what it means, shown behind the (i) beside it.
 model FeedbackCategory {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  weight    Float    @default(1)
+  id          String   @id @default(uuid())
+  name        String   @unique
+  group       String   @default("mistake")
+  description String?
+  weight      Float    @default(1)
   // whether the same kind again, on another video, counts as a repeat
   // (a typo again, yes; another creative note, usually not)
-  repeats   Boolean  @default(true)
-  keywords  String?
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  repeats     Boolean  @default(true)
+  keywords    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
 }
 
 // A small picture of the frame a Frame.io comment was left on, so the
@@ -958,18 +973,4 @@ model FeedbackSnapshot {
   entryId   String           @id
   image     Bytes
   createdAt DateTime         @default(now())
-}
-
-// A day an editor was away (leave, a holiday), so it isn't counted against
-// their output. Core records it.
-model LeaveDay {
-  id        String   @id @default(uuid())
-  editor    User     @relation(fields: [editorId], references: [id], onDelete: Cascade)
-  editorId  String
-  // yyyy-mm-dd, a day in India
-  day       String
-  note      String?
-  createdAt DateTime @default(now())
-
-  @@unique([editorId, day])
 }
