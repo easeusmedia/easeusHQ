@@ -40,3 +40,20 @@ export function gmailConsentUrl(clientId: string, origin: string) {
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
+
+// easeus.media@gmail.com's calendar: reading its meetings for Home, and
+// adding the ones made there (with a Meet link and invites). Events only,
+// never the calendar's settings or sharing.
+export function calendarConsentUrl(clientId: string, origin: string) {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri(origin),
+    response_type: "code",
+    access_type: "offline",
+    prompt: "consent",
+    scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email",
+    login_hint: "easeus.media@gmail.com",
+    state: "calendar",
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+}

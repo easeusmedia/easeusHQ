@@ -4,6 +4,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, ensureAppFolder, exchangeCode, saveDriveSettings } from "@/lib/drive";
 import { GMAIL_SETTINGS } from "@/lib/gmail";
+import { CALENDAR_SETTINGS } from "@/lib/googleCalendar";
 
 // Where Google sends the admin back after they approve the Drive connection.
 // The code in the address is one-time and useless on its own; it's traded
@@ -26,6 +27,11 @@ export async function GET(request: Request) {
     if (url.searchParams.get("state") === "gmail") {
       await saveDriveSettings({ [GMAIL_SETTINGS.refreshToken]: refreshToken, [GMAIL_SETTINGS.account]: email });
       return NextResponse.redirect(new URL("/integrations?gmail=1", url.origin));
+    }
+    // the Calendar connection (Home's meetings), kept apart too
+    if (url.searchParams.get("state") === "calendar") {
+      await saveDriveSettings({ [CALENDAR_SETTINGS.refreshToken]: refreshToken, [CALENDAR_SETTINGS.account]: email });
+      return NextResponse.redirect(new URL("/integrations?calendar=1", url.origin));
     }
     await saveDriveSettings({ [DRIVE_SETTINGS.refreshToken]: refreshToken, [DRIVE_SETTINGS.account]: email });
     // and give it somewhere to put things, straight away

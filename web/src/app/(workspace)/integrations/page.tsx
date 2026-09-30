@@ -12,6 +12,8 @@ import { AnalyticsIntegration } from "./AnalyticsIntegration";
 import { apifyAccount, apifyTokens } from "@/lib/apify";
 import { ClaudeIntegration } from "./ClaudeIntegration";
 import { GmailIntegration } from "./GmailIntegration";
+import { CalendarIntegration } from "./CalendarIntegration";
+import { calendarAccount } from "@/lib/googleCalendar";
 import { gmailAccount } from "@/lib/gmail";
 import { claudeKey } from "@/lib/claude";
 import { AI_ADMIN_KEY, aiSpend } from "@/lib/ai";
@@ -84,6 +86,8 @@ export default async function IntegrationsPage({
       />
 
       <GmailIntegration account={await gmailAccount()} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
+
+      <CalendarIntegration account={await calendarAccount()} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 
       <AnalyticsIntegration apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })} />
 

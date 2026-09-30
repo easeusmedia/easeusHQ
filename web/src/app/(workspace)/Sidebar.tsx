@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
+import { House, SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
@@ -225,7 +225,13 @@ export function Sidebar({
 
   const groups = [
     // an editor sees their own numbers, read-only (the page takes them there)
-    { label: "Main", items: isEditor ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }] : MAIN },
+    {
+      label: "Main",
+      items: isEditor
+        ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
+        : // a Founder's overview of everything, first
+          [...(isFounder ? [{ href: "/home", label: "Home", hint: "Everything in motion, at a glance", Icon: House }] : []), ...MAIN],
+    },
     {
       label: "Manage",
       items: isOps

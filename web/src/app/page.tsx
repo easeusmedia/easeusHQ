@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { Clapperboard, Eye, FolderOpen, HardDrive, type LucideIcon } from "lucide-react";
 import { PublicShell } from "./PublicShell";
 
@@ -26,7 +27,9 @@ const FEATURES: { Icon: LucideIcon; tint: string; title: string; body: string }[
 // of any app that connects to a Google account: a homepage anyone can read,
 // not a login wall.
 export default async function Home() {
-  if (await getSessionUserId()) redirect("/board");
+  const id = await getSessionUserId();
+  // a Founder starts on Home; everyone else on the Board
+  if (id) redirect((await prisma.user.findUnique({ where: { id }, select: { role: true } }))?.role === "admin" ? "/home" : "/board");
 
   return (
     <PublicShell>

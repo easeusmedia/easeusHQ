@@ -11,6 +11,7 @@ import { APIFY_SETTINGS } from "@/lib/apify";
 import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
 import { AI_ADMIN_KEY, AI_BUDGET, readCostReport } from "@/lib/ai";
 import { GMAIL_SETTINGS } from "@/lib/gmail";
+import { CALENDAR_SETTINGS } from "@/lib/googleCalendar";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -218,6 +219,14 @@ export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
 export async function disconnectGmail(): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   await prisma.appSetting.deleteMany({ where: { key: { in: [GMAIL_SETTINGS.refreshToken, GMAIL_SETTINGS.account] } } });
+  revalidatePath("/integrations");
+  return {};
+}
+
+// Drops the Google Calendar connection Home reads meetings with
+export async function disconnectCalendar(): Promise<{ error?: string }> {
+  if (!(await requireAdmin())) return { error: "Only an admin can change this." };
+  await prisma.appSetting.deleteMany({ where: { key: { in: [CALENDAR_SETTINGS.refreshToken, CALENDAR_SETTINGS.account] } } });
   revalidatePath("/integrations");
   return {};
 }

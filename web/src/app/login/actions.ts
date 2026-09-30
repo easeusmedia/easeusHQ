@@ -19,5 +19,6 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (!onStaff(user)) return { error: "This account no longer has access. Please speak to your admin." };
 
   await createSession(user.id);
-  redirect("/board");
+  // a Founder starts on Home; everyone else on the Board
+  redirect(user.role === "admin" ? "/home" : "/board");
 }
