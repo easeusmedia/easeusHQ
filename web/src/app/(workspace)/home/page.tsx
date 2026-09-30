@@ -63,7 +63,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     try {
       meetings = await listMeetings(new Date(`${monday}T00:00:00+05:30`), new Date(`${addDays(monday, 7)}T00:00:00+05:30`));
     } catch (err) {
-      calendarError = err instanceof Error ? err.message : "Google Calendar didn't answer.";
+      const why = err instanceof Error ? err.message : "";
+      // Google's own wording names project numbers and console links; say what it means
+      calendarError = /has not been used|is disabled/i.test(why)
+        ? "Google Calendar is switched off for the app's Google project. Turn on the Google Calendar API in Google Cloud, then reload."
+        : /invalid_grant|refresh/i.test(why)
+          ? "The Google Calendar connection has expired. Connect it again from Integrations."
+          : "Google Calendar didn't answer. Try again in a minute.";
     }
   }
 

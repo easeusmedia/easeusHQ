@@ -350,7 +350,7 @@ export function HomeView({
         </div>
 
         <div className="flex min-w-0 flex-col gap-5">
-          <CalendarCard today={today} monday={monday} day={day} setDay={setDay} days={days} meetings={meetings} calendar={calendar} />
+          <CalendarCard today={today} monday={monday} day={days.includes(day) ? day : days.includes(today) ? today : monday} setDay={setDay} days={days} meetings={meetings} calendar={calendar} />
           <Notices notices={notices} />
         </div>
       </div>
