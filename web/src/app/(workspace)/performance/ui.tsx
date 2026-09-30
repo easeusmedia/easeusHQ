@@ -364,7 +364,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
     const input: EntryInput = {
       editorId,
       kind: f.kind === "feedback" ? (f.points > 0 ? "positive" : "negative") : f.kind,
-      category: f.kind === "feedback" || f.kind === "mistake" ? f.category : "",
+      category: f.kind === "note" ? "" : f.category,
       body: f.body,
       count: f.count,
       points: f.kind === "feedback" ? Math.abs(f.points) : null,
@@ -425,6 +425,9 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
             />
             <Dropdown pill={{ icon: <Tag size={12} className="text-amber-400" /> }} value={f.category} placeholder="About" onChange={(v) => set({ category: v })} options={[...clearable(f.category, "Nothing in particular"), ...types.map((c) => ({ value: c.name, label: c.name }))]} />
           </>
+        )}
+        {f.kind === "guidance" && (
+          <Dropdown pill={{ icon: <Tag size={12} className="text-amber-400" /> }} value={f.category} placeholder="About" onChange={(v) => set({ category: v })} options={[...clearable(f.category, "Nothing in particular"), ...types.map((c) => ({ value: c.name, label: c.name }))]} />
         )}
         {f.kind === "mistake" && (
           <>
@@ -662,22 +665,31 @@ export function MistakeList({ entries, canEdit, ...dialog }: ListProps) {
 export function FeedbackList({ entries, canEdit, ...dialog }: ListProps) {
   const { run, error } = useRun();
   const [filter, setFilter] = useState<"all" | "positive" | "negative" | "guidance">("all");
+  const [type, setType] = useState("");
   const [editing, setEditing] = useState<FeedbackView | null>(null);
-  const shown = filter === "all" ? entries : entries.filter((e) => e.kind === filter);
+  const shown = entries.filter((e) => (filter === "all" || e.kind === filter) && (!type || e.category === type));
   const count = (k: string) => entries.filter((e) => e.kind === k).length;
+  const used = [...new Set(entries.map((e) => e.category).filter((c): c is string => !!c))];
 
   return (
     <div className="flex flex-col gap-3">
-      <Filters
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { key: "all", label: "All", count: entries.length },
-          { key: "positive", label: "Praise", count: count("positive") },
-          { key: "negative", label: "Concerns", count: count("negative") },
-          { key: "guidance", label: "Tips", count: count("guidance") },
-        ]}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Filters
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { key: "all", label: "All", count: entries.length },
+            { key: "positive", label: "Praise", count: count("positive") },
+            { key: "negative", label: "Concerns", count: count("negative") },
+            { key: "guidance", label: "Tips", count: count("guidance") },
+          ]}
+        />
+        {used.length > 0 && (
+          <div className="w-44">
+            <Dropdown value={type} placeholder="Every type" onChange={setType} options={[{ value: "", label: "Every type" }, ...used.map((c) => ({ value: c, label: c }))]} />
+          </div>
+        )}
+      </div>
       {shown.length === 0 ? (
         <Empty>No feedback here.</Empty>
       ) : (

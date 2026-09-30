@@ -200,11 +200,9 @@ function TypeForm({ start, mistake, onSave, onRemove, onCancel }: { start: Draft
       <Field label="What it means">
         <textarea value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} rows={2} className={`${input} resize-none`} />
       </Field>
-      {mistake && (
-        <Field label="Keywords that sort a Frame.io comment here">
-          <input value={d.keywords} onChange={(e) => setD({ ...d, keywords: e.target.value })} placeholder="typo, spelling, misspelled" className={input} />
-        </Field>
-      )}
+      <Field label={mistake ? "Keywords that sort a Frame.io comment here" : "Keywords that sort a Frame.io comment here, as feedback that isn't scored"}>
+        <input value={d.keywords} onChange={(e) => setD({ ...d, keywords: e.target.value })} placeholder={mistake ? "typo, spelling, misspelled" : "bgm, pacing, vibe"} className={input} />
+      </Field>
       <div className="flex items-center justify-end gap-2">
         {onRemove && (
           <ConfirmButton confirm="Remove" message={`Remove ${start.name}?${mistake ? " Its mistakes move to Others." : ""}`} className="btn btn-ghost mr-auto flex items-center gap-1.5 text-muted hover:text-red-400" onConfirm={onRemove}>

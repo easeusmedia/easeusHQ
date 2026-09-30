@@ -4,9 +4,10 @@
 //      them grow, never scored ("Feedback: use this in future");
 //   2. praise ("Nice!", "Great pacing") with nothing asked for: praise,
 //      worth the scoring's Frame.io praise points;
-//   3. uses a mistake type's keywords (comma-separated, set on the settings
-//      page): a mistake of the type whose keywords it uses most, the
-//      earlier type on a tie;
+//   3. uses a type's keywords (comma-separated, set on the settings page):
+//      the type whose keywords it uses most, the earlier type on a tie; a
+//      mistake if it's a mistake type, unscored feedback if it's a feedback
+//      type (Creative: a suggestion, not a mistake);
 //   4. a word or two that matches nothing: not feedback at all;
 //   5. anything else: a mistake under Others, for core to place.
 // Every one can be corrected by hand. Claude can re-sort on request (Sort
@@ -14,7 +15,7 @@
 //
 // Pure, so it's testable on its own.
 
-export type Keyworded = { name: string; keywords: string | null };
+export type Keyworded = { name: string; keywords: string | null; group?: string };
 
 const PRAISE = ["nice", "great", "good", "best", "well done", "awesome", "amazing", "love", "loved", "perfect", "excellent", "brilliant", "beautiful", "superb", "fantastic", "wow", "mast", "badhiya", "👍", "🔥", "👏", "❤️"];
 // words that ask for something, so "good, but change the font" isn't praise
@@ -41,14 +42,14 @@ export function categorise(text: string, categories: Keyworded[], fromClient = f
   const t = text.toLowerCase();
   if (!fromClient && uses(t, "feedback")) return { kind: "guidance", category: null };
   if (PRAISE.some((p) => uses(t, p)) && !ASKS.some((a) => uses(t, a))) return { kind: "positive", category: null };
-  let best: { name: string; hits: number } | null = null;
+  let best: { name: string; group?: string; hits: number } | null = null;
   for (const c of categories) {
     const hits = words(c.keywords).filter((k) => uses(t, k)).length;
-    if (hits && (!best || hits > best.hits)) best = { name: c.name, hits };
+    if (hits && (!best || hits > best.hits)) best = { name: c.name, group: c.group, hits };
   }
-  if (best) return { kind: "mistake", category: best.name };
+  if (best) return { kind: best.group === "feedback" ? "guidance" : "mistake", category: best.name };
   if (t.trim().split(/\s+/).length <= 2) return { kind: "note", category: null };
-  return { kind: "mistake", category: categories.some((c) => c.name === "Others") ? "Others" : (categories.at(-1)?.name ?? "Others") };
+  return { kind: "mistake", category: "Others" };
 }
 
 // the keywords each starting category comes with; core edits them freely

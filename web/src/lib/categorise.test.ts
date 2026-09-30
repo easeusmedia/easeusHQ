@@ -2,12 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { categorise, STARTING_KEYWORDS } from "./categorise.ts";
 
-const CATS = Object.entries(STARTING_KEYWORDS).map(([name, keywords]) => ({ name, keywords }));
+const CATS = Object.entries(STARTING_KEYWORDS).map(([name, keywords]) => ({ name, keywords, group: name === "Creative" ? "feedback" : "mistake" }));
 
 test("a comment goes to the category whose keywords it uses", () => {
   assert.deepEqual(categorise("There's a typo in the second line", CATS), { kind: "mistake", category: "Typos" });
   assert.deepEqual(categorise("Use UK spelling: organisation", CATS), { kind: "mistake", category: "UK/US spelling" });
-  assert.deepEqual(categorise("Change the bgm here, it's not the vibe", CATS), { kind: "mistake", category: "Creative" });
+  // Creative is a feedback type: a suggestion, never a mistake
+  assert.deepEqual(categorise("Change the bgm here, it's not the vibe", CATS), { kind: "guidance", category: "Creative" });
   assert.deepEqual(categorise("The Website is shaking in the beginning?", CATS), { kind: "mistake", category: "Visual glitches" });
   assert.deepEqual(categorise("Subtitles are out of sync", CATS), { kind: "mistake", category: "Subtitles" });
 });

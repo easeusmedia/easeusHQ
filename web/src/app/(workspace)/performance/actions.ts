@@ -81,7 +81,7 @@ const cleanCategory = (input: CategoryInput) => {
     .map((k) => k.trim())
     .filter(Boolean)
     .join(", ");
-  return { data: { name, group, description: input.description.trim() || null, weight, keywords: group === "mistake" ? keywords || null : null, repeats: group === "mistake" && !!input.repeats } };
+  return { data: { name, group, description: input.description.trim() || null, weight, keywords: keywords || null, repeats: group === "mistake" && !!input.repeats } };
 };
 
 // A kind of mistake (for sorting Frame.io comments into) or of feedback
@@ -179,7 +179,7 @@ async function clean(input: EntryInput, frameioPraise = false) {
   return {
     data: {
       kind: input.kind,
-      category: mistake ? input.category.trim() || "Others" : scored ? input.category.trim() || null : null,
+      category: mistake ? input.category.trim() || "Others" : input.kind === "note" ? null : input.category.trim() || null,
       body,
       count: mistake ? count : 1,
       points: scored ? points : null,

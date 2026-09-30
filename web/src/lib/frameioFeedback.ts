@@ -141,7 +141,8 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
   }
 
   // sorted by their words; free, and the same answer every time
-  const categories = await prisma.feedbackCategory.findMany({ where: { group: "mistake" }, select: { name: true, keywords: true }, orderBy: { sortOrder: "asc" } });
+  // mistake types, and feedback types (Creative) that sort comments too
+  const categories = await prisma.feedbackCategory.findMany({ select: { name: true, keywords: true, group: true }, orderBy: { sortOrder: "asc" } });
   const sorted = new Map(fresh.map((c) => [c.id, categorise(c.text, categories, c.fromClient)]));
   await prisma.performanceEntry.createMany({
     data: fresh.map((c) => {
