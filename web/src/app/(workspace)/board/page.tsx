@@ -9,7 +9,6 @@ import { assigneeWhere, isFounder, isMember, runsProduction, visibleClientWhere,
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
-import { loadWork } from "../workData";
 
 export const dynamic = "force-dynamic"; // always hits the DB, never statically cached
 
@@ -23,9 +22,8 @@ export default async function TasksPage({
   if (!viewer) redirect("/login");
   const member = isMember(viewer);
 
-  const [users, teams, rawProjects, tasks, kinds, held] = await Promise.all([
+  const [users, rawProjects, tasks, kinds, held] = await Promise.all([
     getAllUsers(),
-    prisma.team.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, slug: true, name: true } }),
     prisma.project.findMany({
       where: { client: { status: "current", ...visibleClientWhere(viewer) } },
       include: { client: true },
@@ -59,53 +57,29 @@ export default async function TasksPage({
     ? users.filter((u) => u.id === viewer.id)
     : users.filter((u) => onStaff(u) && (u.id === viewer.id || (u.role === "employee" && (isFounder(viewer) || (!!u.teamId && deptIds.includes(u.teamId))))));
 
-  // The switch: the Production queues (Video, Design) for whoever works or
-  // runs them, then each department's work for whoever runs it. A Member
-  // gets the queues their roles work in, and nothing else.
+  // The Board is Production's: its Video and Design queues, for whoever
+  // works or runs them. Everyone else's work is to-dos, in My tasks.
   const mine = new Set(held.map((r) => r.workflow));
   const hasOwn = (w: string) => tasks.some((t) => t.workflow === w && t.assignedToId === viewer.id);
   const queue = (w: "video" | "design") => (member ? mine.has(w) || hasOwn(w) : runsProduction(viewer) || mine.has(w) || hasOwn(w));
-  const teamScopes = member
-    ? []
-    : [
-        ...(isFounder(viewer) ? teams : teams.filter((t) => deptIds.includes(t.id))).map((t) => ({ key: t.slug, label: t.name })),
-        ...(isFounder(viewer) ? [{ key: "all", label: "Everyone" }] : []),
-      ];
-  const scopes = [
-    ...(queue("video") ? [{ key: "editors", label: "Video" }] : []),
-    ...(queue("design") ? [{ key: "design", label: "Design" }] : []),
-    ...teamScopes,
-  ];
-  // "org" (what a client page links to) means the widest team view you have
-  const wanted = scope === "org" ? teamScopes.at(-1)?.key : scope;
-  const initialScope = scopes.find((s) => s.key === wanted)?.key ?? scopes[0]?.key ?? "mine";
+  const scopes = [...(queue("video") ? [{ key: "editors", label: "Video" }] : []), ...(queue("design") ? [{ key: "design", label: "Design" }] : [])];
+  if (!scopes.length) redirect("/my-tasks");
+  const initialScope = scopes.find((s) => s.key === scope)?.key ?? scopes[0].key;
 
   // a scheduled-for-the-future task stays off the assigned Member's board
   // until that date — Founders and Leads always see everything
   const visibleTasks = member ? tasks.filter((t) => !t.scheduledFor || t.scheduledFor <= new Date()) : tasks;
 
   const canSyncNotion = isAbhishekOrAdmin(actingUser);
-  const work = member ? null : await loadWork(viewer, "all", { withQueue: true });
   const tagOptions = kinds.map((k) => ({ id: k.id, name: k.name, clientFacing: k.clientFacing, workflow: k.workflow }));
   const env = { projects, editors, actingUserId: actingUser.id, actingRole: actingUser.role as Role };
 
   return (
     <BoardViews
-      scopes={scopes.length ? scopes : [{ key: "mine", label: "Mine" }]}
+      scopes={scopes}
       initialScope={initialScope}
       editors={{ ...env, tasks: visibleTasks.filter((t) => t.workflow !== "design"), taskTags: tagOptions.filter((k) => k.workflow === "video") }}
       design={{ ...env, tasks: visibleTasks.filter((t) => t.workflow === "design"), taskTags: tagOptions.filter((k) => k.workflow === "design") }}
-      work={
-        work && {
-          tasks: work.tasks,
-          queueTasks: work.queueTasks,
-          queueEnv: { editors, projects: work.projects, actingUserId: actingUser.id, actingRole: actingUser.role as Role, taskTags: work.taskTags },
-          teams,
-          projects: work.projects,
-          assignable: work.assignable,
-          taskTags: work.taskTags,
-        }
-      }
       canSyncNotion={canSyncNotion}
     />
   );

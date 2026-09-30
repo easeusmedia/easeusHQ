@@ -12,7 +12,7 @@ import { createTask, moveTask } from "../actions";
 import { createWorkTask, moveWorkTask } from "./actions";
 import { addDays, dayOf, shortDay, weekday } from "@/lib/editorKpi";
 import { availableStatuses, workflowOf, type Role } from "@/lib/workflow";
-import type { TaskCardData } from "../TaskCard";
+import { Avatar, type TaskCardData } from "../TaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 
@@ -30,9 +30,42 @@ type Item = {
   client: string | null;
   project: string | null;
   tag: string | null;
+  person: string | null;
   todo?: WorkTaskCardData;
   task?: TaskCardData;
 };
+
+// both kinds of task as the list's rows
+function itemsOf(todos: WorkTaskCardData[], tasks: TaskCardData[]): Item[] {
+  return [
+    ...todos.map((t) => ({
+      key: `w${t.id}`,
+      id: t.id,
+      title: t.title,
+      notes: t.notes,
+      due: t.dueDate,
+      delivery: null,
+      client: t.project?.client.name ?? null,
+      project: t.project?.name ?? null,
+      tag: t.tags[0]?.name ?? null,
+      person: t.assignedTo?.name ?? null,
+      todo: t,
+    })),
+    ...tasks.map((t) => ({
+      key: `t${t.id}`,
+      id: t.id,
+      title: t.title,
+      notes: t.editingNotes,
+      due: t.dueDate ? dayOf(new Date(t.dueDate)) : null,
+      delivery: t.deliveryDate ? dayOf(new Date(t.deliveryDate)) : null,
+      client: t.project.client.name,
+      project: t.project.name || t.project.type,
+      tag: t.tags[0]?.name ?? null,
+      person: t.assignedTo?.name ?? null,
+      task: t,
+    })),
+  ];
+}
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -62,56 +95,51 @@ export function TodoList({
   tasks,
   done,
   kinds,
+  team,
+  initialView = "mine",
   ...env
-}: Env & { todos: WorkTaskCardData[]; tasks: TaskCardData[]; done: Done[]; kinds: TodoKind[] }) {
+}: Env & {
+  todos: WorkTaskCardData[];
+  tasks: TaskCardData[];
+  done: Done[];
+  kinds: TodoKind[];
+  // everyone this person oversees: their to-dos (Level 1 and 2 only)
+  team?: { todos: WorkTaskCardData[]; tasks: TaskCardData[] } | null;
+  initialView?: "mine" | "team";
+}) {
   const router = useRouter();
   // ticked off here, gone before the refresh brings the list back
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [showDone, setShowDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState(team ? initialView : "mine");
 
   const items: Item[] = useMemo(
-    () =>
-      [
-        ...todos.map((t) => ({
-          key: `w${t.id}`,
-          id: t.id,
-          title: t.title,
-          notes: t.notes,
-          due: t.dueDate,
-          delivery: null,
-          client: t.project?.client.name ?? null,
-          project: t.project?.name ?? null,
-          tag: t.tags[0]?.name ?? null,
-          todo: t,
-        })),
-        ...tasks.map((t) => ({
-          key: `t${t.id}`,
-          id: t.id,
-          title: t.title,
-          notes: t.editingNotes,
-          due: t.dueDate ? dayOf(new Date(t.dueDate)) : null,
-          delivery: t.deliveryDate ? dayOf(new Date(t.deliveryDate)) : null,
-          client: t.project.client.name,
-          project: t.project.name || t.project.type,
-          tag: t.tags[0]?.name ?? null,
-          task: t,
-        })),
-      ].filter((i) => !gone.has(i.key)),
-    [todos, tasks, gone]
+    () => (view === "team" && team ? itemsOf(team.todos, team.tasks) : itemsOf(todos, tasks)).filter((i) => !gone.has(i.key)),
+    [view, team, todos, tasks, gone]
   );
 
   const sections = useMemo(() => {
-    const byDue = (a: Item, b: Item) => (a.due ?? "").localeCompare(b.due ?? "") || a.title.localeCompare(b.title);
+    const byDue = (a: Item, b: Item) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.title.localeCompare(b.title);
+    // the team's: one section each, what's late first
+    if (view === "team") {
+      return [...new Set(items.map((i) => i.person ?? "Not assigned"))]
+        .sort()
+        .map((name) => {
+          const theirs = items.filter((i) => (i.person ?? "Not assigned") === name).sort(byDue);
+          const late = theirs.filter((i) => i.due && i.due < env.today).length;
+          return { key: name, title: name, late: false, note: late ? `${late} overdue` : null, items: theirs };
+        });
+    }
     const overdue = items.filter((i) => i.due && i.due < env.today).sort(byDue);
     const days = [...new Set(items.filter((i) => i.due && i.due >= env.today).map((i) => i.due!))].sort();
     const none = items.filter((i) => !i.due);
     return [
-      ...(overdue.length ? [{ key: "overdue", title: "Overdue", late: true, items: overdue }] : []),
-      ...days.map((d) => ({ key: d, title: dayLabel(d, env.today), late: false, items: items.filter((i) => i.due === d) })),
-      ...(none.length ? [{ key: "none", title: "No date", late: false, items: none }] : []),
+      ...(overdue.length ? [{ key: "overdue", title: "Overdue", late: true, note: null, items: overdue }] : []),
+      ...days.map((d) => ({ key: d, title: dayLabel(d, env.today), late: false, note: null, items: items.filter((i) => i.due === d) })),
+      ...(none.length ? [{ key: "none", title: "No date", late: false, note: null, items: none }] : []),
     ];
-  }, [items, env.today]);
+  }, [items, view, env.today]);
 
   async function tick(item: Item) {
     setError(null);
@@ -137,24 +165,45 @@ export function TodoList({
 
   return (
     <div className="flex flex-col gap-7">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-          <CircleCheck size={14} /> {items.length} {items.length === 1 ? "task" : "tasks"}
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{view === "team" ? "Team tasks" : "My tasks"}</h1>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
+            <CircleCheck size={14} /> {items.length} {items.length === 1 ? "task" : "tasks"}
+          </p>
+        </div>
+        {team && (
+          <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+            {(["mine", "team"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+                className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${view === v ? "bg-white/[0.1] text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                {v === "mine" ? "Mine" : "Team"}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <Composer kinds={kinds} {...env} />
       {error && <p className="fade-in -mt-4 text-sm text-red-300">{error}</p>}
 
       {sections.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">Nothing on your list. Add something above.</p>
+        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">
+          {view === "team" ? "Nobody you oversee has anything open." : "Nothing on your list. Add something above."}
+        </p>
       ) : (
         sections.map((s) => (
-          <section key={s.key} className="flex flex-col">
-            <h2 className="flex items-baseline gap-2 border-b border-border/70 pb-2 text-sm font-semibold">
+          <section key={s.key} className="fade-in flex flex-col">
+            <h2 className="flex items-center gap-2 border-b border-border/70 pb-2 text-sm font-semibold">
+              {view === "team" && <Avatar name={s.title} size={22} />}
               <span className={s.late ? "text-rose-300" : undefined}>{s.title}</span>
               <span className="text-xs font-normal text-muted tabular-nums">{s.items.length}</span>
+              {s.note && <span className="text-xs font-normal text-rose-300">{s.note}</span>}
             </h2>
             {s.items.map((i) => (
               <Row key={i.key} item={i} onTick={() => tick(i)} {...env} />
@@ -163,7 +212,7 @@ export function TodoList({
         ))
       )}
 
-      {done.length > 0 && (
+      {view === "mine" && done.length > 0 && (
         <section className="flex flex-col">
           <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-1.5 self-start text-sm text-muted transition-colors hover:text-foreground">
             <ChevronDown size={14} className={`transition-transform duration-200 ${showDone ? "" : "-rotate-90"}`} />

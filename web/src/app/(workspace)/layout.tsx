@@ -85,6 +85,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <Sidebar
         isOps={isOps}
         isFounder={isFounder(viewer)}
+        // the Board is Production's queues: for Level 1 and whoever's in Production
+        seesBoard={isFounder(viewer) || viewer.departments.some((d) => d.slug === "production")}
         viewAsPeople={viewAsPeople}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}

@@ -21,7 +21,7 @@ export type ClientWorkTask = {
 export function WorkTaskRow({ task }: { task: ClientWorkTask }) {
   return (
     <Link
-      href="/board?scope=org"
+      href="/my-tasks?view=team"
       className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 text-left hover:bg-surface-2"
     >
       <span className="min-w-0 flex-1">

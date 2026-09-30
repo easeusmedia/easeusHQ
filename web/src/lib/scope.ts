@@ -31,8 +31,8 @@ export const LEVEL_NOTE: Record<Role, string> = {
 
 // The departments the app's own features are built on: the editing queue
 // is Production's; clients, their feedback and posting dates are Client
-// Services', Marketing & Growth's and Operations'.
-export const DEPT = { production: "production", clientServices: "client-services", growth: "growth", operations: "operations", sales: "sales" } as const;
+// Services' and Distribution's.
+export const DEPT = { production: "production", clientServices: "client-services", distribution: "distribution", sales: "sales" } as const;
 
 export const isFounder = (u: { role: string }) => u.role === "admin";
 export const isLead = (u: { role: string }) => u.role === "core";
@@ -46,9 +46,9 @@ export function seesEveryTeam(user: { role: string }): boolean {
 }
 
 // Clients' feedback, posting dates and client records: Level 1, and the
-// Leads of Client Services, Marketing & Growth and Operations.
+// Leads of Client Services and Distribution.
 export function runsClients(user: Pick<Viewer, "role" | "departments">): boolean {
-  return isFounder(user) || (isLead(user) && [DEPT.clientServices, DEPT.growth, DEPT.operations].some((d) => inDepartment(user, d)));
+  return isFounder(user) || (isLead(user) && [DEPT.clientServices, DEPT.distribution].some((d) => inDepartment(user, d)));
 }
 
 // The editing queue, to see and hand out: Founders, and Production's Leads.

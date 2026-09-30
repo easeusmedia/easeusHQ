@@ -29,7 +29,7 @@ const MAIN = [
   // isn't privileged information inside the agency
   { href: "/clients", label: "Clients", hint: "All clients and their projects", Icon: Building2 },
   // a kanban board, because that is literally what it is
-  { href: "/board", label: "Board", hint: "The editing queue and the team's work", Icon: SquareKanban },
+  { href: "/board", label: "Board", hint: "Production's video and design queues", Icon: SquareKanban },
   // your own tasks only — the whole team's work is on the Board
   { href: "/my-tasks", label: "My tasks", hint: "Everything assigned to you", Icon: ListChecks },
   { href: "/history", label: "History", hint: "Completed work, all in one place", Icon: History },
@@ -128,6 +128,7 @@ export function ClientFace({ client, size }: { client: SidebarClient; size: numb
 export function Sidebar({
   isOps = false,
   isFounder = false,
+  seesBoard = true,
   viewAsPeople = null,
   canSeeFinance = false,
   name,
@@ -143,6 +144,8 @@ export function Sidebar({
   isOps?: boolean;
   // a Founder: Home, and Performance (grading is theirs)
   isFounder?: boolean;
+  // whether the Board (Production's queues) is theirs to see
+  seesBoard?: boolean;
   // everyone a Level 1 can view the app as (null for anyone else)
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // admin only: what clients owe and what the team is paid
@@ -236,7 +239,7 @@ export function Sidebar({
       items: isEditor
         ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
         : // a Founder's overview of everything, first
-          [...(isFounder ? [{ href: "/home", label: "Home", hint: "Everything in motion, at a glance", Icon: House }] : []), ...MAIN],
+          [...(isFounder ? [{ href: "/home", label: "Home", hint: "Everything in motion, at a glance", Icon: House }] : []), ...MAIN.filter((i) => seesBoard || i.href !== "/board")],
     },
     {
       label: "Manage",
