@@ -336,8 +336,8 @@ export function HistoryExplorer({
                     {canDelete && (
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <ConfirmButton
-                          message={`Delete "${i.title}"? It stays in the record as deleted, with your reason.`}
-                          reason="Why is this being deleted?"
+                          message={`Delete "${i.title}"?`}
+                          reason="Reason"
                           className="text-xs text-muted hover:text-red-400"
                           onConfirm={async (reason) => {
                             await deleteTaskPermanently(i.id, i.kind === "internal" ? "internal" : "client", reason);

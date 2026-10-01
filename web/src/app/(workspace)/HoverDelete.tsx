@@ -17,8 +17,8 @@ export function HoverDelete({ title, onDelete }: { title: string; onDelete: (rea
       className="absolute right-2 top-2 z-10 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
     >
       <ConfirmButton
-        message={`Delete "${title}"? It stays in History, with your reason.`}
-        reason="Why is this being deleted?"
+        message={`Delete "${title}"?`}
+        reason="Reason"
         onConfirm={onDelete}
         className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300"
       >

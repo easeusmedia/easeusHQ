@@ -91,7 +91,8 @@ test("what each department's features are for", () => {
 });
 
 test("kinds of work follow departments; clients are all visible except to a Member", () => {
-  assert.deepEqual(visibleTagWhere(ashmit), {});
+  // Level 1 has no department, so no Production kinds
+  assert.deepEqual(visibleTagWhere(ashmit), { OR: [{ teamId: null }, { teamId: { in: [] } }] });
   assert.deepEqual(visibleTagWhere(pankaj), { OR: [{ teamId: null }, { teamId: { in: [SALES.id] } }] });
   assert.equal(canEditTag(pankaj, { teamId: SALES.id }), true);
   assert.equal(canEditTag(pankaj, { teamId: PROD.id }), false);

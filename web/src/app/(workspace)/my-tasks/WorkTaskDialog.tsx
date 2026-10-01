@@ -292,7 +292,7 @@ export const WorkTaskDialog = forwardRef<
                 ]}
               />
             )}
-            <DatePicker pill={{}} value={dueDate} onChange={setDueDate} placeholder="Completion" />
+            <DatePicker pill={{}} value={dueDate} onChange={setDueDate} placeholder="Task due" />
             <span className="mx-0.5 h-4 w-px bg-white/[0.08]" aria-hidden />
             {/* one chip for anything attached: a link or an image */}
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
@@ -315,7 +315,7 @@ export const WorkTaskDialog = forwardRef<
                 value={dateReason}
                 onChange={(e) => setDateReason(e.target.value)}
                 rows={2}
-                placeholder="Why is the completion date moving? This is kept on the task."
+                placeholder="Why is the due date moving?"
                 className="w-full rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-sm text-foreground outline-none placeholder:text-amber-100/50 focus:border-amber-400/50"
               />
             </div>
@@ -376,8 +376,8 @@ export const WorkTaskDialog = forwardRef<
           <div className="flex items-center gap-3 border-t border-white/[0.06] px-5 py-3.5">
             {mode === "edit" && (
               <ConfirmButton
-                message="Delete this task? It stays in History, with your reason."
-                reason="Why is this being deleted?"
+                message="Delete this task?"
+                reason="Reason"
                 onConfirm={remove}
                 className="btn btn-sm btn-ghost px-2 hover:text-red-300"
               >

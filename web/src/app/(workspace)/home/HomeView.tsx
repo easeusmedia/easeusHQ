@@ -190,7 +190,7 @@ function Strikes({ n }: { n: number }) {
 
 // "Completion today · Delivery 5 Oct"
 function when(item: HomeItem, today: string) {
-  return [item.due && `Completion ${item.due === today ? "today" : shortDay(item.due)}`, item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
+  return [item.due && `Due ${item.due === today ? "today" : shortDay(item.due)}`, item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
 }
 
 // one piece of work: what it is, for whom, when, its stage, who's on it; opens it
@@ -418,7 +418,7 @@ export function HomeView({
     const list = show === "today" ? dueToday : show === "overdue" ? overdue : live;
     const misses = (i: HomeItem) => Math.max(i.strikes, 1);
     const keyOf = (i: HomeItem) =>
-      show === "overdue" ? `${ordinal(misses(i))} time past its date` : view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned");
+      show === "overdue" ? `Past its due date ${misses(i) === 1 ? "once" : `${misses(i)} times`}` : view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned");
     const byDue = (a: HomeItem, b: HomeItem) => (a.due ?? "9999").localeCompare(b.due ?? "9999");
     const map = new Map<string, HomeItem[]>();
     for (const i of list) map.set(keyOf(i), [...(map.get(keyOf(i)) ?? []), i]);

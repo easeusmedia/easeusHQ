@@ -394,7 +394,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   // a completion date that moves needs a reason, and the move is kept
   const dateReason = String(formData.get("dateReason") ?? "").trim();
   const moved = dueDate !== undefined && !!current.dueDate && (dueDate?.getTime() ?? null) !== current.dueDate.getTime();
-  if (moved && !dateReason) return { error: "Say why the completion date is moving." };
+  if (moved && !dateReason) return { error: "Say why the due date is moving." };
 
   // a new kind of work can change how it moves, if its stage fits the new one
   const placed = formData.has("tagsPresent") ? await placeTask(tagIds, assignedToId) : null;

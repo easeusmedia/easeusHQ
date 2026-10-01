@@ -302,7 +302,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                           : []),
                       ]}
                     />
-                    <DatePicker pill={{ label: "Completion" }} value={due} onChange={setDue} placeholder="Completion" />
+                    <DatePicker pill={{ label: "Task due" }} value={due} onChange={setDue} placeholder="Task due" />
                     {/* internal work never reaches the client */}
                     {!internal && (
                       <DatePicker
@@ -354,7 +354,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                       value={dateReason}
                       onChange={(e) => setDateReason(e.target.value)}
                       rows={2}
-                      placeholder="Why is the completion date moving? This is kept on the task."
+                      placeholder="Why is the due date moving?"
                       className="mt-1 w-full rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-sm text-foreground outline-none placeholder:text-amber-100/50 focus:border-amber-400/50"
                     />
                   </Reveal>
@@ -509,8 +509,8 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
         <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border pt-3">
           {canManage ? (
             <ConfirmButton
-              message={`Delete "${task.title}"? It stays in History, with your reason.`}
-              reason="Why is this being deleted?"
+              message={`Delete "${task.title}"?`}
+              reason="Reason"
               className="shrink-0 rounded-md p-1.5 text-muted hover:text-red-400"
               onConfirm={async (reason) => {
                 const res = await deleteTask(task.id, reason);

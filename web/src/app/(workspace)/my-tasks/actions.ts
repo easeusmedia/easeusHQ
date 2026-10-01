@@ -223,7 +223,7 @@ export async function updateWorkTask(input: {
   // a completion date that moves needs a reason, and the move is kept
   const nextDue = input.dueDate ? new Date(input.dueDate) : null;
   const moved = !!existing.dueDate && (nextDue?.getTime() ?? null) !== existing.dueDate.getTime();
-  if (moved && !input.dateReason?.trim()) return { error: "Say why the completion date is moving." };
+  if (moved && !input.dateReason?.trim()) return { error: "Say why the due date is moving." };
 
   await prisma.workTask.update({
     where: { id: input.id },

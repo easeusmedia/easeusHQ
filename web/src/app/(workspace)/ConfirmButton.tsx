@@ -84,10 +84,7 @@ export function ConfirmButton({
               <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${danger ? "bg-rose-400/10 text-rose-300" : "bg-accent/10 text-accent"}`}>
                 <Trash2 size={16} />
               </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{message}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted">It&apos;s kept in History with your reason, and Level 1 can bring it back.</p>
-              </div>
+              <p className="min-w-0 pt-1.5 text-sm font-medium">{message}</p>
             </div>
             <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/[0.08] transition-shadow focus-within:ring-accent/50">
               <textarea

@@ -111,7 +111,7 @@ function DepartmentsAndRoles({
       }
     >
       {levelOne ? (
-        <p className="text-sm text-muted">Level 1 sees every department and oversees the work, so it has no departments or roles of its own.</p>
+        <p className="text-sm text-muted">Leadership sees every department and oversees the work, so it has no departments or roles of its own.</p>
       ) : (
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
@@ -198,6 +198,7 @@ export function PersonDetail({
   canEdit,
   editableTeamIds,
   isSelf,
+  seesLevels,
 }: {
   person: PersonRecord;
   teams: Department[];
@@ -206,6 +207,8 @@ export function PersonDetail({
   canEdit: boolean;
   editableTeamIds: string[];
   isSelf: boolean;
+  // levels are internal: only Level 1 sees them
+  seesLevels: boolean;
 }) {
   const today = indiaDay(new Date());
   const blank = {
@@ -217,6 +220,7 @@ export function PersonDetail({
     salary: person.salary ?? "",
     employment: person.employment as string,
     employmentType: person.employmentType ?? "",
+    position: person.position ?? "",
     birthday: person.birthday ?? "",
     emergencyContact: person.emergencyContact ?? "",
     notes: person.notes ?? "",
@@ -270,7 +274,7 @@ export function PersonDetail({
         >
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
           <p className="truncate text-sm text-muted">
-            {ROLE_LABEL[person.role]}
+            {[person.position ?? person.jobTitleName, seesLevels && ROLE_LABEL[person.role]].filter(Boolean).join(" · ")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
@@ -319,6 +323,10 @@ export function PersonDetail({
                 <label className={labelCls}>
                   Name
                   <input value={form.name} onChange={(e) => set("name", e.target.value)} className={field} />
+                </label>
+                <label className={labelCls}>
+                  Position
+                  <input value={form.position} onChange={(e) => set("position", e.target.value)} placeholder="Senior Video Editor" className={field} />
                 </label>
                 <div className={labelCls}>
                   Level
@@ -405,7 +413,8 @@ export function PersonDetail({
             </div>
           ) : (
             <dl className="fade-in grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
-              <Fact label="Level">{ROLE_LABEL[person.role]}</Fact>
+              <Fact label="Position">{person.position}</Fact>
+              {seesLevels && <Fact label="Level">{ROLE_LABEL[person.role]}</Fact>}
               <Fact label="Joined">
                 {person.joinedAt && (
                   <>

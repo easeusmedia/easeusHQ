@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Network, Search, Users2 } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import type { Letter, Part } from "@/lib/videoScore";
@@ -38,6 +38,8 @@ export type PersonRecord = {
   departmentName: string | null;
   jobTitleId: string | null;
   jobTitleName: string | null;
+  // the title everyone sees; their level is for Level 1 only
+  position: string | null;
   joinedAt: string | null;
   birthday: string | null;
   emergencyContact: string | null;
@@ -67,6 +69,8 @@ export type Position = { id: string; name: string; teamId: string | null; people
 export type WorkTag = { id: string; name: string; teamId: string | null; uses: number; roleId?: string | null; workflow?: string };
 
 const FORMER = "Former employees";
+// Level 1, who has no department
+const LEADERSHIP = "Leadership";
 const LEVELS: Role[] = ["admin", "core", "employee"];
 
 export const EMPLOYMENT_LABEL: Record<EmploymentStatus, string> = {
@@ -104,6 +108,7 @@ export function PeopleDirectory({
   editableTeamIds,
   meId,
   openFirst,
+  seesLevels,
 }: {
   people: PersonRecord[];
   teams: Department[];
@@ -114,37 +119,36 @@ export function PeopleDirectory({
   editableTeamIds: string[];
   meId: string;
   openFirst?: string;
+  // Level 1: people grouped by level; everyone else by department
+  seesLevels: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [team, setTeam] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(people.find((p) => p.id === openFirst)?.id ?? people[0]?.id ?? null);
 
+  // Level 1 sees people by level; everyone else by department, since levels
+  // are internal. Former employees go at the bottom either way.
+  const groupOf = useCallback((p: PersonRecord) => (p.employment === "former" ? FORMER : seesLevels ? ROLE_LABEL[p.role] : (p.departmentName ?? LEADERSHIP)), [seesLevels]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return people.filter(
       (p) =>
-        (team === "all" || (team === "former" ? p.employment === "former" : p.role === team && p.employment !== "former")) &&
-        (!q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q) || (p.jobTitleName ?? "").toLowerCase().includes(q))
+        (team === "all" || (team === "former" ? p.employment === "former" : groupOf(p) === team)) &&
+        (!q || [p.name, p.email, p.position ?? "", p.jobTitleName ?? ""].some((v) => v.toLowerCase().includes(q)))
     );
-  }, [people, query, team]);
+  }, [people, query, team, groupOf]);
 
   const open = people.find((p) => p.id === openId) ?? null;
 
-  // the filter chips: each level there's someone at, then Former
-  const shownTeams = LEVELS.filter((r) => people.some((p) => p.role === r && p.employment !== "former")).map((r) => ({ id: r, name: ROLE_LABEL[r] }));
+  const order = seesLevels ? LEVELS.map((r) => ROLE_LABEL[r]) : [LEADERSHIP, ...teams.map((t) => t.name)];
+  const rank = (k: string) => (k === FORMER ? 99 : order.indexOf(k) + 1);
 
-  // Grouped by level: Level 1, 2 and 3, then former employees at the
-  // bottom, their record still readable but plainly off the roster
-  const groups = useMemo(() => {
-    const byGroup = new Map<string, PersonRecord[]>();
-    for (const p of filtered) {
-      const key = p.employment === "former" ? FORMER : ROLE_LABEL[p.role];
-      if (!byGroup.has(key)) byGroup.set(key, []);
-      byGroup.get(key)!.push(p);
-    }
-    const rank = (k: string) => (k === FORMER ? 9 : LEVELS.findIndex((r) => ROLE_LABEL[r] === k));
-    return [...byGroup.entries()].sort(([a], [b]) => rank(a) - rank(b));
-  }, [filtered]);
+  // the filter chips: each group there's someone in, then Former
+  const shownTeams = [...new Set(people.filter((p) => p.employment !== "former").map(groupOf))].sort((a, b) => rank(a) - rank(b)).map((g) => ({ id: g, name: g }));
+
+  const byGroup = new Map<string, PersonRecord[]>();
+  for (const p of filtered) byGroup.set(groupOf(p), [...(byGroup.get(groupOf(p)) ?? []), p]);
+  const groups = [...byGroup.entries()].sort(([a], [b]) => rank(a) - rank(b));
 
   return (
     <div className="flex h-full gap-4">
@@ -214,7 +218,7 @@ export function PeopleDirectory({
                           </span>
                         )}
                       </span>
-                      <span className="block truncate text-xs text-muted">{ROLE_LABEL[p.role]}</span>
+                      <span className="block truncate text-xs text-muted">{p.position ?? p.jobTitleName}</span>
                     </span>
                     {p.current.length > 0 && (
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-xs tabular-nums text-muted">
@@ -241,6 +245,7 @@ export function PeopleDirectory({
             canEdit={canEdit}
             editableTeamIds={editableTeamIds}
             isSelf={open.id === meId}
+            seesLevels={seesLevels}
           />
         ) : (
           <p className="m-auto flex items-center gap-2 text-sm text-muted">

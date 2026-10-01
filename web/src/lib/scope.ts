@@ -127,10 +127,9 @@ export function canEditPeople(user: { role: string; email?: string | null }): bo
 }
 
 // Kinds of work belong to a department, so a picker only offers the kinds
-// someone's departments do. Shared ones (no department) go to everyone; a
-// Founder gets the lot.
+// someone's departments do: Production's (Reel, Thumbnail…) only to people
+// in Production, Level 1 included. Shared ones (no department) go to everyone.
 export function visibleTagWhere(user: Viewer): Record<string, unknown> {
-  if (isFounder(user)) return {};
   return { OR: [{ teamId: null }, { teamId: { in: departmentIds(user) } }] };
 }
 

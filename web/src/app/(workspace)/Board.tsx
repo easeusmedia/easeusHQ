@@ -465,8 +465,8 @@ export function Board({
             <X size={13} /> Clear
           </button>
           <ConfirmButton
-            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? They stay in History, with your reason.`}
-            reason="Why are these being deleted?"
+            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}?`}
+            reason="Reason"
             onConfirm={deleteSelected}
             className="btn btn-sm btn-danger"
           >

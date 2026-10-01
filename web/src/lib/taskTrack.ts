@@ -100,7 +100,7 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
       ...key(t.ref),
       forId: p.id,
       kind: "overdue",
-      body: p.id === owner?.id ? `"${t.title}" is past its completion date (${when}). Set a new date and say why.` : `"${t.title}" (${owner?.name ?? "unassigned"}) is past its completion date, the ${when}.`,
+      body: p.id === owner?.id ? `"${t.title}" is past its due date (${when}). Set a new date and say why.` : `"${t.title}" (${owner?.name ?? "unassigned"}) is past its due date, the ${when}.`,
     }));
     if (t.ref.kind === "task") {
       await prisma.$transaction([prisma.task.update({ where: { id: t.id }, data: { strikes: strike, overdueFor: t.dueDate } }), prisma.notice.createMany({ data })]);

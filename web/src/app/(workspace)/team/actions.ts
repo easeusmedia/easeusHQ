@@ -60,6 +60,7 @@ export async function updatePerson(input: {
   salary: string;
   employment: string;
   employmentType: string;
+  position: string;
   birthday: string;
   emergencyContact: string;
   notes: string;
@@ -98,6 +99,7 @@ export async function updatePerson(input: {
       salary,
       employment: input.employment as EmploymentStatus,
       employmentType: input.employmentType || null,
+      position: input.position.trim() || null,
       birthday: day(input.birthday),
       emergencyContact: input.emergencyContact.trim() || null,
       notes: input.notes.trim() || null,
