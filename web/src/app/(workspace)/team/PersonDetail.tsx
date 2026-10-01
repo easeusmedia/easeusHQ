@@ -270,7 +270,7 @@ export function PersonDetail({
         >
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
           <p className="truncate text-sm text-muted">
-            {[ROLE_LABEL[person.role], person.jobTitleName?.split(", ")[0]].filter(Boolean).join(" · ")}
+            {ROLE_LABEL[person.role]}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span

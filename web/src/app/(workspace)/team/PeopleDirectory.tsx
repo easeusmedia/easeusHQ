@@ -55,8 +55,6 @@ export type PersonRecord = {
   roleIds: string[];
   // whether the viewer may change those (lib/scope canSetAccess)
   canSetAccess: boolean;
-  // sees and runs everything (Level 1, or the developer)
-  fullAccess: boolean;
 };
 
 export type Option = { id: string; name: string; slug?: string };
@@ -216,8 +214,7 @@ export function PeopleDirectory({
                           </span>
                         )}
                       </span>
-                      {/* one line, not every role: their first, or what they do instead */}
-                      <span className="block truncate text-xs text-muted">{p.jobTitleName?.split(", ")[0] ?? (p.fullAccess ? "Runs everything" : "No role yet")}</span>
+                      <span className="block truncate text-xs text-muted">{ROLE_LABEL[p.role]}</span>
                     </span>
                     {p.current.length > 0 && (
                       <span className="shrink-0 rounded-full bg-surface px-1.5 py-0.5 text-xs tabular-nums text-muted">
