@@ -20,8 +20,6 @@ export default async function MyTasksPage() {
   if (!viewer) redirect("/login");
   if (worksTheBoard(viewer)) redirect("/board");
 
-  // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
-  const since = new Date(Date.now() - 7 * 86_400_000);
   const [work, users, tasks, done, doneTasks, kinds, me] = await Promise.all([
     loadWork(viewer, "mine", { withQueue: false }),
     getAllUsers(),
@@ -31,10 +29,10 @@ export default async function MyTasksPage() {
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     }),
-    // and the last week's finished, to tick back if it was a slip
-    prisma.workTask.findMany({ where: { assignedToId: viewer.id, status: "done", completedAt: { gte: since } }, select: { id: true, title: true, completedAt: true }, orderBy: { completedAt: "desc" } }),
+    // and everything they've ever finished, to look back over (and tick back if it was a slip)
+    prisma.workTask.findMany({ where: { assignedToId: viewer.id, status: "done" }, select: { id: true, title: true, completedAt: true, updatedAt: true }, orderBy: { completedAt: "desc" } }),
     prisma.task.findMany({
-      where: { assignedToId: viewer.id, status: "delivered_and_uploaded", updatedAt: { gte: since } },
+      where: { assignedToId: viewer.id, status: "delivered_and_uploaded" },
       select: { id: true, title: true, updatedAt: true, workflow: true, project: { select: { client: { select: { name: true } } } } },
       orderBy: { updatedAt: "desc" },
     }),
@@ -56,7 +54,7 @@ export default async function MyTasksPage() {
         todos={work.tasks}
         tasks={tasks}
         done={[
-          ...done.map((t) => ({ id: t.id, title: t.title, kind: "todo" as const, at: (t.completedAt ?? since).toISOString(), client: null })),
+          ...done.map((t) => ({ id: t.id, title: t.title, kind: "todo" as const, at: (t.completedAt ?? t.updatedAt).toISOString(), client: null })),
           ...doneTasks.map((t) => ({ id: t.id, title: t.title, kind: "task" as const, workflow: t.workflow, at: t.updatedAt.toISOString(), client: t.project.client.name })),
         ].sort((a, b) => b.at.localeCompare(a.at))}
         // each role's kinds of work, or the role itself when it has none

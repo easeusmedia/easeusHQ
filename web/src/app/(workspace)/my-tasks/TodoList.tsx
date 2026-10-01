@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, ListChecks, Plus, Rows3, Search, Sun, Sunrise, Type, User } from "lucide-react";
+import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, ListChecks, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
-import { createTask, moveTask } from "../actions";
-import { createWorkTask, moveWorkTask } from "./actions";
-import { addDays, dayOf, daysBetween, shortDay, weekday } from "@/lib/editorKpi";
+import { createTask, deleteTask, moveTask } from "../actions";
+import { createWorkTask, deleteWorkTask, moveWorkTask } from "./actions";
+import { ConfirmButton } from "../ConfirmButton";
+import { addDays, dayOf, daysBetween, mondayOf, shortDay, weekday } from "@/lib/editorKpi";
 import { availableStatuses, workflowOf, type Role } from "@/lib/workflow";
 import type { TaskCardData } from "../TaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
@@ -104,6 +105,23 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "none", label: "No date" },
 ];
 const WIDE_KEY = "mytasks.wide";
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+// what's been finished, over which stretch
+type Period = "week" | "month" | "last" | "all" | "range";
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "week", label: "This week" },
+  { key: "month", label: "This month" },
+  { key: "last", label: "Last month" },
+  { key: "all", label: "All time" },
+  { key: "range", label: "Pick dates" },
+];
+// the yyyy-mm a day's month is, and the one before
+const monthOf = (day: string) => day.slice(0, 7);
+const monthBefore = (day: string) => {
+  const [y, m] = day.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+};
 
 // each section's icon, as Notion marks its pages
 function SectionIcon({ id, today }: { id: string; today: string }) {
@@ -138,6 +156,8 @@ export function TodoList({
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [undo, setUndo] = useState<Item | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [period, setPeriod] = useState<Period>("week");
+  const [range, setRange] = useState({ from: "", to: "" });
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -229,6 +249,40 @@ export function TodoList({
     return () => clearTimeout(t);
   }, [undo]);
 
+  // deleted with a reason (kept in History); gone at once, back if it fails
+  async function remove(item: Item, reason: string) {
+    setError(null);
+    setGone((g) => new Set(g).add(item.key));
+    const res = item.todo ? await deleteWorkTask(item.id, reason) : await deleteTask(item.id, reason);
+    if (res.error) {
+      setGone((g) => new Set([...g].filter((k) => k !== item.key)));
+      return setError(res.error);
+    }
+    router.refresh();
+  }
+
+  // what's been finished in the chosen stretch, newest first, by month
+  const finished = useMemo(() => {
+    const t = env.today;
+    const inPeriod = (day: string) =>
+      period === "week"
+        ? day >= mondayOf(t)
+        : period === "month"
+          ? monthOf(day) === monthOf(t)
+          : period === "last"
+            ? monthOf(day) === monthBefore(t)
+            : period === "range"
+              ? (!range.from || day >= range.from) && (!range.to || day <= range.to)
+              : true;
+    const shown = done.filter((d) => inPeriod(dayOf(new Date(d.at))));
+    const months = new Map<string, Done[]>();
+    for (const d of shown) {
+      const m = monthOf(dayOf(new Date(d.at)));
+      months.set(m, [...(months.get(m) ?? []), d]);
+    }
+    return { count: shown.length, months: [...months.entries()] };
+  }, [done, period, range, env.today]);
+
   async function reopen(d: { id: string; kind: "todo" | "task" }) {
     setError(null);
     const res = d.kind === "todo" ? await moveWorkTask(d.id, "todo", 0) : await moveTask(d.id, "queued");
@@ -237,7 +291,7 @@ export function TodoList({
     router.refresh();
   }
 
-  const doneWeek = done.length;
+  const doneWeek = done.filter((d) => dayOf(new Date(d.at)) >= mondayOf(env.today)).length;
   const progress = doneWeek + all.length ? Math.round((doneWeek / (doneWeek + all.length)) * 100) : 0;
 
   return (
@@ -326,7 +380,7 @@ export function TodoList({
         <div className="flex flex-col gap-5">
           {wide && (
             // the columns, named as a Notion table names them
-            <div className="hidden grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem] items-center gap-3 border-b border-border/60 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
+            <div className="hidden grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem_1.5rem] items-center gap-3 border-b border-border/60 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
               <span />
               <span className="flex items-center gap-1.5">
                 <Type size={12} /> Task
@@ -360,7 +414,17 @@ export function TodoList({
                 <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="flex min-h-0 flex-col gap-0.5 overflow-hidden pt-1" inert={!open}>
                     {s.items.map((i) => (
-                      <Row key={i.key} item={i} wide={wide} ticked={ticking.has(i.key)} showDue={wide || s.key === "overdue"} onTick={() => tick(i)} {...env} />
+                      <Row
+                        key={i.key}
+                        item={i}
+                        wide={wide}
+                        ticked={ticking.has(i.key)}
+                        showDue={wide || s.key === "overdue"}
+                        onTick={() => tick(i)}
+                        // client work is deleted by Level 1 and 2; your own to-dos by you
+                        onDelete={i.todo || env.actingRole !== "employee" ? (reason) => remove(i, reason) : undefined}
+                        {...env}
+                      />
                     ))}
                   </div>
                 </div>
@@ -371,33 +435,69 @@ export function TodoList({
       )}
 
       {done.length > 0 && (
-        <section className="flex flex-col">
+        <section className="flex flex-col gap-2">
           <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-2 self-start rounded-lg px-1 py-1.5 text-sm text-muted transition-colors hover:text-foreground">
             <ChevronDown size={14} className={`transition-transform duration-300 ${showDone ? "" : "-rotate-90"}`} />
             <CircleCheck size={15} className="text-emerald-400" />
-            Completed this week <span className="tabular-nums">{done.length}</span>
+            Completed <span className="tabular-nums">{finished.count}</span>
+            <span className="text-muted/60">· {PERIODS.find((p) => p.key === period)!.label.toLowerCase()}</span>
           </button>
           {showDone && (
-            <div className="fade-in mt-1 flex flex-col gap-0.5">
-              {done.map((d) => {
-                const reopenable = d.kind === "todo" || workflowOf(d.workflow) === "todo";
-                return (
-                  <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2">
+            <div className="fade-in flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-1.5 px-1">
+                {PERIODS.map((p) => {
+                  const on = period === p.key;
+                  return (
                     <button
+                      key={p.key}
                       type="button"
-                      disabled={!reopenable}
-                      onClick={() => reopen(d)}
-                      aria-label="Mark not done"
-                      title={reopenable ? "Mark not done" : "Finished"}
-                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-accent/80 text-background transition-opacity enabled:hover:opacity-70"
+                      aria-pressed={on}
+                      onClick={() => setPeriod(p.key)}
+                      className={`rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-accent/15 text-foreground ring-1 ring-accent/40" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
                     >
-                      <Check size={11} strokeWidth={3} />
+                      {p.label}
                     </button>
-                    <span className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-muted/50">{d.title}</span>
-                    {d.client && <span className="shrink-0 text-xs text-muted/70">{d.client}</span>}
+                  );
+                })}
+                {period === "range" && (
+                  <span className="fade-in flex items-center gap-1.5 text-xs text-muted">
+                    <DatePicker value={range.from} onChange={(v) => setRange((r) => ({ ...r, from: v }))} placeholder="From" />
+                    to
+                    <DatePicker value={range.to} onChange={(v) => setRange((r) => ({ ...r, to: v }))} placeholder="Today" />
+                  </span>
+                )}
+              </div>
+              {finished.count === 0 ? (
+                <p className="px-3 py-2 text-sm text-muted">Nothing finished in this stretch.</p>
+              ) : (
+                finished.months.map(([m, list]) => (
+                  <div key={m} className="flex flex-col gap-0.5">
+                    <p className="px-3 pt-1 pb-0.5 text-xs font-medium text-muted">
+                      {MONTHS[Number(m.slice(5, 7)) - 1]} {m.slice(0, 4)} <span className="text-muted/60 tabular-nums">· {list.length}</span>
+                    </p>
+                    {list.map((d) => {
+                      const reopenable = d.kind === "todo" || workflowOf(d.workflow) === "todo";
+                      return (
+                        <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.03]">
+                          <button
+                            type="button"
+                            disabled={!reopenable}
+                            onClick={() => reopen(d)}
+                            aria-label="Mark not done"
+                            title={reopenable ? "Mark not done" : "Finished"}
+                            className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-accent/80 text-background transition-opacity enabled:hover:opacity-70"
+                          >
+                            <Check size={11} strokeWidth={3} />
+                          </button>
+                          <span className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-muted/50">{d.title}</span>
+                          {d.client && <span className="hidden shrink-0 text-xs text-muted/70 sm:block">{d.client}</span>}
+                          <span className="w-14 shrink-0 text-right text-xs text-muted/70 tabular-nums">{shortDay(dayOf(new Date(d.at)))}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                ))
+              )}
             </div>
           )}
         </section>
@@ -438,7 +538,8 @@ function Row({
   taskTags,
   actingUserId,
   actingRole,
-}: Env & { item: Item; wide: boolean; ticked: boolean; showDue: boolean; onTick: () => void }) {
+  onDelete,
+}: Env & { item: Item; wide: boolean; ticked: boolean; showDue: boolean; onTick: () => void; onDelete?: (reason: string) => void }) {
   const ref = useRef<{ open: () => void }>(null);
   const task = item.task;
   const flow = workflowOf(task?.workflow);
@@ -463,6 +564,15 @@ function Row({
         {item.tag}
       </span>
     ) : null;
+  const del = onDelete ? (
+    <span onClick={(e) => e.stopPropagation()} className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+      <ConfirmButton message={`Delete "${item.title}"?`} reason="Reason" onConfirm={onDelete} className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
+        <Trash2 size={13} aria-label="Delete task" />
+      </ConfirmButton>
+    </span>
+  ) : (
+    <span />
+  );
   const client = item.client && (
     <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
       <Building2 size={12} className="shrink-0 text-sky-400/80" />
@@ -477,7 +587,7 @@ function Row({
     <div
       onClick={() => ref.current?.open()}
       className={`group grid cursor-pointer items-center gap-3 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.04] ${ticked ? "opacity-50" : ""} ${
-        wide ? "grid-cols-[18px_minmax(0,1fr)] py-2.5 md:grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem]" : "grid-cols-[18px_minmax(0,1fr)_auto] py-2"
+        wide ? "grid-cols-[18px_minmax(0,1fr)_1.5rem] py-2.5 md:grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem_1.5rem]" : "grid-cols-[18px_minmax(0,1fr)_auto] py-2"
       }`}
     >
       {tickable ? (
@@ -509,12 +619,14 @@ function Row({
           <span className="hidden min-w-0 md:block">{client}</span>
           <span className={`hidden text-xs tabular-nums md:block ${due?.tone ?? "text-muted/50"}`}>{due?.text ?? "No date"}</span>
           <span className="hidden md:block">{stage}</span>
+          {del}
         </>
       ) : (
         <span className="flex items-center gap-3">
           <span className="hidden max-w-40 sm:block">{client}</span>
           {showDue && due && <span className={`text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
           {stage}
+          {del}
         </span>
       )}
       <span onClick={(e) => e.stopPropagation()} className="contents">
