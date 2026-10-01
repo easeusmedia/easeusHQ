@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -107,7 +107,10 @@ function readLayout(have: SectionId[]): Layout {
   return { columns, collapsed: (base.collapsed ?? []).filter((s) => have.includes(s)) };
 }
 
-type Drag = { start: (id: SectionId) => void; over: (id: SectionId) => void; end: () => void; dragging: SectionId | null };
+// a section is picked up by its handle and follows the pointer; the others
+// slide out of its way (HomeView)
+type Drag = { start: (id: SectionId, e: React.PointerEvent) => void; mount: (id: SectionId) => (el: HTMLElement | null) => void; dragging: SectionId | null };
+const SLIDE = { duration: 260, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" };
 
 function Section({
   id,
@@ -133,27 +136,19 @@ function Section({
 }) {
   return (
     <section
-      onDragOver={(e) => {
-        if (!drag.dragging || drag.dragging === id) return;
-        e.preventDefault();
-        drag.over(id);
-      }}
-      className={`flex min-h-0 flex-col rounded-3xl border bg-gradient-to-b from-white/[0.045] to-white/[0.012] transition-[flex-grow,opacity,border-color] duration-300 ${
+      ref={drag.mount(id)}
+      data-section={id}
+      className={`relative flex min-h-0 flex-col rounded-3xl border bg-gradient-to-b from-white/[0.045] to-white/[0.012] transition-[flex-grow,border-color,box-shadow] duration-300 ${
         collapsed ? "flex-none" : grow ? "lg:flex-[1_1_0]" : "flex-none"
-      } ${drag.dragging === id ? "border-accent/40 opacity-60" : "border-white/[0.07]"}`}
+      } ${drag.dragging === id ? "z-20 border-accent/30 bg-background/95 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : "border-white/[0.07]"}`}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
         <button
           type="button"
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = "move";
-            drag.start(id);
-          }}
-          onDragEnd={drag.end}
+          onPointerDown={(e) => drag.start(id, e)}
           aria-label={`Move ${title}`}
           title="Drag to move"
-          className="-ml-1.5 cursor-grab rounded-md p-1 text-muted/50 transition-colors hover:text-foreground active:cursor-grabbing"
+          className="-ml-1.5 cursor-grab touch-none rounded-md p-1 text-muted/50 transition-colors hover:text-foreground active:cursor-grabbing"
         >
           <GripVertical size={14} />
         </button>
@@ -325,26 +320,89 @@ export function HomeView({
       localStorage.setItem(LAYOUT_KEY, JSON.stringify(next));
     } catch {}
   }
-  const collapse = (id: SectionId) => save({ ...layout, collapsed: layout.collapsed.includes(id) ? layout.collapsed.filter((s) => s !== id) : [...layout.collapsed, id] });
-  // dragging a section over another puts it there, in either column
+  // Moving sections: the one picked up follows the pointer (pointer-events
+  // off, so what's under it can be found); passing over the top or bottom
+  // half of another puts it before or after that one, in either column, and
+  // the rest slide to their new places from where they were
+  const els = useRef(new Map<SectionId, HTMLElement>());
+  const was = useRef<Map<SectionId, DOMRect> | null>(null);
+  const grab = useRef<{ id: SectionId; x: number; y: number; left: number; top: number } | null>(null);
+  const latest = useRef(layout);
+  useEffect(() => {
+    latest.current = layout;
+  }, [layout]);
+  useLayoutEffect(() => {
+    const before = was.current;
+    was.current = null;
+    if (!before) return;
+    for (const [id, el] of els.current) {
+      const from = before.get(id);
+      if (!from || id === grab.current?.id) continue;
+      const now = el.getBoundingClientRect();
+      const dx = from.left - now.left;
+      const dy = from.top - now.top;
+      if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], SLIDE);
+    }
+  }, [layout]);
+  function arrange(next: Layout) {
+    was.current = new Map([...els.current].map(([id, el]) => [id, el.getBoundingClientRect()]));
+    save(next);
+  }
+  const collapse = (id: SectionId) => arrange({ ...layout, collapsed: layout.collapsed.includes(id) ? layout.collapsed.filter((s) => s !== id) : [...layout.collapsed, id] });
+
   const drag: Drag = {
     dragging,
-    start: (id) => setDragging(id),
-    end: () => setDragging(null),
-    over: (target) => {
-      if (!dragging || dragging === target) return;
-      const columns = layout.columns.map((c) => c.filter((s) => s !== dragging));
-      const col = columns.findIndex((c) => c.includes(target));
-      columns[col].splice(columns[col].indexOf(target), 0, dragging);
-      save({ ...layout, columns });
+    // a section moved to the other column is a new element: keep the latest
+    mount: (id) => (el) => {
+      if (el) els.current.set(id, el);
+      else els.current.delete(id);
     },
-  };
-  // a column emptied by dragging still takes a section dropped on it
-  const dropOnColumn = (i: number) => {
-    if (!dragging || layout.columns[i].includes(dragging)) return;
-    const columns = layout.columns.map((c) => c.filter((s) => s !== dragging));
-    columns[i].push(dragging);
-    save({ ...layout, columns });
+    start: (id, e) => {
+      const el = els.current.get(id);
+      if (!el || e.button !== 0) return;
+      e.preventDefault();
+      grab.current = { id, x: e.clientX, y: e.clientY, left: el.offsetLeft, top: el.offsetTop };
+      setDragging(id);
+      const move = (ev: PointerEvent) => {
+        const g = grab.current;
+        const node = g && els.current.get(g.id);
+        if (!g || !node) return;
+        // under the pointer wherever its place in the layout has gone
+        node.style.pointerEvents = "none";
+        node.style.transform = `translate(${ev.clientX - g.x - (node.offsetLeft - g.left)}px, ${ev.clientY - g.y - (node.offsetTop - g.top)}px) scale(1.01)`;
+        const under = document.elementFromPoint(ev.clientX, ev.clientY);
+        const over = under?.closest<HTMLElement>("[data-section]");
+        const column = under?.closest<HTMLElement>("[data-column]");
+        const cur = latest.current;
+        const columns = cur.columns.map((c) => c.filter((s) => s !== g.id));
+        if (over) {
+          const target = over.dataset.section as SectionId;
+          const r = over.getBoundingClientRect();
+          const col = columns.find((c) => c.includes(target))!;
+          col.splice(col.indexOf(target) + (ev.clientY > r.top + r.height / 2 ? 1 : 0), 0, g.id);
+        } else if (column && !cur.columns[Number(column.dataset.column)].includes(g.id)) {
+          columns[Number(column.dataset.column)].push(g.id);
+        } else return;
+        if (JSON.stringify(columns) !== JSON.stringify(cur.columns)) arrange({ ...cur, columns });
+      };
+      const drop = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", drop);
+        window.removeEventListener("pointercancel", drop);
+        const node = grab.current && els.current.get(grab.current.id);
+        grab.current = null;
+        setDragging(null);
+        if (!node) return;
+        // settle into its place
+        const from = node.style.transform;
+        node.style.transform = "";
+        node.style.pointerEvents = "";
+        if (from) node.animate([{ transform: from }, { transform: "none" }], SLIDE);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", drop);
+      window.addEventListener("pointercancel", drop);
+    },
   };
 
   const live = useMemo(() => items.filter((i) => !gone.has(i.key)), [items, gone]);
@@ -576,16 +634,12 @@ export function HomeView({
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className={`relative grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] ${dragging ? "cursor-grabbing select-none" : ""}`}>
         {layout.columns.map((col, i) => (
           <div
             key={i}
-            onDragOver={(e) => {
-              if (!dragging) return;
-              e.preventDefault();
-              if (!col.length) dropOnColumn(i);
-            }}
-            className={`flex min-h-0 flex-col gap-4 ${!col.length ? "rounded-3xl border border-dashed border-white/[0.08] max-lg:hidden" : ""}`}
+            data-column={i}
+            className={`flex min-h-0 flex-col gap-4 ${!col.length ? `rounded-3xl border border-dashed transition-colors duration-300 max-lg:hidden ${dragging ? "border-accent/30" : "border-white/[0.08]"}` : ""}`}
           >
             {col.map((id) => sections[id])}
           </div>

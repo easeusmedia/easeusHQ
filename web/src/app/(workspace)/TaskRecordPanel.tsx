@@ -2,17 +2,40 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Layers, Plus, UserPlus } from "lucide-react";
+import { Layers, Plus, UserPlus } from "lucide-react";
 import { Dropdown } from "./Dropdown";
 import { Avatar } from "./TaskCard";
 import { addPeopleToTask, getTaskRecord, setTaskDepartment } from "./taskRecord";
 import type { TaskRef } from "@/lib/taskTrack";
 import { ordinal } from "@/lib/overdue";
+import { dayOf, shortDay } from "@/lib/editorKpi";
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof getTaskRecord>>>;
 
-const day = (iso: string | Date | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : "no date";
+const day = (iso: string | Date | null) => (iso ? shortDay(dayOf(new Date(iso))) : "No date");
+// "29 Sep, 3:41 pm", in IST
+const moment = (iso: string) => `${day(iso)}, ${new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}`;
+
+// a person on a branch of the tree: the line runs down the left and curves
+// into their face (the client tree's line, in the sidebar)
+function Branch({ last, name, meta, children }: { last: boolean; name: string; meta: string; children: React.ReactNode }) {
+  return (
+    <li className="relative pb-3 last:pb-0">
+      <span className="absolute top-0 left-[11px] h-[15px] w-3.5 rounded-bl-lg border-b border-l border-white/15" />
+      {!last && <span className="absolute top-[15px] bottom-0 left-[11px] w-px bg-white/15" />}
+      <div className="flex items-start gap-2.5 pl-7">
+        <Avatar name={name} size={22} presence={false} />
+        <div className="min-w-0 pt-px text-xs leading-relaxed">
+          <p>
+            <span className="font-medium text-foreground">{name}</span>
+            <span className="text-muted"> · {meta}</span>
+          </p>
+          <p className="text-foreground/80">{children}</p>
+        </div>
+      </div>
+    </li>
+  );
+}
 
 // A task's record, in its window: when it was made and by whom, the
 // department it's filed under, everyone brought onto it and why, and every
@@ -87,16 +110,15 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
           )}
         </div>
         {record.people.length === 0 && !adding && <p className="text-xs text-muted/70">Only whoever it&apos;s assigned to.</p>}
-        {record.people.map((p) => (
-          <div key={p.id} className="flex items-start gap-2.5">
-            <Avatar name={p.name} size={22} presence={false} />
-            <p className="min-w-0 text-xs leading-relaxed">
-              <span className="font-medium text-foreground">{p.name}</span>
-              <span className="text-muted">, added by {p.by} on {day(p.at)}: </span>
-              <span className="text-foreground/85">{p.reason}</span>
-            </p>
-          </div>
-        ))}
+        {record.people.length > 0 && (
+          <ul>
+            {record.people.map((p, i) => (
+              <Branch key={p.id} last={i === record.people.length - 1} name={p.name} meta={`added by ${p.by}, ${moment(p.at)}`}>
+                {p.reason}
+              </Branch>
+            ))}
+          </ul>
+        )}
         {adding && (
           <div className="fade-in flex flex-col gap-2 rounded-lg bg-white/[0.03] p-3">
             <div className="flex flex-wrap gap-1.5">
@@ -137,23 +159,36 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
 
       {record.dates.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className={label}>Completion date moves</p>
-          {record.dates.map((d, i) => (
-            <div key={i} className="flex items-start gap-2.5 text-xs">
-              <CalendarClock size={13} className={`mt-0.5 shrink-0 ${d.strike ? "text-rose-300" : "text-muted"}`} />
-              <p className="min-w-0 leading-relaxed">
-                <span className="text-foreground">
-                  {day(d.from)} → {day(d.to)}
-                </span>
-                <span className="text-muted">
-                  {" "}
-                  by {d.by}
-                  {d.strike > 0 && <span className="text-rose-300"> after its {ordinal(d.strike)} miss</span>}:{" "}
-                </span>
-                <span className="text-foreground/85">{d.reason}</span>
-              </p>
-            </div>
-          ))}
+          <p className={label}>Completion date</p>
+          <ol>
+            {/* where it started */}
+            <li className="relative flex h-6 items-center pl-7">
+              <span className="absolute top-[7px] left-[6px] size-2.5 rounded-full border border-white/25" />
+              <span className="absolute top-[17px] bottom-0 left-[11px] w-px bg-white/15" />
+              <span className="text-xs text-muted line-through decoration-white/25">{day(record.dates[0].from)}</span>
+              <span className="ml-2 text-[11px] text-muted/60">first date</span>
+            </li>
+            {record.dates.map((d, i) => {
+              const latest = i === record.dates.length - 1;
+              return (
+                <li key={i} className="relative pt-2">
+                  {/* the line from the date before, and on to the next */}
+                  <span className="absolute top-0 left-[11px] h-[15px] w-px bg-white/15" />
+                  {!latest && <span className="absolute top-[25px] bottom-0 left-[11px] w-px bg-white/15" />}
+                  <div className="flex h-6 items-center gap-2 pl-7">
+                    <span className={`absolute top-[15px] left-[6px] size-2.5 rounded-full ${latest ? "bg-accent shadow-[0_0_0_3px_rgb(75_149_230/0.2)]" : "bg-white/35"}`} />
+                    <span className={`text-sm font-medium tabular-nums ${latest ? "text-foreground" : "text-foreground/70"}`}>{day(d.to)}</span>
+                    {d.strike > 0 && <span className="rounded-full bg-rose-400/10 px-1.5 py-px text-[10px] font-medium text-rose-300">after its {ordinal(d.strike)} miss</span>}
+                  </div>
+                  <ul className="relative mt-1 ml-[22px] pb-1">
+                    <Branch last name={d.by} meta={moment(d.at)}>
+                      {d.reason}
+                    </Branch>
+                  </ul>
+                </li>
+              );
+            })}
+          </ol>
         </div>
       )}
       {error && <p className="text-xs text-red-300">{error}</p>}
