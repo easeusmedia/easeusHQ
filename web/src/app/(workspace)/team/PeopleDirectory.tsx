@@ -180,7 +180,7 @@ export function PeopleDirectory({
           </div>
           {shownTeams.length > 1 && (
             // one line that scrolls sideways, however many groups there are
-            <div className="-mx-3 flex gap-1 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="-mx-3 -my-1.5 flex gap-1 overflow-x-auto px-3 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {[{ id: "all", name: "All" }, ...shownTeams, ...(people.some((p) => p.employment === "former") ? [{ id: "former", name: "Former" }] : [])].map((t) => (
                 <button key={t.id} aria-pressed={team === t.id} onClick={() => setTeam(t.id)} className="chip shrink-0 rounded-full px-2.5 py-1 text-xs whitespace-nowrap">
                   {t.name}
