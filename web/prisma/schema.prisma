@@ -223,6 +223,7 @@ model User {
   // the clients an editor (role employee) has been given: the only ones
   // they see, and only their own work on each
   visibleClients    Client[]           @relation("ClientEditors")
+  hiddenClients Client[] @relation("ClientHidden")
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -254,6 +255,8 @@ model Client {
   niche     String?
   // the editors ops has given this client to; no one else in that role sees it
   editors   User[]   @relation("ClientEditors")
+  // Level 2 sees every client but these: access taken away on the client
+  hiddenFrom User[] @relation("ClientHidden")
   // the four things the real Notion onboarding form collects, kept as
   // separate fields rather than one free-text blob so they're usable
   contact   String? // primary contact's name

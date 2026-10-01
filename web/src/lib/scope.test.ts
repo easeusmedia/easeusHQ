@@ -97,6 +97,6 @@ test("kinds of work follow departments; clients are all visible except to a Memb
   assert.equal(canEditTag(pankaj, { teamId: SALES.id }), true);
   assert.equal(canEditTag(pankaj, { teamId: PROD.id }), false);
   assert.equal(canEditTag(pankaj, { teamId: null }), false);
-  assert.deepEqual(visibleClientWhere(jyotsna), {});
+  assert.deepEqual(visibleClientWhere(jyotsna), { hiddenFrom: { none: { id: jyotsna.id } } });
   assert.deepEqual(visibleClientWhere(sparsh), { editors: { some: { id: sparsh.id } } });
 });

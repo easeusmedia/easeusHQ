@@ -6,7 +6,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer, seesClient, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { clientLogoSrc } from "@/lib/photos";
@@ -83,6 +83,7 @@ function loadClient(slug: string) {
       documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
       tags: true,
       editors: { select: { id: true } },
+      hiddenFrom: { select: { id: true } },
     },
   });
 }
@@ -116,7 +117,7 @@ export default async function ClientDetailPage({
   // (see the canSeeBilling tab below) — that's the one part of a client
   // that isn't everybody's business.
   const canSeeBilling = isAbhishekOrAdmin(me);
-  if (!client) notFound();
+  if (!client || !seesClient(viewer, client)) notFound();
 
   // An editor sees a client only once it's been given to them, and then
   // only their own work on it and the documents they edit by (lib/scope)
@@ -218,7 +219,11 @@ export default async function ClientDetailPage({
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start">
           {/* the client's own page at this address, for the team to switch on */}
           {/* which members (everyone outside the core team) can see it */}
-          <EditorAccess clientId={client.id} editors={users.filter((u) => u.role === "employee" && u.employment !== "former").map((u) => ({ id: u.id, name: u.name }))} given={client.editors.map((e) => e.id)} />
+          <EditorAccess
+            clientId={client.id}
+            people={users.filter((u) => (u.role === "employee" || (u.role === "core" && !isFounder(u))) && u.employment !== "former").map((u) => ({ id: u.id, name: u.name, position: u.position ?? null }))}
+            given={users.filter((u) => seesClient(u, client) && !isFounder(u)).map((u) => u.id)}
+          />
           <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />
           {canSeeFeedback && (client.shareEnabled || feedback.length > 0) && (
             <ClientMessages

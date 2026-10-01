@@ -142,10 +142,19 @@ export function canEditTag(user: Viewer, tag: { teamId: string | null }): boolea
   return departmentIds(user).includes(tag.teamId);
 }
 
-// Which clients someone sees. Founders and Leads see every client; a
-// Member only the ones given to them, so a new client isn't shown to every
-// editor the day it signs.
-export function visibleClientWhere(user: Pick<Viewer, "id" | "role">): Record<string, unknown> {
-  if (!isMember(user)) return {};
-  return { editors: { some: { id: user.id } } };
+// Which clients someone sees. Level 1 every client; Level 2 every client
+// but the ones taken from them; Level 3 only the ones given to them, so a
+// new client isn't shown to every editor the day it signs. Both are set
+// from the client's own page (clients/EditorAccess).
+export function visibleClientWhere(user: { id: string; role: string; email?: string | null }): Record<string, unknown> {
+  if (isFounder(user)) return {};
+  if (isMember(user)) return { editors: { some: { id: user.id } } };
+  return { hiddenFrom: { none: { id: user.id } } };
+}
+
+// The same, for a client already loaded with its access lists
+export function seesClient(user: { id: string; role: string; email?: string | null }, client: { editors: { id: string }[]; hiddenFrom: { id: string }[] }): boolean {
+  if (isFounder(user)) return true;
+  if (isMember(user)) return client.editors.some((e) => e.id === user.id);
+  return !client.hiddenFrom.some((e) => e.id === user.id);
 }

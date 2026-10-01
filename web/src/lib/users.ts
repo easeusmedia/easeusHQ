@@ -29,6 +29,8 @@ export const getAllUsers = cache(async () =>
       lastSeenAt: true,
       teamId: true,
       jobTitleId: true,
+      // the title everyone sees
+      position: true,
       employment: true,
     },
     orderBy: { name: "asc" },

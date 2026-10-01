@@ -79,11 +79,13 @@ async function add() {
   const tanvi = await person("Tanvi Desai", "employee", "Social Media Manager", ["distribution"], ["Social Media Manager"], -240);
 
   // ---------- clients ----------
-  const client = (name: string, slug: string, niche: string) => prisma.client.create({ data: { name, slug: SLUG + slug, niche } });
+  // a Level 3 sees only the clients given to them
+  const client = (name: string, slug: string, niche: string, given: { id: string }[]) =>
+    prisma.client.create({ data: { name, slug: SLUG + slug, niche, editors: { connect: given.map((u) => ({ id: u.id })) } } });
   const project = (clientId: string, name: string, type: string) => prisma.project.create({ data: { clientId, name, type } });
-  const glow = await client("Glow Derma Clinic", "glow-derma", "Dermatology");
-  const kavya = await client("Dr Kavya Rao", "kavya-rao", "Gynaecology");
-  const fitfuel = await client("FitFuel Nutrition", "fitfuel", "Nutrition");
+  const glow = await client("Glow Derma Clinic", "glow-derma", "Dermatology", [karan, ishaan, sneha, aman, tanvi]);
+  const kavya = await client("Dr Kavya Rao", "kavya-rao", "Gynaecology", [karan, ishaan, sneha, aman]);
+  const fitfuel = await client("FitFuel Nutrition", "fitfuel", "Nutrition", [karan, ishaan, sneha]);
   const glowReels = await project(glow.id, "October reels", "reels");
   const glowPodcast = await project(glow.id, "Skin Talk podcast", "podcast");
   const kavyaShorts = await project(kavya.id, "October short-form", "short-form");

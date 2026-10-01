@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { isFounder } from "@/lib/scope";
 import { getSessionUserId, requireFeedbackViewer, requireOps } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { firstFree, slugify } from "@/lib/slug";
@@ -241,15 +242,17 @@ export async function setPostDate(taskId: string, day: string): Promise<{ error?
   return {};
 }
 
-// Which members can see this client (lib/scope visibleClientWhere). Ops
-// only, and only ever members: the core team sees every client already.
-// Nothing to revalidate: the picker keeps its own ticks, so the page isn't
-// re-rendered (and the menu closed) after every one; a member's own pages
-// pick it up on their next load.
-export async function setClientEditors(clientId: string, editorIds: string[]): Promise<{ error?: string }> {
+// Whether someone can see this client (lib/scope visibleClientWhere): a
+// Level 3 is given it, a Level 2 has it unless it's taken away; Level 1
+// always does. Ops only. Nothing to revalidate: the picker keeps its own
+// ticks, so the menu stays open; their pages pick it up on the next load.
+export async function setClientAccess(clientId: string, userId: string, on: boolean): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can choose who sees a client." };
-  const editors = await prisma.user.findMany({ where: { id: { in: editorIds }, role: "employee" }, select: { id: true } });
-  await prisma.client.update({ where: { id: clientId }, data: { editors: { set: editors } } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, email: true } });
+  if (!user || isFounder(user)) return { error: "They always see every client." };
+  const link = { [on ? "connect" : "disconnect"]: { id: user.id } };
+  if (user.role === "employee") await prisma.client.update({ where: { id: clientId }, data: { editors: link } });
+  else await prisma.client.update({ where: { id: clientId }, data: { hiddenFrom: { [on ? "disconnect" : "connect"]: { id: user.id } } } });
   return {};
 }
 

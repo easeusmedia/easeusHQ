@@ -137,6 +137,7 @@ export function Sidebar({
   sessionUserId,
   unreadBySender,
   contractsWaiting = 0,
+  noticesWaiting = 0,
   clients = [],
   logout,
   initialOpen,
@@ -159,6 +160,8 @@ export function Sidebar({
   unreadBySender: Record<string, number>;
   // contracts whose client has sent the form, waiting on ops
   contractsWaiting?: number;
+  // notices they haven't seen yet, on Home
+  noticesWaiting?: number;
   // the current clients, under the Clients item
   clients?: SidebarClient[];
   logout: () => Promise<void>;
@@ -238,7 +241,7 @@ export function Sidebar({
       label: "Main",
       // everyone's Home first: what they may see, at a glance
       items: [
-        { href: "/home", label: "Home", hint: "Your work and notices, at a glance", Icon: House },
+        { href: "/home", label: "Home", hint: "Your work and notices, at a glance", Icon: House, count: noticesWaiting },
         ...(isEditor
           ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
           : MAIN.filter((i) => seesBoard || i.href !== "/board")),
@@ -388,7 +391,7 @@ export function Sidebar({
         const active = isClients ? pathname === "/clients" : isActive(item.href, pathname);
         // what's waiting behind this item: unread chat, contracts to finish
         const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
-        const waiting = item.href === "/chat" ? `${unreadCount} unread` : `${count} waiting on you`;
+        const waiting = item.href === "/chat" ? `${unreadCount} unread` : item.href === "/home" ? `${count} new ${count === 1 ? "notice" : "notices"}` : `${count} waiting on you`;
         const row = (
           <PrefetchLink
             key={item.href}
@@ -407,7 +410,11 @@ export function Sidebar({
               <item.Icon size={18} className={active ? "icon-glow" : ""} />
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
-              {count > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-[#15181c]" />}
+              {count > 0 && !open && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-white tabular-nums ring-2 ring-[#15181c]">
+                  {count > 9 ? "9+" : count}
+                </span>
+              )}
             </span>
             <FadeLabel open={open}>{item.label}</FadeLabel>
             {count > 0 && open && (

@@ -74,6 +74,8 @@ export type Notice = {
   href?: string;
   // the task it's about (an item's key), to open it
   open?: string;
+  // not seen before this visit
+  fresh?: boolean;
 };
 
 type Env = { editors: { id: string; name: string }[]; projects: Project[]; taskTags: TaskTagOption[]; actingRole: Role; actingUserId: string };
@@ -867,7 +869,10 @@ function NoticesSection({
               <>
                 <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${TONE[n.tone]}`}>{NOTICE_ICON[n.kind]}</span>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className="text-sm leading-snug">{n.text}</p>
+                  <p className="text-sm leading-snug">
+                    {n.fresh && <span className="mr-1.5 mb-0.5 inline-block size-1.5 rounded-full bg-accent align-middle" aria-label="New" />}
+                    {n.text}
+                  </p>
                   {n.sub && <p className="mt-0.5 text-xs text-muted">{n.sub}</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}

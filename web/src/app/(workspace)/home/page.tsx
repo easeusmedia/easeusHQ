@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
+import { getRealUserId } from "@/lib/auth";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
 import { assigneeWhere, effectiveRole, isFounder, isMember } from "@/lib/scope";
 import { LIVE_TASK } from "@/lib/workflow";
@@ -58,6 +59,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     prisma.notice.findMany({ where: { OR: [{ forId: viewer.id }, ...(full ? [{ forId: null }] : [])] }, orderBy: { createdAt: "desc" }, take: 40 }),
     full ? levelOneNotices(today) : [],
   ]);
+
+  // the notices are on screen now: seen (the number on Home clears), but
+  // marked new this once. Not while Level 1 is looking as someone else.
+  const fresh = new Set(mine.filter((n) => !n.readAt).map((n) => n.id));
+  if (fresh.size && (await getRealUserId()) === viewer.id) await prisma.notice.updateMany({ where: { id: { in: [...fresh] } }, data: { readAt: new Date() } });
 
   // the week's meetings, when the calendar is connected
   let meetings: Meeting[] = [];
@@ -126,6 +132,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       sub: [n.kind === "note" ? n.by : null, shortDay(dayOf(n.createdAt))].filter(Boolean).join(" · "),
       // the task it's about, to open
       open: n.taskId ? `t${n.taskId}` : n.workTaskId ? `w${n.workTaskId}` : undefined,
+      fresh: fresh.has(n.id),
     })),
   ];
 

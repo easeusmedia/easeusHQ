@@ -9,7 +9,7 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient } from "@/lib/scope";
 import { ViewAsBanner } from "./ViewAsBanner";
 import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -42,7 +42,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     // the current clients: the sidebar's tree and the client bar — everyone sees them
     prisma.client.findMany({
       where: { status: "current" },
-      select: { id: true, slug: true, name: true, avatarUrl: true, editors: { select: { id: true } } },
+      select: { id: true, slug: true, name: true, avatarUrl: true, editors: { select: { id: true } }, hiddenFrom: { select: { id: true } } },
       // the same order as the Clients dashboard
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -66,8 +66,11 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // an editor has only the clients given to them (lib/scope)
   const editor = worksTheBoard(viewer);
   const currentClients = clientRows
-    .filter((c) => !isMember(viewer) || c.editors.some((e) => e.id === sessionUser.id))
+    .filter((c) => seesClient(viewer, c))
     .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
+
+  // notices they haven't seen yet: a number on Home, like unread chat
+  const noticesWaiting = await prisma.notice.count({ where: { forId: viewer.id, readAt: null } }).catch(() => 0);
 
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
@@ -95,6 +98,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         sessionUserId={sessionUser.id}
         unreadBySender={unreadBySender}
         contractsWaiting={contractsWaiting}
+        noticesWaiting={noticesWaiting}
         clients={currentClients}
         logout={logout}
         initialOpen={sidebarOpen}
