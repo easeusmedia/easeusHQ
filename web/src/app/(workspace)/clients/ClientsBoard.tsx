@@ -94,7 +94,7 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex gap-1 rounded-xl panel-soft p-1">
+        <div className="flex gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
           {GROUPS.map((g) => (
             <button
               key={g.status}
@@ -118,24 +118,22 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
                 setPreview(null);
                 if (id) commitStatus(id, g.status);
               }}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium ${
-                activeGroup === g.status ? "selected" : "border border-transparent text-muted hover:text-foreground"
-              }`}
+              aria-pressed={activeGroup === g.status}
+              className="seg flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium"
             >
               {g.label} <span className="text-muted/70">({counts[g.status]})</span>
             </button>
           ))}
         </div>
 
-        <div className="flex gap-1 rounded-xl panel-soft p-1">
+        <div className="flex gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
           {([["grid", LayoutGrid, "Grid"], ["list", List, "List"]] as const).map(([key, Icon, label]) => (
             <button
               key={key}
               onClick={() => setView(key)}
               aria-label={`${key} view`}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
-                view === key ? "selected" : "border border-transparent text-muted hover:text-foreground"
-              }`}
+              aria-pressed={view === key}
+              className="seg flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium"
             >
               <Icon size={16} /> {label}
             </button>

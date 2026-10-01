@@ -215,7 +215,7 @@ export function ProjectsSection({
           <h2 className="text-sm font-medium">Projects</h2>
           {blueprint}
         </div>
-        <div className="flex rounded-md border border-border bg-surface-2 p-0.5">
+        <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
           {(
             [
               [false, LayoutGrid, "Grid"],
