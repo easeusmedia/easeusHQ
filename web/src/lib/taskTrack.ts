@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { dayOf, shortDay } from "./editorKpi";
 import { isFounder, type Viewer } from "./scope";
 import { ACTIVE_STATUSES } from "./workflow";
-import { overdueAudience } from "./overdue.ts";
+import { overdueAudience, overdueText } from "./overdue.ts";
 import { departmentFromTitle } from "./department.ts";
 
 // The record every task keeps, whichever kind it is (a client Task or a
@@ -101,14 +101,12 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
     const strike = t.strikes + 1;
     const owner = people.find((p) => p.id === (t.assignedToId ?? t.createdById));
     const to = toldAbout(strike, owner, t.teamId, people);
-    // plain sentences: what wasn't done by when, and how often it's been late
-    const late = `wasn't finished by its due date, ${shortDay(dayOf(t.dueDate))}.${strike > 1 ? ` It's now been late ${strike} times.` : ""}`;
-    const whose = owner ? `${owner.name.split(" ")[0]}'s task` : "The task";
+    const due = shortDay(dayOf(t.dueDate));
     const data = to.map((p) => ({
       ...key(t.ref),
       forId: p.id,
       kind: "overdue",
-      body: p.id === owner?.id ? `"${t.title}" ${late} Set a new due date and say why.` : `${whose} "${t.title}" ${late}`,
+      body: overdueText({ title: t.title, due, strike, owner: owner?.name ?? null, toOwner: p.id === owner?.id }),
     }));
     if (t.ref.kind === "task") {
       await prisma.$transaction([prisma.task.update({ where: { id: t.id }, data: { strikes: strike, overdueFor: t.dueDate } }), prisma.notice.createMany({ data })]);

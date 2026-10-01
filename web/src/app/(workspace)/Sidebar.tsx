@@ -560,8 +560,8 @@ export function Sidebar({
                         type="button"
                         onClick={async () => {
                           await viewAs(p.id);
-                          router.replace("/");
-                          router.refresh();
+                          // a full load: nothing cached from your own view carries over
+                          window.location.assign("/home"); // eslint-disable-line @next/next/no-location-assign-relative-destination -- a full load on purpose
                         }}
                         className="menu-item justify-between px-2.5 py-1.5 text-sm"
                       >
