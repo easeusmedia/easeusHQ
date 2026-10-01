@@ -660,14 +660,16 @@ dialog[open]::backdrop {
 .btn-primary:active {
   transform: translateY(1px);
 }
-/* Sign in and Send details: thin outlined at rest; on hover the app's blue gradient
+/* Sign in and Send details: a faint edge at rest; on hover the app's blue gradient
    glass fades in behind it, its edge lights blue and a
    soft glow appears */
 .btn-theme-hover {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  /* at rest: a faint edge and a whisper of fill, not a heavy outline */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(255, 255, 255, 0.04);
   color: rgba(255, 255, 255, 0.9);
   transition: border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, transform 0.2s ease;
 }
