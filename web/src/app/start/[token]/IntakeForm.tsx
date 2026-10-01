@@ -191,7 +191,7 @@ export function IntakeForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={sending}
-        className="btn-theme mt-9 h-11 rounded-xl text-sm font-semibold disabled:opacity-60"
+        className="btn-theme-hover mt-9 h-11 rounded-xl text-sm font-semibold disabled:opacity-60"
       >
         {sending ? "Sending…" : "Send details"}
       </button>
