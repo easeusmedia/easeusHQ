@@ -933,6 +933,30 @@ dialog[open]::backdrop {
   box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.9);
 }
 
+/* the profile row: lit with the profile menu's blue wash on hover and
+   while its menu is open, fading in rather than snapping */
+.hover-accent {
+  isolation: isolate;
+}
+.hover-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgb(75 149 230 / 0.38), transparent 65%) padding-box,
+    linear-gradient(180deg, #172133 0%, #121418 100%) padding-box,
+    linear-gradient(160deg, rgba(125, 180, 245, 0.55), rgba(255, 255, 255, 0.06) 55%) border-box;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.hover-accent:hover::before,
+.hover-accent[aria-expanded="true"]::before {
+  opacity: 1;
+}
+
 /* Home's greeting: each line fades up softly, one just after the other
    (the delay is set per line) */
 .greet-in {
