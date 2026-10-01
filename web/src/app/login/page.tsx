@@ -11,20 +11,20 @@ const initialState: LoginState = {};
 const LINE = "border-b border-white/20 transition-colors duration-300 focus-within:border-white/70 hover:border-white/35";
 const LABEL = "text-[10px] font-medium tracking-[0.18em] text-white/50 uppercase";
 
-// Sign in, calm and in the app's own dark: a faint misty blue from the top
-// corner fading into near-black, no card, the mark, two fields drawn as
+// Sign in, calm: one soft sweep of misty blue from the top corner down to
+// deep navy, no card, the mark, two fields drawn as
 // lines, and an outlined button that takes the app's blue glass on hover.
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#08090c] p-6 text-white">
-      {/* the app's dark, with a faint misty blue light from the top left, drifting slowly */}
+    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#06101c] p-6 text-white">
+      {/* misty light from the top left, falling away to deep navy, drifting slowly */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,#1f2b3a_0%,#161f2b_22%,#11161e_45%,#0d1016_68%,#08090c_100%)]" />
-        <div className="mist absolute -top-[30vh] -left-[20vw] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(140_170_205/0.16),transparent)]" />
-        <div className="mist absolute right-[-25vw] bottom-[-35vh] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.14),transparent)] [animation-delay:-13s]" />
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,#b9c7d4_0%,#7f97ae_20%,#45647f_42%,#1d3550_64%,#0b1a2c_84%,#050b14_100%)]" />
+        <div className="mist absolute -top-[30vh] -left-[20vw] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(225_233_240/0.55),transparent)]" />
+        <div className="mist absolute right-[-25vw] bottom-[-35vh] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.22),transparent)] [animation-delay:-13s]" />
       </div>
 
       <form action={formAction} className="rise-in flex w-full max-w-[300px] flex-col items-center">
