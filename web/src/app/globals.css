@@ -1048,3 +1048,73 @@ dialog[open]::backdrop {
     linear-gradient(180deg, rgba(140, 190, 250, 0.5), rgba(255, 255, 255, 0.06)) border-box;
   box-shadow: 0 4px 14px -6px rgba(75, 149, 230, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
+
+/* ---- Mist: the sign-in page's misty blue behind the whole app, for
+   whoever picks it (the profile menu's Theme). Minimal frost: the panels
+   become a thin, faintly blurred navy glass with hairline edges and no
+   heavy shadows, so the light shows through and every word stays as
+   readable as in the dark. The gradient is a shade deeper than the sign-in
+   page's, so text sitting on it (a page's title) keeps its contrast. ---- */
+.app-root[data-theme="mist"] {
+  --background: #0e1b2b;
+  --surface: rgba(14, 24, 38, 0.5);
+  --surface-2: rgba(18, 30, 46, 0.55);
+  --border: rgba(255, 255, 255, 0.1);
+  --hover-surface: rgba(90, 115, 145, 0.35);
+  --muted: #b1bfcd;
+  background:
+    radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.22), transparent 70%),
+    linear-gradient(135deg, #67809a 0%, #4b6785 22%, #2e4967 45%, #1a2f4a 68%, #0c1a2c 86%, #070d17 100%);
+  background-attachment: fixed;
+}
+[data-theme="mist"] .panel,
+[data-theme="mist"] .glass,
+[data-theme="mist"] .popover {
+  background:
+    var(--spot-face, linear-gradient(transparent, transparent)) padding-box,
+    linear-gradient(180deg, rgba(16, 27, 42, 0.62) 0%, rgba(11, 19, 31, 0.7) 100%) padding-box,
+    var(--spot-edge, linear-gradient(transparent, transparent)) border-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 100%) border-box;
+  backdrop-filter: blur(16px) saturate(1.1);
+  box-shadow: none;
+}
+/* menus and dialogs sit over busier things: a touch more opaque */
+[data-theme="mist"] .glass,
+[data-theme="mist"] .popover {
+  background:
+    linear-gradient(180deg, rgba(18, 30, 46, 0.86) 0%, rgba(12, 21, 34, 0.9) 100%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 100%) border-box;
+}
+[data-theme="mist"] .panel-soft,
+[data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s) {
+  background:
+    var(--spot-face) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.025) 100%) padding-box,
+    var(--spot-edge) border-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 45%, rgba(255, 255, 255, 0.03) 100%) border-box;
+  box-shadow: none;
+}
+[data-theme="mist"] .panel-hover:hover,
+[data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover {
+  background:
+    var(--spot-face) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.045) 100%) padding-box,
+    var(--spot-edge) border-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.07) 40%, rgba(255, 255, 255, 0.05) 100%) border-box;
+}
+[data-theme="mist"] .selected {
+  background:
+    linear-gradient(90deg, rgba(75, 149, 230, 0.2), rgba(75, 149, 230, 0.03) 75%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)) padding-box,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06)) border-box;
+}
+[data-theme="mist"] .btn-glow {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)) border-box;
+}
+[data-theme="mist"] .btn-glow:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08)) border-box;
+}

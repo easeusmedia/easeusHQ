@@ -172,6 +172,8 @@ model User {
   // the title everyone sees for them ("Creative Director"); their level stays
   // internal, for Level 1 only
   position    String?
+  // how the app looks to them: "dark" (the default) or "mist"
+  theme       String?
   // Level is `role` above: admin = Founder, core = Lead, employee = Member.
   // A Lead sees the work in these departments; a Member works in them.
   departments Team[]     @relation("UserDepartments")

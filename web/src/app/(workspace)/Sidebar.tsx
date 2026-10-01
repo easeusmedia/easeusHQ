@@ -9,6 +9,7 @@ import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
 import { viewAs } from "./viewAs";
+import { setTheme, type Theme } from "./theme";
 import { Reveal } from "./Reveal";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
@@ -139,6 +140,7 @@ export function Sidebar({
   unreadBySender,
   contractsWaiting = 0,
   noticesWaiting = 0,
+  theme = "dark",
   clients = [],
   logout,
   initialOpen,
@@ -164,6 +166,8 @@ export function Sidebar({
   contractsWaiting?: number;
   // notices they haven't seen yet, on Home
   noticesWaiting?: number;
+  // how the app looks to them (the profile menu's Theme)
+  theme?: Theme;
   // the current clients, under the Clients item
   clients?: SidebarClient[];
   logout: () => Promise<void>;
@@ -178,6 +182,13 @@ export function Sidebar({
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
   const [viewAsOpen, setViewAsOpen] = useState(false);
+  const [look, setLook] = useState<Theme>(theme);
+  // the frame changes at once; saved for next time
+  function pickTheme(t: Theme) {
+    setLook(t);
+    document.querySelector(".app-root")?.setAttribute("data-theme", t);
+    setTheme(t);
+  }
   const photoInput = useRef<HTMLInputElement>(null);
   const [photoState, setPhotoState] = useState<string | null>(null);
   const hasPhoto = !!usePhoto(name);
@@ -544,6 +555,15 @@ export function Sidebar({
               </button>
             )}
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
+            {/* how the app looks to them */}
+            <div className="flex items-center gap-2 px-2.5 py-2 text-sm">
+              <span className="mr-auto text-muted">Theme</span>
+              {(["dark", "mist"] as const).map((t) => (
+                <button key={t} type="button" aria-pressed={look === t} onClick={() => pickTheme(t)} className="chip rounded-full px-2.5 py-0.5 text-xs capitalize">
+                  {t}
+                </button>
+              ))}
+            </div>
             {/* Level 1: the app as someone else sees it */}
             {viewAsPeople && (
               <>

@@ -31,6 +31,8 @@ export const getAllUsers = cache(async () =>
       jobTitleId: true,
       // the title everyone sees
       position: true,
+      // their own look: dark or mist
+      theme: true,
       employment: true,
     },
     orderBy: { name: "asc" },

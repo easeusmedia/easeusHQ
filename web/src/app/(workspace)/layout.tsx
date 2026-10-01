@@ -84,7 +84,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
 
   return (
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
-    <div className="flex h-screen bg-background text-foreground">
+    {/* their own look (the profile menu's Theme): dark, or mist (globals.css) */}
+    <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
       <Pulse live={liveLine()} />
       {viewingAs && <ViewAsBanner name={sessionUser.name} level={LEVEL_LABEL[sessionUser.role]} />}
       <Spotlight />
@@ -102,6 +103,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         unreadBySender={unreadBySender}
         contractsWaiting={contractsWaiting}
         noticesWaiting={noticesWaiting}
+        theme={realUser?.theme === "mist" ? "mist" : "dark"}
         clients={currentClients}
         logout={logout}
         initialOpen={sidebarOpen}
