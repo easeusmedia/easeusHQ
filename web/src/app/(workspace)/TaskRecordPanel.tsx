@@ -7,18 +7,13 @@ import { Dropdown } from "./Dropdown";
 import { Avatar } from "./TaskCard";
 import { addPeopleToTask, getTaskRecord, setTaskDepartment } from "./taskRecord";
 import type { TaskRef } from "@/lib/taskTrack";
-import { ordinal } from "@/lib/overdue";
 import { dayOf, shortDay } from "@/lib/editorKpi";
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof getTaskRecord>>>;
 
 // "Riya", "Riya and Ishaan", "Riya, Ishaan and Ashmit"
 const names = (all: string[]) => (all.length < 2 ? (all[0] ?? "") : `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`);
-// "once", "twice", "3 times"
-const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
 const day = (iso: string | Date | null) => (iso ? shortDay(dayOf(new Date(iso))) : "No date");
-// "29 Sep, 3:41 pm", in IST
-const moment = (iso: string) => `${day(iso)}, ${new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}`;
 
 // faces, overlapping
 function Faces({ people, size = 18 }: { people: string[]; size?: number }) {
@@ -33,31 +28,10 @@ function Faces({ people, size = 18 }: { people: string[]; size?: number }) {
   );
 }
 
-// a person on a branch of the tree: the line runs down the left and curves
-// into their face (the client tree's line, in the sidebar)
-function Branch({ last, name, meta, children }: { last: boolean; name: string; meta: string; children: React.ReactNode }) {
-  return (
-    <li className="relative pb-3 last:pb-0">
-      <span className="absolute top-0 left-[11px] h-[15px] w-3.5 rounded-bl-lg border-b border-l border-white/15" />
-      {!last && <span className="absolute top-[15px] bottom-0 left-[11px] w-px bg-white/15" />}
-      <div className="flex items-start gap-2.5 pl-7">
-        <Avatar name={name} size={22} presence={false} />
-        <div className="min-w-0 pt-px text-xs leading-relaxed">
-          <p>
-            <span className="font-medium text-foreground">{name}</span>
-            <span className="text-muted"> · {meta}</span>
-          </p>
-          <p className="text-foreground/80">{children}</p>
-        </div>
-      </div>
-    </li>
-  );
-}
-
 // A task's record, in its window: when it was made and by whom, and the
-// department it's filed under; then, in one line, who else is on it and
-// how its due date has gone. The why of each (reasons, every date, who was
-// told of each miss) opens from that line. Loaded when the window opens.
+// department it's filed under; then, in one line, who else is on it, when
+// it's due and how many due dates it has missed. What happened opens from
+// that line, as a plain list in order. Loaded when the window opens.
 export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; createdAt: string | Date; open: boolean }) {
   const router = useRouter();
   const [record, setRecord] = useState<Loaded | null>(null);
@@ -94,19 +68,33 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
   }
 
   if (!record) return null;
-  const label = "text-[11px] font-medium tracking-wide text-muted uppercase";
   const hasPeople = record.people.length > 0;
   const hasDates = record.dates.length > 0 || record.strikes > 0;
 
-  // every date it has had: the first, then each it was moved to (and how)
-  const nodes = [{ date: record.dates[0]?.from ?? record.due, move: null }, ...record.dates.map((d) => ({ date: d.to, move: d }))];
+  // every date it has had: the first, then each it was changed to
+  const dates = [record.dates[0]?.from ?? record.due, ...record.dates.map((d) => d.to)];
   // whether it went past date i, and which miss that was: the strikes rose
-  // between being given that date and being moved off it (or now)
+  // between being given that date and being changed off it (or now)
   const missOf = (i: number) => {
     const after = i < record.dates.length ? record.dates[i].strike : record.strikes;
     const before = i === 0 ? 0 : record.dates[i - 1].strike;
     return after > before ? after : 0;
   };
+  const first = (name: string) => name.split(" ")[0];
+  // what happened, in order: the first due date, each miss (and who was
+  // told), each change of date and each person added, with their reasons
+  type Event = { at: string; tone: "plain" | "miss" | "change" | "add"; text: string; note?: string; told?: string[] };
+  const events: Event[] = [
+    ...(hasDates && dates[0] ? [{ at: new Date(createdAt).toISOString(), tone: "plain" as const, text: `Due date set to ${day(dates[0])}${record.createdBy ? ` by ${first(record.createdBy)}` : ""}` }] : []),
+    ...dates.flatMap((d, i) => {
+      const n = missOf(i);
+      // counted the morning after
+      return n && d ? [{ at: new Date(new Date(d).getTime() + 27 * 3_600_000).toISOString(), tone: "miss" as const, text: `Missed the ${day(d)} due date`, told: record.misses[n - 1]?.told ?? [] }] : [];
+    }),
+    ...record.dates.map((d) => ({ at: d.at, tone: "change" as const, text: `${first(d.by)} changed the due date to ${day(d.to)}`, note: d.reason })),
+    ...record.people.map((p) => ({ at: p.at, tone: "add" as const, text: `${first(p.by)} added ${first(p.name)}`, note: p.reason })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  const DOT = { plain: "bg-white/40", miss: "bg-rose-400", change: "bg-amber-300", add: "bg-emerald-400" };
 
   return (
     <div className="col-span-2 flex flex-col gap-3 rounded-xl border border-border/70 bg-white/[0.02] p-4">
@@ -186,14 +174,18 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
           {hasPeople && (
             <span className="flex min-w-0 items-center gap-2">
               <Faces people={record.people.map((p) => p.name)} />
-              <span className="truncate text-foreground/80">With {names(record.people.map((p) => p.name.split(" ")[0]))}</span>
+              <span className="truncate text-foreground/80">Also on it: {names(record.people.map((p) => first(p.name)))}</span>
             </span>
           )}
           {hasDates && (
             <span className="text-muted">
               Due <span className="text-foreground/85">{day(record.due)}</span>
-              {record.dates.length > 0 && <> · moved {times(record.dates.length)}</>}
-              {record.strikes > 0 && <span className="text-rose-300"> · missed {times(record.strikes)}</span>}
+              {record.strikes > 0 && (
+                <span className="text-rose-300">
+                  {" "}
+                  · Missed {record.strikes} due {record.strikes === 1 ? "date" : "dates"}
+                </span>
+              )}
             </span>
           )}
           <span className="ml-auto flex items-center gap-1 text-muted">
@@ -204,70 +196,28 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
 
       <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${details ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
         <div className="flex min-h-0 flex-col gap-4 overflow-hidden pt-3" inert={!details}>
-          {hasPeople && (
-            <div className="flex flex-col gap-2 pt-1">
-              <p className={label}>People on it</p>
-              <ul>
-                {record.people.map((p, i) => (
-                  <Branch key={p.id} last={i === record.people.length - 1} name={p.name} meta={`added by ${p.by}, ${moment(p.at)}`}>
-                    {p.reason}
-                  </Branch>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {hasDates && (
-            <div className="flex flex-col gap-2 pt-1">
-              <p className={label}>Task due</p>
-              <ol>
-                {nodes.map((n, i) => {
-                  const first = i === 0 && nodes.length > 1;
-                  const latest = i === nodes.length - 1;
-                  const missed = missOf(i);
-                  const told = record.misses[missed - 1]?.told ?? [];
-                  return (
-                    <li key={i} className={`relative ${i ? "pt-2" : ""}`}>
-                      {/* the line from the date before, and on to the next */}
-                      {i > 0 && <span className="absolute top-0 left-[11px] h-[15px] w-px bg-white/15" />}
-                      {!latest && <span className={`absolute ${i ? "top-[25px]" : "top-[17px]"} bottom-0 left-[11px] w-px bg-white/15`} />}
-                      <div className="flex h-6 items-center gap-2 pl-7">
-                        <span
-                          className={`absolute ${i ? "top-[15px]" : "top-[7px]"} left-[6px] size-2.5 rounded-full ${
-                            first ? "border border-white/25" : latest ? (missed ? "bg-rose-400 shadow-[0_0_0_3px_rgb(251_113_133/0.2)]" : "bg-accent shadow-[0_0_0_3px_rgb(75_149_230/0.2)]") : "bg-white/35"
-                          }`}
-                        />
-                        {first ? (
-                          <>
-                            <span className="text-xs text-muted line-through decoration-white/25">{day(n.date)}</span>
-                            <span className="text-[11px] text-muted/60">first date</span>
-                          </>
-                        ) : (
-                          <span className={`text-sm font-medium tabular-nums ${latest ? "text-foreground" : "text-foreground/70"}`}>{day(n.date)}</span>
-                        )}
-                      </div>
-                      {n.move && (
-                        <ul className="relative mt-1 ml-[22px]">
-                          <Branch last name={n.move.by} meta={moment(n.move.at)}>
-                            {n.move.reason}
-                          </Branch>
-                        </ul>
-                      )}
-                      {/* it went past this date: who was told */}
-                      {missed > 0 && (
-                        <div className="mt-1.5 ml-7 flex items-center gap-2 pb-1 text-xs">
-                          <Faces people={told} />
-                          <span className="text-rose-300">
-                            Missed{missed > 1 ? `, the ${ordinal(missed)} time` : ""}. {names(told)} {told.length === 1 ? "was" : "were"} told.
-                          </span>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-          )}
+          <ol>
+            {events.map((e, i) => (
+              <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
+                {/* the line down to the next thing that happened */}
+                {i < events.length - 1 && <span className="absolute top-4 bottom-0 left-[4px] w-px bg-white/10" />}
+                <span className={`relative mt-[5px] size-2.5 shrink-0 rounded-full ${DOT[e.tone]}`} />
+                <div className="min-w-0 flex-1 text-xs">
+                  <p className="flex items-baseline justify-between gap-3">
+                    <span className={e.tone === "miss" ? "text-rose-300" : "text-foreground/90"}>{e.text}</span>
+                    <span className="shrink-0 text-[11px] text-muted tabular-nums">{day(e.at)}</span>
+                  </p>
+                  {e.note && <p className="mt-0.5 leading-relaxed text-muted">&ldquo;{e.note}&rdquo;</p>}
+                  {e.told && e.told.length > 0 && (
+                    <p className="mt-1 flex items-center gap-1.5 text-muted" title={names(e.told)}>
+                      <Faces people={e.told} size={16} />
+                      Notified {names(e.told.map(first))}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       </div>
         </div>
