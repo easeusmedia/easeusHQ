@@ -245,8 +245,8 @@ export default async function AnalyticsPage({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Analytics</h1>
-            <p className="mt-0.5 text-sm text-muted">
+            <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+            <p className="mt-1.5 text-sm text-muted">
               {isLastTwo ? "Last 2 weeks" : isLastWeek ? "Last week" : "Showing"} · {short(from)} – {short(to)}
             </p>
           </div>

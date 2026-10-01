@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, ListChecks, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
+import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
@@ -305,13 +305,10 @@ export function TodoList({
   return (
     <div className={`mx-auto flex w-full flex-col gap-6 transition-[max-width] duration-500 ease-out ${wide ? "max-w-[120rem]" : "max-w-3xl"}`}>
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent ring-1 ring-accent/25">
-            <ListChecks size={22} />
-          </span>
+        <div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
-            <p className="mt-0.5 text-sm text-muted">
+            <p className="mt-1.5 text-sm text-muted">
               <span className="text-foreground/85 tabular-nums">{all.length}</span> to do · <span className="text-foreground/85 tabular-nums">{doneWeek}</span> done this week
             </p>
           </div>

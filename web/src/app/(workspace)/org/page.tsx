@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, Network, Users } from "lucide-react";
+import { ArrowUpRight, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { visibleDepartments } from "./departments";
@@ -18,15 +18,10 @@ export default async function OrganizationPage() {
   const count = (id: string) => people.filter((p) => p.teamId === id || p.departments.some((d) => d.id === id)).length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-accent/15 text-accent ring-1 ring-accent/25">
-          <Network size={19} />
-        </span>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Organization</h1>
-          <p className="text-sm text-muted">Each department and its board</p>
-        </div>
+    <div className="flex flex-col gap-8">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Organization</h1>
+        <p className="mt-1.5 text-sm text-muted">Each department and its board.</p>
       </header>
       {departments.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">You aren&apos;t in a department yet.</p>

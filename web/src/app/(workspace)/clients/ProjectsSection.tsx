@@ -229,9 +229,7 @@ export function ProjectsSection({
                 setParam("layout", on ? "list" : null);
               }}
               aria-pressed={list === on}
-              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${
-                list === on ? "bg-hover text-foreground" : "text-muted hover:text-foreground"
-              }`}
+              className="seg flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
             >
               <Icon size={12} /> {label}
             </button>
@@ -285,9 +283,7 @@ export function ProjectsSection({
                         key={label}
                         onClick={() => selectPreset(on ? "invoice" : DEFAULT_PRESET)}
                         aria-pressed={grouped === on}
-                        className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs ${
-                          grouped === on ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
-                        }`}
+                        className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
                       >
                         <Icon size={12} /> {label}
                       </button>
@@ -306,22 +302,16 @@ export function ProjectsSection({
                       <button
                         key={p}
                         onClick={() => selectPreset(p)}
-                        className={`rounded-md px-2 py-1 text-xs ${
-                          !batch && !dateFilterActive && preset === p
-                            ? "bg-hover text-foreground"
-                            : "bg-surface text-muted hover:text-foreground"
-                        }`}
+                        aria-pressed={!batch && !dateFilterActive && preset === p}
+                        className="chip rounded-full px-2.5 py-1 text-xs"
                       >
                         Last {p}
                       </button>
                     ))}
                     <button
                       onClick={() => selectPreset("all")}
-                      className={`rounded-md px-2 py-1 text-xs ${
-                        !batch && !dateFilterActive && preset === "all"
-                          ? "bg-hover text-foreground"
-                          : "bg-surface text-muted hover:text-foreground"
-                      }`}
+                      aria-pressed={!batch && !dateFilterActive && preset === "all"}
+                      className="chip rounded-full px-2.5 py-1 text-xs"
                     >
                       All
                     </button>

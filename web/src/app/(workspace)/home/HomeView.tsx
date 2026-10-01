@@ -142,9 +142,9 @@ function Section({
     <section
       ref={drag.mount(id)}
       data-section={id}
-      className={`relative flex min-h-0 flex-col rounded-3xl border bg-gradient-to-b from-white/[0.045] to-white/[0.012] transition-[flex-grow,border-color,box-shadow] duration-300 ${
+      className={`panel relative flex min-h-0 flex-col rounded-2xl transition-[flex-grow,box-shadow] duration-300 ${
         collapsed ? "flex-none" : grow ? "lg:flex-[1_1_0]" : "flex-none"
-      } ${drag.dragging === id ? "z-20 border-accent/30 bg-background/95 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : "border-white/[0.07]"}`}
+      } ${drag.dragging === id ? "z-20 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : ""}`}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
         <button
@@ -193,7 +193,7 @@ function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string;
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 rounded-2xl bg-white/[0.05] px-4 py-3 text-left ring-1 ring-white/[0.04] transition-[background-color,transform] duration-200 hover:-translate-y-px hover:bg-white/[0.085]"
+      className="panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:-translate-y-px"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.title}</p>
@@ -570,7 +570,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} className="flex items-center gap-3 rounded-2xl bg-white/[0.05] px-4 py-3 ring-1 ring-white/[0.04] transition-colors duration-200 hover:bg-white/[0.085]">
+                <div key={i.key} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"
@@ -680,7 +680,7 @@ export function HomeView({
           <div
             key={i}
             data-column={i}
-            className={`flex min-h-0 flex-col gap-4 ${!col.length ? `rounded-3xl border border-dashed transition-colors duration-300 max-lg:hidden ${dragging ? "border-accent/30" : "border-white/[0.08]"}` : ""}`}
+            className={`flex min-h-0 flex-col gap-4 ${!col.length ? `rounded-2xl border border-dashed transition-colors duration-300 max-lg:hidden ${dragging ? "border-accent/30" : "border-white/[0.08]"}` : ""}`}
           >
             {col.map((id) => sections[id])}
           </div>
@@ -941,7 +941,7 @@ function NoticesSection({
                 )}
               </>
             );
-            const cls = "group flex w-full items-center gap-3 rounded-2xl bg-white/[0.035] px-3.5 py-3 transition-colors hover:bg-white/[0.06]";
+            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3";
             if (n.href)
               return (
                 <Link key={n.key} href={n.href} className={cls}>

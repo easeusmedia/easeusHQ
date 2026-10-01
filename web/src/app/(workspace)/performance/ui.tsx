@@ -579,7 +579,8 @@ function Filters<K extends string>({ options, value, onChange }: { options: { ke
         <button
           key={o.key}
           onClick={() => onChange(o.key)}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${value === o.key ? "bg-hover text-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground"}`}
+          aria-pressed={value === o.key}
+          className="chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
         >
           {o.label}
           <span className="tabular-nums text-muted">{o.count}</span>
