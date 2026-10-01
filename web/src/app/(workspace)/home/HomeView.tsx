@@ -117,6 +117,7 @@ function Section({
   icon,
   title,
   aside,
+  count,
   collapsed,
   onCollapse,
   grow = true,
@@ -127,6 +128,8 @@ function Section({
   icon: React.ReactNode;
   title: string;
   aside?: React.ReactNode;
+  // how many are waiting, shown even while it's folded
+  count?: number;
   collapsed: boolean;
   onCollapse: () => void;
   // fills its share of the column (lists) or keeps to its size (the calendar)
@@ -153,7 +156,10 @@ function Section({
           <GripVertical size={14} />
         </button>
         <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
-        <h2 className="mr-auto min-w-0 truncate text-[15px] font-semibold tracking-tight">{title}</h2>
+        <h2 className="mr-auto flex min-w-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
+          <span className="truncate">{title}</span>
+          {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium text-accent tabular-nums">{count}</span>}
+        </h2>
         {!collapsed && aside}
         <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
           <ChevronDown size={15} className={`transition-transform duration-300 ${collapsed ? "-rotate-90" : ""}`} />
@@ -819,6 +825,7 @@ function NoticesSection({
       id="notices"
       icon={<Bell size={15} />}
       title="Notices"
+      count={notices.length}
       collapsed={collapsed}
       onCollapse={onCollapse}
       drag={drag}

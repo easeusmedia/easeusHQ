@@ -33,18 +33,18 @@ const person = (v: Viewer) => ({ id: v.id, role: v.role, teamId: v.teamId, depar
 test("Founders see everything; a Member only their own work", () => {
   assert.deepEqual(assigneeWhere(ashmit), {});
   assert.deepEqual(assigneeWhere(abhishek), {});
-  assert.deepEqual(assigneeWhere(sparsh), { assignedToId: sparsh.id });
+  assert.deepEqual(assigneeWhere(sparsh), { OR: [{ assignedToId: sparsh.id }, { shares: { some: { userId: sparsh.id } } }] });
   assert.equal(seesEveryTeam(abhishek), true);
   assert.equal(seesEveryTeam(jyotsna), false);
 });
 
 test("a Lead sees their departments' work and their own, never a Founder's", () => {
   assert.deepEqual(assigneeWhere(jyotsna), {
-    OR: [{ assignedToId: jyotsna.id }, { teamId: { in: [CS.id, PROD.id] }, NOT: { assignedTo: { role: "admin" } } }],
+    OR: [{ assignedToId: jyotsna.id }, { shares: { some: { userId: jyotsna.id } } }, { teamId: { in: [CS.id, PROD.id] }, NOT: { assignedTo: { role: "admin" } } }],
   });
   // a Lead with no department sees only themselves
   assert.deepEqual(assigneeWhere(unplaced), {
-    OR: [{ assignedToId: unplaced.id }, { teamId: { in: [] }, NOT: { assignedTo: { role: "admin" } } }],
+    OR: [{ assignedToId: unplaced.id }, { shares: { some: { userId: unplaced.id } } }, { teamId: { in: [] }, NOT: { assignedTo: { role: "admin" } } }],
   });
 });
 

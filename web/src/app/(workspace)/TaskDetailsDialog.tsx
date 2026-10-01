@@ -112,7 +112,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   // once it's delivered, the raw files and the Frame.io review are deleted:
   // the final Drive link is the only file left to show
   const delivered = task.status === "delivered_and_uploaded";
-  const isAssignee = task.assignedTo?.id === actingUserId;
+  const isAssignee = task.assignedTo?.id === actingUserId || !!task.shares?.length;
   // only while it's actually under review — that's the one window an
   // editor has anything to fix on their own submission
   const canEditFrameio = !canManage && isAssignee && task.status === "sent_for_approval";

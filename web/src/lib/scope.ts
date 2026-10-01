@@ -69,20 +69,21 @@ export function worksTheBoard(user: Pick<Viewer, "role" | "departments">): boole
 }
 
 // A Prisma `where` for Task and WorkTask alike: whose work this person
-// sees. A Lead sees their departments' work, their own, and never a
-// Founder's.
+// sees. Everyone sees their own and what they've been added to; a Lead
+// their departments' work too, never a Founder's.
 export function assigneeWhere(user: Viewer): Record<string, unknown> {
   if (isFounder(user)) return {};
+  const own = [{ assignedToId: user.id }, { shares: { some: { userId: user.id } } }];
   if (isLead(user)) {
     return {
       OR: [
-        { assignedToId: user.id },
+        ...own,
         // unassigned work included; works for WorkTask's required assignee too
         { teamId: { in: departmentIds(user) }, NOT: { assignedTo: { role: "admin" } } },
       ],
     };
   }
-  return { assignedToId: user.id };
+  return { OR: own };
 }
 
 // The people someone sees in the directory and can hand work to: a Lead,

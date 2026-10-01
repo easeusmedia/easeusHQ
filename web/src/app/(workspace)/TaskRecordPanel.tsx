@@ -16,6 +16,8 @@ import { dayOf, shortDay } from "@/lib/editorKpi";
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof getTaskRecord>>>;
 
+// "Riya", "Riya and Ishaan", "Riya, Ishaan and Ashmit"
+const names = (all: string[]) => (all.length < 2 ? (all[0] ?? "") : `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`);
 const day = (iso: string | Date | null) =>
   iso ? shortDay(dayOf(new Date(iso))) : "No date";
 // "29 Sep, 3:41 pm", in IST
@@ -105,6 +107,16 @@ export function TaskRecordPanel({
 
   if (!record) return null;
   const label = "text-[11px] font-medium tracking-wide text-muted uppercase";
+
+  // every date it has had: the first, then each it was moved to (and how)
+  const nodes = [{ date: record.dates[0]?.from ?? record.due, move: null }, ...record.dates.map((d) => ({ date: d.to, move: d }))];
+  // whether it went past date i, and which miss that was: the strikes rose
+  // between being given that date and being moved off it (or now)
+  const missOf = (i: number) => {
+    const after = i < record.dates.length ? record.dates[i].strike : record.strikes;
+    const before = i === 0 ? 0 : record.dates[i - 1].strike;
+    return after > before ? after : 0;
+  };
 
   return (
     <div className="col-span-2 flex flex-col gap-4 rounded-xl border border-border/70 bg-white/[0.02] p-4">
@@ -218,48 +230,56 @@ export function TaskRecordPanel({
         </div>
       )}
 
-      {record.dates.length > 0 && (
+      {(record.dates.length > 0 || record.strikes > 0) && (
         <div className="flex flex-col gap-2">
           <p className={label}>Task due</p>
           <ol>
-            {/* where it started */}
-            <li className="relative flex h-6 items-center pl-7">
-              <span className="absolute top-[7px] left-[6px] size-2.5 rounded-full border border-white/25" />
-              <span className="absolute top-[17px] bottom-0 left-[11px] w-px bg-white/15" />
-              <span className="text-xs text-muted line-through decoration-white/25">
-                {day(record.dates[0].from)}
-              </span>
-              <span className="ml-2 text-[11px] text-muted/60">first date</span>
-            </li>
-            {record.dates.map((d, i) => {
-              const latest = i === record.dates.length - 1;
+            {nodes.map((n, i) => {
+              const first = i === 0 && nodes.length > 1;
+              const latest = i === nodes.length - 1;
+              const missed = missOf(i);
               return (
-                <li key={i} className="relative pt-2">
+                <li key={i} className={`relative ${i ? "pt-2" : ""}`}>
                   {/* the line from the date before, and on to the next */}
-                  <span className="absolute top-0 left-[11px] h-[15px] w-px bg-white/15" />
-                  {!latest && (
-                    <span className="absolute top-[25px] bottom-0 left-[11px] w-px bg-white/15" />
-                  )}
+                  {i > 0 && <span className="absolute top-0 left-[11px] h-[15px] w-px bg-white/15" />}
+                  {!latest && <span className={`absolute ${i ? "top-[25px]" : "top-[17px]"} bottom-0 left-[11px] w-px bg-white/15`} />}
                   <div className="flex h-6 items-center gap-2 pl-7">
                     <span
-                      className={`absolute top-[15px] left-[6px] size-2.5 rounded-full ${latest ? "bg-accent shadow-[0_0_0_3px_rgb(75_149_230/0.2)]" : "bg-white/35"}`}
+                      className={`absolute ${i ? "top-[15px]" : "top-[7px]"} left-[6px] size-2.5 rounded-full ${
+                        first ? "border border-white/25" : latest ? (missed ? "bg-rose-400 shadow-[0_0_0_3px_rgb(251_113_133/0.2)]" : "bg-accent shadow-[0_0_0_3px_rgb(75_149_230/0.2)]") : "bg-white/35"
+                      }`}
                     />
-                    <span
-                      className={`text-sm font-medium tabular-nums ${latest ? "text-foreground" : "text-foreground/70"}`}
-                    >
-                      {day(d.to)}
-                    </span>
-                    {d.strike > 0 && (
-                      <span className="rounded-full bg-rose-400/10 px-1.5 py-px text-[10px] font-medium text-rose-300">
-                        after its {ordinal(d.strike)} miss
-                      </span>
+                    {first ? (
+                      <>
+                        <span className="text-xs text-muted line-through decoration-white/25">{day(n.date)}</span>
+                        <span className="text-[11px] text-muted/60">first date</span>
+                      </>
+                    ) : (
+                      <span className={`text-sm font-medium tabular-nums ${latest ? "text-foreground" : "text-foreground/70"}`}>{day(n.date)}</span>
                     )}
                   </div>
-                  <ul className="relative mt-1 ml-[22px] pb-1">
-                    <Branch last name={d.by} meta={moment(d.at)}>
-                      {d.reason}
-                    </Branch>
-                  </ul>
+                  {n.move && (
+                    <ul className="relative mt-1 ml-[22px]">
+                      <Branch last name={n.move.by} meta={moment(n.move.at)}>
+                        {n.move.reason}
+                      </Branch>
+                    </ul>
+                  )}
+                  {/* it went past this date: who was told */}
+                  {missed > 0 && (
+                    <div className="mt-1.5 ml-7 flex items-center gap-2 pb-1 text-xs">
+                      <span className="flex -space-x-1.5">
+                        {(record.misses[missed - 1]?.told ?? []).map((name) => (
+                          <span key={name} className="rounded-full ring-2 ring-surface">
+                            <Avatar name={name} size={18} presence={false} />
+                          </span>
+                        ))}
+                      </span>
+                      <span className="text-rose-300">
+                        Missed{missed > 1 ? `, the ${ordinal(missed)} time` : ""}. {names(record.misses[missed - 1]?.told ?? [])} {record.misses[missed - 1]?.told.length === 1 ? "was" : "were"} told.
+                      </span>
+                    </div>
+                  )}
                 </li>
               );
             })}

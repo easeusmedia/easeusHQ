@@ -65,6 +65,15 @@ export async function recordDateChange(ref: TaskRef, from: Date | null, to: Date
   await prisma.taskDateChange.create({ data: { ...key(ref), from, to, reason: reason.trim(), byId, strike: strikes } });
 }
 
+// Who hears about a task's nth miss (lib/overdue.ts): whoever's
+// responsible for it (its assignee, else whoever made it), then up the levels
+function toldAbout(strike: number, owner: Person | undefined, teamId: string | null, people: Person[]): Person[] {
+  const audience = overdueAudience(strike, owner?.role ?? "admin");
+  const leads = audience.leads ? people.filter((p) => p.role === "core" && !!teamId && (p.teamId === teamId || p.departments.some((d) => d.id === teamId))) : [];
+  const levelOne = audience.levelOne ? people.filter((p) => isFounder(p)) : [];
+  return [...new Map([...(owner ? [owner] : []), ...leads, ...levelOne].map((p) => [p.id, p])).values()];
+}
+
 // Every task past its completion date that hasn't been counted for that
 // date yet: one more strike, and notices to whoever the rules say
 // (lib/overdue.ts). Run each night, and on opening Home if the night's run
@@ -91,10 +100,7 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
     if (!t.dueDate || (t.overdueFor && t.overdueFor.getTime() === t.dueDate.getTime())) continue;
     const strike = t.strikes + 1;
     const owner = people.find((p) => p.id === (t.assignedToId ?? t.createdById));
-    const audience = overdueAudience(strike, owner?.role ?? "admin");
-    const leads = audience.leads ? people.filter((p) => p.role === "core" && !!t.teamId && (p.teamId === t.teamId || p.departments.some((d) => d.id === t.teamId))) : [];
-    const levelOne = audience.levelOne ? people.filter((p) => isFounder(p)) : [];
-    const to = [...new Map([...(owner ? [owner] : []), ...leads, ...levelOne].map((p) => [p.id, p])).values()];
+    const to = toldAbout(strike, owner, t.teamId, people);
     const when = `${ordinal(strike)} time`;
     const data = to.map((p) => ({
       ...key(t.ref),
@@ -161,16 +167,22 @@ export async function departmentFromWords(title: string): Promise<string | null>
 // ---------- the record a task window shows ----------
 
 export async function taskRecord(ref: TaskRef) {
-  const [shares, changes, task] = await Promise.all([
+  const [shares, changes, task, people] = await Promise.all([
     prisma.taskShare.findMany({ where: key(ref), orderBy: { createdAt: "asc" } }),
     prisma.taskDateChange.findMany({ where: key(ref), orderBy: { createdAt: "asc" } }),
     load(ref),
+    prisma.user.findMany({ where: { employment: { not: "former" } }, select: PERSON }),
   ]);
+  // each miss, and who was told (by the same rules the check sends by)
+  const owner = task && people.find((p) => p.id === (task.assignedToId ?? task.createdById));
+  const misses = Array.from({ length: task?.strikes ?? 0 }, (_, n) => ({ told: toldAbout(n + 1, owner ?? undefined, task?.teamId ?? null, people).map((p) => p.name) }));
   const ids = [...new Set([...shares.flatMap((s) => [s.userId, s.byId]), ...changes.map((c) => c.byId), ...(task?.createdById ? [task.createdById] : [])])];
   const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   return {
     createdBy: task?.createdById ? (names.get(task.createdById) ?? null) : null,
     strikes: task?.strikes ?? 0,
+    due: task?.dueDate?.toISOString() ?? null,
+    misses,
     people: shares.map((s) => ({ id: s.userId, name: names.get(s.userId) ?? "Someone", by: names.get(s.byId) ?? "Someone", reason: s.reason, at: s.createdAt.toISOString() })),
     dates: changes.map((c) => ({ from: c.from?.toISOString() ?? null, to: c.to?.toISOString() ?? null, reason: c.reason, by: names.get(c.byId) ?? "Someone", strike: c.strike, at: c.createdAt.toISOString() })),
   };

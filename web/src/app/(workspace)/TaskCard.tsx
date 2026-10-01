@@ -158,6 +158,8 @@ export type TaskCardData = {
   title: string;
   status: TaskStatus;
   assignedTo: { id: string; name: string } | null;
+  // the viewer's own place on it, when they were added to it (they move it like its assignee)
+  shares?: { id: string }[];
   rawLink: string | null;
   referenceLink: string | null;
   assetLink: string | null;
@@ -303,7 +305,7 @@ export function TaskCard({
   actingRole: Role;
   taskTags?: TaskTagOption[];
 }) {
-  const isAssignee = task.assignedTo?.id === actingUserId;
+  const isAssignee = task.assignedTo?.id === actingUserId || !!task.shares?.length;
   const canManage = actingRole === "admin" || actingRole === "core";
   const options = availableStatuses(task.status, { role: actingRole, isAssignee }, task.workflow);
 

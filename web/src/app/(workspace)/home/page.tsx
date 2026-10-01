@@ -35,13 +35,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const now = new Date();
   const today = dayOf(now);
   const monday = mondayOf(/^\d{4}-\d{2}-\d{2}$/.test(week ?? "") ? week! : today);
-  // a Level 3 sees their own work, and what they've been brought onto
-  const scope = member ? { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }] } : assigneeWhere(viewer);
+  // their own work and what they've been added to; a Level 2 their departments' too
+  const scope = assigneeWhere(viewer);
 
   const [tasks, work, users, teams, kinds, account, googleApp, mine, extras] = await Promise.all([
     prisma.task.findMany({
       where: { AND: [LIVE_TASK, scope] },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, team: { select: { name: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, team: { select: { name: true } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
       orderBy: { dueDate: "asc" },
     }),
     loadWork(viewer, member ? "mine" : "all", { withQueue: false }),

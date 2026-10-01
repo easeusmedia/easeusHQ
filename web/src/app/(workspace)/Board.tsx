@@ -171,7 +171,7 @@ export function Board({
   function canDropInto(task: TaskCardData | undefined, to: TaskStatus): boolean {
     if (!task) return false;
     if (task.status === to) return true; // reordering within the same column, not a status change
-    const isAssignee = task.assignedTo?.id === actingUserId;
+    const isAssignee = task.assignedTo?.id === actingUserId || !!task.shares?.length;
     return canTransition(task.status, to, { role: actingRole, isAssignee }, task.workflow);
   }
 

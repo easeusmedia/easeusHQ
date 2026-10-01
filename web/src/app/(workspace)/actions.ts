@@ -197,7 +197,8 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     const driveLink = extras.driveLink ? requireLinkOrNull(extras.driveLink, "Drive link") : null;
 
     const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-    const isAssignee = task.assignedToId === actingUserId;
+    // whoever was added to it moves it as its assignee does
+    const isAssignee = task.assignedToId === actingUserId || (await prisma.taskShare.count({ where: { taskId, userId: actingUserId } })) > 0;
 
     if (!canTransition(task.status, to, { role: actingRole, isAssignee }, task.workflow)) {
       return { error: "You can't move this task to that stage." };
@@ -262,7 +263,7 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
     // ops arrange anything; an editor only their own cards
     const actor = await sessionActor();
     if (!actor) return { error: "Your session has ended. Please sign in again." };
-    const where = actor.role === "employee" ? { id: taskId, assignedToId: actor.id } : { id: taskId };
+    const where = actor.role === "employee" ? { id: taskId, OR: [{ assignedToId: actor.id }, { shares: { some: { userId: actor.id } } }] } : { id: taskId };
     const { count } = await prisma.task.updateMany({ where, data: { sortOrder } });
     if (count === 0) return { error: "You can only move your own tasks." };
     revalidatePath("/board");

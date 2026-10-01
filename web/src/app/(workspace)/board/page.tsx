@@ -35,7 +35,7 @@ export default async function TasksPage({
     prisma.task.findMany({
       where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }] },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
     }),
     // the kinds of work this person's roles offer, and the ones they may label with
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
@@ -60,7 +60,8 @@ export default async function TasksPage({
   // The Board is Production's: its Video and Design queues, for whoever
   // works or runs them. Everyone else's work is to-dos, in My tasks.
   const mine = new Set(held.map((r) => r.workflow));
-  const hasOwn = (w: string) => tasks.some((t) => t.workflow === w && t.assignedToId === viewer.id);
+  // theirs, or work they've been added to
+  const hasOwn = (w: string) => tasks.some((t) => t.workflow === w && (t.assignedToId === viewer.id || t.shares.length > 0));
   const queue = (w: "video" | "design") => (member ? mine.has(w) || hasOwn(w) : runsProduction(viewer) || mine.has(w) || hasOwn(w));
   const scopes = [...(queue("video") ? [{ key: "editors", label: "Video" }] : []), ...(queue("design") ? [{ key: "design", label: "Design" }] : [])];
   if (!scopes.length) redirect("/my-tasks");
