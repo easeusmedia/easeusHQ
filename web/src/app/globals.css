@@ -660,6 +660,46 @@ dialog[open]::backdrop {
 .btn-primary:active {
   transform: translateY(1px);
 }
+/* The agreement form's Send details, in the app's own gradient (the
+   profile menu's): dark navy glass washed with blue, a lit blue edge and a
+   soft blue glow; on hover the wash brightens, the glow grows and it lifts */
+.btn-theme {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid transparent;
+  color: white;
+  background:
+    radial-gradient(130% 150% at 15% 0%, rgb(75 149 230 / 0.55), rgb(75 149 230 / 0.14) 55%, transparent 80%) padding-box,
+    linear-gradient(180deg, #1a2638 0%, #121822 100%) padding-box,
+    linear-gradient(160deg, rgba(140, 195, 255, 0.75), rgba(75, 149, 230, 0.25) 50%, rgba(255, 255, 255, 0.06)) border-box;
+  box-shadow: 0 10px 28px -12px rgb(75 149 230 / 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+.btn-theme::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(130% 150% at 15% 0%, rgb(110 175 245 / 0.35), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-theme:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 36px -12px rgb(75 149 230 / 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+.btn-theme:hover::before {
+  opacity: 1;
+}
+.btn-theme:active {
+  transform: none;
+}
+.btn-theme:disabled {
+  transform: none;
+  box-shadow: none;
+}
+
 /* The sign-in page's light: soft glows that drift slowly across the gradient */
 .mist {
   filter: blur(30px);
@@ -674,6 +714,10 @@ dialog[open]::backdrop {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .btn-theme,
+  .btn-theme::before {
+    transition: none;
+  }
   .mist,
   .rise-in {
     animation: none;

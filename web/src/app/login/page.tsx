@@ -13,7 +13,7 @@ const LABEL = "text-[10px] font-medium tracking-[0.18em] text-white/50 uppercase
 
 // Sign in, calm and in the app's own dark: a faint misty blue from the top
 // corner fading into near-black, no card, the mark, two fields drawn as
-// lines, and a thin outlined button with a glow.
+// lines, and a button in the app's blue gradient glass.
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
@@ -64,7 +64,8 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={pending}
-          className="group mt-12 flex h-10 items-center gap-2 rounded-full border border-white/40 px-9 text-sm tracking-wide text-white/90 transition-[background-color,border-color,box-shadow,color] duration-300 hover:border-white/80 hover:bg-white/10 hover:text-white hover:shadow-[0_0_28px_rgb(150_200_255/0.35)] disabled:opacity-60"
+          // the app's own blue gradient glass (globals.css .btn-theme)
+          className="btn-theme group mt-12 flex h-11 items-center gap-2 rounded-full px-10 text-sm font-medium tracking-wide disabled:opacity-60"
         >
           {pending ? "Signing in…" : "Sign in"}
           {!pending && <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />}
