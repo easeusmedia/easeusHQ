@@ -185,8 +185,7 @@ export function StatusSelect({
 
   // same escape as Dropdown: a board column scrolls its own cards, so an
   // absolute menu on a card near the bottom lost most of its options
-  // each option is a name and a line on what it means
-  const { position, place } = usePopover(Math.min(420, options.length * 46 + 8));
+  const { position, place } = usePopover(Math.min(320, options.length * 30 + 8));
   const close = useCallback(() => setOpen(false), []);
   useCloseOnScroll(open, close);
 
@@ -194,7 +193,7 @@ export function StatusSelect({
     if (open) return setOpen(false);
     // never narrower than the longest stage name; the pill's menu hangs from
     // its right edge, being wider than the pill
-    place(triggerRef.current, { width: 240, align: variant === "pill" ? "end" : "start" });
+    place(triggerRef.current, { width: 176, align: variant === "pill" ? "end" : "start" });
     setOpen(true);
   }
 
@@ -367,10 +366,9 @@ export function StatusSelect({
                 key={to}
                 type="button"
                 onClick={() => pick(to)}
-                className="menu-item flex-col items-start gap-0 px-2.5 py-1.5 text-xs"
+                className="menu-item px-2.5 py-1.5 text-xs"
               >
                 {stageLabel(to, workflow)}
-                <span className="text-[11px] leading-snug text-muted">{stageMeaning(to, workflow)}</span>
               </button>
             ))}
           </div>
@@ -420,10 +418,9 @@ export function StatusSelect({
               key={to}
               type="button"
               onClick={() => pick(to)}
-              className="menu-item flex-col items-start gap-0 px-2.5 py-1.5 text-xs"
+              className="menu-item px-2.5 py-1.5 text-xs"
             >
               {stageLabel(to, workflow)}
-              <span className="text-[11px] leading-snug text-muted">{stageMeaning(to, workflow)}</span>
             </button>
           ))}
         </div>
