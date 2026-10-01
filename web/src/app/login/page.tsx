@@ -64,7 +64,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={pending}
-              className="btn-primary group mt-2 flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold disabled:opacity-70"
+              className="btn-signin group mt-2 flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold disabled:opacity-70"
             >
               {pending ? "Signing in…" : "Sign in"}
               {!pending && <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />}
