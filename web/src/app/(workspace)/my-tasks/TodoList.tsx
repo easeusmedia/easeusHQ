@@ -291,6 +291,14 @@ export function TodoList({
     router.refresh();
   }
 
+  // full width's columns: Client and Stage only when a task fills them (a
+  // stage is a video's or design's; a plain to-do has none)
+  const cols = {
+    client: all.some((i) => i.client),
+    stage: all.some((i) => (i.task && workflowOf(i.task.workflow) !== "todo") || i.tag),
+  };
+  const grid = { "--cols": ["18px", "minmax(0,1fr)", cols.client && "14rem", "8rem", cols.stage && "10rem", "1.5rem"].filter(Boolean).join(" ") } as React.CSSProperties;
+
   const doneWeek = done.filter((d) => dayOf(new Date(d.at)) >= mondayOf(env.today)).length;
   const progress = doneWeek + all.length ? Math.round((doneWeek / (doneWeek + all.length)) * 100) : 0;
 
@@ -380,20 +388,24 @@ export function TodoList({
         <div className="flex flex-col gap-5">
           {wide && (
             // the columns, named as a Notion table names them
-            <div className="hidden grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem_1.5rem] items-center gap-3 border-b border-border/60 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
+            <div style={grid} className="hidden grid-cols-(--cols) items-center gap-3 border-b border-border/60 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
               <span />
               <span className="flex items-center gap-1.5">
                 <Type size={12} /> Task
               </span>
-              <span className="flex items-center gap-1.5">
-                <Building2 size={12} /> Client
-              </span>
+              {cols.client && (
+                <span className="flex items-center gap-1.5">
+                  <Building2 size={12} /> Client
+                </span>
+              )}
               <span className="flex items-center gap-1.5">
                 <CalendarDays size={12} /> Due
               </span>
-              <span className="flex items-center gap-1.5">
-                <CircleDashed size={12} /> Stage
-              </span>
+              {cols.stage && (
+                <span className="flex items-center gap-1.5">
+                  <CircleDashed size={12} /> Stage
+                </span>
+              )}
             </div>
           )}
           {sections.map((s) => {
@@ -418,6 +430,8 @@ export function TodoList({
                         key={i.key}
                         item={i}
                         wide={wide}
+                        cols={cols}
+                        grid={grid}
                         ticked={ticking.has(i.key)}
                         showDue={wide || s.key === "overdue"}
                         onTick={() => tick(i)}
@@ -539,7 +553,19 @@ function Row({
   actingUserId,
   actingRole,
   onDelete,
-}: Env & { item: Item; wide: boolean; ticked: boolean; showDue: boolean; onTick: () => void; onDelete?: (reason: string) => void }) {
+  cols,
+  grid,
+}: Env & {
+  item: Item;
+  wide: boolean;
+  ticked: boolean;
+  showDue: boolean;
+  onTick: () => void;
+  onDelete?: (reason: string) => void;
+  // which of full width's columns the list has, and their sizes
+  cols: { client: boolean; stage: boolean };
+  grid: React.CSSProperties;
+}) {
   const ref = useRef<{ open: () => void }>(null);
   const task = item.task;
   const flow = workflowOf(task?.workflow);
@@ -586,8 +612,9 @@ function Row({
   return (
     <div
       onClick={() => ref.current?.open()}
+      style={wide ? grid : undefined}
       className={`group grid cursor-pointer items-center gap-3 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.04] ${ticked ? "opacity-50" : ""} ${
-        wide ? "grid-cols-[18px_minmax(0,1fr)_1.5rem] py-2.5 md:grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem_1.5rem]" : "grid-cols-[18px_minmax(0,1fr)_auto] py-2"
+        wide ? "grid-cols-[18px_minmax(0,1fr)_1.5rem] py-2.5 md:grid-cols-(--cols)" : "grid-cols-[18px_minmax(0,1fr)_auto] py-2"
       }`}
     >
       {tickable ? (
@@ -616,9 +643,9 @@ function Row({
       </div>
       {wide ? (
         <>
-          <span className="hidden min-w-0 md:block">{client}</span>
+          {cols.client && <span className="hidden min-w-0 md:block">{client}</span>}
           <span className={`hidden text-xs tabular-nums md:block ${due?.tone ?? "text-muted/50"}`}>{due?.text ?? "No date"}</span>
-          <span className="hidden md:block">{stage}</span>
+          {cols.stage && <span className="hidden md:block">{stage}</span>}
           {del}
         </>
       ) : (
