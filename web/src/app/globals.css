@@ -660,56 +660,21 @@ dialog[open]::backdrop {
 .btn-primary:active {
   transform: translateY(1px);
 }
-/* the sign-in button: the theme's blue (#4b95e6) as a gradient, brighter
-   at the top, with a lit top edge and a blue glow around it; on hover it
-   brightens, the glow grows and a sheen sweeps across */
-.btn-signin {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border: 1px solid transparent;
-  color: white;
-  background:
-    linear-gradient(180deg, #6eb2f5 0%, #4b95e6 48%, #3478cc 100%) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.12) 40%, rgba(20, 60, 120, 0.6)) border-box;
-  box-shadow: 0 0 0 1px rgb(75 149 230 / 0.25), 0 8px 24px -6px rgb(75 149 230 / 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s ease, box-shadow 0.3s ease, filter 0.2s ease;
+/* The sign-in page's light: soft glows that drift slowly across the gradient */
+.mist {
+  filter: blur(30px);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
 }
-.btn-signin::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
-  transform: translateX(-120%);
-  transition: transform 0.8s ease;
-}
-.btn-signin:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-  box-shadow: 0 0 0 1px rgb(75 149 230 / 0.35), 0 14px 34px -6px rgb(75 149 230 / 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-.btn-signin:hover::after {
-  transform: translateX(120%);
-}
-.btn-signin:active {
-  transform: translateY(0);
-  filter: brightness(0.95);
-}
-.btn-signin:disabled {
-  transform: none;
-  filter: none;
-  box-shadow: none;
-}
-.btn-signin:disabled::after {
-  display: none;
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(-2%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 4%, 0) scale(1.08);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .btn-signin,
-  .btn-signin::after {
-    transition: none;
-  }
+  .mist,
   .rise-in {
     animation: none;
   }

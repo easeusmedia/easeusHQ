@@ -2,77 +2,76 @@
 
 import { useActionState, useState } from "react";
 import Image from "next/image";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { login, type LoginState } from "./actions";
 
 const initialState: LoginState = {};
 
+// a field as a line: a small label above, the line brightening in use
+const LINE = "border-b border-white/20 transition-colors duration-300 focus-within:border-white/70 hover:border-white/35";
+const LABEL = "text-[10px] font-medium tracking-[0.18em] text-white/50 uppercase";
+
+// Sign in, as calm as the references it follows: one soft sweep of misty
+// blue from the top corner down to the deep navy of the app, no card, the
+// mark, two fields drawn as lines, and a thin outlined button with a glow.
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
-      <div className="rise-in relative w-full max-w-[400px]">
-        <form action={formAction} className="panel rounded-[28px] p-8 sm:p-9">
-          <div className="flex flex-col items-center text-center">
-            <span className="badge flex size-14 items-center justify-center rounded-2xl">
-              <Image src="/logo.png" alt="Easeus" width={26} height={26} className="h-[26px] w-[26px] object-contain" priority />
-            </span>
-            <h1 className="mt-5 text-2xl font-semibold tracking-tight">Welcome back</h1>
-            <p className="mt-1.5 text-sm text-muted">Sign in to continue to Easeus HQ.</p>
-          </div>
+    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#06101c] p-6 text-white">
+      {/* misty light from the top left, falling away to deep navy, drifting slowly */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,#b9c7d4_0%,#7f97ae_20%,#45647f_42%,#1d3550_64%,#0b1a2c_84%,#050b14_100%)]" />
+        <div className="mist absolute -top-[30vh] -left-[20vw] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(225_233_240/0.55),transparent)]" />
+        <div className="mist absolute right-[-25vw] bottom-[-35vh] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.22),transparent)] [animation-delay:-13s]" />
+      </div>
 
-          <div className="mt-8 flex flex-col gap-3">
-            <label className="field flex items-center gap-3 rounded-2xl px-4">
-              <Mail size={16} className="shrink-0 text-muted" />
-              <input
-                name="email"
-                type="email"
-                required
-                autoFocus
-                autoComplete="email"
-                placeholder="Work email"
-                aria-label="Email"
-                className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
-              />
-            </label>
-            <label className="field flex items-center gap-3 rounded-2xl pl-4 pr-2">
-              <LockKeyhole size={16} className="shrink-0 text-muted" />
+      <form action={formAction} className="rise-in flex w-full max-w-[300px] flex-col items-center">
+        <Image src="/logo.png" alt="Easeus" width={44} height={44} className="h-11 w-11 object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]" priority />
+        <p className="mt-5 text-sm tracking-wide text-white/70">Sign in to Easeus HQ</p>
+
+        <div className="mt-14 flex w-full flex-col gap-6">
+          <label className={`flex flex-col gap-1.5 pb-2 ${LINE}`}>
+            <span className={LABEL}>Email address</span>
+            <input name="email" type="email" required autoFocus autoComplete="email" className="bg-transparent text-sm text-white outline-none! [&:-webkit-autofill]:[-webkit-text-fill-color:white] [&:-webkit-autofill]:[transition:background-color_9999s]" />
+          </label>
+          <label className={`flex flex-col gap-1.5 pb-2 ${LINE}`}>
+            <span className={LABEL}>Password</span>
+            <span className="flex items-center gap-2">
               <input
                 name="password"
                 type={showPassword ? "text" : "password"}
                 required
                 autoComplete="current-password"
-                placeholder="Password"
-                aria-label="Password"
-                className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+                className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none! [&:-webkit-autofill]:[-webkit-text-fill-color:white] [&:-webkit-autofill]:[transition:background-color_9999s]"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 tabIndex={-1}
                 aria-label={showPassword ? "Hide password" : "Show password"}
-                className="flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground"
+                className="text-white/45 transition-colors hover:text-white"
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
-            </label>
+            </span>
+          </label>
+        </div>
 
-            {state.error && <p className="fade-in px-1 text-xs text-red-300">{state.error}</p>}
+        {state.error && <p className="fade-in mt-5 text-center text-xs text-red-200">{state.error}</p>}
 
-            <button
-              type="submit"
-              disabled={pending}
-              className="btn-signin group mt-2 flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold disabled:opacity-70"
-            >
-              {pending ? "Signing in…" : "Sign in"}
-              {!pending && <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />}
-            </button>
-          </div>
-        </form>
-        <p className="mt-6 text-center text-xs text-muted/70">A private workspace for the Easeus Media team.</p>
-      </div>
+        <button
+          type="submit"
+          disabled={pending}
+          className="group mt-12 flex h-10 items-center gap-2 rounded-full border border-white/40 px-9 text-sm tracking-wide text-white/90 transition-[background-color,border-color,box-shadow,color] duration-300 hover:border-white/80 hover:bg-white/10 hover:text-white hover:shadow-[0_0_28px_rgb(150_200_255/0.35)] disabled:opacity-60"
+        >
+          {pending ? "Signing in…" : "Sign in"}
+          {!pending && <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />}
+        </button>
+
+        <p className="mt-16 text-center text-[11px] text-white/45">A private workspace for the Easeus Media team.</p>
+      </form>
     </div>
   );
 }
