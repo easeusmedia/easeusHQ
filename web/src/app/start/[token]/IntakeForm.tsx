@@ -165,9 +165,7 @@ export function IntakeForm({ token }: { token: string }) {
                 type="button"
                 aria-pressed={f.signsSelf === o.self}
                 onClick={() => set({ signsSelf: o.self })}
-                className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
-                  f.signsSelf === o.self ? "selected" : "border border-transparent text-muted hover:text-foreground"
-                }`}
+                className="seg h-9 rounded-lg text-sm"
               >
                 {o.label}
               </button>
