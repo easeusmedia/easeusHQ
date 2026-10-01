@@ -101,7 +101,8 @@ export function ConfirmButton({
                     key={r}
                     type="button"
                     onClick={() => setWhy(r)}
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] transition-colors ${why === r ? "bg-accent/15 text-accent" : "bg-white/[0.05] text-muted hover:text-foreground"}`}
+                    aria-pressed={why === r}
+                    className="chip rounded-full px-2.5 py-0.5 text-[11px]"
                   >
                     {r}
                   </button>

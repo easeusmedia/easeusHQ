@@ -136,7 +136,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
                   type="button"
                   aria-pressed={on}
                   onClick={() => setPicked((all) => (on ? all.filter((x) => x !== p.id) : [...all, p.id]))}
-                  className={`flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-xs transition-colors ${on ? "border-accent/40 bg-accent/15 text-foreground" : "border-border text-muted hover:text-foreground"}`}
+                  className="chip flex items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-0.5 text-xs"
                 >
                   <Avatar name={p.name} size={18} presence={false} />
                   {p.name.split(" ")[0]}

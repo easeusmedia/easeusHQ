@@ -759,11 +759,11 @@ function CalendarSection({
               type="button"
               onClick={() => setDay(d)}
               aria-pressed={on}
-              className={`flex flex-col items-center gap-1 rounded-2xl py-2 transition-colors ${on ? "bg-accent text-white" : "hover:bg-white/[0.05]"}`}
+              className={`seg flex flex-col items-center gap-1 rounded-2xl py-2 ${on ? "" : "hover:bg-white/[0.05]"}`}
             >
-              <span className={`text-[10px] font-medium tracking-wide uppercase ${on ? "text-white/75" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
+              <span className={`text-[10px] font-medium tracking-wide uppercase ${on ? "text-accent" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
               <span className={`text-base leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
-              <span className={`size-1 rounded-full ${has ? (on ? "bg-white/80" : "bg-accent") : "bg-transparent"}`} />
+              <span className={`size-1 rounded-full ${has ? "bg-accent" : "bg-transparent"}`} />
             </button>
           );
         })}
@@ -1059,7 +1059,7 @@ function MeetingDialog({ ref, people, connected }: { ref: React.Ref<{ open: (day
                   type="button"
                   aria-pressed={on}
                   onClick={() => set({ people: on ? f.people.filter((x) => x !== p.id) : [...f.people, p.id] })}
-                  className={`flex items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs transition-colors ${on ? "border-accent/40 bg-accent/15 text-foreground" : "border-border text-muted hover:text-foreground"}`}
+                  className="chip flex items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-xs"
                 >
                   <Avatar name={p.name} size={18} presence={false} />
                   {p.name.split(" ")[0]}

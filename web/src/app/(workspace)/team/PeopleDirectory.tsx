@@ -181,13 +181,7 @@ export function PeopleDirectory({
           {shownTeams.length > 1 && (
             <div className="flex flex-wrap gap-1">
               {[{ id: "all", name: "All" }, ...shownTeams, ...(people.some((p) => p.employment === "former") ? [{ id: "former", name: "Former" }] : [])].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTeam(t.id)}
-                  className={`rounded-md px-2 py-1 text-xs ${
-                    team === t.id ? "bg-hover text-foreground" : "bg-surface text-muted hover:text-foreground"
-                  }`}
-                >
+                <button key={t.id} aria-pressed={team === t.id} onClick={() => setTeam(t.id)} className="chip rounded-full px-2.5 py-1 text-xs">
                   {t.name}
                 </button>
               ))}
@@ -204,8 +198,8 @@ export function PeopleDirectory({
                   <button
                     key={p.id}
                     onClick={() => setOpenId(p.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left ${
-                      p.id === openId ? "bg-surface-2" : "hover:bg-surface-2/60"
+                    className={`flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition-[background-color,border-color] duration-200 ${
+                      p.id === openId ? "selected" : "border-transparent hover:border-white/[0.06] hover:bg-white/[0.04]"
                     }`}
                   >
                     <Face person={p} size={34} />

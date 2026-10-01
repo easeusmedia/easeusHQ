@@ -50,8 +50,8 @@ function canSeeSummary(role: Role): string {
   return `${LEVEL_NOTE[role]}.`;
 }
 
-const chip = (on: boolean, editable: boolean) =>
-  `rounded-md border px-2 py-1 text-xs transition-colors ${on ? "border-accent/40 bg-accent/15 text-accent" : "border-border text-muted"} ${editable ? (on ? "hover:bg-accent/25" : "hover:text-foreground") : "cursor-default"}`;
+// a department or role, on or off: the app's choice chip (.chip), lit when on
+const chip = (_on: boolean, editable: boolean) => `chip rounded-full px-3 py-1 text-xs ${editable ? "" : "pointer-events-none"}`;
 
 // Level, then departments, then the roles inside those departments: each a
 // chip, saved the moment it's switched. Taking a department away takes its
@@ -119,7 +119,7 @@ function DepartmentsAndRoles({
             {shownTeams.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {shownTeams.map((t) => (
-                  <button key={t.id} type="button" disabled={!editable(t.id)} onClick={() => save({ departmentIds: flip(departmentIds, t.id), roleIds })} className={chip(departmentIds.includes(t.id), editable(t.id))}>
+                  <button key={t.id} type="button" disabled={!editable(t.id)} onClick={() => save({ departmentIds: flip(departmentIds, t.id), roleIds })} aria-pressed={departmentIds.includes(t.id)} className={chip(departmentIds.includes(t.id), editable(t.id))}>
                     {t.name}
                   </button>
                 ))}
@@ -137,7 +137,7 @@ function DepartmentsAndRoles({
                     <span className="w-32 shrink-0 text-xs font-medium text-foreground/80">{g.team.name}</span>
                     <div className="flex flex-wrap gap-1.5">
                       {g.roles.map((r) => (
-                        <button key={r.id} type="button" disabled={!editable(g.team.id)} onClick={() => save({ departmentIds, roleIds: flip(roleIds, r.id) })} className={chip(roleIds.includes(r.id), editable(g.team.id))}>
+                        <button key={r.id} type="button" disabled={!editable(g.team.id)} onClick={() => save({ departmentIds, roleIds: flip(roleIds, r.id) })} aria-pressed={roleIds.includes(r.id)} className={chip(roleIds.includes(r.id), editable(g.team.id))}>
                           {r.name}
                         </button>
                       ))}
@@ -457,7 +457,7 @@ export function PersonDetail({
               {projects.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-1.5">
                   {projects.map((name) => (
-                    <span key={name} className="rounded-md bg-accent/10 px-2 py-0.5 text-xs text-accent">
+                    <span key={name} className="rounded-full border border-white/[0.07] bg-white/[0.04] px-2.5 py-0.5 text-xs text-foreground/75">
                       {name}
                     </span>
                   ))}
