@@ -149,3 +149,34 @@ export function RemoveButton({ clientId, platform, id }: { clientId: string; pla
     </button>
   );
 }
+
+// A row of one kind's posts, switched between its top four and its lowest
+// four (both drawn on the server; this only picks which shows)
+export function BestWorst({ title, meta, best, worst }: { title: string; meta: React.ReactNode; best: React.ReactNode; worst: React.ReactNode }) {
+  const [low, setLow] = useState(false);
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-baseline gap-2 text-sm">
+          <span className="font-medium">
+            {low ? "Lowest" : "Top"} {title}
+          </span>
+          {meta}
+        </p>
+        <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+          {[
+            { on: false, label: "Top" },
+            { on: true, label: "Lowest" },
+          ].map((o) => (
+            <button key={o.label} type="button" aria-pressed={low === o.on} onClick={() => setLow(o.on)} className="seg rounded-full px-3 py-0.5 text-xs font-medium">
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div key={String(low)} className="fade-in">
+        {low ? worst : best}
+      </div>
+    </div>
+  );
+}

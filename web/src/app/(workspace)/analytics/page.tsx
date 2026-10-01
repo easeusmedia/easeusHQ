@@ -12,7 +12,7 @@ import { headers } from "next/headers";
 import { counts } from "@/lib/ourWork";
 import { Avatar } from "../TaskCard";
 import { InstagramIcon, YoutubeIcon } from "../PlatformIcon";
-import { RangeControls, RefreshButton, RemoveButton } from "./AnalyticsControls";
+import { BestWorst, RangeControls, RefreshButton, RemoveButton } from "./AnalyticsControls";
 
 export const dynamic = "force-dynamic";
 
@@ -88,28 +88,32 @@ function Top({ item, rank, tall, client }: { item: Item; rank: number; tall: boo
   );
 }
 
-// A row of the week's best of one kind — long-form, Shorts or Reels —
-// across the full width
+// A row of one kind (long-form, Shorts or Reels) across the full width:
+// its top four by views, or its lowest four, ranked against all of them
 function TopRow({ title, items, tall, clientName }: { title: string; items: Item[]; tall: boolean; clientName: (id: string) => string }) {
-  const best = [...items].sort((a, b) => (b.views ?? 0) - (a.views ?? 0)).slice(0, 4);
+  const ranked = [...items].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+  const grid = (list: Item[], rankOf: (n: number) => number) =>
+    list.length ? (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {list.map((i, n) => (
+          <Top key={i.externalId} item={i} rank={rankOf(n)} tall={tall} client={clientName(i.clientId)} />
+        ))}
+      </div>
+    ) : (
+      <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted">Nothing in this period</p>
+    );
   return (
-    <div className="flex flex-col gap-3">
-      <p className="flex items-baseline gap-2 text-sm">
-        <span className="font-medium">Top {title}</span>
+    <BestWorst
+      title={title}
+      meta={
         <span className="text-muted">
           of {items.length} · {count(views(items))} views
         </span>
-      </p>
-      {best.length ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {best.map((i, n) => (
-            <Top key={i.externalId} item={i} rank={n + 1} tall={tall} client={clientName(i.clientId)} />
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted">Nothing in this period</p>
-      )}
-    </div>
+      }
+      best={grid(ranked.slice(0, 4), (n) => n + 1)}
+      // the very lowest first, each still numbered by where it stands overall
+      worst={grid(ranked.slice(-4).reverse(), (n) => ranked.length - n)}
+    />
   );
 }
 
