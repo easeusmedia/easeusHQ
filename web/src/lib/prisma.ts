@@ -17,11 +17,13 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // behind each other too. A handful each lets them run side by side while
 // staying well inside the pooler's limits.
 //
-// Only in production, and only on a pgbouncer URL: capping local dev to a
-// single connection would serialise every query behind the slowest one.
+// Local dev and scripts too, on the same pooler: on 2 Oct 2026 a dev
+// server's uncapped pool (cores * 2 + 1), on top of the day's many deploys,
+// filled the pooler's 200 clients and the live site couldn't connect. Only
+// on a pgbouncer URL.
 function datasourceUrl(): string | undefined {
   const url = process.env.DATABASE_URL;
-  if (!url || process.env.NODE_ENV !== "production") return undefined;
+  if (!url) return undefined;
   try {
     const parsed = new URL(url);
     if (!parsed.searchParams.has("pgbouncer")) return undefined;
