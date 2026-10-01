@@ -490,8 +490,9 @@ export function Sidebar({
         {profileOpen && (
           <div
             onClick={(e) => e.stopPropagation()} // none of this should reach the rail's own click-to-open handler
-            className="pop-in panel absolute bottom-full left-0 mb-1 w-56 rounded-2xl p-1"
+            className="pop-in panel-accent absolute bottom-full left-0 mb-1 w-60 rounded-2xl p-1"
           >
+            <p className="truncate px-2.5 pt-2 pb-2 text-sm font-medium">{name}</p>
             <input
               ref={photoInput}
               type="file"

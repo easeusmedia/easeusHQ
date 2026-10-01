@@ -16,6 +16,7 @@ import {
   GripVertical,
   Layers,
   ListChecks,
+  Maximize2,
   MessageSquare,
   Plus,
   Receipt,
@@ -26,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { Avatar, type TaskCardData } from "../TaskCard";
-import { ADD_BUTTON, PlusBadge } from "../AddButton";
+import { ADD_BUTTON } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { closeOnBackdrop } from "../dialog";
@@ -80,7 +81,6 @@ export type Notice = {
 type Env = { editors: { id: string; name: string }[]; projects: Project[]; taskTags: TaskTagOption[]; actingRole: Role; actingUserId: string };
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const WEEKDAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const ADMIN_TASKS = "Admin tasks";
 
@@ -174,27 +174,50 @@ function Section({
 // ---------- rows ----------
 
 // "3 days late", "Due today", "Due 3 Oct": the one thing about its date
-// worth knowing at a glance
-function dueText(due: string | null, today: string): { text: string; tone: string } | null {
+// worth knowing at a glance, as a pill
+function dueText(due: string | null, today: string): { text: string; pill: string } | null {
   if (!due) return null;
   if (due < today) {
     const n = daysBetween(due, today);
-    return { text: `${n} ${n === 1 ? "day" : "days"} late`, tone: "text-rose-300" };
+    return { text: `${n} ${n === 1 ? "day" : "days"} late`, pill: "bg-rose-400/15 text-rose-300" };
   }
-  if (due === today) return { text: "Due today", tone: "text-amber-300" };
-  return { text: `Due ${shortDay(due)}`, tone: "text-muted" };
+  if (due === today) return { text: "Due today", pill: "bg-amber-400/15 text-amber-300" };
+  return { text: `Due ${shortDay(due)}`, pill: "bg-white/[0.07] text-foreground/70" };
 }
 
-// one piece of work on a line: what it is, whether it's late, who's on it
-function WorkRow({ item, today, onOpen }: { item: HomeItem; today: string; onOpen: () => void }) {
+// one piece of work as a card: what it is, a line under it, whether it's
+// late, and who's on it
+function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string; sub: string; onOpen: () => void }) {
   const due = dueText(item.due, today);
   return (
-    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/[0.05]">
-      <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
-      {due && <span className={`shrink-0 text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
-      <span className="hidden w-16 shrink-0 truncate text-right text-xs text-muted sm:block">{item.person ? item.person.name.split(" ")[0] : "No one"}</span>
-      {item.person ? <Avatar name={item.person.name} size={24} /> : <span className="size-6 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-2xl bg-white/[0.05] px-4 py-3 text-left ring-1 ring-white/[0.04] transition-[background-color,transform] duration-200 hover:-translate-y-px hover:bg-white/[0.085]"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{item.title}</p>
+        <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>
+      </div>
+      {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
+      {item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
     </button>
+  );
+}
+
+// a greeting's words, rising in one after another; the strong ones brighter
+function Words({ parts, start = 0 }: { parts: [string, boolean?][]; start?: number }) {
+  let n = start;
+  return (
+    <>
+      {parts.flatMap(([text, strong], p) =>
+        text.split(" ").map((w, i) => (
+          <span key={`${p}:${i}`} className={`word-in ${strong ? "text-foreground" : ""}`} style={{ animationDelay: `${n++ * 55}ms` }}>
+            {w}&nbsp;
+          </span>
+        ))
+      )}
+    </>
   );
 }
 
@@ -294,6 +317,7 @@ export function HomeView({
   // overdue: all, or only what's been late once, twice, or 3 or more times
   const [times, setTimes] = useState(0);
   const meetingRef = useRef<{ open: (day: string) => void }>(null);
+  const fullRef = useRef<HTMLDialogElement>(null);
 
   // the saved layout, once in the browser (localStorage only exists after mount)
   useEffect(() => {
@@ -428,11 +452,92 @@ export function HomeView({
     router.refresh();
   }
 
+  // the greeting's second line: how today looks, the numbers brighter
+  const tasks = (n: number) => (n === 1 ? "task is" : "tasks are");
+  const summary: [string, boolean?][] =
+    dueToday.length && overdue.length
+      ? [[String(dueToday.length), true], ["due today and"], [String(overdue.length), true], ["running late."]]
+      : dueToday.length
+        ? [[String(dueToday.length), true], [`${tasks(dueToday.length)} due today.`]]
+        : overdue.length
+          ? [[String(overdue.length), true], [`${tasks(overdue.length)} running late.`]]
+          : [["Everything is"], ["on track", true], ["today."]];
+
   const toggles: { key: Show; value: number; label: string; late?: boolean }[] = [
     { key: "active", value: live.length, label: "Active" },
     { key: "today", value: dueToday.length, label: "Due today" },
     { key: "overdue", value: overdue.length, label: "Overdue", late: true },
   ];
+
+  // what's under each card's title: whatever the grouping doesn't already say
+  const subOf = (i: HomeItem) => (view === "client" ? (i.person?.name ?? "Not assigned") : [i.client ?? ADMIN_TASKS, view === "department" && i.person?.name].filter(Boolean).join(" · "));
+  // the work, as the section shows it and (wide) as the full-screen view does
+  const workBody = (wide: boolean) => (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {/* which work: everything active, due today, or overdue */}
+        <div role="tablist" aria-label="Show" className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+          {toggles.map((t) => {
+            const on = show === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setShow(t.key)}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-200 ${on ? "bg-accent/20 text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                {t.label}
+                <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{t.value}</span>
+              </button>
+            );
+          })}
+        </div>
+        <Segmented options={VIEWS} value={view} onChange={setView} />
+      </div>
+      {show === "overdue" && overdue.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {LATE_FILTERS.map((f) => {
+            const n = f.key ? overdue.filter((i) => lateTimes(i) === f.key).length : overdue.length;
+            if (f.key && !n) return null;
+            const on = times === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setTimes(f.key)}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-accent/15 text-foreground ring-1 ring-accent/40" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
+              >
+                {f.label}
+                <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {groups.length === 0 ? (
+        <p className="px-1 py-2 text-sm text-muted">{show === "today" ? "Nothing due today." : show === "overdue" ? "Nothing overdue." : "Nothing in progress."}</p>
+      ) : (
+        <div key={`${show}:${view}:${times}`} className="fade-in flex flex-col gap-5">
+          {groups.map((g) => (
+            <div key={g.name} className="flex flex-col gap-2">
+              <p className="flex items-center gap-2 px-1 text-xs font-medium">
+                <span className="text-foreground/80">{g.name}</span>
+                <span className="text-muted/70 tabular-nums">{g.items.length}</span>
+              </p>
+              <div className={wide ? "grid gap-2 md:grid-cols-2 2xl:grid-cols-3" : "flex flex-col gap-2"}>
+                {g.items.map((i) => (
+                  <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   const sections: Record<SectionId, React.ReactNode> = {
     work: (
@@ -441,49 +546,16 @@ export function HomeView({
         id="work"
         icon={<Layers size={15} />}
         title={showMine ? "Work in progress" : "My work"}
-        aside={<Segmented options={VIEWS} value={view} onChange={setView} />}
+        aside={
+          <button type="button" onClick={() => fullRef.current?.showModal()} aria-label="Full screen" title="Full screen" className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+            <Maximize2 size={14} />
+          </button>
+        }
         collapsed={layout.collapsed.includes("work")}
         onCollapse={() => collapse("work")}
         drag={drag}
       >
-        {show === "overdue" && overdue.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {LATE_FILTERS.map((f) => {
-              const n = f.key ? overdue.filter((i) => lateTimes(i) === f.key).length : overdue.length;
-              if (f.key && !n) return null;
-              const on = times === f.key;
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setTimes(f.key)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-rose-400/15 text-rose-200" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
-                >
-                  {f.label}
-                  <span className="tabular-nums opacity-70">{n}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {groups.length === 0 ? (
-          <p className="px-1 py-2 text-sm text-muted">{show === "today" ? "Nothing due today." : show === "overdue" ? "Nothing overdue." : "Nothing in progress."}</p>
-        ) : (
-          <div key={`${show}:${view}:${times}`} className="fade-in flex flex-col gap-4">
-            {groups.map((g) => (
-              <div key={g.name} className="flex flex-col">
-                <p className="mb-1 flex items-center gap-2 px-3 text-xs font-medium">
-                  <span className="text-foreground/70">{g.name}</span>
-                  <span className="text-muted/70 tabular-nums">{g.items.length}</span>
-                </p>
-                {g.items.map((i) => (
-                  <WorkRow key={i.key} item={i} today={today} onOpen={() => open(i.key)} />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
+        {workBody(false)}
       </Section>
     ),
     mine: (
@@ -509,12 +581,12 @@ export function HomeView({
         {mine.length === 0 ? (
           !adding && <p className="px-1 py-2 text-sm text-muted">Nothing on your list.</p>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-2">
             {mine.map((i) => {
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.05]">
+                <div key={i.key} className="flex items-center gap-3 rounded-2xl bg-white/[0.05] px-4 py-3 ring-1 ring-white/[0.04] transition-colors duration-200 hover:bg-white/[0.085]">
                   {tickable ? (
                     <button
                       type="button"
@@ -527,10 +599,11 @@ export function HomeView({
                   ) : (
                     <span className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
                   )}
-                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 truncate text-left text-sm">
-                    {i.title}
+                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-sm font-medium">{i.title}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted">{i.client ?? ADMIN_TASKS}</span>
                   </button>
-                  {due && <span className={`shrink-0 text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
+                  {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
                 </div>
               );
             })}
@@ -569,46 +642,27 @@ export function HomeView({
     // the page's own height: everything below the top bar fills the screen,
     // and each section scrolls inside itself
     <div className="relative isolate flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))]">
-      {/* a soft blue light from the top right corner, behind everything */}
-      <div aria-hidden className="pointer-events-none fixed -top-64 -right-56 -z-10 size-[46rem] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.2),rgb(75_149_230/0.06)_55%,transparent)]" />
+      {/* the theme's blue, washing down from the top, over a faint dot grid */}
+      <div aria-hidden className="pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[36rem] bg-[radial-gradient(55%_75%_at_82%_0%,rgb(75_149_230/0.26),transparent_70%),radial-gradient(35%_55%_at_12%_0%,rgb(75_149_230/0.1),transparent_70%)]" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[30rem] [background-image:radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(70%_100%_at_75%_0%,black,transparent)]"
+      />
 
-      {/* one compact bar: who and when, the numbers that matter, and the actions */}
-      <header className="flex shrink-0 flex-wrap items-center gap-3">
+      <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-4 pt-1">
         <div className="mr-auto min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{greeting}</h1>
-          <p className="text-xs text-muted">
-            {WEEKDAY_LONG[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1]}
+          <p className="word-in text-sm text-muted">
+            {WEEKDAY[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1].slice(0, 3)}
           </p>
+          <h1 className="mt-2 text-[1.75rem] leading-tight font-semibold tracking-tight sm:text-4xl">
+            <Words parts={[[greeting, true]]} start={1} />
+            <br />
+            <span className="text-muted">
+              <Words parts={summary} start={4} />
+            </span>
+          </h1>
         </div>
-        {/* which work the list below shows */}
-        <div role="tablist" aria-label="Show" className="flex rounded-xl bg-white/[0.03] p-1 ring-1 ring-white/[0.07]">
-          {toggles.map((t) => {
-            const on = show === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                onClick={() => {
-                  setShow(t.key);
-                  if (layout.collapsed.includes("work")) collapse("work");
-                }}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm transition-colors duration-200 ${on ? "bg-white/[0.09] text-foreground" : "text-muted hover:text-foreground"}`}
-              >
-                {t.label}
-                <span
-                  className={`min-w-5 rounded-full px-1.5 py-px text-center text-xs font-medium tabular-nums transition-colors duration-200 ${
-                    t.late && t.value ? "bg-rose-400/15 text-rose-300" : on ? "bg-accent/20 text-accent" : "bg-white/[0.06] text-muted"
-                  }`}
-                >
-                  {t.value}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2.5">
           {showMine && (
             <button
               type="button"
@@ -616,17 +670,18 @@ export function HomeView({
                 setAdding(true);
                 if (layout.collapsed.includes("mine")) collapse("mine");
               }}
-              className={ADD_BUTTON}
+              className="btn-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-[0_8px_24px_-8px_rgb(75_149_230/0.7)]"
             >
-              <PlusBadge /> New task
+              <Plus size={15} /> New task
             </button>
           )}
           {canMeet && (
-            <button type="button" onClick={() => meetingRef.current?.open(shownDay)} className={ADD_BUTTON}>
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
-                <Video size={11} />
-              </span>
-              New meeting
+            <button
+              type="button"
+              onClick={() => meetingRef.current?.open(shownDay)}
+              className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-foreground/90 transition-colors hover:border-white/25 hover:bg-white/[0.06]"
+            >
+              <Video size={15} /> New meeting
             </button>
           )}
         </div>
@@ -644,6 +699,20 @@ export function HomeView({
         ))}
       </div>
 
+      <dialog ref={fullRef} {...closeOnBackdrop} className="glass fixed inset-3 m-0 size-auto max-h-none max-w-none overflow-hidden rounded-3xl p-0 text-foreground sm:inset-6">
+        <div className="flex h-full flex-col">
+          <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
+            <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">
+              <Layers size={15} />
+            </span>
+            <h2 className="mr-auto text-base font-semibold">{showMine ? "Work in progress" : "My work"}</h2>
+            <button type="button" aria-label="Close" onClick={() => fullRef.current?.close()} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+              <X size={16} />
+            </button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{workBody(true)}</div>
+        </div>
+      </dialog>
       {openItem && <TaskWindow key={`${opened.key}:${opened.n}`} item={openItem} env={env} assignees={composer.assignees} />}
       {canMeet && <MeetingDialog ref={meetingRef} people={people} connected={calendar.connected} />}
     </div>

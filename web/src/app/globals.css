@@ -921,3 +921,38 @@ dialog[open]::backdrop {
     display: none;
   }
 }
+
+/* a menu that stands out from the page: the accent's glassy wash over the
+   panel, its edge lit blue (the profile menu) */
+.panel-accent {
+  border: 1px solid transparent;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgb(75 149 230 / 0.38), transparent 62%) padding-box,
+    linear-gradient(180deg, #172133 0%, #121418 100%) padding-box,
+    linear-gradient(160deg, rgba(125, 180, 245, 0.55), rgba(255, 255, 255, 0.06) 55%) border-box;
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.9);
+}
+
+/* Home's greeting: each word rises out of a blur, one after another
+   (the delay is set per word) */
+.word-in {
+  display: inline-block;
+  animation: word-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35em);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word-in {
+    animation: none;
+  }
+}
