@@ -626,12 +626,8 @@ export function HomeView({
     // the page's own height: everything below the top bar fills the screen,
     // and each section scrolls inside itself
     <div className="relative isolate flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))]">
-      {/* the theme's blue, washing down from the top, over a faint dot grid */}
+      {/* the theme's blue, washing down from the top */}
       <div aria-hidden className="pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[36rem] bg-[radial-gradient(55%_75%_at_82%_0%,rgb(75_149_230/0.26),transparent_70%),radial-gradient(35%_55%_at_12%_0%,rgb(75_149_230/0.1),transparent_70%)]" />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[30rem] [background-image:radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(70%_100%_at_75%_0%,black,transparent)]"
-      />
 
       <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-4 pt-1">
         <div className="mr-auto min-w-0">
