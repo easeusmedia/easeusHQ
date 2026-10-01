@@ -700,6 +700,41 @@ dialog[open]::backdrop {
   box-shadow: none;
 }
 
+/* Sign in: a thin outlined pill at rest; on hover the app's blue gradient
+   glass (.btn-theme's) fades in behind it, its edge lights blue and a
+   soft glow appears */
+.btn-theme-hover {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, transform 0.2s ease;
+}
+.btn-theme-hover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(130% 150% at 15% 0%, rgb(75 149 230 / 0.55), rgb(75 149 230 / 0.14) 55%, transparent 80%),
+    linear-gradient(180deg, #1a2638 0%, #121822 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-theme-hover:hover {
+  color: white;
+  border-color: rgba(140, 195, 255, 0.75);
+  box-shadow: 0 12px 32px -12px rgb(75 149 230 / 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+.btn-theme-hover:hover::before {
+  opacity: 1;
+}
+.btn-theme-hover:active {
+  transform: none;
+}
+
 /* The sign-in page's light: soft glows that drift slowly across the gradient */
 .mist {
   filter: blur(30px);
@@ -715,7 +750,9 @@ dialog[open]::backdrop {
 }
 @media (prefers-reduced-motion: reduce) {
   .btn-theme,
-  .btn-theme::before {
+  .btn-theme::before,
+  .btn-theme-hover,
+  .btn-theme-hover::before {
     transition: none;
   }
   .mist,
