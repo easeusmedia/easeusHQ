@@ -215,7 +215,7 @@ export function ProjectsSection({
           <h2 className="text-sm font-medium">Projects</h2>
           {blueprint}
         </div>
-        <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+        <div className="flex gap-0.5 rounded-lg panel-soft p-0.5">
           {(
             [
               [false, LayoutGrid, "Grid"],
@@ -229,7 +229,7 @@ export function ProjectsSection({
                 setParam("layout", on ? "list" : null);
               }}
               aria-pressed={list === on}
-              className="seg flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+              className="seg flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
             >
               <Icon size={12} /> {label}
             </button>
