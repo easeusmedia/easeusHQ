@@ -49,7 +49,8 @@ export default async function MyTasksPage() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    // TodoList sets its own width: narrow (compact) or across the page (full)
+    <div className="w-full">
       <TodoList
         today={dayOf(new Date())}
         todos={work.tasks}

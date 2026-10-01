@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarDays, Check, ChevronDown, CircleCheck, FolderOpen, Hash, Plus, Truck, User } from "lucide-react";
+import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, ListChecks, Plus, Rows3, Search, Sun, Sunrise, Type, User } from "lucide-react";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
@@ -10,7 +10,7 @@ import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { createTask, moveTask } from "../actions";
 import { createWorkTask, moveWorkTask } from "./actions";
-import { addDays, dayOf, shortDay, weekday } from "@/lib/editorKpi";
+import { addDays, dayOf, daysBetween, shortDay, weekday } from "@/lib/editorKpi";
 import { availableStatuses, workflowOf, type Role } from "@/lib/workflow";
 import type { TaskCardData } from "../TaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
@@ -76,6 +76,15 @@ function dayLabel(day: string, today: string) {
   return `${WEEKDAY[weekday(day)]} ${shortDay(day)}`;
 }
 
+// a row's date, said the useful way: late by how much, or which day
+function dueLabel(due: string, today: string): { text: string; tone: string } {
+  if (due < today) {
+    const n = daysBetween(due, today);
+    return { text: `${n} ${n === 1 ? "day" : "days"} late`, tone: "text-rose-300" };
+  }
+  return { text: dayLabel(due, today), tone: due === today ? "text-amber-300" : "text-muted" };
+}
+
 type Env = {
   today: string;
   projects: Project[];
@@ -86,10 +95,31 @@ type Env = {
   actingRole: Role;
 };
 
+type Filter = "all" | "today" | "upcoming" | "overdue" | "none";
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "today", label: "Today" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "overdue", label: "Overdue" },
+  { key: "none", label: "No date" },
+];
+const WIDE_KEY = "mytasks.wide";
+
+// each section's icon, as Notion marks its pages
+function SectionIcon({ id, today }: { id: string; today: string }) {
+  if (id === "overdue") return <CircleAlert size={15} className="text-rose-300" />;
+  if (id === "none") return <Inbox size={15} className="text-muted" />;
+  if (id === today) return <Sun size={15} className="text-amber-300" />;
+  if (id === addDays(today, 1)) return <Sunrise size={15} className="text-sky-300" />;
+  return <CalendarDays size={15} className="text-muted" />;
+}
+
 // Your work as a to-do list, the way a to-do app lays it out: what's late,
 // today, each day ahead, and what has no date, with the last week's
-// finished below. A to-do (and client work that's a to-do) is ticked off;
-// a video or design moves through its stages from the pill on its row.
+// finished below. Filter it, search it, read it narrow (compact) or across
+// the page with its columns (full). A to-do (and client work that's a to-do)
+// is ticked off, with a moment to undo; a video or design moves through its
+// stages from the pill on its row. N adds a task; / searches.
 export function TodoList({
   todos,
   tasks,
@@ -103,28 +133,84 @@ export function TodoList({
   kinds: TodoKind[];
 }) {
   const router = useRouter();
-  // ticked off here, gone before the refresh brings the list back
+  // ticked off here: checked for a moment, then gone before the refresh brings the list back
+  const [ticking, setTicking] = useState<Set<string>>(new Set());
   const [gone, setGone] = useState<Set<string>>(new Set());
+  const [undo, setUndo] = useState<Item | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const items: Item[] = useMemo(() => itemsOf(todos, tasks).filter((i) => !gone.has(i.key)), [todos, tasks, gone]);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const [wide, setWide] = useState(false);
+  // N opens a fresh composer: a new key mounts it open
+  const [composing, setComposing] = useState(0);
+  const search = useRef<HTMLInputElement>(null);
+
+  // the saved width, once in the browser
+  useEffect(() => {
+    try {
+      setWide(localStorage.getItem(WIDE_KEY) === "1"); // eslint-disable-line react-hooks/set-state-in-effect
+    } catch {}
+  }, []);
+  function setWidth(next: boolean) {
+    setWide(next);
+    try {
+      localStorage.setItem(WIDE_KEY, next ? "1" : "0");
+    } catch {}
+  }
+
+  // N to add, / to search, unless already typing somewhere
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement;
+      if (e.metaKey || e.ctrlKey || e.altKey || el.closest("input, textarea, [contenteditable], dialog[open]")) return;
+      if (e.key === "n") {
+        e.preventDefault();
+        setComposing((n) => n + 1);
+      } else if (e.key === "/") {
+        e.preventDefault();
+        search.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const all: Item[] = useMemo(() => itemsOf(todos, tasks).filter((i) => !gone.has(i.key)), [todos, tasks, gone]);
+  const items = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? all.filter((i) => [i.title, i.client ?? "", i.project ?? "", i.notes ?? ""].some((v) => v.toLowerCase().includes(q))) : all;
+  }, [all, query]);
+  const inFilter = (i: Item, f: Filter) =>
+    f === "all" || (f === "today" ? i.due === env.today : f === "upcoming" ? !!i.due && i.due > env.today : f === "overdue" ? !!i.due && i.due < env.today : !i.due);
 
   const sections = useMemo(() => {
+    const shown = items.filter((i) => inFilter(i, filter));
     const byDue = (a: Item, b: Item) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.title.localeCompare(b.title);
-    const overdue = items.filter((i) => i.due && i.due < env.today).sort(byDue);
-    const days = [...new Set(items.filter((i) => i.due && i.due >= env.today).map((i) => i.due!))].sort();
-    const none = items.filter((i) => !i.due);
+    const overdue = shown.filter((i) => i.due && i.due < env.today).sort(byDue);
+    const days = [...new Set(shown.filter((i) => i.due && i.due >= env.today).map((i) => i.due!))].sort();
+    const none = shown.filter((i) => !i.due);
     return [
-      ...(overdue.length ? [{ key: "overdue", title: "Overdue", late: true, note: null, items: overdue }] : []),
-      ...days.map((d) => ({ key: d, title: dayLabel(d, env.today), late: false, note: null, items: items.filter((i) => i.due === d) })),
-      ...(none.length ? [{ key: "none", title: "No date", late: false, note: null, items: none }] : []),
+      ...(overdue.length ? [{ key: "overdue", title: "Overdue", items: overdue }] : []),
+      ...days.map((d) => ({ key: d, title: dayLabel(d, env.today), items: shown.filter((i) => i.due === d) })),
+      ...(none.length ? [{ key: "none", title: "No date", items: none }] : []),
     ];
-  }, [items, env.today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inFilter reads only filter and today
+  }, [items, filter, env.today]);
 
   async function tick(item: Item) {
     setError(null);
+    setTicking((t) => new Set(t).add(item.key));
+    // a beat to see it ticked
+    await new Promise((r) => setTimeout(r, 450));
     setGone((g) => new Set(g).add(item.key));
     const res = item.todo ? await moveWorkTask(item.id, "done", item.todo.sortOrder) : await moveTask(item.id, "delivered_and_uploaded");
+    setTicking((t) => {
+      const next = new Set(t);
+      next.delete(item.key);
+      return next;
+    });
     if (res.error) {
       setGone((g) => {
         const next = new Set(g);
@@ -133,57 +219,170 @@ export function TodoList({
       });
       return setError(res.error);
     }
+    setUndo(item);
     router.refresh();
   }
+  // the undo offer fades after a few seconds
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 5000);
+    return () => clearTimeout(t);
+  }, [undo]);
 
-  async function reopen(d: Done) {
+  async function reopen(d: { id: string; kind: "todo" | "task" }) {
     setError(null);
     const res = d.kind === "todo" ? await moveWorkTask(d.id, "todo", 0) : await moveTask(d.id, "queued");
     if (res.error) return setError(res.error);
+    setGone((g) => new Set([...g].filter((k) => k !== `${d.kind === "todo" ? "w" : "t"}${d.id}`)));
     router.refresh();
   }
 
+  const doneWeek = done.length;
+  const progress = doneWeek + all.length ? Math.round((doneWeek / (doneWeek + all.length)) * 100) : 0;
+
   return (
-    <div className="flex flex-col gap-7">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-          <CircleCheck size={14} /> {items.length} {items.length === 1 ? "task" : "tasks"}
-        </p>
+    <div className={`mx-auto flex w-full flex-col gap-6 transition-[max-width] duration-500 ease-out ${wide ? "max-w-[120rem]" : "max-w-3xl"}`}>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-accent/15 text-accent ring-1 ring-accent/25">
+            <ListChecks size={22} />
+          </span>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              <span className="text-foreground/85 tabular-nums">{all.length}</span> to do · <span className="text-foreground/85 tabular-nums">{doneWeek}</span> done this week
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex h-9 w-52 items-center gap-2 rounded-full bg-white/[0.04] px-3 ring-1 ring-white/[0.07] transition-shadow focus-within:ring-accent/40">
+            <Search size={14} className="shrink-0 text-muted" />
+            <input
+              ref={search}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && (setQuery(""), e.currentTarget.blur())}
+              placeholder="Search"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none! placeholder:text-muted/60"
+            />
+            <kbd className="rounded border border-white/10 px-1 text-[10px] text-muted/70">/</kbd>
+          </label>
+          {/* narrow and dense, or across the page with its columns */}
+          <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+            {[
+              { on: false, label: "Compact", Icon: Rows3 },
+              { on: true, label: "Full width", Icon: Columns3 },
+            ].map((v) => (
+              <button
+                key={v.label}
+                type="button"
+                aria-pressed={wide === v.on}
+                onClick={() => setWidth(v.on)}
+                title={v.label}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-200 ${wide === v.on ? "bg-accent/20 text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                <v.Icon size={13} />
+                <span className="hidden sm:inline">{v.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
-      <Composer kinds={kinds} {...env} />
-      {error && <p className="fade-in -mt-4 text-sm text-red-300">{error}</p>}
+      {/* this week: done against what's left */}
+      <div className="-mt-2 h-1 overflow-hidden rounded-full bg-white/[0.05]">
+        <div className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out" style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {FILTERS.map((f) => {
+            const n = items.filter((i) => inFilter(i, f.key)).length;
+            const on = filter === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setFilter(f.key)}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-accent/15 text-foreground ring-1 ring-accent/40" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
+              >
+                {f.label}
+                <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <Composer key={composing} startOpen={composing > 0} kinds={kinds} {...env} />
+      {error && <p className="fade-in -mt-3 text-sm text-red-300">{error}</p>}
 
       {sections.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">Nothing on your list. Add something above.</p>
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border px-4 py-12 text-center">
+          <CircleCheck size={22} className="text-accent" />
+          <p className="text-sm text-muted">{query ? "Nothing matches that." : filter === "all" ? "Nothing on your list. Press N to add something." : "Nothing here."}</p>
+        </div>
       ) : (
-        sections.map((s) => (
-          <section key={s.key} className="fade-in flex flex-col">
-            <h2 className="flex items-center gap-2 border-b border-border/70 pb-2 text-sm font-semibold">
-              <span className={s.late ? "text-rose-300" : undefined}>{s.title}</span>
-              <span className="text-xs font-normal text-muted tabular-nums">{s.items.length}</span>
-              {s.note && <span className="text-xs font-normal text-rose-300">{s.note}</span>}
-            </h2>
-            {s.items.map((i) => (
-              <Row key={i.key} item={i} onTick={() => tick(i)} {...env} />
-            ))}
-          </section>
-        ))
+        <div className="flex flex-col gap-5">
+          {wide && (
+            // the columns, named as a Notion table names them
+            <div className="hidden grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem] items-center gap-3 border-b border-border/60 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
+              <span />
+              <span className="flex items-center gap-1.5">
+                <Type size={12} /> Task
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Building2 size={12} /> Client
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CalendarDays size={12} /> Due
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CircleDashed size={12} /> Stage
+              </span>
+            </div>
+          )}
+          {sections.map((s) => {
+            const open = !folded.has(s.key);
+            return (
+              <section key={s.key} className="fade-in flex flex-col">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setFolded((f) => (f.has(s.key) ? new Set([...f].filter((k) => k !== s.key)) : new Set(f).add(s.key)))}
+                  className="group/head flex items-center gap-2 rounded-lg px-1 py-1.5 text-sm font-semibold"
+                >
+                  <ChevronDown size={14} className={`text-muted transition-transform duration-300 ${open ? "" : "-rotate-90"}`} />
+                  <SectionIcon id={s.key} today={env.today} />
+                  <span className={s.key === "overdue" ? "text-rose-300" : undefined}>{s.title}</span>
+                  <span className="rounded-full bg-white/[0.06] px-1.5 text-xs font-normal text-muted tabular-nums">{s.items.length}</span>
+                </button>
+                <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                  <div className="flex min-h-0 flex-col gap-0.5 overflow-hidden pt-1" inert={!open}>
+                    {s.items.map((i) => (
+                      <Row key={i.key} item={i} wide={wide} ticked={ticking.has(i.key)} showDue={wide || s.key === "overdue"} onTick={() => tick(i)} {...env} />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            );
+          })}
+        </div>
       )}
 
       {done.length > 0 && (
         <section className="flex flex-col">
-          <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-1.5 self-start text-sm text-muted transition-colors hover:text-foreground">
-            <ChevronDown size={14} className={`transition-transform duration-200 ${showDone ? "" : "-rotate-90"}`} />
-            Completed <span className="tabular-nums">{done.length}</span>
+          <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-2 self-start rounded-lg px-1 py-1.5 text-sm text-muted transition-colors hover:text-foreground">
+            <ChevronDown size={14} className={`transition-transform duration-300 ${showDone ? "" : "-rotate-90"}`} />
+            <CircleCheck size={15} className="text-emerald-400" />
+            Completed this week <span className="tabular-nums">{done.length}</span>
           </button>
           {showDone && (
-            <div className="fade-in mt-2 flex flex-col">
+            <div className="fade-in mt-1 flex flex-col gap-0.5">
               {done.map((d) => {
                 const reopenable = d.kind === "todo" || workflowOf(d.workflow) === "todo";
                 return (
-                  <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 border-b border-border/50 py-2.5">
+                  <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2">
                     <button
                       type="button"
                       disabled={!reopenable}
@@ -203,22 +402,83 @@ export function TodoList({
           )}
         </section>
       )}
+
+      {/* just ticked: a moment to take it back */}
+      {undo && (
+        <div className="pop-in panel fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full py-2 pr-2 pl-4 text-sm shadow-xl">
+          <CircleCheck size={15} className="text-emerald-400" />
+          <span className="max-w-60 truncate">{undo.title}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const it = undo;
+              setUndo(null);
+              reopen({ id: it.id, kind: it.todo ? "todo" : "task" });
+            }}
+            className="rounded-full bg-white/[0.08] px-3 py-1 text-xs font-medium transition-colors hover:bg-white/[0.14]"
+          >
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function Row({ item, onTick, today, projects, assignees, editors, taskTags, actingUserId, actingRole }: Env & { item: Item; onTick: () => void }) {
+function Row({
+  item,
+  wide,
+  ticked,
+  showDue,
+  onTick,
+  today,
+  projects,
+  assignees,
+  editors,
+  taskTags,
+  actingUserId,
+  actingRole,
+}: Env & { item: Item; wide: boolean; ticked: boolean; showDue: boolean; onTick: () => void }) {
   const ref = useRef<{ open: () => void }>(null);
   const task = item.task;
   const flow = workflowOf(task?.workflow);
   // a to-do is ticked off; a video or design moves by its stages
   const tickable = !!item.todo || flow === "todo";
-  const late = !!item.due && item.due < today;
+  const due = item.due ? dueLabel(item.due, today) : null;
+  const stage =
+    task && flow !== "todo" ? (
+      <div onClick={(e) => e.stopPropagation()}>
+        <StatusSelect
+          taskId={task.id}
+          currentStatus={task.status}
+          options={availableStatuses(task.status, { role: actingRole, isAssignee: true }, task.workflow)}
+          links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
+          variant="pill"
+          workflow={task.workflow}
+        />
+      </div>
+    ) : item.tag ? (
+      <span className="flex items-center gap-0.5 text-xs text-muted">
+        <Hash size={11} />
+        {item.tag}
+      </span>
+    ) : null;
+  const client = item.client && (
+    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+      <Building2 size={12} className="shrink-0 text-sky-400/80" />
+      <span className="truncate">
+        {item.client}
+        {item.project && item.project !== item.client && <span className="text-muted/60"> / {item.project}</span>}
+      </span>
+    </span>
+  );
 
   return (
     <div
       onClick={() => ref.current?.open()}
-      className="group flex cursor-pointer items-start gap-3 border-b border-border/50 py-3 transition-colors hover:bg-white/[0.02]"
+      className={`group grid cursor-pointer items-center gap-3 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.04] ${ticked ? "opacity-50" : ""} ${
+        wide ? "grid-cols-[18px_minmax(0,1fr)] py-2.5 md:grid-cols-[18px_minmax(0,1fr)_14rem_8rem_10rem]" : "grid-cols-[18px_minmax(0,1fr)_auto] py-2"
+      }`}
     >
       {tickable ? (
         <button
@@ -226,59 +486,37 @@ function Row({ item, onTick, today, projects, assignees, editors, taskTags, acti
           aria-label="Mark done"
           onClick={(e) => {
             e.stopPropagation();
-            onTick();
+            if (!ticked) onTick();
           }}
-          className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent"
+          className={`flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-300 ${
+            ticked ? "scale-110 border-accent bg-accent text-background" : "border-muted/50 text-transparent hover:border-accent hover:text-accent"
+          }`}
         >
           <Check size={11} strokeWidth={3} />
         </button>
       ) : (
-        <span title="Moves through its stages" className="mt-0.5 size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
+        <span title="Moves through its stages" className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
       )}
-      <div className="min-w-0 flex-1">
-        <p className="text-sm leading-snug">{item.title}</p>
-        {item.notes && <p className="mt-0.5 truncate text-xs text-muted">{item.notes}</p>}
-        {(item.due || item.delivery || item.tag) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {item.due && (
-              <span className={`flex items-center gap-1 ${late ? "text-rose-300" : "text-muted"}`}>
-                <CalendarDays size={12} /> {shortDay(item.due)}
-              </span>
-            )}
-            {item.delivery && (
-              <span className="flex items-center gap-1 text-muted">
-                <Truck size={12} /> Delivery {shortDay(item.delivery)}
-              </span>
-            )}
-            {item.tag && (
-              <span className="flex items-center gap-0.5 text-muted">
-                <Hash size={11} />
-                {item.tag}
-              </span>
-            )}
-          </div>
-        )}
+      <div className="min-w-0">
+        <p className={`flex items-center gap-1.5 text-sm leading-snug transition-colors duration-300 ${ticked ? "text-muted line-through" : ""}`}>
+          <span className="truncate">{item.title}</span>
+          {!wide && item.notes && <FileText size={12} className="shrink-0 text-muted/60" aria-label="Has notes" />}
+        </p>
+        {wide && item.notes && <p className="mt-0.5 truncate text-xs text-muted">{item.notes}</p>}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1.5 pl-2">
-        {task && flow !== "todo" && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <StatusSelect
-              taskId={task.id}
-              currentStatus={task.status}
-              options={availableStatuses(task.status, { role: actingRole, isAssignee: true }, task.workflow)}
-              links={{ frameioLink: task.frameioLink, driveLink: task.driveLink }}
-              variant="pill"
-              workflow={task.workflow}
-            />
-          </div>
-        )}
-        {item.client && (
-          <span className="max-w-48 truncate text-xs text-muted">
-            {item.client}
-            {item.project && item.project !== item.client && <span className="text-muted/60"> / {item.project}</span>}
-          </span>
-        )}
-      </div>
+      {wide ? (
+        <>
+          <span className="hidden min-w-0 md:block">{client}</span>
+          <span className={`hidden text-xs tabular-nums md:block ${due?.tone ?? "text-muted/50"}`}>{due?.text ?? "No date"}</span>
+          <span className="hidden md:block">{stage}</span>
+        </>
+      ) : (
+        <span className="flex items-center gap-3">
+          <span className="hidden max-w-40 sm:block">{client}</span>
+          {showDue && due && <span className={`text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
+          {stage}
+        </span>
+      )}
       <span onClick={(e) => e.stopPropagation()} className="contents">
         {item.todo && <WorkTaskDialog ref={ref} mode="edit" task={item.todo} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />}
         {task && (
@@ -297,6 +535,13 @@ function Row({ item, onTick, today, projects, assignees, editors, taskTags, acti
     </div>
   );
 }
+
+// days from today: today, tomorrow, and next Monday
+const QUICK_DAYS: [string, (weekdayToday: number) => number][] = [
+  ["Today", () => 0],
+  ["Tomorrow", () => 1],
+  ["Next week", (wd) => (8 - wd) % 7 || 7],
+];
 
 // the option that clears a chip, offered only once it holds something
 const NONE = "__none";
@@ -383,6 +628,7 @@ export function Composer({
           <Plus size={15} />
         </span>
         Add task
+        <kbd className="rounded border border-white/10 px-1 text-[10px] text-muted/60">N</kbd>
       </button>
     );
   }
@@ -411,6 +657,13 @@ export function Composer({
       />
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <DatePicker value={f.due} onChange={(v) => set({ due: v })} placeholder="Date" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
+        {/* the usual days, one tap each */}
+        {!f.due &&
+          QUICK_DAYS.map(([label, days]) => (
+            <button key={label} type="button" onClick={() => set({ due: addDays(dayOf(new Date()), days(weekday(dayOf(new Date())))) })} className="rounded-full px-2 py-1 text-[11px] text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+              {label}
+            </button>
+          ))}
         {kinds.length > 0 && (
           <Dropdown
             pill={{ icon: <Hash size={12} className="text-amber-400" /> }}
