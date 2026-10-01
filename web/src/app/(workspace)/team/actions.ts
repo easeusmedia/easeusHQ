@@ -195,6 +195,20 @@ export async function renameDepartment(id: string, name: string): Promise<People
   return { success: true };
 }
 
+// The words in a task's title that file it under this department
+// (lib/department.ts), as typed: "edit, reel, thumbnail"
+export async function setDepartmentWords(id: string, keywords: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only Level 1 can change a department." };
+  const clean = keywords
+    .split(",")
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean)
+    .join(", ");
+  await prisma.team.update({ where: { id }, data: { keywords: clean } });
+  return { success: true };
+}
+
 export async function renameRole(id: string, name: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
   if (!actor) return { error: "Only Level 1 can rename a role." };

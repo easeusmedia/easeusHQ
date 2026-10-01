@@ -181,7 +181,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     <div className="h-full">
       <PeopleDirectory
         people={records}
-        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.access }))}
+        teams={teams.map((t) => ({ id: t.id, name: t.name, slug: t.slug, people: t._count.access, keywords: t.keywords }))}
         jobTitles={jobTitles.map((j) => ({ id: j.id, name: j.name, teamId: j.teamId, workflow: j.workflow, people: people.filter((p) => p.employment !== "former" && p.roles.some((r) => r.id === j.id)).length }))}
         workTags={workTags.map((t) => ({ id: t.id, name: t.name, teamId: t.teamId, uses: t._count.tasks + t._count.workTasks, roleId: t.roleId, workflow: t.workflow }))}
         canEdit={canEdit}

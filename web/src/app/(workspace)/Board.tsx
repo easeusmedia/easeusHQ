@@ -97,9 +97,9 @@ export function Board({
       return next;
     });
 
-  async function deleteSelected() {
+  async function deleteSelected(reason: string) {
     setDeleting(true);
-    const res = await deleteTasks([...selected]);
+    const res = await deleteTasks([...selected], reason);
     setDeleting(false);
     if (res.error) return;
     setSelected(new Set());
@@ -465,7 +465,8 @@ export function Board({
             <X size={13} /> Clear
           </button>
           <ConfirmButton
-            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? Their history will be deleted too. This can't be undone.`}
+            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? They stay in History, with your reason.`}
+            reason="Why are these being deleted?"
             onConfirm={deleteSelected}
             className="btn btn-sm btn-danger"
           >

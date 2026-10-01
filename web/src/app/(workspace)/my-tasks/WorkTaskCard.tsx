@@ -34,6 +34,10 @@ export type WorkTaskCardData = {
   createdBy: { id: string; name: string };
   // its department's slug, for the Board's department views
   teamSlug?: string | null;
+  // when it was added (ISO)
+  createdAt?: string;
+  // times it has gone past its completion date
+  strikes?: number;
 };
 
 
@@ -104,8 +108,8 @@ export function WorkTaskCard({
         {canDelete && (
           <HoverDelete
             title={task.title}
-            onDelete={async () => {
-              const res = await deleteWorkTask(task.id);
+            onDelete={async (reason) => {
+              const res = await deleteWorkTask(task.id, reason);
               if (res.error) setError(res.error);
               else router.refresh();
             }}

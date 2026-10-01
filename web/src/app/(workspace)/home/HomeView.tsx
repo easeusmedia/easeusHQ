@@ -1,20 +1,46 @@
 "use client";
 
-import { useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Bell, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, FileSignature, Layers, ListChecks, MessageSquare, Plus, Receipt, StickyNote, Users, Video, X } from "lucide-react";
-import { Avatar } from "../TaskCard";
+import {
+  ArrowUpRight,
+  Bell,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  FileSignature,
+  GripVertical,
+  Layers,
+  ListChecks,
+  MessageSquare,
+  Plus,
+  Receipt,
+  StickyNote,
+  UserPlus,
+  Users,
+  Video,
+  X,
+} from "lucide-react";
+import { Avatar, type TaskCardData } from "../TaskCard";
 import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { closeOnBackdrop } from "../dialog";
 import { moveTask } from "../actions";
 import { moveWorkTask } from "../my-tasks/actions";
-import { Composer } from "../my-tasks/TodoList";
-import type { Project } from "../my-tasks/WorkTaskDialog";
+import { Composer, type TodoKind } from "../my-tasks/TodoList";
+import { WorkTaskDialog, type Project } from "../my-tasks/WorkTaskDialog";
+import type { WorkTaskCardData } from "../my-tasks/WorkTaskCard";
+import { TaskDetailsDialog } from "../TaskDetailsDialog";
+import type { TaskTagOption } from "../TaskTagPicker";
 import { addDays, shortDay, weekday } from "@/lib/editorKpi";
 import { calendarConsentUrl } from "@/lib/driveClient";
+import { ordinal } from "@/lib/overdue";
+import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, scheduleMeeting } from "./actions";
 
@@ -23,7 +49,6 @@ export type HomeItem = {
   id: string;
   source: "task" | "work";
   workflow: string;
-  sortOrder: number;
   title: string;
   status: string;
   meaning: string;
@@ -31,53 +56,120 @@ export type HomeItem = {
   due: string | null;
   delivery: string | null;
   client: string | null;
-  href: string | null;
   department: string | null;
   person: { id: string; name: string } | null;
+  strikes: number;
+  // the task itself, for its window
+  task?: TaskCardData;
+  todo?: WorkTaskCardData;
 };
 
 export type Notice = {
   key: string;
   id?: string;
-  kind: "invoice" | "contract" | "message" | "note";
+  kind: "invoice" | "contract" | "message" | "note" | "overdue" | "shared";
   tone: "rose" | "amber" | "accent" | "neutral";
   text: string;
   sub?: string;
   href?: string;
+  // the task it's about (an item's key), to open it
+  open?: string;
 };
+
+type Env = { editors: { id: string; name: string }[]; projects: Project[]; taskTags: TaskTagOption[]; actingRole: Role; actingUserId: string };
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const VIEWS = [
-  { key: "client", label: "Client" },
-  { key: "department", label: "Department" },
-  { key: "person", label: "Person" },
-];
-// the rows a group shows before "Show all"
-const FIRST = 3;
+const ADMIN_TASKS = "Admin tasks";
 
 // "11:30 am", in IST
 const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 const istDay = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
-// the header's buttons share one size; only their fill differs
-const BUTTON = "inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors";
+// ---------- the layout: sections in two columns, each collapsible and movable ----------
 
-function Card({ icon, title, aside, children }: { icon: React.ReactNode; title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+type SectionId = "work" | "mine" | "calendar" | "notices";
+type Layout = { columns: SectionId[][]; collapsed: SectionId[] };
+const LAYOUT_KEY = "home.layout.v2";
+const DEFAULT_LAYOUT: Layout = { columns: [["work"], ["mine", "calendar", "notices"]], collapsed: [] };
+
+// the saved layout, holding only the sections this person has, each once
+function readLayout(have: SectionId[]): Layout {
+  let saved: Layout | null = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "null");
+  } catch {}
+  const base = saved && Array.isArray(saved.columns) && saved.columns.length === 2 ? saved : DEFAULT_LAYOUT;
+  const seen = new Set<SectionId>();
+  const columns = base.columns.map((col) => col.filter((s) => have.includes(s) && !seen.has(s) && seen.add(s)));
+  for (const s of have) if (!seen.has(s)) columns[s === "work" ? 0 : 1].push(s);
+  return { columns, collapsed: (base.collapsed ?? []).filter((s) => have.includes(s)) };
+}
+
+type Drag = { start: (id: SectionId) => void; over: (id: SectionId) => void; end: () => void; dragging: SectionId | null };
+
+function Section({
+  id,
+  icon,
+  title,
+  aside,
+  collapsed,
+  onCollapse,
+  grow = true,
+  drag,
+  children,
+}: {
+  id: SectionId;
+  icon: React.ReactNode;
+  title: string;
+  aside?: React.ReactNode;
+  collapsed: boolean;
+  onCollapse: () => void;
+  // fills its share of the column (lists) or keeps to its size (the calendar)
+  grow?: boolean;
+  drag: Drag;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="rounded-3xl border border-white/[0.07] bg-gradient-to-b from-white/[0.045] to-white/[0.012] p-5 sm:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
-          <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
-        </div>
-        {aside}
-      </div>
-      {children}
+    <section
+      onDragOver={(e) => {
+        if (!drag.dragging || drag.dragging === id) return;
+        e.preventDefault();
+        drag.over(id);
+      }}
+      className={`flex min-h-0 flex-col rounded-3xl border bg-gradient-to-b from-white/[0.045] to-white/[0.012] transition-[flex-grow,opacity,border-color] duration-300 ${
+        collapsed ? "flex-none" : grow ? "lg:flex-[1_1_0]" : "flex-none"
+      } ${drag.dragging === id ? "border-accent/40 opacity-60" : "border-white/[0.07]"}`}
+    >
+      <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
+        <button
+          type="button"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = "move";
+            drag.start(id);
+          }}
+          onDragEnd={drag.end}
+          aria-label={`Move ${title}`}
+          title="Drag to move"
+          className="-ml-1.5 cursor-grab rounded-md p-1 text-muted/50 transition-colors hover:text-foreground active:cursor-grabbing"
+        >
+          <GripVertical size={14} />
+        </button>
+        <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
+        <h2 className="mr-auto min-w-0 truncate text-[15px] font-semibold tracking-tight">{title}</h2>
+        {!collapsed && aside}
+        <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+          <ChevronDown size={15} className={`transition-transform duration-300 ${collapsed ? "-rotate-90" : ""}`} />
+        </button>
+      </header>
+      {!collapsed && <div className="fade-in min-h-0 flex-1 overflow-y-auto px-4 pb-4 max-lg:max-h-[70vh] sm:px-5">{children}</div>}
     </section>
   );
 }
+
+// ---------- rows ----------
 
 // a status, and on hover what it means
 function Status({ item }: { item: HomeItem }) {
@@ -96,38 +188,38 @@ function Status({ item }: { item: HomeItem }) {
   );
 }
 
-// "Due today · Delivery 5 Oct"
-function when(item: HomeItem, today: string) {
-  return [item.due && `Due ${item.due === today ? "today" : shortDay(item.due)}`, item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
+function Strikes({ n }: { n: number }) {
+  if (!n) return null;
+  return <span className="shrink-0 rounded-full bg-rose-400/10 px-1.5 py-px text-[10px] font-medium text-rose-300">{ordinal(n)} miss</span>;
 }
 
-// one piece of work: what it is, for whom, when, its stage, who's on it
-function WorkRow({ item, today, showClient = true }: { item: HomeItem; today: string; showClient?: boolean }) {
+// "Completion today · Delivery 5 Oct"
+function when(item: HomeItem, today: string) {
+  return [item.due && `Completion ${item.due === today ? "today" : shortDay(item.due)}`, item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
+}
+
+// one piece of work: what it is, for whom, when, its stage, who's on it; opens it
+function WorkRow({ item, today, showClient = true, onOpen }: { item: HomeItem; today: string; showClient?: boolean; onOpen: () => void }) {
   const late = !!item.due && item.due < today;
-  const body = (
-    <>
+  return (
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-3 text-left transition-colors hover:bg-white/[0.065]">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.title}</p>
+        <p className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium">{item.title}</span>
+          <Strikes n={item.strikes} />
+        </p>
         <p className="mt-0.5 truncate text-xs text-muted">
-          {showClient && item.client && <span>{item.client} · </span>}
+          {showClient && <span>{item.client ?? ADMIN_TASKS} · </span>}
           <span className={late ? "text-rose-300" : undefined}>{when(item, today) || "No date"}</span>
         </p>
       </div>
       <Status item={item} />
       {item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
-    </>
-  );
-  const cls = "flex items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-3 transition-colors hover:bg-white/[0.065]";
-  return item.href ? (
-    <Link href={item.href} className={cls}>
-      {body}
-    </Link>
-  ) : (
-    <div className={cls}>{body}</div>
+    </button>
   );
 }
 
-// a small switch between views, drawn like the cards around it
+// a small switch between views
 function Segmented({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
@@ -137,7 +229,7 @@ function Segmented({ options, value, onChange }: { options: { key: string; label
           type="button"
           aria-pressed={value === o.key}
           onClick={() => onChange(o.key)}
-          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${value === o.key ? "bg-white/[0.1] text-foreground" : "text-muted hover:text-foreground"}`}
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${value === o.key ? "bg-white/[0.1] text-foreground" : "text-muted hover:text-foreground"}`}
         >
           {o.label}
         </button>
@@ -146,256 +238,489 @@ function Segmented({ options, value, onChange }: { options: { key: string; label
   );
 }
 
+// ---------- a task's window, opened from anywhere on Home ----------
+
+function TaskWindow({ item, env, assignees }: { item: HomeItem; env: Env; assignees: { id: string; name: string }[] }) {
+  const ref = useRef<{ open: () => void }>(null);
+  // mounted afresh for each opening (see `open` in HomeView), so it opens at once
+  useEffect(() => ref.current?.open(), []);
+  if (item.task) {
+    return (
+      <TaskDetailsDialog
+        ref={ref}
+        task={item.task}
+        clientName={item.client ?? ""}
+        editors={env.editors}
+        projects={env.projects}
+        actingUserId={env.actingUserId}
+        actingRole={env.actingRole}
+        taskTags={env.taskTags}
+      />
+    );
+  }
+  return item.todo ? <WorkTaskDialog ref={ref} mode="edit" task={item.todo} projects={env.projects} actingUserId={env.actingUserId} assignees={assignees} taskTags={env.taskTags} /> : null;
+}
+
+// ---------- Home ----------
+
+const VIEWS = [
+  { key: "client", label: "Client" },
+  { key: "department", label: "Department" },
+  { key: "person", label: "Person" },
+];
+type Stat = "active" | "today" | "overdue" | "meetings";
+
 export function HomeView({
   greeting,
   today,
   monday,
   meId,
-  work,
+  showMine,
+  canMeet,
+  canNote,
+  items,
   notices,
   meetings,
   calendar,
   people,
   composer,
+  env,
 }: {
   greeting: string;
   today: string;
   monday: string;
   meId: string;
-  work: HomeItem[];
+  showMine: boolean;
+  canMeet: boolean;
+  canNote: boolean;
+  items: HomeItem[];
   notices: Notice[];
   meetings: Meeting[];
   calendar: { connected: boolean; error: string | null; clientId: string };
   people: { id: string; name: string }[];
-  composer: { projects: Project[]; assignees: { id: string; name: string }[] };
+  composer: { projects: Project[]; assignees: { id: string; name: string }[]; kinds: TodoKind[] };
+  env: Env;
 }) {
   const router = useRouter();
+  const have = useMemo<SectionId[]>(() => (showMine ? ["work", "mine", "calendar", "notices"] : ["work", "calendar", "notices"]), [showMine]);
+  const [layout, setLayout] = useState<Layout>(() => ({ ...DEFAULT_LAYOUT, columns: DEFAULT_LAYOUT.columns.map((c) => c.filter((s) => have.includes(s))) }));
+  const [dragging, setDragging] = useState<SectionId | null>(null);
   const [view, setView] = useState("client");
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [day, setDay] = useState(monday <= today && today < addDays(monday, 7) ? today : monday);
   const [adding, setAdding] = useState(false);
   const [gone, setGone] = useState<Set<string>>(new Set());
+  const [opened, setOpened] = useState<{ key: string; n: number } | null>(null);
+  const [stat, setStat] = useState<Stat | null>(null);
   const meetingRef = useRef<{ open: (day: string) => void }>(null);
-  const tasksRef = useRef<HTMLElement>(null);
 
-  const live = useMemo(() => work.filter((i) => !gone.has(i.key)), [work, gone]);
+  // the saved layout, once in the browser (localStorage only exists after mount)
+  useEffect(() => {
+    const saved = readLayout(have);
+    setLayout(saved); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [have]);
+  function save(next: Layout) {
+    setLayout(next);
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(next));
+    } catch {}
+  }
+  const collapse = (id: SectionId) => save({ ...layout, collapsed: layout.collapsed.includes(id) ? layout.collapsed.filter((s) => s !== id) : [...layout.collapsed, id] });
+  // dragging a section over another puts it there, in either column
+  const drag: Drag = {
+    dragging,
+    start: (id) => setDragging(id),
+    end: () => setDragging(null),
+    over: (target) => {
+      if (!dragging || dragging === target) return;
+      const columns = layout.columns.map((c) => c.filter((s) => s !== dragging));
+      const col = columns.findIndex((c) => c.includes(target));
+      columns[col].splice(columns[col].indexOf(target), 0, dragging);
+      save({ ...layout, columns });
+    },
+  };
+  // a column emptied by dragging still takes a section dropped on it
+  const dropOnColumn = (i: number) => {
+    if (!dragging || layout.columns[i].includes(dragging)) return;
+    const columns = layout.columns.map((c) => c.filter((s) => s !== dragging));
+    columns[i].push(dragging);
+    save({ ...layout, columns });
+  };
+
+  const live = useMemo(() => items.filter((i) => !gone.has(i.key)), [items, gone]);
+  const open = (key: string) => setOpened((o) => ({ key, n: (o?.n ?? 0) + 1 }));
+  const openItem = opened && items.find((i) => i.key === opened.key);
+
   // the work in motion, grouped the chosen way, busiest first
   const groups = useMemo(() => {
-    const keyOf = (i: HomeItem) => (view === "client" ? (i.client ?? "Internal") : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned"));
+    const keyOf = (i: HomeItem) => (view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned"));
     const byDue = (a: HomeItem, b: HomeItem) => (a.due ?? "9999").localeCompare(b.due ?? "9999");
     const map = new Map<string, HomeItem[]>();
     for (const i of live) map.set(keyOf(i), [...(map.get(keyOf(i)) ?? []), i]);
-    return [...map.entries()].map(([name, items]) => ({ name, items: items.sort(byDue) })).sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
+    return [...map.entries()].map(([name, list]) => ({ name, items: list.sort(byDue) })).sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
   }, [live, view]);
 
   const mine = live.filter((i) => i.person?.id === meId).sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"));
+  const overdue = live.filter((i) => i.due && i.due < today);
+  const dueToday = live.filter((i) => i.due === today);
+  const todays = meetings.filter((m) => istDay(m.start) === today);
+  const clientCount = live.filter((i) => i.client).length;
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
-  const stats = [
-    { value: live.length, label: "In progress" },
-    { value: live.filter((i) => i.due === today).length, label: "Due today" },
-    { value: live.filter((i) => i.due && i.due < today).length, label: "Overdue", late: true },
-    { value: meetings.filter((m) => istDay(m.start) === today).length, label: "Meetings today" },
-  ];
+  const shownDay = days.includes(day) ? day : days.includes(today) ? today : monday;
 
   async function tick(item: HomeItem) {
     setGone((g) => new Set(g).add(item.key));
-    const res = item.source === "work" ? await moveWorkTask(item.id, "done", item.sortOrder) : await moveTask(item.id, "delivered_and_uploaded");
+    const res = item.source === "work" ? await moveWorkTask(item.id, "done", item.todo?.sortOrder ?? 0) : await moveTask(item.id, "delivered_and_uploaded");
     if (res.error) setGone((g) => new Set([...g].filter((k) => k !== item.key)));
     router.refresh();
   }
 
-  function newTask() {
-    setAdding(true);
-    tasksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  const stats: { key: Stat; value: number; label: string; sub?: string; late?: boolean }[] = [
+    { key: "active", value: live.length, label: "Active", sub: `${clientCount} client · ${live.length - clientCount} admin` },
+    { key: "today", value: dueToday.length, label: "Due today" },
+    { key: "overdue", value: overdue.length, label: "Overdue", late: true },
+    { key: "meetings", value: todays.length, label: "Meetings today" },
+  ];
+
+  const sections: Record<SectionId, React.ReactNode> = {
+    work: (
+      <Section
+        key="work"
+        id="work"
+        icon={<Layers size={15} />}
+        title={showMine ? "Work in progress" : "My work"}
+        aside={<Segmented options={VIEWS} value={view} onChange={setView} />}
+        collapsed={layout.collapsed.includes("work")}
+        onCollapse={() => collapse("work")}
+        drag={drag}
+      >
+        {groups.length === 0 ? (
+          <p className="px-1 py-2 text-sm text-muted">Nothing in progress.</p>
+        ) : (
+          <div key={view} className="fade-in flex flex-col gap-5">
+            {groups.map((g) => (
+              <div key={g.name} className="flex flex-col gap-1.5">
+                <p className="mb-0.5 flex items-center gap-2 px-1 text-xs font-medium">
+                  <span className="text-foreground/90">{g.name}</span>
+                  <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] text-muted tabular-nums">{g.items.length}</span>
+                </p>
+                {g.items.map((i) => (
+                  <WorkRow key={i.key} item={i} today={today} showClient={view !== "client"} onOpen={() => open(i.key)} />
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+    ),
+    mine: (
+      <Section
+        key="mine"
+        id="mine"
+        icon={<ListChecks size={15} />}
+        title="My tasks"
+        aside={
+          <Link href="/my-tasks" className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-foreground">
+            Open list <ArrowUpRight size={13} />
+          </Link>
+        }
+        collapsed={layout.collapsed.includes("mine")}
+        onCollapse={() => collapse("mine")}
+        drag={drag}
+      >
+        {adding && (
+          <div className="mb-3">
+            <Composer kinds={composer.kinds} projects={composer.projects} assignees={composer.assignees} actingUserId={meId} startOpen onClose={() => setAdding(false)} />
+          </div>
+        )}
+        {mine.length === 0 ? (
+          !adding && <p className="px-1 py-2 text-sm text-muted">Nothing on your list.</p>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {mine.map((i) => {
+              const tickable = i.source === "work" || i.workflow === "todo";
+              const late = !!i.due && i.due < today;
+              return (
+                <div key={i.key} className="flex items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-2.5 transition-colors hover:bg-white/[0.06]">
+                  {tickable ? (
+                    <button
+                      type="button"
+                      aria-label="Mark done"
+                      onClick={() => tick(i)}
+                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent"
+                    >
+                      <Check size={11} strokeWidth={3} />
+                    </button>
+                  ) : (
+                    <span className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
+                  )}
+                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 text-left">
+                    <p className="flex items-center gap-2">
+                      <span className="truncate text-sm">{i.title}</span>
+                      <Strikes n={i.strikes} />
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {i.client ?? ADMIN_TASKS}
+                      {i.due && (
+                        <>
+                          {" · "}
+                          <span className={late ? "text-rose-300" : undefined}>{i.due === today ? "Today" : shortDay(i.due)}</span>
+                        </>
+                      )}
+                    </p>
+                  </button>
+                  {!tickable && <Status item={i} />}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+    ),
+    calendar: (
+      <CalendarSection
+        key="calendar"
+        today={today}
+        monday={monday}
+        day={shownDay}
+        setDay={setDay}
+        meetings={meetings}
+        calendar={calendar}
+        collapsed={layout.collapsed.includes("calendar")}
+        onCollapse={() => collapse("calendar")}
+        drag={drag}
+      />
+    ),
+    notices: (
+      <NoticesSection
+        key="notices"
+        notices={notices}
+        canNote={canNote}
+        onOpen={(key) => items.some((i) => i.key === key) && open(key)}
+        collapsed={layout.collapsed.includes("notices")}
+        onCollapse={() => collapse("notices")}
+        drag={drag}
+      />
+    ),
+  };
 
   return (
-    <div className="relative isolate flex flex-col gap-6">
+    // the page's own height: everything below the top bar fills the screen,
+    // and each section scrolls inside itself
+    <div className="relative isolate flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))]">
       {/* a soft blue light from the top right corner, behind everything */}
       <div aria-hidden className="pointer-events-none fixed -top-64 -right-56 -z-10 size-[46rem] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.2),rgb(75_149_230/0.06)_55%,transparent)]" />
 
-      <header className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm text-muted">
-              {WEEKDAY_LONG[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1]}
-            </p>
-            <h1 className="mt-1.5 text-3xl font-semibold tracking-tight sm:text-4xl">{greeting}</h1>
-            <p className="text-3xl font-semibold tracking-tight text-foreground/35 sm:text-4xl">Here&apos;s everything in motion.</p>
-          </div>
-          {/* a matched pair, in the app's own "New …" look (AddButton) */}
-          <div className="flex gap-2">
-            <button type="button" onClick={newTask} className={ADD_BUTTON}>
+      {/* one compact bar: who and when, the numbers that matter, and the actions */}
+      <header className="flex shrink-0 flex-wrap items-center gap-3">
+        <div className="mr-auto min-w-0">
+          <h1 className="truncate text-xl font-semibold tracking-tight">{greeting}</h1>
+          <p className="text-xs text-muted">
+            {WEEKDAY_LONG[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1]}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {stats.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setStat(s.key)}
+              className="flex items-baseline gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2 text-left transition-colors hover:border-white/[0.14] hover:bg-white/[0.06]"
+            >
+              <span className={`text-lg font-semibold tabular-nums ${s.late && s.value ? "text-rose-300" : ""}`}>{s.value}</span>
+              <span className="flex flex-col leading-tight">
+                <span className="text-xs text-foreground/80">{s.label}</span>
+                {s.sub && <span className="text-[10px] text-muted">{s.sub}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {showMine && (
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(true);
+                if (layout.collapsed.includes("mine")) collapse("mine");
+              }}
+              className={ADD_BUTTON}
+            >
               <PlusBadge /> New task
             </button>
-            <button type="button" onClick={() => meetingRef.current?.open(day)} className={ADD_BUTTON}>
+          )}
+          {canMeet && (
+            <button type="button" onClick={() => meetingRef.current?.open(shownDay)} className={ADD_BUTTON}>
               <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
                 <Video size={11} />
               </span>
               New meeting
             </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-white/[0.06] ring-1 ring-white/[0.07] sm:grid-cols-4">
-          {stats.map((s) => (
-            <div key={s.label} className="bg-background/80 px-5 py-3.5 backdrop-blur">
-              <p className={`text-2xl font-semibold tracking-tight tabular-nums ${s.late && s.value ? "text-rose-300" : ""}`}>{s.value}</p>
-              <p className="mt-0.5 text-xs text-muted">{s.label}</p>
-            </div>
-          ))}
+          )}
         </div>
       </header>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <div className="flex min-w-0 flex-col gap-5">
-          {/* your own tasks come first */}
-          <section ref={tasksRef} className="scroll-mt-4">
-            <Card
-              icon={<ListChecks size={16} />}
-              title="My tasks"
-              aside={
-                <div className="flex items-center gap-3">
-                  {!adding && (
-                    <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground">
-                      <Plus size={13} /> Add
-                    </button>
-                  )}
-                  <Link href="/my-tasks" className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-foreground">
-                    Open list <ArrowUpRight size={13} />
-                  </Link>
-                </div>
-              }
-            >
-              {adding && (
-                <div className="mb-3">
-                  <Composer kinds={[]} projects={composer.projects} assignees={composer.assignees} actingUserId={meId} startOpen onClose={() => setAdding(false)} />
-                </div>
-              )}
-              {mine.length === 0 ? (
-                !adding && <p className="px-1 text-sm text-muted">Nothing on your list. Add something with New task.</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {mine.slice(0, 6).map((i) => {
-                    const tickable = i.source === "work" || i.workflow === "todo";
-                    const late = !!i.due && i.due < today;
-                    return (
-                      <div key={i.key} className="flex items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-3">
-                        {tickable ? (
-                          <button
-                            type="button"
-                            aria-label="Mark done"
-                            onClick={() => tick(i)}
-                            className="flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent"
-                          >
-                            <Check size={11} strokeWidth={3} />
-                          </button>
-                        ) : (
-                          <span className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm">{i.title}</p>
-                          {(i.client || i.due) && (
-                            <p className="mt-0.5 truncate text-xs text-muted">
-                              {i.client && <span>{i.client}</span>}
-                              {i.client && i.due && " · "}
-                              {i.due && <span className={late ? "text-rose-300" : undefined}>{i.due === today ? "Today" : shortDay(i.due)}</span>}
-                            </p>
-                          )}
-                        </div>
-                        {!tickable && <Status item={i} />}
-                      </div>
-                    );
-                  })}
-                  {mine.length > 6 && (
-                    <Link href="/my-tasks" className="px-1 pt-1 text-xs text-muted hover:text-foreground">
-                      And {mine.length - 6} more
-                    </Link>
-                  )}
-                </div>
-              )}
-            </Card>
-          </section>
-
-          <Card icon={<Layers size={16} />} title="Work in progress" aside={<Segmented options={VIEWS} value={view} onChange={setView} />}>
-            {groups.length === 0 ? (
-              <p className="px-1 text-sm text-muted">Nothing in progress.</p>
-            ) : (
-              <div key={view} className="fade-in flex flex-col gap-6">
-                {groups.map((g) => {
-                  const all = openGroups.has(g.name);
-                  return (
-                    <div key={g.name} className="flex flex-col gap-1.5">
-                      <p className="mb-0.5 flex items-center gap-2 px-1 text-xs font-medium">
-                        <span className="text-foreground/90">{g.name}</span>
-                        <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] text-muted tabular-nums">{g.items.length}</span>
-                      </p>
-                      {(all ? g.items : g.items.slice(0, FIRST)).map((i) => (
-                        <WorkRow key={i.key} item={i} today={today} showClient={view !== "client"} />
-                      ))}
-                      {g.items.length > FIRST && (
-                        <button
-                          type="button"
-                          onClick={() => setOpenGroups((s) => (s.has(g.name) ? new Set([...s].filter((x) => x !== g.name)) : new Set(s).add(g.name)))}
-                          className="self-start px-1 pt-0.5 text-xs text-muted transition-colors hover:text-foreground"
-                        >
-                          {all ? "Show fewer" : `Show all ${g.items.length}`}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-5">
-          <CalendarCard today={today} monday={monday} day={days.includes(day) ? day : days.includes(today) ? today : monday} setDay={setDay} days={days} meetings={meetings} calendar={calendar} />
-          <Notices notices={notices} />
-        </div>
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        {layout.columns.map((col, i) => (
+          <div
+            key={i}
+            onDragOver={(e) => {
+              if (!dragging) return;
+              e.preventDefault();
+              if (!col.length) dropOnColumn(i);
+            }}
+            className={`flex min-h-0 flex-col gap-4 ${!col.length ? "rounded-3xl border border-dashed border-white/[0.08] max-lg:hidden" : ""}`}
+          >
+            {col.map((id) => sections[id])}
+          </div>
+        ))}
       </div>
 
-      <MeetingDialog ref={meetingRef} people={people} connected={calendar.connected} />
+      {openItem && <TaskWindow key={`${opened.key}:${opened.n}`} item={openItem} env={env} assignees={composer.assignees} />}
+      <StatDialog
+        stat={stat}
+        onClose={() => setStat(null)}
+        lists={{ active: live, today: dueToday, overdue }}
+        meetings={todays}
+        today={today}
+        onOpen={(key) => {
+          setStat(null);
+          open(key);
+        }}
+      />
+      {canMeet && <MeetingDialog ref={meetingRef} people={people} connected={calendar.connected} />}
     </div>
   );
 }
 
-function CalendarCard({
+// ---------- a stat, opened: its tasks (or meetings) ----------
+
+function StatDialog({
+  stat,
+  onClose,
+  lists,
+  meetings,
+  today,
+  onOpen,
+}: {
+  stat: Stat | null;
+  onClose: () => void;
+  lists: { active: HomeItem[]; today: HomeItem[]; overdue: HomeItem[] };
+  meetings: Meeting[];
+  today: string;
+  onOpen: (key: string) => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (stat) ref.current?.showModal();
+    else ref.current?.close();
+  }, [stat]);
+
+  const title = { active: "Active tasks", today: "Due today", overdue: "Overdue", meetings: "Meetings today" }[stat ?? "active"];
+  // overdue ones by how many times they've gone past their date, the worst first
+  const groups =
+    stat === "overdue"
+      ? [...new Set(lists.overdue.map((i) => Math.max(i.strikes, 1)))]
+          .sort((a, b) => b - a)
+          .map((n) => ({ name: `${ordinal(n)} time past its date`, items: lists.overdue.filter((i) => Math.max(i.strikes, 1) === n) }))
+      : stat === "active"
+        ? [
+            { name: "Client work", items: lists.active.filter((i) => i.client) },
+            { name: ADMIN_TASKS, items: lists.active.filter((i) => !i.client) },
+          ].filter((g) => g.items.length)
+        : stat === "today"
+          ? [{ name: "", items: lists.today }]
+          : [];
+
+  return (
+    <dialog
+      ref={ref}
+      {...closeOnBackdrop}
+      onClose={onClose}
+      className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(40rem,calc(100vh-2rem))] w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
+    >
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-background/80 px-5 py-4 backdrop-blur">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="rounded-md p-1 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+          <X size={16} />
+        </button>
+      </header>
+      <div className="flex flex-col gap-5 p-4">
+        {stat === "overdue" && lists.overdue.length > 0 && <p className="px-1 text-xs text-muted">Open one to see every new date it was given, and why.</p>}
+        {stat === "meetings" ? (
+          meetings.length ? (
+            meetings.map((m) => (
+              <div key={m.id} className="rounded-2xl bg-accent/[0.08] px-4 py-3 ring-1 ring-accent/20">
+                <p className="text-sm font-medium">{m.title}</p>
+                <p className="mt-0.5 text-xs text-muted">{m.allDay ? "All day" : `${clock(m.start)} – ${clock(m.end)}`}</p>
+              </div>
+            ))
+          ) : (
+            <p className="px-1 text-sm text-muted">No meetings today.</p>
+          )
+        ) : groups.every((g) => !g.items.length) ? (
+          <p className="px-1 text-sm text-muted">Nothing here.</p>
+        ) : (
+          groups.map((g) => (
+            <div key={g.name || "all"} className="flex flex-col gap-1.5">
+              {g.name && <p className="px-1 text-xs font-medium text-muted">{g.name}</p>}
+              {g.items.map((i) => (
+                <WorkRow key={i.key} item={i} today={today} onOpen={() => onOpen(i.key)} />
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+    </dialog>
+  );
+}
+
+// ---------- the calendar ----------
+
+function CalendarSection({
   today,
   monday,
   day,
   setDay,
-  days,
   meetings,
   calendar,
+  collapsed,
+  onCollapse,
+  drag,
 }: {
   today: string;
   monday: string;
   day: string;
   setDay: (d: string) => void;
-  days: string[];
   meetings: Meeting[];
   calendar: { connected: boolean; error: string | null; clientId: string };
+  collapsed: boolean;
+  onCollapse: () => void;
+  drag: Drag;
 }) {
+  const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const onDay = meetings.filter((m) => istDay(m.start) === day);
-  const arrow = "flex size-8 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const arrow = "flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground";
   return (
-    <Card
-      icon={<CalendarDays size={16} />}
+    <Section
+      id="calendar"
+      icon={<CalendarDays size={15} />}
       title="Calendar"
+      grow={false}
+      collapsed={collapsed}
+      onCollapse={onCollapse}
+      drag={drag}
       aside={
-        <div className="flex items-center gap-2">
-          <span className="mr-1 text-sm font-medium text-muted">{MONTH[Number(day.slice(5, 7)) - 1]}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="mr-1 text-xs font-medium text-muted">{MONTH[Number(day.slice(5, 7)) - 1]}</span>
           <Link href={`/home?week=${addDays(monday, -7)}`} scroll={false} aria-label="Previous week" className={arrow}>
-            <ChevronLeft size={15} />
+            <ChevronLeft size={14} />
           </Link>
           <Link href={`/home?week=${addDays(monday, 7)}`} scroll={false} aria-label="Next week" className={arrow}>
-            <ChevronRight size={15} />
+            <ChevronRight size={14} />
           </Link>
         </div>
       }
     >
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-1">
         {days.map((d) => {
           const on = d === day;
           const has = meetings.some((m) => istDay(m.start) === d);
@@ -405,40 +730,34 @@ function CalendarCard({
               type="button"
               onClick={() => setDay(d)}
               aria-pressed={on}
-              className={`flex flex-col items-center gap-1 rounded-2xl py-2.5 transition-colors ${on ? "bg-accent text-white" : "hover:bg-white/[0.05]"}`}
+              className={`flex flex-col items-center gap-1 rounded-2xl py-2 transition-colors ${on ? "bg-accent text-white" : "hover:bg-white/[0.05]"}`}
             >
               <span className={`text-[10px] font-medium tracking-wide uppercase ${on ? "text-white/75" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
-              <span className={`text-lg leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
+              <span className={`text-base leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
               <span className={`size-1 rounded-full ${has ? (on ? "bg-white/80" : "bg-accent") : "bg-transparent"}`} />
             </button>
           );
         })}
       </div>
-
-      <div className="mt-5 flex flex-col gap-2">
+      <div className="mt-4 flex flex-col gap-2">
         {!calendar.connected ? (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/[0.1] px-5 py-6 text-center">
-            <p className="text-sm font-medium">Bring in your meetings</p>
-            <p className="max-w-xs text-xs leading-relaxed text-muted">Connect easeus.media@gmail.com&apos;s Google Calendar once, and its meetings show here. New meetings get a Meet link and invites.</p>
-            {calendar.clientId ? (
-              <button type="button" onClick={() => window.location.assign(calendarConsentUrl(calendar.clientId, window.location.origin))} className={`${BUTTON} h-9 bg-accent text-white hover:bg-accent/85`}>
-                <CalendarDays size={15} /> Connect Google Calendar
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/[0.1] px-5 py-5 text-center">
+            <p className="text-xs leading-relaxed text-muted">Connect easeus.media@gmail.com&apos;s Google Calendar to see meetings here.</p>
+            {calendar.clientId && (
+              <button type="button" onClick={() => window.location.assign(calendarConsentUrl(calendar.clientId, window.location.origin))} className={ADD_BUTTON}>
+                <CalendarDays size={14} /> Connect Google Calendar
               </button>
-            ) : (
-              <Link href="/integrations" className="text-xs text-accent hover:underline">
-                Set up the Google app in Integrations first
-              </Link>
             )}
           </div>
         ) : calendar.error ? (
           <p className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-200">{calendar.error}</p>
         ) : onDay.length === 0 ? (
-          <p className="rounded-2xl bg-white/[0.025] px-4 py-5 text-center text-sm text-muted">No meetings {day === today ? "today" : `on ${WEEKDAY[weekday(day)]} ${shortDay(day)}`}</p>
+          <p className="rounded-2xl bg-white/[0.025] px-4 py-4 text-center text-sm text-muted">No meetings {day === today ? "today" : `on ${WEEKDAY[weekday(day)]} ${shortDay(day)}`}</p>
         ) : (
           onDay.map((m) => (
             <div key={m.id} className="flex gap-3">
-              <p className="w-16 shrink-0 pt-3 text-right text-xs text-muted tabular-nums">{m.allDay ? "All day" : clock(m.start)}</p>
-              <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl bg-accent/[0.09] py-3 pr-3 pl-4 ring-1 ring-accent/20">
+              <p className="w-14 shrink-0 pt-3 text-right text-xs text-muted tabular-nums">{m.allDay ? "All day" : clock(m.start)}</p>
+              <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl bg-accent/[0.09] py-2.5 pr-3 pl-4 ring-1 ring-accent/20">
                 <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent" />
                 <p className="truncate text-sm font-medium">{m.title}</p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
@@ -451,7 +770,7 @@ function CalendarCard({
                   )}
                 </p>
                 {m.meet && (
-                  <a href={m.meet} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex h-7 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-neutral-900 transition-opacity hover:opacity-85">
+                  <a href={m.meet} target="_blank" rel="noreferrer" className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-neutral-900 transition-opacity hover:opacity-85">
                     <Video size={12} /> Join Google Meet
                   </a>
                 )}
@@ -460,9 +779,11 @@ function CalendarCard({
           ))
         )}
       </div>
-    </Card>
+    </Section>
   );
 }
+
+// ---------- notices ----------
 
 const TONE: Record<Notice["tone"], string> = {
   rose: "bg-rose-400/10 text-rose-300",
@@ -475,11 +796,27 @@ const NOTICE_ICON: Record<Notice["kind"], React.ReactNode> = {
   contract: <FileSignature size={14} />,
   message: <MessageSquare size={14} />,
   note: <StickyNote size={14} />,
+  overdue: <Clock size={14} />,
+  shared: <UserPlus size={14} />,
 };
 
-// What the app knows needs Level 1 (invoices, contracts, client messages),
-// then whatever they've written for themselves
-function Notices({ notices }: { notices: Notice[] }) {
+// What needs this person: their overdue tasks, tasks they've been added to,
+// and (Level 1) invoices, contracts, client messages and their own notes
+function NoticesSection({
+  notices,
+  canNote,
+  onOpen,
+  collapsed,
+  onCollapse,
+  drag,
+}: {
+  notices: Notice[];
+  canNote: boolean;
+  onOpen: (key: string) => void;
+  collapsed: boolean;
+  onCollapse: () => void;
+  drag: Drag;
+}) {
   const router = useRouter();
   const [writing, setWriting] = useState(false);
   const [text, setText] = useState("");
@@ -499,10 +836,15 @@ function Notices({ notices }: { notices: Notice[] }) {
   }
 
   return (
-    <Card
-      icon={<Bell size={16} />}
+    <Section
+      id="notices"
+      icon={<Bell size={15} />}
       title="Notices"
+      collapsed={collapsed}
+      onCollapse={onCollapse}
+      drag={drag}
       aside={
+        canNote &&
         !writing && (
           <button type="button" onClick={() => setWriting(true)} className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground">
             <Plus size={13} /> Add
@@ -531,38 +873,47 @@ function Notices({ notices }: { notices: Notice[] }) {
       )}
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
       {notices.length === 0 ? (
-        !writing && <p className="px-1 text-sm text-muted">All clear. Invoices, contracts and client messages that need you show up here.</p>
+        !writing && <p className="px-1 py-2 text-sm text-muted">All clear.</p>
       ) : (
         <div className="flex flex-col gap-1.5">
           {notices.map((n) => {
             const body = (
               <>
                 <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${TONE[n.tone]}`}>{NOTICE_ICON[n.kind]}</span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 text-left">
                   <p className="text-sm leading-snug">{n.text}</p>
                   {n.sub && <p className="mt-0.5 text-xs text-muted">{n.sub}</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}
                 {n.id && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     aria-label="Clear"
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                       await clearNotice(n.id!);
                       router.refresh();
                     }}
                     className="shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
                   >
                     <X size={13} />
-                  </button>
+                  </span>
                 )}
               </>
             );
-            const cls = "group flex items-center gap-3 rounded-2xl bg-white/[0.035] px-3.5 py-3 transition-colors hover:bg-white/[0.06]";
-            return n.href ? (
-              <Link key={n.key} href={n.href} className={cls}>
+            const cls = "group flex w-full items-center gap-3 rounded-2xl bg-white/[0.035] px-3.5 py-3 transition-colors hover:bg-white/[0.06]";
+            if (n.href)
+              return (
+                <Link key={n.key} href={n.href} className={cls}>
+                  {body}
+                </Link>
+              );
+            return n.open ? (
+              <button key={n.key} type="button" onClick={() => onOpen(n.open!)} className={cls}>
                 {body}
-              </Link>
+              </button>
             ) : (
               <div key={n.key} className={cls}>
                 {body}
@@ -571,9 +922,11 @@ function Notices({ notices }: { notices: Notice[] }) {
           })}
         </div>
       )}
-    </Card>
+    </Section>
   );
 }
+
+// ---------- a new meeting ----------
 
 // 7:00 am to 10:00 pm, every half hour
 const TIMES = Array.from({ length: 31 }, (_, n) => {

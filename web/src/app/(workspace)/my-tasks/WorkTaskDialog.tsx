@@ -11,7 +11,8 @@ import { createWorkTask, updateWorkTask, deleteWorkTask, type WorkTaskLink, type
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import { useNewProject } from "../useNewProject";
-import { ProjectChip, TagPill } from "../composer";
+import { ProjectChip } from "../composer";
+import { TaskRecordPanel } from "../TaskRecordPanel";
 import { Reveal } from "../Reveal";
 import { ConfirmButton } from "../ConfirmButton";
 import { keepDraft, readDraft } from "../draft";
@@ -49,7 +50,7 @@ export const WorkTaskDialog = forwardRef<
     // create mode's own trigger: the board's button, or a list's first row
     trigger?: "button" | "row";
   }
->(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], taskTags = [], canManageTags = false, trigger = "button" }, ref) {
+>(function WorkTaskDialog({ mode, task, projects, actingUserId, assignees = [], canManageTags = false, trigger = "button" }, ref) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -60,6 +61,11 @@ export const WorkTaskDialog = forwardRef<
   const [projectId, setProjectId] = useState(task?.projectId ?? "");
   const [clientId, setClientId] = useState(projects.find((p) => p.id === task?.projectId)?.client.id ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
+  // why the completion date is moving, when it is
+  const [dateReason, setDateReason] = useState("");
+  // bumped on each opening, so the record reloads
+  const [openedAt, setOpenedAt] = useState(0);
+  const dateMoved = mode === "edit" && !!task?.dueDate && dueDate !== task.dueDate;
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [links, setLinks] = useState<WorkTaskLink[]>(task?.links ?? []);
   const [attachments, setAttachments] = useState<WorkTaskAttachment[]>(task?.attachments ?? []);
@@ -97,6 +103,8 @@ export const WorkTaskDialog = forwardRef<
   }
 
   function open() {
+    setDateReason("");
+    setOpenedAt((n) => n + 1);
     if (mode === "edit") reset();
     else if (!draftLoaded.current) {
       draftLoaded.current = true;
@@ -150,7 +158,7 @@ export const WorkTaskDialog = forwardRef<
     setError(null);
     const payload = { title, notes, tagIds, dueDate, clientId, projectId, links, attachments, assignedToId };
     const res =
-      mode === "create" ? await createWorkTask(payload) : await updateWorkTask({ id: task!.id, ...payload });
+      mode === "create" ? await createWorkTask(payload) : await updateWorkTask({ id: task!.id, ...payload, dateReason });
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -165,10 +173,10 @@ export const WorkTaskDialog = forwardRef<
     router.refresh();
   }
 
-  async function remove() {
+  async function remove(reason: string) {
     if (!task) return;
     setSaving(true);
-    const res = await deleteWorkTask(task.id);
+    const res = await deleteWorkTask(task.id, reason);
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -284,10 +292,7 @@ export const WorkTaskDialog = forwardRef<
                 ]}
               />
             )}
-            <DatePicker pill={{}} value={dueDate} onChange={setDueDate} placeholder="Due" />
-            {taskTags.length > 0 && (
-              <TagPill tags={taskTags} picked={tagIds} onChange={setTagIds} internal={false} canManage={canManageTags} />
-            )}
+            <DatePicker pill={{}} value={dueDate} onChange={setDueDate} placeholder="Completion" />
             <span className="mx-0.5 h-4 w-px bg-white/[0.08]" aria-hidden />
             {/* one chip for anything attached: a link or an image */}
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} className="hidden" />
@@ -302,6 +307,24 @@ export const WorkTaskDialog = forwardRef<
               ]}
             />
           </div>
+
+          {/* moving the completion date needs a reason, which is kept */}
+          <Reveal open={dateMoved}>
+            <div className="px-5 pb-3">
+              <textarea
+                value={dateReason}
+                onChange={(e) => setDateReason(e.target.value)}
+                rows={2}
+                placeholder="Why is the completion date moving? This is kept on the task."
+                className="w-full rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-sm text-foreground outline-none placeholder:text-amber-100/50 focus:border-amber-400/50"
+              />
+            </div>
+          </Reveal>
+          {mode === "edit" && task && (
+            <div className="grid grid-cols-2 px-5 pb-4">
+              <TaskRecordPanel key={openedAt} task={{ kind: "work", id: task.id }} createdAt={task.createdAt ?? new Date()} open={openedAt > 0} />
+            </div>
+          )}
 
           <Reveal open={links.length > 0 || attachments.length > 0}>
             <div className="flex flex-col gap-3 px-5 pb-4">
@@ -353,7 +376,8 @@ export const WorkTaskDialog = forwardRef<
           <div className="flex items-center gap-3 border-t border-white/[0.06] px-5 py-3.5">
             {mode === "edit" && (
               <ConfirmButton
-                message="Delete this task? It can't be undone."
+                message="Delete this task? It stays in History, with your reason."
+                reason="Why is this being deleted?"
                 onConfirm={remove}
                 className="btn btn-sm btn-ghost px-2 hover:text-red-300"
               >

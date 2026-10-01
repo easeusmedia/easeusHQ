@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
 import { getViewer } from "@/lib/viewer";
-import { assigneeWhere, effectiveRole, isMember, worksTheBoard } from "@/lib/scope";
+import { effectiveRole, worksTheBoard } from "@/lib/scope";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { dayOf } from "@/lib/editorKpi";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -15,22 +15,19 @@ export const dynamic = "force-dynamic";
 // Your own work, as a to-do list: your to-dos and your client work
 // together, by the day each is due. A Member in Production works from the
 // Board instead, where their stages are.
-export default async function MyTasksPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+export default async function MyTasksPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
   if (worksTheBoard(viewer)) redirect("/board");
-  const { view } = await searchParams;
-  // Level 1 and 2 also see the to-dos of everyone they oversee
-  const oversees = !isMember(viewer);
 
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
   const since = new Date(Date.now() - 7 * 86_400_000);
-  const [work, users, tasks, done, doneTasks, kinds, me, team, teamTasks] = await Promise.all([
+  const [work, users, tasks, done, doneTasks, kinds, me] = await Promise.all([
     loadWork(viewer, "mine", { withQueue: false }),
     getAllUsers(),
-    // your client work: anything still open, whatever its stages
+    // your client work, and what you've been brought onto: anything still open
     prisma.task.findMany({
-      where: { assignedToId: viewer.id, status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
+      where: { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }], status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     }),
@@ -49,15 +46,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       orderBy: { sortOrder: "asc" },
     }),
     prisma.user.findUnique({ where: { id: viewer.id }, select: { notionWorkbookDbId: true, team: { select: { slug: true } } } }),
-    oversees ? loadWork(viewer, "all", { withQueue: false }) : null,
-    // the team's client to-dos (their videos and designs are on the Board)
-    oversees
-      ? prisma.task.findMany({
-          where: { AND: [assigneeWhere(viewer), { status: { in: ACTIVE_STATUSES }, workflow: "todo", assignedToId: { not: viewer.id }, project: { client: { status: "current" } } }] },
-          include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
-          orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-        })
-      : [],
   ]);
 
   return (
@@ -82,8 +70,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         taskTags={work.taskTags}
         actingUserId={viewer.id}
         actingRole={effectiveRole(viewer)}
-        team={team && { todos: team.tasks.filter((t) => t.assignedTo.id !== viewer.id), tasks: teamTasks }}
-        initialView={view === "team" ? "team" : "mine"}
       />
       {(!!me?.notionWorkbookDbId || me?.team?.slug === "production" || me?.team?.slug === "client-services") && (
         <div className="mt-8 flex justify-center">

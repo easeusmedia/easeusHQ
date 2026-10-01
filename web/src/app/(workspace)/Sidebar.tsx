@@ -236,10 +236,13 @@ export function Sidebar({
     // an editor sees their own numbers, read-only (the page takes them there)
     {
       label: "Main",
-      items: isEditor
-        ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
-        : // a Founder's overview of everything, first
-          [...(isFounder ? [{ href: "/home", label: "Home", hint: "Everything in motion, at a glance", Icon: House }] : []), ...MAIN.filter((i) => seesBoard || i.href !== "/board")],
+      // everyone's Home first: what they may see, at a glance
+      items: [
+        { href: "/home", label: "Home", hint: "Your work and notices, at a glance", Icon: House },
+        ...(isEditor
+          ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
+          : MAIN.filter((i) => seesBoard || i.href !== "/board")),
+      ],
     },
     {
       label: "Manage",

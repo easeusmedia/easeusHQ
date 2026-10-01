@@ -60,7 +60,7 @@ export type PersonRecord = {
 export type Option = { id: string; name: string; slug?: string };
 // a department, and a position filed under one (none: leadership), with how
 // many current people each has
-export type Department = Option & { people: number };
+export type Department = Option & { people: number; keywords?: string };
 // a role, in its department, with how its tasks move
 export type Position = { id: string; name: string; teamId: string | null; people: number; workflow?: string };
 // a kind of work a department's tasks are labelled with, and how many use it

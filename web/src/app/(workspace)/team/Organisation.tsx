@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
-import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, renameDepartment, renameRole } from "./actions";
+import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, renameDepartment, renameRole, setDepartmentWords } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
 
@@ -247,6 +247,21 @@ export function Organisation({
                     <Trash2 size={13} />
                   </ConfirmButton>
                 </div>
+                {/* the words in a task's title that file it here */}
+                <label className="mb-3 flex flex-col gap-1">
+                  <span className="text-[11px] text-muted/70">Tasks with these words in their title are filed here</span>
+                  <input
+                    defaultValue={t.keywords ?? ""}
+                    placeholder="edit, reel, thumbnail"
+                    onBlur={async (e) => {
+                      if (e.target.value === (t.keywords ?? "")) return;
+                      const res = await setDepartmentWords(t.id, e.target.value);
+                      if (res.error) return setError(res.error);
+                      done();
+                    }}
+                    className="w-full rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-hover"
+                  />
+                </label>
                 <div className="flex flex-col divide-y divide-border/50">
                   {inTeam.map((r) => {
                     return (

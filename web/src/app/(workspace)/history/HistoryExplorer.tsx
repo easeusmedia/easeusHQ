@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TierMark, tierClass } from "../TaskCard";
 import { CircleCheck, Clock, Download, ExternalLink, Filter, RotateCcw, Search, Timer, UsersRound } from "lucide-react";
 import { StatTile } from "../StatTile";
@@ -80,6 +81,7 @@ export function HistoryExplorer({
     [wire]
   );
 
+  const router = useRouter();
   const [view, setView] = useState<"list" | GroupBy>("list");
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [filtersOpen, setFiltersOpen] = useState(Object.keys(initialFilters).length > 0);
@@ -333,16 +335,14 @@ export function HistoryExplorer({
                     </td>
                     {canDelete && (
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <form id={`delete-history-${i.id}`} action={deleteTaskPermanently}>
-                          <input type="hidden" name="taskId" value={i.id} />
-                          <input type="hidden" name="kind" value={i.kind} />
-                        </form>
                         <ConfirmButton
-                          message={`Permanently delete "${i.title}"? ${
-                            i.kind === "client" ? "It will be removed along with its activity log." : "It will be removed from History and their record."
-                          } This can't be undone.`}
+                          message={`Delete "${i.title}"? It stays in the record as deleted, with your reason.`}
+                          reason="Why is this being deleted?"
                           className="text-xs text-muted hover:text-red-400"
-                          formId={`delete-history-${i.id}`}
+                          onConfirm={async (reason) => {
+                            await deleteTaskPermanently(i.id, i.kind === "internal" ? "internal" : "client", reason);
+                            router.refresh();
+                          }}
                         >
                           Delete
                         </ConfirmButton>

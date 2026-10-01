@@ -57,6 +57,9 @@ model Team {
   // who works in it or (for a Lead) runs it: what a Lead sees, where a
   // Member's work goes (lib/scope.ts)
   access    User[]     @relation("UserDepartments")
+  // words that put a task here from its title ("edit, reel, thumbnail"),
+  // comma separated (lib/department.ts)
+  keywords  String     @default("")
   tasks     Task[]
   workTasks WorkTask[]
 }
@@ -629,6 +632,15 @@ model Task {
   team     Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
   teamId   String?
 
+  // who added it (older tasks: unknown)
+  createdById String?
+  // times it has gone past its completion date (dueDate), and the date last
+  // counted, so one miss is counted once (lib/overdue.ts)
+  strikes     Int              @default(0)
+  overdueFor  DateTime?
+  shares      TaskShare[]
+  dateChanges TaskDateChange[]
+
   // True when *this app* created the Notion page, rather than the row having
   // been pulled in from Notion. It decides which side wins on sync: a task
   // born here pushes its status and links up; a task born in Notion keeps
@@ -684,6 +696,12 @@ model WorkTask {
   // the department it belongs to: whose Leads see it (lib/scope.ts)
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
   teamId String?
+
+  // times it has gone past its completion date (dueDate), as on Task
+  strikes     Int              @default(0)
+  overdueFor  DateTime?
+  shares      TaskShare[]
+  dateChanges TaskDateChange[]
 
   createdBy    User   @relation("WorkTasksCreated", fields: [createdById], references: [id])
   createdById  String
@@ -1019,9 +1037,71 @@ model FeedbackSnapshot {
 // Something a Level 1 wants in front of them on Home: a reminder, a
 // deadline, anything worth a line. Shown until it's cleared.
 model Notice {
-  id        String   @id @default(uuid())
-  body      String   @db.Text
+  id         String    @id @default(uuid())
+  body       String    @db.Text
   // who wrote it, by name (a note, not an access record)
-  by        String?
-  createdAt DateTime @default(now())
+  by         String?
+  createdAt  DateTime  @default(now())
+  // who it's for: a person (an overdue task, being added to one), or null
+  // for Level 1's own notes
+  forId      String?
+  // note | overdue | shared | deleted
+  kind       String    @default("note")
+  // the task it's about, either kind
+  taskId     String?
+  workTaskId String?
+  readAt     DateTime?
+
+  @@index([forId])
+}
+
+// Someone brought onto a task by someone else, and why: they share it, it
+// shows in their My tasks, and the reason tells them what it's about
+model TaskShare {
+  id         String    @id @default(uuid())
+  task       Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String?
+  workTask   WorkTask? @relation(fields: [workTaskId], references: [id], onDelete: Cascade)
+  workTaskId String?
+  userId     String
+  byId       String
+  reason     String    @db.Text
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// A completion date moved, and why. `strike` is how many times the task had
+// gone past its date when it was moved (0: moved before it was due).
+model TaskDateChange {
+  id         String    @id @default(uuid())
+  task       Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String?
+  workTask   WorkTask? @relation(fields: [workTaskId], references: [id], onDelete: Cascade)
+  workTaskId String?
+  from       DateTime?
+  to         DateTime?
+  reason     String    @db.Text
+  byId       String
+  strike     Int       @default(0)
+  createdAt  DateTime  @default(now())
+}
+
+// A task that was deleted: kept whole, with who deleted it and why, so the
+// record survives (History shows it; Level 1 can bring it back)
+model DeletedTask {
+  id         String   @id @default(uuid())
+  // "client" (Task) or "todo" (WorkTask), and its id while it lived
+  kind       String
+  originalId String
+  title      String
+  client     String?
+  assignee   String?
+  // the whole row as it was, to restore it
+  data       Json
+  reason     String   @db.Text
+  byId       String
+  byName     String
+  createdAt  DateTime
+  deletedAt  DateTime @default(now())
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { BookOpen, Building2, CalendarClock, ChevronRight, Clapperboard, ExternalLink, FolderCheck, Link2, MoreHorizontal, Package, Pencil, Send, Trash2, User } from "lucide-react";
 import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
@@ -18,6 +19,7 @@ import { StageTrail } from "./StageTrail";
 import type { TaskCardData } from "./TaskCard";
 import { Checkbox } from "./Checkbox";
 import { closeOnBackdrop } from "./dialog";
+import { TaskRecordPanel } from "./TaskRecordPanel";
 
 const initialState: TaskFormState = {};
 
@@ -80,12 +82,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   taskTags?: TaskTagOption[];
 }>(function TaskDetailsDialog({ task, clientName, editors, projects, actingUserId, actingRole, taskTags = [] }, ref) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(updateTask, initialState);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[] | null>(null);
   const [editingFrameio, setEditingFrameio] = useState(false);
   const [internal, setInternal] = useState(task.internal);
   const [due, setDue] = useState(task.dueDate ? istDay(task.dueDate) : "");
+  const [dateReason, setDateReason] = useState("");
+  // bumped on each opening, so the record below reloads
+  const [openedAt, setOpenedAt] = useState(0);
   const [delivery, setDelivery] = useState(task.deliveryDate ? istDay(task.deliveryDate) : "");
   const [scheduled, setScheduled] = useState(task.scheduledFor ? istDay(task.scheduledFor) : "");
   const clientOf = (id: string | null) => projects.find((p) => p.id === id)?.client.id ?? "";
@@ -137,9 +143,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
     // first time this dialog was ever opened.
     setLogs(null);
     getTaskActivity(task.id).then(setLogs);
+    setDateReason("");
+    setOpenedAt((n) => n + 1);
   }
 
   useImperativeHandle(ref, () => ({ open }));
+  // the completion date as saved, to tell when it's being moved
+  const savedDue = task.dueDate ? istDay(task.dueDate) : "";
+  const dateMoved = !!savedDue && due !== savedDue;
+  // only video and design work has a kind (it sets their grading and deadlines)
+  const typed = task.workflow === "video" || task.workflow === "design" || !task.workflow;
 
   // only close on an actual successful save — a validation error should
   // leave the dialog open so it's visible
@@ -226,10 +239,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                 <input type="hidden" name="dueDate" value={due} />
                 <input type="hidden" name="deliveryDate" value={internal ? "" : delivery} />
                 <input type="hidden" name="scheduledFor" value={scheduled} />
-                <input type="hidden" name="tagsPresent" value="1" />
-                {tagIds.map((id) => (
-                  <input key={id} type="hidden" name="tagIds" value={id} />
-                ))}
+                {typed && <input type="hidden" name="tagsPresent" value="1" />}
+                {typed && tagIds.map((id) => <input key={id} type="hidden" name="tagIds" value={id} />)}
+                <input type="hidden" name="dateReason" value={dateReason} />
                 <input type="hidden" name="internal" value={internal ? "on" : ""} />
 
                 <div className="flex flex-col gap-1.5">
@@ -290,7 +302,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                           : []),
                       ]}
                     />
-                    <DatePicker pill={{ label: "Due" }} value={due} onChange={setDue} placeholder="Due" />
+                    <DatePicker pill={{ label: "Completion" }} value={due} onChange={setDue} placeholder="Completion" />
                     {/* internal work never reaches the client */}
                     {!internal && (
                       <DatePicker
@@ -300,7 +312,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                         placeholder="Delivery"
                       />
                     )}
-                    {taskTags.length > 0 && (
+                    {typed && taskTags.length > 0 && (
                       <TagPill
                         tags={taskTags}
                         picked={tagIds}
@@ -336,6 +348,16 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                     </div>
                   </Reveal>
                   <HandoffNote dueDate={task.dueDate} handedOffAt={task.handedOffAt} createdAt={task.createdAt} />
+                  {/* moving the completion date needs a reason, which is kept */}
+                  <Reveal open={dateMoved}>
+                    <textarea
+                      value={dateReason}
+                      onChange={(e) => setDateReason(e.target.value)}
+                      rows={2}
+                      placeholder="Why is the completion date moving? This is kept on the task."
+                      className="mt-1 w-full rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-sm text-foreground outline-none placeholder:text-amber-100/50 focus:border-amber-400/50"
+                    />
+                  </Reveal>
                 </div>
 
                 {/* Every link, at every stage — they used to appear only
@@ -457,6 +479,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               </div>
             )}
 
+            <TaskRecordPanel key={openedAt} task={{ kind: "task", id: task.id }} createdAt={task.createdAt} open={openedAt > 0} />
             {state.error && <p className="col-span-2 text-sm text-red-300">{state.error}</p>}
           </form>
 
@@ -480,21 +503,21 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           </div>
         </div>
 
-        {canManage && (
-          <form id={`delete-${task.id}`} action={deleteTask}>
-            <input type="hidden" name="taskId" value={task.id} />
-            <input type="hidden" name="actingRole" value={actingRole} />
-          </form>
-        )}
         {/* Outside both columns, so it sits on one line under them rather
             than riding the form's scroll and ending at a different height
             than the history panel beside it. */}
         <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border pt-3">
           {canManage ? (
             <ConfirmButton
-              message={`Delete "${task.title}"?`}
+              message={`Delete "${task.title}"? It stays in History, with your reason.`}
+              reason="Why is this being deleted?"
               className="shrink-0 rounded-md p-1.5 text-muted hover:text-red-400"
-              formId={`delete-${task.id}`}
+              onConfirm={async (reason) => {
+                const res = await deleteTask(task.id, reason);
+                if (res.error) return;
+                dialogRef.current?.close();
+                router.refresh();
+              }}
             >
               <Trash2 size={14} />
             </ConfirmButton>

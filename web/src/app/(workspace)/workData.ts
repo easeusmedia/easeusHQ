@@ -26,8 +26,9 @@ type Assignee = { id: string; name: string; role: string; team: { slug: string; 
 const person = (u: Assignee) => ({ id: u.id, name: u.name, team: displayTeam(u) });
 
 export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: { withQueue: boolean }) {
-  // one filter for both kinds of task: yours, or all you may see
-  const where = scope === "mine" ? { assignedToId: viewer.id } : assigneeWhere(viewer);
+  // one filter for both kinds of task: yours (and those you've been brought
+  // onto), or all you may see
+  const where = scope === "mine" ? { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }] } : assigneeWhere(viewer);
 
   const [projects, workTasks, queueTasks, taskTags, assignable] = await Promise.all([
     prisma.project.findMany({
@@ -82,6 +83,8 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       createdBy: { id: t.createdBy.id, name: t.createdBy.name },
       // its department, which the Board's department views split by
       teamSlug: t.team?.slug ?? t.assignedTo.team?.slug ?? null,
+      createdAt: t.createdAt.toISOString(),
+      strikes: t.strikes,
     })),
     // whole rows: they render as the editing board's own cards, which open
     // the task and move its stage under the editing queue's rules

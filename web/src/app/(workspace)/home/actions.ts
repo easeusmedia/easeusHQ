@@ -41,10 +41,11 @@ export async function addNotice(body: string): Promise<{ error?: string }> {
   return {};
 }
 
+// Clearing a notice: your own, or (Level 1) a note on Home
 export async function clearNotice(id: string): Promise<{ error?: string }> {
   const me = await getViewer();
-  if (!me || !isFounder(me)) return { error: "Only Level 1 can clear a notice." };
-  await prisma.notice.deleteMany({ where: { id } });
+  if (!me) return { error: "Your session has ended. Please sign in again." };
+  await prisma.notice.deleteMany({ where: { id, OR: [{ forId: me.id }, ...(isFounder(me) ? [{ forId: null }] : [])] } });
   revalidatePath("/home");
   return {};
 }

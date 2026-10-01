@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
+import { deleteWithRecord, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
@@ -117,7 +118,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: TYPE_NEEDED };
   }
   // its kind of work decides how it moves and whose department it's in
-  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("workflow") ?? ""), String(formData.get("roleId") ?? "") || undefined);
+  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("workflow") ?? ""), String(formData.get("roleId") ?? "") || undefined, title.trim());
 
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
@@ -141,6 +142,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       internal,
       workflow,
       teamId,
+      createdById: actor.id,
       tags: { connect: tagIds.map((id) => ({ id })) },
     },
     // status defaults to "queued"
@@ -163,16 +165,18 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 // A task's workflow and department, from its kind of work: the first kind
 // that has them, else the assignee's department (or Production, where the
 // editing queue lives). Exported for My tasks, which adds client work too.
-export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string, roleId?: string): Promise<{ workflow: Workflow; teamId: string | null }> {
-  const [tags, assignee, production, role] = await Promise.all([
+export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string, roleId?: string, title = ""): Promise<{ workflow: Workflow; teamId: string | null }> {
+  const [tags, assignee, production, role, fromWords] = await Promise.all([
     tagIds.length ? prisma.taskTag.findMany({ where: { id: { in: tagIds } }, select: { workflow: true, teamId: true, sortOrder: true }, orderBy: { sortOrder: "asc" } }) : [],
     assignedToId ? prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true } }) : null,
     prisma.team.findUnique({ where: { slug: "production" }, select: { id: true } }),
     // a role picked with no kind of work of its own
     roleId ? prisma.jobTitle.findUnique({ where: { id: roleId }, select: { workflow: true, teamId: true } }) : null,
+    // no kind of work: the words in its title say where it belongs
+    title ? departmentFromWords(title) : null,
   ]);
   const kind = tags[0] ?? role;
-  return { workflow: workflowOf(kind?.workflow ?? fallback), teamId: kind?.teamId ?? assignee?.teamId ?? production?.id ?? null };
+  return { workflow: workflowOf(kind?.workflow ?? fallback), teamId: kind?.teamId ?? fromWords ?? assignee?.teamId ?? production?.id ?? null };
 }
 
 type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number; grade?: string };
@@ -309,7 +313,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   // a Lead edits the work they can see, and hands it only down the levels
   const viewer = await getViewer();
   if (!viewer) return { error: "Your session has ended. Please sign in again." };
-  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true } });
+  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true, dueDate: true, strikes: true } });
   if (!current) return { error: "You can't change this task." };
   if (assignedToId && assignedToId !== current.assignedToId && assignedToId !== viewer.id) {
     const target = await prisma.user.findUnique({ where: { id: assignedToId }, select: { id: true, role: true, teamId: true, departments: { select: { id: true } } } });
@@ -387,6 +391,11 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     if (!typed) return { error: TYPE_NEEDED };
   }
 
+  // a completion date that moves needs a reason, and the move is kept
+  const dateReason = String(formData.get("dateReason") ?? "").trim();
+  const moved = dueDate !== undefined && !!current.dueDate && (dueDate?.getTime() ?? null) !== current.dueDate.getTime();
+  if (moved && !dateReason) return { error: "Say why the completion date is moving." };
+
   // a new kind of work can change how it moves, if its stage fits the new one
   const placed = formData.has("tagsPresent") ? await placeTask(tagIds, assignedToId) : null;
   const replace = placed && WORKFLOW_STAGES[placed.workflow].includes(current.status) ? placed : placed && { teamId: placed.teamId };
@@ -408,12 +417,15 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
       ...(deliveryDate !== undefined ? { deliveryDate } : {}),
       ...(postDate !== undefined ? { postDate } : {}),
       ...(scheduledFor !== undefined ? { scheduledFor } : {}),
+      // a department picked by hand
+      ...(formData.get("teamId") ? { teamId: String(formData.get("teamId")) } : {}),
       // internal work never goes to the client, so it loses any delivery day
       ...(formData.has("tagsPresent")
         ? { tags: { set: tagIds.map((id) => ({ id })) }, internal, ...(internal ? { deliveryDate: null, postDate: null } : {}) }
         : {}),
     },
   });
+  if (moved) await recordDateChange({ kind: "task", id: taskId }, current.dueDate, dueDate ?? null, dateReason, viewer.id, current.strikes);
   revalidatePath("/board");
   revalidatePath("/clients");
   return { success: true };
@@ -469,28 +481,31 @@ export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> 
   return {};
 }
 
-export async function deleteTask(formData: FormData) {
-  const taskId = String(formData.get("taskId"));
-  const actor = await sessionActor();
-  if (!actor || actor.role === "employee") throw new Error("Only admins and core team members can delete tasks.");
-
-  await prisma.task.delete({ where: { id: taskId } });
+// Deleting needs a reason; the task is kept whole in the record (History
+// shows it, Level 1 can bring it back: lib/taskTrack.ts)
+export async function deleteTask(taskId: string, reason: string): Promise<{ error?: string }> {
+  const actor = await getViewer();
+  if (!actor || actor.role === "employee") return { error: "Only Level 1 and 2 can delete client tasks." };
+  if (!(await prisma.task.count({ where: { AND: [{ id: taskId }, assigneeWhere(actor)] } }))) return { error: "You can't delete this task." };
+  const res = await deleteWithRecord({ kind: "task", id: taskId }, reason, actor);
+  if (res.error) return res;
   revalidatePath("/board");
+  revalidatePath("/history");
+  return {};
 }
 
 // Several at once, from the list view's selection. Same bar as deleting one
 // (admin/core), and one query rather than one per task — picking ten rows
 // and deleting them one at a time is exactly what the selection is for.
-export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number; error?: string }> {
-  const actor = await sessionActor();
-  if (!actor || actor.role === "employee") return { error: "Only admins and core team members can delete tasks." };
-  const ids = taskIds.filter(Boolean);
-  if (ids.length === 0) return { deleted: 0 };
-
-  const { count } = await prisma.task.deleteMany({ where: { id: { in: ids } } });
+export async function deleteTasks(taskIds: string[], reason: string): Promise<{ deleted?: number; error?: string }> {
+  const actor = await getViewer();
+  if (!actor || actor.role === "employee") return { error: "Only Level 1 and 2 can delete client tasks." };
+  if (!reason.trim()) return { error: "Say why they're being deleted." };
+  const ids = (await prisma.task.findMany({ where: { AND: [{ id: { in: taskIds.filter(Boolean) } }, assigneeWhere(actor)] }, select: { id: true } })).map((t) => t.id);
+  for (const id of ids) await deleteWithRecord({ kind: "task", id }, reason, actor);
   revalidatePath("/board");
   revalidatePath("/history");
-  return { deleted: count };
+  return { deleted: ids.length };
 }
 
 // Permanently wipes a task and everything referencing it — for cleaning
@@ -500,27 +515,15 @@ export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number
 // Admin and Abhishek only, checked against the signed-in session. Either
 // kind of task: someone's own work ("internal") has nothing hanging off it
 // but its tags, which go with it.
-export async function deleteTaskPermanently(formData: FormData) {
-  const taskId = String(formData.get("taskId"));
-  const own = formData.get("kind") === "internal";
-  const sessionUserId = await getSessionUserId();
-  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
-  if (!user || !isAbhishekOrAdmin(user)) {
-    throw new Error("Only Abhishek or an admin can permanently delete a task.");
-  }
-
-  if (own) {
-    await prisma.workTask.delete({ where: { id: taskId } });
-    revalidatePath("/history");
-    revalidatePath("/team");
-    return;
-  }
-  await prisma.$transaction([
-    prisma.feedback.deleteMany({ where: { taskId } }),
-    prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: taskId } }),
-    prisma.task.delete({ where: { id: taskId } }),
-  ]);
+// From History: a finished task, deleted with a reason (kept in the record)
+export async function deleteTaskPermanently(taskId: string, kind: "client" | "internal", reason: string): Promise<{ error?: string }> {
+  const user = await getViewer();
+  if (!user || !isAbhishekOrAdmin(user)) return { error: "Only Level 1 can delete a finished task." };
+  const res = await deleteWithRecord({ kind: kind === "internal" ? "work" : "task", id: taskId }, reason, user);
+  if (res.error) return res;
   revalidatePath("/history");
+  revalidatePath("/team");
+  return {};
 }
 
 // Their Notion "Status" options, verified directly against the database

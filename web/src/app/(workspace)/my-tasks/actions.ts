@@ -7,6 +7,7 @@ import { assigneeWhere, canAssign, type Viewer } from "@/lib/scope";
 import { pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
+import { deleteWithRecord, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
 import type { WorkTaskStatus } from "@prisma/client";
 
 export type WorkTaskLink = { label: string; url: string };
@@ -49,9 +50,12 @@ async function resolveAssignee(me: Viewer, requested: string | undefined, curren
 
 // The department a work task belongs to (whose Leads see it): its kind of
 // work's, else the assignee's own
-async function departmentOf(tagIds: string[], assignedToId: string): Promise<string | null> {
+async function departmentOf(tagIds: string[], assignedToId: string, title = ""): Promise<string | null> {
   const tag = tagIds.length ? await prisma.taskTag.findFirst({ where: { id: { in: tagIds }, teamId: { not: null } }, select: { teamId: true } }) : null;
   if (tag) return tag.teamId;
+  // no kind of work: the words in its title say where it belongs
+  const fromWords = title ? await departmentFromWords(title) : null;
+  if (fromWords) return fromWords;
   return (await prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true } }))?.teamId ?? null;
 }
 
@@ -95,7 +99,7 @@ export async function createWorkTask(input: {
       links: cleanLinks(input.links),
       attachments: input.attachments,
       tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
-      teamId: input.roleId && !input.tagIds?.length ? ((await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { teamId: true } }))?.teamId ?? null) : await departmentOf(input.tagIds ?? [], assignedToId),
+      teamId: input.roleId && !input.tagIds?.length ? ((await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { teamId: true } }))?.teamId ?? null) : await departmentOf(input.tagIds ?? [], assignedToId, input.title),
       createdById: me.id,
       assignedToId,
       sortOrder: Date.now(),
@@ -202,6 +206,10 @@ export async function updateWorkTask(input: {
   projectId: string;
   links: WorkTaskLink[];
   attachments: WorkTaskAttachment[];
+  // why the completion date moved, when it did
+  dateReason?: string;
+  // a department picked by hand
+  teamId?: string;
 }): Promise<WorkTaskFormState> {
   let me;
   let existing;
@@ -212,13 +220,18 @@ export async function updateWorkTask(input: {
     return { error: err instanceof Error ? err.message : "Couldn't update that task." };
   }
   if (!input.title.trim()) return { error: "Please give it a title." };
+  // a completion date that moves needs a reason, and the move is kept
+  const nextDue = input.dueDate ? new Date(input.dueDate) : null;
+  const moved = !!existing.dueDate && (nextDue?.getTime() ?? null) !== existing.dueDate.getTime();
+  if (moved && !input.dateReason?.trim()) return { error: "Say why the completion date is moving." };
 
   await prisma.workTask.update({
     where: { id: input.id },
     data: {
       title: input.title.trim(),
       notes: input.notes.trim() || null,
-      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      dueDate: nextDue,
+      ...(input.teamId ? { teamId: input.teamId } : {}),
       projectId: await projectFor(input),
       links: cleanLinks(input.links),
       attachments: input.attachments,
@@ -226,6 +239,7 @@ export async function updateWorkTask(input: {
       ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
     },
   });
+  if (moved) await recordDateChange({ kind: "work", id: input.id }, existing.dueDate, nextDue, input.dateReason!, me.id, existing.strikes);
 
   revalidatePath("/my-tasks");
   return { success: true };
@@ -267,13 +281,19 @@ export async function reorderWorkTask(taskId: string, sortOrder: number): Promis
   return { success: true };
 }
 
-export async function deleteWorkTask(taskId: string): Promise<WorkTaskFormState> {
+// Deleting needs a reason; the task is kept whole in the record (History
+// shows it, Level 1 can bring it back: lib/taskTrack.ts)
+export async function deleteWorkTask(taskId: string, reason: string): Promise<WorkTaskFormState> {
+  let me;
   try {
+    me = await requireRealUser();
     await assertCanTouch(taskId);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't delete that task." };
   }
-  await prisma.workTask.delete({ where: { id: taskId } });
+  const res = await deleteWithRecord({ kind: "work", id: taskId }, reason, me);
+  if (res.error) return res;
   revalidatePath("/my-tasks");
+  revalidatePath("/history");
   return { success: true };
 }

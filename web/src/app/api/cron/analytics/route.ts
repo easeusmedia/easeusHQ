@@ -3,6 +3,7 @@ import { collect, dailySync } from "@/lib/contentSync";
 import { trackContracts } from "@/app/(workspace)/contracts/tracking";
 import { syncFrameioFeedback } from "@/lib/frameioFeedback";
 import { clearOldSnapshots } from "@/lib/snapshots";
+import { sweepOverdue } from "@/lib/taskTrack";
 
 // The daily refresh of every client's public YouTube and Instagram numbers
 // (vercel.json runs it at 2am India time). Safe to call any time by anyone:
@@ -28,5 +29,7 @@ export async function GET(request: Request) {
   await syncFrameioFeedback().catch(() => {});
   // feedback snapshots older than four months go; their text stays
   await clearOldSnapshots().catch(() => {});
+  // tasks past their completion date: a strike each, and notices (lib/overdue.ts)
+  await sweepOverdue().catch(() => 0);
   return NextResponse.json(result);
 }

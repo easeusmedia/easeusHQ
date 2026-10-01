@@ -4,7 +4,8 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import type { TaskStatus } from "@/lib/workflow";
-import { assigneeWhere } from "@/lib/scope";
+import { assigneeWhere, isFounder } from "@/lib/scope";
+import { DeletedRecord } from "./DeletedRecord";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { HistoryItem } from "@/lib/history";
@@ -160,13 +161,22 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     ]),
   ]);
 
+  // what was deleted, by whom and why: Level 1 sees it all; anyone else what they deleted
+  const deleted = await prisma.deletedTask.findMany({ where: isFounder(viewer) ? {} : { byId: viewer.id }, orderBy: { deletedAt: "desc" }, take: 200 });
+
   return (
-    <HistoryExplorer
-      items={items}
-      details={details}
-      logsByTask={logsByTask}
-      canDelete={canDelete}
-      initialFilters={person ? { personId: person } : {}}
-    />
+    <>
+      <HistoryExplorer
+        items={items}
+        details={details}
+        logsByTask={logsByTask}
+        canDelete={canDelete}
+        initialFilters={person ? { personId: person } : {}}
+      />
+      <DeletedRecord
+        rows={deleted.map((d) => ({ id: d.id, title: d.title, client: d.client, assignee: d.assignee, by: d.byName, reason: d.reason, at: d.deletedAt.toISOString() }))}
+        canRestore={isFounder(viewer)}
+      />
+    </>
   );
 }
