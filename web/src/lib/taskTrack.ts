@@ -158,10 +158,11 @@ export async function deleteWithRecord(ref: TaskRef, reason: string, by: { id: s
 
 // ---------- which department ----------
 
-// the department a task's title points to (lib/department.ts), or null
-export async function departmentFromWords(title: string): Promise<string | null> {
+// the department a task's title points to (lib/department.ts), or null; a
+// draw goes to one of the person's own departments (main one first)
+export async function departmentFromWords(title: string, prefer: string[] = []): Promise<string | null> {
   const teams = await prisma.team.findMany({ select: { id: true, keywords: true }, orderBy: { sortOrder: "asc" } });
-  return departmentFromTitle(title, teams);
+  return departmentFromTitle(title, teams, prefer);
 }
 
 // ---------- the record a task window shows ----------

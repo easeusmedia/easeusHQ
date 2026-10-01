@@ -53,10 +53,11 @@ async function resolveAssignee(me: Viewer, requested: string | undefined, curren
 async function departmentOf(tagIds: string[], assignedToId: string, title = ""): Promise<string | null> {
   const tag = tagIds.length ? await prisma.taskTag.findFirst({ where: { id: { in: tagIds }, teamId: { not: null } }, select: { teamId: true } }) : null;
   if (tag) return tag.teamId;
-  // no kind of work: the words in its title say where it belongs
-  const fromWords = title ? await departmentFromWords(title) : null;
-  if (fromWords) return fromWords;
-  return (await prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true } }))?.teamId ?? null;
+  // no kind of work: the words in its title say where it belongs (a draw,
+  // the person's own); nothing in it, the person's main department
+  const person = await prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true, departments: { select: { id: true } } } });
+  const fromWords = title ? await departmentFromWords(title, [person?.teamId, ...(person?.departments ?? []).map((d) => d.id)].filter((x): x is string => !!x)) : null;
+  return fromWords ?? person?.teamId ?? null;
 }
 
 // Which project a task hangs off, from what the person actually chose.
