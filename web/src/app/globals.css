@@ -1118,3 +1118,19 @@ dialog[open]::backdrop {
     linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07)) padding-box,
     linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08)) border-box;
 }
+
+/* Organization's map: the work's dashes travel along the lines between
+   departments, the way it moves through the company */
+.flow-dash {
+  animation: flow-dash 1.4s linear infinite;
+}
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-dash {
+    animation: none;
+  }
+}
