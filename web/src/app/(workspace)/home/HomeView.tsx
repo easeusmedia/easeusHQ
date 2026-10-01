@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { Avatar, type TaskCardData } from "../TaskCard";
-import { ADD_BUTTON } from "../AddButton";
+import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { closeOnBackdrop } from "../dialog";
@@ -650,7 +650,7 @@ export function HomeView({
             ))}
           </p>
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex gap-2">
           {showMine && (
             <button
               type="button"
@@ -658,18 +658,17 @@ export function HomeView({
                 setAdding(true);
                 if (layout.collapsed.includes("mine")) collapse("mine");
               }}
-              className="btn-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-[0_8px_24px_-8px_rgb(75_149_230/0.7)]"
+              className={ADD_BUTTON}
             >
-              <Plus size={15} /> New task
+              <PlusBadge /> New task
             </button>
           )}
           {canMeet && (
-            <button
-              type="button"
-              onClick={() => meetingRef.current?.open(shownDay)}
-              className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-foreground/90 transition-colors hover:border-white/25 hover:bg-white/[0.06]"
-            >
-              <Video size={15} /> New meeting
+            <button type="button" onClick={() => meetingRef.current?.open(shownDay)} className={ADD_BUTTON}>
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
+                <Video size={11} />
+              </span>
+              New meeting
             </button>
           )}
         </div>
