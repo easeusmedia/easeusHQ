@@ -605,7 +605,7 @@ export function Sidebar({
           // same fixed layout (and the same animated gap-2/gap-0 — see
           // the nav rows' own comment above) as the nav rows: the avatar
           // never moves, and now neither does the name label mid-collapse
-          className={`group/tip hover-accent relative flex items-center rounded-xl text-left ${ROW} ${open ? "w-full gap-2" : "gap-0"}`}
+          className={`group/tip relative flex items-center rounded-xl text-left hover:bg-white/[0.04] ${ROW} ${open ? "w-full gap-2" : "gap-0"}`}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
             <Avatar name={name} size={26} presence={false} />
