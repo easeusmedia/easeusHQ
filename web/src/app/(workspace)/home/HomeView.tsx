@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  Bell,
   CalendarDays,
   Check,
   ChevronDown,
@@ -13,6 +14,8 @@ import {
   Clock,
   FileSignature,
   GripVertical,
+  Layers,
+  ListChecks,
   MessageSquare,
   Plus,
   Receipt,
@@ -84,40 +87,47 @@ const ADMIN_TASKS = "Admin tasks";
 const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 const istDay = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
-// ---------- the right rail: sections in an order, each foldable and movable ----------
+// ---------- the layout: sections in two columns, each collapsible and movable ----------
 
-type SectionId = "mine" | "calendar" | "notices";
-type Layout = { order: SectionId[]; collapsed: SectionId[] };
-const LAYOUT_KEY = "home.layout.v3";
+type SectionId = "work" | "mine" | "calendar" | "notices";
+type Layout = { columns: SectionId[][]; collapsed: SectionId[] };
+const LAYOUT_KEY = "home.layout.v2";
+const DEFAULT_LAYOUT: Layout = { columns: [["work"], ["mine", "calendar", "notices"]], collapsed: [] };
 
 // the saved layout, holding only the sections this person has, each once
 function readLayout(have: SectionId[]): Layout {
-  let saved: Partial<Layout> | null = null;
+  let saved: Layout | null = null;
   try {
     saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "null");
   } catch {}
-  const kept = saved?.order;
-  const order = (Array.isArray(kept) ? kept : []).filter((s, i, all) => have.includes(s) && all.indexOf(s) === i);
-  return { order: [...order, ...have.filter((s) => !order.includes(s))], collapsed: (saved?.collapsed ?? []).filter((s) => have.includes(s)) };
+  const base = saved && Array.isArray(saved.columns) && saved.columns.length === 2 ? saved : DEFAULT_LAYOUT;
+  const seen = new Set<SectionId>();
+  const columns = base.columns.map((col) => col.filter((s) => have.includes(s) && !seen.has(s) && seen.add(s)));
+  for (const s of have) if (!seen.has(s)) columns[s === "work" ? 0 : 1].push(s);
+  return { columns, collapsed: (base.collapsed ?? []).filter((s) => have.includes(s)) };
 }
 
 type Drag = { start: (id: SectionId) => void; over: (id: SectionId) => void; end: () => void; dragging: SectionId | null };
 
-// one section of the rail: its heading folds it, the handle beside it moves it
 function Section({
   id,
+  icon,
   title,
   aside,
   collapsed,
   onCollapse,
+  grow = true,
   drag,
   children,
 }: {
   id: SectionId;
+  icon: React.ReactNode;
   title: string;
   aside?: React.ReactNode;
   collapsed: boolean;
   onCollapse: () => void;
+  // fills its share of the column (lists) or keeps to its size (the calendar)
+  grow?: boolean;
   drag: Drag;
   children: React.ReactNode;
 }) {
@@ -128,9 +138,11 @@ function Section({
         e.preventDefault();
         drag.over(id);
       }}
-      className={`group/sec border-t border-white/[0.06] transition-opacity duration-200 first:border-t-0 ${drag.dragging === id ? "opacity-50" : ""}`}
+      className={`flex min-h-0 flex-col rounded-3xl border bg-gradient-to-b from-white/[0.045] to-white/[0.012] transition-[flex-grow,opacity,border-color] duration-300 ${
+        collapsed ? "flex-none" : grow ? "lg:flex-[1_1_0]" : "flex-none"
+      } ${drag.dragging === id ? "border-accent/40 opacity-60" : "border-white/[0.07]"}`}
     >
-      <header className="flex items-center gap-1 px-4 pt-3.5 pb-2">
+      <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
         <button
           type="button"
           draggable
@@ -141,17 +153,18 @@ function Section({
           onDragEnd={drag.end}
           aria-label={`Move ${title}`}
           title="Drag to move"
-          className="-ml-2 cursor-grab rounded p-0.5 text-muted/50 opacity-0 transition-opacity group-hover/sec:opacity-100 hover:text-foreground focus-visible:opacity-100 active:cursor-grabbing"
+          className="-ml-1.5 cursor-grab rounded-md p-1 text-muted/50 transition-colors hover:text-foreground active:cursor-grabbing"
         >
-          <GripVertical size={13} />
+          <GripVertical size={14} />
         </button>
-        <button type="button" onClick={onCollapse} aria-expanded={!collapsed} className="mr-auto flex min-w-0 items-center gap-1 text-sm font-semibold tracking-tight">
-          <span className="truncate">{title}</span>
-          <ChevronDown size={14} className={`shrink-0 text-muted transition-transform duration-300 ${collapsed ? "-rotate-90" : ""}`} />
-        </button>
+        <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
+        <h2 className="mr-auto min-w-0 truncate text-[15px] font-semibold tracking-tight">{title}</h2>
         {!collapsed && aside}
+        <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+          <ChevronDown size={15} className={`transition-transform duration-300 ${collapsed ? "-rotate-90" : ""}`} />
+        </button>
       </header>
-      {!collapsed && <div className="fade-in px-4 pb-4">{children}</div>}
+      {!collapsed && <div className="fade-in min-h-0 flex-1 overflow-y-auto px-4 pb-4 max-lg:max-h-[70vh] sm:px-5">{children}</div>}
     </section>
   );
 }
@@ -162,7 +175,7 @@ function Section({
 function Status({ item }: { item: HomeItem }) {
   return (
     <span className="group/hint relative hidden shrink-0 sm:inline-flex">
-      <span className={`rounded-full border px-2 py-px text-[11px] font-medium ${item.pill}`}>{item.status}</span>
+      <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${item.pill}`}>{item.status}</span>
       <span
         role="tooltip"
         className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-max max-w-56 rounded-xl border border-white/[0.08] bg-background/95 px-3 py-2 text-xs leading-snug text-foreground/85 opacity-0 shadow-xl backdrop-blur transition-opacity duration-150 group-hover/hint:opacity-100 group-hover/hint:delay-150"
@@ -180,26 +193,28 @@ function Strikes({ n }: { n: number }) {
   return <span className="shrink-0 rounded-full bg-rose-400/10 px-1.5 py-px text-[10px] font-medium text-rose-300">{ordinal(n)} miss</span>;
 }
 
-// "Today", "28 Sep"
-const dayLabel = (d: string, today: string) => (d === today ? "Today" : shortDay(d));
+// "Completion today · Delivery 5 Oct"
+function when(item: HomeItem, today: string) {
+  return [item.due && `Completion ${item.due === today ? "today" : shortDay(item.due)}`, item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
+}
 
-// one piece of work on a line: what it is (and for whom), its stage, its
-// completion date, who's on it; opens it
+// one piece of work: what it is, for whom, when, its stage, who's on it; opens it
 function WorkRow({ item, today, showClient = true, onOpen }: { item: HomeItem; today: string; showClient?: boolean; onOpen: () => void }) {
   const late = !!item.due && item.due < today;
-  const sub = [showClient && (item.client ?? ADMIN_TASKS), item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
   return (
-    <button type="button" onClick={onOpen} className="flex w-full items-center gap-4 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/[0.04]">
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-3 text-left transition-colors hover:bg-white/[0.065]">
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2">
-          <span className="truncate text-sm">{item.title}</span>
+          <span className="truncate text-sm font-medium">{item.title}</span>
           <Strikes n={item.strikes} />
         </p>
-        {sub && <p className="truncate text-xs text-muted">{sub}</p>}
+        <p className="mt-0.5 truncate text-xs text-muted">
+          {showClient && <span>{item.client ?? ADMIN_TASKS} · </span>}
+          <span className={late ? "text-rose-300" : undefined}>{when(item, today) || "No date"}</span>
+        </p>
       </div>
       <Status item={item} />
-      <span className={`w-14 shrink-0 text-right text-xs tabular-nums ${late ? "text-rose-300" : "text-muted"}`}>{item.due ? dayLabel(item.due, today) : "No date"}</span>
-      {item.person ? <Avatar name={item.person.name} size={24} /> : <span className="size-6 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
+      {item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
     </button>
   );
 }
@@ -253,7 +268,7 @@ const VIEWS = [
   { key: "department", label: "Department" },
   { key: "person", label: "Person" },
 ];
-type Stat = "active" | "today" | "overdue" | "meetings";
+type Show = "active" | "today" | "overdue";
 
 export function HomeView({
   greeting,
@@ -287,15 +302,16 @@ export function HomeView({
   env: Env;
 }) {
   const router = useRouter();
-  const have = useMemo<SectionId[]>(() => (showMine ? ["mine", "calendar", "notices"] : ["calendar", "notices"]), [showMine]);
-  const [layout, setLayout] = useState<Layout>({ order: have, collapsed: [] });
+  const have = useMemo<SectionId[]>(() => (showMine ? ["work", "mine", "calendar", "notices"] : ["work", "calendar", "notices"]), [showMine]);
+  const [layout, setLayout] = useState<Layout>(() => ({ ...DEFAULT_LAYOUT, columns: DEFAULT_LAYOUT.columns.map((c) => c.filter((s) => have.includes(s))) }));
   const [dragging, setDragging] = useState<SectionId | null>(null);
   const [view, setView] = useState("client");
   const [day, setDay] = useState(monday <= today && today < addDays(monday, 7) ? today : monday);
   const [adding, setAdding] = useState(false);
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [opened, setOpened] = useState<{ key: string; n: number } | null>(null);
-  const [stat, setStat] = useState<Stat | null>(null);
+  // which work the list shows: everything active, due today, or overdue
+  const [show, setShow] = useState<Show>("active");
   const meetingRef = useRef<{ open: (day: string) => void }>(null);
 
   // the saved layout, once in the browser (localStorage only exists after mount)
@@ -310,36 +326,51 @@ export function HomeView({
     } catch {}
   }
   const collapse = (id: SectionId) => save({ ...layout, collapsed: layout.collapsed.includes(id) ? layout.collapsed.filter((s) => s !== id) : [...layout.collapsed, id] });
-  // dragging a section over another takes its place
+  // dragging a section over another puts it there, in either column
   const drag: Drag = {
     dragging,
     start: (id) => setDragging(id),
     end: () => setDragging(null),
     over: (target) => {
       if (!dragging || dragging === target) return;
-      const order = layout.order.filter((s) => s !== dragging);
-      order.splice(layout.order.indexOf(target), 0, dragging);
-      save({ ...layout, order });
+      const columns = layout.columns.map((c) => c.filter((s) => s !== dragging));
+      const col = columns.findIndex((c) => c.includes(target));
+      columns[col].splice(columns[col].indexOf(target), 0, dragging);
+      save({ ...layout, columns });
     },
+  };
+  // a column emptied by dragging still takes a section dropped on it
+  const dropOnColumn = (i: number) => {
+    if (!dragging || layout.columns[i].includes(dragging)) return;
+    const columns = layout.columns.map((c) => c.filter((s) => s !== dragging));
+    columns[i].push(dragging);
+    save({ ...layout, columns });
   };
 
   const live = useMemo(() => items.filter((i) => !gone.has(i.key)), [items, gone]);
   const open = (key: string) => setOpened((o) => ({ key, n: (o?.n ?? 0) + 1 }));
   const openItem = opened && items.find((i) => i.key === opened.key);
 
-  // the work in motion, grouped the chosen way, busiest first
+  const overdue = useMemo(() => live.filter((i) => i.due && i.due < today), [live, today]);
+  const dueToday = useMemo(() => live.filter((i) => i.due === today), [live, today]);
+
+  // the work shown, grouped the chosen way, busiest first; overdue work by
+  // how many times it's gone past its date, the worst first
   const groups = useMemo(() => {
-    const keyOf = (i: HomeItem) => (view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned"));
+    const list = show === "today" ? dueToday : show === "overdue" ? overdue : live;
+    const misses = (i: HomeItem) => Math.max(i.strikes, 1);
+    const keyOf = (i: HomeItem) =>
+      show === "overdue" ? `${ordinal(misses(i))} time past its date` : view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned");
     const byDue = (a: HomeItem, b: HomeItem) => (a.due ?? "9999").localeCompare(b.due ?? "9999");
     const map = new Map<string, HomeItem[]>();
-    for (const i of live) map.set(keyOf(i), [...(map.get(keyOf(i)) ?? []), i]);
-    return [...map.entries()].map(([name, list]) => ({ name, items: list.sort(byDue) })).sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
-  }, [live, view]);
+    for (const i of list) map.set(keyOf(i), [...(map.get(keyOf(i)) ?? []), i]);
+    const out = [...map.entries()].map(([name, items]) => ({ name, items: items.sort(byDue) }));
+    return show === "overdue"
+      ? out.sort((a, b) => misses(b.items[0]) - misses(a.items[0]))
+      : out.sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
+  }, [live, dueToday, overdue, show, view]);
 
   const mine = live.filter((i) => i.person?.id === meId).sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"));
-  const overdue = live.filter((i) => i.due && i.due < today);
-  const dueToday = live.filter((i) => i.due === today);
-  const todays = meetings.filter((m) => istDay(m.start) === today);
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const shownDay = days.includes(day) ? day : days.includes(today) ? today : monday;
 
@@ -350,55 +381,100 @@ export function HomeView({
     router.refresh();
   }
 
-  // the numbers that matter, in one line; each opens its list
-  const stats: { key: Stat; value: number; label: string; late?: boolean }[] = [
-    { key: "active", value: live.length, label: "active" },
-    { key: "today", value: dueToday.length, label: "due today" },
-    { key: "overdue", value: overdue.length, label: "overdue", late: overdue.length > 0 },
-    { key: "meetings", value: todays.length, label: todays.length === 1 ? "meeting today" : "meetings today" },
+  const toggles: { key: Show; value: number; label: string; late?: boolean }[] = [
+    { key: "active", value: live.length, label: "Active" },
+    { key: "today", value: dueToday.length, label: "Due today" },
+    { key: "overdue", value: overdue.length, label: "Overdue", late: true },
   ];
 
   const sections: Record<SectionId, React.ReactNode> = {
+    work: (
+      <Section
+        key="work"
+        id="work"
+        icon={<Layers size={15} />}
+        title={showMine ? "Work in progress" : "My work"}
+        aside={show !== "overdue" && <Segmented options={VIEWS} value={view} onChange={setView} />}
+        collapsed={layout.collapsed.includes("work")}
+        onCollapse={() => collapse("work")}
+        drag={drag}
+      >
+        {groups.length === 0 ? (
+          <p className="px-1 py-2 text-sm text-muted">{show === "today" ? "Nothing due today." : show === "overdue" ? "Nothing overdue." : "Nothing in progress."}</p>
+        ) : (
+          <div key={`${show}:${view}`} className="fade-in flex flex-col gap-5">
+            {groups.map((g) => (
+              <div key={g.name} className="flex flex-col gap-1.5">
+                <p className="mb-0.5 flex items-center gap-2 px-1 text-xs font-medium">
+                  <span className="text-foreground/90">{g.name}</span>
+                  <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] text-muted tabular-nums">{g.items.length}</span>
+                </p>
+                {g.items.map((i) => (
+                  <WorkRow key={i.key} item={i} today={today} showClient={show === "overdue" || view !== "client"} onOpen={() => open(i.key)} />
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+    ),
     mine: (
       <Section
         key="mine"
         id="mine"
+        icon={<ListChecks size={15} />}
         title="My tasks"
         aside={
           <Link href="/my-tasks" className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-foreground">
-            All <ArrowUpRight size={12} />
+            Open list <ArrowUpRight size={13} />
           </Link>
         }
         collapsed={layout.collapsed.includes("mine")}
         onCollapse={() => collapse("mine")}
         drag={drag}
       >
+        {adding && (
+          <div className="mb-3">
+            <Composer kinds={composer.kinds} projects={composer.projects} assignees={composer.assignees} actingUserId={meId} startOpen onClose={() => setAdding(false)} />
+          </div>
+        )}
         {mine.length === 0 ? (
-          <p className="text-sm text-muted">Nothing on your list.</p>
+          !adding && <p className="px-1 py-2 text-sm text-muted">Nothing on your list.</p>
         ) : (
-          <div className="-mx-2 flex flex-col">
+          <div className="flex flex-col gap-1.5">
             {mine.map((i) => {
               const tickable = i.source === "work" || i.workflow === "todo";
               const late = !!i.due && i.due < today;
               return (
-                <div key={i.key} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/[0.04]">
+                <div key={i.key} className="flex items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-2.5 transition-colors hover:bg-white/[0.06]">
                   {tickable ? (
                     <button
                       type="button"
                       aria-label="Mark done"
                       onClick={() => tick(i)}
-                      className="flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent"
+                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent"
                     >
-                      <Check size={10} strokeWidth={3} />
+                      <Check size={11} strokeWidth={3} />
                     </button>
                   ) : (
-                    <span className="size-4 shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" title={i.status} />
+                    <span className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
                   )}
-                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 truncate text-left text-sm">
-                    {i.title}
+                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 text-left">
+                    <p className="flex items-center gap-2">
+                      <span className="truncate text-sm">{i.title}</span>
+                      <Strikes n={i.strikes} />
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {i.client ?? ADMIN_TASKS}
+                      {i.due && (
+                        <>
+                          {" · "}
+                          <span className={late ? "text-rose-300" : undefined}>{i.due === today ? "Today" : shortDay(i.due)}</span>
+                        </>
+                      )}
+                    </p>
                   </button>
-                  <Strikes n={i.strikes} />
-                  {i.due && <span className={`shrink-0 text-xs tabular-nums ${late ? "text-rose-300" : "text-muted"}`}>{dayLabel(i.due, today)}</span>}
+                  {!tickable && <Status item={i} />}
                 </div>
               );
             })}
@@ -434,34 +510,58 @@ export function HomeView({
   };
 
   return (
-    // the page's own height: the work list and the rail fill the screen
-    // below the greeting, and each scrolls inside itself
-    <div className="relative isolate flex flex-col gap-5 lg:h-[calc(100dvh-2*var(--page-pad))]">
+    // the page's own height: everything below the top bar fills the screen,
+    // and each section scrolls inside itself
+    <div className="relative isolate flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))]">
       {/* a soft blue light from the top right corner, behind everything */}
       <div aria-hidden className="pointer-events-none fixed -top-64 -right-56 -z-10 size-[46rem] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.2),rgb(75_149_230/0.06)_55%,transparent)]" />
 
-      <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-3">
+      {/* one compact bar: who and when, the numbers that matter, and the actions */}
+      <header className="flex shrink-0 flex-wrap items-center gap-3">
         <div className="mr-auto min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{greeting}</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted">
-            <span>
-              {WEEKDAY_LONG[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1]}
-            </span>
-            {stats.map((s) => (
-              <Fragment key={s.key}>
-                <span aria-hidden className="text-muted/40">
-                  ·
-                </span>
-                <button type="button" onClick={() => setStat(s.key)} className={`underline-offset-4 transition-colors hover:underline ${s.late ? "text-rose-300" : "hover:text-foreground"}`}>
-                  <span className={`font-medium tabular-nums ${s.late ? "" : "text-foreground"}`}>{s.value}</span> {s.label}
-                </button>
-              </Fragment>
-            ))}
+          <h1 className="truncate text-xl font-semibold tracking-tight">{greeting}</h1>
+          <p className="text-xs text-muted">
+            {WEEKDAY_LONG[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1]}
           </p>
+        </div>
+        {/* which work the list below shows */}
+        <div role="tablist" aria-label="Show" className="flex rounded-xl bg-white/[0.03] p-1 ring-1 ring-white/[0.07]">
+          {toggles.map((t) => {
+            const on = show === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => {
+                  setShow(t.key);
+                  if (layout.collapsed.includes("work")) collapse("work");
+                }}
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm transition-colors duration-200 ${on ? "bg-white/[0.09] text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                {t.label}
+                <span
+                  className={`min-w-5 rounded-full px-1.5 py-px text-center text-xs font-medium tabular-nums transition-colors duration-200 ${
+                    t.late && t.value ? "bg-rose-400/15 text-rose-300" : on ? "bg-accent/20 text-accent" : "bg-white/[0.06] text-muted"
+                  }`}
+                >
+                  {t.value}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="flex gap-2">
           {showMine && (
-            <button type="button" onClick={() => setAdding(true)} className={ADD_BUTTON}>
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(true);
+                if (layout.collapsed.includes("mine")) collapse("mine");
+              }}
+              className={ADD_BUTTON}
+            >
               <PlusBadge /> New task
             </button>
           )}
@@ -476,138 +576,25 @@ export function HomeView({
         </div>
       </header>
 
-      {adding && (
-        <div className="fade-in shrink-0">
-          <Composer kinds={composer.kinds} projects={composer.projects} assignees={composer.assignees} actingUserId={meId} startOpen onClose={() => setAdding(false)} />
-        </div>
-      )}
-
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <section className="panel flex min-h-0 flex-col rounded-2xl">
-          <header className="flex shrink-0 flex-wrap items-center gap-3 px-5 pt-4 pb-1">
-            <h2 className="mr-auto text-[15px] font-semibold tracking-tight">{showMine ? "Work in progress" : "My work"}</h2>
-            <Segmented options={VIEWS} value={view} onChange={setView} />
-          </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-            {groups.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-muted">Nothing in progress.</p>
-            ) : (
-              <div key={view} className="fade-in">
-                {groups.map((g) => (
-                  <div key={g.name}>
-                    <p className="flex items-center gap-2 px-3 pt-4 pb-1 text-xs font-medium text-foreground/70">
-                      {g.name}
-                      <span className="text-muted/70 tabular-nums">{g.items.length}</span>
-                    </p>
-                    {g.items.map((i) => (
-                      <WorkRow key={i.key} item={i} today={today} showClient={view !== "client"} onOpen={() => open(i.key)} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        {layout.columns.map((col, i) => (
+          <div
+            key={i}
+            onDragOver={(e) => {
+              if (!dragging) return;
+              e.preventDefault();
+              if (!col.length) dropOnColumn(i);
+            }}
+            className={`flex min-h-0 flex-col gap-4 ${!col.length ? "rounded-3xl border border-dashed border-white/[0.08] max-lg:hidden" : ""}`}
+          >
+            {col.map((id) => sections[id])}
           </div>
-        </section>
-
-        <aside className="panel min-h-0 overflow-y-auto rounded-2xl">{layout.order.map((id) => sections[id])}</aside>
+        ))}
       </div>
 
       {openItem && <TaskWindow key={`${opened.key}:${opened.n}`} item={openItem} env={env} assignees={composer.assignees} />}
-      <StatDialog
-        stat={stat}
-        onClose={() => setStat(null)}
-        lists={{ active: live, today: dueToday, overdue }}
-        meetings={todays}
-        today={today}
-        onOpen={(key) => {
-          setStat(null);
-          open(key);
-        }}
-      />
       {canMeet && <MeetingDialog ref={meetingRef} people={people} connected={calendar.connected} />}
     </div>
-  );
-}
-
-// ---------- a stat, opened: its tasks (or meetings) ----------
-
-function StatDialog({
-  stat,
-  onClose,
-  lists,
-  meetings,
-  today,
-  onOpen,
-}: {
-  stat: Stat | null;
-  onClose: () => void;
-  lists: { active: HomeItem[]; today: HomeItem[]; overdue: HomeItem[] };
-  meetings: Meeting[];
-  today: string;
-  onOpen: (key: string) => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (stat) ref.current?.showModal();
-    else ref.current?.close();
-  }, [stat]);
-
-  const title = { active: "Active tasks", today: "Due today", overdue: "Overdue", meetings: "Meetings today" }[stat ?? "active"];
-  // overdue ones by how many times they've gone past their date, the worst first
-  const groups =
-    stat === "overdue"
-      ? [...new Set(lists.overdue.map((i) => Math.max(i.strikes, 1)))]
-          .sort((a, b) => b - a)
-          .map((n) => ({ name: `${ordinal(n)} time past its date`, items: lists.overdue.filter((i) => Math.max(i.strikes, 1) === n) }))
-      : stat === "active"
-        ? [
-            { name: "Client work", items: lists.active.filter((i) => i.client) },
-            { name: ADMIN_TASKS, items: lists.active.filter((i) => !i.client) },
-          ].filter((g) => g.items.length)
-        : stat === "today"
-          ? [{ name: "", items: lists.today }]
-          : [];
-
-  return (
-    <dialog
-      ref={ref}
-      {...closeOnBackdrop}
-      onClose={onClose}
-      className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(40rem,calc(100vh-2rem))] w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
-    >
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-background/80 px-5 py-4 backdrop-blur">
-        <h2 className="text-base font-semibold">{title}</h2>
-        <button type="button" aria-label="Close" onClick={() => ref.current?.close()} className="rounded-md p-1 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
-          <X size={16} />
-        </button>
-      </header>
-      <div className="flex flex-col gap-5 p-4">
-        {stat === "overdue" && lists.overdue.length > 0 && <p className="px-1 text-xs text-muted">Open one to see every new date it was given, and why.</p>}
-        {stat === "meetings" ? (
-          meetings.length ? (
-            meetings.map((m) => (
-              <div key={m.id} className="rounded-2xl bg-accent/[0.08] px-4 py-3 ring-1 ring-accent/20">
-                <p className="text-sm font-medium">{m.title}</p>
-                <p className="mt-0.5 text-xs text-muted">{m.allDay ? "All day" : `${clock(m.start)} – ${clock(m.end)}`}</p>
-              </div>
-            ))
-          ) : (
-            <p className="px-1 text-sm text-muted">No meetings today.</p>
-          )
-        ) : groups.every((g) => !g.items.length) ? (
-          <p className="px-1 text-sm text-muted">Nothing here.</p>
-        ) : (
-          groups.map((g) => (
-            <div key={g.name || "all"} className="flex flex-col">
-              {g.name && <p className="px-3 pb-1 text-xs font-medium text-muted">{g.name}</p>}
-              {g.items.map((i) => (
-                <WorkRow key={i.key} item={i} today={today} onOpen={() => onOpen(i.key)} />
-              ))}
-            </div>
-          ))
-        )}
-      </div>
-    </dialog>
   );
 }
 
@@ -636,17 +623,19 @@ function CalendarSection({
 }) {
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const onDay = meetings.filter((m) => istDay(m.start) === day);
-  const arrow = "flex size-6 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const arrow = "flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground";
   return (
     <Section
       id="calendar"
+      icon={<CalendarDays size={15} />}
       title="Calendar"
+      grow={false}
       collapsed={collapsed}
       onCollapse={onCollapse}
       drag={drag}
       aside={
-        <div className="flex items-center gap-0.5">
-          <span className="mr-1 text-xs text-muted">{MONTH[Number(day.slice(5, 7)) - 1]}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="mr-1 text-xs font-medium text-muted">{MONTH[Number(day.slice(5, 7)) - 1]}</span>
           <Link href={`/home?week=${addDays(monday, -7)}`} scroll={false} aria-label="Previous week" className={arrow}>
             <ChevronLeft size={14} />
           </Link>
@@ -656,7 +645,7 @@ function CalendarSection({
         </div>
       }
     >
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className="grid grid-cols-7 gap-1">
         {days.map((d) => {
           const on = d === day;
           const has = meetings.some((m) => istDay(m.start) === d);
@@ -666,18 +655,18 @@ function CalendarSection({
               type="button"
               onClick={() => setDay(d)}
               aria-pressed={on}
-              className={`flex flex-col items-center gap-0.5 rounded-lg py-1.5 transition-colors ${on ? "bg-accent text-white" : "hover:bg-white/[0.05]"}`}
+              className={`flex flex-col items-center gap-1 rounded-2xl py-2 transition-colors ${on ? "bg-accent text-white" : "hover:bg-white/[0.05]"}`}
             >
-              <span className={`text-[10px] font-medium ${on ? "text-white/75" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
-              <span className={`text-sm leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
+              <span className={`text-[10px] font-medium tracking-wide uppercase ${on ? "text-white/75" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
+              <span className={`text-base leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
               <span className={`size-1 rounded-full ${has ? (on ? "bg-white/80" : "bg-accent") : "bg-transparent"}`} />
             </button>
           );
         })}
       </div>
-      <div className="mt-3 flex flex-col gap-2.5">
+      <div className="mt-4 flex flex-col gap-2">
         {!calendar.connected ? (
-          <div className="flex flex-col items-start gap-2">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/[0.1] px-5 py-5 text-center">
             <p className="text-xs leading-relaxed text-muted">Connect easeus.media@gmail.com&apos;s Google Calendar to see meetings here.</p>
             {calendar.clientId && (
               <button type="button" onClick={() => window.location.assign(calendarConsentUrl(calendar.clientId, window.location.origin))} className={ADD_BUTTON}>
@@ -686,26 +675,31 @@ function CalendarSection({
             )}
           </div>
         ) : calendar.error ? (
-          <p className="text-xs leading-relaxed text-rose-300">{calendar.error}</p>
+          <p className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-200">{calendar.error}</p>
         ) : onDay.length === 0 ? (
-          <p className="text-sm text-muted">No meetings {day === today ? "today" : `on ${WEEKDAY[weekday(day)]} ${shortDay(day)}`}.</p>
+          <p className="rounded-2xl bg-white/[0.025] px-4 py-4 text-center text-sm text-muted">No meetings {day === today ? "today" : `on ${WEEKDAY[weekday(day)]} ${shortDay(day)}`}</p>
         ) : (
           onDay.map((m) => (
-            <div key={m.id} className="border-l-2 border-accent/70 pl-3">
-              <p className="truncate text-sm font-medium">{m.title}</p>
-              <p className="flex items-center gap-1.5 text-xs text-muted">
-                {m.allDay ? "All day" : `${clock(m.start)} – ${clock(m.end)}`}
-                {m.people > 0 && (
-                  <>
-                    <Users size={11} className="ml-1" /> {m.people}
-                  </>
-                )}
+            <div key={m.id} className="flex gap-3">
+              <p className="w-14 shrink-0 pt-3 text-right text-xs text-muted tabular-nums">{m.allDay ? "All day" : clock(m.start)}</p>
+              <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl bg-accent/[0.09] py-2.5 pr-3 pl-4 ring-1 ring-accent/20">
+                <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent" />
+                <p className="truncate text-sm font-medium">{m.title}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                  <Clock size={12} />
+                  {m.allDay ? "All day" : `${clock(m.start)} – ${clock(m.end)}`}
+                  {m.people > 0 && (
+                    <>
+                      <Users size={12} className="ml-1.5" /> {m.people}
+                    </>
+                  )}
+                </p>
                 {m.meet && (
-                  <a href={m.meet} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1 text-accent hover:underline">
-                    <Video size={12} /> Join
+                  <a href={m.meet} target="_blank" rel="noreferrer" className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium text-neutral-900 transition-opacity hover:opacity-85">
+                    <Video size={12} /> Join Google Meet
                   </a>
                 )}
-              </p>
+              </div>
             </div>
           ))
         )}
@@ -723,12 +717,12 @@ const TONE: Record<Notice["tone"], string> = {
   neutral: "bg-white/[0.06] text-foreground/70",
 };
 const NOTICE_ICON: Record<Notice["kind"], React.ReactNode> = {
-  invoice: <Receipt size={12} />,
-  contract: <FileSignature size={12} />,
-  message: <MessageSquare size={12} />,
-  note: <StickyNote size={12} />,
-  overdue: <Clock size={12} />,
-  shared: <UserPlus size={12} />,
+  invoice: <Receipt size={14} />,
+  contract: <FileSignature size={14} />,
+  message: <MessageSquare size={14} />,
+  note: <StickyNote size={14} />,
+  overdue: <Clock size={14} />,
+  shared: <UserPlus size={14} />,
 };
 
 // What needs this person: their overdue tasks, tasks they've been added to,
@@ -769,6 +763,7 @@ function NoticesSection({
   return (
     <Section
       id="notices"
+      icon={<Bell size={15} />}
       title="Notices"
       collapsed={collapsed}
       onCollapse={onCollapse}
@@ -776,14 +771,14 @@ function NoticesSection({
       aside={
         canNote &&
         !writing && (
-          <button type="button" onClick={() => setWriting(true)} className="flex items-center gap-0.5 text-xs text-muted transition-colors hover:text-foreground">
-            <Plus size={12} /> Add
+          <button type="button" onClick={() => setWriting(true)} className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground">
+            <Plus size={13} /> Add
           </button>
         )
       }
     >
       {writing && (
-        <div className="fade-in mb-2 flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 ring-1 ring-white/[0.08]">
+        <div className="fade-in mb-3 flex items-center gap-2 rounded-2xl bg-white/[0.04] px-4 py-2.5 ring-1 ring-white/[0.08]">
           <input
             autoFocus
             value={text}
@@ -803,15 +798,15 @@ function NoticesSection({
       )}
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
       {notices.length === 0 ? (
-        !writing && <p className="text-sm text-muted">All clear.</p>
+        !writing && <p className="px-1 py-2 text-sm text-muted">All clear.</p>
       ) : (
-        <div className="-mx-2 flex flex-col">
+        <div className="flex flex-col gap-1.5">
           {notices.map((n) => {
             const body = (
               <>
-                <span className={`mt-px flex size-6 shrink-0 items-center justify-center rounded-full ${TONE[n.tone]}`}>{NOTICE_ICON[n.kind]}</span>
+                <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${TONE[n.tone]}`}>{NOTICE_ICON[n.kind]}</span>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className="text-[13px] leading-snug">{n.text}</p>
+                  <p className="text-sm leading-snug">{n.text}</p>
                   {n.sub && <p className="mt-0.5 text-xs text-muted">{n.sub}</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}
@@ -833,7 +828,7 @@ function NoticesSection({
                 )}
               </>
             );
-            const cls = "group flex w-full items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-white/[0.04]";
+            const cls = "group flex w-full items-center gap-3 rounded-2xl bg-white/[0.035] px-3.5 py-3 transition-colors hover:bg-white/[0.06]";
             if (n.href)
               return (
                 <Link key={n.key} href={n.href} className={cls}>
