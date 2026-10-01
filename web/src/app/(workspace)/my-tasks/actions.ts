@@ -87,6 +87,16 @@ export async function createWorkTask(input: {
 }): Promise<WorkTaskFormState> {
   const me = await requireRealUser();
   if (!input.title.trim()) return { error: "Please give it a title." };
+  // Production's kinds of work are always for a client; a plain to-do (any
+  // department) needn't be
+  if (!input.projectId && !input.clientId && (input.tagIds?.length || input.roleId)) {
+    const production = await prisma.team.findUnique({ where: { slug: "production" }, select: { id: true } });
+    const [tags, role] = await Promise.all([
+      prisma.taskTag.count({ where: { id: { in: input.tagIds ?? [] }, teamId: production?.id } }),
+      input.roleId ? prisma.jobTitle.count({ where: { id: input.roleId, teamId: production?.id } }) : 0,
+    ]);
+    if (tags || role) return { error: "Production work is always for a client. Pick the client." };
+  }
 
   const assignedToId = await resolveAssignee(me, input.assignedToId);
 

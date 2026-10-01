@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Eye, House, SquareKanban, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
+import { Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
@@ -29,7 +29,8 @@ const MAIN = [
   // isn't privileged information inside the agency
   { href: "/clients", label: "Clients", hint: "All clients and their projects", Icon: Building2 },
   // a kanban board, because that is literally what it is
-  { href: "/board", label: "Board", hint: "Production's video and design queues", Icon: SquareKanban },
+  // the departments, each with its own page (Production's is its board)
+  { href: "/org", label: "Organization", hint: "Departments and their boards", Icon: Network },
   // your own tasks only — the whole team's work is on the Board
   { href: "/my-tasks", label: "My tasks", hint: "Everything assigned to you", Icon: ListChecks },
   { href: "/history", label: "History", hint: "Completed work, all in one place", Icon: History },
@@ -83,7 +84,7 @@ function FadeLabel({ open, children }: { open: boolean; children: React.ReactNod
 // The current clients under the Clients item, joined by a line that runs
 // down from it and curves into each row; the one you're on is the selected
 // pill, and the line to it is lit.
-function ClientTree({ clients, current }: { clients: SidebarClient[]; current: string | null }) {
+function ClientTree({ clients, current, hrefOf = clientHref }: { clients: SidebarClient[]; current: string | null; hrefOf?: (c: SidebarClient) => string }) {
   const at = clients.findIndex((c) => c.slug === current);
   return (
     <ul>
@@ -101,7 +102,7 @@ function ClientTree({ clients, current }: { clients: SidebarClient[]; current: s
               <span className={`absolute bottom-0 left-0 top-4 w-px transition-colors duration-300 ${at > i ? "bg-accent/70" : "bg-white/10"}`} />
             )}
             <PrefetchLink
-              href={clientHref(c)}
+              href={hrefOf(c)}
               onClick={(e) => e.stopPropagation()}
               className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${ROW} ${on ? "selected font-medium" : IDLE}`}
             >
@@ -128,7 +129,7 @@ export function ClientFace({ client, size }: { client: SidebarClient; size: numb
 export function Sidebar({
   isOps = false,
   isFounder = false,
-  seesBoard = true,
+  departments = [],
   viewAsPeople = null,
   canSeeFinance = false,
   name,
@@ -146,7 +147,8 @@ export function Sidebar({
   // a Founder: Home, and Performance (grading is theirs)
   isFounder?: boolean;
   // whether the Board (Production's queues) is theirs to see
-  seesBoard?: boolean;
+  // the departments they may open under Organization
+  departments?: { id: string; slug: string; name: string }[];
   // everyone a Level 1 can view the app as (null for anyone else)
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // admin only: what clients owe and what the team is paid
@@ -229,11 +231,29 @@ export function Sidebar({
   // the clients area, and by its chevron any time
   const inClients = CLIENTS_SECTION.test(pathname);
   const [clientsOpen, setClientsOpen] = useState(inClients);
+  // Organization unfolds its departments the same way
+  const inOrg = pathname.startsWith("/org");
+  const [orgOpen, setOrgOpen] = useState(inOrg);
+  const currentDepartment = pathname.match(/^\/org\/([^/?#]+)/)?.[1] ?? null;
   const [seenPath, setSeenPath] = useState(pathname);
   if (pathname !== seenPath) {
     setSeenPath(pathname);
     if (inClients) setClientsOpen(true);
+    if (inOrg) setOrgOpen(true);
   }
+  // the two items that unfold a tree beneath them
+  const trees: Record<string, { items: SidebarClient[]; current: string | null; open: boolean; setOpen: (f: (v: boolean) => boolean) => void; all: string; AllIcon: typeof Building2; hrefOf?: (c: SidebarClient) => string }> = {
+    "/clients": { items: clients, current: currentClient, open: clientsOpen, setOpen: setClientsOpen, all: "All clients", AllIcon: Building2 },
+    "/org": {
+      items: departments.map((d) => ({ ...d, logo: null })),
+      current: currentDepartment,
+      open: orgOpen,
+      setOpen: setOrgOpen,
+      all: "Organization",
+      AllIcon: Network,
+      hrefOf: (c) => `/org/${c.slug}`,
+    },
+  };
 
   const groups = [
     // an editor sees their own numbers, read-only (the page takes them there)
@@ -243,8 +263,8 @@ export function Sidebar({
       items: [
         { href: "/home", label: "Home", hint: "Your work and notices, at a glance", Icon: House, count: noticesWaiting },
         ...(isEditor
-          ? [...MAIN.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
-          : MAIN.filter((i) => seesBoard || i.href !== "/board")),
+          ? [...MAIN.filter((i) => i.href !== "/my-tasks" && (departments.length > 0 || i.href !== "/org")), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
+          : MAIN.filter((i) => departments.length > 0 || i.href !== "/org")),
       ],
     },
     {
@@ -386,9 +406,10 @@ export function Sidebar({
             {g.label}
           </p>
           {g.items.map((item) => {
-        // Clients is lit on the dashboard itself; on a client, the tree says which
-        const isClients = item.href === "/clients";
-        const active = isClients ? pathname === "/clients" : isActive(item.href, pathname);
+        // Clients (and Organization) is lit on its own page; further in, the tree says which
+        const tree = trees[item.href];
+        const isClients = !!tree;
+        const active = isClients ? pathname === item.href : isActive(item.href, pathname);
         // what's waiting behind this item: unread chat, contracts to finish
         const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
         const waiting = item.href === "/chat" ? `${unreadCount} unread` : item.href === "/home" ? `${count} new ${count === 1 ? "notice" : "notices"}` : `${count} waiting on you`;
@@ -431,46 +452,46 @@ export function Sidebar({
             />
           </PrefetchLink>
           );
-          if (!isClients) return row;
+          if (!tree) return row;
           return (
             <div key={item.href} className="group/fly relative w-full">
               {row}
               {/* open: a chevron unfolds the clients beneath */}
-              {open && clients.length > 0 && (
+              {open && tree.items.length > 0 && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setClientsOpen((v) => !v);
+                    tree.setOpen((v) => !v);
                   }}
-                  aria-label={clientsOpen ? "Hide clients" : "Show clients"}
-                  aria-expanded={clientsOpen}
+                  aria-label={`${tree.open ? "Hide" : "Show"} ${item.label.toLowerCase()}`}
+                  aria-expanded={tree.open}
                   className="absolute right-1.5 top-2 flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
                 >
-                  <ChevronDown size={15} className={`transition-transform duration-200 ${clientsOpen ? "" : "-rotate-90"}`} />
+                  <ChevronDown size={15} className={`transition-transform duration-200 ${tree.open ? "" : "-rotate-90"}`} />
                 </button>
               )}
               {open && (
-                <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${clientsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${tree.open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="overflow-hidden">
                     <div className="ml-[18px] pb-1 pt-1">
-                      <ClientTree clients={clients} current={currentClient} />
+                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} />
                     </div>
                   </div>
                 </div>
               )}
               {/* collapsed: hovering the icon shows them in a card beside it */}
-              {!open && clients.length > 0 && (
+              {!open && tree.items.length > 0 && (
                 <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
                   <div onClick={(e) => e.stopPropagation()} className="panel w-60 rounded-2xl p-2">
                     <PrefetchLink
-                      href="/clients"
+                      href={item.href}
                       className="mb-1 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground hover:bg-white/[0.05]"
                     >
-                      <Building2 size={15} /> All clients
+                      <tree.AllIcon size={15} /> {tree.all}
                     </PrefetchLink>
                     <div className="ml-[13px]">
-                      <ClientTree clients={clients} current={currentClient} />
+                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} />
                     </div>
                   </div>
                 </div>

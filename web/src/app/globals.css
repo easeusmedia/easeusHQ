@@ -977,3 +977,43 @@ dialog[open]::backdrop {
     animation: none;
   }
 }
+
+/* A choice in a row of choices (filters, periods; .seg inside a joined
+   switch): quiet at rest; picked, the lit glass of a selected row
+   (.selected) with a soft blue wash from the top and a lit edge, rather
+   than a flat blue fill. */
+.chip {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.chip:hover {
+  color: var(--foreground);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.chip:active,
+.seg:active {
+  transform: translateY(1px);
+}
+.seg {
+  border: 1px solid transparent;
+  color: var(--muted);
+  transition: color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.seg:hover {
+  color: var(--foreground);
+}
+.chip[aria-pressed="true"],
+.chip[aria-selected="true"],
+.seg[aria-pressed="true"],
+.seg[aria-selected="true"] {
+  border-color: transparent;
+  color: var(--foreground);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(75, 149, 230, 0.26), transparent 70%) padding-box,
+    linear-gradient(180deg, #1c222b, #15181d) padding-box,
+    linear-gradient(180deg, rgba(140, 190, 250, 0.5), rgba(255, 255, 255, 0.06)) border-box;
+  box-shadow: 0 4px 14px -6px rgba(75, 149, 230, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}

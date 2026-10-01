@@ -333,7 +333,7 @@ export function TodoList({
                 aria-pressed={wide === v.on}
                 onClick={() => setWidth(v.on)}
                 title={v.label}
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-200 ${wide === v.on ? "bg-accent/20 text-foreground" : "text-muted hover:text-foreground"}`}
+                className="seg flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
               >
                 <v.Icon size={13} />
                 <span className="hidden sm:inline">{v.label}</span>
@@ -359,7 +359,7 @@ export function TodoList({
                 type="button"
                 aria-pressed={on}
                 onClick={() => setFilter(f.key)}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-accent/15 text-foreground ring-1 ring-accent/40" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
+                className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
               >
                 {f.label}
                 <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{n}</span>
@@ -453,7 +453,7 @@ export function TodoList({
                       type="button"
                       aria-pressed={on}
                       onClick={() => setPeriod(p.key)}
-                      className={`rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-accent/15 text-foreground ring-1 ring-accent/40" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
+                      className="chip rounded-full px-3 py-1 text-xs"
                     >
                       {p.label}
                     </button>
@@ -461,9 +461,9 @@ export function TodoList({
                 })}
                 {period === "range" && (
                   <span className="fade-in flex items-center gap-1.5 text-xs text-muted">
-                    <DatePicker value={range.from} onChange={(v) => setRange((r) => ({ ...r, from: v }))} placeholder="From" />
-                    to
-                    <DatePicker value={range.to} onChange={(v) => setRange((r) => ({ ...r, to: v }))} placeholder="Today" />
+                    <DatePicker value={range.from} onChange={(v) => setRange((r) => ({ ...r, from: v }))} placeholder="Start date" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
+                    <span className="text-muted/60">–</span>
+                    <DatePicker value={range.to} onChange={(v) => setRange((r) => ({ ...r, to: v }))} placeholder="End date" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
                   </span>
                 )}
               </div>
@@ -692,7 +692,9 @@ export function Composer({
   const set = (patch: Partial<typeof blank>) => setF((cur) => ({ ...cur, ...patch }));
 
   const kind = kinds.find((k) => k.id === f.kindId);
-  const needsClient = !!kind && kind.workflow !== "todo";
+  // every kind of work offered here is Production's, and Production's work
+  // is always for a client; a plain to-do (no kind) needn't have one
+  const needsClient = !!kind;
   const clients = useMemo(() => [...new Map(projects.map((p) => [p.client.id, p.client])).values()], [projects]);
   const clientProjects = projects.filter((p) => p.client.id === f.clientId);
 

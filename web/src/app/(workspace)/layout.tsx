@@ -5,6 +5,7 @@ import { getRealUserId, getSessionUserId } from "@/lib/auth";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
+import { visibleDepartments } from "./org/departments";
 import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
@@ -69,6 +70,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     .filter((c) => seesClient(viewer, c))
     .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
+  const departments = await visibleDepartments(viewer);
+
   // notices they haven't seen yet: a number on Home, like unread chat
   const noticesWaiting = await prisma.notice.count({ where: { forId: viewer.id, readAt: null } }).catch(() => 0);
 
@@ -88,8 +91,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <Sidebar
         isOps={isOps}
         isFounder={isFounder(viewer)}
-        // the Board is Production's queues: for Level 1 and whoever's in Production
-        seesBoard={isFounder(viewer) || viewer.departments.some((d) => d.slug === "production")}
+        // the departments they may open under Organization: Level 1 all, others their own
+        departments={departments}
         viewAsPeople={viewAsPeople}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}

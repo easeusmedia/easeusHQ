@@ -215,7 +215,7 @@ function Segmented({ options, value, onChange }: { options: { key: string; label
           type="button"
           aria-pressed={value === o.key}
           onClick={() => onChange(o.key)}
-          className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${value === o.key ? "bg-white/[0.1] text-foreground" : "text-muted hover:text-foreground"}`}
+          className="seg rounded-full px-2.5 py-0.5 text-xs font-medium"
         >
           {o.label}
         </button>
@@ -470,7 +470,7 @@ export function HomeView({
                 role="tab"
                 aria-selected={on}
                 onClick={() => setShow(t.key)}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-200 ${on ? "bg-accent/20 text-foreground" : "text-muted hover:text-foreground"}`}
+                className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
               >
                 {t.label}
                 <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{t.value}</span>
@@ -492,7 +492,7 @@ export function HomeView({
                 type="button"
                 aria-pressed={on}
                 onClick={() => setTimes(f.key)}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-accent/15 text-foreground ring-1 ring-accent/40" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
+                className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
               >
                 {f.label}
                 <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{n}</span>
