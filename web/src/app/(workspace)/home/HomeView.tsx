@@ -205,22 +205,6 @@ function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string;
   );
 }
 
-// a greeting's words, rising in one after another; the strong ones brighter
-function Words({ parts, start = 0 }: { parts: [string, boolean?][]; start?: number }) {
-  let n = start;
-  return (
-    <>
-      {parts.flatMap(([text, strong], p) =>
-        text.split(" ").map((w, i) => (
-          <span key={`${p}:${i}`} className={`word-in ${strong ? "text-foreground" : ""}`} style={{ animationDelay: `${n++ * 55}ms` }}>
-            {w}&nbsp;
-          </span>
-        ))
-      )}
-    </>
-  );
-}
-
 // a small switch between views
 function Segmented({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
@@ -651,16 +635,20 @@ export function HomeView({
 
       <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-4 pt-1">
         <div className="mr-auto min-w-0">
-          <p className="word-in text-sm text-muted">
+          <p className="greet-in text-sm text-muted">
             {WEEKDAY[weekday(today)]}, {Number(today.slice(8, 10))} {MONTH[Number(today.slice(5, 7)) - 1].slice(0, 3)}
           </p>
-          <h1 className="mt-2 text-[1.75rem] leading-tight font-semibold tracking-tight sm:text-4xl">
-            <Words parts={[[greeting, true]]} start={1} />
-            <br />
-            <span className="text-muted">
-              <Words parts={summary} start={4} />
-            </span>
+          <h1 className="greet-in mt-1.5 text-2xl font-semibold tracking-tight sm:text-3xl" style={{ animationDelay: "80ms" }}>
+            {greeting}
           </h1>
+          <p className="greet-in mt-1 text-base text-muted sm:text-lg" style={{ animationDelay: "180ms" }}>
+            {summary.map(([text, strong], i) => (
+              <span key={i} className={strong ? "font-medium text-foreground" : undefined}>
+                {i ? " " : ""}
+                {text}
+              </span>
+            ))}
+          </p>
         </div>
         <div className="flex gap-2.5">
           {showMine && (
