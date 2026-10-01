@@ -89,7 +89,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
     ...dates.flatMap((d, i) => {
       const n = missOf(i);
       // counted the morning after
-      return n && d ? [{ at: new Date(new Date(d).getTime() + 27 * 3_600_000).toISOString(), tone: "miss" as const, text: `Missed the ${day(d)} due date`, told: record.misses[n - 1]?.told ?? [] }] : [];
+      return n && d ? [{ at: new Date(new Date(d).getTime() + 27 * 3_600_000).toISOString(), tone: "miss" as const, text: `Not finished by the ${day(d)} due date`, told: record.misses[n - 1]?.told ?? [] }] : [];
     }),
     ...record.dates.map((d) => ({ at: d.at, tone: "change" as const, text: `${first(d.by)} changed the due date to ${day(d.to)}`, note: d.reason })),
     ...record.people.map((p) => ({ at: p.at, tone: "add" as const, text: `${first(p.by)} added ${first(p.name)}`, note: p.reason })),
@@ -183,7 +183,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
               {record.strikes > 0 && (
                 <span className="text-rose-300">
                   {" "}
-                  · Missed {record.strikes} due {record.strikes === 1 ? "date" : "dates"}
+                  · Late {record.strikes} {record.strikes === 1 ? "time" : "times"}
                 </span>
               )}
             </span>
@@ -211,7 +211,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
                   {e.told && e.told.length > 0 && (
                     <p className="mt-1 flex items-center gap-1.5 text-muted" title={names(e.told)}>
                       <Faces people={e.told} size={16} />
-                      Notified {names(e.told.map(first))}
+                      {names(e.told.map(first))} {e.told.length === 1 ? "was" : "were"} notified
                     </p>
                   )}
                 </div>

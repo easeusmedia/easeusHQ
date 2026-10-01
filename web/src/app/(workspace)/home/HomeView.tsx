@@ -37,9 +37,8 @@ import { WorkTaskDialog, type Project } from "../my-tasks/WorkTaskDialog";
 import type { WorkTaskCardData } from "../my-tasks/WorkTaskCard";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import type { TaskTagOption } from "../TaskTagPicker";
-import { addDays, shortDay, weekday } from "@/lib/editorKpi";
+import { addDays, daysBetween, shortDay, weekday } from "@/lib/editorKpi";
 import { calendarConsentUrl } from "@/lib/driveClient";
-import { ordinal } from "@/lib/overdue";
 import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, scheduleMeeting } from "./actions";
@@ -174,50 +173,27 @@ function Section({
 
 // ---------- rows ----------
 
-// a status, and on hover what it means
-function Status({ item }: { item: HomeItem }) {
+// "3 days late", "Due today", "Due 3 Oct": the one thing about its date
+// worth knowing at a glance
+function dueText(due: string | null, today: string): { text: string; tone: string } | null {
+  if (!due) return null;
+  if (due < today) {
+    const n = daysBetween(due, today);
+    return { text: `${n} ${n === 1 ? "day" : "days"} late`, tone: "text-rose-300" };
+  }
+  if (due === today) return { text: "Due today", tone: "text-amber-300" };
+  return { text: `Due ${shortDay(due)}`, tone: "text-muted" };
+}
+
+// one piece of work on a line: what it is, whether it's late, who's on it
+function WorkRow({ item, today, onOpen }: { item: HomeItem; today: string; onOpen: () => void }) {
+  const due = dueText(item.due, today);
   return (
-    <span className="group/hint relative hidden shrink-0 sm:inline-flex">
-      <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${item.pill}`}>{item.status}</span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-max max-w-56 rounded-xl border border-white/[0.08] bg-background/95 px-3 py-2 text-xs leading-snug text-foreground/85 opacity-0 shadow-xl backdrop-blur transition-opacity duration-150 group-hover/hint:opacity-100 group-hover/hint:delay-150"
-      >
-        <span className="font-medium text-foreground">{item.status}</span>
-        <br />
-        {item.meaning}
-      </span>
-    </span>
-  );
-}
-
-function Strikes({ n }: { n: number }) {
-  if (!n) return null;
-  return <span className="shrink-0 rounded-full bg-rose-400/10 px-1.5 py-px text-[10px] font-medium text-rose-300">{ordinal(n)} miss</span>;
-}
-
-// "Completion today · Delivery 5 Oct"
-function when(item: HomeItem, today: string) {
-  return [item.due && `Due ${item.due === today ? "today" : shortDay(item.due)}`, item.delivery && `Delivery ${shortDay(item.delivery)}`].filter(Boolean).join(" · ");
-}
-
-// one piece of work: what it is, for whom, when, its stage, who's on it; opens it
-function WorkRow({ item, today, showClient = true, onOpen }: { item: HomeItem; today: string; showClient?: boolean; onOpen: () => void }) {
-  const late = !!item.due && item.due < today;
-  return (
-    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-3 text-left transition-colors hover:bg-white/[0.065]">
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{item.title}</span>
-          <Strikes n={item.strikes} />
-        </p>
-        <p className="mt-0.5 truncate text-xs text-muted">
-          {showClient && <span>{item.client ?? ADMIN_TASKS} · </span>}
-          <span className={late ? "text-rose-300" : undefined}>{when(item, today) || "No date"}</span>
-        </p>
-      </div>
-      <Status item={item} />
-      {item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/[0.05]">
+      <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
+      {due && <span className={`shrink-0 text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
+      <span className="hidden w-16 shrink-0 truncate text-right text-xs text-muted sm:block">{item.person ? item.person.name.split(" ")[0] : "No one"}</span>
+      {item.person ? <Avatar name={item.person.name} size={24} /> : <span className="size-6 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
     </button>
   );
 }
@@ -315,6 +291,8 @@ export function HomeView({
   const [opened, setOpened] = useState<{ key: string; n: number } | null>(null);
   // which work the list shows: everything active, due today, or overdue
   const [show, setShow] = useState<Show>("active");
+  // overdue: all, or only what's been late once, twice, or 3 or more times
+  const [times, setTimes] = useState(0);
   const meetingRef = useRef<{ open: (day: string) => void }>(null);
 
   // the saved layout, once in the browser (localStorage only exists after mount)
@@ -420,21 +398,24 @@ export function HomeView({
   const overdue = useMemo(() => live.filter((i) => i.due && i.due < today), [live, today]);
   const dueToday = useMemo(() => live.filter((i) => i.due === today), [live, today]);
 
-  // the work shown, grouped the chosen way, busiest first; overdue work by
-  // how many times it's gone past its date, the worst first
+  // how many times an overdue task has been late (this time included), 3 and up together
+  const lateTimes = (i: HomeItem) => Math.min(Math.max(i.strikes, 1), 3);
+  // the work shown (overdue narrowed by how often it's been late), grouped
+  // the chosen way, busiest first, oldest date first in each
   const groups = useMemo(() => {
-    const list = show === "today" ? dueToday : show === "overdue" ? overdue : live;
-    const misses = (i: HomeItem) => Math.max(i.strikes, 1);
-    const keyOf = (i: HomeItem) =>
-      show === "overdue" ? `Past its due date ${misses(i) === 1 ? "once" : `${misses(i)} times`}` : view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned");
+    const list = show === "today" ? dueToday : show === "overdue" ? overdue.filter((i) => times === 0 || lateTimes(i) === times) : live;
+    const keyOf = (i: HomeItem) => (view === "client" ? (i.client ?? ADMIN_TASKS) : view === "department" ? (i.department ?? "No department") : (i.person?.name ?? "Not assigned"));
     const byDue = (a: HomeItem, b: HomeItem) => (a.due ?? "9999").localeCompare(b.due ?? "9999");
     const map = new Map<string, HomeItem[]>();
     for (const i of list) map.set(keyOf(i), [...(map.get(keyOf(i)) ?? []), i]);
-    const out = [...map.entries()].map(([name, items]) => ({ name, items: items.sort(byDue) }));
-    return show === "overdue"
-      ? out.sort((a, b) => misses(b.items[0]) - misses(a.items[0]))
-      : out.sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
-  }, [live, dueToday, overdue, show, view]);
+    return [...map.entries()].map(([name, items]) => ({ name, items: items.sort(byDue) })).sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
+  }, [live, dueToday, overdue, show, view, times]);
+  const LATE_FILTERS = [
+    { key: 0, label: "All" },
+    { key: 1, label: "Late once" },
+    { key: 2, label: "Late twice" },
+    { key: 3, label: "Late 3 or more times" },
+  ];
 
   const mine = live.filter((i) => i.person?.id === meId).sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"));
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
@@ -460,23 +441,44 @@ export function HomeView({
         id="work"
         icon={<Layers size={15} />}
         title={showMine ? "Work in progress" : "My work"}
-        aside={show !== "overdue" && <Segmented options={VIEWS} value={view} onChange={setView} />}
+        aside={<Segmented options={VIEWS} value={view} onChange={setView} />}
         collapsed={layout.collapsed.includes("work")}
         onCollapse={() => collapse("work")}
         drag={drag}
       >
+        {show === "overdue" && overdue.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {LATE_FILTERS.map((f) => {
+              const n = f.key ? overdue.filter((i) => lateTimes(i) === f.key).length : overdue.length;
+              if (f.key && !n) return null;
+              const on = times === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setTimes(f.key)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors duration-200 ${on ? "bg-rose-400/15 text-rose-200" : "bg-white/[0.04] text-muted hover:text-foreground"}`}
+                >
+                  {f.label}
+                  <span className="tabular-nums opacity-70">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {groups.length === 0 ? (
           <p className="px-1 py-2 text-sm text-muted">{show === "today" ? "Nothing due today." : show === "overdue" ? "Nothing overdue." : "Nothing in progress."}</p>
         ) : (
-          <div key={`${show}:${view}`} className="fade-in flex flex-col gap-5">
+          <div key={`${show}:${view}:${times}`} className="fade-in flex flex-col gap-4">
             {groups.map((g) => (
-              <div key={g.name} className="flex flex-col gap-1.5">
-                <p className="mb-0.5 flex items-center gap-2 px-1 text-xs font-medium">
-                  <span className="text-foreground/90">{g.name}</span>
-                  <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] text-muted tabular-nums">{g.items.length}</span>
+              <div key={g.name} className="flex flex-col">
+                <p className="mb-1 flex items-center gap-2 px-3 text-xs font-medium">
+                  <span className="text-foreground/70">{g.name}</span>
+                  <span className="text-muted/70 tabular-nums">{g.items.length}</span>
                 </p>
                 {g.items.map((i) => (
-                  <WorkRow key={i.key} item={i} today={today} showClient={show === "overdue" || view !== "client"} onOpen={() => open(i.key)} />
+                  <WorkRow key={i.key} item={i} today={today} onOpen={() => open(i.key)} />
                 ))}
               </div>
             ))}
@@ -507,12 +509,12 @@ export function HomeView({
         {mine.length === 0 ? (
           !adding && <p className="px-1 py-2 text-sm text-muted">Nothing on your list.</p>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col">
             {mine.map((i) => {
               const tickable = i.source === "work" || i.workflow === "todo";
-              const late = !!i.due && i.due < today;
+              const due = dueText(i.due, today);
               return (
-                <div key={i.key} className="flex items-center gap-3 rounded-2xl bg-white/[0.035] px-4 py-2.5 transition-colors hover:bg-white/[0.06]">
+                <div key={i.key} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.05]">
                   {tickable ? (
                     <button
                       type="button"
@@ -525,22 +527,10 @@ export function HomeView({
                   ) : (
                     <span className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
                   )}
-                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 text-left">
-                    <p className="flex items-center gap-2">
-                      <span className="truncate text-sm">{i.title}</span>
-                      <Strikes n={i.strikes} />
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-muted">
-                      {i.client ?? ADMIN_TASKS}
-                      {i.due && (
-                        <>
-                          {" · "}
-                          <span className={late ? "text-rose-300" : undefined}>{i.due === today ? "Today" : shortDay(i.due)}</span>
-                        </>
-                      )}
-                    </p>
+                  <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 truncate text-left text-sm">
+                    {i.title}
                   </button>
-                  {!tickable && <Status item={i} />}
+                  {due && <span className={`shrink-0 text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
                 </div>
               );
             })}
