@@ -314,7 +314,7 @@ export function TodoList({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex h-9 w-52 items-center gap-2 rounded-full bg-white/[0.04] px-3 transition-shadow focus-within:ring-accent/40">
+          <label className="flex h-9 w-52 items-center gap-2 rounded-full bg-white/[0.04] px-3 ring-1 ring-white/[0.07] transition-shadow focus-within:ring-accent/40">
             <Search size={14} className="shrink-0 text-muted" />
             <input
               ref={search}
@@ -327,7 +327,7 @@ export function TodoList({
             <kbd className="rounded border border-white/10 px-1 text-[10px] text-muted/70">/</kbd>
           </label>
           {/* narrow and dense, or across the page with its columns */}
-          <div className="flex rounded-full bg-white/[0.04] p-1">
+          <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
             {[
               { on: false, label: "Compact", Icon: Rows3 },
               { on: true, label: "Full width", Icon: Columns3 },

@@ -156,7 +156,7 @@ function Section({
         >
           <GripVertical size={14} />
         </button>
-        <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.04] text-foreground/75">{icon}</span>
+        <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
         <h2 className="mr-auto flex min-w-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
           <span className="truncate">{title}</span>
           {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium text-accent tabular-nums">{count}</span>}
@@ -193,7 +193,7 @@ function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string;
     <button
       type="button"
       onClick={onOpen}
-      className="panel-soft panel-hover flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left"
+      className="panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:-translate-y-px"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.title}</p>
@@ -208,7 +208,7 @@ function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string;
 // a small switch between views
 function Segmented({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="flex rounded-full bg-white/[0.04] p-1">
+    <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
       {options.map((o) => (
         <button
           key={o.key}
@@ -460,7 +460,7 @@ export function HomeView({
     <>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         {/* which work: everything active, due today, or overdue */}
-        <div role="tablist" aria-label="Show" className="flex rounded-full bg-white/[0.04] p-1">
+        <div role="tablist" aria-label="Show" className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
           {toggles.map((t) => {
             const on = show === t.key;
             return (
@@ -570,7 +570,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} className="panel-soft panel-hover flex items-center gap-3 rounded-xl px-4 py-3">
+                <div key={i.key} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"
@@ -941,7 +941,7 @@ function NoticesSection({
                 )}
               </>
             );
-            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-xl px-3.5 py-3";
+            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3";
             if (n.href)
               return (
                 <Link key={n.key} href={n.href} className={cls}>
