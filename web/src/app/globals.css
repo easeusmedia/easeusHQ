@@ -1139,3 +1139,70 @@ dialog[open]::backdrop {
     animation: none;
   }
 }
+
+/* Organization's holographic city: light rising through each building,
+   the pads pulsing, the masts blinking, sparks drifting up */
+.scan-up {
+  animation: scan-up 3.6s ease-in-out infinite;
+}
+@keyframes scan-up {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(var(--rise));
+    opacity: 0;
+  }
+}
+.pad-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pad-pulse 2.8s ease-out infinite;
+}
+@keyframes pad-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+.blink {
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.spark {
+  animation: spark 4s ease-out infinite;
+}
+@keyframes spark {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(var(--rise));
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-up,
+  .pad-pulse,
+  .blink,
+  .spark {
+    animation: none;
+  }
+}
