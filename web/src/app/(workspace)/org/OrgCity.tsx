@@ -8,17 +8,18 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { MapDepartment } from "./OrgMap";
 
-// The company as a night city in 3D, after the "3D visual management"
-// reference: deep teal-blue fog, office buildings of glass with grids of
-// lit windows and faint cyan edges, a quiet city around them, a campus
-// with a running track in the middle, light running along the roads from
-// one department to the next, a slow camera, and a soft bloom over it all.
-// Each department is one building, as tall as the work it has open; its
-// roof beacon is red when anything's late. Hover lights it; a click opens
-// it. Loaded only on Organization (OrgMap brings it in on its own).
+// The company as a campus in 3D, after the "3D visual management"
+// reference: low-rise buildings with light facades and long bands of
+// windows glowing a soft cyan, flat roofs with parapets and plant, laid on
+// a plain grey-blue ground beside a sports field, grey massing fading into
+// a teal-navy haze, seen from a raised three-quarter view. Each department
+// is one building, a floor taller for more open work; its tag names it and
+// shows its numbers on hover. Hover lights its windows; a click opens it.
+// Loaded only on Organization (OrgMap brings it in on its own).
 
-const BG = 0x062236;
-const CYAN = 0x7fd4ff;
+const SKY = 0x123a52;
+const GROUND = 0x31465a;
+const FLOOR = 1.15; // one storey, in scene units
 
 // a steady scatter, so the same windows (and the same city) every time
 function rng(seed: number) {
@@ -26,99 +27,151 @@ function rng(seed: number) {
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
 
-// a wall of windows, as a texture: one cell per window, some lit
-function windows(cols: number, floors: number, seed: number, bright: number) {
-  const cw = 12;
-  const ch = 18;
-  const c = document.createElement("canvas");
-  c.width = cols * cw;
-  c.height = floors * ch;
-  const g = c.getContext("2d")!;
-  g.fillStyle = "#123a5a";
-  g.fillRect(0, 0, c.width, c.height);
+// A facade: light spandrels between long bands of glass, with mullions; and
+// alongside it, the same windows as light (lit ones only) for the glow
+function facade(cols: number, floors: number, seed: number) {
+  const cw = 22;
+  const fh = 30;
+  const make = () => {
+    const c = document.createElement("canvas");
+    c.width = cols * cw;
+    c.height = floors * fh;
+    return c;
+  };
+  const albedo = make();
+  const glow = make();
+  const a = albedo.getContext("2d")!;
+  const g = glow.getContext("2d")!;
+  a.fillStyle = "#d3e2ef";
+  a.fillRect(0, 0, albedo.width, albedo.height);
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, glow.width, glow.height);
   const r = rng(seed);
   for (let f = 0; f < floors; f++) {
+    const y = f * fh + fh * 0.3;
+    const h = fh * 0.55;
+    // the band of glass, all of it faintly lit
+    a.fillStyle = "#3f78a6";
+    a.fillRect(0, y, albedo.width, h);
+    g.fillStyle = "#16456b";
+    g.fillRect(0, y, glow.width, h);
     for (let k = 0; k < cols; k++) {
-      const on = r() < bright;
-      g.fillStyle = on ? (r() < 0.25 ? "#e8f7ff" : "#8fd3fa") : "#1a4a70";
-      g.fillRect(k * cw + 2, f * ch + 5, cw - 4, ch - 8);
+      const x = k * cw;
+      if (r() < 0.55) {
+        const warm = r() < 0.2;
+        a.fillStyle = warm ? "#e6f6ff" : "#a8dcff";
+        a.fillRect(x + 2, y + 2, cw - 4, h - 4);
+        g.fillStyle = warm ? "#e8f7ff" : "#5fb4f0";
+        g.fillRect(x + 2, y + 2, cw - 4, h - 4);
+      }
+      // the mullion
+      a.fillStyle = "#b5cade";
+      a.fillRect(x, y, 2, h);
     }
-    // the floor's slab line
-    g.fillStyle = "#1d4c72";
-    g.fillRect(0, f * ch, c.width, 2);
   }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
+  const tex = (c: HTMLCanvasElement) => {
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  };
+  return { map: tex(albedo), glow: tex(glow) };
 }
 
-type Built = { group: THREE.Group; lit: THREE.MeshStandardMaterial[]; beacon: THREE.MeshBasicMaterial; top: THREE.Vector3; slug?: string; pad?: THREE.Mesh };
+type Building = { group: THREE.Group; windows: THREE.MeshStandardMaterial[]; top: THREE.Vector3 };
 
-// one block of a building: glass walls of windows, a dark roof with a parapet, cyan edges
-function block(w: number, h: number, d: number, seed: number, bright: number, glow: number, out: THREE.MeshStandardMaterial[]) {
+// one block: four walls of facade, a flat roof with a parapet and plant
+function block(w: number, floors: number, d: number, seed: number, out: THREE.MeshStandardMaterial[]) {
+  const h = floors * FLOOR;
   const g = new THREE.Group();
-  const side = (cols: number, s: number) => {
-    const tex = windows(cols, Math.max(3, Math.round(h / 0.8)), s, bright);
-    const m = new THREE.MeshStandardMaterial({ color: 0x2a6694, map: tex, emissive: 0xbfe8ff, emissiveMap: tex, emissiveIntensity: glow, metalness: 0.45, roughness: 0.35 });
+  const wall = (len: number, s: number) => {
+    const { map, glow } = facade(Math.max(3, Math.round(len / 1.1)), floors, s);
+    const m = new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0.85, roughness: 0.55, metalness: 0.1 });
     out.push(m);
     return m;
   };
-  const roof = new THREE.MeshStandardMaterial({ color: 0x0d2134, metalness: 0.3, roughness: 0.8 });
-  const cx = Math.max(3, Math.round(w / 0.55));
-  const cz = Math.max(3, Math.round(d / 0.55));
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [side(cz, seed), side(cz, seed + 1), roof, roof, side(cx, seed + 2), side(cx, seed + 3)]);
+  const roof = new THREE.MeshStandardMaterial({ color: 0x8ea8bf, roughness: 0.95 });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [wall(d, seed), wall(d, seed + 1), roof, roof, wall(w, seed + 2), wall(w, seed + 3)]);
   mesh.position.y = h / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   g.add(mesh);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0.35 }));
-  edges.position.copy(mesh.position);
-  g.add(edges);
-  // the parapet round the roof
-  const parapet = new THREE.Mesh(new THREE.BoxGeometry(w + 0.15, 0.3, d + 0.15), roof);
-  parapet.position.y = h + 0.15;
-  g.add(parapet);
+  // the parapet: a low rim round the roof
+  const rim = new THREE.MeshStandardMaterial({ color: 0xbcd0e2, roughness: 0.8 });
+  for (const [pw, pd, px, pz] of [
+    [w, 0.18, 0, d / 2 - 0.09],
+    [w, 0.18, 0, -d / 2 + 0.09],
+    [0.18, d, w / 2 - 0.09, 0],
+    [0.18, d, -w / 2 + 0.09, 0],
+  ] as const) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.35, pd), rim);
+    p.position.set(px, h + 0.17, pz);
+    p.castShadow = true;
+    g.add(p);
+  }
+  // rooftop plant
+  const r = rng(seed + 11);
+  const plant = new THREE.MeshStandardMaterial({ color: 0x6f889e, roughness: 0.9 });
+  for (let i = 0; i < Math.max(1, Math.round((w * d) / 30)); i++) {
+    const u = new THREE.Mesh(new THREE.BoxGeometry(0.8 + r() * 1.2, 0.5 + r() * 0.4, 0.8 + r() * 1), plant);
+    u.position.set((r() - 0.5) * (w - 2.5), h + 0.3, (r() - 0.5) * (d - 2.5));
+    u.castShadow = true;
+    g.add(u);
+  }
   return g;
 }
 
-// a whole building, by kind: a tower, a wide slab, an L of two wings, or a tower on a podium
-function building(kind: number, h: number, seed: number, bright: number, glow: number) {
-  const lit: THREE.MeshStandardMaterial[] = [];
+// A department's building, by its kind: a long slab, an L of two wings, a
+// courtyard, or a block on a podium; floors from its open work
+function building(kind: number, floors: number, seed: number): Building {
+  const windows: THREE.MeshStandardMaterial[] = [];
   const g = new THREE.Group();
-  let top = h;
+  const put = (o: THREE.Object3D, x: number, y: number, z: number) => {
+    o.position.set(x, y, z);
+    g.add(o);
+  };
+  let top = floors * FLOOR;
+  let roofAt: [number, number] = [0, 0];
   if (kind === 1) {
-    g.add(block(7, h * 0.6, 4.2, seed, bright, glow, lit));
-    top = h * 0.6;
+    // an L
+    put(block(14, floors, 4.6, seed, windows), 0, 0, -2.7);
+    put(block(4.6, Math.max(3, floors - 1), 8, seed + 20, windows), -4.7, 0, 3.3);
+    roofAt = [2, -2.7];
   } else if (kind === 2) {
-    const a = block(6, h * 0.75, 2.6, seed, bright, glow, lit);
-    const b = block(2.6, h, 6, seed + 9, bright, glow, lit);
-    a.position.set(-0.9, 0, 1.5);
-    b.position.set(1.7, 0, -0.6);
-    g.add(a, b);
+    // a courtyard, open to the front
+    put(block(13, floors, 4.2, seed, windows), 0, 0, -4.4);
+    put(block(4.2, floors - 1, 8.8, seed + 20, windows), -4.4, 0, 2.1);
+    put(block(4.2, floors - 1, 8.8, seed + 40, windows), 4.4, 0, 2.1);
+    roofAt = [0, -4.4];
   } else if (kind === 3) {
-    g.add(block(6.4, h * 0.22, 6.4, seed, bright, glow, lit));
-    const t = block(3.4, h * 0.78, 3.4, seed + 5, bright, glow, lit);
-    t.position.y = h * 0.22;
-    g.add(t);
+    // a block on a podium
+    put(block(13, 2, 9, seed, windows), 0, 0, 0);
+    put(block(6.5, floors, 5.5, seed + 20, windows), 1.5, 2 * FLOOR, -0.8);
+    top = (floors + 2) * FLOOR;
+    roofAt = [1.5, -0.8];
   } else {
-    g.add(block(3.8, h, 3.8, seed, bright, glow, lit));
+    // a long slab
+    put(block(15, floors, 5.2, seed, windows), 0, 0, 0);
   }
-  // rooftop plant, and a mast with its beacon
-  const plant = new THREE.MeshStandardMaterial({ color: 0x1a3550, roughness: 0.7 });
-  const r = rng(seed + 3);
-  for (let i = 0; i < 3; i++) {
-    const u = new THREE.Mesh(new THREE.BoxGeometry(0.6 + r() * 0.6, 0.35, 0.6 + r() * 0.5), plant);
-    u.position.set((r() - 0.5) * 1.6, top + 0.48, (r() - 0.5) * 1.6);
-    g.add(u);
-  }
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 2.2), new THREE.MeshBasicMaterial({ color: 0x9fdcff }));
-  mast.position.y = top + 1.4;
-  g.add(mast);
-  const beacon = new THREE.MeshBasicMaterial({ color: CYAN, transparent: true });
-  const b = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), beacon);
-  b.position.y = top + 2.6;
-  g.add(b);
-  return { group: g, lit, beacon, top: new THREE.Vector3(0, top + 3.2, 0) } as Built;
+  // a blue panel on the roof, as in the reference
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), new THREE.MeshStandardMaterial({ color: 0x3b8de0, emissive: 0x2f7fd6, emissiveIntensity: 0.9, roughness: 0.4 }));
+  panel.rotation.x = -Math.PI / 2;
+  panel.position.set(roofAt[0], top + 0.02, roofAt[1]);
+  g.add(panel);
+  return { group: g, windows, top: new THREE.Vector3(0, top + 1.6, 0) };
 }
+
+// where the departments stand on the campus, round the sports field
+const PLOTS: { x: number; z: number; rot: number }[] = [
+  { x: -24, z: -16, rot: 0 },
+  { x: -2, z: -21, rot: 0 },
+  { x: 21, z: -15, rot: 0 },
+  { x: 24, z: 8, rot: -Math.PI / 2 },
+  { x: 2, z: 19, rot: Math.PI },
+  { x: -25, z: 9, rot: Math.PI / 2 },
+  { x: 40, z: -2, rot: -Math.PI / 2 },
+  { x: -42, z: -2, rot: Math.PI / 2 },
+];
 
 export default function OrgCity({ departments, onOpen }: { departments: MapDepartment[]; onOpen: (slug: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -132,94 +185,110 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1.25;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.prepend(renderer.domElement);
     renderer.domElement.className = "absolute inset-0 h-full w-full";
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(BG);
-    scene.fog = new THREE.FogExp2(0x0a2c45, 0.011);
-    const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 500);
+    scene.background = new THREE.Color(SKY);
+    scene.fog = new THREE.Fog(0x1a4660, 70, 190);
+    const camera = new THREE.PerspectiveCamera(32, 1, 1, 600);
 
-    scene.add(new THREE.HemisphereLight(0x7cc2f5, 0x05182a, 1.0));
-    const sun = new THREE.DirectionalLight(0xbfe6ff, 1.6);
-    sun.position.set(30, 50, 20);
+    // a cool sky light, and a sun from the back left that casts soft shadows
+    scene.add(new THREE.HemisphereLight(0xb8dcff, 0x14232f, 1.3));
+    const sun = new THREE.DirectionalLight(0xdcefff, 1.5);
+    sun.position.set(-40, 70, -30);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 10, far: 220 });
+    sun.shadow.bias = -0.0006;
     scene.add(sun);
 
-    // the ground: dark, with a faint grid
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({ color: 0x0a2840, roughness: 0.9 }));
+    // the ground: plain grey-blue
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ color: GROUND, roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
     scene.add(ground);
-    const grid = new THREE.GridHelper(260, 104, 0x1b5a86, 0x0b2a42);
-    (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.35;
-    grid.position.y = 0.02;
-    scene.add(grid);
 
-    // the campus in the middle: a running track round a field
-    const field = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.MeshStandardMaterial({ color: 0x0a2a3d, roughness: 0.9 }));
-    field.rotation.x = -Math.PI / 2;
-    field.position.y = 0.04;
-    scene.add(field);
-    for (const [rx, ry, o] of [
-      [9, 5.4, 0.55],
-      [9.8, 6.1, 0.3],
-    ] as const) {
-      const curve = new THREE.EllipseCurve(0, 0, rx, ry, 0, Math.PI * 2);
-      const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(curve.getPoints(96).map((p) => new THREE.Vector3(p.x, 0.06, p.y))), new THREE.LineBasicMaterial({ color: CYAN, transparent: true, opacity: o }));
-      scene.add(line);
+    // the sports field in the middle, painted on one plane: a running track
+    // round a pitch, lined in white (32 px to a unit)
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 576;
+    const f = c.getContext("2d")!;
+    const stadium = (r: number) => {
+      f.beginPath();
+      f.arc(352, 288, r, Math.PI / 2, Math.PI * 1.5);
+      f.arc(672, 288, r, -Math.PI / 2, Math.PI / 2);
+      f.closePath();
+    };
+    stadium(256);
+    f.fillStyle = "#4a6278";
+    f.fill();
+    stadium(200);
+    f.fillStyle = "#2f4a5f";
+    f.fill();
+    f.strokeStyle = "rgba(226,238,248,0.7)";
+    f.lineWidth = 2;
+    for (const r of [256, 242, 228, 214, 200]) {
+      stadium(r);
+      f.stroke();
     }
+    f.strokeRect(256, 144, 512, 288);
+    f.strokeRect(256, 224, 56, 128);
+    f.strokeRect(712, 224, 56, 128);
+    f.beginPath();
+    f.moveTo(512, 144);
+    f.lineTo(512, 432);
+    f.stroke();
+    f.beginPath();
+    f.arc(512, 288, 40, 0, Math.PI * 2);
+    f.stroke();
+    const paint = new THREE.CanvasTexture(c);
+    paint.colorSpace = THREE.SRGBColorSpace;
+    paint.anisotropy = 8;
+    const pitch = new THREE.Mesh(new THREE.PlaneGeometry(32, 18), new THREE.MeshStandardMaterial({ map: paint, transparent: true, roughness: 1 }));
+    pitch.rotation.x = -Math.PI / 2;
+    pitch.position.y = 0.03;
+    pitch.receiveShadow = true;
+    scene.add(pitch);
 
-    // the departments, round the campus
+    // the departments, each on a paved plot
     const most = Math.max(1, ...departments.map((d) => d.open));
-    const radius = 23;
-    const built: Built[] = departments.map((d, i) => {
-      const angle = (i / Math.max(departments.length, 1)) * Math.PI * 2 - Math.PI / 2;
-      const h = 6 + (d.open / most) * 16;
-      const b = building(i % 4, h, 101 + i * 17, 0.6, 0.8);
-      b.group.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-      b.group.rotation.y = -angle + Math.PI / 2;
-      b.slug = d.slug;
-      if (d.late) b.beacon.color.set(0xff6b81);
-      // a glowing pad under it
-      const pad = new THREE.Mesh(new THREE.RingGeometry(4.9, 5.2, 64), new THREE.MeshBasicMaterial({ color: CYAN, transparent: true, opacity: 0.22, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
-      pad.rotation.x = -Math.PI / 2;
-      pad.position.y = 0.07;
-      b.group.add(pad);
-      b.pad = pad;
+    const built = departments.slice(0, PLOTS.length).map((d, i) => {
+      const b = building(i % 4, 3 + Math.round((d.open / most) * 5), 101 + i * 17);
+      const plot = PLOTS[i];
+      const pave = new THREE.Mesh(new THREE.PlaneGeometry(19, 15), new THREE.MeshStandardMaterial({ color: 0x3a5064, roughness: 1 }));
+      pave.rotation.x = -Math.PI / 2;
+      pave.position.y = 0.02;
+      pave.receiveShadow = true;
+      b.group.add(pave);
+      b.group.position.set(plot.x, 0, plot.z);
+      b.group.rotation.y = plot.rot;
       scene.add(b.group);
-      return b;
+      return { ...b, slug: d.slug };
     });
 
-    // a quiet city around them, dimmer, fading into the fog
+    // grey massing all round, fading into the haze
     const r = rng(7);
-    for (let i = 0; i < 70; i++) {
+    const mass = new THREE.MeshStandardMaterial({ color: 0x31495e, roughness: 1 });
+    for (let i = 0; i < 46; i++) {
       const a = r() * Math.PI * 2;
-      const dist = 34 + r() * 60;
-      const f = building(i % 4 === 1 ? 1 : 0, 3 + r() * 9, 900 + i * 13, 0.4, 0.45);
-      f.group.position.set(Math.cos(a) * dist, 0, Math.sin(a) * dist);
-      f.group.rotation.y = Math.round(r() * 4) * (Math.PI / 2);
-      f.group.scale.setScalar(0.7 + r() * 0.5);
-      scene.add(f.group);
+      const dist = 58 + r() * 80;
+      const h = 2 + r() * 9;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(6 + r() * 12, h, 5 + r() * 9), mass);
+      m.position.set(Math.cos(a) * dist, h / 2, Math.sin(a) * dist);
+      m.rotation.y = Math.round(r() * 4) * (Math.PI / 2);
+      m.receiveShadow = true;
+      scene.add(m);
     }
 
-    // the roads the work travels, Sales through to Distribution, with light running along them
-    const roads: { curve: THREE.CatmullRomCurve3; spark: THREE.Mesh; t: number }[] = [];
-    for (let i = 1; i < Math.min(5, built.length); i++) {
-      const a = built[i - 1].group.position;
-      const b = built[i].group.position;
-      const mid = a.clone().add(b).multiplyScalar(0.5).multiplyScalar(0.7);
-      const curve = new THREE.CatmullRomCurve3([a.clone().setY(0.1), mid.setY(0.1), b.clone().setY(0.1)]);
-      scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.12, 6), new THREE.MeshBasicMaterial({ color: CYAN, transparent: true, opacity: 0.55 })));
-      const spark = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 12), new THREE.MeshBasicMaterial({ color: 0xe6f6ff }));
-      scene.add(spark);
-      roads.push({ curve, spark, t: i * 0.27 });
-    }
-
-    // the glow
+    // a gentle glow from the windows only
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.5, 0.28);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.45, 0.62);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
@@ -236,55 +305,43 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
     const ro = new ResizeObserver(size);
     ro.observe(host);
 
-    // pointing at a department lights it up; a click opens it
+    // pointing at a department lights its windows; a click opens it
     const ray = new THREE.Raycaster();
     const pointer = new THREE.Vector2(-9, -9);
-    let hovered: Built | null = null;
+    let hovered: (typeof built)[number] | null = null;
     const move = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     };
     const leave = () => pointer.set(-9, -9);
-    const click = () => hovered?.slug && onOpen(hovered.slug);
+    const click = () => hovered && onOpen(hovered.slug);
     renderer.domElement.addEventListener("pointermove", move);
     renderer.domElement.addEventListener("pointerleave", leave);
     renderer.domElement.addEventListener("click", click);
 
-    let angle = 0.6;
     let frame = 0;
     const clock = new THREE.Clock();
     const v = new THREE.Vector3();
     const spots: { x: number; y: number; seen: boolean }[] = [];
     const loop = () => {
       frame = requestAnimationFrame(loop);
-      const dt = clock.getDelta();
-      const time = clock.elapsedTime;
-      if (!still) angle += dt * 0.05;
-      camera.position.set(Math.cos(angle) * 74, 50, Math.sin(angle) * 74);
-      camera.lookAt(0, 5, 0);
+      // the reference's raised three-quarter view, drifting only a little
+      const angle = 2.2 + (still ? 0 : Math.sin(clock.getElapsedTime() * 0.06) * 0.06);
+      camera.position.set(Math.cos(angle) * 92, 62, Math.sin(angle) * 92);
+      camera.lookAt(0, 0, 2);
 
       ray.setFromCamera(pointer, camera);
-      // the building the pointer is on: up from whatever part of it was hit
       let part: THREE.Object3D | null = ray.intersectObjects(built.map((b) => b.group), true)[0]?.object ?? null;
       while (part && !built.some((b) => b.group === part)) part = part.parent;
       const now = built.find((b) => b.group === part) ?? null;
       if (now !== hovered) {
-        hovered?.lit.forEach((m) => (m.emissiveIntensity = 0.8));
-        now?.lit.forEach((m) => (m.emissiveIntensity = 1.35));
+        hovered?.windows.forEach((m) => (m.emissiveIntensity = 0.85));
+        now?.windows.forEach((m) => (m.emissiveIntensity = 1.5));
         hovered = now;
         renderer.domElement.style.cursor = now ? "pointer" : "default";
       }
 
       built.forEach((b, i) => {
-        // the beacon blinks; the pad breathes
-        const blink = 0.5 + 0.5 * Math.sin(time * 3 + i);
-        b.beacon.opacity = 0.35 + 0.65 * blink;
-        if (b.pad) {
-          const s = 1 + 0.06 * Math.sin(time * 1.6 + i);
-          b.pad.scale.set(s, s, s);
-          (b.pad.material as THREE.MeshBasicMaterial).opacity = 0.14 + 0.12 * blink;
-        }
-        // where its tag goes: above its roof, on the page
         v.copy(b.top).applyMatrix4(b.group.matrixWorld).project(camera);
         spots[i] = { x: ((v.x + 1) / 2) * host.clientWidth, y: ((1 - v.y) / 2) * host.clientHeight, seen: v.z < 1 };
       });
@@ -304,10 +361,6 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
         tag.style.transform = `translate(-50%, -100%) translate(${p.x}px, ${p.y}px)`;
         tag.style.opacity = spots[p.i].seen ? "1" : "0";
       });
-      roads.forEach((road) => {
-        road.t = (road.t + dt * 0.22) % 1;
-        road.spark.position.copy(road.curve.getPointAt(road.t)).setY(0.4);
-      });
       composer.render();
     };
     loop();
@@ -324,6 +377,7 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
         const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
         mats.forEach((mat) => {
           (mat as THREE.MeshStandardMaterial).map?.dispose();
+          (mat as THREE.MeshStandardMaterial).emissiveMap?.dispose();
           mat.dispose();
         });
       });
@@ -334,11 +388,10 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
   }, [departments, onOpen]);
 
   return (
-    <div ref={box} className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-[rgb(120_190_255/0.16)] bg-[#04131f]">
-      {/* a soft vignette, as on a screen */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_70%_at_50%_45%,transparent_55%,rgb(2_8_14/0.6))]" />
-      <p className="pointer-events-none absolute top-4 left-5 text-[11px] font-semibold tracking-[0.2em] text-[rgb(150_205_240/0.8)] uppercase">Easeus Media · Organization</p>
-      {departments.map((d, i) => (
+    <div ref={box} className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0e2639]">
+      {/* a soft vignette, as in the reference */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(85%_75%_at_50%_45%,transparent_60%,rgb(4_14_24/0.55))]" />
+      {departments.slice(0, PLOTS.length).map((d, i) => (
         <button
           key={d.slug}
           ref={(el) => {
@@ -346,13 +399,16 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
           }}
           type="button"
           onClick={() => onOpen(d.slug)}
-          className="absolute top-0 left-0 border-l-2 border-[rgb(127_212_255)] bg-[rgb(4_19_31/0.78)] px-2.5 py-1.5 text-left whitespace-nowrap backdrop-blur-sm transition-[background-color,opacity] duration-300 hover:bg-[rgb(8_32_52/0.9)]"
+          className="group/tag absolute top-0 left-0 border-l-2 border-[rgb(127_200_245)] bg-[rgb(8_24_38/0.72)] px-2.5 py-1 text-left whitespace-nowrap backdrop-blur-sm transition-[background-color,opacity] duration-300 hover:bg-[rgb(10_32_50/0.9)]"
           style={{ opacity: 0 }}
         >
-          <span className="block text-[11px] font-semibold tracking-wide text-[rgb(220_242_255)] uppercase">{d.name}</span>
-          <span className="block text-[10px] text-[rgb(150_195_230)] tabular-nums">
-            {d.people} {d.people === 1 ? "person" : "people"} · {d.open} open
-            {d.late > 0 && <span className="text-rose-300"> · {d.late} late</span>}
+          <span className="block text-[11px] font-semibold tracking-wide text-[rgb(225_242_255)] uppercase">{d.name}</span>
+          {/* its numbers, on hover */}
+          <span className="grid grid-rows-[0fr] text-[10px] text-[rgb(160_200_230)] tabular-nums transition-[grid-template-rows] duration-300 group-hover/tag:grid-rows-[1fr]">
+            <span className="overflow-hidden">
+              {d.people} {d.people === 1 ? "person" : "people"} · {d.open} open
+              {d.late > 0 && <span className="text-rose-300"> · {d.late} late</span>}
+            </span>
           </span>
         </button>
       ))}
