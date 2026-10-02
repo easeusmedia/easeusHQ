@@ -108,7 +108,9 @@ export function EditableName({
           setEditing(false);
         }
       }}
-      className={`w-full min-w-24 rounded-md border border-border bg-surface-2 px-2 py-0.5 text-foreground outline-none focus:border-hover disabled:opacity-60 ${className}`}
+      // one soft highlight sized to the text: no border, and no focus ring on
+      // top of it (the global :focus-visible rule is unlayered, hence the !)
+      className={`field-sizing-content max-w-full min-w-16 rounded-md bg-white/[0.06] px-1.5 text-foreground outline-none! disabled:opacity-60 ${className}`}
     />
   );
 }
