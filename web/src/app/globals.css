@@ -116,10 +116,11 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: var(--spot-face), linear-gradient(#131519, #131519) padding-box, var(--spot-edge);
 }
-/* inside a panel: a soft fill, no border of its own */
+/* inside a panel: a soft fill, no border of its own. The fill is solid (the
+   panel's face with 3% white) so the edge light shows only at the rim. */
 .panel-soft {
   border: 1px solid transparent;
-  background: var(--spot-face), linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03)) padding-box, var(--spot-edge);
+  background: var(--spot-face), linear-gradient(#1a1c20, #1a1c20) padding-box, var(--spot-edge);
 }
 /* panels you can click: a quiet lighten, and the spotlight */
 .panel-hover {
@@ -127,7 +128,7 @@ body {
 }
 .panel-hover:hover {
   --spot: 1;
-  background: var(--spot-face), linear-gradient(rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.055)) padding-box, var(--spot-edge);
+  background: var(--spot-face), linear-gradient(#1e2024, #1e2024) padding-box, var(--spot-edge);
 }
 .panel.panel-hover:hover {
   background: var(--spot-face), linear-gradient(#171a1f, #171a1f) padding-box, var(--spot-edge);
