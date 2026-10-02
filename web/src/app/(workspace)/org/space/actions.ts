@@ -4,12 +4,11 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
-import { buildsDepartment, worksDepartment, isFounder } from "@/lib/scope";
+import { buildsDepartment, worksDepartment } from "@/lib/scope";
 import {
   CHILD_OF,
   cleanValue,
   COLOR_NAMES,
-  describeValue,
   fillText,
   isColor,
   isFieldKind,
@@ -89,25 +88,15 @@ async function leadWithBoard(id: string) {
   });
 }
 
-// A note on a lead's record. Edits to the same property by the same person
-// within ten minutes fold into one line, so typing doesn't flood it.
-async function record(
-  tx: Prisma.TransactionClient,
-  leadId: string,
-  who: Who,
-  e: { kind: string; summary: string; fromStage?: string | null; toStage?: string | null; reason?: string | null; fold?: (summary: string) => boolean },
-) {
-  if (e.fold) {
-    const last = await tx.leadEvent.findFirst({ where: { leadId }, orderBy: { createdAt: "desc" }, select: { id: true, kind: true, summary: true, byId: true, createdAt: true } });
-    if (last && last.kind === e.kind && last.byId === who.id && e.fold(last.summary) && Date.now() - last.createdAt.getTime() < 10 * 60_000) {
-      await tx.leadEvent.update({ where: { id: last.id }, data: { summary: e.summary, createdAt: new Date() } });
-      return;
-    }
-  }
+// A line on a lead's record. The record holds where it has been: made,
+// moved (and why, when it skipped or went back), put back. Edits to its
+// details only stamp who last edited it (editedByName, editedAt).
+async function record(tx: Prisma.TransactionClient, leadId: string, who: Who, e: { kind: string; summary: string; fromStage?: string | null; toStage?: string | null; reason?: string | null }) {
   await tx.leadEvent.create({
     data: { leadId, kind: e.kind, summary: e.summary, fromStage: e.fromStage ?? null, toStage: e.toStage ?? null, reason: e.reason ?? null, byId: who.id, byName: who.name },
   });
 }
+const edited = (who: Who) => ({ editedByName: who.name, editedAt: new Date() });
 
 async function trash(
   tx: Prisma.TransactionClient,
@@ -435,10 +424,6 @@ export async function deleteField(id: string, reason: string): Promise<Done> {
     await prisma.$transaction(async (tx) => {
       await trash(tx, who, { teamId: field.board.teamId, spaceId: field.boardId, kind: "field", title: field.name, data: { field, values }, reason: r });
       await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${id}::text WHERE "boardId" = ${field.boardId} AND "values" ? ${id}::text`;
-      if (Object.keys(values).length)
-        await tx.leadEvent.createMany({
-          data: Object.keys(values).map((leadId) => ({ leadId, kind: "edited", summary: `${field.name} cleared (the property was deleted)`, reason: r, byId: who.id, byName: who.name })),
-        });
       await tx.boardField.delete({ where: { id } });
     });
     return {};
@@ -523,10 +508,6 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
         WHERE "boardId" = ${option.field.boardId} AND jsonb_typeof("values"->${fid}::text) = 'array' AND ("values"->${fid}::text) ? ${id}::text
         RETURNING id`;
       await trash(tx, who, { teamId: option.field.board.teamId, spaceId: option.field.boardId, kind: "option", title: `${option.field.name}: ${option.name}`, data: { option, leads: had.map((l) => l.id) }, reason: r });
-      if (had.length)
-        await tx.leadEvent.createMany({
-          data: had.map((l) => ({ leadId: l.id, kind: "edited", summary: `${option.field.name}: tag "${option.name}" deleted`, reason: r, byId: who.id, byName: who.name })),
-        });
       await tx.fieldOption.delete({ where: { id } });
     });
     return {};
@@ -569,10 +550,7 @@ export async function renameLead(id: string, title: string): Promise<Done> {
   if (n.length > 200) return { error: "That name is too long." };
   if (n === lead.title) return {};
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.lead.update({ where: { id }, data: { title: n } });
-      await record(tx, id, who, { kind: "renamed", summary: `Renamed from "${lead.title}" to "${n}"` });
-    });
+    await prisma.lead.update({ where: { id }, data: { title: n, ...edited(who) } });
     return {};
   } catch (err) {
     return failed(err, "That name couldn't be saved.");
@@ -592,12 +570,9 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
     const clean = cleanValue(field.kind, value, field.options.map((o) => o.id));
     if ("error" in clean) return clean;
     const v = clean.value;
-    const summary = v == null ? `${field.name} cleared` : `${field.name} set to ${describeValue({ kind: field.kind, options: field.options }, v)}`;
-    await prisma.$transaction(async (tx) => {
-      if (v == null) await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${fieldId}::text, "updatedAt" = now() WHERE id = ${id}`;
-      else await tx.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set(coalesce("values", '{}'::jsonb), ARRAY[${fieldId}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now() WHERE id = ${id}`;
-      await record(tx, id, who, { kind: "edited", summary, fold: (s) => s.startsWith(`${field.name} set to `) || s === `${field.name} cleared` });
-    });
+    if (v == null) await prisma.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${fieldId}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    else
+      await prisma.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set(coalesce("values", '{}'::jsonb), ARRAY[${fieldId}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");
@@ -611,38 +586,10 @@ export async function setLeadNotes(id: string, notes: string): Promise<Done> {
   if ("error" in who) return who;
   const text = String(notes ?? "").slice(0, 100_000);
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.lead.update({ where: { id }, data: { notes: text } });
-      await record(tx, id, who, { kind: "edited", summary: "Write-up edited", fold: (s) => s === "Write-up edited" });
-    });
+    await prisma.lead.update({ where: { id }, data: { notes: text, ...edited(who) } });
     return {};
   } catch (err) {
     return failed(err, "The write-up couldn't be saved.");
-  }
-}
-
-// Anyone on staff who works in this department, or Level 1
-export async function assignLead(id: string, userId: string | null): Promise<Done> {
-  const lead = await leadWithBoard(id);
-  if (!lead) return { error: "That lead no longer exists." };
-  const who = await whoFor(lead.board.teamId);
-  if ("error" in who) return who;
-  if ((userId ?? null) === lead.assignedToId) return {};
-  try {
-    let name = "";
-    if (userId) {
-      const person = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, role: true, email: true, employment: true, departments: { select: { id: true, slug: true } } } });
-      if (!person || person.employment === "former") return { error: "That person isn't on the team any more." };
-      if (!isFounder(person) && !person.departments.some((d) => d.id === lead.board.teamId)) return { error: `${person.name} isn't in this department.` };
-      name = person.name;
-    }
-    await prisma.$transaction(async (tx) => {
-      await tx.lead.update({ where: { id }, data: { assignedToId: userId } });
-      await record(tx, id, who, { kind: "assigned", summary: userId ? `Assigned to ${name}` : "Unassigned" });
-    });
-    return {};
-  } catch (err) {
-    return failed(err, "That couldn't be saved.");
   }
 }
 
@@ -875,12 +822,9 @@ export async function setLeadVar(id: string, name: string, value: string): Promi
   if (!key) return { error: "That detail has no name." };
   const v = String(value ?? "").trim().slice(0, 2000);
   try {
-    await prisma.$transaction(async (tx) => {
-      if (!v) await tx.$executeRaw`UPDATE "Lead" SET "vars" = "vars" - ${key}::text, "updatedAt" = now() WHERE id = ${id}`;
-      else await tx.$executeRaw`UPDATE "Lead" SET "vars" = jsonb_set(coalesce("vars", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now() WHERE id = ${id}`;
-      const summary = v ? `Message detail ${key} set to "${v.slice(0, 80)}${v.length > 80 ? "…" : ""}"` : `Message detail ${key} cleared`;
-      await record(tx, id, who, { kind: "edited", summary, fold: (s) => s.startsWith(`Message detail ${key} set to `) || s === `Message detail ${key} cleared` });
-    });
+    if (!v) await prisma.$executeRaw`UPDATE "Lead" SET "vars" = "vars" - ${key}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    else
+      await prisma.$executeRaw`UPDATE "Lead" SET "vars" = jsonb_set(coalesce("vars", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");
@@ -905,11 +849,7 @@ export async function markSent(leadId: string, messageId: string): Promise<Done 
     const body = fillText(m.body, vars);
     const missing = [...new Set([...`${subject}\n${body}`.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((x) => x[1]))];
     if (missing.length) return { error: `Fill in ${missing.join(", ")} first.` };
-    const sent = await prisma.$transaction(async (tx) => {
-      const row = await tx.sentMessage.create({ data: { leadId, messageId, stageName: m.stage.name, name: m.name, channel: m.channel, subject, body, byId: who.id, byName: who.name } });
-      await record(tx, leadId, who, { kind: "sent", summary: `Sent ${m.name} (${m.stage.name})` });
-      return row;
-    });
+    const sent = await prisma.sentMessage.create({ data: { leadId, messageId, stageName: m.stage.name, name: m.name, channel: m.channel, subject, body, byId: who.id, byName: who.name } });
     return { sent: { id: sent.id, messageId, stageName: sent.stageName, name: sent.name, channel: sent.channel, subject, body, byName: sent.byName, sentAt: sent.sentAt.toISOString() } };
   } catch (err) {
     return failed(err, "That couldn't be saved.");
@@ -923,10 +863,7 @@ export async function unmarkSent(sentId: string): Promise<Done> {
   const who = await whoFor(sent.lead.board.teamId);
   if ("error" in who) return who;
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.sentMessage.delete({ where: { id: sentId } });
-      await record(tx, sent.leadId, who, { kind: "sent", summary: `Marked ${sent.name} (${sent.stageName}) as not sent` });
-    });
+    await prisma.sentMessage.delete({ where: { id: sentId } });
     return {};
   } catch (err) {
     return failed(err, "That couldn't be undone.");
@@ -943,7 +880,7 @@ export async function getLeadDetails(id: string): Promise<Done & { notes?: strin
   if ("error" in who) return who;
   const [full, events, sent] = await Promise.all([
     prisma.lead.findUnique({ where: { id }, select: { notes: true } }),
-    prisma.leadEvent.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.leadEvent.findMany({ where: { leadId: id, kind: { in: ["created", "moved", "restored"] } }, orderBy: { createdAt: "desc" }, take: 500 }),
     prisma.sentMessage.findMany({ where: { leadId: id }, orderBy: { sentAt: "desc" } }),
   ]);
   return {

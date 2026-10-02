@@ -25,15 +25,14 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
+import { deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
 import { CELL, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
-import { Dropdown } from "../../Dropdown";
-import { Avatar } from "../../TaskCard";
+import { Avatar, formatDateTime } from "../../TaskCard";
 import { closeOnBackdrop } from "../../dialog";
 import {
   daysSince,
@@ -46,7 +45,6 @@ import {
   type LeadData,
   type LeadEventData,
   type SentData,
-  type Person,
 } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
@@ -72,12 +70,10 @@ type Status = "saving" | "saved" | { error: string } | null;
 export function LeadPeek({
   lead,
   board,
-  people,
   onClose,
 }: {
   lead: LeadData | null;
   board: BoardData;
-  people: Person[];
   canBuild: boolean;
   onClose: () => void;
 }) {
@@ -109,7 +105,7 @@ export function LeadPeek({
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
       className="glass fixed top-1/2 left-1/2 m-0 w-[min(58rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground"
     >
-      {shown && <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} close={() => ref.current?.close()} onDeleted={onClose} />}
+      {shown && <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} close={() => ref.current?.close()} onDeleted={onClose} />}
     </dialog>
   );
 }
@@ -118,14 +114,12 @@ function LeadPage({
   lead,
   open,
   board,
-  people,
   close,
   onDeleted,
 }: {
   lead: LeadData;
   open: boolean;
   board: BoardData;
-  people: Person[];
   close: () => void;
   onDeleted: () => void;
 }) {
@@ -141,14 +135,12 @@ function LeadPage({
   // refresh after their save lands, so one save's refresh never flickers another
   const [pending, setPending] = useState<Record<string, { v: unknown; done: boolean }>>({});
   const [stageId, setStageId] = useState(lead.stageId);
-  const [assignee, setAssignee] = useState(lead.assignedTo?.id ?? "");
   if (lead !== synced) {
     setSynced(lead);
     if (lead.title !== synced.title) setTitle(lead.title);
     if (lead.values !== synced.values && Object.values(pending).some((p) => p.done))
       setPending((cur) => Object.fromEntries(Object.entries(cur).filter(([, p]) => !p.done)));
     if (lead.stageId !== synced.stageId) setStageId(lead.stageId);
-    if (lead.assignedTo?.id !== synced.assignedTo?.id) setAssignee(lead.assignedTo?.id ?? "");
   }
 
   const [notes, setNotes] = useState<string | null>(null);
@@ -231,12 +223,6 @@ function LeadPage({
     });
   }
 
-  function assign(userId: string) {
-    const before = assignee;
-    setAssignee(userId);
-    run(assignLead(id, userId || null), () => setAssignee(before));
-  }
-
   // One stage forward moves at once; anything else asks why first
   const order = board.stages.map((s) => s.id);
   const stage = board.stages.find((s) => s.id === stageId);
@@ -262,13 +248,6 @@ function LeadPage({
     }
   }
 
-  const person = people.find((p) => p.id === assignee) ?? (lead.assignedTo?.id === assignee ? lead.assignedTo : null);
-  const assignOptions = [
-    ...(assignee ? [{ value: "", label: "Unassigned" }] : []),
-    ...people.map((p) => ({ value: p.id, label: p.name })),
-    // someone assigned who's no longer listed still shows by name
-    ...(person && !people.some((p) => p.id === person.id) ? [{ value: person.id, label: person.name }] : []),
-  ];
 
   const missing = missingDetails(board.fields, values);
   const inStage = daysSince(lead.stageSince);
@@ -385,21 +364,6 @@ function LeadPage({
             </Menu>
           </Row>
 
-          <Row icon={UserRound} label="Assigned to">
-            <div className="px-1 py-0.5">
-              <Dropdown
-                size="sm"
-                pill={{
-                  icon: person ? <Avatar name={person.name} size={16} presence={false} /> : <UserRound size={12} className="text-muted" />,
-                }}
-                value={assignee}
-                placeholder="Unassigned"
-                options={assignOptions}
-                onChange={assign}
-              />
-            </div>
-          </Row>
-
           {board.fields
             .filter((f) => f.kind !== "contacts")
             .map((f) => (
@@ -408,11 +372,19 @@ function LeadPage({
               </Row>
             ))}
 
-          <Row icon={Clock} label="Created">
-            <span className="px-2 text-sm text-foreground/80">
-              {lead.createdByName} · {dateOf(lead.createdAt)}
+          <Row icon={UserRound} label="Added by">
+            <span className="flex items-center gap-2 px-2 text-sm text-foreground/80">
+              <Avatar name={lead.createdBy.name} size={18} presence={false} />
+              {lead.createdBy.name} · <span className="text-muted">{dateOf(lead.createdAt)}</span>
             </span>
           </Row>
+          {lead.editedByName && lead.editedAt && (
+            <Row icon={Clock} label="Last edited">
+              <span className="px-2 text-sm text-foreground/80">
+                {lead.editedByName} · <span className="text-muted">{formatDateTime(lead.editedAt)}</span>
+              </span>
+            </Row>
+          )}
           <Row icon={Hourglass} label="In stage since">
             <span className="px-2 text-sm text-foreground/80">
               {dateOf(lead.stageSince)} · <span className="text-muted">{inStage === 0 ? "today" : `${inStage} ${inStage === 1 ? "day" : "days"}`}</span>
@@ -450,7 +422,7 @@ function LeadPage({
         </Section>
 
         <p className="mt-10 border-t border-border/50 pt-4 text-xs text-muted">
-          Created by {lead.createdByName} on {dateOf(lead.createdAt)}
+          Added by {lead.createdBy.name} on {dateOf(lead.createdAt)}
         </p>
       </div>
 

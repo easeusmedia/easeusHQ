@@ -1230,6 +1230,9 @@ model Lead {
   createdBy    User        @relation("LeadsCreated", fields: [createdById], references: [id])
   // when it reached its stage ("3 days in Day 2")
   stageSince   DateTime    @default(now())
+  // who last changed its details, and when (its history holds only stage moves)
+  editedByName String?
+  editedAt     DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   events       LeadEvent[]

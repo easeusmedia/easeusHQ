@@ -133,15 +133,14 @@ export function PortalView({
   const q = query.trim().toLowerCase();
   const shown = board.leads.filter(
     (l) =>
-      (who === "all" || (who === "none" ? !l.assignedTo : l.assignedTo?.id === (who === "mine" ? viewerId : who))) &&
+      (who === "all" || l.createdBy.id === (who === "mine" ? viewerId : who)) &&
       (!q || searchText(l, contactFields).includes(q))
   );
   const filtered = shown.length !== board.leads.length;
   const lead = openId ? (board.leads.find((l) => l.id === openId) ?? null) : null;
   const whoOptions = [
     { value: "all", label: "Everyone" },
-    ...(viewerId ? [{ value: "mine", label: "Mine" }] : []),
-    { value: "none", label: "Unassigned" },
+    ...(viewerId ? [{ value: "mine", label: "Added by me" }] : []),
     ...people.map((p) => ({ value: p.id, label: p.name, group: "People" })),
   ];
 
@@ -294,7 +293,7 @@ export function PortalView({
         )}
       </div>
 
-      <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} />
+      <LeadPeek lead={lead} board={board} canBuild={canBuild} onClose={() => open(null)} />
       <TrashDialog open={showBin} spaceId={board.id} title={`Deleted from ${board.name}`} onClose={() => setShowBin(false)} />
       {canBuild && <BoardProperties open={showProps} board={board} onClose={() => setShowProps(false)} />}
       {canBuild && (

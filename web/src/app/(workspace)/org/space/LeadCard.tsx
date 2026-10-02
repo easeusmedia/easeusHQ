@@ -53,14 +53,11 @@ export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: Fie
       )}
 
       <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-        {lead.assignedTo ? (
-          <>
-            <Avatar name={lead.assignedTo.name} size={18} />
-            <span className="min-w-0 truncate text-foreground/80">{lead.assignedTo.name.split(" ")[0]}</span>
-          </>
-        ) : (
-          <span className="text-muted/70">Unassigned</span>
-        )}
+        {/* whose lead it is: whoever added it */}
+        <Avatar name={lead.createdBy.name} size={18} />
+        <span className="min-w-0 truncate text-foreground/80" title={`Added by ${lead.createdBy.name}`}>
+          {lead.createdBy.name.split(" ")[0]}
+        </span>
         <span title="Days since it moved into this stage" className="ml-auto shrink-0 tabular-nums">
           {days}d in stage
         </span>

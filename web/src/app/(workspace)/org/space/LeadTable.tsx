@@ -40,7 +40,7 @@ export function LeadTable({ board, leads, filtered, onOpen }: { board: BoardData
             </th>
             <th className={HEAD}>
               <span className="inline-flex items-center gap-1.5">
-                <UserRound size={13} /> Assigned to
+                <UserRound size={13} /> Added by
               </span>
             </th>
             {board.fields.map((f) => {
@@ -83,14 +83,10 @@ export function LeadTable({ board, leads, filtered, onOpen }: { board: BoardData
                 </td>
                 <td className={CELL}>{stage && <StagePill name={stage.name} color={stage.color} />}</td>
                 <td className={CELL}>
-                  {lead.assignedTo ? (
-                    <span className="flex items-center gap-2 text-xs">
-                      <Avatar name={lead.assignedTo.name} size={18} />
-                      {lead.assignedTo.name}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted/60">Unassigned</span>
-                  )}
+                  <span className="flex items-center gap-2 text-xs">
+                    <Avatar name={lead.createdBy.name} size={18} />
+                    {lead.createdBy.name}
+                  </span>
                 </td>
                 {board.fields.map((f) => (
                   <td key={f.id} className={CELL}>

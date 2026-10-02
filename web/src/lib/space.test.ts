@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, describeValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -75,12 +75,6 @@ test("missing details lists required fields left empty", () => {
   assert.deepEqual(missingDetails(fields, { t: ["yes"], s: { n: 0, remark: "" }, c: [{ id: "1", name: "Ann", role: "", channels: [] }] }), []);
   assert.equal(isFilled("count", { n: null, remark: "x" }), false);
   assert.equal(isFilled("contacts", [{ id: "1", name: "", role: "", channels: [] }]), false);
-});
-
-test("describeValue reads tags by name", () => {
-  const field = { kind: "select" as const, options: [{ id: "y", name: "Yes", color: "blue" }] };
-  assert.equal(describeValue(field, ["y"]), '"Yes"');
-  assert.equal(describeValue(field, null), "cleared");
 });
 
 test("slugs never clash with a sibling", () => {

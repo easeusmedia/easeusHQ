@@ -81,13 +81,16 @@ export type LeadData = {
   title: string;
   stageId: string;
   sortOrder: number;
-  assignedTo: Person | null;
+  // whoever added it: outreach leads belong to the person who found them
+  createdBy: Person;
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
   stageSince: string;
   createdAt: string;
-  createdByName: string;
+  // who last changed its details, and when
+  editedByName: string | null;
+  editedAt: string | null;
 };
 export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
@@ -197,36 +200,6 @@ export function isFilled(kind: FieldKind, v: unknown): boolean {
 // The basic details a lead still lacks: its required properties not filled
 export function missingDetails(fields: Pick<FieldData, "id" | "kind" | "required" | "name">[], values: Record<string, unknown>): string[] {
   return fields.filter((f) => f.required && !isFilled(f.kind, values[f.id])).map((f) => f.name);
-}
-
-// A value in one line, for the lead's record: Trailer set to "Yes"
-export function describeValue(field: Pick<FieldData, "kind" | "options">, v: unknown): string {
-  if (v == null) return "cleared";
-  switch (field.kind) {
-    case "select":
-    case "multi": {
-      const names = (v as string[]).map((id) => field.options.find((o) => o.id === id)?.name ?? "a removed tag");
-      return names.length ? names.map((n) => `"${n}"`).join(", ") : "cleared";
-    }
-    case "count": {
-      const c = v as CountValue;
-      return [c.n != null ? String(c.n) : "", c.remark ? `"${c.remark.slice(0, 80)}${c.remark.length > 80 ? "…" : ""}"` : ""].filter(Boolean).join(", ");
-    }
-    case "contacts": {
-      const people = v as Contact[];
-      return `${people.length} ${people.length === 1 ? "person" : "people"}`;
-    }
-    case "links": {
-      const links = v as LinkValue[];
-      return `${links.length} ${links.length === 1 ? "link" : "links"}`;
-    }
-    case "checkbox":
-      return "ticked";
-    case "date":
-      return String(v);
-    case "text":
-      return `"${String(v).slice(0, 80)}${String(v).length > 80 ? "…" : ""}"`;
-  }
 }
 
 // ---- Messages ----
