@@ -23,6 +23,7 @@ export const COLORS = {
   yellow: "#d4a53a",
   green: "#4fa77d",
   blue: "#4b95e6",
+  cyan: "#22b8cf",
   purple: "#9a6dd7",
   pink: "#d75b9b",
   red: "#e0605e",
@@ -36,7 +37,23 @@ export const PILL_STYLE = { backgroundColor: "rgb(255 255 255 / 0.06)", borderCo
 
 // A stage's pill: the app's own quiet surface with an accent dot, the same
 // for every stage (no rainbow of stage colours)
-export const STAGE_PILL = { dot: "bg-accent", pill: "bg-white/[0.04] text-foreground/90 border-white/[0.08]" };
+// A stage's pill, in the task board's own palette (lib/stages.ts STAGE):
+// literal class strings, so Tailwind keeps them
+const NEUTRAL = { dot: "bg-neutral-400", pill: "bg-surface text-muted border-border" };
+export const STAGE_TONE: Record<string, { dot: string; pill: string }> = {
+  default: NEUTRAL,
+  gray: NEUTRAL,
+  blue: { dot: "bg-blue-400", pill: "bg-blue-400/15 text-blue-300 border-blue-400/30" },
+  cyan: { dot: "bg-cyan-400", pill: "bg-cyan-400/15 text-cyan-300 border-cyan-400/30" },
+  purple: { dot: "bg-purple-400", pill: "bg-purple-400/15 text-purple-300 border-purple-400/30" },
+  green: { dot: "bg-green-400", pill: "bg-green-400/15 text-green-300 border-green-400/30" },
+  orange: { dot: "bg-orange-400", pill: "bg-orange-400/15 text-orange-300 border-orange-400/30" },
+  red: { dot: "bg-rose-400", pill: "bg-rose-400/15 text-rose-300 border-rose-400/30" },
+  pink: { dot: "bg-pink-400", pill: "bg-pink-400/15 text-pink-300 border-pink-400/30" },
+  brown: { dot: "bg-stone-400", pill: "bg-stone-400/15 text-stone-300 border-stone-400/30" },
+  yellow: { dot: "bg-blue-400", pill: "bg-blue-400/15 text-blue-300 border-blue-400/30" },
+};
+export const toneOf = (color: string) => STAGE_TONE[color] ?? NEUTRAL;
 
 // ---- Properties ----
 export type FieldKind = "select" | "multi" | "count" | "contacts" | "links" | "checkbox" | "date" | "text";
@@ -283,20 +300,20 @@ export type BoardTemplate = {
 // what each day of the sequence sends, in its name
 const DAYS = ["Email 1 and LinkedIn note", "Instagram 1", "Email 2", "LinkedIn DM", "Instagram 2", "Email 3", "Instagram 3 and LinkedIn 3", "Final email"].map((what, i) => ({
   name: `Day ${i + 1} · ${what}`,
-  color: "yellow" as ColorName,
+  color: "blue" as ColorName,
 }));
 export const DREAM_156: BoardTemplate = {
   name: "Dream 156 Podcasts (Core Offer)",
   stages: [
     { name: "Dream 156 list", color: "default" },
     { name: "Shortlisted", color: "gray" },
-    { name: "Write-up done", color: "brown" },
-    { name: "Ready to reach out", color: "orange" },
+    { name: "Write-up done", color: "purple" },
+    { name: "Ready to reach out", color: "cyan" },
     ...DAYS,
     { name: "Audit sent", color: "purple" },
     { name: "Replied", color: "green" },
-    { name: "No reply after the audit", color: "brown" },
-    { name: "Parked for later", color: "orange" },
+    { name: "No reply after the audit", color: "orange" },
+    { name: "Parked for later", color: "gray" },
     { name: "Dead", color: "red" },
   ],
   fields: [

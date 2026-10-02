@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { moveNeedsReason, STAGE_PILL, type BoardData, type LeadData, type StageData } from "@/lib/space";
+import { moveNeedsReason, toneOf, type BoardData, type LeadData, type StageData } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
@@ -425,7 +425,7 @@ export function LeadBoard({
   // The stage's header: a quiet pill with its name and count. Level 1 and 2
   // drag it to move the stage, and get its menu.
   function header(stage: StageData, i: number, count: number) {
-    const tone = STAGE_PILL;
+    const tone = toneOf(stage.color);
     const target = !!dragStage && overStage === stage.id && dragStage !== stage.id;
     return (
       <div
