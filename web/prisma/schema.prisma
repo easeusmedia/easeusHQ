@@ -62,6 +62,8 @@ model Team {
   keywords  String     @default("")
   tasks     Task[]
   workTasks WorkTask[]
+  // its sections, portals and boards (Sales > Outreach > Podcast > Dream 156)
+  spaces    Space[]
 }
 
 // What a person is called — "Video editor", "Project manager", "Social media
@@ -225,7 +227,9 @@ model User {
   // the clients an editor (role employee) has been given: the only ones
   // they see, and only their own work on each
   visibleClients    Client[]           @relation("ClientEditors")
-  hiddenClients Client[] @relation("ClientHidden")
+  hiddenClients     Client[]           @relation("ClientHidden")
+  leadsAssigned     Lead[]             @relation("LeadsAssigned")
+  leadsCreated      Lead[]             @relation("LeadsCreated")
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -246,26 +250,26 @@ model Message {
 }
 
 model Client {
-  id        String   @id @default(uuid())
-  name      String
+  id         String   @id @default(uuid())
+  name       String
   // the name as it appears in the address (/clients/elle-sera); follows the
   // name when it's renamed — see lib/slug.ts
-  slug      String   @unique
+  slug       String   @unique
   // matches the Notion Clients Dashboard "Status" property: Current | On Hold | Previous
-  status    String   @default("current")
+  status     String   @default("current")
   // free text — real clients span far more than doctors/podcasts (e.g. Neelkamal TMT is a steel company)
-  niche     String?
+  niche      String?
   // the editors ops has given this client to; no one else in that role sees it
-  editors   User[]   @relation("ClientEditors")
+  editors    User[]   @relation("ClientEditors")
   // Level 2 sees every client but these: access taken away on the client
-  hiddenFrom User[] @relation("ClientHidden")
+  hiddenFrom User[]   @relation("ClientHidden")
   // the four things the real Notion onboarding form collects, kept as
   // separate fields rather than one free-text blob so they're usable
-  contact   String? // primary contact's name
-  email     String?
-  whatsapp  String?
-  address   String?  @db.Text
-  createdAt DateTime @default(now())
+  contact    String? // primary contact's name
+  email      String?
+  whatsapp   String?
+  address    String?  @db.Text
+  createdAt  DateTime @default(now())
 
   // a small square image, stored as a data: URI directly in the row
   // (downscaled client-side before upload) — no object storage wired up
@@ -1112,4 +1116,143 @@ model DeletedTask {
   byName     String
   createdAt  DateTime
   deletedAt  DateTime @default(now())
+}
+
+// A department's own pages, Notion-style: sections (Sales > Outreach), the
+// portals in a section (Outreach > Podcast) and the boards in a portal
+// (Podcast > Dream 156), each board a database of leads moving through its
+// own stages. One tree per department; lib/space.ts holds the rules.
+model Space {
+  id          String       @id @default(uuid())
+  teamId      String
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  // null for a section, which sits on the department itself
+  parentId    String?
+  parent      Space?       @relation("SpaceTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Space[]      @relation("SpaceTree")
+  // "section" | "portal" | "board"
+  kind        String
+  name        String
+  // its address under its parent: /org/sales/outreach/podcast
+  slug        String
+  sortOrder   Float        @default(0)
+  createdById String?
+  createdAt   DateTime     @default(now())
+  stages      BoardStage[]
+  fields      BoardField[]
+  leads       Lead[]
+
+  @@index([teamId, parentId])
+}
+
+// A board's stages, left to right ("Shortlist", "Day 1"…)
+model BoardStage {
+  id        String @id @default(uuid())
+  boardId   String
+  board     Space  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name      String
+  // a Notion colour name (lib/space.ts COLORS)
+  color     String @default("default")
+  sortOrder Float  @default(0)
+  leads     Lead[]
+
+  @@index([boardId])
+}
+
+// A board's properties ("Trailer", "Contacts"…): what every lead records
+model BoardField {
+  id        String        @id @default(uuid())
+  boardId   String
+  board     Space         @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name      String
+  // "select" | "multi" | "count" | "contacts" | "links" | "checkbox" | "date" | "text"
+  kind      String
+  // shown on the board's cards
+  onCard    Boolean       @default(false)
+  // one of a lead's basic details: a card says what's still missing
+  required  Boolean       @default(false)
+  sortOrder Float         @default(0)
+  options   FieldOption[]
+
+  @@index([boardId])
+}
+
+// A tag a select property offers ("Yes", "No"); anyone adds one by typing it
+model FieldOption {
+  id        String     @id @default(uuid())
+  fieldId   String
+  field     BoardField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  name      String
+  color     String     @default("default")
+  sortOrder Float      @default(0)
+
+  @@index([fieldId])
+}
+
+// One card on a board: a podcast being reached out to
+model Lead {
+  id           String      @id @default(uuid())
+  boardId      String
+  board        Space       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  stageId      String
+  stage        BoardStage  @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  title        String
+  sortOrder    Float       @default(0)
+  assignedToId String?
+  assignedTo   User?       @relation("LeadsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  // each property's value, by field id (lib/space.ts)
+  values       Json        @default("{}")
+  // the write-up: what the show does, the gap, drafts
+  notes        String      @default("") @db.Text
+  createdById  String
+  createdBy    User        @relation("LeadsCreated", fields: [createdById], references: [id])
+  // when it reached its stage ("3 days in Day 2")
+  stageSince   DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  events       LeadEvent[]
+
+  @@index([boardId])
+  @@index([stageId])
+}
+
+// What happened to a lead: made, moved (and why, when it skipped or went
+// back), assigned, renamed, a property set
+model LeadEvent {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  // "created" | "moved" | "assigned" | "renamed" | "edited" | "restored"
+  kind      String
+  // one plain line: Trailer set to "Yes"
+  summary   String   @db.Text
+  // stage names as they were then, so a rename never rewrites history
+  fromStage String?
+  toStage   String?
+  reason    String?  @db.Text
+  byId      String
+  byName    String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
+// Everything deleted from a department's pages, with who and why. A lead
+// keeps its whole record here (history included) and can be put back.
+model SpaceTrash {
+  id         String    @id @default(uuid())
+  teamId     String
+  // the board it was on (or the page it sat under), to list its bin
+  spaceId    String?
+  // "lead" | "stage" | "field" | "option" | "board" | "portal" | "section"
+  kind       String
+  title      String
+  data       Json
+  reason     String    @db.Text
+  byId       String
+  byName     String
+  deletedAt  DateTime  @default(now())
+  restoredAt DateTime?
+
+  @@index([spaceId])
 }

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge } from "lucide-react";
+import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid } from "lucide-react";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
@@ -20,6 +20,10 @@ import { readConsent } from "@/lib/consent";
 
 // logo: the logo's own address (see clientLogoSrc), not the image itself
 export type SidebarClient = { id: string; slug: string; name: string; logo: string | null };
+// a department's section, or a section's portal, with its own address
+export type SidebarSpace = { id: string; slug: string; name: string; href: string; children?: SidebarSpace[] };
+// a row in a tree: a client, a department, or a page nested under one
+type TreeItem = { id: string; slug: string; name: string; logo?: string | null; href?: string; children?: TreeItem[] };
 
 // Chosen for what each destination actually is, not just for variety. The
 // two that mattered most: Clients and People were Users2 and Users — near
@@ -85,13 +89,32 @@ function FadeLabel({ open, children }: { open: boolean; children: React.ReactNod
 
 // The current clients under the Clients item, joined by a line that runs
 // down from it and curves into each row; the one you're on is the selected
-// pill, and the line to it is lit.
-function ClientTree({ clients, current, hrefOf = clientHref }: { clients: SidebarClient[]; current: string | null; hrefOf?: (c: SidebarClient) => string }) {
+// pill, and the line to it is lit. A department's sections and their
+// portals hang beneath it the same way, unfolded while you're inside it:
+// the deepest one you're on is the pill, the rows above it lead to it.
+const NESTED_ICON = [null, Layers, LayoutGrid];
+function ClientTree({
+  clients,
+  current,
+  hrefOf = clientHref,
+  pathname = "",
+  depth = 0,
+}: {
+  clients: TreeItem[];
+  current: string | null;
+  hrefOf?: (c: TreeItem) => string;
+  pathname?: string;
+  depth?: number;
+}) {
   const at = clients.findIndex((c) => c.slug === current);
+  const Icon = NESTED_ICON[depth];
   return (
     <ul>
       {clients.map((c, i) => {
         const on = i === at;
+        const kids = c.children ?? [];
+        // the page you're on is further in: this row leads to it
+        const inner = on ? kids.find((k) => k.href && isActive(k.href, pathname)) : undefined;
         return (
           <li key={c.id} className="relative pb-1">
             {/* the line down to this row, curving into it on the 32px row's centre line */}
@@ -104,13 +127,34 @@ function ClientTree({ clients, current, hrefOf = clientHref }: { clients: Sideba
               <span className={`absolute bottom-0 left-0 top-4 w-px transition-colors duration-300 ${at > i ? "bg-accent/70" : "bg-white/10"}`} />
             )}
             <PrefetchLink
-              href={hrefOf(c)}
+              href={c.href ?? hrefOf(c)}
               onClick={(e) => e.stopPropagation()}
-              className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${ROW} ${on ? "selected font-medium" : IDLE}`}
+              className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${ROW} ${
+                on ? (inner ? "font-medium text-foreground hover:bg-white/[0.04]" : "selected font-medium") : IDLE
+              }`}
             >
-              <ClientFace client={c} size={18} />
+              {Icon ? (
+                <span className="flex size-[18px] shrink-0 items-center justify-center">
+                  <Icon size={15} />
+                </span>
+              ) : (
+                <ClientFace client={c} size={18} />
+              )}
               <span className="truncate">{c.name}</span>
             </PrefetchLink>
+            {kids.length > 0 && (
+              <div
+                inert={!on}
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${on ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+              >
+                <div className="overflow-hidden">
+                  {/* the line runs down from under this row's icon */}
+                  <div className="ml-[30.5px] pt-1">
+                    <ClientTree clients={kids} current={inner?.slug ?? null} pathname={pathname} depth={depth + 1} />
+                  </div>
+                </div>
+              </div>
+            )}
           </li>
         );
       })}
@@ -119,7 +163,7 @@ function ClientTree({ clients, current, hrefOf = clientHref }: { clients: Sideba
 }
 
 // a client's logo, or their initials when there's none
-export function ClientFace({ client, size }: { client: SidebarClient; size: number }) {
+export function ClientFace({ client, size }: { client: { name: string; logo?: string | null }; size: number }) {
   return client.logo ? (
     // eslint-disable-next-line @next/next/no-img-element -- a small stored logo
     <img src={client.logo} alt="" className="photo shrink-0" style={{ width: size, height: size }} />
@@ -150,8 +194,9 @@ export function Sidebar({
   // a Founder: Home, and Performance (grading is theirs)
   isFounder?: boolean;
   // whether the Board (Production's queues) is theirs to see
-  // the departments they may open under Organization
-  departments?: { id: string; slug: string; name: string }[];
+  // the departments they may open under Organization, each with its
+  // sections and their portals
+  departments?: { id: string; slug: string; name: string; children?: SidebarSpace[] }[];
   // everyone a Level 1 can view the app as (null for anyone else)
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // admin only: what clients owe and what the team is paid
@@ -254,7 +299,7 @@ export function Sidebar({
     if (inOrg) setOrgOpen(true);
   }
   // the two items that unfold a tree beneath them
-  const trees: Record<string, { items: SidebarClient[]; current: string | null; open: boolean; setOpen: (f: (v: boolean) => boolean) => void; all: string; AllIcon: typeof Building2; hrefOf?: (c: SidebarClient) => string }> = {
+  const trees: Record<string, { items: TreeItem[]; current: string | null; open: boolean; setOpen: (f: (v: boolean) => boolean) => void; all: string; AllIcon: typeof Building2; hrefOf?: (c: TreeItem) => string }> = {
     "/clients": { items: clients, current: currentClient, open: clientsOpen, setOpen: setClientsOpen, all: "All clients", AllIcon: Building2 },
     "/org": {
       items: departments.map((d) => ({ ...d, logo: null })),
@@ -487,7 +532,7 @@ export function Sidebar({
                 <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${tree.open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="overflow-hidden">
                     <div className="ml-[18px] pb-1 pt-1">
-                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} />
+                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} pathname={pathname} />
                     </div>
                   </div>
                 </div>
@@ -503,7 +548,7 @@ export function Sidebar({
                       <tree.AllIcon size={15} /> {tree.all}
                     </PrefetchLink>
                     <div className="ml-[13px]">
-                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} />
+                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} pathname={pathname} />
                     </div>
                   </div>
                 </div>

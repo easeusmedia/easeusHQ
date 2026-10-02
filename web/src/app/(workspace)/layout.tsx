@@ -6,6 +6,7 @@ import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
 import { visibleDepartments } from "./org/departments";
+import { spaceTree } from "./org/space/data";
 import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
@@ -72,8 +73,26 @@ export default async function TasksLayout({ children }: { children: React.ReactN
 
   const departments = await visibleDepartments(viewer);
 
-  // notices they haven't seen yet: a number on Home, like unread chat
-  const noticesWaiting = await prisma.notice.count({ where: { forId: viewer.id, readAt: null } }).catch(() => 0);
+  const [noticesWaiting, spaces] = await Promise.all([
+    // notices they haven't seen yet: a number on Home, like unread chat
+    prisma.notice.count({ where: { forId: viewer.id, readAt: null } }).catch(() => 0),
+    // each department's sections and their portals, nested under it in the sidebar
+    spaceTree(departments.map((d) => d.id)).catch(() => []),
+  ]);
+  const departmentTree = departments.map((d) => ({
+    ...d,
+    children: spaces
+      .filter((s) => s.teamId === d.id && s.kind === "section")
+      .map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        name: s.name,
+        href: `/org/${d.slug}/${s.slug}`,
+        children: spaces
+          .filter((p) => p.parentId === s.id && p.kind === "portal")
+          .map((p) => ({ id: p.id, slug: p.slug, name: p.name, href: `/org/${d.slug}/${s.slug}/${p.slug}` })),
+      })),
+  }));
 
   const photos = Object.fromEntries(users.flatMap((u) => (u.avatarUrl ? [[u.name, u.avatarUrl]] : [])));
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
@@ -93,7 +112,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         isOps={isOps}
         isFounder={isFounder(viewer)}
         // the departments they may open under Organization: Level 1 all, others their own
-        departments={departments}
+        departments={departmentTree}
         viewAsPeople={viewAsPeople}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}

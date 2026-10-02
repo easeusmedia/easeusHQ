@@ -2,111 +2,14 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { ConfirmButton } from "../ConfirmButton";
+import { AddInline, EditableName } from "../EditableName";
 import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, renameDepartment, renameRole, setDepartmentWords } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
 
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
-
-// A button that turns into a field: Enter adds, Escape (or leaving it empty)
-// puts the button back. Escape is kept from closing the dialog around it.
-function AddInline({ label, onAdd, small }: { label: string; onAdd: (name: string) => Promise<string | undefined>; small?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function add() {
-    if (!name.trim()) return setOpen(false);
-    setBusy(true);
-    const error = await onAdd(name);
-    setBusy(false);
-    if (!error) {
-      setName("");
-      setOpen(false);
-    }
-  }
-
-  const size = small ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs";
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className={`flex items-center gap-1 rounded-full border border-dashed border-border text-muted transition-colors hover:border-hover hover:text-foreground ${size}`}>
-        <Plus size={11} /> {label}
-      </button>
-    );
-  }
-  return (
-    <input
-      autoFocus
-      value={name}
-      disabled={busy}
-      onChange={(e) => setName(e.target.value)}
-      onBlur={() => !name.trim() && setOpen(false)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          add();
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          setName("");
-          setOpen(false);
-        }
-      }}
-      placeholder={`${label}, then Enter`}
-      className={`w-48 rounded-full border border-border bg-surface-2 text-foreground outline-none focus:border-hover disabled:opacity-60 ${size}`}
-    />
-  );
-}
-
-// A name that turns into a field when clicked: Enter (or leaving it) saves,
-// Escape puts it back as it was
-function EditableName({ name, onSave, className = "" }: { name: string; onSave: (name: string) => Promise<string | undefined>; className?: string }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(name);
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    if (!value.trim() || value.trim() === name) {
-      setValue(name);
-      return setEditing(false);
-    }
-    setBusy(true);
-    const error = await onSave(value);
-    setBusy(false);
-    if (error) setValue(name);
-    setEditing(false);
-  }
-
-  if (!editing) {
-    return (
-      <button type="button" onClick={() => setEditing(true)} title="Rename" className={`group/name flex items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}>
-        {name}
-        <Pencil size={11} className="text-muted opacity-0 transition-opacity group-hover/name:opacity-100" />
-      </button>
-    );
-  }
-  return (
-    <input
-      autoFocus
-      value={value}
-      disabled={busy}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={save}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          save();
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          setValue(name);
-          setEditing(false);
-        }
-      }}
-      className={`w-56 rounded-md border border-border bg-surface-2 px-2 py-0.5 text-foreground outline-none focus:border-hover disabled:opacity-60 ${className}`}
-    />
-  );
-}
 
 // How the agency is laid out: its departments, each with its roles, and each
 // role with the kinds of work "Add task" offers for it. Changes save as they're made; the page refreshes once, on closing.
@@ -235,7 +138,7 @@ export function Organisation({
               <section key={t.id} className="rounded-xl border border-border bg-surface-2/30 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="flex items-baseline gap-2">
-                    <EditableName name={t.name} onSave={(name) => renameTeam(t.id, name)} className="text-sm font-semibold" />
+                    <EditableName pencil="hover" name={t.name} onSave={(name) => renameTeam(t.id, name)} className="text-sm font-semibold" />
                     <span className="text-xs text-muted">{people(t.people)}</span>
                   </div>
                   <ConfirmButton
@@ -268,7 +171,7 @@ export function Organisation({
                       <div key={r.id} className="group flex flex-col gap-2 py-2.5 first:pt-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-baseline gap-1.5">
-                            <EditableName name={r.name} onSave={(name) => renameOneRole(r.id, name)} className="text-sm" />
+                            <EditableName pencil="hover" name={r.name} onSave={(name) => renameOneRole(r.id, name)} className="text-sm" />
                             {r.people > 0 && <span className="text-xs text-muted">{people(r.people)}</span>}
                           </div>
                           <ConfirmButton

@@ -62,6 +62,16 @@ export function runsProduction(user: Pick<Viewer, "role" | "departments">): bool
   return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.production));
 }
 
+// A department's own pages (lib/space.ts): everyone in the department works
+// them (adds, moves, renames, deletes with a reason); its Leads and Level 1
+// also build them (sections, portals, boards, stages, properties).
+export function worksDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
+  return isFounder(user) || user.departments.some((d) => d.id === teamId);
+}
+export function buildsDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
+  return worksDepartment(user, teamId) && (isFounder(user) || isLead(user));
+}
+
 // A Member in Production (an editor, a designer): they work from the
 // Board, and see a client only as far as their own work on it goes.
 export function worksTheBoard(user: Pick<Viewer, "role" | "departments">): boolean {
