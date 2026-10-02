@@ -36,8 +36,7 @@ export const PILL_STYLE = { backgroundColor: "rgb(255 255 255 / 0.06)", borderCo
 
 // A stage's pill: the app's own quiet surface with an accent dot, the same
 // for every stage (no rainbow of stage colours)
-const STAGE_PILL = { dot: "bg-accent", pill: "bg-white/[0.04] text-foreground/90 border-white/[0.08]" };
-export const toneOf = (_color?: string) => STAGE_PILL;
+export const STAGE_PILL = { dot: "bg-accent", pill: "bg-white/[0.04] text-foreground/90 border-white/[0.08]" };
 
 // ---- Properties ----
 export type FieldKind = "select" | "multi" | "count" | "contacts" | "links" | "checkbox" | "date" | "text";
