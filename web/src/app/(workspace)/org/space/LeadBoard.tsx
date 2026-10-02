@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { hexOf, moveNeedsReason, pillStyle, type BoardData, type LeadData, type StageData } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
-import { createLead, createStage, deleteStage, moveLead, renameStage, reorderLead, reorderStage, setStageColor } from "./actions";
+import { createLead, createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead, setStageColor } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { ColorPicker } from "./pills";
 import { LeadCard } from "./LeadCard";
@@ -294,17 +294,14 @@ export function LeadBoard({
   }
 
   // ---- stages ----
-  // ponytail: StageData carries no sortOrder, so a move renumbers every stage
-  // (a write each, in order); one write once loadBoard sends sortOrder
+  // a stage's new place: the whole order, saved in one go
   async function renumber(ids: string[]) {
     update(() => ({ order: ids }));
-    for (const [i, id] of ids.entries()) {
-      const res = await reorderStage(id, i + 1).catch(() => ({ error: OFFLINE }));
-      if (res.error) {
-        update(() => ({ order: null }));
-        setError(res.error);
-        return;
-      }
+    const res = await orderStages(board.id, ids).catch(() => ({ error: OFFLINE }));
+    if (res.error) {
+      update(() => ({ order: null }));
+      setError(res.error);
+      return;
     }
     router.refresh();
   }
@@ -477,7 +474,7 @@ export function LeadBoard({
 
           {newLeadIn === stage.id ? (
             <InlineInput
-              placeholder="Name of the podcast"
+              placeholder="Lead name"
               className="card-surface rounded-xl p-3"
               onSubmit={(title) => addLead(stage.id, title)}
               onCancel={() => setNewLeadIn(null)}

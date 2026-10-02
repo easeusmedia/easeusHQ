@@ -52,7 +52,12 @@ export function ReasonDialog({
     if (!why.trim() || busy) return;
     setBusy(true);
     setError(null);
-    const err = await onConfirm(why.trim());
+    let err: string | undefined | void;
+    try {
+      err = await onConfirm(why.trim());
+    } catch {
+      err = "That couldn't be saved. Check your connection and try again.";
+    }
     setBusy(false);
     if (err) setError(err);
   }

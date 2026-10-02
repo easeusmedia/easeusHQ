@@ -15,6 +15,7 @@ import {
   Link2,
   List,
   MoreHorizontal,
+  Pencil,
   SquareCheck,
   Trash2,
   Type,
@@ -82,6 +83,13 @@ export function LeadPeek({
   const [shown, setShown] = useState(lead);
   if (lead && lead !== shown) setShown(lead);
   const open = !!lead;
+  // each opening draws the page afresh, so its editors start from the latest values
+  const [opens, setOpens] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setOpens((n) => n + 1);
+  }
 
   useEffect(() => {
     const d = ref.current;
@@ -98,7 +106,7 @@ export function LeadPeek({
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
       className="glass fixed top-1/2 left-1/2 m-0 w-[min(58rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground"
     >
-      {shown && <LeadPage key={shown.id} lead={shown} open={open} board={board} people={people} close={() => ref.current?.close()} onDeleted={onClose} />}
+      {shown && <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} close={() => ref.current?.close()} onDeleted={onClose} />}
     </dialog>
   );
 }
@@ -126,13 +134,16 @@ function LeadPage({
   // board's copy of it actually changed.
   const [synced, setSynced] = useState(lead);
   const [title, setTitle] = useState(lead.title);
-  const [values, setValues] = useState(lead.values);
+  // property edits not yet on the board's copy: shown over it until a
+  // refresh after their save lands, so one save's refresh never flickers another
+  const [pending, setPending] = useState<Record<string, { v: unknown; done: boolean }>>({});
   const [stageId, setStageId] = useState(lead.stageId);
   const [assignee, setAssignee] = useState(lead.assignedTo?.id ?? "");
   if (lead !== synced) {
     setSynced(lead);
     if (lead.title !== synced.title) setTitle(lead.title);
-    if (lead.values !== synced.values) setValues(lead.values);
+    if (lead.values !== synced.values && Object.values(pending).some((p) => p.done))
+      setPending((cur) => Object.fromEntries(Object.entries(cur).filter(([, p]) => !p.done)));
     if (lead.stageId !== synced.stageId) setStageId(lead.stageId);
     if (lead.assignedTo?.id !== synced.assignedTo?.id) setAssignee(lead.assignedTo?.id ?? "");
   }
@@ -145,6 +156,7 @@ function LeadPage({
   // a move that needs a reason (kept while its prompt fades out)
   const [move, setMove] = useState<{ to: string; hint: string; asking: boolean }>({ to: "", hint: "", asking: false });
   const [deleting, setDeleting] = useState(false);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // the write-up and the record, each time it opens
   useEffect(() => {
@@ -173,7 +185,8 @@ function LeadPage({
   async function run<T extends { error?: string }>(work: Promise<T>, undo?: () => void): Promise<T> {
     clearTimeout(statusTimer.current);
     setStatus("saving");
-    const res = await work;
+    // a dropped connection, or a deploy since this page loaded
+    const res = await work.catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }) as T);
     if (res.error) {
       undo?.();
       setStatus({ error: res.error });
@@ -187,14 +200,22 @@ function LeadPage({
     if (next !== lead.title) run(renameLead(id, next), () => setTitle(lead.title));
   }
 
+  const values: Record<string, unknown> = { ...lead.values };
+  for (const [f, p] of Object.entries(pending)) {
+    if (p.v == null) delete values[f];
+    else values[f] = p.v;
+  }
   const saveValue = (fieldId: string) => (v: unknown) => {
-    setValues((cur) => {
-      const next = { ...cur };
-      if (v == null) delete next[fieldId];
-      else next[fieldId] = v;
-      return next;
+    setPending((cur) => ({ ...cur, [fieldId]: { v, done: false } }));
+    run(setLeadValue(id, fieldId, v), () =>
+      setPending((cur) => {
+        const next = { ...cur };
+        delete next[fieldId];
+        return next;
+      }),
+    ).then((r) => {
+      if (!r.error) setPending((cur) => (cur[fieldId]?.v === v ? { ...cur, [fieldId]: { v, done: true } } : cur));
     });
-    run(setLeadValue(id, fieldId, v), () => setValues(lead.values));
   };
 
   function saveNotes() {
@@ -293,7 +314,10 @@ function LeadPage({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-7 pb-8 sm:px-10">
+        {/* the name, renamed in place; the pencil says so and focuses it */}
+        <div className="group/title flex items-start gap-2">
         <textarea
+          ref={titleRef}
           rows={1}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -308,6 +332,10 @@ function LeadPage({
           aria-label="Lead name"
           className="field-sizing-content block w-full resize-none bg-transparent text-2xl font-semibold tracking-tight text-foreground outline-none! placeholder:text-muted/50"
         />
+          <button type="button" onClick={() => titleRef.current?.focus()} aria-label="Rename lead" title="Rename" className="mt-2 shrink-0 rounded-md p-1 text-muted opacity-45 transition-opacity group-hover/title:opacity-100 hover:text-foreground">
+            <Pencil size={14} />
+          </button>
+        </div>
         {missing.length > 0 && (
           <p className="fade-in mt-1.5 flex items-center gap-2 text-xs text-amber-200/80">
             <span className="size-1.5 shrink-0 rounded-full bg-amber-400" />

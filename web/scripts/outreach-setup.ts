@@ -5,7 +5,7 @@
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts remove-sample <json>
 // setup can run again safely: a page already there (same parent and slug) is
 // left exactly as it is, so nobody's edits are undone. sample skips a lead
-// whose title is already on the board; remove-sample deletes those titles.
+// whose title is already on the board; remove-sample deletes only the copies it made.
 import { randomUUID } from "crypto";
 import { readFileSync } from "fs";
 import type { Prisma } from "@prisma/client";
@@ -162,7 +162,8 @@ async function sample(path: string | undefined) {
 async function removeSample(path: string | undefined) {
   const titles = readSamples(path).map((s) => s.title);
   const { board } = await findBoard();
-  const where = { boardId: board.id, title: { in: titles } };
+  // only the copies this script made, never a real lead that shares a title
+  const where = { boardId: board.id, title: { in: titles }, events: { some: { kind: "created", summary: "Copied from Notion for testing" } } };
   const events = await prisma.leadEvent.count({ where: { lead: where } });
   const { count } = await prisma.lead.deleteMany({ where });
   console.log(`Removed ${count} sample leads and their ${events} history entries.`);

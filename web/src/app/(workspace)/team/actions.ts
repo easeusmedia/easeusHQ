@@ -253,6 +253,8 @@ export async function deleteDepartment(id: string): Promise<PeopleFormState> {
   if (inIt) {
     return { error: `${team.name} still has ${inIt} ${inIt === 1 ? "person" : "people"}. Take them out of it first.` };
   }
+  // its own sections, portals and boards (Sales > Outreach…) must go first
+  if (await prisma.space.count({ where: { teamId: id } })) return { error: `${team.name} still has its own pages. Delete its sections first.` };
 
   await prisma.$transaction([
     prisma.taskTag.updateMany({ where: { teamId: id }, data: { teamId: null } }),

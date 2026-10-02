@@ -44,6 +44,7 @@ export function PortalView({
   canBuild,
   initialLeadId,
   viewerId,
+  boardTemplates,
 }: {
   teamId: string;
   portal: { id: string; name: string };
@@ -54,6 +55,8 @@ export function PortalView({
   initialLeadId: string | null;
   // the signed-in person, for the "Mine" filter (left out, it isn't offered)
   viewerId?: string;
+  // every board in the department, for "Start from a copy of"
+  boardTemplates?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -121,7 +124,7 @@ export function PortalView({
             </button>
           )}
         </div>
-        <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boards} />
+        <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boardTemplates ?? boards} />
       </>
     );
   }
@@ -296,7 +299,7 @@ export function PortalView({
       {canBuild && <BoardProperties open={showProps} board={board} onClose={() => setShowProps(false)} />}
       {canBuild && (
         <>
-          <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boards} />
+          <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boardTemplates ?? boards} />
           <ReasonDialog
             open={deleting}
             danger

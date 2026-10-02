@@ -82,7 +82,7 @@ export function LeadHistory({ events }: { events: LeadEventData[] }) {
                     <p className="mt-1.5 border-l-2 border-amber-400/40 pl-2 leading-relaxed break-words text-amber-200/85">&ldquo;{e.reason}&rdquo;</p>
                   )}
                   <p className="mt-1 text-[11px] text-muted">
-                    by {e.byName} · {at(e.createdAt)}
+                    By {e.byName} · {at(e.createdAt)}
                   </p>
                 </div>
               </li>

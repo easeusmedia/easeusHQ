@@ -20,12 +20,14 @@ const KIND_NAME: Record<string, string> = {
 
 // What was deleted from a board (or from under a page): who, when and why.
 // Leads can be put back, history and all. Loaded each time it opens.
-export function TrashDialog({ open, spaceId, title, onClose }: { open: boolean; spaceId: string; title: string; onClose: () => void }) {
+// spaceId null: what was deleted from the department itself (its sections)
+export function TrashDialog({ open, spaceId, teamId, title, onClose }: { open: boolean; spaceId: string | null; teamId?: string; title: string; onClose: () => void }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   // tagged with the page it's for, so another page's list never shows here
+  const key = spaceId ?? `team:${teamId}`;
   const [list, setList] = useState<{
-    spaceId: string;
+    key: string;
     items: TrashItem[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,22 +44,24 @@ export function TrashDialog({ open, spaceId, title, onClose }: { open: boolean; 
   useEffect(() => {
     if (!open) return;
     let live = true;
-    listTrash(spaceId).then((r) => {
-      if (!live) return;
-      setError(r.error ?? null);
-      if (!r.error) setList({ spaceId, items: r.items ?? [] });
-    });
+    listTrash(spaceId, teamId)
+      .catch(() => ({ error: "The bin couldn't be loaded. Check your connection and try again.", items: undefined }))
+      .then((r) => {
+        if (!live) return;
+        setError(r.error ?? null);
+        if (!r.error) setList({ key, items: r.items ?? [] });
+      });
     return () => {
       live = false;
     };
-  }, [open, spaceId]);
+  }, [open, spaceId, teamId, key]);
 
-  const items = list?.spaceId === spaceId ? list.items : null;
+  const items = list?.key === key ? list.items : null;
 
   async function putBack(item: TrashItem) {
     setBusy(item.id);
     setFailed(null);
-    const res = await restoreLead(item.id);
+    const res = await restoreLead(item.id).catch(() => ({ error: "That couldn't be put back. Check your connection and try again." }));
     setBusy(null);
     if (res.error) return setFailed({ id: item.id, text: res.error });
     const now = new Date().toISOString();

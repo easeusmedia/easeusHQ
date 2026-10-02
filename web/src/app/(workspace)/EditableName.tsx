@@ -30,24 +30,33 @@ export function EditableName({
   const [value, setValue] = useState(name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // the name just saved, shown until the page brings it back
+  const [saved, setSaved] = useState<{ from: string; to: string } | null>(null);
+  if (saved && saved.from !== name) setSaved(null);
+  const shown = saved?.to ?? name;
 
   async function save() {
     const next = value.trim();
-    if (!next || next === name) {
-      setValue(name);
+    if (!next || next === shown) {
+      setValue(shown);
       return setEditing(false);
     }
     setBusy(true);
-    const err = await onSave(next);
+    let err: string | undefined;
+    try {
+      err = await onSave(next);
+    } catch {
+      err = "That name couldn't be saved. Check your connection and try again.";
+    }
     setBusy(false);
     if (err) {
       setError(err);
       setValue(name);
-    }
+    } else setSaved({ from: name, to: next });
     setEditing(false);
   }
 
-  if (readOnly) return <span className={className}>{name}</span>;
+  if (readOnly) return <span className={className}>{shown}</span>;
 
   if (!editing) {
     return (
@@ -58,13 +67,14 @@ export function EditableName({
             keep(e);
             setError(null);
             // start from the name as it is now (a rename elsewhere may have landed)
-            setValue(name);
+            setValue(shown);
             setEditing(true);
           }}
           title="Rename"
+          aria-label={`Rename ${shown}`}
           className={`group/name inline-flex min-w-0 items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}
         >
-          <span className="truncate">{name}</span>
+          <span className="truncate">{shown}</span>
           <Pencil
             size={11}
             className={`shrink-0 text-muted transition-opacity ${pencil === "always" ? "opacity-45 group-hover/name:opacity-100" : "opacity-0 group-hover/name:opacity-100"}`}

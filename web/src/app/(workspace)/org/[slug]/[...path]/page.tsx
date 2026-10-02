@@ -3,7 +3,7 @@ import { getViewer } from "@/lib/viewer";
 import { buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../../departments";
 import { DepartmentHead } from "../../DepartmentHead";
-import { boardsOf, childCards, loadBoard, peopleOf, resolvePath } from "../../space/data";
+import { boardsOf, childCards, loadBoard, peopleOf, resolvePath, templatesOf } from "../../space/data";
 import { SpaceGrid, SpaceTitle } from "../../space/SpaceGrid";
 import { PortalView } from "../../space/PortalView";
 
@@ -37,7 +37,7 @@ export default async function SpacePage({
   const here = href(nodes.length - 1);
 
   if (node.kind === "section") {
-    const cards = await childCards(team.id, node.id, here);
+    const [cards, templates] = await Promise.all([childCards(team.id, node.id, here), templatesOf(team.id, "portal")]);
     const leads = cards.reduce((n, c) => n + c.leads, 0);
     return (
       <>
@@ -46,7 +46,7 @@ export default async function SpacePage({
           <SpaceTitle id={node.id} name={node.name} />
           {cards.length > 0 && <p className="mt-1.5 text-sm text-muted">{`${plural(cards.length, "portal")} holding ${plural(leads, "lead")}.`}</p>}
         </header>
-        <SpaceGrid teamId={team.id} parentId={node.id} kind="portal" base={here} cards={cards} canBuild={canBuild} />
+        <SpaceGrid teamId={team.id} parentId={node.id} kind="portal" base={here} cards={cards} canBuild={canBuild} templates={templates} />
       </>
     );
   }
@@ -55,7 +55,12 @@ export default async function SpacePage({
   const boards = await boardsOf(node.id);
   const pick = typeof query.board === "string" ? query.board : undefined;
   const active = boards.find((b) => b.slug === pick) ?? boards[0];
-  const [board, people, siblings] = await Promise.all([active ? loadBoard(active.id) : null, peopleOf(team.id), childCards(team.id, node.parentId, href(nodes.length - 2))]);
+  const [board, people, siblings, boardTemplates] = await Promise.all([
+    active ? loadBoard(active.id) : null,
+    peopleOf(team.id),
+    childCards(team.id, node.parentId, href(nodes.length - 2)),
+    templatesOf(team.id, "board"),
+  ]);
   const leads = siblings.find((c) => c.id === node.id)?.leads ?? 0;
   return (
     <>
@@ -72,6 +77,7 @@ export default async function SpacePage({
         people={people}
         canBuild={canBuild}
         viewerId={viewer.id}
+        boardTemplates={boardTemplates}
         initialLeadId={typeof query.lead === "string" ? query.lead : null}
       />
     </>

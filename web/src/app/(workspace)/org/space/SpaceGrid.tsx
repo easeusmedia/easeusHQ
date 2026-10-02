@@ -11,6 +11,7 @@ import { topLayer, useCloseOnScroll, usePopover } from "../../popover";
 import { createSpace, deleteSpace, renameSpace } from "./actions";
 import { NewSpaceDialog } from "./NewSpaceDialog";
 import { ReasonDialog } from "./ReasonDialog";
+import { TrashDialog } from "./TrashDialog";
 
 type Kind = "section" | "portal";
 const ICON = { section: Layers, portal: LayoutGrid };
@@ -52,6 +53,7 @@ export function SpaceGrid({
   base,
   cards,
   canBuild,
+  templates,
 }: {
   teamId: string;
   parentId: string | null;
@@ -60,13 +62,27 @@ export function SpaceGrid({
   base: string;
   cards: SpaceCard[];
   canBuild: boolean;
+  // what a new one can start as a copy of: every one of its kind in the department
+  templates?: { id: string; name: string }[];
 }) {
   const [adding, setAdding] = useState(false);
+  const [binOpen, setBinOpen] = useState(false);
   const label = KIND_LABEL[kind].toLowerCase();
   const Icon = ICON[kind];
 
   const dialog = canBuild && (
-    <NewSpaceDialog open={adding} onClose={() => setAdding(false)} teamId={teamId} parentId={parentId} kind={kind} base={base} siblings={cards.map((c) => ({ id: c.id, name: c.name }))} />
+    <NewSpaceDialog open={adding} onClose={() => setAdding(false)} teamId={teamId} parentId={parentId} kind={kind} base={base} siblings={templates ?? cards.map((c) => ({ id: c.id, name: c.name }))} />
+  );
+  // what was deleted from this page: its sections or portals, with who and why
+  const bin = (
+    <>
+      <div className="mt-4 flex justify-end">
+        <button type="button" onClick={() => setBinOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.04] hover:text-foreground">
+          <Trash2 size={13} /> Deleted {label}s
+        </button>
+      </div>
+      <TrashDialog open={binOpen} spaceId={parentId} teamId={teamId} title={`Deleted ${label}s`} onClose={() => setBinOpen(false)} />
+    </>
   );
 
   if (!cards.length)
@@ -88,10 +104,12 @@ export function SpaceGrid({
         </div>
         {/* outside the box, so the dialog doesn't inherit its centred text */}
         {dialog}
+        {bin}
       </>
     );
 
   return (
+    <>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {cards.map((c) => (
         <Card key={c.id} card={c} kind={kind} teamId={teamId} parentId={parentId} canBuild={canBuild} taken={cards.map((s) => s.name.toLowerCase())} />
@@ -104,6 +122,8 @@ export function SpaceGrid({
       )}
       {dialog}
     </div>
+    {bin}
+    </>
   );
 }
 

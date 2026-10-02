@@ -90,11 +90,11 @@ async function record(
   tx: Prisma.TransactionClient,
   leadId: string,
   who: Who,
-  e: { kind: string; summary: string; fromStage?: string | null; toStage?: string | null; reason?: string | null; foldKey?: string },
+  e: { kind: string; summary: string; fromStage?: string | null; toStage?: string | null; reason?: string | null; fold?: (summary: string) => boolean },
 ) {
-  if (e.foldKey) {
+  if (e.fold) {
     const last = await tx.leadEvent.findFirst({ where: { leadId }, orderBy: { createdAt: "desc" }, select: { id: true, kind: true, summary: true, byId: true, createdAt: true } });
-    if (last && last.kind === e.kind && last.byId === who.id && last.summary.startsWith(e.foldKey) && Date.now() - last.createdAt.getTime() < 10 * 60_000) {
+    if (last && last.kind === e.kind && last.byId === who.id && e.fold(last.summary) && Date.now() - last.createdAt.getTime() < 10 * 60_000) {
       await tx.leadEvent.update({ where: { id: last.id }, data: { summary: e.summary, createdAt: new Date() } });
       return;
     }
@@ -232,6 +232,9 @@ export async function deleteSpace(id: string, reason: string): Promise<Done> {
     const [children, leads] = await Promise.all([prisma.space.count({ where: { parentId: id } }), prisma.lead.count({ where: { boardId: id } })]);
     if (children) return { error: `Move or delete what's inside "${space.name}" first.` };
     if (leads) return { error: `"${space.name}" still has ${leads} ${leads === 1 ? "lead" : "leads"}. Move or delete them first.` };
+    // leads in its bin would have nowhere to come back to
+    if (space.kind === "board" && (await prisma.spaceTrash.count({ where: { spaceId: id, kind: "lead", restoredAt: null } })))
+      return { error: `"${space.name}" has deleted leads in its bin. Put them back and move them, or keep the board.` };
     const full = await prisma.space.findUniqueOrThrow({
       where: { id },
       select: { id: true, kind: true, name: true, slug: true, parentId: true, sortOrder: true, stages: { select: { name: true, color: true, sortOrder: true } }, fields: { select: { name: true, kind: true, onCard: true, required: true, options: { select: { name: true, color: true } } } } },
@@ -298,14 +301,17 @@ export async function setStageColor(id: string, color: string): Promise<Done> {
   }
 }
 
-export async function reorderStage(id: string, sortOrder: number): Promise<Done> {
-  const stage = await boardOfStage(id);
-  if (!stage) return { error: "That stage no longer exists." };
-  const who = await whoFor(stage.board.teamId, true);
+// A board's stages in a new order, all in one go: moving one renumbers them
+export async function orderStages(boardId: string, ids: string[]): Promise<Done> {
+  const board = await spaceOf(boardId);
+  if (!board || board.kind !== "board") return { error: "That board no longer exists." };
+  const who = await whoFor(board.teamId, true);
   if ("error" in who) return who;
-  if (!Number.isFinite(sortOrder)) return { error: "That order couldn't be saved." };
   try {
-    await prisma.boardStage.update({ where: { id }, data: { sortOrder } });
+    const stages = await prisma.boardStage.findMany({ where: { boardId }, select: { id: true } });
+    if (ids.length !== stages.length || new Set(ids).size !== ids.length || !stages.every((st) => ids.includes(st.id)))
+      return { error: "The stages changed meanwhile. Refresh and try again." };
+    await prisma.$transaction(ids.map((id, i) => prisma.boardStage.update({ where: { id }, data: { sortOrder: i + 1 } })));
     return {};
   } catch (err) {
     return failed(err, "That order couldn't be saved.");
@@ -420,7 +426,11 @@ export async function deleteField(id: string, reason: string): Promise<Done> {
     }
     await prisma.$transaction(async (tx) => {
       await trash(tx, who, { teamId: field.board.teamId, spaceId: field.boardId, kind: "field", title: field.name, data: { field, values }, reason: r });
-      await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${id} WHERE "boardId" = ${field.boardId} AND "values" ? ${id}`;
+      await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${id}::text WHERE "boardId" = ${field.boardId} AND "values" ? ${id}::text`;
+      if (Object.keys(values).length)
+        await tx.leadEvent.createMany({
+          data: Object.keys(values).map((leadId) => ({ leadId, kind: "edited", summary: `${field.name} cleared (the property was deleted)`, reason: r, byId: who.id, byName: who.name })),
+        });
       await tx.boardField.delete({ where: { id } });
     });
     return {};
@@ -495,18 +505,20 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
   const r = cleanReason(reason);
   if (typeof r !== "string") return r;
   try {
-    const leads = await prisma.lead.findMany({ where: { boardId: option.field.boardId }, select: { id: true, values: true } });
-    const had = leads.filter((l) => {
-      const v = (l.values as Record<string, unknown> | null)?.[option.fieldId];
-      return Array.isArray(v) && v.includes(id);
-    });
+    const fid = option.fieldId;
     await prisma.$transaction(async (tx) => {
+      // taken off in one statement, so a tag picked meanwhile isn't lost
+      const had = await tx.$queryRaw<{ id: string }[]>`
+        UPDATE "Lead" SET "values" = CASE
+          WHEN jsonb_array_length(("values"->${fid}::text) - ${id}::text) = 0 THEN "values" - ${fid}::text
+          ELSE jsonb_set("values", ARRAY[${fid}::text], ("values"->${fid}::text) - ${id}::text, true) END
+        WHERE "boardId" = ${option.field.boardId} AND jsonb_typeof("values"->${fid}::text) = 'array' AND ("values"->${fid}::text) ? ${id}::text
+        RETURNING id`;
       await trash(tx, who, { teamId: option.field.board.teamId, spaceId: option.field.boardId, kind: "option", title: `${option.field.name}: ${option.name}`, data: { option, leads: had.map((l) => l.id) }, reason: r });
-      for (const l of had) {
-        const rest = ((l.values as Record<string, string[]>)[option.fieldId] ?? []).filter((x) => x !== id);
-        if (rest.length) await tx.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set("values", ARRAY[${option.fieldId}]::text[], ${JSON.stringify(rest)}::jsonb, true) WHERE id = ${l.id}`;
-        else await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${option.fieldId} WHERE id = ${l.id}`;
-      }
+      if (had.length)
+        await tx.leadEvent.createMany({
+          data: had.map((l) => ({ leadId: l.id, kind: "edited", summary: `${option.field.name}: tag "${option.name}" deleted`, reason: r, byId: who.id, byName: who.name })),
+        });
       await tx.fieldOption.delete({ where: { id } });
     });
     return {};
@@ -574,9 +586,9 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
     const v = clean.value;
     const summary = v == null ? `${field.name} cleared` : `${field.name} set to ${describeValue({ kind: field.kind, options: field.options }, v)}`;
     await prisma.$transaction(async (tx) => {
-      if (v == null) await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${fieldId}, "updatedAt" = now() WHERE id = ${id}`;
-      else await tx.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set(coalesce("values", '{}'::jsonb), ARRAY[${fieldId}]::text[], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now() WHERE id = ${id}`;
-      await record(tx, id, who, { kind: "edited", summary, foldKey: `${field.name} ` });
+      if (v == null) await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${fieldId}::text, "updatedAt" = now() WHERE id = ${id}`;
+      else await tx.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set(coalesce("values", '{}'::jsonb), ARRAY[${fieldId}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now() WHERE id = ${id}`;
+      await record(tx, id, who, { kind: "edited", summary, fold: (s) => s.startsWith(`${field.name} set to `) || s === `${field.name} cleared` });
     });
     return {};
   } catch (err) {
@@ -593,7 +605,7 @@ export async function setLeadNotes(id: string, notes: string): Promise<Done> {
   try {
     await prisma.$transaction(async (tx) => {
       await tx.lead.update({ where: { id }, data: { notes: text } });
-      await record(tx, id, who, { kind: "edited", summary: "Write-up edited", foldKey: "Write-up " });
+      await record(tx, id, who, { kind: "edited", summary: "Write-up edited", fold: (s) => s === "Write-up edited" });
     });
     return {};
   } catch (err) {
@@ -723,7 +735,21 @@ export async function restoreLead(trashId: string): Promise<Done & { id?: string
       prisma.user.findUnique({ where: { id: saved.createdById }, select: { id: true } }),
       saved.assignedToId ? prisma.user.findUnique({ where: { id: saved.assignedToId }, select: { id: true, employment: true } }) : null,
     ]);
+    // properties and tags deleted while it was in the bin come off it
+    const fields = await prisma.boardField.findMany({ where: { boardId: board.id }, select: { id: true, kind: true, options: { select: { id: true } } } });
+    const values: Record<string, unknown> = {};
+    for (const [fid, v] of Object.entries((saved.values ?? {}) as Record<string, unknown>)) {
+      const f = fields.find((x) => x.id === fid);
+      if (!f) continue;
+      if (f.kind === "select" || f.kind === "multi") {
+        const ids = (Array.isArray(v) ? v : []).filter((x) => f.options.some((o) => o.id === x));
+        if (ids.length) values[fid] = ids;
+      } else values[fid] = v;
+    }
     const id = await prisma.$transaction(async (tx) => {
+      // two people putting it back at once: only the first does
+      const claimed = await tx.spaceTrash.updateMany({ where: { id: trashId, restoredAt: null }, data: { restoredAt: new Date() } });
+      if (!claimed.count) throw new Error("already back");
       const lead = await tx.lead.create({
         data: {
           ...(taken ? {} : { id: saved.id }),
@@ -732,7 +758,7 @@ export async function restoreLead(trashId: string): Promise<Done & { id?: string
           title: saved.title,
           sortOrder: Date.now(),
           assignedToId: assignee && assignee.employment !== "former" ? assignee.id : null,
-          values: (saved.values ?? {}) as Prisma.InputJsonValue,
+          values: values as Prisma.InputJsonValue,
           notes: saved.notes ?? "",
           createdById: creator ? creator.id : who.id,
           createdAt: new Date(saved.createdAt),
@@ -744,11 +770,11 @@ export async function restoreLead(trashId: string): Promise<Done & { id?: string
           data: saved.events.map((e) => ({ leadId: lead.id, kind: e.kind, summary: e.summary, fromStage: e.fromStage, toStage: e.toStage, reason: e.reason, byId: e.byId, byName: e.byName, createdAt: new Date(e.createdAt) })),
         });
       await record(tx, lead.id, who, { kind: "restored", summary: `Put back in ${stage.name}`, toStage: stage.name, reason: `Deleted by ${item.byName}: ${item.reason}` });
-      await tx.spaceTrash.update({ where: { id: trashId }, data: { restoredAt: new Date() } });
       return lead.id;
     });
     return { id };
   } catch (err) {
+    if (err instanceof Error && err.message === "already back") return { error: "That lead is already back." };
     return failed(err, "That lead couldn't be put back.");
   }
 }
@@ -771,13 +797,21 @@ export async function getLeadDetails(id: string): Promise<Done & { notes?: strin
   };
 }
 
-// What was deleted from a board (or from under a page), newest first
-export async function listTrash(spaceId: string): Promise<Done & { items?: TrashItem[] }> {
-  const space = await spaceOf(spaceId);
-  if (!space) return { error: "That page no longer exists." };
-  const who = await whoFor(space.teamId);
+// What was deleted, newest first: from a board (with the boards deleted
+// from its portal), from under a page, or (no page) from the department itself
+export async function listTrash(spaceId: string | null, teamId?: string): Promise<Done & { items?: TrashItem[] }> {
+  const space = spaceId ? await spaceOf(spaceId) : null;
+  if (spaceId && !space) return { error: "That page no longer exists." };
+  const team = space?.teamId ?? teamId;
+  if (!team) return { error: "That page no longer exists." };
+  const who = await whoFor(team);
   if ("error" in who) return who;
-  const items = await prisma.spaceTrash.findMany({ where: { spaceId }, orderBy: { deletedAt: "desc" }, take: 200 });
+  const where: Prisma.SpaceTrashWhereInput = !space
+    ? { teamId: team, spaceId: null }
+    : space.kind === "board" && space.parentId
+      ? { OR: [{ spaceId: space.id }, { spaceId: space.parentId, kind: "board" }] }
+      : { spaceId: space.id };
+  const items = await prisma.spaceTrash.findMany({ where, orderBy: { deletedAt: "desc" }, take: 200 });
   return {
     items: items.map((t) => ({ id: t.id, kind: t.kind, title: t.title, reason: t.reason, byName: t.byName, deletedAt: t.deletedAt.toISOString(), restoredAt: t.restoredAt?.toISOString() ?? null })),
   };

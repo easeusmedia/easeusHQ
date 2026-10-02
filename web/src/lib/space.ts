@@ -29,7 +29,7 @@ export const COLORS = {
 } as const;
 export type ColorName = keyof typeof COLORS;
 export const COLOR_NAMES = Object.keys(COLORS) as ColorName[];
-export const isColor = (c: string): c is ColorName => c in COLORS;
+export const isColor = (c: unknown): c is ColorName => typeof c === "string" && Object.hasOwn(COLORS, c);
 export const hexOf = (c: string) => COLORS[isColor(c) ? c : "default"];
 // a tinted pill: soft fill, faint edge, readable text
 export function pillStyle(c: string) {

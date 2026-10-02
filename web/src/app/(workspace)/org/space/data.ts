@@ -103,3 +103,14 @@ export async function spaceTree(teamIds: string[]) {
     select: { id: true, teamId: true, parentId: true, kind: true, name: true, slug: true },
   });
 }
+
+// Every page of a kind in the department, to start a new one as a copy of:
+// "Podcast (Outreach)", "Dream 156 Podcasts (Core Offer) (Podcast)"
+export async function templatesOf(teamId: string, kind: SpaceKind) {
+  const rows = await prisma.space.findMany({
+    where: { teamId, kind },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, parent: { select: { name: true } } },
+  });
+  return rows.map((r) => ({ id: r.id, name: r.parent ? `${r.name} (${r.parent.name})` : r.name }));
+}
