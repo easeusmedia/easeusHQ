@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Send } from "lucide-react";
+import { Spotlight } from "../../(workspace)/Spotlight";
 import { EMAIL, greetingName } from "@/lib/contract";
 import { submitIntake } from "../actions";
 
@@ -188,11 +189,16 @@ export function IntakeForm({ token }: { token: string }) {
 
       {problem && <p className="fade-in mt-6 text-xs text-red-300">{problem}</p>}
 
+      {/* the dashboard's New meeting button, with a soft blue glow on hover */}
+      <Spotlight />
       <button
         type="submit"
         disabled={sending}
-        className="btn-theme-hover mt-9 h-11 rounded-xl text-sm font-semibold disabled:opacity-60"
+        className="group/add panel-soft panel-hover glow-hover mt-9 flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground disabled:opacity-60"
       >
+        <span className="flex size-6 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
+          <Send size={12} />
+        </span>
         {sending ? "Sending…" : "Send details"}
       </button>
 

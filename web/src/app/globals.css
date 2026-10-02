@@ -660,48 +660,16 @@ dialog[open]::backdrop {
 .btn-primary:active {
   transform: translateY(1px);
 }
-/* Sign in and Send details: a faint edge at rest; on hover the app's blue gradient
-   glass fades in behind it, its edge lights blue and a
-   soft glow appears */
-.btn-theme-hover {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  /* at rest: a faint edge and a whisper of fill, not a heavy outline */
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background-color: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.9);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, transform 0.2s ease;
+/* a soft blue glow under a button on hover (with .panel-hover: the
+   agreement page's Send details) */
+.glow-hover {
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.3s ease, --spot 0.35s ease;
 }
-.btn-theme-hover::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(130% 150% at 15% 0%, rgb(75 149 230 / 0.55), rgb(75 149 230 / 0.14) 55%, transparent 80%),
-    linear-gradient(180deg, #1a2638 0%, #121822 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-.btn-theme-hover:hover {
-  color: white;
-  border-color: rgba(140, 195, 255, 0.75);
-  box-shadow: 0 12px 32px -12px rgb(75 149 230 / 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
-}
-.btn-theme-hover:hover::before {
-  opacity: 1;
-}
-.btn-theme-hover:active {
-  transform: none;
+.glow-hover:hover {
+  box-shadow: 0 12px 32px -12px rgb(75 149 230 / 0.85);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn-theme-hover,
-  .btn-theme-hover::before {
-    transition: none;
-  }
   .mist,
   .rise-in {
     animation: none;
