@@ -8,18 +8,18 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { MapDepartment } from "./OrgMap";
 
-// The company as a campus in 3D, after the "3D visual management"
-// reference: low-rise buildings with light facades and long bands of
-// windows glowing a soft cyan, flat roofs with parapets and plant, laid on
-// a plain grey-blue ground beside a sports field, grey massing fading into
-// a teal-navy haze, seen from a raised three-quarter view. Each department
-// is one building, a floor taller for more open work; its tag names it and
-// shows its numbers on hover. Hover lights its windows; a click opens it.
-// Loaded only on Organization (OrgMap brings it in on its own).
+// The company as one campus in 3D, after the "3D visual management"
+// reference: a tight group of white buildings with grids of glowing blue
+// glass, on a plain grey slab, inside a dense grey city that fades into a
+// blue haze, seen from a raised three-quarter view. Each department is one
+// building, a floor taller for more open work; its tag names it and shows
+// its numbers on hover. Hover lights its windows; a click opens it. Loaded
+// only on Organization (OrgMap brings it in on its own).
 
-const SKY = 0x123a52;
-const GROUND = 0x31465a;
+const SKY = 0x0a1d2e;
+const HAZE = 0x1c4867;
 const FLOOR = 1.15; // one storey, in scene units
+const PLINTH = 0.4; // the slab the campus stands on
 
 // a steady scatter, so the same windows (and the same city) every time
 function rng(seed: number) {
@@ -27,11 +27,12 @@ function rng(seed: number) {
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
 
-// A facade: light spandrels between long bands of glass, with mullions; and
-// alongside it, the same windows as light (lit ones only) for the glow
-function facade(cols: number, floors: number, seed: number) {
-  const cw = 22;
-  const fh = 30;
+// A facade: a white frame of floor slabs and pillars round panes of blue
+// glass, most of them lit; and alongside it, the same panes as light for the
+// glow. A glass building has thinner frames.
+function facade(cols: number, floors: number, seed: number, glass: boolean) {
+  const cw = 12;
+  const fh = 28;
   const make = () => {
     const c = document.createElement("canvas");
     c.width = cols * cw;
@@ -42,33 +43,26 @@ function facade(cols: number, floors: number, seed: number) {
   const glow = make();
   const a = albedo.getContext("2d")!;
   const g = glow.getContext("2d")!;
-  a.fillStyle = "#d3e2ef";
+  a.fillStyle = "#a9bdd0";
   a.fillRect(0, 0, albedo.width, albedo.height);
-  g.fillStyle = "#000";
+  // the frame, faintly lit so it never goes black
+  g.fillStyle = "#1c2a36";
   g.fillRect(0, 0, glow.width, glow.height);
+  const slab = glass ? 3 : 7;
+  const pillar = glass ? 1 : 2;
   const r = rng(seed);
-  for (let f = 0; f < floors; f++) {
-    const y = f * fh + fh * 0.3;
-    const h = fh * 0.55;
-    // the band of glass, all of it faintly lit
-    a.fillStyle = "#3f78a6";
-    a.fillRect(0, y, albedo.width, h);
-    g.fillStyle = "#16456b";
-    g.fillRect(0, y, glow.width, h);
+  for (let f = 0; f < floors; f++)
     for (let k = 0; k < cols; k++) {
-      const x = k * cw;
-      if (r() < 0.55) {
-        const warm = r() < 0.2;
-        a.fillStyle = warm ? "#e6f6ff" : "#a8dcff";
-        a.fillRect(x + 2, y + 2, cw - 4, h - 4);
-        g.fillStyle = warm ? "#e8f7ff" : "#5fb4f0";
-        g.fillRect(x + 2, y + 2, cw - 4, h - 4);
-      }
-      // the mullion
-      a.fillStyle = "#b5cade";
-      a.fillRect(x, y, 2, h);
+      const lit = r() < 0.8;
+      const x = k * cw + pillar;
+      const y = f * fh + slab;
+      const w = cw - pillar * 2;
+      const h = fh - slab - 1;
+      a.fillStyle = lit ? "#a8e2ff" : glass ? "#4f93d0" : "#5d9fd6";
+      a.fillRect(x, y, w, h);
+      g.fillStyle = lit ? "#7fd6ff" : "#2a6fb0";
+      g.fillRect(x, y, w, h);
     }
-  }
   const tex = (c: HTMLCanvasElement) => {
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
@@ -78,100 +72,73 @@ function facade(cols: number, floors: number, seed: number) {
   return { map: tex(albedo), glow: tex(glow) };
 }
 
-type Building = { group: THREE.Group; windows: THREE.MeshStandardMaterial[]; top: THREE.Vector3 };
-
 // one block: four walls of facade, a flat roof with a parapet and plant
-function block(w: number, floors: number, d: number, seed: number, out: THREE.MeshStandardMaterial[]) {
+function block(w: number, floors: number, d: number, seed: number, out: THREE.MeshStandardMaterial[], glass: boolean, glowRoof: boolean) {
   const h = floors * FLOOR;
   const g = new THREE.Group();
   const wall = (len: number, s: number) => {
-    const { map, glow } = facade(Math.max(3, Math.round(len / 1.1)), floors, s);
-    const m = new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0.85, roughness: 0.55, metalness: 0.1 });
+    const { map, glow } = facade(Math.max(2, Math.round(len / 0.55)), floors, s, glass);
+    const m = new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 1.1, roughness: 0.45, metalness: 0.15 });
     out.push(m);
     return m;
   };
-  const roof = new THREE.MeshStandardMaterial({ color: 0x8ea8bf, roughness: 0.95 });
+  const roof = new THREE.MeshStandardMaterial(glowRoof ? { color: 0x8cc8f5, emissive: 0x5ec4ff, emissiveIntensity: 0.8, roughness: 0.5 } : { color: 0x8ea3b7, roughness: 0.9 });
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [wall(d, seed), wall(d, seed + 1), roof, roof, wall(w, seed + 2), wall(w, seed + 3)]);
   mesh.position.y = h / 2;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   g.add(mesh);
-  // the parapet: a low rim round the roof
-  const rim = new THREE.MeshStandardMaterial({ color: 0xbcd0e2, roughness: 0.8 });
+  // the parapet: a low white rim round the roof
+  const rim = new THREE.MeshStandardMaterial({ color: 0xb9c9d8, roughness: 0.8 });
   for (const [pw, pd, px, pz] of [
-    [w, 0.18, 0, d / 2 - 0.09],
-    [w, 0.18, 0, -d / 2 + 0.09],
-    [0.18, d, w / 2 - 0.09, 0],
-    [0.18, d, -w / 2 + 0.09, 0],
+    [w, 0.16, 0, d / 2 - 0.08],
+    [w, 0.16, 0, -d / 2 + 0.08],
+    [0.16, d, w / 2 - 0.08, 0],
+    [0.16, d, -w / 2 + 0.08, 0],
   ] as const) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.35, pd), rim);
-    p.position.set(px, h + 0.17, pz);
-    p.castShadow = true;
+    const p = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.3, pd), rim);
+    p.position.set(px, h + 0.15, pz);
     g.add(p);
   }
   // rooftop plant
   const r = rng(seed + 11);
-  const plant = new THREE.MeshStandardMaterial({ color: 0x6f889e, roughness: 0.9 });
-  for (let i = 0; i < Math.max(1, Math.round((w * d) / 30)); i++) {
-    const u = new THREE.Mesh(new THREE.BoxGeometry(0.8 + r() * 1.2, 0.5 + r() * 0.4, 0.8 + r() * 1), plant);
-    u.position.set((r() - 0.5) * (w - 2.5), h + 0.3, (r() - 0.5) * (d - 2.5));
+  const plant = new THREE.MeshStandardMaterial({ color: 0x9fb3c5, roughness: 0.9 });
+  for (let i = 0; i < Math.max(1, Math.round((w * d) / 40)); i++) {
+    const u = new THREE.Mesh(new THREE.BoxGeometry(0.7 + r() * 1, 0.4 + r() * 0.3, 0.7 + r() * 0.8), plant);
+    u.position.set((r() - 0.5) * (w - 2), h + 0.25, (r() - 0.5) * (d - 2));
     u.castShadow = true;
     g.add(u);
   }
   return g;
 }
 
-// A department's building, by its kind: a long slab, an L of two wings, a
-// courtyard, or a block on a podium; floors from its open work
-function building(kind: number, floors: number, seed: number): Building {
-  const windows: THREE.MeshStandardMaterial[] = [];
-  const g = new THREE.Group();
-  const put = (o: THREE.Object3D, x: number, y: number, z: number) => {
-    o.position.set(x, y, z);
-    g.add(o);
-  };
-  let top = floors * FLOOR;
-  let roofAt: [number, number] = [0, 0];
-  if (kind === 1) {
-    // an L
-    put(block(14, floors, 4.6, seed, windows), 0, 0, -2.7);
-    put(block(4.6, Math.max(3, floors - 1), 8, seed + 20, windows), -4.7, 0, 3.3);
-    roofAt = [2, -2.7];
-  } else if (kind === 2) {
-    // a courtyard, open to the front
-    put(block(13, floors, 4.2, seed, windows), 0, 0, -4.4);
-    put(block(4.2, floors - 1, 8.8, seed + 20, windows), -4.4, 0, 2.1);
-    put(block(4.2, floors - 1, 8.8, seed + 40, windows), 4.4, 0, 2.1);
-    roofAt = [0, -4.4];
-  } else if (kind === 3) {
-    // a block on a podium
-    put(block(13, 2, 9, seed, windows), 0, 0, 0);
-    put(block(6.5, floors, 5.5, seed + 20, windows), 1.5, 2 * FLOOR, -0.8);
-    top = (floors + 2) * FLOOR;
-    roofAt = [1.5, -0.8];
-  } else {
-    // a long slab
-    put(block(15, floors, 5.2, seed, windows), 0, 0, 0);
-  }
-  // a blue panel on the roof, as in the reference
-  const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), new THREE.MeshStandardMaterial({ color: 0x3b8de0, emissive: 0x2f7fd6, emissiveIntensity: 0.9, roughness: 0.4 }));
-  panel.rotation.x = -Math.PI / 2;
-  panel.position.set(roofAt[0], top + 0.02, roofAt[1]);
-  g.add(panel);
-  return { group: g, windows, top: new THREE.Vector3(0, top + 1.6, 0) };
-}
-
-// where the departments stand on the campus, round the sports field
-const PLOTS: { x: number; z: number; rot: number }[] = [
-  { x: -24, z: -16, rot: 0 },
-  { x: -2, z: -21, rot: 0 },
-  { x: 21, z: -15, rot: 0 },
-  { x: 24, z: 8, rot: -Math.PI / 2 },
-  { x: 2, z: 19, rot: Math.PI },
-  { x: -25, z: 9, rot: Math.PI / 2 },
-  { x: 40, z: -2, rot: -Math.PI / 2 },
-  { x: -42, z: -2, rot: Math.PI / 2 },
+// The campus: where each building stands and its parts, as [width, depth,
+// x, z, floors fewer (negative is taller), all glass]
+type Part = [number, number, number, number, number?, boolean?];
+type Plot = { x: number; z: number; rot?: number; parts: Part[]; glowRoof?: boolean };
+const PLOTS: Plot[] = [
+  { x: -22, z: 2, parts: [[16, 4.5, 0, -4], [16, 4.5, 0, 4], [3, 3.5, 6.5, 0, 1]] }, // twin bars and a link
+  { x: -3, z: -10, parts: [[18, 6, 0, 0]] },
+  { x: -4, z: 3, parts: [[9, 8, 0, 0, -2, true]] }, // the glass tower
+  { x: 18, z: -9, parts: [[14, 6, -3, 0], [6, 10, 4, 0, 1]] },
+  { x: 6, z: 13, parts: [[16, 8, 0, 0, 1]], glowRoof: true },
+  { x: 24, z: 7, parts: [[6, 14, 0, 0]] },
+  { x: -24, z: 15, parts: [[12, 5, 0, 0, 1]] },
+  { x: 31, z: -2, parts: [[6, 7, 0, 0]] },
 ];
+
+function building(plot: Plot, floors: number, seed: number, out: THREE.MeshStandardMaterial[]) {
+  const g = new THREE.Group();
+  plot.parts.forEach(([w, d, x, z, fewer = 0, glass = false], i) => {
+    const b = block(w, Math.max(2, floors - fewer), d, seed + i * 20, out, glass, !!plot.glowRoof && i === 0);
+    b.position.set(x, 0, z);
+    g.add(b);
+  });
+  g.position.set(plot.x, PLINTH, plot.z);
+  g.rotation.y = plot.rot ?? 0;
+  const [, , x, z, fewer = 0] = plot.parts[0];
+  return { group: g, top: new THREE.Vector3(x, Math.max(2, floors - fewer) * FLOOR + 1.4, z) };
+}
 
 export default function OrgCity({ departments, onOpen }: { departments: MapDepartment[]; onOpen: (slug: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -185,7 +152,7 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMappingExposure = 1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.prepend(renderer.domElement);
@@ -193,102 +160,86 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(SKY);
-    scene.fog = new THREE.Fog(0x1a4660, 70, 190);
-    const camera = new THREE.PerspectiveCamera(32, 1, 1, 600);
+    scene.fog = new THREE.Fog(HAZE, 100, 400);
+    const camera = new THREE.PerspectiveCamera(30, 1, 1, 900);
 
-    // a cool sky light, and a sun from the back left that casts soft shadows
-    scene.add(new THREE.HemisphereLight(0xb8dcff, 0x14232f, 1.3));
-    const sun = new THREE.DirectionalLight(0xdcefff, 1.5);
-    sun.position.set(-40, 70, -30);
+    // a cool sky light, and a sun from the front left that casts soft shadows
+    scene.add(new THREE.HemisphereLight(0xd2e9ff, 0x0d1b28, 0.9));
+    const sun = new THREE.DirectionalLight(0xe4f2ff, 1);
+    sun.position.set(-50, 80, 60);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 10, far: 220 });
+    Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 10, far: 260 });
     sun.shadow.bias = -0.0006;
     scene.add(sun);
 
-    // the ground: plain grey-blue
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ color: GROUND, roughness: 1 }));
+    // the ground, and the plain grey slab the campus stands on, with a faint edge
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.MeshStandardMaterial({ color: 0x2a3f54, roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(76, PLINTH, 44), new THREE.MeshStandardMaterial({ color: 0x4a5e72, roughness: 0.95 }));
+    slab.position.set(-1, PLINTH / 2, 2);
+    slab.receiveShadow = true;
+    scene.add(slab);
+    const edge = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-39, PLINTH + 0.01, -20),
+      new THREE.Vector3(37, PLINTH + 0.01, -20),
+      new THREE.Vector3(37, PLINTH + 0.01, 24),
+      new THREE.Vector3(-39, PLINTH + 0.01, 24),
+    ]);
+    scene.add(new THREE.LineLoop(edge, new THREE.LineBasicMaterial({ color: 0x7fbde8, transparent: true, opacity: 0.18 })));
 
-    // the sports field in the middle, painted on one plane: a running track
-    // round a pitch, lined in white (32 px to a unit)
-    const c = document.createElement("canvas");
-    c.width = 1024;
-    c.height = 576;
-    const f = c.getContext("2d")!;
-    const stadium = (r: number) => {
-      f.beginPath();
-      f.arc(352, 288, r, Math.PI / 2, Math.PI * 1.5);
-      f.arc(672, 288, r, -Math.PI / 2, Math.PI / 2);
-      f.closePath();
-    };
-    stadium(256);
-    f.fillStyle = "#4a6278";
-    f.fill();
-    stadium(200);
-    f.fillStyle = "#2f4a5f";
-    f.fill();
-    f.strokeStyle = "rgba(226,238,248,0.7)";
-    f.lineWidth = 2;
-    for (const r of [256, 242, 228, 214, 200]) {
-      stadium(r);
-      f.stroke();
-    }
-    f.strokeRect(256, 144, 512, 288);
-    f.strokeRect(256, 224, 56, 128);
-    f.strokeRect(712, 224, 56, 128);
-    f.beginPath();
-    f.moveTo(512, 144);
-    f.lineTo(512, 432);
-    f.stroke();
-    f.beginPath();
-    f.arc(512, 288, 40, 0, Math.PI * 2);
-    f.stroke();
-    const paint = new THREE.CanvasTexture(c);
-    paint.colorSpace = THREE.SRGBColorSpace;
-    paint.anisotropy = 8;
-    const pitch = new THREE.Mesh(new THREE.PlaneGeometry(32, 18), new THREE.MeshStandardMaterial({ map: paint, transparent: true, roughness: 1 }));
-    pitch.rotation.x = -Math.PI / 2;
-    pitch.position.y = 0.03;
-    pitch.receiveShadow = true;
-    scene.add(pitch);
-
-    // the departments, each on a paved plot
+    // the departments; plots left over get quiet buildings, so the campus is whole
     const most = Math.max(1, ...departments.map((d) => d.open));
-    const built = departments.slice(0, PLOTS.length).map((d, i) => {
-      const b = building(i % 4, 3 + Math.round((d.open / most) * 5), 101 + i * 17);
-      const plot = PLOTS[i];
-      const pave = new THREE.Mesh(new THREE.PlaneGeometry(19, 15), new THREE.MeshStandardMaterial({ color: 0x3a5064, roughness: 1 }));
-      pave.rotation.x = -Math.PI / 2;
-      pave.position.y = 0.02;
-      pave.receiveShadow = true;
-      b.group.add(pave);
-      b.group.position.set(plot.x, 0, plot.z);
-      b.group.rotation.y = plot.rot;
+    const shown = departments.slice(0, PLOTS.length);
+    const built = shown.map((d, i) => {
+      const windows: THREE.MeshStandardMaterial[] = [];
+      const b = building(PLOTS[i], 3 + Math.round((d.open / most) * 3), 101 + i * 37, windows);
       scene.add(b.group);
-      return { ...b, slug: d.slug };
+      return { ...b, windows, slug: d.slug };
+    });
+    PLOTS.slice(shown.length).forEach((plot, i) => {
+      const windows: THREE.MeshStandardMaterial[] = [];
+      scene.add(building(plot, 3, 701 + i * 37, windows).group);
+      windows.forEach((m) => (m.emissiveIntensity = 0.7));
     });
 
-    // grey massing all round, fading into the haze
+    // the city all round: grey blocks on a street grid, low near the camera,
+    // fading into the haze
     const r = rng(7);
-    const mass = new THREE.MeshStandardMaterial({ color: 0x31495e, roughness: 1 });
-    for (let i = 0; i < 46; i++) {
-      const a = r() * Math.PI * 2;
-      const dist = 58 + r() * 80;
-      const h = 2 + r() * 9;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(6 + r() * 12, h, 5 + r() * 9), mass);
-      m.position.set(Math.cos(a) * dist, h / 2, Math.sin(a) * dist);
-      m.rotation.y = Math.round(r() * 4) * (Math.PI / 2);
-      m.receiveShadow = true;
-      scene.add(m);
-    }
+    const blocks: THREE.Matrix4[] = [];
+    const none = new THREE.Quaternion();
+    for (let x = -300; x <= 300; x += 13)
+      for (let z = -320; z <= 70; z += 13) {
+        if (Math.abs(x + 1) < 46 && Math.abs(z - 2) < 30) continue;
+        for (let i = 0, n = 1 + Math.floor(r() * 3); i < n; i++) {
+          const h = z > 25 ? 1.5 + r() * 4 : 2 + r() * r() * 12;
+          blocks.push(new THREE.Matrix4().compose(new THREE.Vector3(x + (r() - 0.5) * 6, h / 2, z + (r() - 0.5) * 6), none, new THREE.Vector3(3 + r() * 6, h, 3 + r() * 6)));
+        }
+      }
+    const city = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x3a5269, roughness: 1 }), blocks.length);
+    blocks.forEach((m, i) => city.setMatrixAt(i, m));
+    scene.add(city);
 
-    // a gentle glow from the windows only
+    // the blue haze of light behind the campus
+    const hc = document.createElement("canvas");
+    hc.width = hc.height = 128;
+    const hg = hc.getContext("2d")!;
+    const grad = hg.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, "rgba(80,160,240,0.2)");
+    grad.addColorStop(1, "rgba(80,160,240,0)");
+    hg.fillStyle = grad;
+    hg.fillRect(0, 0, 128, 128);
+    const haze = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(hc), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    haze.position.set(0, 12, -40);
+    haze.scale.set(220, 90, 1);
+    scene.add(haze);
+
+    // a soft glow from the glass
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.45, 0.62);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.3, 0.75);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
@@ -326,17 +277,17 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
     const loop = () => {
       frame = requestAnimationFrame(loop);
       // the reference's raised three-quarter view, drifting only a little
-      const angle = 2.2 + (still ? 0 : Math.sin(clock.getElapsedTime() * 0.06) * 0.06);
-      camera.position.set(Math.cos(angle) * 92, 62, Math.sin(angle) * 92);
-      camera.lookAt(0, 0, 2);
+      const angle = 1.955 + (still ? 0 : Math.sin(clock.getElapsedTime() * 0.06) * 0.05);
+      camera.position.set(Math.cos(angle) * 112, 70, Math.sin(angle) * 112);
+      camera.lookAt(0, 0, 1);
 
       ray.setFromCamera(pointer, camera);
       let part: THREE.Object3D | null = ray.intersectObjects(built.map((b) => b.group), true)[0]?.object ?? null;
       while (part && !built.some((b) => b.group === part)) part = part.parent;
       const now = built.find((b) => b.group === part) ?? null;
       if (now !== hovered) {
-        hovered?.windows.forEach((m) => (m.emissiveIntensity = 0.85));
-        now?.windows.forEach((m) => (m.emissiveIntensity = 1.5));
+        hovered?.windows.forEach((m) => (m.emissiveIntensity = 1.1));
+        now?.windows.forEach((m) => (m.emissiveIntensity = 2));
         hovered = now;
         renderer.domElement.style.cursor = now ? "pointer" : "default";
       }
@@ -388,9 +339,9 @@ export default function OrgCity({ departments, onOpen }: { departments: MapDepar
   }, [departments, onOpen]);
 
   return (
-    <div ref={box} className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0e2639]">
-      {/* a soft vignette, as in the reference */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(85%_75%_at_50%_45%,transparent_60%,rgb(4_14_24/0.55))]" />
+    <div ref={box} className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0a1d2e]">
+      {/* dark edges, as in the reference */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_45%,transparent_45%,rgb(3_10_18/0.75))]" />
       {departments.slice(0, PLOTS.length).map((d, i) => (
         <button
           key={d.slug}
