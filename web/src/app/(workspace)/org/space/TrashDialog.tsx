@@ -16,6 +16,7 @@ const KIND_NAME: Record<string, string> = {
   board: "Board",
   portal: "Portal",
   section: "Section",
+  message: "Message",
 };
 
 // What was deleted from a board (or from under a page): who, when and why.

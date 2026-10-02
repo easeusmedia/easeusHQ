@@ -264,7 +264,7 @@ export function ValueView({ field, value, compact = false }: { field: FieldData;
     case "multi": {
       const tags = (value as string[]).flatMap((id) => field.options.filter((o) => o.id === id));
       if (!tags.length) return null;
-      const pills = tags.map((t) => <TagPill key={t.id} name={t.name} color={t.color} />);
+      const pills = tags.map((t) => <TagPill key={t.id} name={t.name} color={t.color} wrap={compact} />);
       // compact: loose, so the card or cell around them decides the wrapping
       return compact ? <>{pills}</> : <span className="flex min-w-0 flex-wrap gap-1">{pills}</span>;
     }

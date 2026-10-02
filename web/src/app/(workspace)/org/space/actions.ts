@@ -10,13 +10,18 @@ import {
   cleanValue,
   COLOR_NAMES,
   describeValue,
+  fillText,
   isColor,
   isFieldKind,
+  leadVars,
+  MESSAGE_CHANNELS,
   moveNeedsReason,
   uniqueSlug,
   type FieldData,
   type FieldKind,
   type LeadEventData,
+  type MessageData,
+  type SentData,
   type OptionData,
   type SpaceKind,
   type StageData,
@@ -123,13 +128,16 @@ async function copyStructure(tx: Prisma.TransactionClient, fromId: string, into:
     where: { id: fromId },
     select: {
       kind: true,
-      stages: { select: { name: true, color: true, sortOrder: true } },
+      stages: { select: { name: true, color: true, sortOrder: true, messages: { select: { name: true, channel: true, subject: true, body: true, sortOrder: true } } } },
       fields: { select: { name: true, kind: true, onCard: true, required: true, sortOrder: true, options: { select: { name: true, color: true, sortOrder: true } } } },
       children: { select: { id: true, name: true, slug: true, sortOrder: true } },
     },
   });
   const made = await tx.space.create({ data: { teamId: into.teamId, parentId: into.parentId, kind: from.kind, name: into.name, slug: into.slug, sortOrder: into.sortOrder, createdById: byId } });
-  if (from.stages.length) await tx.boardStage.createMany({ data: from.stages.map((s) => ({ ...s, boardId: made.id })) });
+  for (const { messages, ...st } of from.stages) {
+    const stage = await tx.boardStage.create({ data: { ...st, boardId: made.id }, select: { id: true } });
+    if (messages.length) await tx.stageMessage.createMany({ data: messages.map((m) => ({ ...m, stageId: stage.id })) });
+  }
   for (const f of from.fields) {
     const field = await tx.boardField.create({ data: { boardId: made.id, name: f.name, kind: f.kind, onCard: f.onCard, required: f.required, sortOrder: f.sortOrder } });
     if (f.options.length) await tx.fieldOption.createMany({ data: f.options.map((o) => ({ ...o, fieldId: field.id })) });
@@ -721,6 +729,7 @@ export async function restoreLead(trashId: string): Promise<Done & { id?: string
       stageName?: string;
       assignedToId: string | null;
       values: Prisma.JsonValue;
+      vars?: Prisma.JsonValue;
       notes: string;
       createdById: string;
       createdAt: string;
@@ -759,6 +768,7 @@ export async function restoreLead(trashId: string): Promise<Done & { id?: string
           sortOrder: Date.now(),
           assignedToId: assignee && assignee.employment !== "former" ? assignee.id : null,
           values: values as Prisma.InputJsonValue,
+          vars: (saved.vars ?? {}) as Prisma.InputJsonValue,
           notes: saved.notes ?? "",
           createdById: creator ? creator.id : who.id,
           createdAt: new Date(saved.createdAt),
@@ -779,21 +789,167 @@ export async function restoreLead(trashId: string): Promise<Done & { id?: string
   }
 }
 
-// ================= Reading =================
+// ================= Messages =================
 
-// A lead's write-up and its record, newest first, for its page
-export async function getLeadDetails(id: string): Promise<Done & { notes?: string; events?: LeadEventData[] }> {
+const isChannel = (c: string) => MESSAGE_CHANNELS.some((m) => m.kind === c);
+async function messageWithBoard(id: string) {
+  return prisma.stageMessage.findUnique({
+    where: { id },
+    select: { id: true, name: true, channel: true, subject: true, body: true, stageId: true, stage: { select: { name: true, boardId: true, board: { select: { teamId: true } } } } },
+  });
+}
+
+// A new message on a stage, for anyone working the board
+export async function createMessage(stageId: string, name: string, channel: string): Promise<Done & { message?: MessageData }> {
+  const stage = await boardOfStage(stageId);
+  if (!stage) return { error: "That stage no longer exists." };
+  const who = await whoFor(stage.board.teamId);
+  if ("error" in who) return who;
+  const n = cleanName(name, "the message a name");
+  if (typeof n !== "string") return n;
+  if (!isChannel(channel)) return { error: "Pick where it's sent." };
+  try {
+    const last = await prisma.stageMessage.aggregate({ where: { stageId }, _max: { sortOrder: true } });
+    const m = await prisma.stageMessage.create({
+      data: { stageId, name: n, channel, sortOrder: (last._max.sortOrder ?? 0) + 1 },
+      select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true },
+    });
+    return { message: m };
+  } catch (err) {
+    return failed(err, "That message couldn't be added.");
+  }
+}
+
+// The stage's wording, for every lead that hasn't sent it yet (sent ones
+// keep exactly what went out)
+export async function updateMessage(id: string, patch: { name?: string; channel?: string; subject?: string; body?: string }): Promise<Done> {
+  const m = await messageWithBoard(id);
+  if (!m) return { error: "That message no longer exists." };
+  const who = await whoFor(m.stage.board.teamId);
+  if ("error" in who) return who;
+  const data: { name?: string; channel?: string; subject?: string; body?: string } = {};
+  if (patch.name != null) {
+    const n = cleanName(patch.name, "the message a name");
+    if (typeof n !== "string") return n;
+    data.name = n;
+  }
+  if (patch.channel != null) {
+    if (!isChannel(patch.channel)) return { error: "Pick where it's sent." };
+    data.channel = patch.channel;
+  }
+  if (patch.subject != null) data.subject = String(patch.subject).slice(0, 300);
+  if (patch.body != null) data.body = String(patch.body).slice(0, 20_000);
+  try {
+    await prisma.stageMessage.update({ where: { id }, data });
+    return {};
+  } catch (err) {
+    return failed(err, "That message couldn't be saved.");
+  }
+}
+
+export async function deleteMessage(id: string, reason: string): Promise<Done> {
+  const m = await messageWithBoard(id);
+  if (!m) return { error: "That message no longer exists." };
+  const who = await whoFor(m.stage.board.teamId);
+  if ("error" in who) return who;
+  const r = cleanReason(reason);
+  if (typeof r !== "string") return r;
+  try {
+    await prisma.$transaction(async (tx) => {
+      await trash(tx, who, { teamId: m.stage.board.teamId, spaceId: m.stage.boardId, kind: "message", title: `${m.stage.name}: ${m.name}`, data: m, reason: r });
+      await tx.stageMessage.delete({ where: { id } });
+    });
+    return {};
+  } catch (err) {
+    return failed(err, "That message couldn't be deleted.");
+  }
+}
+
+// One of a lead's message details ("Guest"), used by every message it sends
+export async function setLeadVar(id: string, name: string, value: string): Promise<Done> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
-  const [full, events] = await Promise.all([
+  const key = String(name ?? "").trim().slice(0, 60);
+  if (!key) return { error: "That detail has no name." };
+  const v = String(value ?? "").trim().slice(0, 2000);
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (!v) await tx.$executeRaw`UPDATE "Lead" SET "vars" = "vars" - ${key}::text, "updatedAt" = now() WHERE id = ${id}`;
+      else await tx.$executeRaw`UPDATE "Lead" SET "vars" = jsonb_set(coalesce("vars", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now() WHERE id = ${id}`;
+      const summary = v ? `Message detail ${key} set to "${v.slice(0, 80)}${v.length > 80 ? "…" : ""}"` : `Message detail ${key} cleared`;
+      await record(tx, id, who, { kind: "edited", summary, fold: (s) => s.startsWith(`Message detail ${key} set to `) || s === `Message detail ${key} cleared` });
+    });
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
+// A stage's message as it goes out to this lead, frozen once marked sent:
+// later edits to the stage's wording never change it
+export async function markSent(leadId: string, messageId: string): Promise<Done & { sent?: SentData }> {
+  const [lead, m] = await Promise.all([leadWithBoard(leadId), messageWithBoard(messageId)]);
+  if (!lead) return { error: "That lead no longer exists." };
+  if (!m || m.stage.boardId !== lead.boardId) return { error: "That message no longer exists. Refresh and try again." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  try {
+    const [full, fields] = await Promise.all([
+      prisma.lead.findUniqueOrThrow({ where: { id: leadId }, select: { title: true, values: true, vars: true } }),
+      prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
+    ]);
+    const vars = leadVars({ title: full.title, values: (full.values ?? {}) as Record<string, unknown>, vars: (full.vars ?? {}) as Record<string, string> }, fields as { id: string; kind: "contacts" }[]);
+    const subject = fillText(m.subject, vars);
+    const body = fillText(m.body, vars);
+    const missing = [...new Set([...`${subject}\n${body}`.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((x) => x[1]))];
+    if (missing.length) return { error: `Fill in ${missing.join(", ")} first.` };
+    const sent = await prisma.$transaction(async (tx) => {
+      const row = await tx.sentMessage.create({ data: { leadId, messageId, stageName: m.stage.name, name: m.name, channel: m.channel, subject, body, byId: who.id, byName: who.name } });
+      await record(tx, leadId, who, { kind: "sent", summary: `Sent ${m.name} (${m.stage.name})` });
+      return row;
+    });
+    return { sent: { id: sent.id, messageId, stageName: sent.stageName, name: sent.name, channel: sent.channel, subject, body, byName: sent.byName, sentAt: sent.sentAt.toISOString() } };
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
+// Marked sent by mistake: back to the stage's own wording
+export async function unmarkSent(sentId: string): Promise<Done> {
+  const sent = await prisma.sentMessage.findUnique({ where: { id: sentId }, select: { id: true, leadId: true, name: true, stageName: true, lead: { select: { board: { select: { teamId: true } } } } } });
+  if (!sent) return { error: "That's already undone." };
+  const who = await whoFor(sent.lead.board.teamId);
+  if ("error" in who) return who;
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.sentMessage.delete({ where: { id: sentId } });
+      await record(tx, sent.leadId, who, { kind: "sent", summary: `Marked ${sent.name} (${sent.stageName}) as not sent` });
+    });
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be undone.");
+  }
+}
+
+// ================= Reading =================
+
+// A lead's write-up and its record, newest first, for its page
+export async function getLeadDetails(id: string): Promise<Done & { notes?: string; events?: LeadEventData[]; sent?: SentData[] }> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  const [full, events, sent] = await Promise.all([
     prisma.lead.findUnique({ where: { id }, select: { notes: true } }),
     prisma.leadEvent.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.sentMessage.findMany({ where: { leadId: id }, orderBy: { sentAt: "desc" } }),
   ]);
   return {
     notes: full?.notes ?? "",
     events: events.map((e) => ({ id: e.id, kind: e.kind, summary: e.summary, fromStage: e.fromStage, toStage: e.toStage, reason: e.reason, byName: e.byName, createdAt: e.createdAt.toISOString() })),
+    sent: sent.map((m) => ({ id: m.id, messageId: m.messageId, stageName: m.stageName, name: m.name, channel: m.channel, subject: m.subject, body: m.body, byName: m.byName, sentAt: m.sentAt.toISOString() })),
   };
 }
 

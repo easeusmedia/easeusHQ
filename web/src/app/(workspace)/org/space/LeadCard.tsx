@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { CircleAlert } from "lucide-react";
 import { daysSince, isFilled, missingDetails, type FieldData, type LeadData } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
@@ -30,11 +31,18 @@ export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: Fie
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
 
       {shown.length > 0 && (
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <dl className="grid min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-start gap-x-2.5 gap-y-1.5 text-[11.5px]">
           {shown.map((f) => (
-            <ValueView key={f.id} field={f} value={lead.values[f.id]} compact />
+            <Fragment key={f.id}>
+              <dt className="truncate pt-0.5 text-muted" title={f.name}>
+                {f.name}
+              </dt>
+              <dd className="flex min-w-0 flex-wrap gap-1">
+                <ValueView field={f} value={lead.values[f.id]} compact />
+              </dd>
+            </Fragment>
           ))}
-        </div>
+        </dl>
       )}
 
       {missing.length > 0 && (

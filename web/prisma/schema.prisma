@@ -1153,10 +1153,30 @@ model BoardStage {
   name      String
   // a Notion colour name (lib/space.ts COLORS)
   color     String @default("default")
-  sortOrder Float  @default(0)
+  sortOrder Float          @default(0)
   leads     Lead[]
+  messages  StageMessage[]
 
   @@index([boardId])
+}
+
+// What a stage sends: its messages in the outreach sequence ("Email 1",
+// "LinkedIn note"), with {{Name}}-style variables each lead fills in. An
+// edit reaches every lead that hasn't sent it yet (sent ones are frozen in
+// SentMessage).
+model StageMessage {
+  id        String     @id @default(uuid())
+  stageId   String
+  stage     BoardStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  name      String
+  // "email" | "instagram" | "linkedin" | "other"
+  channel   String     @default("email")
+  subject   String     @default("")
+  body      String     @default("") @db.Text
+  sortOrder Float      @default(0)
+  updatedAt DateTime   @updatedAt
+
+  @@index([stageId])
 }
 
 // A board's properties ("Trailer", "Contacts"…): what every lead records
@@ -1204,6 +1224,8 @@ model Lead {
   values       Json        @default("{}")
   // the write-up: what the show does, the gap, drafts
   notes        String      @default("") @db.Text
+  // its messages' variables, by name: { "Guest": "Steven Bartlett" }
+  vars         Json        @default("{}")
   createdById  String
   createdBy    User        @relation("LeadsCreated", fields: [createdById], references: [id])
   // when it reached its stage ("3 days in Day 2")
@@ -1211,9 +1233,30 @@ model Lead {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   events       LeadEvent[]
+  sent         SentMessage[]
 
   @@index([boardId])
   @@index([stageId])
+}
+
+// A message as it actually went out to a lead, frozen whatever its stage's
+// message becomes later
+model SentMessage {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  // the stage message it came from (it may since be edited or deleted)
+  messageId String?
+  stageName String
+  name      String
+  channel   String
+  subject   String   @default("")
+  body      String   @db.Text
+  byId      String
+  byName    String
+  sentAt    DateTime @default(now())
+
+  @@index([leadId])
 }
 
 // What happened to a lead: made, moved (and why, when it skipped or went

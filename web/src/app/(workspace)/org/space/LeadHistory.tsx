@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, ChevronDown, PenLine, Pencil, Plus, Undo2, UserRound, type LucideIcon } from "lucide-react";
+import { ArrowRight, ChevronDown, PenLine, Pencil, Plus, Send, Undo2, UserRound, type LucideIcon } from "lucide-react";
 import { Reveal } from "../../Reveal";
 import { formatDateTime } from "../../TaskCard";
 import { dateOf } from "./values";
@@ -14,6 +14,7 @@ const KIND: Record<string, { icon: LucideIcon; tone: string }> = {
   renamed: { icon: Pencil, tone: "bg-white/[0.05] text-muted" },
   edited: { icon: PenLine, tone: "bg-white/[0.05] text-muted" },
   restored: { icon: Undo2, tone: "bg-emerald-400/10 text-emerald-300" },
+  sent: { icon: Send, tone: "bg-accent/10 text-accent" },
 };
 
 const first = (name: string) => name.split(" ")[0];

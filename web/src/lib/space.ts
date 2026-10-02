@@ -83,11 +83,15 @@ export type LeadData = {
   sortOrder: number;
   assignedTo: Person | null;
   values: Record<string, unknown>;
+  // its messages' variables, by name
+  vars: Record<string, string>;
   stageSince: string;
   createdAt: string;
   createdByName: string;
 };
-export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[] };
+export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string };
+export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
+export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };
 export type LeadEventData = {
   id: string;
   kind: string;
@@ -225,6 +229,53 @@ export function describeValue(field: Pick<FieldData, "kind" | "options">, v: unk
   }
 }
 
+// ---- Messages ----
+// A stage's message is fixed text with {{Variables}} each lead fills in:
+// "Hey {{Name}}, watched your {{Guest}} episode".
+export const MESSAGE_CHANNELS = [
+  { kind: "email", label: "Email" },
+  { kind: "instagram", label: "Instagram" },
+  { kind: "linkedin", label: "LinkedIn" },
+  { kind: "other", label: "Other" },
+] as const;
+const VAR = /\{\{\s*([^{}]+?)\s*\}\}/g;
+
+// The variables a set of texts use, each once, in order of first use
+export function variablesIn(texts: string[]): string[] {
+  const seen: string[] = [];
+  for (const t of texts) for (const m of t.matchAll(VAR)) if (!seen.includes(m[1])) seen.push(m[1]);
+  return seen;
+}
+
+// What a lead's messages know without asking: Name is its first contact's
+// first name, Podcast its own name. Anything typed on the lead wins.
+export function leadVars(lead: { title: string; values: Record<string, unknown>; vars: Record<string, string> }, fields: Pick<FieldData, "id" | "kind">[]): Record<string, string> {
+  const contacts = fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(lead.values[f.id]) ? (lead.values[f.id] as Contact[]) : []));
+  const first = contacts.find((c) => c.name.trim())?.name.trim().split(/\s+/)[0];
+  const auto: Record<string, string> = { Podcast: lead.title };
+  if (first) auto.Name = first;
+  const typed = Object.fromEntries(Object.entries(lead.vars ?? {}).filter(([, v]) => typeof v === "string" && v.trim()));
+  return { ...auto, ...typed };
+}
+
+// A message split into its fixed text and its variables, filled where known
+export function fillParts(text: string, vars: Record<string, string>): ({ text: string } | { name: string; value: string | null })[] {
+  const parts: ({ text: string } | { name: string; value: string | null })[] = [];
+  let at = 0;
+  for (const m of text.matchAll(VAR)) {
+    if (m.index > at) parts.push({ text: text.slice(at, m.index) });
+    parts.push({ name: m[1], value: vars[m[1]] ?? null });
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) parts.push({ text: text.slice(at) });
+  return parts;
+}
+
+// The message as it would go out: variables filled, unknown ones left as {{Name}}
+export function fillText(text: string, vars: Record<string, string>): string {
+  return text.replace(VAR, (whole, name: string) => vars[name.trim()] ?? whole);
+}
+
 // ---- Addresses ----
 export function slugify(name: string): string {
   return (
@@ -259,7 +310,6 @@ export const DREAM_156: BoardTemplate = {
   name: "Dream 156 Podcasts (Core Offer)",
   stages: [
     { name: "Dream 156", color: "default" },
-    { name: "Short form dream 150", color: "gray" },
     { name: "Shortlist", color: "gray" },
     { name: "Writeup Done", color: "brown" },
     { name: "Ready to Reachout", color: "orange" },
@@ -267,8 +317,7 @@ export const DREAM_156: BoardTemplate = {
     { name: "Lead Magnet Sent", color: "orange" },
     { name: "Replied", color: "green" },
     { name: "Didn't respond after the loom", color: "brown" },
-    { name: "Later", color: "orange" },
-    { name: "Not Moving Forward", color: "red" },
+    { name: "Parked", color: "orange" },
     { name: "Dead", color: "default" },
   ],
   fields: [
@@ -325,23 +374,5 @@ export const DREAM_156: BoardTemplate = {
         (name, i) => ({ name, color: COLOR_NAMES[(i % (COLOR_NAMES.length - 1)) + 1] }),
       ),
     },
-    {
-      name: "Sent from",
-      kind: "select",
-      options: [
-        { name: "ashmit@easeus.media", color: "pink" },
-        { name: "ashmitshahi@easeus.media", color: "gray" },
-      ],
-    },
-    {
-      name: "Responded on",
-      kind: "select",
-      options: [
-        { name: "Email", color: "default" },
-        { name: "Instagram", color: "gray" },
-        { name: "LinkedIn", color: "red" },
-      ],
-    },
-    { name: "Approval", kind: "checkbox" },
   ],
 };

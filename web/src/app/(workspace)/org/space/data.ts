@@ -56,11 +56,14 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       id: true,
       name: true,
       slug: true,
-      stages: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } },
+      stages: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, color: true, messages: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, channel: true, subject: true, body: true } } },
+      },
       fields: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, kind: true, onCard: true, required: true, options: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } } } },
       leads: {
         orderBy: { sortOrder: "asc" },
-        select: { id: true, title: true, stageId: true, sortOrder: true, values: true, stageSince: true, createdAt: true, assignedTo: { select: { id: true, name: true } }, createdBy: { select: { name: true } } },
+        select: { id: true, title: true, stageId: true, sortOrder: true, values: true, vars: true, stageSince: true, createdAt: true, assignedTo: { select: { id: true, name: true } }, createdBy: { select: { name: true } } },
       },
     },
   });
@@ -69,7 +72,8 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     id: board.id,
     name: board.name,
     slug: board.slug,
-    stages: board.stages,
+    stages: board.stages.map((s) => ({ id: s.id, name: s.name, color: s.color })),
+    messages: board.stages.flatMap((s) => s.messages.map((m) => ({ ...m, stageId: s.id }))),
     fields: board.fields.map((f) => ({ ...f, kind: f.kind as FieldKind })),
     leads: board.leads.map((l) => ({
       id: l.id,
@@ -78,6 +82,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       sortOrder: l.sortOrder,
       assignedTo: l.assignedTo,
       values: (l.values ?? {}) as Record<string, unknown>,
+      vars: (l.vars ?? {}) as Record<string, string>,
       stageSince: l.stageSince.toISOString(),
       createdAt: l.createdAt.toISOString(),
       createdByName: l.createdBy.name,

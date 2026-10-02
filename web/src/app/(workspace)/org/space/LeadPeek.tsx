@@ -14,6 +14,7 @@ import {
   Hourglass,
   Link2,
   List,
+  MessagesSquare,
   MoreHorizontal,
   Pencil,
   SquareCheck,
@@ -28,6 +29,7 @@ import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLe
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
+import { Messages } from "./Messages";
 import { CELL, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
@@ -43,6 +45,7 @@ import {
   type FieldKind,
   type LeadData,
   type LeadEventData,
+  type SentData,
   type Person,
 } from "@/lib/space";
 
@@ -151,6 +154,7 @@ function LeadPage({
   const [notes, setNotes] = useState<string | null>(null);
   const savedNotes = useRef("");
   const [events, setEvents] = useState<LeadEventData[] | null>(null);
+  const [sent, setSent] = useState<SentData[] | null>(null);
   const [status, setStatus] = useState<Status>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // a move that needs a reason (kept while its prompt fades out)
@@ -168,6 +172,7 @@ function LeadPage({
       savedNotes.current = r.notes ?? "";
       setNotes(r.notes ?? "");
       setEvents(r.events ?? []);
+      setSent(r.sent ?? []);
     });
     return () => {
       live = false;
@@ -423,6 +428,10 @@ function LeadPage({
               <ContactsEditor value={values[f.id]} save={saveValue(f.id)} />
             </Section>
           ))}
+
+        <Section icon={MessagesSquare} title="Messages">
+          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
+        </Section>
 
         <Section icon={FileText} title="Write-up">
           <textarea

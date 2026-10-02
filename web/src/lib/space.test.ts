@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, describeValue, DREAM_156, isFilled, missingDetails, moveNeedsReason, uniqueSlug } from "./space.ts";
+import { cleanValue, describeValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -90,8 +90,25 @@ test("slugs never clash with a sibling", () => {
   assert.equal(uniqueSlug("  ", []), "page");
 });
 
-test("the Dream 156 template matches Notion's 19 stages", () => {
-  assert.equal(DREAM_156.stages.length, 19);
-  assert.equal(new Set(DREAM_156.stages.map((s) => s.name)).size, 19);
+test("the Dream 156 template has 17 distinct stages", () => {
+  assert.equal(DREAM_156.stages.length, 17);
+  assert.equal(new Set(DREAM_156.stages.map((s) => s.name)).size, 17);
   for (const f of DREAM_156.fields) if (f.kind === "select") assert.ok(f.options?.length);
+});
+
+test("variables are found once each, in order", () => {
+  assert.deepEqual(variablesIn(["Hey {{Name}}, your {{Guest}} episode", "{{ Name }} and {{Gap}}"]), ["Name", "Guest", "Gap"]);
+});
+
+test("a message fills what it knows and keeps the rest marked", () => {
+  assert.equal(fillText("Hey {{Name}}, re {{Guest}}", { Name: "Ann" }), "Hey Ann, re {{Guest}}");
+  assert.deepEqual(fillParts("Hi {{Name}}!", { Name: "Ann" }), [{ text: "Hi " }, { name: "Name", value: "Ann" }, { text: "!" }]);
+  assert.deepEqual(fillParts("{{Gap}}", {}), [{ name: "Gap", value: null }]);
+});
+
+test("a lead's Name and Podcast fill themselves; typed values win", () => {
+  const fields = [{ id: "c", kind: "contacts" as const }];
+  const lead = { title: "Harlem Capital", values: { c: [{ id: "1", name: "Jarrid Tingle", role: "", channels: [] }] }, vars: {} };
+  assert.deepEqual(leadVars(lead, fields), { Podcast: "Harlem Capital", Name: "Jarrid" });
+  assert.deepEqual(leadVars({ ...lead, vars: { Name: "J", Guest: " " } }, fields), { Podcast: "Harlem Capital", Name: "J" });
 });

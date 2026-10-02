@@ -15,7 +15,7 @@ import { topLayer, useCloseOnScroll, usePopover } from "../../popover";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 export const MENU_ITEM = "menu-item px-2.5 py-1.5 text-xs disabled:pointer-events-none disabled:opacity-40";
-const COLUMN = "w-[17rem] shrink-0";
+const COLUMN = "w-[18rem] shrink-0";
 const QUIET_ROW = "flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-foreground/[0.05] hover:text-foreground";
 // px from the board's side where a dragged card starts scrolling it
 const EDGE = 80;
@@ -199,6 +199,8 @@ export function LeadBoard({
     });
 
   const [drag, setDrag] = useState<string | null>(null);
+  // the dragged card's height, for the slot that shows where it will land
+  const [dragHeight, setDragHeight] = useState(0);
   const [over, setOver] = useState<{ stageId: string; index: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newLeadIn, setNewLeadIn] = useState<string | null>(null);
@@ -235,7 +237,6 @@ export function LeadBoard({
     if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => ro.disconnect();
   }, [measure]);
-  const fade = `linear-gradient(to right, ${edges.left ? "transparent, #000 48px" : "#000, #000"}, ${edges.right ? "#000 calc(100% - 48px), transparent" : "#000"})`;
   const scrollBy = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.8, behavior: "smooth" });
 
   // ---- leads ----
@@ -415,8 +416,11 @@ export function LeadBoard({
   function column(stage: StageData, i: number, col: LeadData[]) {
     const isOver = !!drag && over?.stageId === stage.id;
     const rest = col.filter((l) => l.id !== drag);
-    // the drop line, unless dropping would leave the card where it is
-    const lineAt = isOver && rest.length && col[over.index]?.id !== drag ? over.index : -1;
+    // the slot, unless dropping there would leave the card where it is
+    const from = col.findIndex((l) => l.id === drag);
+    const slotAt = isOver && over.index !== from ? over.index : -1;
+    const slot = <div key="slot" style={{ height: dragHeight || 72 }} className="fade-in shrink-0 rounded-xl border border-dashed border-accent/50 bg-accent/[0.07]" />;
+    const hex = hexOf(stage.color);
     return (
       <section
         aria-label={stage.name}
@@ -428,16 +432,15 @@ export function LeadBoard({
           if (!isOver || over.index !== index) setOver({ stageId: stage.id, index });
         }}
         onDrop={(e) => drop(stage, e)}
-        className={`${COLUMN} flex flex-col gap-2 rounded-2xl p-1.5 ring-1 transition-[background-color,box-shadow] duration-200 ${
-          isOver ? "bg-foreground/[0.035] ring-accent/30" : "ring-transparent"
-        }`}
+        style={{ backgroundColor: isOver ? `${hex}1a` : `${hex}0d`, borderColor: isOver ? `${hex}66` : `${hex}24` }}
+        className={`${COLUMN} flex min-h-[26rem] flex-col gap-2 rounded-2xl border p-2 transition-[background-color,border-color] duration-200`}
       >
-        <header className="flex h-8 min-w-0 items-center gap-2 px-1">
-          <span style={pillStyle(stage.color)} className="inline-flex max-w-[11.5rem] min-w-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium">
-            <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: hexOf(stage.color) }} />
+        <header className="flex h-9 min-w-0 items-center gap-2 px-1">
+          <span style={pillStyle(stage.color)} className="inline-flex max-w-[12rem] min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-medium">
+            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: hex }} />
             <EditableName name={stage.name} onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} />
           </span>
-          <span className="text-xs text-muted tabular-nums">{col.length}</span>
+          <span className="rounded-full bg-foreground/[0.06] px-1.5 text-xs text-muted tabular-nums">{col.length}</span>
           <span className="ml-auto">
             <MoreMenu label={`${stage.name} options`} height={canBuild ? 300 : 120}>
               {(close) => stageMenu(stage, i, close)}
@@ -446,31 +449,28 @@ export function LeadBoard({
         </header>
 
         <div className="flex flex-col gap-2">
-          {col.map((lead) => {
-            const r = rest.indexOf(lead);
-            return (
+          {col.map((lead) => (
+            <Fragment key={lead.id}>
+              {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}
               <div
-                key={lead.id}
                 data-lead-id={lead.id}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "move";
                   e.dataTransfer.setData("text/plain", lead.id);
+                  setDragHeight(e.currentTarget.offsetHeight);
                   setDrag(lead.id);
                 }}
                 // always fires, wherever the drop lands (or Escape), so a
                 // card is never left faded
                 onDragEnd={endDrag}
-                className={`relative transition-[opacity,scale] duration-150 ${drag === lead.id ? "scale-[0.98] opacity-40" : ""}`}
+                className={`transition-opacity duration-150 ${drag === lead.id ? "opacity-35" : ""}`}
               >
-                {r === lineAt && <span className="pointer-events-none absolute inset-x-1 -top-[5px] h-0.5 rounded-full bg-accent" />}
-                {r === rest.length - 1 && lineAt === rest.length && (
-                  <span className="pointer-events-none absolute inset-x-1 -bottom-[5px] h-0.5 rounded-full bg-accent" />
-                )}
                 <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} />
               </div>
-            );
-          })}
+            </Fragment>
+          ))}
+          {slotAt >= 0 && slotAt >= rest.length && slot}
 
           {newLeadIn === stage.id ? (
             <InlineInput
@@ -480,7 +480,7 @@ export function LeadBoard({
               onCancel={() => setNewLeadIn(null)}
             />
           ) : (
-            <button type="button" onClick={() => setNewLeadIn(stage.id)} className={QUIET_ROW}>
+            <button type="button" onClick={() => setNewLeadIn(stage.id)} aria-label={`New lead in ${stage.name}`} className={QUIET_ROW}>
               <Plus size={14} /> New
             </button>
           )}
@@ -512,10 +512,9 @@ export function LeadBoard({
             else if (e.clientX > r.right - EDGE) e.currentTarget.scrollLeft += 18;
             scrollPageNearEdge(e);
           }}
-          style={{ maskImage: fade, WebkitMaskImage: fade }}
           className="overflow-x-auto pb-6"
         >
-          <div className="flex w-max items-stretch gap-1.5">
+          <div className="flex w-max items-stretch gap-3 pt-0.5">
             {stages.map((stage, i) => {
               const col = counts.get(stage.id) ?? [];
               return (

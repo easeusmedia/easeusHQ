@@ -3,6 +3,10 @@
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts setup
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts sample <json>
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts remove-sample <json>
+//   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts tidy
+//   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts messages
+// tidy trims a board first copied whole from Notion to what outreach uses;
+// messages puts the sequence's messages on any stage that has none.
 // setup can run again safely: a page already there (same parent and slug) is
 // left exactly as it is, so nobody's edits are undone. sample skips a lead
 // whose title is already on the board; remove-sample deletes only the copies it made.
@@ -10,6 +14,7 @@ import { randomUUID } from "crypto";
 import { readFileSync } from "fs";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SEQUENCE } from "./outreach-sequence";
 import { cleanValue, DREAM_156, slugify, type ChannelKind, type FieldKind, type SpaceKind } from "@/lib/space";
 
 const ME = "abhishek@easeus.media";
@@ -61,7 +66,9 @@ async function setup() {
       const field = await tx.boardField.create({ data: { boardId, name: f.name, kind: f.kind, onCard: !!f.onCard, required: !!f.required, sortOrder: i + 1 }, select: { id: true } });
       if (f.options?.length) await tx.fieldOption.createMany({ data: f.options.map((o, j) => ({ fieldId: field.id, name: o.name, color: o.color, sortOrder: j + 1 })) });
     }
-    console.log(`  with ${DREAM_156.stages.length} stages and ${DREAM_156.fields.length} properties`);
+    const made = await tx.boardStage.findMany({ where: { boardId }, select: { id: true, name: true } });
+    for (const st of made) await seedMessages(tx, st);
+    console.log(`  with ${DREAM_156.stages.length} stages, ${DREAM_156.fields.length} properties and the sequence's messages`);
   });
 }
 
@@ -169,6 +176,53 @@ async function removeSample(path: string | undefined) {
   console.log(`Removed ${count} sample leads and their ${events} history entries.`);
 }
 
+// A stage's messages from the sequence, if it has none yet
+async function seedMessages(db: Prisma.TransactionClient | typeof prisma, stage: { id: string; name: string }) {
+  const list = SEQUENCE[stage.name];
+  if (!list || (await db.stageMessage.count({ where: { stageId: stage.id } }))) return 0;
+  await db.stageMessage.createMany({ data: list.map((m, i) => ({ stageId: stage.id, name: m.name, channel: m.channel, body: m.body, sortOrder: i + 1 })) });
+  return list.length;
+}
+
+async function messages() {
+  const { board } = await findBoard();
+  for (const st of board.stages) {
+    const n = await seedMessages(prisma, st);
+    if (n) console.log(`${st.name}: ${n} ${n === 1 ? "message" : "messages"} added`);
+  }
+}
+
+// The board as first copied whole from Notion, trimmed to what outreach uses
+async function tidy() {
+  const { board } = await findBoard();
+  const me = await prisma.user.findUniqueOrThrow({ where: { email: ME }, select: { id: true, name: true } });
+  for (const f of board.fields.filter((f) => ["Approval", "Sent from", "Responded on"].includes(f.name))) {
+    await prisma.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${f.id}::text WHERE "boardId" = ${board.id}`;
+    await prisma.boardField.delete({ where: { id: f.id } });
+    console.log(`Removed the ${f.name} property`);
+  }
+  const stage = (name: string) => board.stages.find((st) => st.name === name);
+  const later = stage("Later");
+  if (later) {
+    await prisma.boardStage.update({ where: { id: later.id }, data: { name: "Parked" } });
+    console.log("Later is now Parked");
+  }
+  // duplicates fold into the stage they meant; their leads move, and say so
+  for (const [name, intoName] of [["Not Moving Forward", "Dead"], ["Short form dream 150", "Dream 156"]] as const) {
+    const from = stage(name);
+    const into = stage(intoName);
+    if (!from || !into) continue;
+    const leads = await prisma.lead.findMany({ where: { stageId: from.id }, select: { id: true } });
+    await prisma.$transaction([
+      prisma.lead.updateMany({ where: { stageId: from.id }, data: { stageId: into.id } }),
+      prisma.leadEvent.createMany({ data: leads.map((l) => ({ leadId: l.id, kind: "moved", summary: `Moved from ${name} to ${intoName}`, fromStage: name, toStage: intoName, reason: "The two stages were merged.", byId: me.id, byName: me.name })) }),
+      prisma.boardStage.delete({ where: { id: from.id } }),
+    ]);
+    console.log(`${name} merged into ${intoName} (${leads.length} leads moved)`);
+  }
+}
+
 const [mode, path] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
-await (mode === "setup" ? setup() : mode === "sample" ? sample(path) : mode === "remove-sample" ? removeSample(path) : Promise.reject(new Error("Say setup, sample <json> or remove-sample <json>.")));
+const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages };
+await (modes[mode]?.() ?? Promise.reject(new Error(`Say one of: ${Object.keys(modes).join(", ")}.`)));
 await prisma.$disconnect();
