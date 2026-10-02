@@ -10,7 +10,7 @@ export type MapDepartment = { slug: string; name: string; people: number; open: 
 // stays out of every other page.
 const OrgCity = dynamic(() => import("./OrgCity"), {
   ssr: false,
-  loading: () => <div className="aspect-[16/9] w-full animate-pulse rounded-2xl border border-white/[0.06] bg-[#0a1d2e]" />,
+  loading: () => <div className="aspect-[16/9] w-full animate-pulse rounded-2xl border border-[rgb(120_190_255/0.16)] bg-[#04131f]" />,
 });
 
 export function OrgMap({ departments }: { departments: MapDepartment[] }) {
