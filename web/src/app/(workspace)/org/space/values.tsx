@@ -20,8 +20,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { addOption, deleteOption, renameOption, setOptionColor } from "./actions";
-import { ColorPicker, TagPill } from "./pills";
+import { addOption, deleteOption, renameOption } from "./actions";
+import { TagPill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { topLayer, useCloseOnScroll, usePopover, type PopoverPosition } from "../../popover";
 import { Dropdown } from "../../Dropdown";
@@ -34,7 +34,6 @@ import { dayOf, shortDay } from "@/lib/editorKpi";
 import {
   CHANNELS,
   CONTACT_ROLES,
-  hexOf,
   isFilled,
   type ChannelKind,
   type Contact,
@@ -348,7 +347,6 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
   }
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  const [colouring, setColouring] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // the tag being deleted (kept while its prompt fades out)
@@ -363,7 +361,6 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
   function reset() {
     setQuery("");
     setRenaming(null);
-    setColouring(null);
     setError(null);
   }
 
@@ -405,18 +402,6 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
     if (res.error) {
       setError(res.error);
       setOptions((all) => all.map((o) => (o.id === before.id ? before : o)));
-    } else router.refresh();
-  }
-
-  async function recolour(o: OptionData, color: string) {
-    setColouring(null);
-    if (color === o.color) return;
-    setError(null);
-    setOptions((all) => all.map((x) => (x.id === o.id ? { ...x, color } : x)));
-    const res = await setOptionColor(o.id, color);
-    if (res.error) {
-      setError(res.error);
-      setOptions((all) => all.map((x) => (x.id === o.id ? o : x)));
     } else router.refresh();
   }
 
@@ -494,16 +479,6 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
                       </button>
                       <button
                         type="button"
-                        title="Colour"
-                        aria-label={`Colour of ${o.name}`}
-                        aria-expanded={colouring === o.id}
-                        onClick={() => setColouring((c) => (c === o.id ? null : o.id))}
-                        className={ICON_BTN}
-                      >
-                        <span className="size-3 rounded-full" style={{ backgroundColor: hexOf(o.color) }} />
-                      </button>
-                      <button
-                        type="button"
                         title="Delete tag"
                         aria-label={`Delete ${o.name}`}
                         onClick={() => {
@@ -517,11 +492,6 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
                       </button>
                     </span>
                   </div>
-                  {colouring === o.id && (
-                    <div className="fade-in flex justify-center pb-1">
-                      <ColorPicker value={o.color} onPick={(c) => recolour(o, c)} />
-                    </div>
-                  )}
                 </div>
               ))}
               {!options.length && !q && <p className="px-2.5 py-1.5 text-xs text-muted">No tags yet. Type one above to create it.</p>}

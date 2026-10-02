@@ -3,11 +3,10 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { hexOf, moveNeedsReason, pillStyle, type BoardData, type LeadData, type StageData } from "@/lib/space";
+import { moveNeedsReason, type BoardData, type LeadData, type StageData } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
-import { createLead, createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead, setStageColor } from "./actions";
+import { createLead, createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
-import { ColorPicker } from "./pills";
 import { LeadCard } from "./LeadCard";
 import { EditableName } from "../../EditableName";
 import { scrollPageNearEdge } from "../../StickyColumns";
@@ -199,11 +198,14 @@ export function LeadBoard({
     });
 
   const [drag, setDrag] = useState<string | null>(null);
+  // a stage being dragged to a new place, and the column it's over
+  const [dragStage, setDragStage] = useState<string | null>(null);
+  const [overStage, setOverStage] = useState<string | null>(null);
   // the dragged card's height, for the slot that shows where it will land
   const [dragHeight, setDragHeight] = useState(0);
   const [over, setOver] = useState<{ stageId: string; index: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newLeadIn, setNewLeadIn] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [newStageAt, setNewStageAt] = useState<number | null>(null);
   // held after closing too, so the dialogs keep their words while they fade
   const [asking, setAsking] = useState<{ open: boolean; lead: LeadData; from: StageData; to: StageData; sortOrder: number } | null>(null);
@@ -286,10 +288,10 @@ export function LeadBoard({
     });
   }
 
-  async function addLead(stageId: string, title: string) {
-    const res = await createLead(board.id, stageId, title).catch(() => ({ error: OFFLINE, id: undefined }));
+  async function addLead(title: string) {
+    const res = await createLead(board.id, title).catch(() => ({ error: OFFLINE, id: undefined }));
     if (res.error || !res.id) return res.error ?? OFFLINE;
-    setNewLeadIn(null);
+    setAdding(false);
     router.refresh();
     onOpen(res.id);
   }
@@ -338,17 +340,8 @@ export function LeadBoard({
   function stageMenu(stage: StageData, i: number, close: () => void) {
     return (
       <>
-        <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-muted/70">Colour</p>
-        <ColorPicker
-          value={stage.color}
-          onPick={(color) => {
-            close();
-            patchStage(stage.id, { color }, () => setStageColor(stage.id, color)).then((err) => err && setError(err));
-          }}
-        />
         {canBuild && (
           <>
-            <div className="my-1 h-px bg-border" />
             <button
               type="button"
               role="menuitem"
@@ -413,6 +406,19 @@ export function LeadBoard({
     );
   }
 
+  // a stage dropped on another column takes that column's place
+  function dropStage(target: StageData) {
+    const id = dragStage;
+    setDragStage(null);
+    setOverStage(null);
+    if (!id || id === target.id) return;
+    const from = order.indexOf(id);
+    const to = order.indexOf(target.id);
+    const ids = order.filter((x) => x !== id);
+    ids.splice(ids.indexOf(target.id) + (to > from ? 1 : 0), 0, id);
+    renumber(ids);
+  }
+
   function column(stage: StageData, i: number, col: LeadData[]) {
     const isOver = !!drag && over?.stageId === stage.id;
     const rest = col.filter((l) => l.id !== drag);
@@ -420,35 +426,65 @@ export function LeadBoard({
     const from = col.findIndex((l) => l.id === drag);
     const slotAt = isOver && over.index !== from ? over.index : -1;
     const slot = <div key="slot" style={{ height: dragHeight || 72 }} className="fade-in shrink-0 rounded-xl border border-dashed border-accent/50 bg-accent/[0.07]" />;
-    const hex = hexOf(stage.color);
+    const stageTarget = !!dragStage && overStage === stage.id && dragStage !== stage.id;
     return (
       <section
         aria-label={stage.name}
         onDragOver={(e) => {
+          if (dragStage) {
+            e.preventDefault();
+            if (overStage !== stage.id) setOverStage(stage.id);
+            return;
+          }
           if (!drag) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           const index = indexAt(e.currentTarget, e.clientY, drag);
           if (!isOver || over.index !== index) setOver({ stageId: stage.id, index });
         }}
-        onDrop={(e) => drop(stage, e)}
-        style={{ backgroundColor: isOver ? `${hex}1a` : `${hex}0d`, borderColor: isOver ? `${hex}66` : `${hex}24` }}
-        className={`${COLUMN} flex min-h-[26rem] flex-col gap-2 rounded-2xl border p-2 transition-[background-color,border-color] duration-200`}
+        onDrop={(e) => (dragStage ? (e.preventDefault(), dropStage(stage)) : drop(stage, e))}
+        className={`${COLUMN} flex min-h-[26rem] flex-col gap-2 rounded-xl px-2 pb-2 transition-[background-color,box-shadow,opacity] duration-200 ${
+          isOver || stageTarget ? "bg-white/[0.03] ring-1 ring-accent/35" : ""
+        } ${dragStage === stage.id ? "opacity-40" : ""}`}
       >
-        <header className="flex h-9 min-w-0 items-center gap-2 px-1">
-          <span style={pillStyle(stage.color)} className="inline-flex max-w-[12rem] min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-medium">
-            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: hex }} />
-            <EditableName name={stage.name} onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} />
+        <header
+          draggable={canBuild}
+          onDragStart={(e) => {
+            if (!canBuild) return;
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", stage.id);
+            setDragStage(stage.id);
+          }}
+          onDragEnd={() => {
+            setDragStage(null);
+            setOverStage(null);
+          }}
+          title={canBuild ? "Drag to move this stage" : undefined}
+          className={`flex h-10 min-w-0 items-center gap-2 border-b border-border/60 px-1 ${canBuild ? "cursor-grab active:cursor-grabbing" : ""}`}
+        >
+          <span className="min-w-0 text-sm font-medium text-foreground/90">
+            <EditableName name={stage.name} pencil="hover" onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} />
           </span>
-          <span className="rounded-full bg-foreground/[0.06] px-1.5 text-xs text-muted tabular-nums">{col.length}</span>
-          <span className="ml-auto">
-            <MoreMenu label={`${stage.name} options`} height={canBuild ? 300 : 120}>
-              {(close) => stageMenu(stage, i, close)}
-            </MoreMenu>
-          </span>
+          <span className="text-xs text-muted tabular-nums">{col.length}</span>
+          {canBuild && (
+            <span className="ml-auto">
+              <MoreMenu label={`${stage.name} options`} height={220}>
+                {(close) => stageMenu(stage, i, close)}
+              </MoreMenu>
+            </span>
+          )}
         </header>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 pt-1">
+          {/* every lead starts here, at the first stage */}
+          {i === 0 &&
+            (adding ? (
+              <InlineInput placeholder="Lead name, then Enter" className="card-surface rounded-xl p-3" onSubmit={addLead} onCancel={() => setAdding(false)} />
+            ) : (
+              <button type="button" onClick={() => setAdding(true)} className={QUIET_ROW}>
+                <Plus size={14} /> New lead
+              </button>
+            ))}
           {col.map((lead) => (
             <Fragment key={lead.id}>
               {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}
@@ -471,19 +507,6 @@ export function LeadBoard({
             </Fragment>
           ))}
           {slotAt >= 0 && slotAt >= rest.length && slot}
-
-          {newLeadIn === stage.id ? (
-            <InlineInput
-              placeholder="Lead name"
-              className="card-surface rounded-xl p-3"
-              onSubmit={(title) => addLead(stage.id, title)}
-              onCancel={() => setNewLeadIn(null)}
-            />
-          ) : (
-            <button type="button" onClick={() => setNewLeadIn(stage.id)} aria-label={`New lead in ${stage.name}`} className={QUIET_ROW}>
-              <Plus size={14} /> New
-            </button>
-          )}
         </div>
       </section>
     );
@@ -505,7 +528,7 @@ export function LeadBoard({
           ref={scroller}
           onScroll={measure}
           onDragOver={(e) => {
-            if (!drag) return;
+            if (!drag && !dragStage) return;
             // follow a dragged card to a stage off to the side, or down the page
             const r = e.currentTarget.getBoundingClientRect();
             if (e.clientX < r.left + EDGE) e.currentTarget.scrollLeft -= 18;
@@ -514,7 +537,7 @@ export function LeadBoard({
           }}
           className="overflow-x-auto pb-6"
         >
-          <div className="flex w-max items-stretch gap-3 pt-0.5">
+          <div className="flex w-max items-stretch gap-2 pt-0.5">
             {stages.map((stage, i) => {
               const col = counts.get(stage.id) ?? [];
               return (

@@ -284,21 +284,6 @@ export async function renameStage(id: string, name: string): Promise<Done> {
   }
 }
 
-export async function setStageColor(id: string, color: string): Promise<Done> {
-  const stage = await boardOfStage(id);
-  if (!stage) return { error: "That stage no longer exists." };
-  const who = await whoFor(stage.board.teamId);
-  if ("error" in who) return who;
-  if (!isColor(color)) return { error: "Pick one of the colours." };
-  try {
-    await prisma.boardStage.update({ where: { id }, data: { color } });
-    return {};
-  } catch (err) {
-    return failed(err, "That colour couldn't be saved.");
-  }
-}
-
-// A board's stages in a new order, all in one go: moving one renumbers them
 export async function orderStages(boardId: string, ids: string[]): Promise<Done> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
@@ -475,21 +460,6 @@ export async function renameOption(id: string, name: string): Promise<Done> {
   }
 }
 
-export async function setOptionColor(id: string, color: string): Promise<Done> {
-  const option = await optionWithBoard(id);
-  if (!option) return { error: "That tag no longer exists." };
-  const who = await whoFor(option.field.board.teamId);
-  if ("error" in who) return who;
-  if (!isColor(color)) return { error: "Pick one of the colours." };
-  try {
-    await prisma.fieldOption.update({ where: { id }, data: { color } });
-    return {};
-  } catch (err) {
-    return failed(err, "That colour couldn't be saved.");
-  }
-}
-
-// The tag goes, and comes off every lead that had it
 export async function deleteOption(id: string, reason: string): Promise<Done> {
   const option = await optionWithBoard(id);
   if (!option) return { error: "That tag no longer exists." };
@@ -518,7 +488,8 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
 
 // ================= Leads =================
 
-export async function createLead(boardId: string, stageId: string, title: string): Promise<Done & { id?: string }> {
+// Every lead starts at the board's first stage, wherever it was added from
+export async function createLead(boardId: string, title: string): Promise<Done & { id?: string }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
   const who = await whoFor(board.teamId);
@@ -527,8 +498,9 @@ export async function createLead(boardId: string, stageId: string, title: string
   if (!n) return { error: "Give the lead a name." };
   if (n.length > 200) return { error: "That name is too long." };
   try {
-    const stage = await prisma.boardStage.findFirst({ where: { id: stageId, boardId }, select: { name: true } });
-    if (!stage) return { error: "That stage no longer exists. Refresh and try again." };
+    const stage = await prisma.boardStage.findFirst({ where: { boardId }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
+    if (!stage) return { error: "This board has no stages yet." };
+    const stageId = stage.id;
     const id = await prisma.$transaction(async (tx) => {
       const lead = await tx.lead.create({ data: { boardId, stageId, title: n, sortOrder: Date.now(), createdById: who.id }, select: { id: true } });
       await record(tx, lead.id, who, { kind: "created", summary: `Created in ${stage.name}`, toStage: stage.name });

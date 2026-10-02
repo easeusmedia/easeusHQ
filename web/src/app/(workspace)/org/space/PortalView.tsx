@@ -2,17 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, LayoutGrid, Plus, Search, SlidersHorizontal, Table2, Trash2, Users } from "lucide-react";
+import { EyeOff, Kanban, Plus, Search, SlidersHorizontal, Table2, Trash2, Users } from "lucide-react";
 import type { BoardData, Contact, LeadData, Person } from "@/lib/space";
-import { renameSpace, deleteSpace } from "./actions";
-import { LeadBoard, MENU_ITEM, MoreMenu } from "./LeadBoard";
+import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { TrashDialog } from "./TrashDialog";
 import { BoardProperties } from "./BoardProperties";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { ReasonDialog } from "./ReasonDialog";
-import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
 
@@ -68,7 +65,6 @@ export function PortalView({
   const [creating, setCreating] = useState(false);
   const [showProps, setShowProps] = useState(false);
   const [showBin, setShowBin] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const boardId = board?.id;
   // this board's saved view, once in the browser (localStorage only exists after mount)
@@ -147,85 +143,23 @@ export function PortalView({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {/* the boards */}
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {/* more than one board in this portal: pick which */}
+      {boards.length > 1 && (
         <div role="tablist" aria-label="Boards" className={`${SEG_ROW} max-w-full overflow-x-auto`}>
-          {boards.map((b) =>
-            b.id === board.id ? (
-              <div key={b.id} role="tab" aria-selected="true" className="seg flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium">
-                <LayoutGrid size={14} className="shrink-0 text-accent" />
-                <EditableName
-                  name={board.name}
-                  className="max-w-[18rem]"
-                  onSave={async (name) => {
-                    const res = await renameSpace(board.id, name);
-                    if (res.error) return res.error;
-                    router.refresh();
-                  }}
-                />
-              </div>
-            ) : (
-              <button
-                key={b.id}
-                type="button"
-                role="tab"
-                aria-selected="false"
-                onClick={() => switchTo(b.slug)}
-                className="seg flex max-w-[16rem] shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium"
-              >
-                <LayoutGrid size={14} className="shrink-0" />
-                <span className="truncate">{b.name}</span>
-              </button>
-            )
-          )}
-        </div>
-        {canBuild && (
-          <>
-            <button type="button" onClick={() => setCreating(true)} className={TOOL}>
-              <Plus size={14} /> New board
+          {boards.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              role="tab"
+              aria-selected={b.id === board.id}
+              onClick={() => b.id !== board.id && switchTo(b.slug)}
+              className="seg flex max-w-[16rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium"
+            >
+              <span className="truncate">{b.name}</span>
             </button>
-            <MoreMenu label="Board options" height={140}>
-              {(close) => (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={MENU_ITEM}
-                    onClick={() => {
-                      close();
-                      setShowProps(true);
-                    }}
-                  >
-                    <SlidersHorizontal size={14} className="text-muted" /> Properties…
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={MENU_ITEM}
-                    onClick={() => {
-                      close();
-                      setShowBin(true);
-                    }}
-                  >
-                    <Trash2 size={14} className="text-muted" /> Bin…
-                  </button>
-                  <div className="my-1 h-px bg-border" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={`${MENU_ITEM} text-red-300! hover:text-red-200!`}
-                    onClick={() => {
-                      close();
-                      setDeleting(true);
-                    }}
-                  >
-                    <Trash2 size={14} /> Delete board
-                  </button>
-                </>
-              )}
-            </MoreMenu>
-          </>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* how to see it, and what */}
       <div className="flex flex-wrap items-center gap-2">
@@ -296,27 +230,6 @@ export function PortalView({
       <LeadPeek lead={lead} board={board} canBuild={canBuild} onClose={() => open(null)} />
       <TrashDialog open={showBin} spaceId={board.id} title={`Deleted from ${board.name}`} onClose={() => setShowBin(false)} />
       {canBuild && <BoardProperties open={showProps} board={board} onClose={() => setShowProps(false)} />}
-      {canBuild && (
-        <>
-          <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boardTemplates ?? boards} />
-          <ReasonDialog
-            open={deleting}
-            danger
-            title={`Delete the ${board.name} board?`}
-            hint="Only a board without leads can be deleted. Its stages and properties go with it, and the bin keeps your reason."
-            confirm="Delete board"
-            onCancel={() => setDeleting(false)}
-            onConfirm={async (reason) => {
-              const res = await deleteSpace(board.id, reason);
-              if (res.error) return res.error;
-              setDeleting(false);
-              // the portal opens on its first remaining board
-              router.push(pathname, { scroll: false });
-              router.refresh();
-            }}
-          />
-        </>
-      )}
     </div>
   );
 }

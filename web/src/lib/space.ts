@@ -31,10 +31,10 @@ export type ColorName = keyof typeof COLORS;
 export const COLOR_NAMES = Object.keys(COLORS) as ColorName[];
 export const isColor = (c: unknown): c is ColorName => typeof c === "string" && Object.hasOwn(COLORS, c);
 export const hexOf = (c: string) => COLORS[isColor(c) ? c : "default"];
-// a tinted pill: soft fill, faint edge, readable text
-export function pillStyle(c: string) {
-  const hex = hexOf(c);
-  return { backgroundColor: `${hex}26`, borderColor: `${hex}40`, color: `color-mix(in srgb, ${hex} 55%, white)` };
+// Stages and tags all wear one quiet pill: colours are kept in the data
+// (Notion's), but the board reads cleaner without them
+export function pillStyle(_c?: string) {
+  return { backgroundColor: "rgb(255 255 255 / 0.06)", borderColor: "rgb(255 255 255 / 0.1)", color: "var(--foreground)" };
 }
 
 // ---- Properties ----
