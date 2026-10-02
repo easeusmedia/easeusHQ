@@ -163,7 +163,7 @@ export function BestWorst({ title, meta, best, worst }: { title: string; meta: R
           </span>
           {meta}
         </p>
-        <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+        <div className="flex rounded-full bg-white/[0.04] p-1">
           {[
             { on: false, label: "Top" },
             { on: true, label: "Lowest" },

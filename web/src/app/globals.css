@@ -103,50 +103,38 @@ body {
   inherits: false;
   initial-value: 0;
 }
+/* Minimal: a flat face, one faint line, no drop shadow, no light following
+   the pointer (the --spot hooks stay, empty, for what layers on them) */
 .panel,
 .panel-soft,
 .card-surface {
-  --spot-face: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgb(75 149 230 / calc(var(--spot) * 0.12)), transparent 65%) padding-box;
-  --spot-edge: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), rgb(125 180 245 / calc(var(--spot) * 0.75)), transparent 75%) border-box;
+  --spot-face: linear-gradient(transparent, transparent) padding-box;
+  --spot-edge: linear-gradient(transparent, transparent) border-box;
 }
 .panel {
-  border: 1px solid transparent;
-  background:
-    var(--spot-face),
-    linear-gradient(180deg, #171a1f 0%, #121418 100%) padding-box,
-    var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.03) 100%) border-box;
-  box-shadow: 0 24px 48px -32px rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #131519;
 }
-/* a lighter touch, for rows and small tiles inside a page */
+/* inside a panel: a soft fill, no border of its own */
 .panel-soft {
   border: 1px solid transparent;
-  background:
-    var(--spot-face),
-    linear-gradient(180deg, #15181c 0%, #111316 100%) padding-box,
-    var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.035) 40%, rgba(255, 255, 255, 0.025) 100%) border-box;
+  background: rgba(255, 255, 255, 0.03) padding-box;
 }
-/* panels you can click: the edge brightens under the pointer */
+/* panels you can click: a quiet lighten */
 .panel-hover {
-  transition: background 0.2s ease, transform 0.2s ease, --spot 0.35s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 .panel-hover:hover {
-  --spot: 1;
-  background:
-    var(--spot-face),
-    linear-gradient(180deg, #1a1d23 0%, #14161b 100%) padding-box,
-    var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.07) 35%, rgba(255, 255, 255, 0.04) 100%) border-box;
+  background: rgba(255, 255, 255, 0.055) padding-box;
 }
-/* what's selected — a menu item, a tab: a dark gradient, faintly tinted with
-   the accent from the left, and the same catching stroke */
+.panel.panel-hover:hover {
+  background: #171a1f;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+/* what's selected (a menu item, a tab): a plain brighter fill */
 .selected {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(90deg, rgba(75, 149, 230, 0.16), rgba(75, 149, 230, 0.02) 75%) padding-box,
-    linear-gradient(180deg, #1a1e24, #15181d) padding-box,
-    linear-gradient(90deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) border-box;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--foreground);
 }
 /* a small icon tile: quiet grey at rest; lit, a wash of its colour (blue,
@@ -225,20 +213,16 @@ a, button {
    instead. So: .glass keeps a solid-feeling panel; .glass::backdrop does
    the real blurring. */
 .glass {
-  /* dialogs and notices: the same stroked material as every card */
-  border: 1px solid transparent;
-  background:
-    linear-gradient(180deg, #181b20 0%, #121418 100%) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.03) 100%) border-box;
-  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.85);
+  /* dialogs and notices: a flat face, one faint line, a soft shadow to lift them off the page */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #15171b;
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.7);
 }
 /* menus, pickers and tooltips that open over the page */
 .popover {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(180deg, #1b1e24 0%, #15171b 100%) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 100%) border-box;
-  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #17191e;
+  box-shadow: 0 16px 36px -16px rgba(0, 0, 0, 0.6);
 }
 /* Every <dialog> in the app eases in and out instead of appearing and
    vanishing in a single frame. Two things make this work on a native
@@ -329,17 +313,9 @@ dialog[open]::backdrop {
 }
 
 .card-surface {
-  /* dropped backdrop-filter here — at 90% opacity there was barely
-     anything to blur through, but real-time backdrop sampling on every
-     task card (there can be dozens on screen) was a genuine scroll/drag
-     jank source. Same look, without paying for it every frame. */
-  border: 1px solid transparent;
-  background:
-    var(--spot-face),
-    linear-gradient(180deg, #16191e 0%, #121418 100%) padding-box,
-    var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.04) 35%, rgba(255, 255, 255, 0.03) 100%) border-box;
-  transition: background 0.15s ease;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: #14161a padding-box;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 /* Only cards that actually do something on click light up. A panel that
    merely holds content — a form, a stats tile, a billing table — used to
@@ -383,34 +359,25 @@ dialog[open]::backdrop {
   box-shadow: inset 3px 0 0 rgb(252 211 77 / 0.85);
 }
 .card-interactive:hover {
-  --spot: 1;
-  background:
-    var(--spot-face),
-    linear-gradient(180deg, #1a1d23 0%, #14161b 100%) padding-box,
-    var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.19) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0.04) 100%) border-box;
+  background: #191c21 padding-box;
+  border-color: rgba(255, 255, 255, 0.09);
 }
 
 /* Interactive controls (buttons, menus) stay fully solid — no transparency
    — and pop with an obvious, distinctly-lighter background on hover,
    instead of a barely-there brightness filter. */
 .btn-glow {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(180deg, #1d2127, #16191e) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)) border-box;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--foreground);
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .btn-glow:hover {
-  background:
-    linear-gradient(180deg, #262b33, #1c2026) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.07)) border-box;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.13);
 }
 .btn-glow:active {
-  background:
-    linear-gradient(180deg, #15181c, #15181c) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05)) border-box;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* Colored status tags/pills: a clearly stronger brighten on hover. */
@@ -997,9 +964,7 @@ dialog[open]::backdrop {
 }
 
 /* A choice in a row of choices (filters, periods; .seg inside a joined
-   switch): quiet at rest; picked, the lit glass of a selected row
-   (.selected) with a soft blue wash from the top and a lit edge, rather
-   than a flat blue fill. */
+   switch): quiet at rest; picked, a plain brighter fill. */
 .chip {
   border: 1px solid rgba(255, 255, 255, 0.06);
   background-color: rgba(255, 255, 255, 0.03);
@@ -1027,13 +992,9 @@ dialog[open]::backdrop {
 .chip[aria-selected="true"],
 .seg[aria-pressed="true"],
 .seg[aria-selected="true"] {
-  border-color: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--foreground);
-  background:
-    radial-gradient(120% 140% at 50% 0%, rgba(75, 149, 230, 0.26), transparent 70%) padding-box,
-    linear-gradient(180deg, #1c222b, #15181d) padding-box,
-    linear-gradient(180deg, rgba(140, 190, 250, 0.5), rgba(255, 255, 255, 0.06)) border-box;
-  box-shadow: 0 4px 14px -6px rgba(75, 149, 230, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 /* ---- Mist: a misty blue behind the whole app, for whoever picks it (the
