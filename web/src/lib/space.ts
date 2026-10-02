@@ -33,9 +33,7 @@ export const isColor = (c: unknown): c is ColorName => typeof c === "string" && 
 export const hexOf = (c: string) => COLORS[isColor(c) ? c : "default"];
 // Stages and tags all wear one quiet pill: colours are kept in the data
 // (Notion's), but the board reads cleaner without them
-export function pillStyle(_c?: string) {
-  return { backgroundColor: "rgb(255 255 255 / 0.06)", borderColor: "rgb(255 255 255 / 0.1)", color: "var(--foreground)" };
-}
+export const PILL_STYLE = { backgroundColor: "rgb(255 255 255 / 0.06)", borderColor: "rgb(255 255 255 / 0.1)", color: "var(--foreground)" };
 
 // ---- Properties ----
 export type FieldKind = "select" | "multi" | "count" | "contacts" | "links" | "checkbox" | "date" | "text";
