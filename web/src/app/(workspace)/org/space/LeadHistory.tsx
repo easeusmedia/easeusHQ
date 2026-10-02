@@ -80,7 +80,7 @@ export function LeadHistory({ events }: { events: LeadEventData[] }) {
                     <p className="break-words text-foreground/90">{e.summary}</p>
                   )}
                   {e.reason && (
-                    <p className="mt-1.5 border-l-2 border-amber-400/40 pl-2 leading-relaxed break-words text-amber-200/85">&ldquo;{e.reason}&rdquo;</p>
+                    <p className="mt-1.5 border-l-2 border-white/15 pl-2 leading-relaxed break-words text-foreground/80">&ldquo;{e.reason}&rdquo;</p>
                   )}
                   <p className="mt-1 text-[11px] text-muted">
                     By {e.byName} · {at(e.createdAt)}

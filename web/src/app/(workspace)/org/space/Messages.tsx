@@ -57,7 +57,10 @@ export function Messages({
     else onSaved();
   }
 
-  const stages = board.stages.filter((s) => s.id === stageId || board.messages.some((m) => m.stageId === s.id));
+  const others = board.stages.filter((s) => s.id !== stageId && board.messages.some((m) => m.stageId === s.id));
+  const current = board.messages.filter((m) => m.stageId === stageId);
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [sentOpen, setSentOpen] = useState(false);
   // the details fold away, opening by themselves only when this stage's
   // messages still have blanks to fill
   const blanks = names.filter((n) => !vars[n]);
@@ -74,7 +77,7 @@ export function Messages({
           <button type="button" onClick={() => setDetailsOpen(!showDetails)} aria-expanded={showDetails} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
             <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${showDetails ? "rotate-90" : ""}`} />
             <span className="font-medium text-foreground/90">Message details</span>
-            <span className={`ml-auto ${blanks.length ? "text-amber-300/90" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+            <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
           </button>
           <Reveal open={showDetails}>
           <p className="mb-2.5 px-4 text-xs text-muted">Type each once; every message uses it.</p>
@@ -101,42 +104,69 @@ export function Messages({
         </p>
       )}
 
-      {stages.map((stage) => {
-        const list = board.messages.filter((m) => m.stageId === stage.id);
-        const isOpen = toggled[stage.id] ?? stage.id === stageId;
-        const i = board.stages.findIndex((s) => s.id === stage.id);
-        const doneHere = list.filter((m) => sent?.some((x) => x.messageId === m.id)).length;
-        return (
-          <div key={stage.id} className={`rounded-xl border transition-colors ${stage.id === stageId ? "border-accent/30 bg-accent/[0.03]" : "border-border/60"}`}>
-            <button type="button" onClick={() => setToggled((o) => ({ ...o, [stage.id]: !isOpen }))} aria-expanded={isOpen} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left">
-              <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
-              <StagePill name={stage.name} color={stage.color} />
-              {stage.id === stageId && <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">Now</span>}
-              <span className="ml-auto text-xs text-muted tabular-nums">
-                {list.length === 0 ? "No messages" : doneHere ? `${doneHere} of ${list.length} sent` : i < here ? `${list.length} not sent` : `${list.length} ${list.length === 1 ? "message" : "messages"}`}
-              </span>
-            </button>
-            <Reveal open={isOpen}>
-              <div className="flex flex-col gap-3 px-3 pb-3">
-                {list.map((m) => (
-                  <MessageCard key={m.id} message={m} leadId={lead.id} vars={vars} names={names} sent={sent?.find((x) => x.messageId === m.id) ?? null} onSent={(s) => onSent(s)} all={sent} onSaved={onSaved} onError={setError} />
-                ))}
-                <AddMessage stageId={stage.id} onAdded={() => router.refresh()} />
-              </div>
-            </Reveal>
-          </div>
-        );
-      })}
+      {/* today's: this stage's messages, in full */}
+      {here >= 0 && (
+        <div className="flex flex-col gap-3">
+          {current.length ? (
+            current.map((m) => <MessageCard key={m.id} message={m} leadId={lead.id} vars={vars} names={names} sent={sent?.find((x) => x.messageId === m.id) ?? null} onSent={(x) => onSent(x)} all={sent} onSaved={onSaved} onError={setError} />)
+          ) : (
+            <p className="px-1 text-xs text-muted">Nothing to send at this stage.</p>
+          )}
+          <AddMessage stageId={stageId} onAdded={() => router.refresh()} />
+        </div>
+      )}
+
+      {/* every other stage's messages, folded into one row */}
+      {others.length > 0 && (
+        <div className="rounded-xl border border-border/60">
+          <button type="button" onClick={() => setOthersOpen(!othersOpen)} aria-expanded={othersOpen} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
+            <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${othersOpen ? "rotate-90" : ""}`} />
+            <span className="font-medium text-foreground/90">Other stages</span>
+            <span className="ml-auto text-muted">{others.reduce((n, st) => n + board.messages.filter((m) => m.stageId === st.id).length, 0)} messages</span>
+          </button>
+          <Reveal open={othersOpen}>
+            <div className="flex flex-col gap-1 px-2 pb-2">
+              {others.map((stage) => {
+                const list = board.messages.filter((m) => m.stageId === stage.id);
+                const isOpen = !!toggled[stage.id];
+                const doneHere = list.filter((m) => sent?.some((x) => x.messageId === m.id)).length;
+                return (
+                  <div key={stage.id}>
+                    <button type="button" onClick={() => setToggled((o) => ({ ...o, [stage.id]: !isOpen }))} aria-expanded={isOpen} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-white/[0.03]">
+                      <ChevronRight size={13} className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
+                      <StagePill name={stage.name} color={stage.color} />
+                      <span className="ml-auto text-[11px] text-muted tabular-nums">{doneHere ? `${doneHere} of ${list.length} sent` : `${list.length}`}</span>
+                    </button>
+                    <Reveal open={isOpen}>
+                      <div className="flex flex-col gap-2 py-2 pl-6">
+                        {list.map((m) => (
+                          <MessageCard key={m.id} message={m} leadId={lead.id} vars={vars} names={names} sent={sent?.find((x) => x.messageId === m.id) ?? null} onSent={(x) => onSent(x)} all={sent} onSaved={onSaved} onError={setError} />
+                        ))}
+                      </div>
+                    </Reveal>
+                  </div>
+                );
+              })}
+            </div>
+          </Reveal>
+        </div>
+      )}
 
       {/* everything this lead has been sent, newest first */}
       {sent && sent.length > 0 && (
-        <div className="rounded-xl border border-border/60 p-3">
-          <p className="mb-2 px-1 text-xs font-medium text-muted">Sent so far</p>
-          <ul className="flex flex-col divide-y divide-border/40">
-            {sent.map((s) => (
-              <SentRow key={s.id} sent={s} />
-            ))}
-          </ul>
+        <div className="rounded-xl border border-border/60">
+          <button type="button" onClick={() => setSentOpen(!sentOpen)} aria-expanded={sentOpen} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
+            <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${sentOpen ? "rotate-90" : ""}`} />
+            <span className="font-medium text-foreground/90">Sent so far</span>
+            <span className="ml-auto text-muted">{sent.length}</span>
+          </button>
+          <Reveal open={sentOpen}>
+            <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
+              {sent.map((x) => (
+                <SentRow key={x.id} sent={x} />
+              ))}
+            </ul>
+          </Reveal>
         </div>
       )}
     </div>
@@ -248,7 +278,7 @@ function MessageCard({
           {sent ? <Undo2 size={12} /> : <Send size={12} />} {busy ? "Saving…" : sent ? "Mark as not sent" : "Mark as sent"}
         </button>
         <span className="ml-auto text-[11px] text-muted">
-          {sent ? `Sent by ${sent.byName} · ${formatDateTime(sent.sentAt)}` : missing.length ? <span className="text-amber-300/90">Fill in {missing.join(", ")} first</span> : null}
+          {sent ? `Sent by ${sent.byName} · ${formatDateTime(sent.sentAt)}` : missing.length ? <span className="text-red-300">Fill in {missing.join(", ")} first</span> : null}
         </span>
       </div>
 
@@ -271,7 +301,7 @@ function MessageCard({
 }
 
 // A message's text with its variables lit: filled ones in blue, missing
-// ones in amber, so what still needs typing stands out
+// ones in red, so what still needs typing stands out
 function Filled({ text, vars }: { text: string; vars: Record<string, string> }) {
   return (
     <>
@@ -283,7 +313,7 @@ function Filled({ text, vars }: { text: string; vars: Record<string, string> }) 
             {p.value}
           </span>
         ) : (
-          <span key={i} title="Fill this in under Message details" className="rounded bg-amber-400/15 px-0.5 text-amber-200">
+          <span key={i} title="Fill this in under Message details" className="rounded bg-red-400/10 px-0.5 text-red-300">
             {`{{${p.name}}}`}
           </span>
         ),

@@ -19,18 +19,20 @@ import {
   SquareCheck,
   Trash2,
   Type,
+  UserRound,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
+import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
 import { CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
-import { formatDateTime } from "../../TaskCard";
+import { Avatar, formatDateTime } from "../../TaskCard";
+import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
 import { closeOnBackdrop } from "../../dialog";
 import {
@@ -43,6 +45,7 @@ import {
   type FieldKind,
   type LeadData,
   type LeadEventData,
+  type Person,
   type SentData,
 } from "@/lib/space";
 
@@ -63,16 +66,18 @@ const lastInStage = () => Date.now();
 
 type Status = "saving" | "saved" | { error: string } | null;
 
-// A lead as a page, the way Notion opens one: its name, every property as
-// a row, its contacts, the write-up and its record. Open while `lead` is
+// A lead's window, like a task's: its stage and who has it on top, then its
+// details, today's message, and the rest folded away. Open while `lead` is
 // set; closing (Escape, the backdrop, the ×) calls onClose.
 export function LeadPeek({
   lead,
   board,
+  people,
   onClose,
 }: {
   lead: LeadData | null;
   board: BoardData;
+  people: Person[];
   canBuild: boolean;
   onClose: () => void;
 }) {
@@ -102,9 +107,9 @@ export function LeadPeek({
       {...closeOnBackdrop}
       // only its own closing: a reason prompt inside it closing reaches here too
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
-      className="glass fixed top-1/2 left-1/2 m-0 w-[min(58rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground"
+      className="glass fixed top-1/2 left-1/2 m-0 w-[min(46rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground"
     >
-      {shown && <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} close={() => ref.current?.close()} onDeleted={onClose} />}
+      {shown && <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} close={() => ref.current?.close()} onDeleted={onClose} />}
     </dialog>
   );
 }
@@ -113,12 +118,14 @@ function LeadPage({
   lead,
   open,
   board,
+  people,
   close,
   onDeleted,
 }: {
   lead: LeadData;
   open: boolean;
   board: BoardData;
+  people: Person[];
   close: () => void;
   onDeleted: () => void;
 }) {
@@ -134,12 +141,14 @@ function LeadPage({
   // refresh after their save lands, so one save's refresh never flickers another
   const [pending, setPending] = useState<Record<string, { v: unknown; done: boolean }>>({});
   const [stageId, setStageId] = useState(lead.stageId);
+  const [assignee, setAssignee] = useState(lead.assignedTo?.id ?? "");
   if (lead !== synced) {
     setSynced(lead);
     if (lead.title !== synced.title) setTitle(lead.title);
     if (lead.values !== synced.values && Object.values(pending).some((p) => p.done))
       setPending((cur) => Object.fromEntries(Object.entries(cur).filter(([, p]) => !p.done)));
     if (lead.stageId !== synced.stageId) setStageId(lead.stageId);
+    if (lead.assignedTo?.id !== synced.assignedTo?.id) setAssignee(lead.assignedTo?.id ?? "");
   }
 
   const [notes, setNotes] = useState<string | null>(null);
@@ -222,6 +231,14 @@ function LeadPage({
     });
   }
 
+  function assign(userId: string) {
+    const before = assignee;
+    setAssignee(userId);
+    run(assignLead(id, userId || null), () => setAssignee(before));
+  }
+  const assignOptions = [...(assignee ? [{ value: "", label: "Nobody" }] : []), ...people.map((p) => ({ value: p.id, label: p.name }))];
+  const person = people.find((p) => p.id === assignee) ?? (lead.assignedTo?.id === assignee ? lead.assignedTo : null);
+
   // One stage forward moves at once; anything else asks why first
   const order = board.stages.map((s) => s.id);
   const stage = board.stages.find((s) => s.id === stageId);
@@ -266,7 +283,7 @@ function LeadPage({
   const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
   const filled = fieldsShown.filter((f) => isFilled(f.kind, values[f.id])).length;
   const contactField = board.fields.find((f) => f.kind === "contacts");
-  const people = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as unknown[]).length : 0;
+  const contacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as unknown[]).length : 0;
 
   return (
     <div className="flex max-h-[88vh] flex-col">
@@ -305,9 +322,15 @@ function LeadPage({
             </>
           )}
         </Menu>
-        <span className="min-w-0 flex-1 truncate text-xs text-muted">
-          {inStage === 0 ? "Moved here today" : `${inStage} ${inStage === 1 ? "day" : "days"} in this stage`}
-        </span>
+        <Dropdown
+          size="sm"
+          pill={{ icon: person ? <Avatar name={person.name} size={16} presence={false} /> : <UserRound size={12} className="text-muted" /> }}
+          value={assignee}
+          placeholder="Assign"
+          options={assignOptions}
+          onChange={assign}
+        />
+        <span className="min-w-0 flex-1 truncate text-xs text-muted">{inStage === 0 ? "Moved here today" : `${inStage}d in this stage`}</span>
         {status === "saving" && <span className="shrink-0 text-[11px] text-muted">Saving…</span>}
         {status === "saved" && (
           <span className="fade-in flex shrink-0 items-center gap-1 text-[11px] text-muted">
@@ -367,19 +390,10 @@ function LeadPage({
           </span>
           {lead.editedByName && lead.editedAt && <span>· Last edited by {lead.editedByName}, {formatDateTime(lead.editedAt)}</span>}
         </p>
-        {missing.length > 0 && (
-          <p className="fade-in mt-2 flex items-center gap-2 text-xs text-amber-200/80">
-            <span className="size-1.5 shrink-0 rounded-full bg-amber-400" />
-            Still to fill: {missing.join(", ")}
-          </p>
-        )}
+        {missing.length > 0 && <p className="fade-in mt-2 text-xs text-red-300">Missing: {missing.join(", ")}</p>}
 
-        {/* what to send now: the stage's message, open; the rest fold away */}
-        <Section icon={MessagesSquare} title="Messages">
-          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
-        </Section>
-
-        <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={missing.some((m) => fieldsShown.some((f) => f.name === m))}>
+        {/* the details first; open while some are missing */}
+        <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={missing.some((m) => fieldsShown.some((f) => f.name === m))} defaultOpen={missing.some((m) => fieldsShown.some((f) => f.name === m))}>
           <div className="flex flex-col">
             {fieldsShown.map((f) => (
               <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)} missing={f.required && !isFilled(f.kind, values[f.id])}>
@@ -390,10 +404,15 @@ function LeadPage({
         </Fold>
 
         {contactField && (
-          <Fold icon={Users} title={contactField.name} summary={people ? `${people} ${people === 1 ? "person" : "people"}` : "None yet"} missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}>
+          <Fold icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}>
             <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
           </Fold>
         )}
+
+        {/* today's message to send; every other stage's folds away inside */}
+        <Section icon={MessagesSquare} title="Today's message">
+          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
+        </Section>
 
         <Fold icon={FileText} title="Write-up" summary={notes ? notes.trim().split("\n")[0].slice(0, 60) || "Empty" : "Empty"}>
           <textarea
@@ -446,7 +465,7 @@ function LeadPage({
   );
 }
 
-// One property: its name (with an amber dot while a basic detail is
+// One property: its name (with a red dot while a basic detail is
 // empty), then its value. Stacked on a phone.
 function Row({ icon: Icon, label, missing = false, children }: { icon: LucideIcon; label: React.ReactNode; missing?: boolean; children: React.ReactNode }) {
   return (
@@ -474,8 +493,8 @@ function Section({ icon: Icon, title, children }: { icon: LucideIcon; title: Rea
 }
 
 // A section kept shut until it's wanted: its name and a one-line summary
-function Fold({ icon: Icon, title, summary, missing = false, children }: { icon: LucideIcon; title: React.ReactNode; summary: string; missing?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+function Fold({ icon: Icon, title, summary, missing = false, defaultOpen = false, children }: { icon: LucideIcon; title: React.ReactNode; summary: string; missing?: boolean; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="mt-3 rounded-xl border border-border/60">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
@@ -492,7 +511,7 @@ function Fold({ icon: Icon, title, summary, missing = false, children }: { icon:
   );
 }
 
-const Dot = () => <span title="Basic detail" aria-label="Basic detail, still empty" className="size-1.5 shrink-0 rounded-full bg-amber-400" />;
+const Dot = () => <span title="Still missing" aria-label="Still missing" className="size-1.5 shrink-0 rounded-full bg-red-400" />;
 
 function Editor({ field, value, save }: { field: FieldData; value: unknown; save: (v: unknown) => void }) {
   switch (field.kind) {

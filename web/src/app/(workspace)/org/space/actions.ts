@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
-import { buildsDepartment, worksDepartment } from "@/lib/scope";
+import { buildsDepartment, isFounder, worksDepartment } from "@/lib/scope";
 import {
   CHILD_OF,
   cleanValue,
@@ -565,6 +565,28 @@ export async function setLeadNotes(id: string, notes: string): Promise<Done> {
     return {};
   } catch (err) {
     return failed(err, "The write-up couldn't be saved.");
+  }
+}
+
+// Who the lead is given to: anyone on staff who works in this department,
+// or Level 1. Not a line in its history (that holds stage moves); it stamps
+// who last edited it.
+export async function assignLead(id: string, userId: string | null): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  if ((userId ?? null) === lead.assignedToId) return {};
+  try {
+    if (userId) {
+      const person = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, role: true, email: true, employment: true, departments: { select: { id: true } } } });
+      if (!person || person.employment === "former") return { error: "That person isn't on the team any more." };
+      if (!isFounder(person) && !person.departments.some((d) => d.id === lead.board.teamId)) return { error: `${person.name} isn't in this department.` };
+    }
+    await prisma.lead.update({ where: { id }, data: { assignedToId: userId, ...edited(who) } });
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
   }
 }
 

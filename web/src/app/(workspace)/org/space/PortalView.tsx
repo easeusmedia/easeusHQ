@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, ListTree, Plus, Search, Table2, Users } from "lucide-react";
+import { EyeOff, Kanban, Plus, Search, Table2, Users } from "lucide-react";
 import type { BoardData, Contact, LeadData, Person } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
@@ -12,8 +12,8 @@ import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
 
 type View = "board" | "table";
-type Prefs = { view: View; hideEmpty: boolean; details: boolean };
-const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false, details: false };
+type Prefs = { view: View; hideEmpty: boolean };
+const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false };
 // per board, in this browser: board or table, and whether empty stages show
 const prefsKey = (boardId: string) => `space:board:${boardId}`;
 
@@ -67,7 +67,7 @@ export function PortalView({
     if (!boardId) return;
     try {
       const saved = JSON.parse(localStorage.getItem(prefsKey(boardId)) ?? "null") as Partial<Prefs> | null;
-      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true, details: saved?.details === true }); // eslint-disable-line react-hooks/set-state-in-effect
+      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true }); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {
       setPrefs(DEFAULT_PREFS);
     }
@@ -124,14 +124,14 @@ export function PortalView({
   const q = query.trim().toLowerCase();
   const shown = board.leads.filter(
     (l) =>
-      (who === "all" || l.createdBy.id === (who === "mine" ? viewerId : who)) &&
+      (who === "all" || [l.createdBy.id, l.assignedTo?.id].includes(who === "mine" ? viewerId : who)) &&
       (!q || searchText(l, contactFields).includes(q))
   );
   const filtered = shown.length !== board.leads.length;
   const lead = openId ? (board.leads.find((l) => l.id === openId) ?? null) : null;
   const whoOptions = [
     { value: "all", label: "Everyone" },
-    ...(viewerId ? [{ value: "mine", label: "Added by me" }] : []),
+    ...(viewerId ? [{ value: "mine", label: "Mine" }] : []),
     ...people.map((p) => ({ value: p.id, label: p.name, group: "People" })),
   ];
 
@@ -198,29 +198,18 @@ export function PortalView({
             <EyeOff size={13} /> Hide empty stages
           </button>
         )}
-        {prefs.view === "board" && (
-          <button
-            type="button"
-            aria-pressed={prefs.details}
-            onClick={() => savePrefs({ details: !prefs.details })}
-            title="Show each card's details"
-            className="chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs"
-          >
-            <ListTree size={13} /> Details
-          </button>
-        )}
       </div>
 
       {/* keyed by view so a switch eases in; dimmed while another board loads */}
       <div key={prefs.view} className={`fade-in min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {prefs.view === "board" ? (
-          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} details={prefs.details} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} />
+          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} />
         ) : (
           <LeadTable board={board} leads={shown} filtered={filtered} onOpen={open} />
         )}
       </div>
 
-      <LeadPeek lead={lead} board={board} canBuild={canBuild} onClose={() => open(null)} />
+      <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} />
     </div>
   );
 }

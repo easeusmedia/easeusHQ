@@ -34,22 +34,10 @@ export const hexOf = (c: string) => COLORS[isColor(c) ? c : "default"];
 // Tags wear one quiet pill, like a task's kind of work
 export const PILL_STYLE = { backgroundColor: "rgb(255 255 255 / 0.06)", borderColor: "rgb(255 255 255 / 0.1)", color: "var(--foreground)" };
 
-// A stage's colour in the task board's own style (lib/stages.ts STAGE): a
-// dot and a tinted pill. Literal class strings, so Tailwind keeps them.
-const NEUTRAL = { dot: "bg-neutral-400", pill: "bg-surface text-muted border-border" };
-export const STAGE_TONE: Record<string, { dot: string; pill: string }> = {
-  default: NEUTRAL,
-  gray: NEUTRAL,
-  brown: { dot: "bg-stone-400", pill: "bg-stone-400/15 text-stone-300 border-stone-400/30" },
-  orange: { dot: "bg-orange-400", pill: "bg-orange-400/15 text-orange-300 border-orange-400/30" },
-  yellow: { dot: "bg-amber-400", pill: "bg-amber-400/15 text-amber-300 border-amber-400/30" },
-  green: { dot: "bg-green-400", pill: "bg-green-400/15 text-green-300 border-green-400/30" },
-  blue: { dot: "bg-blue-400", pill: "bg-blue-400/15 text-blue-300 border-blue-400/30" },
-  purple: { dot: "bg-purple-400", pill: "bg-purple-400/15 text-purple-300 border-purple-400/30" },
-  pink: { dot: "bg-pink-400", pill: "bg-pink-400/15 text-pink-300 border-pink-400/30" },
-  red: { dot: "bg-rose-400", pill: "bg-rose-400/15 text-rose-300 border-rose-400/30" },
-};
-export const toneOf = (color: string) => STAGE_TONE[color] ?? NEUTRAL;
+// A stage's pill: the app's own quiet surface with an accent dot, the same
+// for every stage (no rainbow of stage colours)
+const STAGE_PILL = { dot: "bg-accent", pill: "bg-white/[0.04] text-foreground/90 border-white/[0.08]" };
+export const toneOf = (_color?: string) => STAGE_PILL;
 
 // ---- Properties ----
 export type FieldKind = "select" | "multi" | "count" | "contacts" | "links" | "checkbox" | "date" | "text";
@@ -95,8 +83,9 @@ export type LeadData = {
   title: string;
   stageId: string;
   sortOrder: number;
-  // whoever added it: outreach leads belong to the person who found them
+  // whoever added it, and whoever it's given to (if anyone)
   createdBy: Person;
+  assignedTo: Person | null;
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
