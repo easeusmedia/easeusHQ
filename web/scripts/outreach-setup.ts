@@ -192,6 +192,18 @@ async function messages() {
   }
 }
 
+// Stage names that say what each stage is ("Day 3 · Email 2")
+const RENAMES: [string, string][] = [["Dream 156", "Dream 156 list"], ["Shortlist", "Shortlisted"], ["Writeup Done", "Write-up done"], ["Ready to Reachout", "Ready to reach out"], ["Day 1", "Day 1 · Email 1 and LinkedIn note"], ["Day 2", "Day 2 · Instagram 1"], ["Day 3", "Day 3 · Email 2"], ["Day 4", "Day 4 · LinkedIn DM"], ["Day 5", "Day 5 · Instagram 2"], ["Day 6", "Day 6 · Email 3"], ["Day 7", "Day 7 · Instagram 3 and LinkedIn 3"], ["Day 8", "Day 8 · Final email"], ["Lead Magnet Sent", "Audit sent"], ["Didn't respond after the loom", "No reply after the audit"], ["Parked", "Parked for later"]];
+async function rename() {
+  const { board } = await findBoard();
+  for (const [from, to] of RENAMES) {
+    const st = board.stages.find((x) => x.name === from);
+    if (!st) continue;
+    await prisma.boardStage.update({ where: { id: st.id }, data: { name: to } });
+    console.log(`${from} is now ${to}`);
+  }
+}
+
 // The board as first copied whole from Notion, trimmed to what outreach uses
 async function tidy() {
   const { board } = await findBoard();
@@ -223,6 +235,6 @@ async function tidy() {
 }
 
 const [mode, path] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
-const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages };
+const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, rename };
 await (modes[mode]?.() ?? Promise.reject(new Error(`Say one of: ${Object.keys(modes).join(", ")}.`)));
 await prisma.$disconnect();

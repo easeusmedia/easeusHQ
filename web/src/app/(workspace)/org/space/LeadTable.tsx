@@ -3,7 +3,20 @@
 import { CalendarPlus, CircleDot, UserRound } from "lucide-react";
 import type { BoardData, LeadData } from "@/lib/space";
 import { Avatar, formatDate } from "../../TaskCard";
-import { FIELD_ICONS } from "./BoardProperties";
+import { CalendarDays, Contact, Hash, Link2, SquareCheck, Tag, Tags, TextAlignStart, type LucideIcon } from "lucide-react";
+import type { FieldKind } from "@/lib/space";
+
+// One glyph per kind of property
+const FIELD_ICONS: Record<FieldKind, LucideIcon> = {
+  select: Tag,
+  multi: Tags,
+  count: Hash,
+  contacts: Contact,
+  links: Link2,
+  checkbox: SquareCheck,
+  date: CalendarDays,
+  text: TextAlignStart,
+};
 import { StagePill } from "./pills";
 import { ValueView } from "./values";
 

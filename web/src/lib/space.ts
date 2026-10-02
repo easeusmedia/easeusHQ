@@ -31,9 +31,25 @@ export type ColorName = keyof typeof COLORS;
 export const COLOR_NAMES = Object.keys(COLORS) as ColorName[];
 export const isColor = (c: unknown): c is ColorName => typeof c === "string" && Object.hasOwn(COLORS, c);
 export const hexOf = (c: string) => COLORS[isColor(c) ? c : "default"];
-// Stages and tags all wear one quiet pill: colours are kept in the data
-// (Notion's), but the board reads cleaner without them
+// Tags wear one quiet pill, like a task's kind of work
 export const PILL_STYLE = { backgroundColor: "rgb(255 255 255 / 0.06)", borderColor: "rgb(255 255 255 / 0.1)", color: "var(--foreground)" };
+
+// A stage's colour in the task board's own style (lib/stages.ts STAGE): a
+// dot and a tinted pill. Literal class strings, so Tailwind keeps them.
+const NEUTRAL = { dot: "bg-neutral-400", pill: "bg-surface text-muted border-border" };
+export const STAGE_TONE: Record<string, { dot: string; pill: string }> = {
+  default: NEUTRAL,
+  gray: NEUTRAL,
+  brown: { dot: "bg-stone-400", pill: "bg-stone-400/15 text-stone-300 border-stone-400/30" },
+  orange: { dot: "bg-orange-400", pill: "bg-orange-400/15 text-orange-300 border-orange-400/30" },
+  yellow: { dot: "bg-amber-400", pill: "bg-amber-400/15 text-amber-300 border-amber-400/30" },
+  green: { dot: "bg-green-400", pill: "bg-green-400/15 text-green-300 border-green-400/30" },
+  blue: { dot: "bg-blue-400", pill: "bg-blue-400/15 text-blue-300 border-blue-400/30" },
+  purple: { dot: "bg-purple-400", pill: "bg-purple-400/15 text-purple-300 border-purple-400/30" },
+  pink: { dot: "bg-pink-400", pill: "bg-pink-400/15 text-pink-300 border-pink-400/30" },
+  red: { dot: "bg-rose-400", pill: "bg-rose-400/15 text-rose-300 border-rose-400/30" },
+};
+export const toneOf = (color: string) => STAGE_TONE[color] ?? NEUTRAL;
 
 // ---- Properties ----
 export type FieldKind = "select" | "multi" | "count" | "contacts" | "links" | "checkbox" | "date" | "text";
@@ -276,20 +292,24 @@ export type BoardTemplate = {
   stages: { name: string; color: ColorName }[];
   fields: { name: string; kind: FieldKind; onCard?: boolean; required?: boolean; options?: { name: string; color: ColorName }[] }[];
 };
-const DAYS = [1, 2, 3, 4, 5, 6, 7, 8].map((d) => ({ name: `Day ${d}`, color: "yellow" as ColorName }));
+// what each day of the sequence sends, in its name
+const DAYS = ["Email 1 and LinkedIn note", "Instagram 1", "Email 2", "LinkedIn DM", "Instagram 2", "Email 3", "Instagram 3 and LinkedIn 3", "Final email"].map((what, i) => ({
+  name: `Day ${i + 1} · ${what}`,
+  color: "yellow" as ColorName,
+}));
 export const DREAM_156: BoardTemplate = {
   name: "Dream 156 Podcasts (Core Offer)",
   stages: [
-    { name: "Dream 156", color: "default" },
-    { name: "Shortlist", color: "gray" },
-    { name: "Writeup Done", color: "brown" },
-    { name: "Ready to Reachout", color: "orange" },
+    { name: "Dream 156 list", color: "default" },
+    { name: "Shortlisted", color: "gray" },
+    { name: "Write-up done", color: "brown" },
+    { name: "Ready to reach out", color: "orange" },
     ...DAYS,
-    { name: "Lead Magnet Sent", color: "orange" },
+    { name: "Audit sent", color: "purple" },
     { name: "Replied", color: "green" },
-    { name: "Didn't respond after the loom", color: "brown" },
-    { name: "Parked", color: "orange" },
-    { name: "Dead", color: "default" },
+    { name: "No reply after the audit", color: "brown" },
+    { name: "Parked for later", color: "orange" },
+    { name: "Dead", color: "red" },
   ],
   fields: [
     {

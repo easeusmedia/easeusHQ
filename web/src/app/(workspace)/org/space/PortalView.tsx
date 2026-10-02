@@ -2,25 +2,22 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, Plus, Search, SlidersHorizontal, Table2, Trash2, Users } from "lucide-react";
+import { EyeOff, Kanban, ListTree, Plus, Search, Table2, Users } from "lucide-react";
 import type { BoardData, Contact, LeadData, Person } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
-import { TrashDialog } from "./TrashDialog";
-import { BoardProperties } from "./BoardProperties";
 import { NewSpaceDialog } from "./NewSpaceDialog";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
 
 type View = "board" | "table";
-type Prefs = { view: View; hideEmpty: boolean };
-const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false };
+type Prefs = { view: View; hideEmpty: boolean; details: boolean };
+const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false, details: false };
 // per board, in this browser: board or table, and whether empty stages show
 const prefsKey = (boardId: string) => `space:board:${boardId}`;
 
 const SEG_ROW = "flex w-fit items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
-const TOOL = "btn btn-sm btn-ghost gap-1.5 px-2.5";
 
 // Everything a search can find on a lead: its name, and each contact's name,
 // emails and handles
@@ -63,8 +60,6 @@ export function PortalView({
   const [query, setQuery] = useState("");
   const [who, setWho] = useState("all");
   const [creating, setCreating] = useState(false);
-  const [showProps, setShowProps] = useState(false);
-  const [showBin, setShowBin] = useState(false);
 
   const boardId = board?.id;
   // this board's saved view, once in the browser (localStorage only exists after mount)
@@ -72,7 +67,7 @@ export function PortalView({
     if (!boardId) return;
     try {
       const saved = JSON.parse(localStorage.getItem(prefsKey(boardId)) ?? "null") as Partial<Prefs> | null;
-      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true }); // eslint-disable-line react-hooks/set-state-in-effect
+      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true, details: saved?.details === true }); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {
       setPrefs(DEFAULT_PREFS);
     }
@@ -203,33 +198,29 @@ export function PortalView({
             <EyeOff size={13} /> Hide empty stages
           </button>
         )}
-        <div className="ml-auto flex items-center gap-1">
-          <span className="mr-1 text-xs text-muted tabular-nums">
-            {filtered ? `${shown.length} of ${board.leads.length}` : board.leads.length} {board.leads.length === 1 ? "lead" : "leads"}
-          </span>
-          {canBuild && (
-            <button type="button" onClick={() => setShowProps(true)} className={TOOL}>
-              <SlidersHorizontal size={14} /> Properties
-            </button>
-          )}
-          <button type="button" onClick={() => setShowBin(true)} className={TOOL}>
-            <Trash2 size={14} /> Bin
+        {prefs.view === "board" && (
+          <button
+            type="button"
+            aria-pressed={prefs.details}
+            onClick={() => savePrefs({ details: !prefs.details })}
+            title="Show each card's details"
+            className="chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs"
+          >
+            <ListTree size={13} /> Details
           </button>
-        </div>
+        )}
       </div>
 
       {/* keyed by view so a switch eases in; dimmed while another board loads */}
       <div key={prefs.view} className={`fade-in min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {prefs.view === "board" ? (
-          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} />
+          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} details={prefs.details} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} />
         ) : (
           <LeadTable board={board} leads={shown} filtered={filtered} onOpen={open} />
         )}
       </div>
 
       <LeadPeek lead={lead} board={board} canBuild={canBuild} onClose={() => open(null)} />
-      <TrashDialog open={showBin} spaceId={board.id} title={`Deleted from ${board.name}`} onClose={() => setShowBin(false)} />
-      {canBuild && <BoardProperties open={showProps} board={board} onClose={() => setShowProps(false)} />}
     </div>
   );
 }

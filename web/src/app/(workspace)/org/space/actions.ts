@@ -24,7 +24,6 @@ import {
   type OptionData,
   type SpaceKind,
   type StageData,
-  type TrashItem,
 } from "@/lib/space";
 
 // A department's pages: sections, portals, boards, and the leads on them.
@@ -489,7 +488,8 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
 // ================= Leads =================
 
 // Every lead starts at the board's first stage, wherever it was added from
-export async function createLead(boardId: string, title: string): Promise<Done & { id?: string }> {
+// (with the podcast's links, when given, on the board's links property)
+export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = []): Promise<Done & { id?: string }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
   const who = await whoFor(board.teamId);
@@ -502,7 +502,10 @@ export async function createLead(boardId: string, title: string): Promise<Done &
     if (!stage) return { error: "This board has no stages yet." };
     const stageId = stage.id;
     const id = await prisma.$transaction(async (tx) => {
-      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, sortOrder: Date.now(), createdById: who.id }, select: { id: true } });
+      const field = links.length ? await tx.boardField.findFirst({ where: { boardId, kind: "links" }, orderBy: { sortOrder: "asc" }, select: { id: true } }) : null;
+      const clean = field ? cleanValue("links", links) : null;
+      const values = field && clean && "value" in clean && clean.value ? { [field.id]: clean.value } : {};
+      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values, sortOrder: Date.now(), createdById: who.id }, select: { id: true } });
       await record(tx, lead.id, who, { kind: "created", summary: `Created in ${stage.name}`, toStage: stage.name });
       return lead.id;
     });
@@ -627,84 +630,6 @@ export async function deleteLead(id: string, reason: string): Promise<Done> {
     return {};
   } catch (err) {
     return failed(err, "That lead couldn't be deleted.");
-  }
-}
-
-// A deleted lead back on its board, history and all: in its old stage if
-// that still exists, otherwise the first one
-export async function restoreLead(trashId: string): Promise<Done & { id?: string }> {
-  const item = await prisma.spaceTrash.findUnique({ where: { id: trashId } });
-  if (!item || item.kind !== "lead" || !item.spaceId) return { error: "That can't be put back." };
-  if (item.restoredAt) return { error: "That lead is already back." };
-  const who = await whoFor(item.teamId);
-  if ("error" in who) return who;
-  try {
-    const board = await spaceOf(item.spaceId);
-    if (!board) return { error: "Its board no longer exists." };
-    type Saved = {
-      id: string;
-      title: string;
-      stageId: string;
-      stageName?: string;
-      assignedToId: string | null;
-      values: Prisma.JsonValue;
-      vars?: Prisma.JsonValue;
-      notes: string;
-      createdById: string;
-      createdAt: string;
-      events: { kind: string; summary: string; fromStage: string | null; toStage: string | null; reason: string | null; byId: string; byName: string; createdAt: string }[];
-    };
-    const saved = item.data as unknown as Saved;
-    const stages = await prisma.boardStage.findMany({ where: { boardId: board.id }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } });
-    if (!stages.length) return { error: "Its board has no stages to put it in." };
-    const stage = stages.find((s) => s.id === saved.stageId) ?? stages[0];
-    const [taken, creator, assignee] = await Promise.all([
-      prisma.lead.findUnique({ where: { id: saved.id }, select: { id: true } }),
-      prisma.user.findUnique({ where: { id: saved.createdById }, select: { id: true } }),
-      saved.assignedToId ? prisma.user.findUnique({ where: { id: saved.assignedToId }, select: { id: true, employment: true } }) : null,
-    ]);
-    // properties and tags deleted while it was in the bin come off it
-    const fields = await prisma.boardField.findMany({ where: { boardId: board.id }, select: { id: true, kind: true, options: { select: { id: true } } } });
-    const values: Record<string, unknown> = {};
-    for (const [fid, v] of Object.entries((saved.values ?? {}) as Record<string, unknown>)) {
-      const f = fields.find((x) => x.id === fid);
-      if (!f) continue;
-      if (f.kind === "select" || f.kind === "multi") {
-        const ids = (Array.isArray(v) ? v : []).filter((x) => f.options.some((o) => o.id === x));
-        if (ids.length) values[fid] = ids;
-      } else values[fid] = v;
-    }
-    const id = await prisma.$transaction(async (tx) => {
-      // two people putting it back at once: only the first does
-      const claimed = await tx.spaceTrash.updateMany({ where: { id: trashId, restoredAt: null }, data: { restoredAt: new Date() } });
-      if (!claimed.count) throw new Error("already back");
-      const lead = await tx.lead.create({
-        data: {
-          ...(taken ? {} : { id: saved.id }),
-          boardId: board.id,
-          stageId: stage.id,
-          title: saved.title,
-          sortOrder: Date.now(),
-          assignedToId: assignee && assignee.employment !== "former" ? assignee.id : null,
-          values: values as Prisma.InputJsonValue,
-          vars: (saved.vars ?? {}) as Prisma.InputJsonValue,
-          notes: saved.notes ?? "",
-          createdById: creator ? creator.id : who.id,
-          createdAt: new Date(saved.createdAt),
-        },
-        select: { id: true },
-      });
-      if (saved.events?.length)
-        await tx.leadEvent.createMany({
-          data: saved.events.map((e) => ({ leadId: lead.id, kind: e.kind, summary: e.summary, fromStage: e.fromStage, toStage: e.toStage, reason: e.reason, byId: e.byId, byName: e.byName, createdAt: new Date(e.createdAt) })),
-        });
-      await record(tx, lead.id, who, { kind: "restored", summary: `Put back in ${stage.name}`, toStage: stage.name, reason: `Deleted by ${item.byName}: ${item.reason}` });
-      return lead.id;
-    });
-    return { id };
-  } catch (err) {
-    if (err instanceof Error && err.message === "already back") return { error: "That lead is already back." };
-    return failed(err, "That lead couldn't be put back.");
   }
 }
 
@@ -862,22 +787,3 @@ export async function getLeadDetails(id: string): Promise<Done & { notes?: strin
   };
 }
 
-// What was deleted, newest first: from a board (with the boards deleted
-// from its portal), from under a page, or (no page) from the department itself
-export async function listTrash(spaceId: string | null, teamId?: string): Promise<Done & { items?: TrashItem[] }> {
-  const space = spaceId ? await spaceOf(spaceId) : null;
-  if (spaceId && !space) return { error: "That page no longer exists." };
-  const team = space?.teamId ?? teamId;
-  if (!team) return { error: "That page no longer exists." };
-  const who = await whoFor(team);
-  if ("error" in who) return who;
-  const where: Prisma.SpaceTrashWhereInput = !space
-    ? { teamId: team, spaceId: null }
-    : space.kind === "board" && space.parentId
-      ? { OR: [{ spaceId: space.id }, { spaceId: space.parentId, kind: "board" }] }
-      : { spaceId: space.id };
-  const items = await prisma.spaceTrash.findMany({ where, orderBy: { deletedAt: "desc" }, take: 200 });
-  return {
-    items: items.map((t) => ({ id: t.id, kind: t.kind, title: t.title, reason: t.reason, byName: t.byName, deletedAt: t.deletedAt.toISOString(), restoredAt: t.restoredAt?.toISOString() ?? null })),
-  };
-}

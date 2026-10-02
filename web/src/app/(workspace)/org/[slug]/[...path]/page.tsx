@@ -3,7 +3,7 @@ import { getViewer } from "@/lib/viewer";
 import { buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../../departments";
 import { DepartmentHead } from "../../DepartmentHead";
-import { boardsOf, childCards, loadBoard, peopleOf, resolvePath, templatesOf } from "../../space/data";
+import { boardsOf, childCards, loadBoard, peopleOf, reachOuts, resolvePath, templatesOf } from "../../space/data";
 import { SpaceGrid, SpaceTitle } from "../../space/SpaceGrid";
 import { PortalView } from "../../space/PortalView";
 
@@ -55,19 +55,24 @@ export default async function SpacePage({
   const boards = await boardsOf(node.id);
   const pick = typeof query.board === "string" ? query.board : undefined;
   const active = boards.find((b) => b.slug === pick) ?? boards[0];
-  const [board, people, siblings, boardTemplates] = await Promise.all([
+  const [board, people, boardTemplates, reached] = await Promise.all([
     active ? loadBoard(active.id) : null,
     peopleOf(team.id),
-    childCards(team.id, node.parentId, href(nodes.length - 2)),
     templatesOf(team.id, "board"),
+    active ? reachOuts(active.id) : null,
   ]);
-  const leads = siblings.find((c) => c.id === node.id)?.leads ?? 0;
   return (
     <>
       <DepartmentHead trail={trail} />
       <header className="mt-6 mb-6">
         <SpaceTitle id={node.id} name={node.name} />
-        {boards.length > 0 && <p className="mt-1.5 text-sm text-muted">{`${plural(boards.length, "board")} holding ${plural(leads, "lead")}.`}</p>}
+        {/* what the outreach has done: every move into a Day stage is a reach-out */}
+        {reached && (
+          <p className="mt-1.5 text-sm text-muted">
+            <span className="font-medium text-foreground tabular-nums">{reached.total}</span> {reached.total === 1 ? "reach-out" : "reach-outs"} done ·{" "}
+            <span className="font-medium text-foreground tabular-nums">{reached.week}</span> in the last 7 days
+          </p>
+        )}
       </header>
       <PortalView
         teamId={team.id}

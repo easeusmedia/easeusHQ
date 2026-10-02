@@ -58,15 +58,27 @@ export function Messages({
   }
 
   const stages = board.stages.filter((s) => s.id === stageId || board.messages.some((m) => m.stageId === s.id));
+  // the details fold away, opening by themselves only when this stage's
+  // messages still have blanks to fill
+  const blanks = names.filter((n) => !vars[n]);
+  const nowBlank = variablesIn(board.messages.filter((m) => m.stageId === stageId).flatMap((m) => [fillText(m.subject, vars), fillText(m.body, vars)]));
+  const [detailsOpen, setDetailsOpen] = useState<boolean | null>(null);
+  const showDetails = detailsOpen ?? nowBlank.length > 0;
   const here = board.stages.findIndex((s) => s.id === stageId);
 
   return (
     <div className="flex flex-col gap-4">
       {/* the words that change per lead: typed once, every message uses them */}
       {names.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-white/[0.02] p-3">
-          <p className="mb-2.5 px-1 text-xs text-muted">Message details. Type each once; every message below uses it.</p>
-          <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-border/60 bg-white/[0.02]">
+          <button type="button" onClick={() => setDetailsOpen(!showDetails)} aria-expanded={showDetails} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
+            <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${showDetails ? "rotate-90" : ""}`} />
+            <span className="font-medium text-foreground/90">Message details</span>
+            <span className={`ml-auto ${blanks.length ? "text-amber-300/90" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+          </button>
+          <Reveal open={showDetails}>
+          <p className="mb-2.5 px-4 text-xs text-muted">Type each once; every message uses it.</p>
+          <div className="grid gap-x-3 gap-y-2 px-3 pb-3 sm:grid-cols-2">
             {names.map((name) => (
               <label key={name} className="flex min-w-0 flex-col gap-1">
                 <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
@@ -79,6 +91,7 @@ export function Messages({
               </label>
             ))}
           </div>
+          </Reveal>
         </div>
       )}
 

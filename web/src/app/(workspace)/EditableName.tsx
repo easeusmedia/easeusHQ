@@ -60,7 +60,7 @@ export function EditableName({
 
   if (!editing) {
     return (
-      <span className="inline-flex min-w-0 flex-col">
+      <span className="inline-flex max-w-full min-w-0 flex-col">
         <button
           type="button"
           onClick={(e) => {
@@ -72,7 +72,7 @@ export function EditableName({
           }}
           title="Rename"
           aria-label={`Rename ${shown}`}
-          className={`group/name inline-flex min-w-0 items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}
+          className={`group/name inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}
         >
           <span className="truncate">{shown}</span>
           <Pencil

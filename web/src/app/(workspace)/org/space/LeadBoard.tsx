@@ -2,22 +2,20 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { moveNeedsReason, type BoardData, type LeadData, type StageData } from "@/lib/space";
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { moveNeedsReason, toneOf, type BoardData, type LeadData, type StageData } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
-import { createLead, createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
+import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadCard } from "./LeadCard";
+import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
-import { scrollPageNearEdge } from "../../StickyColumns";
+import { StickyColumns, scrollPageNearEdge } from "../../StickyColumns";
 import { topLayer, useCloseOnScroll, usePopover } from "../../popover";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 export const MENU_ITEM = "menu-item px-2.5 py-1.5 text-xs disabled:pointer-events-none disabled:opacity-40";
-const COLUMN = "w-[18rem] shrink-0";
 const QUIET_ROW = "flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-foreground/[0.05] hover:text-foreground";
-// px from the board's side where a dragged card starts scrolling it
-const EDGE = 80;
 
 const without = <T,>(map: Record<string, T>, id: string) => Object.fromEntries(Object.entries(map).filter(([k]) => k !== id));
 
@@ -177,6 +175,7 @@ export function LeadBoard({
   leads,
   canBuild,
   hideEmpty,
+  details,
   onShowEmpty,
   onOpen,
 }: {
@@ -185,6 +184,8 @@ export function LeadBoard({
   leads: LeadData[];
   canBuild: boolean;
   hideEmpty: boolean;
+  // properties on the cards, or just the name
+  details: boolean;
   onShowEmpty: () => void;
   onOpen: (id: string) => void;
 }) {
@@ -205,7 +206,6 @@ export function LeadBoard({
   const [dragHeight, setDragHeight] = useState(0);
   const [over, setOver] = useState<{ stageId: string; index: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
   const [newStageAt, setNewStageAt] = useState<number | null>(null);
   // held after closing too, so the dialogs keep their words while they fade
   const [asking, setAsking] = useState<{ open: boolean; lead: LeadData; from: StageData; to: StageData; sortOrder: number } | null>(null);
@@ -219,27 +219,6 @@ export function LeadBoard({
   const order = stages.map((s) => s.id);
   const shown = leads.map((l) => (live.moved[l.id] ? { ...l, ...live.moved[l.id] } : l));
   const columnOf = (stageId: string) => shown.filter((l) => l.stageId === stageId).sort((a, b) => a.sortOrder - b.sortOrder);
-
-  // ---- the sideways scroll: faded edges where there's more, and arrows
-  // (the app hides scrollbars, so a mouse needs something to press) ----
-  const scroller = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: false });
-  const measure = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const left = el.scrollLeft > 4;
-    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-    setEdges((p) => (p.left === left && p.right === right ? p : { left, right }));
-  }, []);
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    if (el.firstElementChild) ro.observe(el.firstElementChild);
-    return () => ro.disconnect();
-  }, [measure]);
-  const scrollBy = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.8, behavior: "smooth" });
 
   // ---- leads ----
   const endDrag = () => {
@@ -286,14 +265,6 @@ export function LeadBoard({
       if (res.needsReason && from) setAsking({ open: true, lead, from, to: stage, sortOrder });
       else if (res.error) setError(res.error);
     });
-  }
-
-  async function addLead(title: string) {
-    const res = await createLead(board.id, title).catch(() => ({ error: OFFLINE, id: undefined }));
-    if (res.error || !res.id) return res.error ?? OFFLINE;
-    setAdding(false);
-    router.refresh();
-    onOpen(res.id);
   }
 
   // ---- stages ----
@@ -406,7 +377,7 @@ export function LeadBoard({
     );
   }
 
-  // a stage dropped on another column takes that column's place
+  // a stage dropped on another takes its place
   function dropStage(target: StageData) {
     const id = dragStage;
     setDragStage(null);
@@ -418,171 +389,144 @@ export function LeadBoard({
     ids.splice(ids.indexOf(target.id) + (to > from ? 1 : 0), 0, id);
     renumber(ids);
   }
+  // a stage being dragged can land on another's header or its cards
+  const stageDrop = (stage: StageData) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragStage) return;
+      e.preventDefault();
+      if (overStage !== stage.id) setOverStage(stage.id);
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!dragStage) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dropStage(stage);
+    },
+  });
 
-  function column(stage: StageData, i: number, col: LeadData[]) {
+  // The stage's header, as on the task board: its colour, name and count.
+  // Level 1 and 2 drag it to move the stage, and get its menu.
+  function header(stage: StageData, i: number, count: number) {
+    const tone = toneOf(stage.color);
+    const target = !!dragStage && overStage === stage.id && dragStage !== stage.id;
+    return (
+      <div
+        {...stageDrop(stage)}
+        draggable={canBuild}
+        onDragStart={(e) => {
+          if (!canBuild) return;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", stage.id);
+          setDragStage(stage.id);
+        }}
+        onDragEnd={() => {
+          setDragStage(null);
+          setOverStage(null);
+        }}
+        title={canBuild ? "Drag to move this stage" : undefined}
+        className={`status-pop flex min-w-0 items-center gap-2 rounded-full border py-1.5 pr-1.5 pl-3 text-sm font-medium transition-[opacity,box-shadow] ${tone.pill} ${canBuild ? "cursor-grab active:cursor-grabbing" : ""} ${
+          target ? "ring-2 ring-accent/60" : ""
+        } ${dragStage === stage.id ? "opacity-40" : ""}`}
+      >
+        <span className={`size-2 shrink-0 rounded-full ${tone.dot}`} />
+        <span className="flex min-w-0 flex-1" title={stage.name}>
+          <EditableName name={stage.name} pencil="hover" onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} />
+        </span>
+        <span className="shrink-0 rounded-full bg-black/20 px-2 text-xs">{count}</span>
+        {canBuild && (
+          <MoreMenu label={`${stage.name} options`} height={220}>
+            {(close) => stageMenu(stage, i, close)}
+          </MoreMenu>
+        )}
+      </div>
+    );
+  }
+
+  // A stage's cards: drop a card in, drag one out; the first stage adds leads
+  function body(stage: StageData, i: number, col: LeadData[]) {
     const isOver = !!drag && over?.stageId === stage.id;
     const rest = col.filter((l) => l.id !== drag);
     // the slot, unless dropping there would leave the card where it is
     const from = col.findIndex((l) => l.id === drag);
     const slotAt = isOver && over.index !== from ? over.index : -1;
     const slot = <div key="slot" style={{ height: dragHeight || 72 }} className="fade-in shrink-0 rounded-xl border border-dashed border-accent/50 bg-accent/[0.07]" />;
-    const stageTarget = !!dragStage && overStage === stage.id && dragStage !== stage.id;
     return (
       <section
         aria-label={stage.name}
         onDragOver={(e) => {
-          if (dragStage) {
-            e.preventDefault();
-            if (overStage !== stage.id) setOverStage(stage.id);
-            return;
-          }
+          if (dragStage) return stageDrop(stage).onDragOver(e);
           if (!drag) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           const index = indexAt(e.currentTarget, e.clientY, drag);
           if (!isOver || over.index !== index) setOver({ stageId: stage.id, index });
         }}
-        onDrop={(e) => (dragStage ? (e.preventDefault(), dropStage(stage)) : drop(stage, e))}
-        className={`${COLUMN} flex min-h-[26rem] flex-col gap-2 rounded-xl px-2 pb-2 transition-[background-color,box-shadow,opacity] duration-200 ${
-          isOver || stageTarget ? "bg-white/[0.03] ring-1 ring-accent/35" : ""
-        } ${dragStage === stage.id ? "opacity-40" : ""}`}
+        onDrop={(e) => (dragStage ? stageDrop(stage).onDrop(e) : drop(stage, e))}
+        className={`flex min-h-24 min-w-0 flex-1 flex-col gap-3 rounded-xl transition-colors duration-200 ${isOver ? "bg-white/[0.025]" : ""}`}
       >
-        <header
-          draggable={canBuild}
-          onDragStart={(e) => {
-            if (!canBuild) return;
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", stage.id);
-            setDragStage(stage.id);
-          }}
-          onDragEnd={() => {
-            setDragStage(null);
-            setOverStage(null);
-          }}
-          title={canBuild ? "Drag to move this stage" : undefined}
-          className={`flex h-10 min-w-0 items-center gap-2 border-b border-border/60 px-1 ${canBuild ? "cursor-grab active:cursor-grabbing" : ""}`}
-        >
-          <span className="min-w-0 text-sm font-medium text-foreground/90">
-            <EditableName name={stage.name} pencil="hover" onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} />
-          </span>
-          <span className="text-xs text-muted tabular-nums">{col.length}</span>
-          {canBuild && (
-            <span className="ml-auto">
-              <MoreMenu label={`${stage.name} options`} height={220}>
-                {(close) => stageMenu(stage, i, close)}
-              </MoreMenu>
-            </span>
-          )}
-        </header>
-
-        <div className="flex flex-col gap-2 pt-1">
-          {/* every lead starts here, at the first stage */}
-          {i === 0 &&
-            (adding ? (
-              <InlineInput placeholder="Lead name, then Enter" className="card-surface rounded-xl p-3" onSubmit={addLead} onCancel={() => setAdding(false)} />
-            ) : (
-              <button type="button" onClick={() => setAdding(true)} className={QUIET_ROW}>
-                <Plus size={14} /> New lead
-              </button>
-            ))}
-          {col.map((lead) => (
-            <Fragment key={lead.id}>
-              {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}
-              <div
-                data-lead-id={lead.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", lead.id);
-                  setDragHeight(e.currentTarget.offsetHeight);
-                  setDrag(lead.id);
-                }}
-                // always fires, wherever the drop lands (or Escape), so a
-                // card is never left faded
-                onDragEnd={endDrag}
-                className={`transition-opacity duration-150 ${drag === lead.id ? "opacity-35" : ""}`}
-              >
-                <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} />
-              </div>
-            </Fragment>
-          ))}
-          {slotAt >= 0 && slotAt >= rest.length && slot}
-        </div>
+        {/* every lead starts here, at the first stage */}
+        {i === 0 && <NewLead boardId={board.id} onCreated={onOpen} />}
+        {col.map((lead) => (
+          <Fragment key={lead.id}>
+            {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}
+            <div
+              data-lead-id={lead.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", lead.id);
+                setDragHeight(e.currentTarget.offsetHeight);
+                setDrag(lead.id);
+              }}
+              // always fires, wherever the drop lands (or Escape), so a
+              // card is never left faded
+              onDragEnd={endDrag}
+              className={`transition-opacity duration-150 ${drag === lead.id ? "opacity-35" : ""}`}
+            >
+              <LeadCard lead={lead} fields={board.fields} details={details} onOpen={onOpen} />
+            </div>
+          </Fragment>
+        ))}
+        {slotAt >= 0 && slotAt >= rest.length && slot}
+        {/* room to drop below the last card */}
+        <div className="h-6 shrink-0" />
       </section>
     );
   }
 
-  const stageInput = (at: number) => (
-    <div className={`${COLUMN} p-1.5`}>
-      <InlineInput placeholder="Stage name, then Enter" className="panel-soft rounded-xl px-3 py-2" onSubmit={(name) => addStage(name, at)} onCancel={() => setNewStageAt(null)} />
-    </div>
-  );
-
   const counts = new Map(stages.map((s) => [s.id, columnOf(s.id)]));
-  const hidden = hideEmpty ? stages.filter((s) => !counts.get(s.id)?.length).length : 0;
+  const hidden = hideEmpty ? stages.filter((s, i) => i > 0 && !counts.get(s.id)?.length).length : 0;
+  const stageInput = (at: number) => ({
+    key: `new-${at}`,
+    header: <InlineInput placeholder="Stage name, then Enter" className="rounded-full border border-border bg-surface-2 px-3 py-1.5" onSubmit={(name) => addStage(name, at)} onCancel={() => setNewStageAt(null)} />,
+    body: <div />,
+  });
+  const columns = stages.flatMap((stage, i) => {
+    const col = counts.get(stage.id) ?? [];
+    const here = newStageAt === i ? [stageInput(i)] : [];
+    // the first stage always shows: new leads start there
+    if (hideEmpty && i > 0 && !col.length) return here;
+    return [...here, { key: stage.id, header: header(stage, i, col.length), body: body(stage, i, col) }];
+  });
+  if (newStageAt === stages.length) columns.push(stageInput(stages.length));
 
   return (
     <>
-      <div className="relative">
-        <div
-          ref={scroller}
-          onScroll={measure}
-          onDragOver={(e) => {
-            if (!drag && !dragStage) return;
-            // follow a dragged card to a stage off to the side, or down the page
-            const r = e.currentTarget.getBoundingClientRect();
-            if (e.clientX < r.left + EDGE) e.currentTarget.scrollLeft -= 18;
-            else if (e.clientX > r.right - EDGE) e.currentTarget.scrollLeft += 18;
-            scrollPageNearEdge(e);
-          }}
-          className="overflow-x-auto pb-6"
-        >
-          <div className="flex w-max items-stretch gap-2 pt-0.5">
-            {stages.map((stage, i) => {
-              const col = counts.get(stage.id) ?? [];
-              return (
-                <Fragment key={stage.id}>
-                  {newStageAt === i && stageInput(i)}
-                  {(!hideEmpty || col.length > 0) && column(stage, i, col)}
-                </Fragment>
-              );
-            })}
-            {newStageAt === stages.length
-              ? stageInput(stages.length)
-              : canBuild && (
-                  <div className="w-52 shrink-0 p-1.5">
-                    <button type="button" onClick={() => setNewStageAt(stages.length)} className={QUIET_ROW}>
-                      <Plus size={14} /> Add stage
-                    </button>
-                  </div>
-                )}
-            {hidden > 0 && (
-              <div className="w-48 shrink-0 p-1.5">
-                <button
-                  type="button"
-                  onClick={onShowEmpty}
-                  className="flex w-full flex-col items-start gap-1 rounded-xl border border-dashed border-border px-3 py-2.5 text-left text-xs text-muted transition-colors hover:border-hover hover:text-foreground"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <EyeOff size={13} /> {hidden} empty {hidden === 1 ? "stage" : "stages"} hidden
-                  </span>
-                  <span className="text-accent">Show them</span>
-                </button>
-              </div>
-            )}
-          </div>
+      <StickyColumns minColumn={14} onDragOver={scrollPageNearEdge} columns={columns} />
+      {(canBuild || hidden > 0) && (
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          {canBuild && newStageAt === null && (
+            <button type="button" onClick={() => setNewStageAt(stages.length)} className={QUIET_ROW}>
+              <Plus size={14} /> Add a stage
+            </button>
+          )}
+          {hidden > 0 && (
+            <button type="button" onClick={onShowEmpty} className="flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-foreground">
+              <EyeOff size={13} /> {hidden} empty {hidden === 1 ? "stage" : "stages"} hidden · <span className="text-accent">Show them</span>
+            </button>
+          )}
         </div>
-        {edges.left && (
-          <button type="button" aria-label="Scroll left" onClick={() => scrollBy(-1)} className="fade-in absolute top-1.5 left-0 z-10 grid size-8 place-items-center rounded-full popover text-muted shadow-lg transition-colors hover:text-foreground">
-            <ChevronLeft size={16} />
-          </button>
-        )}
-        {edges.right && (
-          <button type="button" aria-label="Scroll right" onClick={() => scrollBy(1)} className="fade-in absolute top-1.5 right-0 z-10 grid size-8 place-items-center rounded-full popover text-muted shadow-lg transition-colors hover:text-foreground">
-            <ChevronRight size={16} />
-          </button>
-        )}
-      </div>
+      )}
 
       <ReasonDialog
         open={!!asking?.open}

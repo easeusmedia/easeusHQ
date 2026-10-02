@@ -7,7 +7,7 @@
 const SIGN = "Best,\nAshmit Shahi\nEaseus Media";
 
 export const SEQUENCE: Record<string, { name: string; channel: "email" | "instagram" | "linkedin" | "other"; body: string }[]> = {
-  "Day 1": [
+  "Day 1 · Email 1 and LinkedIn note": [
     {
       name: "Email 1",
       channel: "email",
@@ -39,7 +39,7 @@ ${SIGN}`,
       body: "Hey {{Name}}, Watched your episode with {{Guest}}. Noticed, {{Short gap}} Had a few ideas on how it could get more visibility! I've put together a short audit for {{Podcast}}. Should I send it over?",
     },
   ],
-  "Day 2": [
+  "Day 2 · Instagram 1": [
     {
       name: "Instagram 1 (didn't open Email 1)",
       channel: "instagram",
@@ -69,7 +69,7 @@ Recorded a 5-minute audit - 3 things I'd change and some low-hanging fruits that
 Should I send it over?`,
     },
   ],
-  "Day 3": [
+  "Day 3 · Email 2": [
     {
       name: "Email 2",
       channel: "email",
@@ -86,7 +86,7 @@ Should I send it over, or is it not relevant right now?
 Ashmit`,
     },
   ],
-  "Day 4": [
+  "Day 4 · LinkedIn DM": [
     {
       name: "LinkedIn DM (accepted but silent)",
       channel: "linkedin",
@@ -101,7 +101,7 @@ Happy to send the full audit here if that's easier than email.
 P.S. You can check our work here: https://easeus.media/`,
     },
   ],
-  "Day 5": [
+  "Day 5 · Instagram 2": [
     {
       name: "Instagram 2",
       channel: "instagram",
@@ -114,7 +114,7 @@ The other 2 are about what happens to an episode after it goes live.
 Should I send it over, or is it not relevant right now?`,
     },
   ],
-  "Day 6": [
+  "Day 6 · Email 3": [
     {
       name: "Email 3 (whiteboard photo)",
       channel: "email",
@@ -127,11 +127,11 @@ B — https://meme.app/create/i-bet-hes-thinking-about-other-women
 Copy: I bet he's thinking about other women             When will {{Name}} reply to my email!`,
     },
   ],
-  "Day 7": [
+  "Day 7 · Instagram 3 and LinkedIn 3": [
     { name: "Instagram 3 (last message)", channel: "instagram", body: "Same as Email 3. No body text." },
     { name: "LinkedIn 3 (last message)", channel: "linkedin", body: "Same as Email 3. No body text." },
   ],
-  "Day 8": [
+  "Day 8 · Final email": [
     {
       name: "Email 4 (last)",
       channel: "email",
@@ -146,7 +146,7 @@ Either way the audit's still here. Say the word and it's yours.
 Ashmit`,
     },
   ],
-  "Lead Magnet Sent": [
+  "Audit sent": [
     {
       name: "The audit (same day as their yes)",
       channel: "email",
