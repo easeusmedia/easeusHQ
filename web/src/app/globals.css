@@ -103,32 +103,34 @@ body {
   inherits: false;
   initial-value: 0;
 }
-/* Minimal: a flat face, one faint line, no drop shadow, no light following
-   the pointer (the --spot hooks stay, empty, for what layers on them) */
+/* Minimal at rest: a flat face, one faint line, no drop shadow. Under the
+   pointer, a clickable one takes the blue spotlight: a soft wash on the
+   face and the edge lit nearest the pointer. */
 .panel,
 .panel-soft,
 .card-surface {
-  --spot-face: linear-gradient(transparent, transparent) padding-box;
-  --spot-edge: linear-gradient(transparent, transparent) border-box;
+  --spot-face: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgb(75 149 230 / calc(var(--spot) * 0.12)), transparent 65%) padding-box;
+  --spot-edge: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), rgb(125 180 245 / calc(var(--spot) * 0.75)), transparent 75%) border-box;
 }
 .panel {
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: #131519;
+  background: var(--spot-face), linear-gradient(#131519, #131519) padding-box, var(--spot-edge);
 }
 /* inside a panel: a soft fill, no border of its own */
 .panel-soft {
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.03) padding-box;
+  background: var(--spot-face), linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03)) padding-box, var(--spot-edge);
 }
-/* panels you can click: a quiet lighten */
+/* panels you can click: a quiet lighten, and the spotlight */
 .panel-hover {
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, --spot 0.35s ease;
 }
 .panel-hover:hover {
-  background: rgba(255, 255, 255, 0.055) padding-box;
+  --spot: 1;
+  background: var(--spot-face), linear-gradient(rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.055)) padding-box, var(--spot-edge);
 }
 .panel.panel-hover:hover {
-  background: #171a1f;
+  background: var(--spot-face), linear-gradient(#171a1f, #171a1f) padding-box, var(--spot-edge);
   border-color: rgba(255, 255, 255, 0.1);
 }
 /* what's selected (a menu item, a tab): a plain brighter fill */
@@ -314,7 +316,7 @@ dialog[open]::backdrop {
 
 .card-surface {
   border: 1px solid rgba(255, 255, 255, 0.055);
-  background: #14161a padding-box;
+  background: var(--spot-face), linear-gradient(#14161a, #14161a) padding-box, var(--spot-edge);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 /* Only cards that actually do something on click light up. A panel that
@@ -323,7 +325,7 @@ dialog[open]::backdrop {
    clickable" when it isn't, and is plain distracting while you're typing
    in a field inside it. */
 .card-interactive {
-  transition: background 0.15s ease, --spot 0.35s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, --spot 0.35s ease;
 }
 
 /* A video the quality inspection rated A+ (green) or S (gold: portfolio
@@ -359,7 +361,8 @@ dialog[open]::backdrop {
   box-shadow: inset 3px 0 0 rgb(252 211 77 / 0.85);
 }
 .card-interactive:hover {
-  background: #191c21 padding-box;
+  --spot: 1;
+  background: var(--spot-face), linear-gradient(#191c21, #191c21) padding-box, var(--spot-edge);
   border-color: rgba(255, 255, 255, 0.09);
 }
 
