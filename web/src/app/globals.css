@@ -697,19 +697,6 @@ dialog[open]::backdrop {
   transform: none;
 }
 
-/* The sign-in page's light: soft glows that drift slowly across the gradient */
-.mist {
-  filter: blur(30px);
-  animation: aurora-drift 26s ease-in-out infinite alternate;
-}
-@keyframes aurora-drift {
-  from {
-    transform: translate3d(-2%, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(3%, 4%, 0) scale(1.08);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .btn-theme-hover,
   .btn-theme-hover::before {
@@ -1049,74 +1036,92 @@ dialog[open]::backdrop {
   box-shadow: 0 4px 14px -6px rgba(75, 149, 230, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* ---- Mist: the sign-in page's misty blue behind the whole app, for
-   whoever picks it (the profile menu's Theme). Minimal frost: the panels
-   become a thin, faintly blurred navy glass with hairline edges and no
-   heavy shadows, so the light shows through and every word stays as
-   readable as in the dark. The gradient is a shade deeper than the sign-in
-   page's, so text sitting on it (a page's title) keeps its contrast. ---- */
-.app-root[data-theme="mist"] {
-  --background: #0e1b2b;
-  --surface: rgba(14, 24, 38, 0.5);
-  --surface-2: rgba(18, 30, 46, 0.55);
-  --border: rgba(255, 255, 255, 0.1);
-  --hover-surface: rgba(90, 115, 145, 0.35);
-  --muted: #b1bfcd;
+/* ---- Mist: a misty blue behind the whole app, for whoever picks it (the
+   profile menu's Theme), in minimal frost. Outer panels are light frosted
+   glass with one faint hairline; what sits inside them (rows, cards,
+   buttons) is a soft translucent fill with no border of its own, so
+   nothing is boxed inside a box; what's picked is a brighter frost, not a
+   blue glow; and there's no light following the pointer. Menus and
+   dialogs stay a deeper frost, so what's in them reads clearly. The same
+   gradient is behind the sign-in page. ---- */
+.app-root[data-theme="mist"],
+.mist-bg {
   background:
     radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.22), transparent 70%),
     linear-gradient(135deg, #67809a 0%, #4b6785 22%, #2e4967 45%, #1a2f4a 68%, #0c1a2c 86%, #070d17 100%);
   background-attachment: fixed;
 }
+.app-root[data-theme="mist"] {
+  --background: #0e1b2b;
+  --surface: rgba(14, 24, 38, 0.7);
+  --surface-2: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.1);
+  --hover-surface: rgba(255, 255, 255, 0.12);
+  --muted: #b1bfcd;
+}
+/* no light following the pointer */
+[data-theme="mist"] :is(.panel, .panel-soft, .card-surface) {
+  --spot-face: linear-gradient(transparent, transparent) padding-box;
+  --spot-edge: linear-gradient(transparent, transparent) border-box;
+}
+/* the outer panels: light frosted glass, one faint hairline */
 [data-theme="mist"] .panel,
-[data-theme="mist"] .glass,
-[data-theme="mist"] .popover {
+[data-theme="mist"] .panel.panel-hover:hover {
   background:
-    var(--spot-face, linear-gradient(transparent, transparent)) padding-box,
-    linear-gradient(180deg, rgba(16, 27, 42, 0.62) 0%, rgba(11, 19, 31, 0.7) 100%) padding-box,
-    var(--spot-edge, linear-gradient(transparent, transparent)) border-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 100%) border-box;
-  backdrop-filter: blur(16px) saturate(1.1);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)) border-box;
+  backdrop-filter: blur(20px) saturate(1.15);
   box-shadow: none;
 }
-/* menus and dialogs sit over busier things: a touch more opaque */
-[data-theme="mist"] .glass,
-[data-theme="mist"] .popover {
+[data-theme="mist"] .panel.panel-hover:hover {
   background:
-    linear-gradient(180deg, rgba(18, 30, 46, 0.86) 0%, rgba(12, 21, 34, 0.9) 100%) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 100%) border-box;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.06)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08)) border-box;
 }
+/* inside them: a soft fill, no border, a touch brighter on hover */
 [data-theme="mist"] .panel-soft,
-[data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s) {
-  background:
-    var(--spot-face) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.025) 100%) padding-box,
-    var(--spot-edge) border-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 45%, rgba(255, 255, 255, 0.03) 100%) border-box;
+[data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s),
+[data-theme="mist"] .btn-glow {
+  background: linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05)) padding-box;
   box-shadow: none;
 }
-[data-theme="mist"] .panel-hover:hover,
-[data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover {
-  background:
-    var(--spot-face) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.045) 100%) padding-box,
-    var(--spot-edge) border-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.07) 40%, rgba(255, 255, 255, 0.05) 100%) border-box;
-}
-[data-theme="mist"] .selected {
-  background:
-    linear-gradient(90deg, rgba(75, 149, 230, 0.2), rgba(75, 149, 230, 0.03) 75%) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)) padding-box,
-    linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06)) border-box;
-}
-[data-theme="mist"] .btn-glow {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)) border-box;
-}
+[data-theme="mist"] .panel-soft.panel-hover:hover,
+[data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover,
 [data-theme="mist"] .btn-glow:hover {
+  background: linear-gradient(rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.09)) padding-box;
+}
+/* what's picked: a brighter frost */
+[data-theme="mist"] .selected,
+[data-theme="mist"] :is(.chip, .seg):is([aria-pressed="true"], [aria-selected="true"]) {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08)) border-box;
+    linear-gradient(rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.13)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1)) border-box;
+  box-shadow: none;
+}
+/* menus and dialogs: a deeper frost */
+[data-theme="mist"] .glass,
+[data-theme="mist"] .popover {
+  background:
+    linear-gradient(180deg, rgba(22, 35, 53, 0.86), rgba(14, 24, 38, 0.9)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) border-box;
+  backdrop-filter: blur(24px) saturate(1.15);
+  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* Sign in: a simple frosted button, brighter on hover */
+.btn-frost {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: white;
+  backdrop-filter: blur(12px);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+.btn-frost:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.btn-frost:active {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Organization's map: the work's dashes travel along the lines between

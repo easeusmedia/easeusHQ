@@ -10,6 +10,12 @@ import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
 import { viewAs } from "./viewAs";
 import { setTheme, type Theme } from "./theme";
+
+// the looks to pick from in the profile menu, each as a little preview
+const THEMES: { key: Theme; label: string; swatch: string }[] = [
+  { key: "dark", label: "Dark", swatch: "linear-gradient(135deg, #1c2026, #0b0d10)" },
+  { key: "mist", label: "Mist", swatch: "linear-gradient(135deg, #9fb2c4, #4b6785 45%, #0c1a2c)" },
+];
 import { Reveal } from "./Reveal";
 import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
@@ -555,14 +561,26 @@ export function Sidebar({
               </button>
             )}
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
-            {/* how the app looks to them */}
-            <div className="flex items-center gap-2 px-2.5 py-2 text-sm">
-              <span className="mr-auto text-muted">Theme</span>
-              {(["dark", "mist"] as const).map((t) => (
-                <button key={t} type="button" aria-pressed={look === t} onClick={() => pickTheme(t)} className="chip rounded-full px-2.5 py-0.5 text-xs capitalize">
-                  {t}
-                </button>
-              ))}
+            {/* how the app looks to them: two little previews to pick from */}
+            <div className="px-2.5 pt-1.5 pb-2.5">
+              <p className="mb-1.5 text-xs text-muted">Theme</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {THEMES.map((t) => {
+                  const on = look === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => pickTheme(t.key)}
+                      className={`flex flex-col gap-1.5 rounded-xl p-1.5 text-left text-xs transition-colors duration-200 ${on ? "bg-white/[0.08] ring-1 ring-white/25" : "hover:bg-white/[0.05]"}`}
+                    >
+                      <span className="h-8 w-full rounded-lg ring-1 ring-white/10" style={{ background: t.swatch }} />
+                      <span className={`px-0.5 ${on ? "text-foreground" : "text-muted"}`}>{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {/* Level 1: the app as someone else sees it */}
             {viewAsPeople && (

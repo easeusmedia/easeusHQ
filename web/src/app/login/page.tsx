@@ -11,21 +11,16 @@ const initialState: LoginState = {};
 const LINE = "border-b border-white/20 transition-colors duration-300 focus-within:border-white/70 hover:border-white/35";
 const LABEL = "text-[10px] font-medium tracking-[0.18em] text-white/50 uppercase";
 
-// Sign in, calm: one soft sweep of misty blue from the top corner down to
-// deep navy, no card, the mark, two fields drawn as
+// Sign in, calm: the Mist theme's misty blue (light at the top corner,
+// deep navy below), no card, the mark, two fields drawn as
 // lines, and an outlined button that takes the app's blue glass on hover.
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#06101c] p-6 text-white">
-      {/* misty light from the top left, falling away to deep navy, drifting slowly */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,#b9c7d4_0%,#7f97ae_20%,#45647f_42%,#1d3550_64%,#0b1a2c_84%,#050b14_100%)]" />
-        <div className="mist absolute -top-[30vh] -left-[20vw] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(225_233_240/0.55),transparent)]" />
-        <div className="mist absolute right-[-25vw] bottom-[-35vh] h-[90vh] w-[90vw] rounded-full bg-[radial-gradient(closest-side,rgb(75_149_230/0.22),transparent)] [animation-delay:-13s]" />
-      </div>
+    // the Mist theme's own gradient (globals.css .mist-bg)
+    <div className="mist-bg relative isolate flex min-h-screen items-center justify-center overflow-hidden p-6 text-white">
 
       <form action={formAction} className="rise-in flex w-full max-w-[300px] flex-col items-center">
         <Image src="/logo.png" alt="Easeus" width={44} height={44} className="h-11 w-11 object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]" priority />
@@ -64,8 +59,8 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={pending}
-          // outlined at rest; the app's blue gradient glass on hover (globals.css)
-          className="btn-theme-hover group mt-12 flex h-11 items-center gap-2 rounded-full px-10 text-sm font-medium tracking-wide disabled:opacity-60"
+          // a simple frosted button (globals.css .btn-frost)
+          className="btn-frost group mt-12 flex h-11 items-center gap-2 rounded-full px-10 text-sm font-medium tracking-wide disabled:opacity-60"
         >
           {pending ? "Signing in…" : "Sign in"}
           {!pending && <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />}
