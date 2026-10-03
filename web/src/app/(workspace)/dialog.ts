@@ -16,8 +16,9 @@ function outside(e: React.MouseEvent<HTMLDialogElement>) {
 
 export const closeOnBackdrop = {
   onMouseDown(e: React.MouseEvent<HTMLDialogElement>) {
-    // every menu trigger says it's open (aria-expanded)
-    if (outside(e) && !e.currentTarget.querySelector('[aria-expanded="true"]')) armed.add(e.currentTarget);
+    // every menu trigger says it's a popup and that it's open; a fold that
+    // only opens a section in place (aria-expanded alone) doesn't count
+    if (outside(e) && !e.currentTarget.querySelector('[aria-haspopup][aria-expanded="true"]')) armed.add(e.currentTarget);
     else armed.delete(e.currentTarget);
   },
   onClick(e: React.MouseEvent<HTMLDialogElement>) {

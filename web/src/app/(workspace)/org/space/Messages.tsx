@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
+import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
 import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, overLimit, messageGroups, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
-import { InstagramIcon } from "../../PlatformIcon";
+import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 import { formatDateTime } from "../../TaskCard";
 import { closeOnBackdrop } from "../../dialog";
 
@@ -16,7 +16,7 @@ const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 const CHANNEL_ICON: Record<string, React.ReactNode> = {
   email: <Mail size={13} className="text-sky-400" />,
   instagram: <InstagramIcon size={13} className="text-pink-400" />,
-  linkedin: <BriefcaseBusiness size={13} className="text-blue-400" />,
+  linkedin: <LinkedinIcon size={13} className="text-blue-400" />,
   other: <MessageSquare size={13} className="text-violet-400" />,
 };
 const SMALL_BTN = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50";

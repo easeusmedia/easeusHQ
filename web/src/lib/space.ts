@@ -70,12 +70,13 @@ export const FIELD_KINDS: { kind: FieldKind; label: string; hint: string }[] = [
 ];
 export const isFieldKind = (k: string): k is FieldKind => FIELD_KINDS.some((f) => f.kind === k);
 
-export type ChannelKind = "email" | "instagram" | "linkedin" | "x" | "phone" | "other";
+export type ChannelKind = "email" | "instagram" | "linkedin" | "x" | "youtube" | "phone" | "other";
 export const CHANNELS: { kind: ChannelKind; label: string }[] = [
   { kind: "email", label: "Email" },
   { kind: "instagram", label: "Instagram" },
   { kind: "linkedin", label: "LinkedIn" },
   { kind: "x", label: "X" },
+  { kind: "youtube", label: "YouTube" },
   { kind: "phone", label: "Phone" },
   { kind: "other", label: "Other" },
 ];

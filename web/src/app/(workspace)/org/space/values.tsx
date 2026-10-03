@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AtSign,
   BriefcaseBusiness,
   CalendarDays,
   Check,
@@ -28,7 +27,7 @@ import { Dropdown } from "../../Dropdown";
 import { DatePicker } from "../../DatePicker";
 import { Checkbox } from "../../Checkbox";
 import { Reveal } from "../../Reveal";
-import { InstagramIcon } from "../../PlatformIcon";
+import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { colorFor, initials } from "@/lib/avatar";
 import { dayOf, shortDay } from "@/lib/editorKpi";
 import {
@@ -75,6 +74,8 @@ export function hrefOf(kind: ChannelKind, raw: string): string | null {
       return /^[\w.]+$/.test(handle) ? `https://instagram.com/${handle}` : site(v);
     case "x":
       return /^\w+$/.test(handle) ? `https://x.com/${handle}` : site(v);
+    case "youtube":
+      return /^[\w.-]+$/.test(handle) ? `https://youtube.com/@${handle}` : site(v);
     default:
       return EMAIL.test(v) ? `mailto:${v}` : site(v);
   }
@@ -617,8 +618,9 @@ export function CountEditor({ value, save }: { value: unknown; save: (v: CountVa
 const CHANNEL_ICON: Record<ChannelKind, React.ComponentType<{ size?: number; className?: string }>> = {
   email: Mail,
   instagram: InstagramIcon,
-  linkedin: BriefcaseBusiness,
-  x: AtSign,
+  linkedin: LinkedinIcon,
+  x: XIcon,
+  youtube: YoutubeIcon,
   phone: Phone,
   other: Globe,
 };
@@ -627,10 +629,11 @@ const CHANNEL_HINT: Record<ChannelKind, string> = {
   instagram: "@handle or profile link",
   linkedin: "Profile link",
   x: "@handle",
+  youtube: "@channel or link",
   phone: "+91 98765 43210",
   other: "Link or handle",
 };
-const QUICK: ChannelKind[] = ["email", "instagram", "linkedin", "x", "other"];
+const QUICK: ChannelKind[] = ["email", "instagram", "linkedin", "x", "youtube", "other"];
 const labelOf = (kind: ChannelKind) => CHANNELS.find((c) => c.kind === kind)?.label ?? kind;
 
 // The people behind a lead: first how many, then each one's name, role,
@@ -690,7 +693,7 @@ export function ContactsEditor({ value, save }: { value: unknown; save: (v: Cont
       </div>
       {note && <p className="fade-in text-xs text-muted">{note}</p>}
       {people.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="flex flex-col gap-2.5">
           {people.map((p) => (
             <PersonCard
               key={p.id}
@@ -746,7 +749,7 @@ function PersonCard({
   const name = person.name.trim();
 
   return (
-    <div className="panel-soft fade-in flex min-w-0 flex-col gap-2.5 rounded-xl p-3">
+    <div className="panel-soft fade-in flex min-w-0 flex-col gap-2 rounded-xl px-3.5 py-3">
       <div className="flex items-center gap-2">
         {name ? (
           <span
@@ -806,7 +809,7 @@ function PersonCard({
       </div>
 
       {person.channels.length > 0 && (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5 pl-9">
           {person.channels.map((c, i) => (
             <ChannelRow
               key={i}
@@ -837,10 +840,23 @@ function PersonCard({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1">
-        {QUICK.map((kind) => (
-          <AddChip key={kind} label={labelOf(kind)} onClick={() => onAdd(kind)} />
-        ))}
+      {/* each place they can be reached, with its mark */}
+      <div className="flex flex-wrap items-center gap-1 pl-9">
+        {QUICK.map((kind) => {
+          const Mark = CHANNEL_ICON[kind];
+          return (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => onAdd(kind)}
+              title={`Add ${labelOf(kind)}`}
+              className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px]"
+            >
+              <Mark size={12} className="shrink-0" />
+              {labelOf(kind)}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -944,6 +960,7 @@ export function LinksEditor({ value, save }: { value: unknown; save: (v: LinkVal
         <div className="flex flex-col rounded-lg border border-border/60">
           {links.map((l, i) => (
             <div key={i} className="flex min-w-0 items-center gap-2 px-2 py-0.5 not-first:border-t not-first:border-border/40">
+              <PlatformMark url={l.url} size={13} className="text-muted" />
               <input
                 autoFocus={focus === i && !l.label}
                 value={l.label}
