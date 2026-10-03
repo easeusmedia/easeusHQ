@@ -61,7 +61,7 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
       {client.activeProjects + client.activeTasks > 0 && <div className="glass-glow" />}
 
       <div className="relative flex items-center gap-3.5">
-        <span className="shrink-0 rounded-full ring-1 ring-white/10 ring-offset-2 ring-offset-[#15181c]">
+        <span className="shrink-0 rounded-full ring-1 ring-white/10 ring-offset-2 ring-offset-surface">
           <Face client={client} size={44} />
         </span>
         {/* the whole width for the name: nothing else shares its line.

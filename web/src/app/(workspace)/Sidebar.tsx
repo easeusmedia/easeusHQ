@@ -388,7 +388,7 @@ export function Sidebar({
         open ? "w-64" : "w-[calc(var(--spacing)*17+4px)]"
       }`}
     >
-      <div className="panel flex h-full flex-col items-start gap-1 rounded-3xl p-2.5">
+      <div className="panel sidebar-panel flex h-full flex-col items-start gap-1 rounded-3xl p-2.5">
       {/* The logo button is always mounted at the same fixed position —
           never swapped for a different element — which is what actually
           fixed the earlier "logo jumps on collapse" bug: open and
@@ -493,7 +493,7 @@ export function Sidebar({
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && !open && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-white tabular-nums ring-2 ring-[#15181c]">
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-white tabular-nums ring-2 ring-surface">
                   {count > 9 ? "9+" : count}
                 </span>
               )}

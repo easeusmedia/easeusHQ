@@ -498,7 +498,7 @@ export function Board({
         <div className="flex flex-col gap-7" onDragOver={scrollPageNearEdge}>
           {columns.map((col) => (
             <section key={col.status} className="flex flex-col gap-1.5">
-              <div className="sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">{listTitle(col)}</div>
+              <div className="mist-pin sticky top-[calc(-1*var(--page-pad,0px))] z-10 bg-background py-2">{listTitle(col)}</div>
               {dropZone(col)}
             </section>
           ))}

@@ -1005,14 +1005,16 @@ dialog[open]::backdrop {
 }
 
 /* ---- Mist: a misty blue behind the whole app, for whoever picks it (the
-   profile menu's Theme), in minimal frost. Outer panels are light frosted
-   glass with one faint hairline; what sits inside them (rows, cards,
-   buttons) is a soft translucent fill with no border of its own, so
-   nothing is boxed inside a box; what's picked is a brighter frost, not a
-   blue glow; and there's no light following the pointer. Menus and
-   dialogs stay a deeper frost, so what's in them reads clearly. The same
-   gradient is behind the sign-in page. ---- */
-.app-root[data-theme="mist"],
+   profile menu's Theme), in minimal frost. Everything is one material at
+   three depths: outer panels are light frosted glass with one faint
+   hairline; what sits inside them (rows, cards, pills, fields, buttons) is a
+   soft translucent fill with no border of its own, so nothing is boxed
+   inside a box; and what floats or stays put over the page (the sidebar,
+   menus, dialogs, pinned headers) is a deeper frost, so its words read
+   whatever is behind. What's picked is a brighter frost, not a blue glow;
+   icons and highlights are an icy blue, since the app's own blue vanishes
+   on a blue page; and there's no light following the pointer. The sign-in
+   page has the same mist, a little lighter. ---- */
 .mist-bg {
   background:
     radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.22), transparent 70%),
@@ -1020,12 +1022,21 @@ dialog[open]::backdrop {
   background-attachment: fixed;
 }
 .app-root[data-theme="mist"] {
+  /* deeper than the sign-in page's at its light corner: the app has words
+     there (the sidebar, a page's title), and they have to read */
+  background:
+    radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.08), transparent 70%),
+    linear-gradient(135deg, #3f5872 0%, #334c69 22%, #25405c 45%, #182c46 68%, #0c1a2c 86%, #070d17 100%);
+  background-attachment: fixed;
   --background: #0e1b2b;
-  --surface: rgba(14, 24, 38, 0.7);
+  /* fills are frost, never a dark slab: a row or a pill on a panel is the
+     same glass, a touch brighter */
+  --surface: rgba(255, 255, 255, 0.07);
   --surface-2: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.1);
-  --hover-surface: rgba(255, 255, 255, 0.12);
-  --muted: #b1bfcd;
+  --border: rgba(255, 255, 255, 0.12);
+  --hover-surface: rgba(255, 255, 255, 0.14);
+  --muted: #c3cfdb;
+  --accent: #a9d2ff;
 }
 /* no light following the pointer */
 [data-theme="mist"] :is(.panel, .panel-soft, .card-surface) {
@@ -1072,6 +1083,71 @@ dialog[open]::backdrop {
   background:
     linear-gradient(180deg, rgba(22, 35, 53, 0.86), rgba(14, 24, 38, 0.9)) padding-box,
     linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) border-box;
+  backdrop-filter: blur(24px) saturate(1.15);
+  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* behind an open dialog: the mist dimmed in its own navy, not black */
+[data-theme="mist"] .glass::backdrop {
+  background: rgba(8, 17, 30, 0.55);
+}
+/* the sidebar: a deeper frost, over the mist's lightest corner */
+[data-theme="mist"] .sidebar-panel {
+  background:
+    linear-gradient(180deg, rgba(13, 24, 39, 0.4), rgba(13, 24, 39, 0.32)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06)) border-box;
+}
+/* what stays put while the page scrolls under it (a board's stage headings,
+   a table's first column): a deep frost, so nothing shows through */
+[data-theme="mist"] .mist-pin {
+  background: rgba(30, 47, 68, 0.62);
+  backdrop-filter: blur(22px) saturate(1.15);
+}
+/* icon tiles: icy on frost, not blue on blue; done stays green */
+[data-theme="mist"] .badge {
+  background: rgba(255, 255, 255, 0.07);
+}
+[data-theme="mist"] .badge-lit {
+  --tint: 205, 228, 255;
+  background: rgba(255, 255, 255, 0.13);
+}
+[data-theme="mist"] .badge-lit.emerald {
+  --tint: 134, 239, 172;
+  background: rgba(110, 231, 183, 0.15);
+}
+/* a lit card's corner glow: a white haze */
+[data-theme="mist"] .glass-glow {
+  --tint: 255, 255, 255;
+  opacity: 0.45;
+}
+[data-theme="mist"] .glass-glow.emerald {
+  --tint: 110, 231, 183;
+  opacity: 0.6;
+}
+/* a solid accent fill is light here, so the words on it are dark */
+[data-theme="mist"] .bg-accent {
+  color: #0c1a2c;
+}
+/* graded videos keep their colour as tinted frost: A+ green, S gold */
+[data-theme="mist"] .card-surface.tier-aplus,
+[data-theme="mist"] .card-surface.tier-aplus.card-interactive:hover {
+  background:
+    linear-gradient(160deg, rgb(52 211 153 / 0.2) 0%, rgb(52 211 153 / 0.07) 60%, rgb(255 255 255 / 0.04) 100%) padding-box,
+    linear-gradient(180deg, rgb(110 231 183 / 0.7) 0%, rgb(110 231 183 / 0.2) 100%) border-box;
+  box-shadow: none;
+}
+[data-theme="mist"] .card-surface.tier-s,
+[data-theme="mist"] .card-surface.tier-s.card-interactive:hover {
+  background:
+    linear-gradient(160deg, rgb(252 211 77 / 0.24) 0%, rgb(252 211 77 / 0.08) 60%, rgb(255 255 255 / 0.04) 100%) padding-box,
+    linear-gradient(180deg, rgb(252 211 77 / 0.85) 0%, rgb(252 211 77 / 0.3) 100%) border-box;
+  box-shadow: none;
+}
+/* the profile menu: the same deep frost as every other menu */
+[data-theme="mist"] .panel-accent {
+  background:
+    linear-gradient(180deg, rgba(26, 41, 61, 0.9), rgba(14, 24, 38, 0.92)) padding-box,
+    linear-gradient(160deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.06) 55%) border-box;
   backdrop-filter: blur(24px) saturate(1.15);
   box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.6);
 }
