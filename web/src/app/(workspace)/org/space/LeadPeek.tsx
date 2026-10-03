@@ -359,7 +359,7 @@ function LeadPage({
                 options={[{ value: "", label: "Unassigned" }, ...people.map((p) => ({ value: p.id, label: p.name })), ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : [])]}
               />
             </div>
-            {missing.length > 0 && <p className="fade-in px-1 text-xs text-red-300">Missing: {missing.join(", ")}</p>}
+            {missing.length > 0 && <p className="fade-in px-1 text-xs text-muted">To add: {missing.join(", ")}</p>}
           </div>
 
           {/* everything known about it first */}
@@ -525,7 +525,7 @@ function WriteUp({ notes, onSave }: { notes: string | null; onSave: (text: strin
   );
 }
 
-// One property: its name (with a red dot while a basic detail is
+// One property: its name (with a hollow ring while a basic detail is
 // empty), then its value. Stacked on a phone.
 function Row({ icon: Icon, label, missing = false, children }: { icon: LucideIcon; label: React.ReactNode; missing?: boolean; children: React.ReactNode }) {
   return (
@@ -560,7 +560,8 @@ function Fold({ icon: Icon, title, summary, missing = false, defaultOpen = false
   );
 }
 
-const Dot = () => <span title="Still missing" aria-label="Still missing" className="size-1.5 shrink-0 rounded-full bg-red-400" />;
+// not added yet: a quiet hollow ring, information rather than a warning
+const Dot = () => <span title="Not added yet" aria-label="Not added yet" className="size-1.5 shrink-0 rounded-full border border-muted" />;
 
 function Editor({ field, value, save }: { field: FieldData; value: unknown; save: (v: unknown) => void }) {
   switch (field.kind) {

@@ -1,10 +1,11 @@
 "use client";
 
+import { CircleDashed } from "lucide-react";
 import { missingDetails, type FieldData, type LeadData } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 
-// One lead on the board: its name, what's still missing (in the app's red),
-// and who added it, with whoever it's given to.
+// One lead on the board: its name, the details not added yet (quietly, as
+// information, not a warning), and who added it, with whoever it's given to.
 export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: FieldData[]; onOpen: (id: string) => void }) {
   const missing = missingDetails(fields, lead.values);
   const first = (name: string) => name.split(" ")[0];
@@ -24,8 +25,9 @@ export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: Fie
     >
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
       {missing.length > 0 && (
-        <p title={`Missing: ${missing.join(", ")}`} className="truncate text-[11.5px] text-red-300/90">
-          Missing {missing.join(", ")}
+        <p title={`Not added yet: ${missing.join(", ")}`} className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted/80">
+          <CircleDashed size={12} className="shrink-0" />
+          <span className="truncate">To add: {missing.join(", ")}</span>
         </p>
       )}
       <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted">
