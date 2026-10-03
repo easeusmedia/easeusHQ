@@ -39,7 +39,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // page and every live refresh, so its queries running one after another
   // was a fixed cost on every click. Two rounds to the database now: who's
   // signed in, then all of the rest side by side.
-  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos] = await Promise.all([
+  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos, requestTypes] = await Promise.all([
     getRealUserId(),
     getSessionUserId(),
     getViewer(),
@@ -72,6 +72,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       .catch(() => []),
     // each logo's version, for its address: not the logos themselves
     logoVersions().catch(() => new Map<string, string>()),
+    // the roles that take requests (outside every department), held by someone
+    prisma.jobTitle
+      .findMany({ where: { teamId: null, holders: { some: { employment: { not: "former" } } } }, select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] })
+      .catch(() => []),
   ]);
   if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
@@ -141,6 +145,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         name={sessionUser.name}
         // their own account to change: not while looking as someone else
         account={viewingAs ? null : { name: sessionUser.name, email: sessionUser.email }}
+        requestTypes={viewingAs ? [] : requestTypes}
         fullAccess={isAbhishekOrAdmin(sessionUser)}
         isEditor={editor}
         sessionUserId={sessionUser.id}

@@ -4,9 +4,10 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
 import { createElement, useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
+import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, LifeBuoy, UserCog, type LucideIcon } from "lucide-react";
 import { markOf } from "./org/marks";
 import { AccountDialog } from "./AccountDialog";
+import { RequestDialog } from "./RequestDialog";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
@@ -180,6 +181,7 @@ export function Sidebar({
   canSeeFinance = false,
   name,
   account = null,
+  requestTypes = [],
   fullAccess,
   isEditor = false,
   sessionUserId,
@@ -202,6 +204,8 @@ export function Sidebar({
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // their own name and sign-in email, to change (null while looking as someone else)
   account?: { name: string; email: string } | null;
+  // the roles that take requests, each with someone holding it
+  requestTypes?: { id: string; name: string }[];
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;
@@ -232,6 +236,7 @@ export function Sidebar({
   const [profileOpen, setProfileOpen] = useState(false);
   const [viewAsOpen, setViewAsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const [look, setLook] = useState<Theme>(theme);
   // the frame changes at once; saved for next time
   function pickTheme(t: Theme) {
@@ -619,6 +624,20 @@ export function Sidebar({
                 Account
               </button>
             )}
+            {/* ask whoever handles it: passwords, data, operations */}
+            {requestTypes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen(false);
+                  setRequestOpen(true);
+                }}
+                className="menu-item px-2.5 py-2 text-sm"
+              >
+                <LifeBuoy size={15} />
+                Request
+              </button>
+            )}
             {/* how the app looks to them: one row, Mist on or off */}
             <button type="button" role="switch" aria-checked={look === "mist"} onClick={() => pickTheme(look === "mist" ? "dark" : "mist")} className="menu-item px-2.5 py-2 text-sm">
               <CloudFog size={15} />
@@ -712,6 +731,7 @@ export function Sidebar({
       </div>
     </nav>
     {account && <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} account={account} />}
+    {requestTypes.length > 0 && <RequestDialog open={requestOpen} onClose={() => setRequestOpen(false)} types={requestTypes} />}
 
     </>
   );

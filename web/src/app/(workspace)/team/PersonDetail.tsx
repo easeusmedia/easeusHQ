@@ -81,7 +81,14 @@ function DepartmentsAndRoles({
 
   async function save(next: { departmentIds: string[]; roleIds: string[] }) {
     // a role only ever sits inside one of their departments
-    const kept = { departmentIds: next.departmentIds, roleIds: next.roleIds.filter((r) => next.departmentIds.includes(roles.find((x) => x.id === r)?.teamId ?? "")) };
+    // (a role that takes requests sits outside them all, and is kept)
+    const kept = {
+      departmentIds: next.departmentIds,
+      roleIds: next.roleIds.filter((r) => {
+        const teamId = roles.find((x) => x.id === r)?.teamId;
+        return teamId === null || next.departmentIds.includes(teamId ?? "");
+      }),
+    };
     const before = { departmentIds, roleIds };
     setDepartmentIds(kept.departmentIds);
     setRoleIds(kept.roleIds);
@@ -95,6 +102,8 @@ function DepartmentsAndRoles({
   }
 
   const levelOne = person.role === "admin";
+  // the roles that take requests: Level 1 picks who holds each
+  const requestRoles = roles.filter((r) => r.teamId === null && (canManage || roleIds.includes(r.id)));
   const shownTeams = teams.filter((t) => editable(t.id) || departmentIds.includes(t.id));
   const groups = teams
     .filter((t) => departmentIds.includes(t.id))
@@ -150,6 +159,18 @@ function DepartmentsAndRoles({
             ) : (
               <p className="text-sm text-muted/60">{departmentIds.length ? "None yet" : "Pick a department first"}</p>
             )}
+          </div>
+        </div>
+      )}
+      {requestRoles.length > 0 && (
+        <div className="mt-5 flex flex-col gap-2">
+          <p className="text-xs text-muted">Requests</p>
+          <div className="flex flex-wrap gap-1.5">
+            {requestRoles.map((r) => (
+              <button key={r.id} type="button" disabled={!canManage} onClick={() => save({ departmentIds, roleIds: flip(roleIds, r.id) })} aria-pressed={roleIds.includes(r.id)} className={chip(roleIds.includes(r.id), canManage)}>
+                {r.name}
+              </button>
+            ))}
           </div>
         </div>
       )}

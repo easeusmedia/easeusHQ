@@ -151,10 +151,13 @@ export async function setAccess(personId: string, input: { departmentIds: string
   // a Lead changes only what's within their departments
   const yours = (teamId: string | null) => founder || (!!teamId && mine.has(teamId));
   const departmentIds = [...new Set([...target.departments.map((d) => d.id).filter((id) => !yours(id)), ...teams.map((t) => t.id).filter(yours)])];
-  // a role only ever sits inside one of their departments
-  const roleIds = [...new Set([...target.roles.filter((r) => !yours(r.teamId)).map((r) => r.id), ...roles.filter((r) => yours(r.teamId)).map((r) => r.id)])].filter((id) =>
-    departmentIds.includes([...target.roles, ...roles].find((r) => r.id === id)?.teamId ?? "")
-  );
+  // a role only ever sits inside one of their departments, or outside them
+  // all (one that takes requests: Level 1's to give, since `yours` is theirs
+  // alone for no department)
+  const roleIds = [...new Set([...target.roles.filter((r) => !yours(r.teamId)).map((r) => r.id), ...roles.filter((r) => yours(r.teamId)).map((r) => r.id)])].filter((id) => {
+    const teamId = [...target.roles, ...roles].find((r) => r.id === id)?.teamId;
+    return teamId === null || departmentIds.includes(teamId ?? "");
+  });
   // the department they're shown under: the one they had, while they're still in it
   const teamId = target.teamId && departmentIds.includes(target.teamId) ? target.teamId : (departmentIds[0] ?? null);
 
