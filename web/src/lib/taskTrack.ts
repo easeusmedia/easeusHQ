@@ -124,28 +124,23 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
 // before the app opens for them again
 export type ToAnswer = { kind: "task" | "work"; id: string; title: string; due: string; strikes: number; client: string | null };
 export async function overdueToAnswer(userId: string, now = new Date()): Promise<ToAnswer[]> {
-  const notices = await prisma.notice.findMany({ where: { forId: userId, kind: "overdue" }, select: { taskId: true, workTaskId: true, createdAt: true } });
-  if (!notices.length) return [];
+  const before = new Date(`${dayOf(now)}T00:00:00+05:30`);
+  // a client task is whoever it's assigned to (else whoever made it); a to-do always has someone
+  const theirs = { OR: [{ assignedToId: userId }, { assignedToId: null, createdById: userId }] };
+  const select = { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, project: { select: { client: { select: { name: true } } } } } as const;
+  // their overdue notices and their overdue work, side by side: this runs
+  // on every page, so it's one round to the database, matched up here
+  const [notices, tasks, todos] = await Promise.all([
+    prisma.notice.findMany({ where: { forId: userId, kind: "overdue" }, select: { taskId: true, workTaskId: true, createdAt: true } }),
+    prisma.task.findMany({ where: { ...theirs, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } }, select }),
+    prisma.workTask.findMany({ where: { assignedToId: userId, status: { not: "done" }, dueDate: { lt: before } }, select }),
+  ]);
   // the latest notice each task had
   const latest = new Map<string, Date>();
   for (const n of notices) {
     const k = n.taskId ?? n.workTaskId;
     if (k && (latest.get(k)?.getTime() ?? 0) < n.createdAt.getTime()) latest.set(k, n.createdAt);
   }
-  const before = new Date(`${dayOf(now)}T00:00:00+05:30`);
-  // a client task is whoever it's assigned to (else whoever made it); a to-do always has someone
-  const theirs = { OR: [{ assignedToId: userId }, { assignedToId: null, createdById: userId }] };
-  const ids = (key: "taskId" | "workTaskId") => notices.flatMap((n) => (n[key] ? [n[key]] : []));
-  const [tasks, todos] = await Promise.all([
-    prisma.task.findMany({
-      where: { id: { in: ids("taskId") }, ...theirs, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } },
-      select: { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, project: { select: { client: { select: { name: true } } } } },
-    }),
-    prisma.workTask.findMany({
-      where: { id: { in: ids("workTaskId") }, assignedToId: userId, status: { not: "done" }, dueDate: { lt: before } },
-      select: { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, project: { select: { client: { select: { name: true } } } } },
-    }),
-  ]);
   return [...tasks.map((t) => ({ ...t, kind: "task" as const })), ...todos.map((t) => ({ ...t, kind: "work" as const }))]
     .filter((t) => needsAnswer({ ...t, noticeAt: latest.get(t.id) ?? null }, now))
     .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null }));

@@ -16,3 +16,14 @@ export const PUBLIC_USER_SELECT = {
   id: true,
   name: true,
 } as const;
+
+// The same for a Client loaded as a relation. Its row carries its logo (a
+// stored picture) and pages of notes: `include: { client: true }` on a list
+// of tasks sent all of that to the browser once per task, on every refresh
+// (the Production board was over a megabyte). Lists need a client's name and
+// address; anything needing more says so where it's used.
+export const PUBLIC_CLIENT_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+} as const;

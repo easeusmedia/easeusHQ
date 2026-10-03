@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getRealUserId as getSessionUserId } from "@/lib/auth";
+import { getRealViewer } from "@/lib/auth";
 import { runsClients } from "@/lib/scope";
 import { ACTIVE_WINDOW_MS } from "@/app/(workspace)/presence/constants";
 
@@ -13,12 +13,13 @@ export const dynamic = "force-dynamic";
 // page's actions one after another, and three background polls queued as
 // actions made a click wait behind them.
 export async function GET() {
-  const userId = await getSessionUserId();
-  if (!userId) return NextResponse.json({ signedOut: true }, { status: 401 });
+  // who's asking: the one lookup, with their level and departments
+  const user = await getRealViewer();
+  if (!user) return NextResponse.json({ signedOut: true }, { status: 401 });
+  const userId = user.id;
   const now = new Date();
 
-  const [user, writes, online, approvals, feedback] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { role: true, departments: { select: { id: true, slug: true } } } }),
+  const [writes, online, approvals, feedback] = await Promise.all([
     // a counter every write to a table the pages show bumps the moment it
     // happens (scripts/realtime.ts): it moves whenever any of their rows do
     prisma.$queryRaw<{ n: bigint | null }[]>`select last_value as n from public.hq_change_seq`.catch(() => null),
@@ -48,13 +49,13 @@ export async function GET() {
       : null,
   ]);
 
-  const seesFeedback = !!user && runsClients(user);
+  const seesFeedback = runsClients(user);
   return NextResponse.json(
     {
       // if the count can't be read, a fresh value each time: the page then
       // refreshes on every tick, as it did before this existed
       v: `${writes?.[0]?.n ?? now.getTime()}:${online.map((u) => u.id).join(",")}`,
-      approvals: user?.role === "employee" ? approvals : undefined,
+      approvals: user.role === "employee" ? approvals : undefined,
       feedback: seesFeedback
         ? feedback.map((r) => ({ id: r.id, from: r.name, message: r.message.slice(0, 140), client: r.client.name, slug: r.client.slug }))
         : undefined,

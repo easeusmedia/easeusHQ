@@ -7,7 +7,7 @@ import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import type { Role } from "@/lib/workflow";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
@@ -59,7 +59,7 @@ export default async function CalendarPage({
     // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
     prisma.task.findMany({
       where: { AND: [{ project: { client: { status: "current" } }, createdAt: { lt: rangeEnd }, ...ON_STAFF }, assigneeWhere(viewer)] },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
     }),
     // for a task's own window: the projects it can move to, the tags on offer
     prisma.project.findMany({
@@ -232,7 +232,7 @@ async function TimelinePage({ sessionUserId, week }: { sessionUserId: string; we
           assigneeWhere(viewer),
         ],
       },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.project.findMany({

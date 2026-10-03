@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { DRIVE_SETTINGS } from "./drive";
 
@@ -88,12 +89,23 @@ const toMeeting = (e: GEvent): Meeting => ({
   people: e.attendees?.length ?? 0,
 });
 
-// Every meeting between two moments, in order, repeats unrolled
-export async function listMeetings(from: Date, to: Date): Promise<Meeting[]> {
-  const q = new URLSearchParams({ timeMin: from.toISOString(), timeMax: to.toISOString(), singleEvents: "true", orderBy: "startTime", maxResults: "250" });
-  const body = await calendar<{ items?: GEvent[] }>(`events?${q}`);
-  return (body.items ?? []).filter((e) => e.status !== "cancelled").map(toMeeting);
-}
+// Every meeting between two moments, in order, repeats unrolled.
+// Home asks on every render and every live refresh, and Google takes a few
+// hundred milliseconds to answer, so a week's list is held for a minute, in
+// Next's shared cache (every server instance reads the same one). A meeting
+// made here clears it at once (MEETINGS_TAG, home/actions.ts); one made in
+// Google Calendar itself shows within the minute.
+export const MEETINGS_TAG = "meetings";
+const weekOf = unstable_cache(
+  async (from: string, to: string): Promise<Meeting[]> => {
+    const q = new URLSearchParams({ timeMin: from, timeMax: to, singleEvents: "true", orderBy: "startTime", maxResults: "250" });
+    const body = await calendar<{ items?: GEvent[] }>(`events?${q}`);
+    return (body.items ?? []).filter((e) => e.status !== "cancelled").map(toMeeting);
+  },
+  ["calendar-week"],
+  { revalidate: 60, tags: [MEETINGS_TAG] },
+);
+export const listMeetings = (from: Date, to: Date): Promise<Meeting[]> => weekOf(from.toISOString(), to.toISOString());
 
 // A meeting on the calendar, with a Meet link, and an invite to each person
 export async function createMeeting(input: { title: string; start: Date; end: Date; attendees: string[]; description?: string }): Promise<Meeting> {

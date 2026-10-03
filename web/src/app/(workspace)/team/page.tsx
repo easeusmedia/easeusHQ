@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_CLIENT_SELECT } from "@/lib/publicUser";
 import { getSessionUserId } from "@/lib/auth";
 import { userPhotoSrc } from "@/lib/photos";
 import { canEditPeople, canSetAccess, isFounder, peopleWhere } from "@/lib/scope";
@@ -61,12 +62,12 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const [openWorkRows, openClientRows, finishedWork, deliveredClient] = await Promise.all([
     prisma.workTask.findMany({
       where: { assignedToId: { in: ids }, ...LIVE_WORK_TASK },
-      include: { tags: true, project: { include: { client: true } } },
+      include: { tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
       orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
     }),
     prisma.task.findMany({
       where: { assignedToId: { in: ids }, ...LIVE_TASK },
-      include: { project: { include: { client: true } } },
+      include: { project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.workTask.findMany({

@@ -8,7 +8,7 @@ import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer, seesClient, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { clientLogoSrc } from "@/lib/photos";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
@@ -140,7 +140,7 @@ export default async function ClientDetailPage({
     prisma.task.findMany({
       where: { AND: [{ status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } }, seen] },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
     }),
     prisma.task.count({
       where: {
@@ -444,7 +444,7 @@ async function EditorClientPage({
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: client.projects.map((p) => p.id) }, assignedToId: me.id },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
     }),
     prisma.taskTag.findMany({
       where: visibleTagWhere(viewer),

@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { isFounder } from "@/lib/scope";
-import { createMeeting } from "@/lib/googleCalendar";
+import { createMeeting, MEETINGS_TAG } from "@/lib/googleCalendar";
 
 // A town hall or group meeting, made from Home: into easeus.media@gmail.com's
 // calendar with a Meet link, and an invite to each person picked. Only a
@@ -26,6 +26,8 @@ export async function scheduleMeeting(input: { title: string; day: string; time:
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Google Calendar didn't take the meeting." };
   }
+  // the held week's list is out of date now: the next render asks Google again
+  updateTag(MEETINGS_TAG);
   revalidatePath("/home");
   return {};
 }

@@ -9,7 +9,7 @@ import { indiaDay } from "@/lib/due";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { TaskRow } from "../../TaskRow";
 import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
@@ -36,7 +36,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
-          include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+          include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
         },
       },
     }),

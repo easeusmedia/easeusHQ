@@ -7,18 +7,31 @@ import { isFounder, runsClients } from "./scope";
 
 export { hashPassword, verifyPassword } from "./password";
 
+// What every access rule needs to know about someone (lib/scope.ts)
+export const VIEWER_SELECT = {
+  id: true,
+  name: true,
+  role: true,
+  email: true,
+  teamId: true,
+  departments: { select: { id: true, slug: true } },
+} as const;
+
 // Who's signed in — and only while they're still on staff. Marking someone
 // former ends their access at once, cookie or not: every page, action and
 // route asks here, so their next click or live refresh lands on the login
-// page. cache(): one lookup per request however many callers ask.
-export const getRealUserId = cache(async (): Promise<string | null> => {
+// page. One lookup per request however many callers ask (cache()), and it
+// brings back everything the access rules need, so nothing asks again for
+// the same person.
+export const getRealViewer = cache(async () => {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   const id = token ? unsign(token) : null;
   if (!id) return null;
-  const user = await prisma.user.findUnique({ where: { id }, select: { employment: true } });
-  return user && onStaff(user) ? id : null;
+  const user = await prisma.user.findUnique({ where: { id }, select: { ...VIEWER_SELECT, employment: true } });
+  return user && onStaff(user) ? user : null;
 });
+export const getRealUserId = cache(async (): Promise<string | null> => (await getRealViewer())?.id ?? null);
 
 // "View as": a Level 1 can look at the app as someone else sees it. The
 // cookie only names who; it counts only while the real person signed in is
@@ -26,16 +39,13 @@ export const getRealUserId = cache(async (): Promise<string | null> => {
 // carries the next-action header) still runs as the real person.
 export const VIEW_AS_COOKIE = "hq-view-as";
 export const getSessionUserId = cache(async (): Promise<string | null> => {
-  const id = await getRealUserId();
-  if (!id) return null;
+  const me = await getRealViewer();
+  if (!me) return null;
   const [store, head] = await Promise.all([cookies(), headers()]);
   const as = store.get(VIEW_AS_COOKIE)?.value;
-  if (!as || as === id || head.get("next-action")) return id;
-  const [me, them] = await Promise.all([
-    prisma.user.findUnique({ where: { id }, select: { role: true, email: true } }),
-    prisma.user.findUnique({ where: { id: as }, select: { employment: true } }),
-  ]);
-  return me && isFounder(me) && them && onStaff(them) ? as : id;
+  if (!as || as === me.id || head.get("next-action") || !isFounder(me)) return me.id;
+  const them = await prisma.user.findUnique({ where: { id: as }, select: { employment: true } });
+  return them && onStaff(them) ? as : me.id;
 });
 
 export async function createSession(userId: string) {

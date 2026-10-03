@@ -7,7 +7,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { LIVE_TASK, type Role } from "@/lib/workflow";
 import { assigneeWhere, effectiveRole, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
 import { DepartmentHead } from "./DepartmentHead";
 import { DepartmentTitle } from "./space/SpaceGrid";
@@ -23,7 +23,8 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
     getAllUsers(),
     prisma.project.findMany({
       where: { client: { status: "current", ...visibleClientWhere(viewer) } },
-      include: { client: true },
+      // only what a task form's project list shows
+      select: { id: true, name: true, type: true, client: { select: PUBLIC_CLIENT_SELECT } },
       // newest first within each client: a task form lists a client's
       // latest few projects and searches for the rest
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
@@ -32,7 +33,7 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
     prisma.task.findMany({
       where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }] },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
     }),
     // the kinds of work this person's roles offer, and the ones they may label with
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),

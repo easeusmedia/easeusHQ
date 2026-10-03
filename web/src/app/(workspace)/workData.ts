@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { assigneeWhere, isFounder, isLead, peopleWhere, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { displayTeam } from "@/lib/teams";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { WorkTaskLink, WorkTaskAttachment } from "./my-tasks/actions";
 
 // What the work views load, for either page that shows them: My tasks (your
@@ -33,7 +33,8 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
   const [projects, workTasks, queueTasks, taskTags, assignable] = await Promise.all([
     prisma.project.findMany({
       where: { client: { status: "current" } },
-      include: { client: true },
+      // only what a task form's project list shows
+      select: { id: true, name: true, type: true, client: { select: PUBLIC_CLIENT_SELECT } },
       // newest first within each client: a task form lists a client's
       // latest few projects and searches for the rest
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
@@ -41,14 +42,14 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     prisma.workTask.findMany({
       // finished work belongs to History, not to a board
       where: { AND: [where, LIVE_WORK_TASK] },
-      include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, team: { select: { slug: true } } },
+      include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, team: { select: { slug: true } } },
       orderBy: { sortOrder: "asc" },
     }),
     withQueue
       ? prisma.task.findMany({
           where: { AND: [where, LIVE_TASK] },
           orderBy: { createdAt: "desc" },
-          include: { assignedTo: assignee, tags: true, project: { include: { client: true } }, team: { select: { slug: true } } },
+          include: { assignedTo: assignee, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, team: { select: { slug: true } } },
         })
       : Promise.resolve([]),
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),

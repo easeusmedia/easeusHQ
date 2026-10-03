@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getRealUserId, getSessionUserId } from "@/lib/auth";
+import { getRealUserId, getRealViewer, getSessionUserId } from "@/lib/auth";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
 import { Sidebar } from "./Sidebar";
-import { visibleDepartments } from "./org/departments";
+import { allDepartments } from "./org/departments";
 import { spaceTree } from "./org/space/data";
 import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
@@ -35,9 +35,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const sidebarOpen = jar.get("tasks-sidebar-open")?.value !== "0";
 
   // Everything the frame needs, asked for at once: this renders on every
-  // page, so its queries running one after another was a fixed cost on
-  // every click.
-  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts] = await Promise.all([
+  // page and every live refresh, so its queries running one after another
+  // was a fixed cost on every click. Two rounds to the database now: who's
+  // signed in, then all of the rest side by side.
+  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer] = await Promise.all([
     getRealUserId(),
     getSessionUserId(),
     getViewer(),
@@ -52,6 +53,22 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     }),
     // clients who've sent their contract form, waiting on us for the terms
     prisma.contract.count({ where: { status: "draft" } }).catch(() => 0),
+    allDepartments(),
+    // every department's portals (and any older sections with theirs); the
+    // ones this person may open are nested under them in the sidebar
+    allDepartments()
+      .then((all) => spaceTree(all.map((d) => d.id)))
+      .catch(() => []),
+    // notices they haven't seen yet: a number on Home, like unread chat
+    getViewer()
+      .then((v) => (v ? prisma.notice.count({ where: { forId: v.id, readAt: null } }) : 0))
+      .catch(() => 0),
+    // a Level 2 or 3 who left an overdue notice unanswered for over a day
+    // sees only that until each task has a new date and a reason (never
+    // Level 1, nor anyone looking as someone else)
+    Promise.all([getRealViewer(), getSessionUserId()])
+      .then(([me, as]) => (me && me.id === as && me.role !== "admin" && !isFounder(me) ? overdueToAnswer(me.id) : []))
+      .catch(() => []),
   ]);
   if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
@@ -63,9 +80,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const viewAsPeople =
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
-  // a Level 2 or 3 who left an overdue notice unanswered for over a day sees
-  // only that until each task has a new date and a reason (Level 1 never)
-  const toAnswer = realUser && !viewingAs && realUser.role !== "admin" && !isFounder(realUser) ? await overdueToAnswer(realUser.id).catch(() => []) : [];
   if (toAnswer.length)
     return (
       <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
@@ -83,14 +97,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     .filter((c) => seesClient(viewer, c))
     .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
 
-  const departments = await visibleDepartments(viewer);
-
-  const [noticesWaiting, spaces] = await Promise.all([
-    // notices they haven't seen yet: a number on Home, like unread chat
-    prisma.notice.count({ where: { forId: viewer.id, readAt: null } }).catch(() => 0),
-    // each department's portals (and any older sections with theirs), nested under it in the sidebar
-    spaceTree(departments.map((d) => d.id)).catch(() => []),
-  ]);
+  // the departments they may open under Organization: Level 1 all, others their own
+  const departments = isFounder(viewer) ? teams : teams.filter((t) => viewer.departments.some((d) => d.id === t.id));
   const departmentTree = departments.map((d) => ({
     ...d,
     children: spaces

@@ -11,7 +11,7 @@ import { addDays, dayOf, daysBetween, mondayOf, shortDay } from "@/lib/editorKpi
 import { DRIVE_SETTINGS } from "@/lib/drive";
 import { calendarAccount, listMeetings, type Meeting } from "@/lib/googleCalendar";
 import { sweepIfDue } from "@/lib/taskTrack";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { money } from "../finance/data";
 import { loadWork } from "../workData";
 import { HomeView, type HomeItem, type Notice } from "./HomeView";
@@ -27,9 +27,6 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
-  // the night's overdue check, if it hasn't run today
-  await sweepIfDue();
-
   const full = isFounder(viewer);
   const member = isMember(viewer);
   const { week } = await searchParams;
@@ -39,10 +36,29 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // their own work and what they've been added to; a Level 2 their departments' too
   const scope = assigneeWhere(viewer);
 
-  const [tasks, work, users, teams, kinds, account, googleApp, mine, extras] = await Promise.all([
+  // the week's meetings, when the calendar is connected; what went wrong, if it did
+  const week7 = async (): Promise<{ account: string | null; meetings: Meeting[]; error: string | null }> => {
+    const account = await calendarAccount();
+    if (account === null) return { account, meetings: [], error: null };
+    try {
+      return { account, meetings: await listMeetings(new Date(`${monday}T00:00:00+05:30`), new Date(`${addDays(monday, 7)}T00:00:00+05:30`)), error: null };
+    } catch (err) {
+      const why = err instanceof Error ? err.message : "";
+      // Google's own wording names project numbers and console links; say what it means
+      const error = /has not been used|is disabled/i.test(why)
+        ? "Google Calendar is switched off for the app's Google project. Turn on the Google Calendar API in Google Cloud, then reload."
+        : /invalid_grant|refresh/i.test(why)
+          ? "The Google Calendar connection has expired. Connect it again from Integrations."
+          : "Google Calendar didn't answer. Try again in a minute.";
+      return { account, meetings: [], error };
+    }
+  };
+
+  // all of it side by side, Google included: nothing here waits on anything else
+  const [tasks, work, users, teams, kinds, calendar, googleApp, mine, extras] = await Promise.all([
     prisma.task.findMany({
       where: { AND: [LIVE_TASK, scope] },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } }, team: { select: { name: true } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, team: { select: { name: true } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
       orderBy: { dueDate: "asc" },
     }),
     loadWork(viewer, member ? "mine" : "all", { withQueue: false }),
@@ -53,34 +69,20 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       where: { holders: { some: { id: viewer.id } }, team: { slug: "production" } },
       select: { id: true, name: true, workflow: true, team: { select: { name: true } }, kinds: { select: { id: true, name: true, workflow: true, clientFacing: true } } },
     }),
-    calendarAccount(),
+    week7(),
     prisma.appSetting.findUnique({ where: { key: DRIVE_SETTINGS.clientId } }),
     // notices for this person
     prisma.notice.findMany({ where: { OR: [{ forId: viewer.id }, ...(full ? [{ forId: null }] : [])] }, orderBy: { createdAt: "desc" }, take: 40 }),
     full ? levelOneNotices(today) : [],
+    // the night's overdue check, if it hasn't run today. Any notices it
+    // makes arrive with the live refresh its own writes set off.
+    sweepIfDue(),
   ]);
 
   // the notices are on screen now: seen (the number on Home clears), but
   // marked new this once. Not while Level 1 is looking as someone else.
   const fresh = new Set(mine.filter((n) => !n.readAt).map((n) => n.id));
   if (fresh.size && (await getRealUserId()) === viewer.id) await prisma.notice.updateMany({ where: { id: { in: [...fresh] } }, data: { readAt: new Date() } });
-
-  // the week's meetings, when the calendar is connected
-  let meetings: Meeting[] = [];
-  let calendarError: string | null = null;
-  if (account !== null) {
-    try {
-      meetings = await listMeetings(new Date(`${monday}T00:00:00+05:30`), new Date(`${addDays(monday, 7)}T00:00:00+05:30`));
-    } catch (err) {
-      const why = err instanceof Error ? err.message : "";
-      // Google's own wording names project numbers and console links; say what it means
-      calendarError = /has not been used|is disabled/i.test(why)
-        ? "Google Calendar is switched off for the app's Google project. Turn on the Google Calendar API in Google Cloud, then reload."
-        : /invalid_grant|refresh/i.test(why)
-          ? "The Google Calendar connection has expired. Connect it again from Integrations."
-          : "Google Calendar didn't answer. Try again in a minute.";
-    }
-  }
 
   const departmentName = new Map(teams.map((t) => [t.slug, t.name]));
   const items: HomeItem[] = [
@@ -152,8 +154,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       canNote={full}
       items={items}
       notices={notices}
-      meetings={meetings}
-      calendar={{ connected: account !== null, error: calendarError, clientId: googleApp?.value ?? "" }}
+      meetings={calendar.meetings}
+      calendar={{ connected: calendar.account !== null, error: calendar.error, clientId: googleApp?.value ?? "" }}
       people={users.filter((u) => u.employment === "active").map((u) => ({ id: u.id, name: u.name }))}
       composer={{
         projects: work.projects,

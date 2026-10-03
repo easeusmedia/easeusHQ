@@ -7,7 +7,7 @@ import type { TaskStatus } from "@/lib/workflow";
 import { assigneeWhere, isFounder } from "@/lib/scope";
 import { DeletedRecord } from "./DeletedRecord";
 import { getViewer } from "@/lib/viewer";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import type { HistoryItem } from "@/lib/history";
 import { displayTeam } from "@/lib/teams";
 import { parseStageChange } from "@/lib/stages";
@@ -46,7 +46,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       include: {
         assignedTo: { select: { ...PUBLIC_USER_SELECT, role: true, team: { select: { slug: true, name: true } } } },
         tags: true,
-        project: { include: { client: true } },
+        project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } },
       },
     }),
     prisma.workTask.findMany({
@@ -56,7 +56,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
         assignedTo: { select: { ...PUBLIC_USER_SELECT, role: true, team: { select: { slug: true, name: true } } } },
         createdBy: { select: { name: true } },
         tags: true,
-        project: { include: { client: true } },
+        project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } },
       },
     }),
     // the whole trail, so clicking a row shows every step without another

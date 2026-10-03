@@ -5,7 +5,7 @@ import { getViewer } from "@/lib/viewer";
 import { effectiveRole, worksTheBoard } from "@/lib/scope";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { dayOf } from "@/lib/editorKpi";
-import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { loadWork } from "../workData";
 import { TodoList } from "./TodoList";
 import { WorkNotionSyncButton } from "./WorkNotionSyncButton";
@@ -26,7 +26,7 @@ export default async function MyTasksPage() {
     // your client work, and what you've been brought onto: anything still open
     prisma.task.findMany({
       where: { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }], status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: true } } },
+      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     }),
     // and everything they've ever finished, to look back over (and tick back if it was a slip)
