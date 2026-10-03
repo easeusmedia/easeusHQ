@@ -63,3 +63,27 @@ export const TOPICS: { key: "workload" | "finance" | "contracts" | "performance"
 ];
 
 export const clipText = clip;
+
+// One of the rows, by id or name: an exact name wins, then the only one that
+// contains the words. `hint` (a board's or client's name) settles two things
+// with the same name. Otherwise, what to ask back.
+export type Named = { id: string; name: string; where?: string };
+export function pickByName<T extends Named>(rows: T[], q: string, what: string, hint = ""): T | string {
+  const s = q.toLowerCase();
+  const byId = rows.filter((r) => r.id === q);
+  if (byId.length === 1) return byId[0];
+  const exact = rows.filter((r) => r.name.toLowerCase() === s);
+  let hits = exact.length ? exact : rows.filter((r) => r.name.toLowerCase().includes(s));
+  if (hits.length > 1 && hint) {
+    // the board (or client) named exactly, before one that merely contains
+    // the word: "Core" is a board, and also part of "Dream (Core Offer)"
+    const h = hint.toLowerCase();
+    const where = (r: T) => (r.where ?? "").toLowerCase();
+    const same = hits.filter((r) => where(r) === h || where(r).split(" · ")[0] === h);
+    const narrowed = same.length ? same : hits.filter((r) => where(r).includes(h));
+    if (narrowed.length) hits = narrowed;
+  }
+  if (hits.length === 1) return hits[0];
+  const list = (rs: T[]) => rs.slice(0, 10).map((r) => (r.where ? `${r.name} (${r.where})` : r.name)).join("; ");
+  return hits.length ? `Which ${what}? ${list(hits)}. Ask the admin which, then pass it as board or client.` : `There's no ${what} called "${q}". There ${rows.length === 1 ? "is" : "are"}: ${list(rows) || "none"}`;
+}

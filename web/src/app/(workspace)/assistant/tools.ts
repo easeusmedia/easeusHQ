@@ -79,11 +79,11 @@ export const TOOLS: Tool[] = [
   {
     name: "propose",
     description:
-      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|creative (a change for that video only, not counted)|positive|negative|guidance (a tip for the future, not scored), category (a mistake's type), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}. ref: the task's title or ref, the person's name, or the invoice number; no need to search first.",
+      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|creative (a change for that video only, not counted)|positive|negative|guidance (a tip for the future, not scored), category (a mistake's type), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}; edit {kind: client|project|department|role|board|portal|stage|tag|task|lead, and what changes: name (title for a task or lead), color (stage or tag), status or niche (client), status (project), stage or person (lead); board or client whenever the admin names one}; add {kind: todo {title, person, due}|notice {body}|lead {title, board}|department {name}|role {name, department}|stage {name, board, color}|client {name, niche}}. ref: the task's title or ref, the person's name, the invoice number, or the thing's current name (for add, the new one); no need to search first. Nothing can be deleted from here.",
     input_schema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["task_status", "task_due", "task_assign", "employee", "feedback", "invoice_status"] },
+        action: { type: "string", enum: ["task_status", "task_due", "task_assign", "employee", "feedback", "invoice_status", "edit", "add"] },
         ref: { type: "string" },
         changes: { type: "object" },
       },
@@ -104,6 +104,20 @@ export async function findPerson(who: string) {
   const hit = all.filter((u) => u.id.startsWith(q) || u.name.toLowerCase() === q);
   const loose = hit.length ? hit : all.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().startsWith(q));
   return loose.length === 1 ? loose[0] : { none: loose.length === 0, options: loose.map((u) => u.name) };
+}
+
+// One open or finished task by its ref or the words in its title, from
+// either kind (a client's editing task, or someone's own to-do)
+export async function findTask(q: string) {
+  const s = q.trim();
+  const [tasks, work] = await Promise.all([
+    prisma.task.findMany({ where: { OR: [{ id: { startsWith: s } }, { title: { contains: s, mode: "insensitive" } }] }, include: { assignedTo: true }, take: 5 }),
+    prisma.workTask.findMany({ where: { OR: [{ id: { startsWith: s } }, { title: { contains: s, mode: "insensitive" } }] }, include: { assignedTo: true }, take: 5 }),
+  ]);
+  const all = [...tasks.map((t) => ({ kind: "task" as const, t })), ...work.map((t) => ({ kind: "work" as const, t }))];
+  if (all.length === 1) return all[0];
+  const exact = all.filter((x) => x.t.id.startsWith(s));
+  return exact.length === 1 ? exact[0] : { error: all.length ? `Which task? ${all.map((x) => x.t.title).join("; ")}` : "No task matches that." };
 }
 
 async function findClient(who: string) {

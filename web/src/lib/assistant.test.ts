@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compressHistory, mentioned, needsDeepModel, TOPICS, type Turn } from "./assistant.ts";
+import { compressHistory, mentioned, needsDeepModel, TOPICS, type Turn, pickByName } from "./assistant.ts";
 
 const turns = (n: number): Turn[] =>
   Array.from({ length: n }, (_, i) => ({ role: i % 2 ? "assistant" : "user", text: i % 2 ? `Answer ${i} ${"x".repeat(2000)}` : `Question ${i}` }) as Turn);
@@ -37,4 +37,21 @@ test("names are matched as whole words, by full name or first name", () => {
   assert.deepEqual(mentioned("How is the broker account doing? And tego?", clients).map((c) => c.name), ["The Broker Brunch", "Dr Tego"]);
   assert.deepEqual(TOPICS.filter((t) => t.test.test("Who has the most pending work?")).map((t) => t.key), ["workload"]);
   assert.deepEqual(TOPICS.filter((t) => t.test.test("What needs my attention today?")).map((t) => t.key), ["workload"]);
+});
+
+test("the assistant finds one thing by name, and asks when it can't tell", () => {
+  const stages = [
+    { id: "1", name: "Shortlisted", where: "Core" },
+    { id: "2", name: "Shortlisted", where: "Dream (Core Offer)" },
+    { id: "3", name: "Shortlisted", where: "Amplifier" },
+    { id: "4", name: "Shortlisted again", where: "Core" },
+  ];
+  // an exact name beats one that only contains it; two alike need saying which
+  assert.match(pickByName(stages, "shortlisted", "stage") as string, /^Which stage\? /);
+  // "Core" is a board, and also part of another board's name: the exact board wins
+  assert.equal((pickByName(stages, "Shortlisted", "stage", "Core") as { id: string }).id, "1");
+  assert.equal((pickByName(stages, "Shortlisted", "stage", "dream") as { id: string }).id, "2");
+  assert.equal((pickByName(stages, "again", "stage") as { id: string }).id, "4");
+  assert.equal((pickByName(stages, "3", "stage") as { id: string }).id, "3");
+  assert.match(pickByName(stages, "Won", "stage") as string, /^There's no stage called "Won"/);
 });

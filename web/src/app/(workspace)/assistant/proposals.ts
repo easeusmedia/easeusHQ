@@ -10,7 +10,8 @@ import type { WorkTaskStatus } from "@prisma/client";
 import { moveTask } from "../actions";
 import { moveWorkTask } from "../my-tasks/actions";
 import { updateInvoiceStatus } from "../clients/actions";
-import { findPerson } from "./tools";
+import { findPerson, findTask } from "./tools";
+import { applyAdd, applyEdit, prepareAdd, prepareEdit } from "./edits";
 
 // A change the assistant wants to make, checked against the database and
 // described as before → after, so the admin confirms exactly what will
@@ -19,9 +20,10 @@ import { findPerson } from "./tools";
 // proposed and when it's confirmed.
 
 export type Proposal = {
-  action: "task_status" | "task_due" | "task_assign" | "employee" | "feedback" | "invoice_status";
+  action: "task_status" | "task_due" | "task_assign" | "employee" | "feedback" | "invoice_status" | "edit" | "add";
   targetId: string;
-  target: "task" | "work" | "person" | "invoice";
+  // "other": anything edits.ts looks after (a client, a stage, a new to-do…)
+  target: "task" | "work" | "person" | "invoice" | "other";
   title: string;
   lines: { field: string; from: string; to: string }[];
   // the cleaned values apply() writes
@@ -32,18 +34,6 @@ const INVOICE_STATUSES = ["draft", "ready", "sent", "paid", "overdue"];
 const EMPLOYMENT = ["active", "on_leave", "former"];
 const isDay = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const str = (v: unknown) => (v === undefined || v === null ? "" : String(v).trim());
-
-async function findTask(q: string) {
-  const s = q.trim();
-  const [tasks, work] = await Promise.all([
-    prisma.task.findMany({ where: { OR: [{ id: { startsWith: s } }, { title: { contains: s, mode: "insensitive" } }] }, include: { assignedTo: true }, take: 5 }),
-    prisma.workTask.findMany({ where: { OR: [{ id: { startsWith: s } }, { title: { contains: s, mode: "insensitive" } }] }, include: { assignedTo: true }, take: 5 }),
-  ]);
-  const all = [...tasks.map((t) => ({ kind: "task" as const, t })), ...work.map((t) => ({ kind: "work" as const, t }))];
-  if (all.length === 1) return all[0];
-  const exact = all.filter((x) => x.t.id.startsWith(s));
-  return exact.length === 1 ? exact[0] : { error: all.length ? `Which task? ${all.map((x) => x.t.title).join("; ")}` : "No task matches that." };
-}
 
 // a status by its key or by the label people see ("Editing", "Up next")
 function statusFor(kind: "task" | "work", v: string): string | null {
@@ -162,6 +152,11 @@ export async function prepare(input: { action?: string; ref?: string; changes?: 
       if (!INVOICE_STATUSES.includes(to)) return `Status is one of ${INVOICE_STATUSES.join(", ")}.`;
       return { action: "invoice_status", target: "invoice", targetId: inv.id, title: `${inv.client.name} · ${inv.number ?? "invoice"}`, lines: [{ field: "Status", from: inv.status, to }], values: { status: to } };
     }
+    // renaming, recolouring, setting and adding across the rest of the app
+    case "edit":
+      return prepareEdit(ref, c);
+    case "add":
+      return prepareAdd(ref, c);
   }
   return "That isn't something I can change.";
 }
@@ -169,6 +164,11 @@ export async function prepare(input: { action?: string; ref?: string; changes?: 
 // The admin pressed Confirm: checked again from scratch, then done the same
 // way the app's own screens do it.
 export async function apply(p: Proposal, actorId: string): Promise<string | null> {
+  if (p.action === "edit" || p.action === "add") {
+    const failed = await (p.action === "edit" ? applyEdit(p) : applyAdd(p));
+    if (!failed) revalidatePath("/", "layout");
+    return failed;
+  }
   const fresh = await prepare({
     action: p.action,
     ref: p.targetId,
