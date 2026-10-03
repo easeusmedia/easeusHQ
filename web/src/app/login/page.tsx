@@ -66,7 +66,10 @@ export default function LoginPage() {
           {!pending && <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />}
         </button>
 
-        <p className="mt-16 text-center text-[11px] text-white/45">A private workspace for the Easeus Media team.</p>
+        {/* no reset by email: Level 1 sets a new one from Employees */}
+        <p className="mt-5 text-center text-[11px] text-white/55">Forgot your password? Ask your admin to reset it.</p>
+
+        <p className="mt-12 text-center text-[11px] text-white/45">A private workspace for the Easeus Media team.</p>
       </form>
     </div>
   );

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, History, Mail, PenLine, Phone } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, History, KeyRound, Mail, PenLine, Phone } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { setAccess, updatePerson, updatePersonPhoto } from "./actions";
+import { resetPassword, setAccess, updatePerson, updatePersonPhoto } from "./actions";
+import { closeOnBackdrop } from "../dialog";
+import { MIN_PASSWORD } from "@/lib/account";
 import { Organisation } from "./Organisation";
 import { PhotoEdit } from "../PhotoEdit";
 import { ProfileHead } from "../ProfileHead";
@@ -188,6 +190,104 @@ function Stat({ value, label, lit = true }: { value: React.ReactNode; label: str
 
 // One person's record, top to bottom: who they are, what they're on now,
 // how the last month went, and a way into everything they've ever finished.
+// Level 1 gives someone a new password when they've lost theirs: a key
+// button by their name, a small window, one field. They're told it, and can
+// change it themselves under Account.
+function ResetPassword({ id, name }: { id: string; name: string }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const first = name.split(" ")[0];
+
+  function open() {
+    setPassword("");
+    setError(null);
+    setDone(false);
+    ref.current?.showModal();
+  }
+  async function save() {
+    if (busy) return;
+    if (password.length < MIN_PASSWORD) return setError(`Use at least ${MIN_PASSWORD} characters.`);
+    setBusy(true);
+    setError(null);
+    const res = await resetPassword(id, password).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    setBusy(false);
+    if (res.error) return setError(res.error);
+    setDone(true);
+  }
+
+  return (
+    <>
+      <button type="button" onClick={open} aria-label="Reset password" title="Reset password" className="btn-glow flex h-9 w-9 items-center justify-center rounded-full">
+        <KeyRound size={15} />
+      </button>
+      <dialog
+        ref={ref}
+        {...closeOnBackdrop}
+        className="glass fixed top-1/2 left-1/2 m-0 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
+      >
+        <form
+          className="flex flex-col gap-4 p-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <h2 className="text-base font-semibold">Reset {first}&apos;s password</h2>
+          {done ? (
+            <p className="fade-in text-sm text-muted">
+              Done. Tell {first} the new password; they can change it under Account.
+            </p>
+          ) : (
+            <label className="flex flex-col gap-1.5 text-xs text-muted">
+              New password
+              <span className="relative">
+                <input
+                  autoFocus
+                  type={show ? "text" : "password"}
+                  value={password}
+                  disabled={busy}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={`At least ${MIN_PASSWORD} characters`}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 pr-9 text-sm text-foreground outline-none focus:border-hover disabled:opacity-60"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShow((v) => !v)}
+                  aria-label={show ? "Hide password" : "Show password"}
+                  title={show ? "Hide password" : "Show password"}
+                  className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted transition-colors hover:text-foreground"
+                >
+                  {show ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </span>
+            </label>
+          )}
+          {error && (
+            <p role="alert" className="fade-in text-xs text-red-300">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => ref.current?.close()} className="btn btn-ghost">
+              {done ? "Close" : "Cancel"}
+            </button>
+            {!done && (
+              <button type="submit" disabled={busy || !password} className="btn btn-glow disabled:opacity-50">
+                {busy ? "Saving…" : "Reset password"}
+              </button>
+            )}
+          </div>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
 // Read first; the admin switches it to a form with Edit. Salary only ever
 // arrives from the server when the viewer may edit people.
 export function PersonDetail({
@@ -290,6 +390,7 @@ export function PersonDetail({
           </div>
         </ProfileHead>
         <div className="flex shrink-0 gap-2">
+          {canEdit && <ResetPassword id={person.id} name={person.name} />}
           <a href={`mailto:${person.email}`} aria-label="Email" className="btn-glow flex h-9 w-9 items-center justify-center rounded-full">
             <Mail size={15} />
           </a>

@@ -8,6 +8,8 @@ import { isStorablePicture } from "@/lib/photos";
 import { revalidatePath } from "next/cache";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { EMPLOYMENT_TYPE_LABEL, slugOf } from "@/lib/teams";
+import { hashPassword } from "@/lib/password";
+import { MIN_PASSWORD } from "@/lib/account";
 
 export type PeopleFormState = { error?: string; success?: boolean };
 
@@ -40,6 +42,20 @@ export async function updatePersonPhoto(userId: string, dataUrl: string | null):
   await prisma.user.update({ where: { id: userId }, data: { avatarUrl: dataUrl } });
   // the photo shows everywhere, so every page's layout needs it
   revalidatePath("/", "layout");
+  return { success: true };
+}
+
+// A new password for someone who's lost theirs, set by Level 1 (who then
+// tells them it; they can change it themselves under Account). Only Level 1:
+// whoever holds this can sign in as anyone.
+export async function resetPassword(personId: string, password: string): Promise<PeopleFormState> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only Level 1 can reset a password." };
+  if (password.length < MIN_PASSWORD) return { error: `Use at least ${MIN_PASSWORD} characters.` };
+  if (password.length > 200) return { error: "That password is too long." };
+  const person = await prisma.user.findUnique({ where: { id: personId }, select: { id: true } });
+  if (!person) return { error: "That person no longer exists." };
+  await prisma.user.update({ where: { id: personId }, data: { passwordHash: hashPassword(password) } });
   return { success: true };
 }
 
