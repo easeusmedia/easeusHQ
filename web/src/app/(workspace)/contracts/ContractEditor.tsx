@@ -389,7 +389,7 @@ export function ContractEditor({
   // stepper stay put; the left column shows the form (which scrolls) or
   // Claude, and on the right the action bar stays while the contract scrolls.
   return (
-    <div className="flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))] lg:overflow-hidden">
+    <div className="flex flex-col gap-4 lg:-mb-(--page-pad) lg:h-[calc(100dvh-var(--page-pad))] lg:overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start gap-3">
         <Link href="/contracts" aria-label="All contracts" className="mt-0.5 flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground">
           <ArrowLeft size={16} />
@@ -447,7 +447,7 @@ export function ContractEditor({
           </div>
 
           {/* both stay mounted, so nothing typed is lost switching between them */}
-          <div className={`${tab === "form" ? "flex" : "hidden"} flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1`}>
+          <div className={`${tab === "form" ? "flex" : "hidden"} flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1 lg:pb-(--page-pad)`}>
             <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
 
             {/* after the last question: what to do now */}
@@ -459,7 +459,7 @@ export function ContractEditor({
             </div>
           </div>
 
-          <div className={`${tab === "chat" ? "block" : "hidden"} h-[560px] lg:h-auto lg:min-h-0 lg:flex-1`}>
+          <div className={`${tab === "chat" ? "block" : "hidden"} h-[560px] lg:mb-(--page-pad) lg:h-auto lg:min-h-0 lg:flex-1`}>
             <ContractChat
               chat={chat}
               thinking={thinking}
@@ -475,7 +475,7 @@ export function ContractEditor({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05]  bg-surface/30 lg:min-h-0">
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05]  bg-surface/30 lg:mb-(--page-pad) lg:min-h-0">
           {/* the one next step, fixed above the contract it's about */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-white/[0.05] px-4 py-3 sm:px-6">
             <div className="flex flex-wrap items-center gap-3">

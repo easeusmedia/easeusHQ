@@ -442,7 +442,7 @@ export function LeadBoard({
           setOverStage(null);
         }}
         title={canBuild ? "Drag to move this stage" : stage.name}
-        className={`flex h-8 min-w-0 items-center gap-2 rounded-full border pr-1 pl-2.5 text-xs font-medium transition-[opacity,box-shadow] ${tone.pill} ${canBuild ? "cursor-grab active:cursor-grabbing" : ""} ${
+        className={`mist-tint flex h-8 min-w-0 items-center gap-2 rounded-full border pr-1 pl-2.5 text-xs font-medium transition-[opacity,box-shadow] ${tone.pill} ${canBuild ? "cursor-grab active:cursor-grabbing" : ""} ${
           target ? "ring-2 ring-accent/60" : ""
         } ${dragStage === stage.id ? "opacity-40" : ""}`}
       >
