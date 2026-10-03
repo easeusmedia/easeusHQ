@@ -5,8 +5,10 @@
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts remove-sample <json>
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts tidy
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts messages
+//   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts sync
 // tidy trims a board first copied whole from Notion to what outreach uses;
-// messages puts the sequence's messages on any stage that has none.
+// messages puts the sequence's messages on any stage that has none;
+// sync rewrites every stage's messages from the sequence.
 // setup can run again safely: a page already there (same parent and slug) is
 // left exactly as it is, so nobody's edits are undone. sample skips a lead
 // whose title is already on the board; remove-sample deletes only the copies it made.
@@ -180,7 +182,7 @@ async function removeSample(path: string | undefined) {
 async function seedMessages(db: Prisma.TransactionClient | typeof prisma, stage: { id: string; name: string }) {
   const list = SEQUENCE[stage.name];
   if (!list || (await db.stageMessage.count({ where: { stageId: stage.id } }))) return 0;
-  await db.stageMessage.createMany({ data: list.map((m, i) => ({ stageId: stage.id, name: m.name, channel: m.channel, body: m.body, sortOrder: i + 1 })) });
+  await db.stageMessage.createMany({ data: list.map((m, i) => ({ stageId: stage.id, name: m.name, channel: m.channel, subject: m.subject ?? "", body: m.body, note: m.note, sortOrder: i + 1 })) });
   return list.length;
 }
 
@@ -189,6 +191,34 @@ async function messages() {
   for (const st of board.stages) {
     const n = await seedMessages(prisma, st);
     if (n) console.log(`${st.name}: ${n} ${n === 1 ? "message" : "messages"} added`);
+  }
+}
+
+// Every stage's messages rewritten from the sequence (the FigJam board):
+// a message found by its name (or a name it had) is updated in place, so
+// leads keep their own copies and sent records; new ones are added; ones
+// the board no longer has are removed.
+async function sync() {
+  const { board } = await findBoard();
+  for (const [stageName, list] of Object.entries(SEQUENCE)) {
+    const st = board.stages.find((x) => x.name === stageName);
+    if (!st) {
+      console.log(`No stage called ${stageName}: skipped`);
+      continue;
+    }
+    const existing = await prisma.stageMessage.findMany({ where: { stageId: st.id }, select: { id: true, name: true } });
+    const kept = new Set<string>();
+    for (const [i, m] of list.entries()) {
+      const data = { name: m.name, channel: m.channel, subject: m.subject ?? "", body: m.body, note: m.note, sortOrder: i + 1 };
+      const found = existing.find((e) => !kept.has(e.id) && (e.name === m.name || m.was?.includes(e.name)));
+      if (found) {
+        kept.add(found.id);
+        await prisma.stageMessage.update({ where: { id: found.id }, data });
+      } else await prisma.stageMessage.create({ data: { ...data, stageId: st.id } });
+    }
+    const gone = existing.filter((e) => !kept.has(e.id));
+    if (gone.length) await prisma.stageMessage.deleteMany({ where: { id: { in: gone.map((g) => g.id) } } });
+    console.log(`${stageName}: ${list.length} messages${gone.length ? `, removed ${gone.map((g) => g.name).join(", ")}` : ""}`);
   }
 }
 
@@ -235,6 +265,6 @@ async function tidy() {
 }
 
 const [mode, path] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
-const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, rename };
+const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, sync, rename };
 await (modes[mode]?.() ?? Promise.reject(new Error(`Say one of: ${Object.keys(modes).join(", ")}.`)));
 await prisma.$disconnect();

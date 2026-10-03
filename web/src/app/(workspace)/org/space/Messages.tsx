@@ -75,9 +75,11 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
   const used = variablesIn(current.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
   const blanks = used.filter((n) => !vars[n]);
 
-  const card = (m: MessageData) => (
+  // a stage with many messages (the replies) lists them by name, each opening
+  const card = (m: MessageData, i: number, list: MessageData[]) => (
     <MessageCard
       key={m.id}
+      folded={list.length > 2}
       message={m}
       stages={board.stages}
       leadId={lead.id}
@@ -209,6 +211,7 @@ function MessageCard({
   onError,
   onVar,
   onMine,
+  folded = false,
 }: {
   message: MessageData;
   stages: StageData[];
@@ -224,8 +227,10 @@ function MessageCard({
   onError: (e: string | null) => void;
   onVar: (name: string, value: string) => void;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
+  folded?: boolean;
 }) {
   const [mode, setMode] = useState<"view" | "mine" | "template">("view");
+  const [open, setOpen] = useState(!folded);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const source = own ?? message;
@@ -267,9 +272,20 @@ function MessageCard({
   return (
     <div className={`fade-in rounded-xl p-4 ${sent ? "bg-emerald-400/[0.04] ring-1 ring-emerald-400/20" : BLOCK}`}>
       {/* the message's name; copy and edit right beside it */}
-      <div className="mb-2.5 flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        {folded && (
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? `Fold ${message.name}` : `Open ${message.name}`} className="-ml-1 flex shrink-0 text-muted hover:text-foreground">
+            <ChevronRight size={14} className={`transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+          </button>
+        )}
         <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
-        <span className="min-w-0 truncate text-sm font-medium">{message.name}</span>
+        {folded ? (
+          <button type="button" onClick={() => setOpen(!open)} className="min-w-0 truncate text-left text-sm font-medium hover:text-foreground">
+            {message.name}
+          </button>
+        ) : (
+          <span className="min-w-0 truncate text-sm font-medium">{message.name}</span>
+        )}
         {own && !sent && (
           <span title="Edited for this lead only" className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted">
             This lead&apos;s copy
@@ -296,64 +312,70 @@ function MessageCard({
           )}
         </span>
       </div>
+      {/* the board's rule for when to send it */}
+      {message.note && <p className={`mt-1.5 text-xs leading-relaxed text-muted ${folded ? "pl-[1.625rem]" : ""}`}>{message.note}</p>}
 
-      <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-        {isEmail && (sent ? subject : source.subject) && (
-          <p className="mb-2 text-foreground">
-            <span className="text-muted">Subject: </span>
-            {sent ? subject : <Filled text={source.subject} vars={vars} />}
-          </p>
-        )}
-        {sent ? body : <Filled text={source.body} vars={vars} />}
-      </div>
+      {open && (
+        <>
+          <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+            {isEmail && (sent ? subject : source.subject) && (
+              <p className="mb-2 text-foreground">
+                <span className="text-muted">Subject: </span>
+                {sent ? subject : <Filled text={source.subject} vars={vars} />}
+              </p>
+            )}
+            {sent ? body : <Filled text={source.body} vars={vars} />}
+          </div>
 
-      {/* what's still blank, filled right here */}
-      {missing.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-2.5">
-          <p className="text-[11px] text-red-300">Fill in before sending</p>
-          {missing.map((name) => (
-            <label key={name} className="flex items-center gap-2.5">
-              <span className="w-24 shrink-0 truncate text-xs text-muted">{name}</span>
-              <input
-                defaultValue=""
-                onBlur={(e) => e.target.value.trim() && onVar(name, e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                placeholder={auto[name] ?? `Type the ${name.toLowerCase()}`}
-                className={`${INPUT} py-1`}
-              />
-            </label>
-          ))}
-        </div>
+          {/* what's still blank, filled right here */}
+          {missing.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-2.5">
+              <p className="text-[11px] text-red-300">Fill in before sending</p>
+              {missing.map((name) => (
+                <label key={name} className="flex items-center gap-2.5">
+                  <span className="w-24 shrink-0 truncate text-xs text-muted">{name}</span>
+                  <input
+                    defaultValue=""
+                    onBlur={(e) => e.target.value.trim() && onVar(name, e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                    placeholder={auto[name] ?? `Type the ${name.toLowerCase()}`}
+                    className={`${INPUT} py-1`}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+
+          {/* sent from wherever it goes out; marking it here keeps the record */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+            {sent ? (
+              <>
+                <span className="text-[11px] text-muted">
+                  Sent by {sent.byName} · {formatDateTime(sent.sentAt)}
+                </span>
+                <button type="button" onClick={toggleSent} disabled={busy} className={`${SMALL_BTN} ml-auto`}>
+                  <Undo2 size={12} /> {busy ? "Saving…" : "Mark as not sent"}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="ml-auto flex items-center gap-2">
+                  <span className="text-[11px] text-muted">Sent it?</span>
+                  <button
+                    type="button"
+                    onClick={toggleSent}
+                    disabled={busy || missing.length > 0}
+                    title={missing.length ? `Fill in ${missing.join(", ")} first` : "Keep a record of what went out"}
+                    className="btn btn-sm btn-ghost"
+                  >
+                    <Send size={12} /> {busy ? "Saving…" : "Mark as sent"}
+                  </button>
+                </span>
+              </>
+            )}
+          </div>
+        </>
       )}
-
-      {/* sent from wherever it goes out; marking it here keeps the record */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
-        {sent ? (
-          <>
-            <span className="text-[11px] text-muted">
-              Sent by {sent.byName} · {formatDateTime(sent.sentAt)}
-            </span>
-            <button type="button" onClick={toggleSent} disabled={busy} className={`${SMALL_BTN} ml-auto`}>
-              <Undo2 size={12} /> {busy ? "Saving…" : "Mark as not sent"}
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] text-muted">Sent it?</span>
-              <button
-                type="button"
-                onClick={toggleSent}
-                disabled={busy || missing.length > 0}
-                title={missing.length ? `Fill in ${missing.join(", ")} first` : "Keep a record of what went out"}
-                className="btn btn-sm btn-ghost"
-              >
-                <Send size={12} /> {busy ? "Saving…" : "Mark as sent"}
-              </button>
-            </span>
-          </>
-        )}
-      </div>
     </div>
   );
 }
@@ -483,6 +505,7 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
   const [channel, setChannel] = useState(message.channel);
   const [subject, setSubject] = useState(message.subject);
   const [body, setBody] = useState(message.body);
+  const [note, setNote] = useState(message.note);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -539,6 +562,7 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
       channel,
       subject,
       body,
+      note,
     }).catch(() => ({ error: OFFLINE }));
     setBusy(false);
     if (res.error) return setError(res.error);
@@ -581,6 +605,7 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
         />
       </div>
 
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="When to send it, like: only if they accepted the connection" aria-label="When to send it" className={`${INPUT} text-xs`} />
       {channel === "email" && (
         <input ref={subjectRef} value={subject} onFocus={() => (last.current = "subject")} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={INPUT} />
       )}

@@ -114,7 +114,7 @@ export type LeadData = {
   editedAt: string | null;
 };
 export type Draft = { subject: string; body: string };
-export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string };
+export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string; note: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
 export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };
 export type LeadEventData = {

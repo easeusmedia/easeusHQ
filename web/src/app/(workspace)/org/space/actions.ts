@@ -116,7 +116,7 @@ async function copyStructure(tx: Prisma.TransactionClient, fromId: string, into:
     where: { id: fromId },
     select: {
       kind: true,
-      stages: { select: { name: true, color: true, sortOrder: true, messages: { select: { name: true, channel: true, subject: true, body: true, sortOrder: true } } } },
+      stages: { select: { name: true, color: true, sortOrder: true, messages: { select: { name: true, channel: true, subject: true, body: true, note: true, sortOrder: true } } } },
       fields: { select: { name: true, kind: true, onCard: true, required: true, sortOrder: true, options: { select: { name: true, color: true, sortOrder: true } } } },
       children: { select: { id: true, name: true, slug: true, sortOrder: true } },
     },
@@ -661,7 +661,7 @@ const isChannel = (c: string) => MESSAGE_CHANNELS.some((m) => m.kind === c);
 async function messageWithBoard(id: string) {
   return prisma.stageMessage.findUnique({
     where: { id },
-    select: { id: true, name: true, channel: true, subject: true, body: true, stageId: true, stage: { select: { name: true, boardId: true, board: { select: { teamId: true } } } } },
+    select: { id: true, name: true, channel: true, subject: true, body: true, note: true, stageId: true, stage: { select: { name: true, boardId: true, board: { select: { teamId: true } } } } },
   });
 }
 
@@ -682,7 +682,7 @@ export async function createMessage(stageId: string, name: string, channel: stri
     const last = await prisma.stageMessage.aggregate({ where: { stageId }, _max: { sortOrder: true } });
     const m = await prisma.stageMessage.create({
       data: { stageId, name: n, channel, subject: String(subject ?? "").slice(0, 300), body: String(body).slice(0, 20_000), sortOrder: (last._max.sortOrder ?? 0) + 1 },
-      select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true },
+      select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true, note: true },
     });
     return { message: m };
   } catch (err) {
@@ -692,12 +692,12 @@ export async function createMessage(stageId: string, name: string, channel: stri
 
 // The stage's wording, for every lead that hasn't sent it yet (sent ones
 // keep exactly what went out)
-export async function updateMessage(id: string, patch: { name?: string; channel?: string; subject?: string; body?: string }): Promise<Done> {
+export async function updateMessage(id: string, patch: { name?: string; channel?: string; subject?: string; body?: string; note?: string }): Promise<Done> {
   const m = await messageWithBoard(id);
   if (!m) return { error: "That message no longer exists." };
   const who = await whoFor(m.stage.board.teamId);
   if ("error" in who) return who;
-  const data: { name?: string; channel?: string; subject?: string; body?: string } = {};
+  const data: { name?: string; channel?: string; subject?: string; body?: string; note?: string } = {};
   if (patch.name != null) {
     const n = cleanName(patch.name, "the message a name");
     if (typeof n !== "string") return n;
@@ -709,6 +709,7 @@ export async function updateMessage(id: string, patch: { name?: string; channel?
   }
   if (patch.subject != null) data.subject = String(patch.subject).slice(0, 300);
   if (patch.body != null) data.body = String(patch.body).slice(0, 20_000);
+  if (patch.note != null) data.note = String(patch.note).trim().slice(0, 500);
   try {
     await prisma.stageMessage.update({ where: { id }, data });
     return {};
