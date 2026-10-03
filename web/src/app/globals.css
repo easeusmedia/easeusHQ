@@ -1048,39 +1048,65 @@ dialog[open]::backdrop {
 [data-theme="mist"] .panel.panel-hover:hover {
   background:
     linear-gradient(180deg, rgba(30, 46, 68, 0.74), rgba(16, 27, 43, 0.82)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.07)) border-box;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.06)) border-box;
   backdrop-filter: blur(22px) saturate(1.15);
-  box-shadow: 0 24px 50px -32px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 24px 50px -32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 [data-theme="mist"] .panel.panel-hover:hover {
   background:
     linear-gradient(180deg, rgba(38, 56, 80, 0.8), rgba(20, 33, 51, 0.86)) padding-box,
     linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1)) border-box;
 }
-/* inside them, and cards straight on the page: the same blue glass a touch
-   lighter, no border of its own, brighter on hover */
+/* Cards straight on the page (a task, a lead): the same blue glass a touch
+   lighter, with what makes glass read as glass: a lit hairline that's
+   brightest along the top, a faint highlight inside it, and a soft shadow
+   under it, so each one stands off the mist. No blur of its own: dozens on
+   a board would make scrolling stutter. */
+[data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)) padding-box,
+    linear-gradient(rgba(24, 39, 60, 0.66), rgba(24, 39, 60, 0.66)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1) 45%, rgba(255, 255, 255, 0.06)) border-box;
+  box-shadow:
+    0 16px 32px -20px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+[data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.07)) padding-box,
+    linear-gradient(rgba(24, 39, 60, 0.66), rgba(24, 39, 60, 0.66)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.16) 45%, rgba(255, 255, 255, 0.1)) border-box;
+}
+/* rows and buttons inside a panel or card: a soft fill with a fainter edge,
+   enough to tell one from the next without boxing a box */
 [data-theme="mist"] .panel-soft,
-[data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s),
 [data-theme="mist"] .btn-glow {
   background:
-    linear-gradient(rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.055)) padding-box,
-    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box;
+    linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06)) padding-box,
+    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.05)) border-box;
   box-shadow: none;
 }
 [data-theme="mist"] .panel-soft.panel-hover:hover,
-[data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover,
 [data-theme="mist"] .btn-glow:hover {
   background:
-    linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)) padding-box,
-    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box;
+    linear-gradient(rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.11)) padding-box,
+    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08)) border-box;
 }
-/* what's picked: a brighter frost */
+/* what's picked: icy blue glass with a lit edge and a faint glow under it,
+   not a grey-white slab */
 [data-theme="mist"] .selected,
 [data-theme="mist"] :is(.chip, .seg):is([aria-pressed="true"], [aria-selected="true"]) {
   background:
-    linear-gradient(rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.13)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1)) border-box;
-  box-shadow: none;
+    linear-gradient(180deg, rgba(126, 184, 255, 0.3), rgba(86, 148, 235, 0.16)) padding-box,
+    linear-gradient(180deg, rgba(196, 226, 255, 0.75), rgba(150, 196, 255, 0.2)) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 20px -12px rgba(86, 150, 255, 0.7);
+  color: #fff;
 }
 /* menus and dialogs: a deeper frost */
 [data-theme="mist"] .glass,
