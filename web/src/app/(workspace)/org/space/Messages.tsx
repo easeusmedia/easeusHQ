@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
+import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
 import { dayOf, fillParts, fillText, leadVars, MESSAGE_CHANNELS, messageGroups, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
-import { deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
+import { createMessage, deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
@@ -159,7 +159,7 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
 
 // Every message on a board, grouped by day of the sequence and then by
 // stage, in a list down the left; the one picked opens on the right, to read,
-// copy or edit. Search looks through names, notes and words.
+// copy or edit. New writes another message onto any stage. Search looks through names, notes and words.
 export function MessageLibrary({
   open,
   onClose,
@@ -178,6 +178,7 @@ export function MessageLibrary({
   const ref = useRef<HTMLDialogElement>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [creating, setCreating] = useState(false);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -206,7 +207,10 @@ export function MessageLibrary({
           <div className="flex items-center gap-2 px-4 pt-4 pb-3">
             <Library size={14} className="text-muted" />
             <p className="text-sm font-medium">All messages</p>
-            <span className="ml-auto text-xs text-muted tabular-nums">{board.messages.length}</span>
+            <span className="text-xs text-muted tabular-nums">{board.messages.length}</span>
+            <button type="button" onClick={() => setCreating(true)} aria-pressed={creating} className="btn btn-xs btn-glow ml-auto flex items-center gap-1 px-2">
+              <Plus size={12} /> New
+            </button>
           </div>
           <label className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 focus-within:border-hover">
             <Search size={13} className="shrink-0 text-muted" />
@@ -223,12 +227,15 @@ export function MessageLibrary({
               <div key={g.key} className="pt-2">
                 <p className="px-2 pb-1 text-[11px] font-medium text-muted">{g.title}</p>
                 {g.items.map((m) => {
-                  const on = shown?.id === m.id;
+                  const on = !creating && shown?.id === m.id;
                   return (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => setPicked(m.id)}
+                      onClick={() => {
+                        setPicked(m.id);
+                        setCreating(false);
+                      }}
                       aria-current={on}
                       title={m.name}
                       className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${on ? "bg-white/[0.08] text-foreground" : "text-foreground/75 hover:bg-white/[0.04] hover:text-foreground"}`}
@@ -251,7 +258,22 @@ export function MessageLibrary({
               <X size={16} />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{shown ? render(shown) : null}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+            {/* a new message, onto the stage of the one being read */}
+            {creating ? (
+              <TemplateEditor
+                stages={board.stages}
+                stageId={shown?.stageId ?? board.stages.find((st) => dayOf(st.name) != null)?.id}
+                names={variablesIn(board.messages.flatMap((m) => [m.subject, m.body]))}
+                onDone={(made) => {
+                  setCreating(false);
+                  if (made) setPicked(made);
+                }}
+              />
+            ) : shown ? (
+              render(shown)
+            ) : null}
+          </div>
         </section>
       </div>
     </dialog>
@@ -614,16 +636,32 @@ function OwnEditor({
   );
 }
 
-// Writing a template, new or existing. Select words and press "Make a
+// Writing a template, new or existing. A new one goes on whichever stage is
+// picked (any day, or a stage made later). Select words and press "Make a
 // variable" to turn them into one ({{Guest}}), or press it with nothing
 // selected to add a new one where the cursor is; every lead fills its own in.
-function TemplateEditor({ message, stages, names, leadId, onDone }: { message: MessageData; stages: StageData[]; names: string[]; leadId?: string; onDone: () => void }) {
+function TemplateEditor({
+  message,
+  stageId: startStage,
+  stages,
+  names,
+  leadId,
+  onDone,
+}: {
+  message?: MessageData;
+  stageId?: string;
+  stages: StageData[];
+  names: string[];
+  leadId?: string;
+  onDone: (madeId?: string) => void;
+}) {
   const router = useRouter();
-  const [name, setName] = useState(message.name);
-  const [channel, setChannel] = useState(message.channel);
-  const [subject, setSubject] = useState(message.subject);
-  const [body, setBody] = useState(message.body);
-  const [note, setNote] = useState(message.note);
+  const [stageId, setStageId] = useState(message?.stageId ?? startStage ?? stages[0]?.id ?? "");
+  const [name, setName] = useState(message?.name ?? "");
+  const [channel, setChannel] = useState(message?.channel ?? "email");
+  const [subject, setSubject] = useState(message?.subject ?? "");
+  const [body, setBody] = useState(message?.body ?? "");
+  const [note, setNote] = useState(message?.note ?? "");
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -637,7 +675,7 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
   const last = useRef<"subject" | "body">("body");
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const stage = stages.find((s) => s.id === message.stageId);
+  const stage = stages.find((s) => s.id === stageId);
 
   const fieldOf = (f: "subject" | "body") => (f === "subject" ? subjectRef.current : bodyRef.current);
   const setOf = (f: "subject" | "body") => (f === "subject" ? setSubject : setBody);
@@ -675,17 +713,13 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
   async function save() {
     setBusy(true);
     setError(null);
-    const res = await updateMessage(message.id, {
-      name,
-      channel,
-      subject,
-      body,
-      note,
-    }).catch(() => ({ error: OFFLINE }));
+    const res: { error?: string; message?: MessageData } = await (message ? updateMessage(message.id, { name, channel, subject, body, note }) : createMessage(stageId, name, channel, subject, body, note)).catch(() => ({
+      error: OFFLINE,
+    }));
     setBusy(false);
     if (res.error) return setError(res.error);
     router.refresh();
-    onDone();
+    onDone(res.message?.id);
   }
 
   const used = variablesIn([subject, body, ...names.map((n) => `{{${n}}}`)]);
@@ -694,15 +728,19 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
     <div className={`fade-in flex flex-col gap-2.5 p-4 ring-1 ring-accent/30 ${BLOCK}`}>
       <div className="flex items-center gap-2">
         <LayoutTemplate size={13} className="shrink-0 text-accent" />
-        <span className="text-sm font-medium">Edit template</span>
-        <span className="ml-auto text-[11px] text-muted">For every lead that hasn&apos;t sent it</span>
+        <span className="text-sm font-medium">{message ? "Edit template" : "New message"}</span>
+        <span className="ml-auto text-[11px] text-muted">{message ? "For every lead that hasn\u2019t sent it" : "For every lead in the stage you pick"}</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {stage && (
-          <span className="flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs text-foreground">
-            <Dot color={stage.color} /> {stage.name}
-          </span>
+        {message ? (
+          stage && (
+            <span className="flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs text-foreground">
+              <Dot color={stage.color} /> {stage.name}
+            </span>
+          )
+        ) : (
+          <Dropdown pill={{ icon: stage ? <Dot color={stage.color} /> : null }} value={stageId} placeholder="Stage" options={stages.map((s) => ({ value: s.id, label: s.name }))} onChange={setStageId} />
         )}
         <Dropdown
           pill={{ icon: CHANNEL_ICON[channel] ?? CHANNEL_ICON.other }}
@@ -800,37 +838,43 @@ function TemplateEditor({ message, stages, names, leadId, onDone }: { message: M
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2.5">
-        <button type="button" onClick={() => setDeleting(true)} className={`${SMALL_BTN} hover:text-red-300`}>
-          <Trash2 size={12} /> Delete template
-        </button>
+        {message ? (
+          <button type="button" onClick={() => setDeleting(true)} className={`${SMALL_BTN} hover:text-red-300`}>
+            <Trash2 size={12} /> Delete template
+          </button>
+        ) : (
+          <p className="text-[11px] text-muted">Every lead in that stage gets it, with its own variables.</p>
+        )}
         <div className="ml-auto flex shrink-0 gap-1.5">
-          <button type="button" onClick={onDone} className="btn btn-sm btn-ghost">
+          <button type="button" onClick={() => onDone()} className="btn btn-sm btn-ghost">
             Cancel
           </button>
           <button type="button" onClick={save} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
-            {busy ? "Saving…" : "Save template"}
+            {busy ? "Saving…" : message ? "Save template" : "Add message"}
           </button>
         </div>
       </div>
-      <p className="text-[11px] text-muted">Leads that already sent it keep what went out, and a lead with its own copy keeps that copy.</p>
+      {message && <p className="text-[11px] text-muted">Leads that already sent it keep what went out, and a lead with its own copy keeps that copy.</p>}
 
-      <ReasonDialog
-        open={deleting}
-        danger
-        title={`Delete ${message.name}?`}
-        hint="It comes off this stage for every lead. Messages already sent stay on their leads."
-        confirm="Delete template"
-        onCancel={() => setDeleting(false)}
-        onConfirm={async (reason) => {
-          const res = await deleteMessage(message.id, reason).catch(() => ({
-            error: OFFLINE,
-          }));
-          if (res.error) return res.error;
-          setDeleting(false);
-          router.refresh();
-          onDone();
-        }}
-      />
+      {message && (
+        <ReasonDialog
+          open={deleting}
+          danger
+          title={`Delete ${message.name}?`}
+          hint="It comes off this stage for every lead. Messages already sent stay on their leads."
+          confirm="Delete template"
+          onCancel={() => setDeleting(false)}
+          onConfirm={async (reason) => {
+            const res = await deleteMessage(message.id, reason).catch(() => ({
+              error: OFFLINE,
+            }));
+            if (res.error) return res.error;
+            setDeleting(false);
+            router.refresh();
+            onDone();
+          }}
+        />
+      )}
     </div>
   );
 }

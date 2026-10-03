@@ -675,7 +675,7 @@ async function messageWithBoard(id: string) {
 
 // A new message template on a stage, written in full, for anyone working
 // the board. Left unnamed, it's named after where it's sent ("Email 2").
-export async function createMessage(stageId: string, name: string, channel: string, subject = "", body = ""): Promise<Done & { message?: MessageData }> {
+export async function createMessage(stageId: string, name: string, channel: string, subject = "", body = "", note = ""): Promise<Done & { message?: MessageData }> {
   const stage = await boardOfStage(stageId);
   if (!stage) return { error: "That stage no longer exists." };
   const who = await whoFor(stage.board.teamId);
@@ -689,7 +689,7 @@ export async function createMessage(stageId: string, name: string, channel: stri
   try {
     const last = await prisma.stageMessage.aggregate({ where: { stageId }, _max: { sortOrder: true } });
     const m = await prisma.stageMessage.create({
-      data: { stageId, name: n, channel, subject: String(subject ?? "").slice(0, 300), body: String(body).slice(0, 20_000), sortOrder: (last._max.sortOrder ?? 0) + 1 },
+      data: { stageId, name: n, channel, subject: String(subject ?? "").slice(0, 300), body: String(body).slice(0, 20_000), note: String(note ?? "").trim().slice(0, 500), sortOrder: (last._max.sortOrder ?? 0) + 1 },
       select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true, note: true },
     });
     return { message: m };
