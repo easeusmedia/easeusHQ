@@ -10,10 +10,11 @@ import { getViewer } from "@/lib/viewer";
 import { PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
 import { DepartmentHead } from "./DepartmentHead";
+import { DepartmentTitle } from "./space/SpaceGrid";
 
 // Production's board, on its page under Organization: its Video editing and
 // Graphic design queues, switched between at the top
-export async function ProductionBoard({ scope, name }: { scope?: string; name: string }) {
+export async function ProductionBoard({ scope, id, name }: { scope?: string; id: string; name: string }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
   const member = isMember(viewer);
@@ -63,7 +64,9 @@ export async function ProductionBoard({ scope, name }: { scope?: string; name: s
   if (!scopes.length)
     return (
       <>
-        <DepartmentHead name={name} />
+        <DepartmentHead>
+          <DepartmentTitle id={id} name={name} />
+        </DepartmentHead>
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">No video or design work of yours here yet.</p>
       </>
     );
@@ -79,7 +82,9 @@ export async function ProductionBoard({ scope, name }: { scope?: string; name: s
 
   return (
     <>
-    <DepartmentHead name={name} />
+    <DepartmentHead>
+          <DepartmentTitle id={id} name={name} />
+        </DepartmentHead>
     <BoardViews
       scopes={scopes}
       initialScope={initialScope}

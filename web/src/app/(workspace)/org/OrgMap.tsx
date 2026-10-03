@@ -1,13 +1,16 @@
 "use client";
 
 import { createElement } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowUpRight, ChartColumn } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
 import { Avatar } from "../TaskCard";
 import { markOf } from "./marks";
+import { EditableName } from "../EditableName";
+import { renameTeam } from "./space/actions";
 
 export type MapPerson = { name: string; on: string | null; stage: string | null; open: number; late: number; leads: number };
-export type MapDepartment = { slug: string; name: string; open: number; late: number; leads: number | null; people: MapPerson[] };
+export type MapDepartment = { id: string; slug: string; name: string; open: number; late: number; leads: number | null; people: MapPerson[] };
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
@@ -32,6 +35,13 @@ export function OrgMap({ departments }: { departments: MapDepartment[] }) {
 }
 
 function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
+  const router = useRouter();
+  // anyone in the department can rename it, right here
+  const rename = async (name: string) => {
+    const res = await renameTeam(d.id, name);
+    if (res.error) return res.error;
+    router.refresh();
+  };
   return (
     <PrefetchLink
       href={`/org/${d.slug}`}
@@ -40,7 +50,9 @@ function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
       {d.open > 0 && <div className="glass-glow" />}
       <div className="relative flex items-center gap-3">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg badge-lit">{createElement(markOf(d.name), { size: 15 })}</span>
-        <p className="min-w-0 flex-1 text-[15px] leading-snug font-medium tracking-tight">{d.name}</p>
+        <p className="min-w-0 flex-1 text-[15px] leading-snug font-medium tracking-tight">
+          <EditableName name={d.name} onSave={rename} pencil="hover" />
+        </p>
         <p className="shrink-0 text-xs text-muted tabular-nums">
           {d.leads !== null && <span>{plural(d.leads, "lead")} · </span>}
           {d.open} open{d.late > 0 && <span className="text-rose-300"> · {d.late} late</span>}

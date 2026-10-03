@@ -184,6 +184,25 @@ export async function createSpace(input: { teamId: string; parentId: string | nu
   }
 }
 
+// A department's new name, by anyone in it (Level 1: any). Only the name
+// changes: its address (slug), people and work stay.
+export async function renameTeam(id: string, name: string): Promise<Done> {
+  const who = await whoFor(id);
+  if ("error" in who) return who;
+  const n = cleanName(name);
+  if (typeof n !== "string") return n;
+  try {
+    const clash = await prisma.team.findFirst({ where: { id: { not: id }, name: { equals: n, mode: "insensitive" } }, select: { name: true } });
+    if (clash) return { error: `"${clash.name}" already exists.` };
+    await prisma.team.update({ where: { id }, data: { name: n } });
+    // the sidebar names every department
+    revalidatePath("/", "layout");
+    return {};
+  } catch (err) {
+    return failed(err, "That name couldn't be saved.");
+  }
+}
+
 export async function renameSpace(id: string, name: string): Promise<Done> {
   const space = await spaceOf(id);
   if (!space) return { error: "That page no longer exists." };

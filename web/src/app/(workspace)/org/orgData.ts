@@ -31,6 +31,7 @@ export async function orgData(departments: { id: string; slug: string; name: str
     // everyone in it, and anyone else holding its work
     const team = people.filter((p) => p.teamId === d.id || p.departments.some((x) => x.id === d.id) || here.some((w) => w.who === p.id));
     return {
+      id: d.id,
       slug: d.slug,
       name: d.name,
       open: here.length,

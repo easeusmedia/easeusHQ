@@ -9,6 +9,8 @@ import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { MessageLibrary, TemplatePreview } from "./Messages";
 import { NewSpaceDialog } from "./NewSpaceDialog";
+import { renameSpace } from "./actions";
+import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
 
@@ -54,6 +56,12 @@ export function PortalView({
   boardTemplates?: { id: string; name: string }[];
 }) {
   const router = useRouter();
+  // a board's new name, then the page (tabs, sidebar) catches up
+  const rename = (id: string) => async (name: string) => {
+    const res = await renameSpace(id, name);
+    if (res.error) return res.error;
+    router.refresh();
+  };
   const pathname = usePathname();
   const [switching, startSwitch] = useTransition();
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
@@ -143,18 +151,25 @@ export function PortalView({
       {/* more than one board in this portal: pick which */}
       {boards.length > 1 && (
         <div role="tablist" aria-label="Boards" className={`${SEG_ROW} max-w-full overflow-x-auto`}>
-          {boards.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              role="tab"
-              aria-selected={b.id === board.id}
-              onClick={() => b.id !== board.id && switchTo(b.slug)}
-              className="seg flex max-w-[16rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium"
-            >
-              <span className="truncate">{b.name}</span>
-            </button>
-          ))}
+          {boards.map((b) =>
+            // the open board's name can be changed where it sits
+            b.id === board.id ? (
+              <span key={b.id} role="tab" aria-selected className="seg flex max-w-[18rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium">
+                <EditableName name={b.name} onSave={rename(b.id)} pencil="hover" />
+              </span>
+            ) : (
+              <button
+                key={b.id}
+                type="button"
+                role="tab"
+                aria-selected={false}
+                onClick={() => switchTo(b.slug)}
+                className="seg flex max-w-[16rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium"
+              >
+                <span className="truncate">{b.name}</span>
+              </button>
+            ),
+          )}
         </div>
       )}
 

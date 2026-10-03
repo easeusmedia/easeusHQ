@@ -5,7 +5,7 @@ import { visibleDepartments } from "../departments";
 import { DepartmentHead } from "../DepartmentHead";
 import { ProductionBoard } from "../ProductionBoard";
 import { childCards, templatesOf } from "../space/data";
-import { SpaceGrid } from "../space/SpaceGrid";
+import { DepartmentTitle, SpaceGrid } from "../space/SpaceGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -19,21 +19,15 @@ export default async function DepartmentPage({ params, searchParams }: { params:
   const department = (await visibleDepartments(viewer)).find((d) => d.slug === slug);
   // the Board's old address lands here: someone outside Production goes Home instead
   if (!department) return slug === "production" ? redirect("/home") : notFound();
-  if (slug === "production") return <ProductionBoard scope={(await searchParams).scope} name={department.name} />;
+  if (slug === "production") return <ProductionBoard scope={(await searchParams).scope} id={department.id} name={department.name} />;
 
   const base = `/org/${slug}`;
   const [cards, templates] = await Promise.all([childCards(department.id, null, base), templatesOf(department.id, "portal")]);
   return (
     <>
-      <DepartmentHead name={department.name} />
-      <header className="mt-6 mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">{department.name}</h1>
-        {cards.length > 0 && (
-          <p className="mt-1.5 text-sm text-muted">
-            {cards.length} {cards.length === 1 ? "portal" : "portals"}, each with its own boards.
-          </p>
-        )}
-      </header>
+      <DepartmentHead>
+        <DepartmentTitle id={department.id} name={department.name} />
+      </DepartmentHead>
       <SpaceGrid teamId={department.id} parentId={null} kind="portal" base={base} cards={cards} canBuild={buildsDepartment(viewer, department.id)} templates={templates} />
     </>
   );

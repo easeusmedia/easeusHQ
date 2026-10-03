@@ -8,7 +8,7 @@ import { CHILD_OF, KIND_LABEL, type SpaceCard } from "@/lib/space";
 import { ADD_CARD, PlusBadge } from "../../AddButton";
 import { EditableName } from "../../EditableName";
 import { topLayer, useCloseOnScroll, usePopover } from "../../popover";
-import { createSpace, deleteSpace, renameSpace } from "./actions";
+import { createSpace, deleteSpace, renameSpace, renameTeam } from "./actions";
 import { NewSpaceDialog } from "./NewSpaceDialog";
 import { ReasonDialog } from "./ReasonDialog";
 
@@ -36,8 +36,25 @@ function useRename(id: string) {
 export function SpaceTitle({ id, name }: { id: string; name: string }) {
   const rename = useRename(id);
   return (
-    <h1 className="text-2xl font-semibold tracking-tight">
+    <h1 className="min-w-0 text-2xl font-semibold tracking-tight">
       <EditableName name={name} onSave={rename} />
+    </h1>
+  );
+}
+
+// A department's own title, renamed the same way
+export function DepartmentTitle({ id, name }: { id: string; name: string }) {
+  const router = useRouter();
+  return (
+    <h1 className="min-w-0 text-2xl font-semibold tracking-tight">
+      <EditableName
+        name={name}
+        onSave={async (next) => {
+          const res = await renameTeam(id, next);
+          if (res.error) return res.error;
+          router.refresh();
+        }}
+      />
     </h1>
   );
 }

@@ -38,7 +38,8 @@ export default async function SpacePage({
   const node = nodes[nodes.length - 1];
   const home = `/org/${slug}`;
   const href = (i: number) => [home, ...nodes.slice(0, i + 1).map((n) => n.slug)].join("/");
-  const trail = [{ name: team.name, href: home }, ...nodes.map((n, i) => ({ name: n.name, href: href(i) }))];
+  // the steps above this page: the department, then any section it's in
+  const parents = [{ name: team.name, href: home }, ...nodes.slice(0, -1).map((n, i) => ({ name: n.name, href: href(i) }))];
   const canBuild = buildsDepartment(viewer, team.id);
   const here = href(nodes.length - 1);
 
@@ -47,11 +48,9 @@ export default async function SpacePage({
     const leads = cards.reduce((n, c) => n + c.leads, 0);
     return (
       <>
-        <DepartmentHead trail={trail} />
-        <header className="mt-6 mb-8">
+        <DepartmentHead parents={parents} aside={cards.length > 0 && `${plural(cards.length, "portal")} holding ${plural(leads, "lead")}`}>
           <SpaceTitle id={node.id} name={node.name} />
-          {cards.length > 0 && <p className="mt-1.5 text-sm text-muted">{`${plural(cards.length, "portal")} holding ${plural(leads, "lead")}.`}</p>}
-        </header>
+        </DepartmentHead>
         <SpaceGrid teamId={team.id} parentId={node.id} kind="portal" base={here} cards={cards} canBuild={canBuild} templates={templates} />
       </>
     );
@@ -69,17 +68,20 @@ export default async function SpacePage({
   ]);
   return (
     <>
-      <DepartmentHead trail={trail} />
-      <header className="mt-6 mb-6">
+      <DepartmentHead
+        parents={parents}
+        // what the outreach has done: every move into a Day stage is a reach-out
+        aside={
+          reached && (
+            <>
+              <span className="font-medium text-foreground tabular-nums">{reached.total}</span> {reached.total === 1 ? "reach-out" : "reach-outs"} done ·{" "}
+              <span className="font-medium text-foreground tabular-nums">{reached.week}</span> in the last 7 days
+            </>
+          )
+        }
+      >
         <SpaceTitle id={node.id} name={node.name} />
-        {/* what the outreach has done: every move into a Day stage is a reach-out */}
-        {reached && (
-          <p className="mt-1.5 text-sm text-muted">
-            <span className="font-medium text-foreground tabular-nums">{reached.total}</span> {reached.total === 1 ? "reach-out" : "reach-outs"} done ·{" "}
-            <span className="font-medium text-foreground tabular-nums">{reached.week}</span> in the last 7 days
-          </p>
-        )}
-      </header>
+      </DepartmentHead>
       <PortalView
         teamId={team.id}
         portal={{ id: node.id, name: node.name }}
