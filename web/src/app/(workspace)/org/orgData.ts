@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { LIVE_TASK, LIVE_WORK_TASK, type TaskStatus } from "@/lib/workflow";
-import { stageLabel } from "@/lib/stages";
 import { dayOf } from "@/lib/editorKpi";
 import type { MapDepartment } from "./OrgMap";
 
@@ -21,8 +20,8 @@ export async function orgData(departments: { id: string; slug: string; name: str
     prisma.lead.findMany({ where: { board: { teamId: { in: ids } } }, select: { assignedToId: true, board: { select: { teamId: true } } } }),
   ]);
   const work = [
-    ...tasks.map((t) => ({ teamId: t.teamId, who: t.assignedToId, title: t.title, stage: stageLabel(t.status), rank: RANK[t.status] ?? 4, due: t.dueDate, late: !!t.dueDate && !t.handedOffAt && t.dueDate < today })),
-    ...todos.map((t) => ({ teamId: t.teamId, who: t.assignedToId ?? t.createdById, title: t.title, stage: null, rank: 2, due: t.dueDate, late: !!t.dueDate && t.dueDate < today })),
+    ...tasks.map((t) => ({ teamId: t.teamId, who: t.assignedToId, title: t.title, status: t.status as TaskStatus | null, rank: RANK[t.status] ?? 4, due: t.dueDate, late: !!t.dueDate && !t.handedOffAt && t.dueDate < today })),
+    ...todos.map((t) => ({ teamId: t.teamId, who: t.assignedToId ?? t.createdById, title: t.title, status: null, rank: 2, due: t.dueDate, late: !!t.dueDate && t.dueDate < today })),
   ].sort((a, b) => a.rank - b.rank || (a.due?.getTime() ?? Infinity) - (b.due?.getTime() ?? Infinity));
 
   const map: MapDepartment[] = departments.map((d) => {
@@ -43,7 +42,7 @@ export async function orgData(departments: { id: string; slug: string; name: str
           return {
             name: p.name,
             on: theirs[0]?.title ?? null,
-            stage: theirs[0]?.stage ?? null,
+            status: theirs[0]?.status ?? null,
             open: theirs.length,
             late: theirs.filter((w) => w.late).length,
             leads: held.filter((l) => l.assignedToId === p.id).length,
