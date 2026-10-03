@@ -65,7 +65,7 @@ function Tip({ show, label, hint }: { show: boolean; label: string; hint?: strin
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute left-full top-1/2 ml-5 -translate-x-1 -translate-y-1/2 whitespace-nowrap panel rounded-xl px-2.5 py-1.5 text-left opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/tip:translate-x-0 group-hover/tip:opacity-100 group-focus-visible/tip:translate-x-0 group-focus-visible/tip:opacity-100"
+      className="pointer-events-none absolute left-full top-1/2 ml-5 -translate-x-1 -translate-y-1/2 whitespace-nowrap panel float-panel rounded-xl px-2.5 py-1.5 text-left opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/tip:translate-x-0 group-hover/tip:opacity-100 group-focus-visible/tip:translate-x-0 group-focus-visible/tip:opacity-100"
     >
       <span className="block text-xs font-medium text-foreground">{label}</span>
       {hint && <span className="block text-xs text-muted">{hint}</span>}
@@ -544,7 +544,7 @@ export function Sidebar({
               {/* collapsed: hovering the icon shows them in a card beside it */}
               {!open && tree.items.length > 0 && (
                 <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
-                  <div onClick={(e) => e.stopPropagation()} className="panel w-60 rounded-2xl p-2">
+                  <div onClick={(e) => e.stopPropagation()} className="panel float-panel w-60 rounded-2xl p-2">
                     <PrefetchLink
                       href={item.href}
                       className="mb-1 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground hover:bg-white/[0.05]"
