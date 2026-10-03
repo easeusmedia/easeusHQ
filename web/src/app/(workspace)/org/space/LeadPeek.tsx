@@ -15,7 +15,7 @@ import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { daysSince, isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
+import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -33,24 +33,13 @@ const lastInStage = () => Date.now();
 
 type Status = "saving" | "saved" | { error: string } | null;
 
-// A lead's window, built like a task's (TaskDetailsDialog): where it stands
-// and a History switch on top; the name; its stage and assignee as chips;
+// A lead's window, built like a task's (TaskDetailsDialog): the name and a
+// History switch on top; its stage and assignee as chips;
 // then everything known about it (details, contacts, the write-up), and
 // last its messages; along the bottom, delete, who added it, and Close. History slides open
 // beside it. Open while `lead` is set; closing calls onClose. Every change
 // saves as it's made.
-export function LeadPeek({
-  lead,
-  board,
-  people,
-  onClose,
-}: {
-  lead: LeadData | null;
-  board: BoardData;
-  people: Person[];
-  canBuild: boolean;
-  onClose: () => void;
-}) {
+export function LeadPeek({ lead, board, people, onClose }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   // the last lead stays drawn while the window fades out
   const [shown, setShown] = useState(lead);
@@ -82,22 +71,10 @@ export function LeadPeek({
       // only its own closing: a reason prompt inside it closing reaches here too
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
       // the width eases open with the History panel, as a task's does
-      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
-        history ? "w-[63rem]" : "w-[41rem]"
-      }`}
+      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${history ? "w-[63rem]" : "w-[41rem]"}`}
     >
       {shown && (
-        <LeadPage
-          key={`${shown.id}:${opens}`}
-          lead={shown}
-          open={open}
-          board={board}
-          people={people}
-          history={history}
-          onHistory={() => setHistory((h) => !h)}
-          close={() => ref.current?.close()}
-          onDeleted={onClose}
-        />
+        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} history={history} onHistory={() => setHistory((h) => !h)} close={() => ref.current?.close()} onDeleted={onClose} />
       )}
     </dialog>
   );
@@ -138,8 +115,7 @@ function LeadPage({
   if (lead !== synced) {
     setSynced(lead);
     if (lead.title !== synced.title) setTitle(lead.title);
-    if (lead.values !== synced.values && Object.values(pending).some((p) => p.done))
-      setPending((cur) => Object.fromEntries(Object.entries(cur).filter(([, p]) => !p.done)));
+    if (lead.values !== synced.values && Object.values(pending).some((p) => p.done)) setPending((cur) => Object.fromEntries(Object.entries(cur).filter(([, p]) => !p.done)));
     if (lead.stageId !== synced.stageId) setStageId(lead.stageId);
     if (lead.assignedTo?.id !== synced.assignedTo?.id) setAssignee(lead.assignedTo?.id ?? "");
   }
@@ -236,10 +212,7 @@ function LeadPage({
   function ask(to: string) {
     const from = order.indexOf(stageId);
     const skipped = order.indexOf(to) - from - 1;
-    const hint =
-      skipped < 0
-        ? "This moves it back. Say why, and it stays on the lead's record."
-        : `This skips ${skipped} ${skipped === 1 ? "stage" : "stages"}. Say why, and it stays on the lead's record.`;
+    const hint = skipped < 0 ? "This moves it back. Say why, and it stays on the lead's record." : `This skips ${skipped} ${skipped === 1 ? "stage" : "stages"}. Say why, and it stays on the lead's record.`;
     setMove({ to, hint, asking: true });
   }
   async function pickStage(to: string) {
@@ -256,7 +229,6 @@ function LeadPage({
   }
 
   const missing = missingDetails(board.fields, values);
-  const inStage = daysSince(lead.stageSince);
   const fieldName = (f: FieldData) => (
     <EditableName
       name={f.name}
@@ -278,12 +250,24 @@ function LeadPage({
 
   return (
     <>
-      {/* where it stands, and the History switch */}
-      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-        <p className="min-w-0 truncate pt-1 text-xs text-muted">
-          {board.name} · {inStage === 0 ? "Moved to this stage today" : `${inStage} ${inStage === 1 ? "day" : "days"} in this stage`}
-        </p>
-        <button type="button" onClick={onHistory} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
+      {/* the name, as plain text like a task's title, and the History switch */}
+      <div className="mb-3 flex shrink-0 items-start gap-3 px-1">
+        <textarea
+          rows={1}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={saveTitle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          placeholder="Podcast name"
+          aria-label="Lead name"
+          className="field-sizing-content block min-w-0 flex-1 resize-none bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
+        />
+        <button type="button" onClick={onHistory} className="mt-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
           <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
           History
         </button>
@@ -291,25 +275,6 @@ function LeadPage({
 
       <div className="flex min-h-0 flex-1">
         <div className="flex w-[39rem] min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1">
-          {/* the name, as plain text, like a task's title */}
-          <div className="flex flex-col gap-1.5">
-            <textarea
-              rows={1}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={saveTitle}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-              }}
-              placeholder="Podcast name"
-              aria-label="Lead name"
-              className="field-sizing-content block w-full resize-none bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
-            />
-          </div>
-
           {/* its stage and who has it, as chips */}
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -340,11 +305,7 @@ function LeadPage({
                           className="menu-item px-2 py-1.5 text-xs"
                         >
                           <StagePill name={s.name} color={s.color} />
-                          {s.id === stageId ? (
-                            <Check size={13} className="ml-auto shrink-0 text-accent" />
-                          ) : (
-                            i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[11px] text-muted">Next</span>
-                          )}
+                          {s.id === stageId ? <Check size={13} className="ml-auto shrink-0 text-accent" /> : i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[11px] text-muted">Next</span>}
                         </button>
                       ))}
                     </div>
@@ -356,7 +317,11 @@ function LeadPage({
                 value={assignee}
                 placeholder="Assignee"
                 onChange={assign}
-                options={[{ value: "", label: "Unassigned" }, ...people.map((p) => ({ value: p.id, label: p.name })), ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : [])]}
+                options={[
+                  { value: "", label: "Unassigned" },
+                  ...people.map((p) => ({ value: p.id, label: p.name })),
+                  ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : []),
+                ]}
               />
             </div>
             {/* who handed it to whom; every earlier hand-off is in History */}
@@ -381,7 +346,12 @@ function LeadPage({
           </Fold>
 
           {contactField && (
-            <Fold icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}>
+            <Fold
+              icon={Users}
+              title={contactField.name}
+              summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"}
+              missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}
+            >
               <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
             </Fold>
           )}
@@ -393,10 +363,7 @@ function LeadPage({
         </div>
 
         {/* beside it, the same height: every stage it has been through */}
-        <div
-          inert={!history}
-          className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"}`}
-        >
+        <div inert={!history} className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"}`}>
           <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
             <p className="shrink-0 text-xs font-medium text-muted">Every stage and hand-off, in order</p>
             <div className="min-h-0 flex-1 overflow-y-auto rounded-xl panel-soft p-4">{events ? <LeadHistory events={events} flat /> : <p className="text-xs text-muted">Loading the record…</p>}</div>
@@ -423,7 +390,12 @@ function LeadPage({
           ) : (
             <>
               Added {dateOf(lead.createdAt)} by {lead.createdBy.name}
-              {lead.editedByName && lead.editedAt && <> · edited by {lead.editedByName}, {formatDateTime(lead.editedAt)}</>}
+              {lead.editedByName && lead.editedAt && (
+                <>
+                  {" "}
+                  · edited by {lead.editedByName}, {formatDateTime(lead.editedAt)}
+                </>
+              )}
             </>
           )}
         </p>
@@ -549,7 +521,21 @@ function Row({ icon: Icon, label, missing = false, children }: { icon: LucideIco
 
 // A block kept shut until it's wanted: its name and a one-line summary.
 // The same soft fill as a task's links block.
-function Fold({ icon: Icon, title, summary, missing = false, defaultOpen = false, children }: { icon: LucideIcon; title: React.ReactNode; summary: string; missing?: boolean; defaultOpen?: boolean; children: React.ReactNode }) {
+function Fold({
+  icon: Icon,
+  title,
+  summary,
+  missing = false,
+  defaultOpen = false,
+  children,
+}: {
+  icon: LucideIcon;
+  title: React.ReactNode;
+  summary: string;
+  missing?: boolean;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="rounded-xl bg-foreground/[0.03]">
