@@ -164,6 +164,10 @@ body {
 .badge-lit.emerald {
   --tint: 110, 231, 183;
 }
+/* a client's tag wears its own colour */
+.tag-pill {
+  color: var(--tag);
+}
 /* the soft glassy glow in a lit card's top corner: a wash of the card's
    colour, blurred into the dark */
 .glass-glow {
@@ -1004,16 +1008,24 @@ dialog[open]::backdrop {
   box-shadow: 0 4px 14px -6px rgba(75, 149, 230, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* ---- Mist: a misty blue behind the whole app, for whoever picks it (the
-   profile menu's Theme). Everything on it is one material, dark blue glass
-   with a light hairline (the profile menu's look): panels and the sidebar;
-   what sits inside them or straight on the page (rows, cards, pills,
-   fields, buttons) the same glass a touch lighter, with no border of its
-   own; menus, dialogs and anything floating or pinned nearly solid, so
-   nothing shows through. What's picked is a brighter frost, not a blue
-   glow; icons and highlights are an icy blue, since the app's own blue
-   vanishes on a blue page; and there's no light following the pointer. The
-   sign-in page has the same mist, a little lighter. ---- */
+/* ---- Mist: frosted glass on a misty blue, for whoever picks it (the profile
+   menu's Theme). Minimal: no glows, no gradients on surfaces, no shadows
+   under cards, no light following the pointer.
+     - the backdrop is an even, deep misty blue (a little lighter where the
+       mist gathers, top left), so words have the same contrast wherever
+       they sit;
+     - a panel is one sheet of light frosted glass: a faint white tint, the
+       page blurred behind it, one thin hairline;
+     - a card straight on the page is the same frost a touch brighter with
+       the same hairline, so each one is plainly a card;
+     - rows, pills, fields and buttons inside a panel are a soft fill with a
+       fainter line;
+     - what's picked is a cool, icy tint, flat: not a white slab, not a glow;
+     - what floats over the page (menus, dialogs, Nyra's chat) is deeper
+       frosted glass, blurred, so its words read whatever is behind.
+   Icons and highlights are an icy blue, since the app's own blue vanishes
+   on a blue page. Coloured words (late, done, a stage, a link) are a step
+   paler than on the dark theme, so they read as well as the white ones. The sign-in page keeps its own, brighter mist. ---- */
 .mist-bg {
   background:
     radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.22), transparent 70%),
@@ -1021,201 +1033,185 @@ dialog[open]::backdrop {
   background-attachment: fixed;
 }
 .app-root[data-theme="mist"] {
-  /* deeper than the sign-in page's at its light corner: the app has words
-     there (the sidebar, a page's title), and they have to read */
   background:
-    radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.08), transparent 70%),
-    linear-gradient(135deg, #3f5872 0%, #334c69 22%, #25405c 45%, #182c46 68%, #0c1a2c 86%, #070d17 100%);
+    radial-gradient(60% 55% at 8% 0%, rgba(170, 196, 222, 0.05), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(90, 130, 180, 0.07), transparent 70%),
+    linear-gradient(160deg, #1d2f47 0%, #1a2b42 50%, #162539 100%);
   background-attachment: fixed;
-  --background: #0e1b2b;
-  /* fills are frost, never a dark slab: a row or a pill on a panel is the
-     same glass, a touch brighter */
-  --surface: rgba(255, 255, 255, 0.07);
-  --surface-2: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.12);
-  --hover-surface: rgba(255, 255, 255, 0.14);
-  --muted: #c3cfdb;
-  --accent: #a9d2ff;
+  --background: #1a2b42;
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-2: rgba(255, 255, 255, 0.045);
+  --border: rgba(255, 255, 255, 0.11);
+  --hover-surface: rgba(255, 255, 255, 0.11);
+  --muted: #c4d0dc;
+  --accent: #bcdcff;
+  /* what every surface below is made of */
+  --mist-frost: rgba(255, 255, 255, 0.055);
+  --mist-line: rgba(255, 255, 255, 0.13);
+  --mist-deep: rgba(32, 48, 70, 0.8);
+  /* coloured words: each 300 becomes its 200 */
+  --color-red-300: oklch(88.5% 0.062 18.334);
+  --color-orange-300: oklch(90.1% 0.076 70.697);
+  --color-amber-300: oklch(92.4% 0.12 95.746);
+  --color-green-300: oklch(92.5% 0.084 155.995);
+  --color-emerald-300: oklch(90.5% 0.093 164.15);
+  --color-cyan-300: oklch(91.7% 0.08 205.041);
+  --color-sky-300: oklch(90.1% 0.058 230.902);
+  --color-blue-300: oklch(88.2% 0.059 254.128);
+  --color-violet-300: oklch(89.4% 0.057 293.283);
+  --color-purple-300: oklch(90.2% 0.063 306.703);
+  --color-pink-300: oklch(89.9% 0.061 343.231);
+  --color-rose-300: oklch(89.2% 0.058 10.001);
+}
+/* ...and each 400 word its 300. Words only: a tint or a dot keeps its colour */
+[data-theme="mist"] .text-red-400 { color: oklch(80.8% 0.114 19.571); }
+[data-theme="mist"] .text-orange-400 { color: oklch(83.7% 0.128 66.29); }
+[data-theme="mist"] .text-amber-400 { color: oklch(87.9% 0.169 91.605); }
+[data-theme="mist"] .text-green-400 { color: oklch(87.1% 0.15 154.449); }
+[data-theme="mist"] .text-emerald-400 { color: oklch(84.5% 0.143 164.978); }
+[data-theme="mist"] .text-teal-400 { color: oklch(85.5% 0.138 181.071); }
+[data-theme="mist"] .text-sky-400 { color: oklch(82.8% 0.111 230.318); }
+[data-theme="mist"] .text-blue-400 { color: oklch(80.9% 0.105 251.813); }
+[data-theme="mist"] .text-violet-400 { color: oklch(81.1% 0.111 293.571); }
+[data-theme="mist"] .text-pink-400 { color: oklch(82.3% 0.12 346.018); }
+[data-theme="mist"] .text-rose-400 { color: oklch(81% 0.117 11.638); }
+/* a client's tag: its own colour, paler */
+[data-theme="mist"] .tag-pill {
+  color: color-mix(in oklab, var(--tag) 50%, white);
+}
+/* an accent wash stays faint, so the icy words on it read */
+[data-theme="mist"] :is(.bg-accent\/10, .bg-accent\/12, .bg-accent\/15, .bg-accent\/20, .bg-accent\/25) {
+  background-color: rgba(169, 210, 255, 0.08);
+}
+/* faded labels stay readable on frost */
+[data-theme="mist"] :is(.text-muted\/40, .text-muted\/45, .text-muted\/50, .text-muted\/60, .text-muted\/70) {
+  color: color-mix(in oklab, var(--muted) 88%, transparent);
+}
+[data-theme="mist"] .text-foreground\/70 {
+  color: color-mix(in oklab, var(--foreground) 84%, transparent);
 }
 /* no light following the pointer */
 [data-theme="mist"] :is(.panel, .panel-soft, .card-surface) {
   --spot-face: linear-gradient(transparent, transparent) padding-box;
   --spot-edge: linear-gradient(transparent, transparent) border-box;
 }
-/* panels: dark blue glass over the mist, a light hairline round them (the
-   look of the profile menu, everywhere) */
+/* panels (the sidebar among them): one sheet of light frosted glass */
 [data-theme="mist"] .panel,
 [data-theme="mist"] .panel.panel-hover:hover {
-  background:
-    linear-gradient(180deg, rgba(30, 46, 68, 0.74), rgba(16, 27, 43, 0.82)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.06)) border-box;
-  backdrop-filter: blur(22px) saturate(1.15);
-  box-shadow:
-    0 24px 50px -32px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background: var(--mist-frost);
+  border-color: var(--mist-line);
+  backdrop-filter: blur(28px) saturate(1.2);
+  box-shadow: none;
 }
 [data-theme="mist"] .panel.panel-hover:hover {
-  background:
-    linear-gradient(180deg, rgba(38, 56, 80, 0.8), rgba(20, 33, 51, 0.86)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1)) border-box;
+  background: rgba(255, 255, 255, 0.085);
+  border-color: rgba(255, 255, 255, 0.22);
 }
-/* Cards straight on the page (a task, a lead): the same blue glass a touch
-   lighter, with what makes glass read as glass: a lit hairline that's
-   brightest along the top, a faint highlight inside it, and a soft shadow
-   under it, so each one stands off the mist. No blur of its own: dozens on
-   a board would make scrolling stutter. */
+/* cards straight on the page: the same frost a touch brighter and the same
+   hairline, so each is plainly a card. No blur of their own: dozens on a
+   board would make scrolling stutter. */
 [data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s) {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)) padding-box,
-    linear-gradient(rgba(24, 39, 60, 0.66), rgba(24, 39, 60, 0.66)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1) 45%, rgba(255, 255, 255, 0.06)) border-box;
-  box-shadow:
-    0 16px 32px -20px rgba(0, 0, 0, 0.65),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
 }
 [data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.07)) padding-box,
-    linear-gradient(rgba(24, 39, 60, 0.66), rgba(24, 39, 60, 0.66)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.16) 45%, rgba(255, 255, 255, 0.1)) border-box;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.26);
 }
-/* rows and buttons inside a panel or card: a soft fill with a fainter edge,
-   enough to tell one from the next without boxing a box */
+/* rows and buttons inside them: a soft fill and a fainter line */
 [data-theme="mist"] .panel-soft,
 [data-theme="mist"] .btn-glow {
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06)) padding-box,
-    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.05)) border-box;
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.09);
   box-shadow: none;
 }
 [data-theme="mist"] .panel-soft.panel-hover:hover,
 [data-theme="mist"] .btn-glow:hover {
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.11)) padding-box,
-    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08)) border-box;
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
 }
-/* what's picked: icy blue glass with a lit edge and a faint glow under it,
-   not a grey-white slab */
+/* what's picked: a cool, icy tint, flat */
 [data-theme="mist"] .selected,
 [data-theme="mist"] :is(.chip, .seg):is([aria-pressed="true"], [aria-selected="true"]) {
-  background:
-    linear-gradient(180deg, rgba(126, 184, 255, 0.3), rgba(86, 148, 235, 0.16)) padding-box,
-    linear-gradient(180deg, rgba(196, 226, 255, 0.75), rgba(150, 196, 255, 0.2)) border-box;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 8px 20px -12px rgba(86, 150, 255, 0.7);
-  color: #fff;
+  background: rgba(169, 210, 255, 0.1);
+  border-color: rgba(169, 210, 255, 0.34);
+  box-shadow: none;
+  color: var(--foreground);
 }
-/* menus and dialogs: a deeper frost */
-[data-theme="mist"] .glass,
-[data-theme="mist"] .popover {
-  background:
-    linear-gradient(180deg, rgba(22, 35, 53, 0.86), rgba(14, 24, 38, 0.9)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)) border-box;
-  backdrop-filter: blur(24px) saturate(1.15);
-  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.6);
+/* menus, dialogs and the profile menu: deeper frosted glass, blurred */
+[data-theme="mist"] :is(.glass, .popover, .panel-accent) {
+  background: var(--mist-deep);
+  border-color: var(--mist-line);
+  backdrop-filter: blur(30px) saturate(1.3);
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.55);
 }
-
-/* behind an open dialog: the mist dimmed in its own navy, not black */
+/* behind an open dialog: the mist dimmed in its own blue, not black */
 [data-theme="mist"] .glass::backdrop {
-  background: rgba(8, 17, 30, 0.55);
+  background: rgba(14, 24, 38, 0.45);
 }
-/* Nyra: her panel is the same deep frost as every menu and dialog, and her
-   launcher a solid frosted pill with an icy light round its rim (the pill's
-   own fill is see-through here, and the blue light behind showed through it) */
+/* Nyra's chat: frosted glass over the page, which shows softly through it */
 [data-theme="mist"] .glass-panel {
-  background: rgba(18, 31, 48, 0.8);
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 30px 80px -24px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background: rgba(30, 46, 68, 0.6);
+  border-color: var(--mist-line);
+  backdrop-filter: blur(32px) saturate(1.3);
+  box-shadow: 0 30px 70px -34px rgba(0, 0, 0, 0.5);
 }
+/* her launcher: a plain frosted pill, no light running round it */
 [data-theme="mist"] .nyra-glow button {
-  background: rgba(22, 36, 55, 0.94);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--mist-line);
+  backdrop-filter: blur(24px) saturate(1.2);
 }
 [data-theme="mist"] .nyra-glow::before,
 [data-theme="mist"] .nyra-glow::after {
-  background: conic-gradient(
-    from var(--nyra-angle),
-    transparent 0deg,
-    rgba(214, 232, 255, 0.12) 40deg,
-    rgba(214, 232, 255, 0.85) 110deg,
-    rgba(255, 255, 255, 0.95) 140deg,
-    rgba(214, 232, 255, 0.12) 200deg,
-    transparent 260deg
-  );
-}
-/* the sidebar: the same blue glass, a little more solid */
-[data-theme="mist"] .sidebar-panel {
-  background:
-    linear-gradient(180deg, rgba(26, 41, 61, 0.82), rgba(14, 24, 38, 0.88)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)) border-box;
+  display: none;
 }
 /* a card that floats out of the sidebar (a collapsed item's list, a label):
    nearly solid, since nothing behind it can be blurred from in there */
 [data-theme="mist"] .float-panel {
-  background:
-    linear-gradient(180deg, rgba(27, 42, 63, 0.97), rgba(15, 25, 40, 0.98)) padding-box,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08)) border-box;
-  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.65);
+  background: rgba(36, 53, 76, 0.97);
+  border-color: var(--mist-line);
+  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.5);
 }
 /* what stays put while the page scrolls under it (a board's stage headings,
-   a table's first column): solid enough that nothing shows through */
+   a table's first column): frosted, so the page blurs away beneath it */
 [data-theme="mist"] .mist-pin {
-  background: rgba(20, 33, 51, 0.84);
-  backdrop-filter: blur(22px) saturate(1.15);
+  background: rgba(34, 50, 72, 0.78);
+  backdrop-filter: blur(24px) saturate(1.2);
 }
-/* icon tiles: icy on frost, not blue on blue; done stays green */
-[data-theme="mist"] .badge {
+/* icon tiles: a quiet fill and an icy icon; done stays green */
+[data-theme="mist"] .badge,
+[data-theme="mist"] .badge-lit {
   background: rgba(255, 255, 255, 0.07);
 }
 [data-theme="mist"] .badge-lit {
-  --tint: 205, 228, 255;
-  background: rgba(255, 255, 255, 0.13);
+  --tint: 196, 224, 255;
 }
 [data-theme="mist"] .badge-lit.emerald {
   --tint: 134, 239, 172;
-  background: rgba(110, 231, 183, 0.15);
 }
-/* a lit card's corner glow: a white haze */
+/* no glow in a lit card's corner */
 [data-theme="mist"] .glass-glow {
-  --tint: 255, 255, 255;
-  opacity: 0.45;
-}
-[data-theme="mist"] .glass-glow.emerald {
-  --tint: 110, 231, 183;
-  opacity: 0.6;
+  display: none;
 }
 /* a solid accent fill is light here, so the words on it are dark */
 [data-theme="mist"] .bg-accent {
-  color: #0c1a2c;
+  color: #14253a;
 }
-/* graded videos keep their colour as tinted frost: A+ green, S gold */
+/* graded videos keep their colour as a faint tint and a tinted hairline:
+   A+ green, S gold */
 [data-theme="mist"] .card-surface.tier-aplus,
 [data-theme="mist"] .card-surface.tier-aplus.card-interactive:hover {
-  background:
-    linear-gradient(160deg, rgb(52 211 153 / 0.2) 0%, rgb(52 211 153 / 0.07) 60%, rgb(255 255 255 / 0.04) 100%) padding-box,
-    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box,
-    linear-gradient(180deg, rgb(110 231 183 / 0.7) 0%, rgb(110 231 183 / 0.2) 100%) border-box;
+  background: linear-gradient(rgb(52 211 153 / 0.12), rgb(52 211 153 / 0.12)), rgba(255, 255, 255, 0.06);
+  border-color: rgb(110 231 183 / 0.4);
   box-shadow: none;
 }
 [data-theme="mist"] .card-surface.tier-s,
 [data-theme="mist"] .card-surface.tier-s.card-interactive:hover {
-  background:
-    linear-gradient(160deg, rgb(252 211 77 / 0.24) 0%, rgb(252 211 77 / 0.08) 60%, rgb(255 255 255 / 0.04) 100%) padding-box,
-    linear-gradient(rgba(22, 36, 55, 0.5), rgba(22, 36, 55, 0.5)) padding-box,
-    linear-gradient(180deg, rgb(252 211 77 / 0.85) 0%, rgb(252 211 77 / 0.3) 100%) border-box;
+  background: linear-gradient(rgb(252 211 77 / 0.12), rgb(252 211 77 / 0.12)), rgba(255, 255, 255, 0.06);
+  border-color: rgb(252 211 77 / 0.45);
   box-shadow: none;
-}
-/* the profile menu: the same deep frost as every other menu */
-[data-theme="mist"] .panel-accent {
-  background:
-    linear-gradient(180deg, rgba(26, 41, 61, 0.9), rgba(14, 24, 38, 0.92)) padding-box,
-    linear-gradient(160deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.06) 55%) border-box;
-  backdrop-filter: blur(24px) saturate(1.15);
-  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.6);
 }
 
 /* Sign in: a simple frosted button, brighter on hover */
