@@ -69,8 +69,8 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
   const otherCount = others.reduce((n, st) => n + board.messages.filter((m) => m.stageId === st.id).length, 0);
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
-  // a stage with nothing to send shows no messages at all
-  if (!current.length) return null;
+  // a new lead (the first stage) is sent nothing yet: no messages at all
+  if (!current.length && board.stages[0]?.id === stageId) return null;
   // the variables this stage's message uses, and which are still blank
   const used = variablesIn(current.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
   const blanks = used.filter((n) => !vars[n]);
@@ -100,7 +100,7 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       <div className="flex items-center gap-2 px-1">
         <MessagesSquare size={14} className="shrink-0 text-muted" />
         <h3 className="text-xs font-medium text-muted">Messages</h3>
-        {stage && <span className="min-w-0 truncate text-xs text-muted/70">for {stage.name}</span>}
+        {stage && current.length > 0 && <span className="min-w-0 truncate text-xs text-muted/70">for {stage.name}</span>}
       </div>
 
       {error && (
@@ -112,12 +112,13 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       {/* this stage's: the message to send now */}
       {current.map(card)}
 
-      {/* every other stage's, folded into one row */}
+      {/* every other stage's: folded into one row under this stage's own
+          message, or listed straight away when this stage has none */}
       {others.length > 0 && (
         <div className={BLOCK}>
-          <FoldHead open={othersOpen} onClick={() => setOthersOpen(!othersOpen)} title="Other stages" summary={`${otherCount} ${otherCount === 1 ? "message" : "messages"}`} />
-          <Reveal open={othersOpen}>
-            <div className="flex flex-col gap-1 px-2 pb-2">
+          {current.length > 0 && <FoldHead open={othersOpen} onClick={() => setOthersOpen(!othersOpen)} title="Other stages" summary={`${otherCount} ${otherCount === 1 ? "message" : "messages"}`} />}
+          <Reveal open={othersOpen || !current.length}>
+            <div className={`flex flex-col gap-1 px-2 ${current.length ? "pb-2" : "py-2"}`}>
               {others.map((st) => {
                 const list = board.messages.filter((m) => m.stageId === st.id);
                 const isOpen = !!toggled[st.id];
