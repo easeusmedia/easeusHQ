@@ -8,9 +8,9 @@ import { OrgMap } from "./OrgMap";
 
 export const dynamic = "force-dynamic";
 
-// The agency at a glance (OrgMap): one card with its people and work, then a
-// row a department with its open and late work and its people, each opening
-// its own page. Only the departments someone is in (Level 1: all).
+// The agency at a glance (OrgMap): its people and work, then a card a
+// department with its open and late work and its team, each opening its own
+// page. Only the departments someone is in (Level 1: all).
 export default async function OrganizationPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
