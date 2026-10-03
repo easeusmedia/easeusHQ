@@ -6,9 +6,9 @@ import { orgData } from "./orgData";
 
 export const dynamic = "force-dynamic";
 
-// The agency at a glance (OrgMap): its people and work, then a panel a
-// department with each of its people and what they're on, opening its own
-// page. Only the departments someone is in (Level 1: all).
+// The agency at a glance (OrgMap): a panel a department with each of its
+// people and what they're on, opening its own page. Only the departments
+// someone is in (Level 1: all).
 export default async function OrganizationPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
@@ -21,6 +21,5 @@ export default async function OrganizationPage() {
       </div>
     );
 
-  const { map, everyone } = await orgData(departments);
-  return <OrgMap departments={map} people={everyone} />;
+  return <OrgMap departments={await orgData(departments)} />;
 }

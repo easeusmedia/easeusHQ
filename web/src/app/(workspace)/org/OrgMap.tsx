@@ -1,10 +1,9 @@
 "use client";
 
 import { createElement } from "react";
-import { ArrowUpRight, ChartColumn, Clock, ListChecks, Users } from "lucide-react";
+import { ArrowUpRight, ChartColumn } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
 import { Avatar } from "../TaskCard";
-import { StatTile } from "../StatTile";
 import { markOf } from "./marks";
 
 export type MapPerson = { name: string; on: string | null; stage: string | null; open: number; late: number; leads: number };
@@ -12,13 +11,10 @@ export type MapDepartment = { slug: string; name: string; open: number; late: nu
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
-// The company at a glance: its people and its open and late work, then a
-// panel a department, its people up front with what each is on, and the work
-// by department as bars. The department with the most people gets the wide
-// panel, first. A panel opens its department.
-export function OrgMap({ departments, people }: { departments: MapDepartment[]; people: number }) {
-  const open = departments.reduce((s, d) => s + d.open, 0);
-  const late = departments.reduce((s, d) => s + d.late, 0);
+// The company at a glance: a panel a department, its people up front with
+// what each is on, and the work by department as bars. The department with
+// the most people gets the wide panel, first. A panel opens its department.
+export function OrgMap({ departments }: { departments: MapDepartment[] }) {
   const widest = departments.reduce((w, d) => (d.people.length > w.people.length ? d : w), departments[0]);
   // the wide one first, then the rest in order
   const panels = [widest, ...departments.filter((d) => d !== widest)].map((d) => <Department key={d.slug} d={d} wide={d === widest && departments.length > 1} />);
@@ -28,11 +24,6 @@ export function OrgMap({ departments, people }: { departments: MapDepartment[]; 
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-xl font-semibold tracking-tight">Organization</h1>
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile label="People" value={people} Icon={Users} />
-        <StatTile label="Open" value={open} Icon={ListChecks} />
-        <StatTile label="Late" value={late} Icon={Clock} />
-      </div>
       <div className="@container">
         <div className="grid grid-flow-dense gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">{panels}</div>
       </div>

@@ -51,7 +51,6 @@ export async function orgData(departments: { id: string; slug: string; name: str
         .sort((a, b) => b.open - a.open || b.leads - a.leads),
     };
   });
-  const everyone = new Set(map.flatMap((d) => d.people.map((p) => p.name))).size;
 
-  return { map, everyone };
+  return map;
 }
