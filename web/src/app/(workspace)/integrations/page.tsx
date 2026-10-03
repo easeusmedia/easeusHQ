@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, brandAssetsName, driveSettings } from "@/lib/drive";
 import { NOTION_SETTINGS, clientDatabaseId, notionSettings, taskDatabaseId } from "@/lib/notion";
@@ -29,22 +29,27 @@ export default async function IntegrationsPage({
   searchParams: Promise<{ connected?: string; error?: string; frameio?: string }>;
 }) {
   const { connected, error, frameio } = await searchParams;
-  const sessionUserId = await getSessionUserId();
-  if (!sessionUserId) redirect("/login");
-  const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
-  if (!user || !isAbhishekOrAdmin(user)) redirect("/board");
+  const user = await getViewer();
+  if (!user) redirect("/login");
+  if (!isAbhishekOrAdmin(user)) redirect("/board");
 
-  const [settings, fio, notion, brandAssets, taskDb, clientDb] = await Promise.all([
+  // every connection's settings side by side: nothing here waits on anything
+  // else, and the Apify accounts are a call out to Apify each
+  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, calendar] = await Promise.all([
     driveSettings(),
     frameioSettings(),
     notionSettings(),
     brandAssetsName(),
     taskDatabaseId(),
     clientDatabaseId(),
+    // each Apify account's name and credit left — never the tokens themselves
+    apifyTokens().then((tokens) => Promise.all(tokens.map((t) => apifyAccount(t).catch(() => null)))),
+    claudeKey(),
+    prisma.appSetting.findUnique({ where: { key: AI_ADMIN_KEY } }),
+    aiSpend(),
+    gmailAccount(),
+    calendarAccount(),
   ]);
-  const tokens = await apifyTokens();
-  // each Apify account's name and credit left — never the tokens themselves
-  const apify = await Promise.all(tokens.map((t) => apifyAccount(t).catch(() => null)));
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,14 +85,14 @@ export default async function IntegrationsPage({
       />
 
       <ClaudeIntegration
-        ending={(await claudeKey())?.slice(-4) ?? null}
-        adminEnding={(await prisma.appSetting.findUnique({ where: { key: AI_ADMIN_KEY } }))?.value.slice(-4) ?? null}
-        spend={await aiSpend()}
+        ending={claude?.slice(-4) ?? null}
+        adminEnding={aiAdmin?.value.slice(-4) ?? null}
+        spend={spend}
       />
 
-      <GmailIntegration account={await gmailAccount()} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
+      <GmailIntegration account={gmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 
-      <CalendarIntegration account={await calendarAccount()} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
+      <CalendarIntegration account={calendar} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 
       <AnalyticsIntegration apifyAccounts={apify.map((a) => a ?? { username: "Not accepted", left: null })} />
 

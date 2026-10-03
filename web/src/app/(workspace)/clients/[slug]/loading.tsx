@@ -1,14 +1,20 @@
-// The one that mattered most to add: this page force-fetches fresh data
-// on every load (invoices, tasks, projects…), and with no loading state at
-// all here, clicking a different client in the sidebar just sat on the
-// *previous* client's page for a second or two with zero feedback — easy
-// to mistake for navigation being broken rather than merely loading. The
-// sidebar lives one level up, so it stays visible and already highlights
-// the newly clicked client while this spinner covers only the page.
+import { Bone, SkeletonChips, SkeletonPage, SkeletonRows, SkeletonTiles } from "../../Skeleton";
+
+// A client's page while it loads: who they are, their numbers, the tabs and
+// the work under them
 export default function Loading() {
   return (
-    <div className="flex h-full items-center justify-center py-24">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-foreground" />
-    </div>
+    <SkeletonPage>
+      <div className="flex items-center gap-4">
+        <Bone className="size-16 shrink-0 rounded-full" />
+        <div className="flex flex-col gap-2.5">
+          <Bone className="h-6 w-48" />
+          <Bone className="h-3.5 w-32" />
+        </div>
+      </div>
+      <SkeletonTiles />
+      <SkeletonChips n={5} />
+      <SkeletonRows n={6} />
+    </SkeletonPage>
   );
 }

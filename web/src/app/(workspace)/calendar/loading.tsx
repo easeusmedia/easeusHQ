@@ -1,11 +1,19 @@
-// Shown INSTANTLY on click while this segment's Server Component data is
-// still loading — without this, a force-dynamic page shows nothing at all
-// until the full response arrives, which reads as a stall even once that
-// response is fast, since there's zero feedback that the click registered.
+import { Bone, SkeletonChips, SkeletonPage, SkeletonTitle } from "../Skeleton";
+
+// The Calendar while it loads: the view switch, the month, and its days
 export default function Loading() {
   return (
-    <div className="flex h-full items-center justify-center py-24">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-foreground" />
-    </div>
+    <SkeletonPage className="flex flex-col gap-5">
+      <SkeletonChips n={2} />
+      <SkeletonTitle sub />
+      <div className="panel grid grid-cols-7 gap-px overflow-hidden rounded-2xl p-2">
+        {Array.from({ length: 35 }, (_, i) => (
+          <div key={i} className="flex h-24 flex-col gap-2 rounded-lg p-2">
+            <Bone className="h-3 w-5" />
+            {i % 4 === 1 && <Bone className="h-4 w-4/5 rounded-full" />}
+          </div>
+        ))}
+      </div>
+    </SkeletonPage>
   );
 }

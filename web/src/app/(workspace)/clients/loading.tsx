@@ -1,10 +1,11 @@
-// Same reasoning as the workspace loading.tsx: without this, clicking into the
-// Clients list shows nothing at all until the full response arrives — a
-// force-dynamic page with no feedback that the click even registered.
+import { SkeletonCards, SkeletonChips, SkeletonPage } from "../Skeleton";
+
+// The Clients list while it loads: its tabs and a card a client
 export default function Loading() {
   return (
-    <div className="flex h-full items-center justify-center py-24">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-foreground" />
-    </div>
+    <SkeletonPage className="flex flex-col gap-5">
+      <SkeletonChips n={3} />
+      <SkeletonCards n={9} className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4" />
+    </SkeletonPage>
   );
 }
