@@ -13,7 +13,9 @@ import {
   isColor,
   isFieldKind,
   leadVars,
+  LINKEDIN_LIMIT,
   MESSAGE_CHANNELS,
+  overLimit,
   moveNeedsReason,
   uniqueSlug,
   type FieldData,
@@ -806,6 +808,7 @@ export async function markSent(leadId: string, messageId: string): Promise<Done 
     const body = fillText(own ? own.body : m.body, vars);
     const missing = [...new Set([...`${subject}\n${body}`.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((x) => x[1]))];
     if (missing.length) return { error: `Fill in ${missing.join(", ")} first.` };
+    if (overLimit(m.channel, body)) return { error: `LinkedIn allows ${LINKEDIN_LIMIT} characters, and this is ${body.length}. Shorten it first.` };
     const sent = await prisma.sentMessage.create({ data: { leadId, messageId, stageName: m.stage.name, name: m.name, channel: m.channel, subject, body, byId: who.id, byName: who.name } });
     return { sent: { id: sent.id, messageId, stageName: sent.stageName, name: sent.name, channel: sent.channel, subject, body, byName: sent.byName, sentAt: sent.sentAt.toISOString() } };
   } catch (err) {

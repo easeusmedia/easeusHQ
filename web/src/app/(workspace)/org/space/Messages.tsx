@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
-import { dayOf, fillParts, fillText, leadVars, MESSAGE_CHANNELS, messageGroups, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
+import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, overLimit, messageGroups, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
@@ -335,6 +335,18 @@ function FoldHead({ open, onClick, title, summary, alert = false }: { open: bool
 
 // One message for this lead: read it, fill what's missing, copy it, mark it
 // sent; or change this lead's copy, or the template behind it
+// LinkedIn's limit, counted as you go: grey under it, rose over it
+function Limit({ channel, text, className = "" }: { channel: string; text: string; className?: string }) {
+  if (channel !== "linkedin") return null;
+  const over = text.length > LINKEDIN_LIMIT;
+  return (
+    <span className={`text-[11px] tabular-nums ${over ? "text-rose-300" : "text-muted"} ${className}`}>
+      {text.length}/{LINKEDIN_LIMIT}
+      {over && " · LinkedIn allows 300 characters"}
+    </span>
+  );
+}
+
 function MessageCard({
   message,
   stages,
@@ -498,13 +510,14 @@ function MessageCard({
               </>
             ) : (
               <>
+                <Limit channel={message.channel} text={body} />
                 <span className="ml-auto flex items-center gap-2">
                   <span className="text-[11px] text-muted">Sent it?</span>
                   <button
                     type="button"
                     onClick={toggleSent}
-                    disabled={busy || missing.length > 0}
-                    title={missing.length ? `Fill in ${missing.join(", ")} first` : "Keep a record of what went out"}
+                    disabled={busy || missing.length > 0 || overLimit(message.channel, body)}
+                    title={missing.length ? `Fill in ${missing.join(", ")} first` : overLimit(message.channel, body) ? `LinkedIn allows ${LINKEDIN_LIMIT} characters; shorten it first` : "Keep a record of what went out"}
                     className="btn btn-sm btn-ghost"
                   >
                     <Send size={12} /> {busy ? "Saving…" : "Mark as sent"}
@@ -610,6 +623,7 @@ function OwnEditor({
       </div>
       {message.channel === "email" && startSubject && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={INPUT} />}
       <textarea autoFocus value={body} onChange={(e) => setBody(e.target.value)} aria-label="Message" className={`${INPUT} field-sizing-content min-h-40 resize-none leading-relaxed`} />
+      <Limit channel={message.channel} text={body} className="self-end" />
       {error && (
         <p role="alert" className="fade-in text-xs text-red-300">
           {error}
@@ -775,6 +789,7 @@ function TemplateEditor({
         aria-label="Message"
         className={`${INPUT} field-sizing-content min-h-40 resize-none leading-relaxed`}
       />
+      <Limit channel={channel} text={body} className="self-end" />
 
       <div className="flex flex-wrap items-center gap-1.5">
         <button

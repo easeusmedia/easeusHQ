@@ -3,8 +3,9 @@
 import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid } from "lucide-react";
+import { createElement, useEffect, useRef, useState } from "react";
+import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, type LucideIcon } from "lucide-react";
+import { markOf } from "./org/marks";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
@@ -23,7 +24,7 @@ export type SidebarClient = { id: string; slug: string; name: string; logo: stri
 // a department's section, or a section's portal, with its own address
 export type SidebarSpace = { id: string; slug: string; name: string; href: string; children?: SidebarSpace[] };
 // a row in a tree: a client, a department, or a page nested under one
-type TreeItem = { id: string; slug: string; name: string; logo?: string | null; href?: string; children?: TreeItem[] };
+type TreeItem = { id: string; slug: string; name: string; logo?: string | null; href?: string; children?: TreeItem[]; icon?: LucideIcon };
 
 // Chosen for what each destination actually is, not just for variety. The
 // two that mattered most: Clients and People were Users2 and Users — near
@@ -133,10 +134,8 @@ function ClientTree({
                 on ? (inner ? "font-medium text-foreground hover:bg-white/[0.04]" : "selected font-medium") : IDLE
               }`}
             >
-              {Icon ? (
-                <span className="flex size-[18px] shrink-0 items-center justify-center">
-                  <Icon size={15} />
-                </span>
+              {Icon || c.icon ? (
+                <span className="flex size-[18px] shrink-0 items-center justify-center">{createElement(Icon ?? c.icon!, { size: 15 })}</span>
               ) : (
                 <ClientFace client={c} size={18} />
               )}
@@ -302,7 +301,7 @@ export function Sidebar({
   const trees: Record<string, { items: TreeItem[]; current: string | null; open: boolean; setOpen: (f: (v: boolean) => boolean) => void; all: string; AllIcon: typeof Building2; hrefOf?: (c: TreeItem) => string }> = {
     "/clients": { items: clients, current: currentClient, open: clientsOpen, setOpen: setClientsOpen, all: "All clients", AllIcon: Building2 },
     "/org": {
-      items: departments.map((d) => ({ ...d, logo: null })),
+      items: departments.map((d) => ({ ...d, logo: null, icon: markOf(d.name) })),
       current: currentDepartment,
       open: orgOpen,
       setOpen: setOrgOpen,

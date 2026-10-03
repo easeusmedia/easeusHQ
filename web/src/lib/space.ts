@@ -230,6 +230,10 @@ export function missingDetails(fields: Pick<FieldData, "id" | "kind" | "required
 // ---- Messages ----
 // A stage's message is fixed text with {{Variables}} each lead fills in:
 // "Hey {{Name}}, watched your {{Guest}} episode".
+// LinkedIn takes at most 300 characters a message
+export const LINKEDIN_LIMIT = 300;
+export const overLimit = (channel: string, text: string) => channel === "linkedin" && text.length > LINKEDIN_LIMIT;
+
 export const MESSAGE_CHANNELS = [
   { kind: "email", label: "Email" },
   { kind: "instagram", label: "Instagram" },
