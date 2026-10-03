@@ -2,29 +2,36 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, Mail, MessageSquare, Pencil, Plus, Send, Trash2, Undo2 } from "lucide-react";
-import { fillParts, fillText, leadVars, MESSAGE_CHANNELS, variablesIn, type BoardData, type LeadData, type MessageData, type SentData } from "@/lib/space";
-import { createMessage, deleteMessage, markSent, setLeadVar, unmarkSent, updateMessage } from "./actions";
+import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, LayoutTemplate, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Send, Trash2, Undo2 } from "lucide-react";
+import { fillParts, fillText, leadVars, MESSAGE_CHANNELS, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
+import { createMessage, deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
+import { Dropdown } from "../../Dropdown";
 import { InstagramIcon } from "../../PlatformIcon";
 import { formatDateTime } from "../../TaskCard";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 const CHANNEL_ICON: Record<string, React.ReactNode> = {
-  email: <Mail size={14} />,
-  instagram: <InstagramIcon size={14} />,
-  linkedin: <BriefcaseBusiness size={14} />,
-  other: <MessageSquare size={14} />,
+  email: <Mail size={13} className="text-sky-400" />,
+  instagram: <InstagramIcon size={13} className="text-pink-400" />,
+  linkedin: <BriefcaseBusiness size={13} className="text-blue-400" />,
+  other: <MessageSquare size={13} className="text-violet-400" />,
 };
 const SMALL_BTN = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50";
+const INPUT = "w-full rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover";
+const BLOCK = "rounded-xl bg-foreground/[0.03]";
 
-// The lead's messages, stage by stage, as the sequence lays them out. The
-// stage it's in opens; the rest fold away. Each message is the stage's
-// wording with this lead's details filled in: copy it, send it, mark it
-// sent (then it's frozen as sent). Editing a message changes it for every
-// lead that hasn't sent it yet.
+const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
+
+// A lead's messages. Its stage's message comes first, written out for this
+// lead, ready to copy and mark sent. Two ways to change it:
+// - Edit message: this lead's copy only; the template stays as it is.
+// - Edit template: the stage's wording for every lead that hasn't sent it
+//   (a lead with its own copy keeps it). Variables are made here.
+// New templates are written in full from the top, onto any stage. Other
+// stages' messages fold away below.
 export function Messages({
   lead,
   board,
@@ -40,14 +47,18 @@ export function Messages({
   onSent: (sent: SentData[]) => void;
   onSaved: () => void;
 }) {
-  const router = useRouter();
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  // details typed here show at once, ahead of the board's refresh
+  // what's typed here shows at once, ahead of the board's refresh
   const [typed, setTyped] = useState<Record<string, string>>({});
+  const [mine, setMine] = useState<Record<string, Draft | null>>({});
   const vars = leadVars({ ...lead, vars: { ...lead.vars, ...typed } }, board.fields);
   const auto = leadVars({ ...lead, vars: {} }, board.fields);
   const names = variablesIn(board.messages.flatMap((m) => [m.subject, m.body]));
+  const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
+  const [composing, setComposing] = useState<string | null>(null);
+  const [othersOpen, setOthersOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
   async function saveVar(name: string, value: string) {
     if ((lead.vars[name] ?? "") === value.trim() && typed[name] === undefined) return;
@@ -56,47 +67,57 @@ export function Messages({
     if (res.error) setError(res.error);
     else onSaved();
   }
+  async function saveMine(messageId: string, draft: Draft | null) {
+    setError(null);
+    const res = await setLeadDraft(lead.id, messageId, draft).catch(() => ({ error: OFFLINE }));
+    if (res.error) return res.error;
+    setMine((d) => ({ ...d, [messageId]: draft }));
+    onSaved();
+  }
 
-  const others = board.stages.filter((s) => s.id !== stageId && board.messages.some((m) => m.stageId === s.id));
+  const stage = board.stages.find((s) => s.id === stageId);
   const current = board.messages.filter((m) => m.stageId === stageId);
-  const [othersOpen, setOthersOpen] = useState(false);
-  const [sentOpen, setSentOpen] = useState(false);
-  // the details fold away, opening by themselves only when this stage's
-  // messages still have blanks to fill
+  const others = board.stages.filter((s) => s.id !== stageId && board.messages.some((m) => m.stageId === s.id));
+  const otherCount = others.reduce((n, st) => n + board.messages.filter((m) => m.stageId === st.id).length, 0);
+  // sent from a template since deleted: nowhere else to show them
+  const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
   const blanks = names.filter((n) => !vars[n]);
-  const nowBlank = variablesIn(board.messages.filter((m) => m.stageId === stageId).flatMap((m) => [fillText(m.subject, vars), fillText(m.body, vars)]));
-  const [detailsOpen, setDetailsOpen] = useState<boolean | null>(null);
-  const showDetails = detailsOpen ?? nowBlank.length > 0;
-  const here = board.stages.findIndex((s) => s.id === stageId);
+
+  const card = (m: MessageData) => (
+    <MessageCard
+      key={m.id}
+      message={m}
+      stages={board.stages}
+      leadId={lead.id}
+      vars={vars}
+      auto={auto}
+      names={names}
+      own={own(m.id)}
+      sent={sent?.find((x) => x.messageId === m.id) ?? null}
+      all={sent}
+      onSent={onSent}
+      onSaved={onSaved}
+      onError={setError}
+      onVar={saveVar}
+      onMine={(d) => saveMine(m.id, d)}
+    />
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* the words that change per lead: typed once, every message uses them */}
-      {names.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-white/[0.02]">
-          <button type="button" onClick={() => setDetailsOpen(!showDetails)} aria-expanded={showDetails} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
-            <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${showDetails ? "rotate-90" : ""}`} />
-            <span className="font-medium text-foreground/90">Message details</span>
-            <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
-          </button>
-          <Reveal open={showDetails}>
-          <p className="mb-2.5 px-4 text-xs text-muted">Type each once; every message uses it.</p>
-          <div className="grid gap-x-3 gap-y-2 px-3 pb-3 sm:grid-cols-2">
-            {names.map((name) => (
-              <label key={name} className="flex min-w-0 flex-col gap-1">
-                <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
-                <input
-                  defaultValue={lead.vars[name] ?? ""}
-                  onBlur={(e) => saveVar(name, e.target.value)}
-                  placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                  className="w-full rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover"
-                />
-              </label>
-            ))}
-          </div>
-          </Reveal>
-        </div>
-      )}
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2 px-1">
+        <MessagesSquare size={14} className="shrink-0 text-muted" />
+        <h3 className="text-xs font-medium text-muted">Messages</h3>
+        {stage && <span className="min-w-0 truncate text-xs text-muted/70">for {stage.name}</span>}
+        <button type="button" onClick={() => setComposing(composing ? null : stageId)} aria-expanded={!!composing} className={`${SMALL_BTN} ml-auto shrink-0`}>
+          <Plus size={13} /> New template
+        </button>
+      </div>
+
+      {/* a new template, written in full, onto whichever stage it's for */}
+      <Reveal open={!!composing}>
+        {composing && <TemplateEditor stages={board.stages} stageId={composing} names={names} leadId={lead.id} onDone={() => setComposing(null)} />}
+      </Reveal>
 
       {error && (
         <p role="alert" className="fade-in px-1 text-xs text-red-300">
@@ -104,45 +125,39 @@ export function Messages({
         </p>
       )}
 
-      {/* today's: this stage's messages, in full */}
-      {here >= 0 && (
-        <div className="flex flex-col gap-3">
-          {current.length ? (
-            current.map((m) => <MessageCard key={m.id} message={m} leadId={lead.id} vars={vars} names={names} sent={sent?.find((x) => x.messageId === m.id) ?? null} onSent={(x) => onSent(x)} all={sent} onSaved={onSaved} onError={setError} />)
-          ) : (
-            <p className="px-1 text-xs text-muted">Nothing to send at this stage.</p>
-          )}
-          <AddMessage stageId={stageId} onAdded={() => router.refresh()} />
-        </div>
+      {/* this stage's: the message to send now */}
+      {current.length ? (
+        current.map(card)
+      ) : (
+        !composing && (
+          <div className={`${BLOCK} flex items-center gap-3 px-4 py-3.5`}>
+            <p className="min-w-0 flex-1 text-sm text-muted">No message for this stage yet.</p>
+            <button type="button" onClick={() => setComposing(stageId)} className="btn btn-sm btn-glow shrink-0">
+              <Plus size={13} /> Write one
+            </button>
+          </div>
+        )
       )}
 
-      {/* every other stage's messages, folded into one row */}
+      {/* every other stage's, folded into one row */}
       {others.length > 0 && (
-        <div className="rounded-xl border border-border/60">
-          <button type="button" onClick={() => setOthersOpen(!othersOpen)} aria-expanded={othersOpen} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
-            <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${othersOpen ? "rotate-90" : ""}`} />
-            <span className="font-medium text-foreground/90">Other stages</span>
-            <span className="ml-auto text-muted">{others.reduce((n, st) => n + board.messages.filter((m) => m.stageId === st.id).length, 0)} messages</span>
-          </button>
+        <div className={BLOCK}>
+          <FoldHead open={othersOpen} onClick={() => setOthersOpen(!othersOpen)} title="Other stages" summary={`${otherCount} ${otherCount === 1 ? "message" : "messages"}`} />
           <Reveal open={othersOpen}>
             <div className="flex flex-col gap-1 px-2 pb-2">
-              {others.map((stage) => {
-                const list = board.messages.filter((m) => m.stageId === stage.id);
-                const isOpen = !!toggled[stage.id];
-                const doneHere = list.filter((m) => sent?.some((x) => x.messageId === m.id)).length;
+              {others.map((st) => {
+                const list = board.messages.filter((m) => m.stageId === st.id);
+                const isOpen = !!toggled[st.id];
+                const done = list.filter((m) => sent?.some((x) => x.messageId === m.id)).length;
                 return (
-                  <div key={stage.id}>
-                    <button type="button" onClick={() => setToggled((o) => ({ ...o, [stage.id]: !isOpen }))} aria-expanded={isOpen} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-white/[0.03]">
+                  <div key={st.id}>
+                    <button type="button" onClick={() => setToggled((o) => ({ ...o, [st.id]: !isOpen }))} aria-expanded={isOpen} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-white/[0.03]">
                       <ChevronRight size={13} className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
-                      <StagePill name={stage.name} color={stage.color} />
-                      <span className="ml-auto text-[11px] text-muted tabular-nums">{doneHere ? `${doneHere} of ${list.length} sent` : `${list.length}`}</span>
+                      <StagePill name={st.name} color={st.color} />
+                      <span className="ml-auto text-[11px] text-muted tabular-nums">{done ? `${done} of ${list.length} sent` : list.length}</span>
                     </button>
                     <Reveal open={isOpen}>
-                      <div className="flex flex-col gap-2 py-2 pl-6">
-                        {list.map((m) => (
-                          <MessageCard key={m.id} message={m} leadId={lead.id} vars={vars} names={names} sent={sent?.find((x) => x.messageId === m.id) ?? null} onSent={(x) => onSent(x)} all={sent} onSaved={onSaved} onError={setError} />
-                        ))}
-                      </div>
+                      <div className="flex flex-col gap-2 py-2 pl-6">{list.map(card)}</div>
                     </Reveal>
                   </div>
                 );
@@ -152,60 +167,102 @@ export function Messages({
         </div>
       )}
 
-      {/* everything this lead has been sent, newest first */}
-      {sent && sent.length > 0 && (
-        <div className="rounded-xl border border-border/60">
-          <button type="button" onClick={() => setSentOpen(!sentOpen)} aria-expanded={sentOpen} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
-            <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${sentOpen ? "rotate-90" : ""}`} />
-            <span className="font-medium text-foreground/90">Sent so far</span>
-            <span className="ml-auto text-muted">{sent.length}</span>
-          </button>
-          <Reveal open={sentOpen}>
-            <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
-              {sent.map((x) => (
-                <SentRow key={x.id} sent={x} />
+      {/* the words that change per lead, all in one place */}
+      {names.length > 0 && (
+        <div className={BLOCK}>
+          <FoldHead
+            open={detailsOpen}
+            onClick={() => setDetailsOpen(!detailsOpen)}
+            title="Variables for this lead"
+            summary={blanks.length ? `${blanks.length} to fill` : "All filled"}
+            alert={blanks.length > 0}
+          />
+          <Reveal open={detailsOpen}>
+            <div className="grid gap-x-3 gap-y-2 px-3 pb-3 sm:grid-cols-2">
+              {names.map((name) => (
+                <label key={name} className="flex min-w-0 flex-col gap-1">
+                  <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
+                  <input
+                    defaultValue={lead.vars[name] ?? ""}
+                    onBlur={(e) => saveVar(name, e.target.value)}
+                    placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
+                    className={INPUT}
+                  />
+                </label>
               ))}
-            </ul>
+            </div>
           </Reveal>
         </div>
       )}
-    </div>
+
+      {orphans.length > 0 && (
+        <div className={BLOCK}>
+          <p className="px-3 pt-2.5 pb-1 text-xs font-medium text-foreground/90">Sent from templates since deleted</p>
+          <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
+            {orphans.map((x) => (
+              <SentRow key={x.id} sent={x} />
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 
-// One message: read, copy, mark sent; or edit the stage's wording
+function FoldHead({ open, onClick, title, summary, alert = false }: { open: boolean; onClick: () => void; title: string; summary: string; alert?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
+      <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+      <span className="font-medium text-foreground/90">{title}</span>
+      <span className={`ml-auto ${alert ? "text-red-300" : "text-muted"}`}>{summary}</span>
+    </button>
+  );
+}
+
+// One message for this lead: read it, fill what's missing, copy it, mark it
+// sent; or change this lead's copy, or the template behind it
 function MessageCard({
   message,
+  stages,
   leadId,
   vars,
+  auto,
   names,
+  own,
   sent,
   all,
   onSent,
   onSaved,
   onError,
+  onVar,
+  onMine,
 }: {
   message: MessageData;
+  stages: StageData[];
   leadId: string;
   vars: Record<string, string>;
+  auto: Record<string, string>;
   names: string[];
+  own: Draft | undefined;
   sent: SentData | null;
   all: SentData[] | null;
   onSent: (sent: SentData[]) => void;
   onSaved: () => void;
   onError: (e: string | null) => void;
+  onVar: (name: string, value: string) => void;
+  onMine: (draft: Draft | null) => Promise<string | undefined>;
 }) {
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
+  const [mode, setMode] = useState<"view" | "mine" | "template">("view");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const subject = sent ? sent.subject : fillText(message.subject, vars);
-  const body = sent ? sent.body : fillText(message.body, vars);
+  const source = own ?? message;
+  const subject = sent ? sent.subject : fillText(source.subject, vars);
+  const body = sent ? sent.body : fillText(source.body, vars);
   const missing = sent ? [] : variablesIn([subject, body]);
+  const isEmail = message.channel === "email";
 
   async function copy() {
-    await navigator.clipboard.writeText(subject ? `Subject: ${subject}\n\n${body}` : body);
+    await navigator.clipboard.writeText(isEmail && subject ? `Subject: ${subject}\n\n${body}` : body);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   }
@@ -226,45 +283,67 @@ function MessageCard({
     onSaved();
   }
 
-  if (editing) return <MessageEditor message={message} names={names} leadId={leadId} onDone={() => setEditing(false)} />;
+  if (mode === "template")
+    return <TemplateEditor message={message} stages={stages} stageId={message.stageId} names={names} leadId={leadId} onDone={() => setMode("view")} />;
+  if (mode === "mine")
+    return (
+      <OwnEditor
+        message={message}
+        subject={fillText(source.subject, vars)}
+        body={fillText(source.body, vars)}
+        hasOwn={!!own}
+        onDone={() => setMode("view")}
+        onSave={onMine}
+      />
+    );
 
   return (
-    <div className={`fade-in rounded-xl border p-3.5 ${sent ? "border-emerald-400/20 bg-emerald-400/[0.03]" : "border-border/60 bg-white/[0.02]"}`}>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="text-muted">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
+    <div className={`fade-in rounded-xl p-4 ${sent ? "bg-emerald-400/[0.04] ring-1 ring-emerald-400/20" : BLOCK}`}>
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{message.name}</span>
+        {own && !sent && (
+          <span title="Edited for this lead only" className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted">
+            This lead&apos;s copy
+          </span>
+        )}
         {sent && (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
             <Check size={11} /> Sent
           </span>
         )}
-        {!sent && (
-          <>
-            <button type="button" onClick={() => setEditing(true)} className={SMALL_BTN} title="Edit this stage's wording">
-              <Pencil size={12} /> Edit
-            </button>
-            <button type="button" onClick={() => setDeleting(true)} aria-label={`Delete ${message.name}`} title="Delete" className={`${SMALL_BTN} hover:text-red-300`}>
-              <Trash2 size={12} />
-            </button>
-          </>
-        )}
       </div>
 
-      {sent ? (
-        <SentText subject={subject} body={body} />
-      ) : (
-        <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {message.subject && (
-            <p className="mb-2 text-foreground">
-              <span className="text-muted">Subject: </span>
-              <Filled text={message.subject} vars={vars} />
-            </p>
-          )}
-          <Filled text={message.body} vars={vars} />
+      <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+        {isEmail && (sent ? subject : source.subject) && (
+          <p className="mb-2 text-foreground">
+            <span className="text-muted">Subject: </span>
+            {sent ? subject : <Filled text={source.subject} vars={vars} />}
+          </p>
+        )}
+        {sent ? body : <Filled text={source.body} vars={vars} />}
+      </div>
+
+      {/* what's still blank, filled right here */}
+      {missing.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-2.5">
+          <p className="text-[11px] text-red-300">Fill in to send</p>
+          {missing.map((name) => (
+            <label key={name} className="flex items-center gap-2.5">
+              <span className="w-24 shrink-0 truncate text-xs text-muted">{name}</span>
+              <input
+                defaultValue=""
+                onBlur={(e) => e.target.value.trim() && onVar(name, e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                placeholder={auto[name] ?? `Type the ${name.toLowerCase()}`}
+                className={`${INPUT} py-1`}
+              />
+            </label>
+          ))}
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/40 pt-2.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-border/40 pt-2.5">
         <button type="button" onClick={copy} className={SMALL_BTN}>
           {copied ? <Check size={12} className="text-emerald-300" /> : <Copy size={12} />} {copied ? "Copied" : "Copy"}
         </button>
@@ -277,25 +356,21 @@ function MessageCard({
         >
           {sent ? <Undo2 size={12} /> : <Send size={12} />} {busy ? "Saving…" : sent ? "Mark as not sent" : "Mark as sent"}
         </button>
-        <span className="ml-auto text-[11px] text-muted">
-          {sent ? `Sent by ${sent.byName} · ${formatDateTime(sent.sentAt)}` : missing.length ? <span className="text-red-300">Fill in {missing.join(", ")} first</span> : null}
-        </span>
+        {sent ? (
+          <span className="ml-auto text-[11px] text-muted">
+            Sent by {sent.byName} · {formatDateTime(sent.sentAt)}
+          </span>
+        ) : (
+          <span className="ml-auto flex items-center gap-1">
+            <button type="button" onClick={() => setMode("mine")} title="Change it for this lead only" className={SMALL_BTN}>
+              <Pencil size={12} /> Edit message
+            </button>
+            <button type="button" onClick={() => setMode("template")} title="Change it for every lead" className={SMALL_BTN}>
+              <LayoutTemplate size={12} /> Edit template
+            </button>
+          </span>
+        )}
       </div>
-
-      <ReasonDialog
-        open={deleting}
-        danger
-        title={`Delete ${message.name}?`}
-        hint="It comes off this stage for every lead. Messages already sent stay on their leads."
-        confirm="Delete message"
-        onCancel={() => setDeleting(false)}
-        onConfirm={async (reason) => {
-          const res = await deleteMessage(message.id, reason).catch(() => ({ error: OFFLINE }));
-          if (res.error) return res.error;
-          setDeleting(false);
-          router.refresh();
-        }}
-      />
     </div>
   );
 }
@@ -313,26 +388,12 @@ function Filled({ text, vars }: { text: string; vars: Record<string, string> }) 
             {p.value}
           </span>
         ) : (
-          <span key={i} title="Fill this in under Message details" className="rounded bg-red-400/10 px-0.5 text-red-300">
+          <span key={i} title="Fill this in below" className="rounded bg-red-400/10 px-0.5 text-red-300">
             {`{{${p.name}}}`}
           </span>
         ),
       )}
     </>
-  );
-}
-
-function SentText({ subject, body }: { subject: string; body: string }) {
-  return (
-    <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/85">
-      {subject && (
-        <p className="mb-2">
-          <span className="text-muted">Subject: </span>
-          {subject}
-        </p>
-      )}
-      {body}
-    </div>
   );
 }
 
@@ -342,7 +403,7 @@ function SentRow({ sent }: { sent: SentData }) {
     <li className="py-1">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left text-xs transition-colors hover:bg-white/[0.03]">
         <ChevronRight size={13} className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        <span className="text-muted">{CHANNEL_ICON[sent.channel] ?? CHANNEL_ICON.other}</span>
+        <span className="flex shrink-0">{CHANNEL_ICON[sent.channel] ?? CHANNEL_ICON.other}</span>
         <span className="min-w-0 truncate font-medium text-foreground/90">{sent.name}</span>
         <span className="shrink-0 text-muted">· {sent.stageName}</span>
         <span className="ml-auto shrink-0 text-muted">
@@ -350,44 +411,138 @@ function SentRow({ sent }: { sent: SentData }) {
         </span>
       </button>
       <Reveal open={open}>
-        <div className="px-7 pt-1 pb-2">
-          <SentText subject={sent.subject} body={sent.body} />
+        <div className="px-7 pt-1 pb-2 text-sm leading-relaxed whitespace-pre-wrap text-foreground/85">
+          {sent.subject && (
+            <p className="mb-2">
+              <span className="text-muted">Subject: </span>
+              {sent.subject}
+            </p>
+          )}
+          {sent.body}
         </div>
       </Reveal>
     </li>
   );
 }
 
-// Editing a stage's wording. Select words and press "Make a variable" to
-// turn them into one ({{Guest}}); every lead fills it in on its own.
-function MessageEditor({ message, names, leadId, onDone }: { message: MessageData; names: string[]; leadId: string; onDone: () => void }) {
-  const router = useRouter();
-  const [name, setName] = useState(message.name);
-  const [channel, setChannel] = useState(message.channel);
-  const [subject, setSubject] = useState(message.subject);
-  const [body, setBody] = useState(message.body);
+// Changing the message for this lead alone: the text as it would go out,
+// edited freely. The template and every other lead stay as they are.
+function OwnEditor({
+  message,
+  subject: startSubject,
+  body: startBody,
+  hasOwn,
+  onDone,
+  onSave,
+}: {
+  message: MessageData;
+  subject: string;
+  body: string;
+  hasOwn: boolean;
+  onDone: () => void;
+  onSave: (draft: Draft | null) => Promise<string | undefined>;
+}) {
+  const [subject, setSubject] = useState(startSubject);
+  const [body, setBody] = useState(startBody);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(draft: Draft | null) {
+    setBusy(true);
+    setError(null);
+    const err = await onSave(draft);
+    setBusy(false);
+    if (err) return setError(err);
+    onDone();
+  }
+
+  return (
+    <div className={`fade-in flex flex-col gap-2.5 p-4 ring-1 ring-accent/30 ${BLOCK}`}>
+      <div className="flex items-center gap-2">
+        <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{message.name}</span>
+        <span className="shrink-0 text-[11px] text-muted">Editing for this lead only</span>
+      </div>
+      {message.channel === "email" && startSubject && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={INPUT} />}
+      <textarea
+        autoFocus
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        aria-label="Message"
+        className={`${INPUT} field-sizing-content min-h-40 resize-none leading-relaxed`}
+      />
+      {error && (
+        <p role="alert" className="fade-in text-xs text-red-300">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2.5">
+        {hasOwn ? (
+          <button type="button" onClick={() => save(null)} disabled={busy} className={SMALL_BTN}>
+            <RotateCcw size={12} /> Go back to the template
+          </button>
+        ) : (
+          <p className="text-[11px] text-muted">The template and other leads stay as they are.</p>
+        )}
+        <div className="ml-auto flex shrink-0 gap-1.5">
+          <button type="button" onClick={onDone} className="btn btn-sm btn-ghost">
+            Cancel
+          </button>
+          <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
+            {busy ? "Saving…" : "Save for this lead"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Writing a template, new or existing. Select words and press "Make a
+// variable" to turn them into one ({{Guest}}), or press it with nothing
+// selected to add a new one where the cursor is; every lead fills its own in.
+function TemplateEditor({
+  message,
+  stages,
+  stageId: startStage,
+  names,
+  leadId,
+  onDone,
+}: {
+  message?: MessageData;
+  stages: StageData[];
+  stageId: string;
+  names: string[];
+  leadId: string;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [stageId, setStageId] = useState(startStage);
+  const [name, setName] = useState(message?.name ?? "");
+  const [channel, setChannel] = useState(message?.channel ?? "email");
+  const [subject, setSubject] = useState(message?.subject ?? "");
+  const [body, setBody] = useState(message?.body ?? "");
+  const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [naming, setNaming] = useState<{ field: "subject" | "body"; from: number; to: number; words: string; name: string } | null>(null);
   const last = useRef<"subject" | "body">("body");
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const stage = stages.find((s) => s.id === stageId);
 
   const fieldOf = (f: "subject" | "body") => (f === "subject" ? subjectRef.current : bodyRef.current);
   const setOf = (f: "subject" | "body") => (f === "subject" ? setSubject : setBody);
   const valueOf = (f: "subject" | "body") => (f === "subject" ? subject : body);
 
-  // the selected words become {{Name}}, and this lead keeps them as its value
   function startVariable() {
-    const f = last.current;
+    const f = channel === "email" ? last.current : "body";
     const el = fieldOf(f);
-    if (!el) return;
-    const from = el.selectionStart ?? 0;
-    const to = el.selectionEnd ?? 0;
-    const words = valueOf(f).slice(from, to).trim();
-    if (!words) return setError("Select the words that change from lead to lead, then press Make a variable.");
+    const text = valueOf(f);
+    const from = el?.selectionStart ?? text.length;
+    const to = el?.selectionEnd ?? from;
+    const words = text.slice(from, to).trim();
     setError(null);
-    const guess = words.split(/\s+/).length <= 2 && words.length <= 24 ? words.replace(/^\w/, (c) => c.toUpperCase()) : "";
+    const guess = words && words.split(/\s+/).length <= 2 && words.length <= 24 ? words.replace(/^\w/, (c) => c.toUpperCase()) : "";
     setNaming({ field: f, from, to, words, name: guess });
   }
   function finishVariable() {
@@ -396,12 +551,12 @@ function MessageEditor({ message, names, leadId, onDone }: { message: MessageDat
     if (!n) return;
     const text = valueOf(naming.field);
     setOf(naming.field)(`${text.slice(0, naming.from)}{{${n}}}${text.slice(naming.to)}`);
-    // the words picked were this lead's value: keep them for it
-    if (!names.includes(n)) setLeadVar(leadId, n, naming.words).catch(() => undefined);
+    // words picked from this lead's message were its value: keep them for it
+    if (naming.words && !names.includes(n)) setLeadVar(leadId, n, naming.words).catch(() => undefined);
     setNaming(null);
   }
   function insert(n: string) {
-    const f = last.current;
+    const f = channel === "email" ? last.current : "body";
     const el = fieldOf(f);
     const text = valueOf(f);
     const at = el?.selectionStart ?? text.length;
@@ -411,7 +566,7 @@ function MessageEditor({ message, names, leadId, onDone }: { message: MessageDat
   async function save() {
     setBusy(true);
     setError(null);
-    const res = await updateMessage(message.id, { name, channel, subject, body }).catch(() => ({ error: OFFLINE }));
+    const res = await (message ? updateMessage(message.id, { name, channel, subject, body }) : createMessage(stageId, name, channel, subject, body)).catch(() => ({ error: OFFLINE }));
     setBusy(false);
     if (res.error) return setError(res.error);
     router.refresh();
@@ -419,32 +574,43 @@ function MessageEditor({ message, names, leadId, onDone }: { message: MessageDat
   }
 
   const used = variablesIn([subject, body, ...names.map((n) => `{{${n}}}`)]);
-  const input = "w-full rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover";
 
   return (
-    <div className="fade-in flex flex-col gap-2.5 rounded-xl border border-accent/30 bg-white/[0.02] p-3.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Message name" className={`${input} max-w-60 font-medium`} />
-        <div className="flex gap-1">
-          {MESSAGE_CHANNELS.map((c) => (
-            <button key={c.kind} type="button" aria-pressed={channel === c.kind} onClick={() => setChannel(c.kind)} className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px]">
-              {CHANNEL_ICON[c.kind]} {c.label}
-            </button>
-          ))}
-        </div>
+    <div className={`fade-in flex flex-col gap-2.5 p-4 ring-1 ring-accent/30 ${BLOCK}`}>
+      <div className="flex items-center gap-2">
+        <LayoutTemplate size={13} className="shrink-0 text-accent" />
+        <span className="text-sm font-medium">{message ? "Edit template" : "New template"}</span>
+        <span className="ml-auto text-[11px] text-muted">{message ? "For every lead that hasn't sent it" : "Used by every lead in the stage"}</span>
       </div>
-      {channel === "email" && <input ref={subjectRef} value={subject} onFocus={() => (last.current = "subject")} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={input} />}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {message ? (
+          stage && (
+            <span className="flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs text-foreground">
+              <Dot color={stage.color} /> {stage.name}
+            </span>
+          )
+        ) : (
+          <Dropdown pill={{ icon: stage ? <Dot color={stage.color} /> : null }} value={stageId} placeholder="Stage" options={stages.map((s) => ({ value: s.id, label: s.name }))} onChange={setStageId} />
+        )}
+        <Dropdown pill={{ icon: CHANNEL_ICON[channel] ?? CHANNEL_ICON.other }} value={channel} placeholder="Sent by" options={MESSAGE_CHANNELS.map((c) => ({ value: c.kind, label: c.label }))} onChange={setChannel} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, like Email 2" aria-label="Template name" className="min-w-0 flex-1 bg-transparent px-2 text-sm text-foreground outline-none! placeholder:text-muted/60" />
+      </div>
+
+      {channel === "email" && <input ref={subjectRef} value={subject} onFocus={() => (last.current = "subject")} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={INPUT} />}
       <textarea
         ref={bodyRef}
+        autoFocus={!message}
         value={body}
         onFocus={() => (last.current = "body")}
         onChange={(e) => setBody(e.target.value)}
+        placeholder={"Hi {{Name}},\n\nWrite the message. Words that change from lead to lead become variables."}
         aria-label="Message"
-        className={`${input} field-sizing-content min-h-40 resize-none leading-relaxed`}
+        className={`${INPUT} field-sizing-content min-h-40 resize-none leading-relaxed`}
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={startVariable} className="btn btn-xs btn-glow flex items-center gap-1.5 px-2.5">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={startVariable} title="Select words to turn them into a variable, or add a new one at the cursor" className="btn btn-xs btn-glow flex items-center gap-1.5 px-2.5">
           <Braces size={12} /> Make a variable
         </button>
         {used.length > 0 && <span className="ml-1 text-[11px] text-muted">Insert:</span>}
@@ -459,7 +625,13 @@ function MessageEditor({ message, names, leadId, onDone }: { message: MessageDat
         {naming && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white/[0.03] p-2.5 text-xs">
             <span className="text-muted">
-              Turn <span className="text-foreground">“{naming.words.length > 40 ? `${naming.words.slice(0, 40)}…` : naming.words}”</span> into a variable called
+              {naming.words ? (
+                <>
+                  Turn <span className="text-foreground">“{naming.words.length > 40 ? `${naming.words.slice(0, 40)}…` : naming.words}”</span> into a variable called
+                </>
+              ) : (
+                "Add a variable called"
+              )}
             </span>
             <input
               autoFocus
@@ -478,7 +650,7 @@ function MessageEditor({ message, names, leadId, onDone }: { message: MessageDat
               className="w-32 rounded-md border border-border/60 bg-white/[0.03] px-2 py-1 text-xs text-foreground outline-none focus:border-hover"
             />
             <button type="button" onClick={finishVariable} disabled={!naming.name.trim()} className="btn btn-xs btn-glow px-2.5 disabled:opacity-50">
-              Make it
+              {naming.words ? "Make it" : "Add it"}
             </button>
             <button type="button" onClick={() => setNaming(null)} className="btn btn-xs btn-ghost px-2">
               Cancel
@@ -492,73 +664,42 @@ function MessageEditor({ message, names, leadId, onDone }: { message: MessageDat
           {error}
         </p>
       )}
-      <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-2.5">
-        <p className="text-[11px] text-muted">Saving changes this message for every lead that hasn&apos;t sent it yet.</p>
-        <div className="flex shrink-0 gap-1.5">
+      <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2.5">
+        {message ? (
+          <button type="button" onClick={() => setDeleting(true)} className={`${SMALL_BTN} hover:text-red-300`}>
+            <Trash2 size={12} /> Delete template
+          </button>
+        ) : (
+          <p className="text-[11px] text-muted">Leads fill in their own variables.</p>
+        )}
+        <div className="ml-auto flex shrink-0 gap-1.5">
           <button type="button" onClick={onDone} className="btn btn-sm btn-ghost">
             Cancel
           </button>
-          <button type="button" onClick={save} disabled={busy} className="btn btn-sm btn-glow">
-            {busy ? "Saving…" : "Save for all leads"}
+          <button type="button" onClick={save} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
+            {busy ? "Saving…" : message ? "Save template" : "Add template"}
           </button>
         </div>
       </div>
-    </div>
-  );
-}
+      {message && <p className="text-[11px] text-muted">Leads that already sent it keep what went out, and a lead with its own copy keeps that copy.</p>}
 
-// A new message on a stage
-function AddMessage({ stageId, onAdded }: { stageId: string; onAdded: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [channel, setChannel] = useState("email");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function add() {
-    if (!name.trim()) return;
-    setBusy(true);
-    const res = await createMessage(stageId, name, channel).catch(() => ({ error: OFFLINE }));
-    setBusy(false);
-    if (res.error) return setError(res.error);
-    setName("");
-    setOpen(false);
-    onAdded();
-  }
-
-  if (!open)
-    return (
-      <button type="button" onClick={() => setOpen(true)} className={`${SMALL_BTN} self-start`}>
-        <Plus size={13} /> Add a message
-      </button>
-    );
-  return (
-    <div className="fade-in flex flex-wrap items-center gap-2">
-      <input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            add();
-          } else if (e.key === "Escape") setOpen(false);
-        }}
-        placeholder="Message name, like Email 2"
-        className="w-52 rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm outline-none focus:border-hover"
-      />
-      {MESSAGE_CHANNELS.map((c) => (
-        <button key={c.kind} type="button" aria-pressed={channel === c.kind} onClick={() => setChannel(c.kind)} className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px]">
-          {CHANNEL_ICON[c.kind]} {c.label}
-        </button>
-      ))}
-      <button type="button" onClick={add} disabled={busy || !name.trim()} className="btn btn-xs btn-glow px-2.5 disabled:opacity-50">
-        {busy ? "Adding…" : "Add"}
-      </button>
-      <button type="button" onClick={() => setOpen(false)} className="btn btn-xs btn-ghost px-2">
-        Cancel
-      </button>
-      {error && <p className="w-full text-xs text-red-300">{error}</p>}
+      {message && (
+        <ReasonDialog
+          open={deleting}
+          danger
+          title={`Delete ${message.name}?`}
+          hint="It comes off this stage for every lead. Messages already sent stay on their leads."
+          confirm="Delete template"
+          onCancel={() => setDeleting(false)}
+          onConfirm={async (reason) => {
+            const res = await deleteMessage(message.id, reason).catch(() => ({ error: OFFLINE }));
+            if (res.error) return res.error;
+            setDeleting(false);
+            router.refresh();
+            onDone();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -105,12 +105,15 @@ export type LeadData = {
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
+  // messages rewritten for this lead alone, by message id
+  drafts: Record<string, Draft>;
   stageSince: string;
   createdAt: string;
   // who last changed its details, and when
   editedByName: string | null;
   editedAt: string | null;
 };
+export type Draft = { subject: string; body: string };
 export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
 export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };

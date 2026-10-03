@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { BoardData, FieldKind, Person, SpaceCard, SpaceKind } from "@/lib/space";
+import type { BoardData, Draft, FieldKind, Person, SpaceCard, SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -63,7 +63,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       fields: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, kind: true, onCard: true, required: true, options: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } } } },
       leads: {
         orderBy: { sortOrder: "asc" },
-        select: { id: true, title: true, stageId: true, sortOrder: true, values: true, vars: true, stageSince: true, createdAt: true, editedByName: true, editedAt: true, createdBy: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } } },
+        select: { id: true, title: true, stageId: true, sortOrder: true, values: true, vars: true, drafts: true, stageSince: true, createdAt: true, editedByName: true, editedAt: true, createdBy: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } } },
       },
     },
   });
@@ -84,6 +84,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       assignedTo: l.assignedTo,
       values: (l.values ?? {}) as Record<string, unknown>,
       vars: (l.vars ?? {}) as Record<string, string>,
+      drafts: (l.drafts ?? {}) as Record<string, Draft>,
       stageSince: l.stageSince.toISOString(),
       createdAt: l.createdAt.toISOString(),
       editedByName: l.editedByName,

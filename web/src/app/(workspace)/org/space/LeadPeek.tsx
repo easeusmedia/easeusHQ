@@ -2,28 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CalendarDays,
-  Check,
-  ChevronRight,
-  CircleChevronDown,
-  FileText,
-  Hash,
-  History,
-  Link2,
-  List,
-  MessagesSquare,
-  MoreHorizontal,
-  Pencil,
-  SlidersHorizontal,
-  SquareCheck,
-  Trash2,
-  Type,
-  UserRound,
-  Users,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -31,23 +10,12 @@ import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
 import { CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
-import { Avatar, formatDateTime } from "../../TaskCard";
+import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
+import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import {
-  daysSince,
-  isFilled,
-  missingDetails,
-  moveNeedsReason,
-  type BoardData,
-  type FieldData,
-  type FieldKind,
-  type LeadData,
-  type LeadEventData,
-  type Person,
-  type SentData,
-} from "@/lib/space";
+import { daysSince, isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -59,16 +27,18 @@ const KIND_ICON: Record<FieldKind, LucideIcon> = {
   date: CalendarDays,
   text: Type,
 };
-const ICON_BTN = "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
 
 type Status = "saving" | "saved" | { error: string } | null;
 
-// A lead's window, like a task's: its stage and who has it on top, then its
-// details, today's message, and the rest folded away. Open while `lead` is
-// set; closing (Escape, the backdrop, the ×) calls onClose.
+// A lead's window, built like a task's (TaskDetailsDialog): where it stands
+// and a History switch on top; the name and write-up as plain text; its
+// stage and assignee as chips; then its messages, details and contacts;
+// along the bottom, delete, who added it, and Close. History slides open
+// beside it. Open while `lead` is set; closing calls onClose. Every change
+// saves as it's made.
 export function LeadPeek({
   lead,
   board,
@@ -89,9 +59,13 @@ export function LeadPeek({
   // each opening draws the page afresh, so its editors start from the latest values
   const [opens, setOpens] = useState(0);
   const [wasOpen, setWasOpen] = useState(open);
+  const [history, setHistory] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setOpens((n) => n + 1);
+    if (open) {
+      setOpens((n) => n + 1);
+      setHistory(false);
+    }
   }
 
   useEffect(() => {
@@ -107,9 +81,24 @@ export function LeadPeek({
       {...closeOnBackdrop}
       // only its own closing: a reason prompt inside it closing reaches here too
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
-      className="glass fixed top-1/2 left-1/2 m-0 w-[min(46rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground"
+      // the width eases open with the History panel, as a task's does
+      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
+        history ? "w-[63rem]" : "w-[41rem]"
+      }`}
     >
-      {shown && <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} close={() => ref.current?.close()} onDeleted={onClose} />}
+      {shown && (
+        <LeadPage
+          key={`${shown.id}:${opens}`}
+          lead={shown}
+          open={open}
+          board={board}
+          people={people}
+          history={history}
+          onHistory={() => setHistory((h) => !h)}
+          close={() => ref.current?.close()}
+          onDeleted={onClose}
+        />
+      )}
     </dialog>
   );
 }
@@ -119,6 +108,8 @@ function LeadPage({
   open,
   board,
   people,
+  history,
+  onHistory,
   close,
   onDeleted,
 }: {
@@ -126,6 +117,8 @@ function LeadPage({
   open: boolean;
   board: BoardData;
   people: Person[];
+  history: boolean;
+  onHistory: () => void;
   close: () => void;
   onDeleted: () => void;
 }) {
@@ -160,7 +153,6 @@ function LeadPage({
   // a move that needs a reason (kept while its prompt fades out)
   const [move, setMove] = useState<{ to: string; hint: string; asking: boolean }>({ to: "", hint: "", asking: false });
   const [deleting, setDeleting] = useState(false);
-  const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // the write-up and the record, each time it opens
   useEffect(() => {
@@ -236,8 +228,6 @@ function LeadPage({
     setAssignee(userId);
     run(assignLead(id, userId || null), () => setAssignee(before));
   }
-  const assignOptions = [...(assignee ? [{ value: "", label: "Nobody" }] : []), ...people.map((p) => ({ value: p.id, label: p.name }))];
-  const person = people.find((p) => p.id === assignee) ?? (lead.assignedTo?.id === assignee ? lead.assignedTo : null);
 
   // One stage forward moves at once; anything else asks why first
   const order = board.stages.map((s) => s.id);
@@ -264,7 +254,6 @@ function LeadPage({
     }
   }
 
-
   const missing = missingDetails(board.fields, values);
   const inStage = daysSince(lead.stageSince);
   const fieldName = (f: FieldData) => (
@@ -279,156 +268,168 @@ function LeadPage({
     />
   );
 
-  // what the folded sections say while closed
+  // what the folded blocks say while closed
   const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
   const filled = fieldsShown.filter((f) => isFilled(f.kind, values[f.id])).length;
+  const detailsMissing = missing.some((m) => fieldsShown.some((f) => f.name === m));
   const contactField = board.fields.find((f) => f.kind === "contacts");
   const contacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as unknown[]).length : 0;
 
   return (
-    <div className="flex max-h-[88vh] flex-col">
-      {/* the stage, who added it and how long it has been there; then the menu */}
-      <div className="flex shrink-0 items-center gap-2 px-5 pt-4 sm:px-6">
-        <Menu
-          height={340}
-          width={280}
-          label="Stage"
-          buttonClassName="rounded-full"
-          button={stage ? <StagePill name={stage.name} color={stage.color} /> : <span className="text-xs text-muted">No stage</span>}
-        >
-          {(closeMenu) => (
-            <>
-              <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-muted/80">One stage forward moves at once. Anything else asks why.</p>
-              <div className="max-h-72 overflow-y-auto">
-                {board.stages.map((s, i) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      closeMenu();
-                      pickStage(s.id);
-                    }}
-                    className="menu-item px-2 py-1.5 text-xs"
-                  >
-                    <StagePill name={s.name} color={s.color} />
-                    {s.id === stageId ? (
-                      <Check size={13} className="ml-auto shrink-0 text-accent" />
-                    ) : (
-                      i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[11px] text-muted">Next</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </Menu>
-        <Dropdown
-          size="sm"
-          pill={{ icon: person ? <Avatar name={person.name} size={16} presence={false} /> : <UserRound size={12} className="text-muted" /> }}
-          value={assignee}
-          placeholder="Assign"
-          options={assignOptions}
-          onChange={assign}
-        />
-        <span className="min-w-0 flex-1 truncate text-xs text-muted">{inStage === 0 ? "Moved here today" : `${inStage}d in this stage`}</span>
-        {status === "saving" && <span className="shrink-0 text-[11px] text-muted">Saving…</span>}
-        {status === "saved" && (
-          <span className="fade-in flex shrink-0 items-center gap-1 text-[11px] text-muted">
-            <Check size={12} /> Saved
-          </span>
-        )}
-        {status && typeof status === "object" && (
-          <span role="alert" className="fade-in min-w-0 text-right text-xs text-red-300">
-            {status.error}
-          </span>
-        )}
-        <Menu height={48} width={200} align="end" popup="menu" label="More" buttonClassName={ICON_BTN} button={<MoreHorizontal size={16} />}>
-          {(closeMenu) => (
-            <button
-              type="button"
-              onClick={() => {
-                closeMenu();
-                setDeleting(true);
-              }}
-              className="menu-item px-2.5 py-2 text-xs text-rose-300! hover:text-rose-200!"
-            >
-              <Trash2 size={14} /> Delete lead
-            </button>
-          )}
-        </Menu>
-        <button type="button" onClick={close} aria-label="Close" title="Close" className={ICON_BTN}>
-          <X size={16} />
+    <>
+      {/* where it stands, and the History switch */}
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+        <p className="min-w-0 truncate pt-1 text-xs text-muted">
+          {board.name} · {inStage === 0 ? "Moved to this stage today" : `${inStage} ${inStage === 1 ? "day" : "days"} in this stage`}
+        </p>
+        <button type="button" onClick={onHistory} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
+          <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
+          History
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-3 pb-6 sm:px-6">
-        {/* the name, renamed in place; the pencil says so and focuses it */}
-        <div className="group/title flex items-start gap-2">
-          <textarea
-            ref={titleRef}
-            rows={1}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder="Untitled lead"
-            aria-label="Lead name"
-            className="field-sizing-content block w-full resize-none bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
-          />
-          <button type="button" onClick={() => titleRef.current?.focus()} aria-label="Rename lead" title="Rename" className="mt-1 shrink-0 rounded-md p-1 text-muted opacity-45 transition-opacity group-hover/title:opacity-100 hover:text-foreground">
-            <Pencil size={13} />
-          </button>
-        </div>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-          <span>
-            Added by {lead.createdBy.name} on {dateOf(lead.createdAt)}
-          </span>
-          {lead.editedByName && lead.editedAt && <span>· Last edited by {lead.editedByName}, {formatDateTime(lead.editedAt)}</span>}
-        </p>
-        {missing.length > 0 && <p className="fade-in mt-2 text-xs text-red-300">Missing: {missing.join(", ")}</p>}
-
-        {/* the details first; open while some are missing */}
-        <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={missing.some((m) => fieldsShown.some((f) => f.name === m))} defaultOpen={missing.some((m) => fieldsShown.some((f) => f.name === m))}>
-          <div className="flex flex-col">
-            {fieldsShown.map((f) => (
-              <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)} missing={f.required && !isFilled(f.kind, values[f.id])}>
-                <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
-              </Row>
-            ))}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex w-[39rem] min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1">
+          {/* the name and the write-up, as plain text, like a task's title and notes */}
+          <div className="flex flex-col gap-1.5">
+            <textarea
+              rows={1}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Podcast name"
+              aria-label="Lead name"
+              className="field-sizing-content block w-full resize-none bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
+            />
+            <textarea
+              value={notes ?? ""}
+              disabled={notes === null}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={saveNotes}
+              placeholder={notes === null ? "Loading…" : "Write-up: what the show does, the gap you spotted…"}
+              aria-label="Write-up"
+              rows={1}
+              className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm leading-relaxed text-foreground/90 outline-none! placeholder:text-muted/60 disabled:opacity-60"
+            />
           </div>
-        </Fold>
 
-        {contactField && (
-          <Fold icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}>
-            <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
-          </Fold>
-        )}
+          {/* its stage and who has it, as chips */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Menu
+                height={340}
+                width={280}
+                label="Stage"
+                buttonClassName={chip(true)}
+                button={
+                  <>
+                    <span className={`size-2 shrink-0 rounded-full ${stage ? toneOf(stage.color).dot : "bg-neutral-400"}`} />
+                    <span className="max-w-56 truncate">{stage?.name ?? "No stage"}</span>
+                  </>
+                }
+              >
+                {(closeMenu) => (
+                  <>
+                    <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-muted/80">One stage forward moves at once. Anything else asks why.</p>
+                    <div className="max-h-72 overflow-y-auto">
+                      {board.stages.map((s, i) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            closeMenu();
+                            pickStage(s.id);
+                          }}
+                          className="menu-item px-2 py-1.5 text-xs"
+                        >
+                          <StagePill name={s.name} color={s.color} />
+                          {s.id === stageId ? (
+                            <Check size={13} className="ml-auto shrink-0 text-accent" />
+                          ) : (
+                            i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[11px] text-muted">Next</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </Menu>
+              <Dropdown
+                pill={{ icon: <User size={12} className="text-emerald-400" /> }}
+                value={assignee}
+                placeholder="Assignee"
+                onChange={assign}
+                options={[{ value: "", label: "Unassigned" }, ...people.map((p) => ({ value: p.id, label: p.name })), ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : [])]}
+              />
+            </div>
+            {missing.length > 0 && <p className="fade-in px-1 text-xs text-red-300">Missing: {missing.join(", ")}</p>}
+          </div>
 
-        {/* today's message to send; every other stage's folds away inside */}
-        <Section icon={MessagesSquare} title="Today's message">
+          {/* the message to send, first */}
           <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
-        </Section>
 
-        <Fold icon={FileText} title="Write-up" summary={notes ? notes.trim().split("\n")[0].slice(0, 60) || "Empty" : "Empty"}>
-          <textarea
-            value={notes ?? ""}
-            disabled={notes === null}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={saveNotes}
-            placeholder={notes === null ? "Loading…" : "What the show does, the gap you spotted, message drafts…"}
-            aria-label="Write-up"
-            className="field-sizing-content block min-h-28 w-full resize-none rounded-xl border border-border/60 bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground/90 outline-none transition-colors placeholder:text-muted/50 focus:border-hover disabled:opacity-60"
-          />
-        </Fold>
+          {/* its details, open while some are missing */}
+          <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={detailsMissing} defaultOpen={detailsMissing}>
+            <div className="flex flex-col">
+              {fieldsShown.map((f) => (
+                <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)} missing={f.required && !isFilled(f.kind, values[f.id])}>
+                  <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
+                </Row>
+              ))}
+            </div>
+          </Fold>
 
-        <Section icon={History} title="History">
-          {events ? <LeadHistory events={events} /> : <p className="px-1 text-xs text-muted">Loading the record…</p>}
-        </Section>
+          {contactField && (
+            <Fold icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}>
+              <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
+            </Fold>
+          )}
+        </div>
+
+        {/* beside it, the same height: every stage it has been through */}
+        <div
+          inert={!history}
+          className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"}`}
+        >
+          <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
+            <p className="shrink-0 text-xs font-medium text-muted">Every stage this lead has been through</p>
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-xl panel-soft p-4">{events ? <LeadHistory events={events} flat /> : <p className="text-xs text-muted">Loading the record…</p>}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* along the bottom: delete, who added it, Close */}
+      <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border pt-3">
+        <button type="button" onClick={() => setDeleting(true)} aria-label="Delete lead" title="Delete lead" className="shrink-0 rounded-md p-1.5 text-muted hover:text-red-400">
+          <Trash2 size={14} />
+        </button>
+        <p className="min-w-0 flex-1 truncate text-xs text-muted">
+          {status === "saving" ? (
+            "Saving…"
+          ) : status === "saved" ? (
+            <span className="fade-in inline-flex items-center gap-1">
+              <Check size={12} /> Saved
+            </span>
+          ) : status && typeof status === "object" ? (
+            <span role="alert" className="text-red-300">
+              {status.error}
+            </span>
+          ) : (
+            <>
+              Added {dateOf(lead.createdAt)} by {lead.createdBy.name}
+              {lead.editedByName && lead.editedAt && <> · edited by {lead.editedByName}, {formatDateTime(lead.editedAt)}</>}
+            </>
+          )}
+        </p>
+        <button type="button" onClick={close} className="btn btn-ghost shrink-0">
+          Close
+        </button>
       </div>
 
       <ReasonDialog
@@ -461,7 +462,7 @@ function LeadPage({
           router.refresh();
         }}
       />
-    </div>
+    </>
   );
 }
 
@@ -480,23 +481,12 @@ function Row({ icon: Icon, label, missing = false, children }: { icon: LucideIco
   );
 }
 
-function Section({ icon: Icon, title, children }: { icon: LucideIcon; title: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="mt-6">
-      <h3 className="mb-2.5 flex items-center gap-2 px-1 text-xs font-medium text-muted">
-        <Icon size={14} className="shrink-0" />
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-// A section kept shut until it's wanted: its name and a one-line summary
+// A block kept shut until it's wanted: its name and a one-line summary.
+// The same soft fill as a task's links block.
 function Fold({ icon: Icon, title, summary, missing = false, defaultOpen = false, children }: { icon: LucideIcon; title: React.ReactNode; summary: string; missing?: boolean; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="mt-3 rounded-xl border border-border/60">
+    <section className="rounded-xl bg-foreground/[0.03]">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
         <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
         <Icon size={14} className="shrink-0 text-muted" />

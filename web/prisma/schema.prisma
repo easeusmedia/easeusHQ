@@ -1226,6 +1226,9 @@ model Lead {
   notes        String      @default("") @db.Text
   // its messages' variables, by name: { "Guest": "Steven Bartlett" }
   vars         Json        @default("{}")
+  // a message rewritten for this lead alone, by message id: { subject, body }.
+  // It keeps its own wording when the stage's template changes.
+  drafts       Json        @default("{}")
   createdById  String
   createdBy    User        @relation("LeadsCreated", fields: [createdById], references: [id])
   // when it reached its stage ("3 days in Day 2")

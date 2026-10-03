@@ -27,9 +27,11 @@ function Stage({ name }: { name: string }) {
 }
 
 // A lead's record, like a task's: the gist in one line, and what happened
-// opening from it, in order. Events come newest first.
-export function LeadHistory({ events }: { events: LeadEventData[] }) {
-  const [open, setOpen] = useState(false);
+// opening from it, in order (or just what happened, when `flat`, as in the
+// lead window's side panel). Events come newest first.
+export function LeadHistory({ events, flat = false }: { events: LeadEventData[]; flat?: boolean }) {
+  const [opened, setOpen] = useState(false);
+  const open = flat || opened;
   if (!events.length) return <p className="px-1 text-xs text-muted">Nothing recorded yet.</p>;
 
   const created = events.find((e) => e.kind === "created");
@@ -46,6 +48,7 @@ export function LeadHistory({ events }: { events: LeadEventData[] }) {
 
   return (
     <div>
+      {!flat && (
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -58,8 +61,9 @@ export function LeadHistory({ events }: { events: LeadEventData[] }) {
           <ChevronDown size={13} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
         </span>
       </button>
+      )}
       <Reveal open={open}>
-        <ol className="px-1 pt-4">
+        <ol className={flat ? "" : "px-1 pt-4"}>
           {list.map((e, i) => {
             const { icon: Icon, tone } = KIND[e.kind] ?? KIND.edited;
             return (

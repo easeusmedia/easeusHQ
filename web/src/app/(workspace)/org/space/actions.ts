@@ -665,19 +665,23 @@ async function messageWithBoard(id: string) {
   });
 }
 
-// A new message on a stage, for anyone working the board
-export async function createMessage(stageId: string, name: string, channel: string): Promise<Done & { message?: MessageData }> {
+// A new message template on a stage, written in full, for anyone working
+// the board. Left unnamed, it's named after where it's sent ("Email 2").
+export async function createMessage(stageId: string, name: string, channel: string, subject = "", body = ""): Promise<Done & { message?: MessageData }> {
   const stage = await boardOfStage(stageId);
   if (!stage) return { error: "That stage no longer exists." };
   const who = await whoFor(stage.board.teamId);
   if ("error" in who) return who;
-  const n = cleanName(name, "the message a name");
-  if (typeof n !== "string") return n;
   if (!isChannel(channel)) return { error: "Pick where it's sent." };
+  if (!String(body ?? "").trim()) return { error: "Write the message first." };
+  const label = MESSAGE_CHANNELS.find((c) => c.kind === channel)!.label;
+  const count = await prisma.stageMessage.count({ where: { stageId, channel } });
+  const n = cleanName(String(name ?? "").trim() || `${label} ${count + 1}`, "the message a name");
+  if (typeof n !== "string") return n;
   try {
     const last = await prisma.stageMessage.aggregate({ where: { stageId }, _max: { sortOrder: true } });
     const m = await prisma.stageMessage.create({
-      data: { stageId, name: n, channel, sortOrder: (last._max.sortOrder ?? 0) + 1 },
+      data: { stageId, name: n, channel, subject: String(subject ?? "").slice(0, 300), body: String(body).slice(0, 20_000), sortOrder: (last._max.sortOrder ?? 0) + 1 },
       select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true },
     });
     return { message: m };
@@ -750,6 +754,29 @@ export async function setLeadVar(id: string, name: string, value: string): Promi
   }
 }
 
+// One message rewritten for this lead alone; null goes back to the template.
+// The stage's template changing later leaves this copy as it is.
+export async function setLeadDraft(id: string, messageId: string, draft: { subject: string; body: string } | null): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  const key = String(messageId ?? "");
+  if (!key) return { error: "That message no longer exists." };
+  try {
+    if (!draft) await prisma.$executeRaw`UPDATE "Lead" SET "drafts" = "drafts" - ${key}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    else {
+      const body = String(draft.body ?? "").slice(0, 20_000);
+      if (!body.trim()) return { error: "The message can't be empty." };
+      const v = { subject: String(draft.subject ?? "").slice(0, 300), body };
+      await prisma.$executeRaw`UPDATE "Lead" SET "drafts" = jsonb_set(coalesce("drafts", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    }
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
 // A stage's message as it goes out to this lead, frozen once marked sent:
 // later edits to the stage's wording never change it
 export async function markSent(leadId: string, messageId: string): Promise<Done & { sent?: SentData }> {
@@ -760,12 +787,14 @@ export async function markSent(leadId: string, messageId: string): Promise<Done 
   if ("error" in who) return who;
   try {
     const [full, fields] = await Promise.all([
-      prisma.lead.findUniqueOrThrow({ where: { id: leadId }, select: { title: true, values: true, vars: true } }),
+      prisma.lead.findUniqueOrThrow({ where: { id: leadId }, select: { title: true, values: true, vars: true, drafts: true } }),
       prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
     ]);
     const vars = leadVars({ title: full.title, values: (full.values ?? {}) as Record<string, unknown>, vars: (full.vars ?? {}) as Record<string, string> }, fields as { id: string; kind: "contacts" }[]);
-    const subject = fillText(m.subject, vars);
-    const body = fillText(m.body, vars);
+    // this lead's own copy, if it has one, else the template filled in
+    const own = ((full.drafts ?? {}) as Record<string, { subject: string; body: string }>)[messageId];
+    const subject = fillText(own ? own.subject : m.subject, vars);
+    const body = fillText(own ? own.body : m.body, vars);
     const missing = [...new Set([...`${subject}\n${body}`.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((x) => x[1]))];
     if (missing.length) return { error: `Fill in ${missing.join(", ")} first.` };
     const sent = await prisma.sentMessage.create({ data: { leadId, messageId, stageName: m.stage.name, name: m.name, channel: m.channel, subject, body, byId: who.id, byName: who.name } });
