@@ -23,6 +23,8 @@ import { PeopleProvider } from "./photos";
 import { ACTIVE_WINDOW_MS } from "./presence/constants";
 import { clientLogoSrc } from "@/lib/photos";
 import { liveLine } from "@/lib/live";
+import { overdueToAnswer } from "@/lib/taskTrack";
+import { OverdueLock } from "./OverdueLock";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   // read server-side so the very first paint already matches the user's
@@ -61,6 +63,16 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const viewAsPeople =
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
+  // a Level 2 or 3 who left an overdue notice unanswered for over a day sees
+  // only that until each task has a new date and a reason (Level 1 never)
+  const toAnswer = realUser && !viewingAs && realUser.role !== "admin" && !isFounder(realUser) ? await overdueToAnswer(realUser.id).catch(() => []) : [];
+  if (toAnswer.length)
+    return (
+      <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
+        <OverdueLock items={toAnswer} logout={logout} />
+      </div>
+    );
+
   // Founders and Leads run things; Members do their own work
   const isOps = !isMember(viewer);
   const contractsWaiting = isOps ? draftContracts : 0;
@@ -76,13 +88,13 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const [noticesWaiting, spaces] = await Promise.all([
     // notices they haven't seen yet: a number on Home, like unread chat
     prisma.notice.count({ where: { forId: viewer.id, readAt: null } }).catch(() => 0),
-    // each department's sections and their portals, nested under it in the sidebar
+    // each department's portals (and any older sections with theirs), nested under it in the sidebar
     spaceTree(departments.map((d) => d.id)).catch(() => []),
   ]);
   const departmentTree = departments.map((d) => ({
     ...d,
     children: spaces
-      .filter((s) => s.teamId === d.id && s.kind === "section")
+      .filter((s) => s.teamId === d.id && s.parentId === null)
       .map((s) => ({
         id: s.id,
         slug: s.slug,

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ordinal, overdueAudience, overdueText } from "./overdue.ts";
+import { needsAnswer, ordinal, overdueAudience, overdueText } from "./overdue.ts";
 
 test("Level 3: their Level 2 hears every time; Level 1 from the third", () => {
   assert.deepEqual(overdueAudience(1, "employee"), { leads: true, levelOne: false });
@@ -27,4 +27,14 @@ test("overdue notices: clear, firmer as they repeat, always courteous", () => {
   assert.equal(lead(1), 'Narendra\'s task "Golden Pill" was due on 29 Sep and isn\'t finished yet. Please check in with Narendra and help get it back on track.');
   assert.match(lead(2), /It has slipped twice\. Please check in/);
   assert.equal(overdueText({ title: "X", due: null, strike: 1, owner: null, toOwner: false }), 'A task "X" was due and isn\'t finished yet. Please check in and help get it back on track.');
+});
+
+test("an overdue notice locks the app once it's a day old and still about the same date", () => {
+  const due = new Date("2026-10-01");
+  const noticeAt = new Date("2026-10-02T03:00:00Z");
+  const t = { dueDate: due, overdueFor: due, noticeAt };
+  assert.equal(needsAnswer(t, new Date("2026-10-02T20:00:00Z")), false); // under a day
+  assert.equal(needsAnswer(t, new Date("2026-10-03T03:00:01Z")), true); // over a day
+  assert.equal(needsAnswer({ ...t, dueDate: new Date("2026-10-05") }, new Date("2026-10-04T00:00:00Z")), false); // moved since
+  assert.equal(needsAnswer({ ...t, noticeAt: null }, new Date("2026-10-04T00:00:00Z")), false); // never told
 });

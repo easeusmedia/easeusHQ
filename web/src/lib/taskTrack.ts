@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { dayOf, shortDay } from "./editorKpi";
 import { isFounder, type Viewer } from "./scope";
 import { ACTIVE_STATUSES } from "./workflow";
-import { overdueAudience, overdueText } from "./overdue.ts";
+import { needsAnswer, overdueAudience, overdueText } from "./overdue.ts";
 import { departmentFromTitle } from "./department.ts";
 
 // The record every task keeps, whichever kind it is (a client Task or a
@@ -117,6 +117,38 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
   }
   await prisma.appSetting.upsert({ where: { key: SWEPT }, create: { key: SWEPT, value: today }, update: { value: today } });
   return counted;
+}
+
+// Someone's own tasks whose overdue notice is over a day old and still
+// unanswered (lib/overdue.ts needsAnswer): each needs a new date and a reason
+// before the app opens for them again
+export type ToAnswer = { kind: "task" | "work"; id: string; title: string; due: string; strikes: number; client: string | null };
+export async function overdueToAnswer(userId: string, now = new Date()): Promise<ToAnswer[]> {
+  const notices = await prisma.notice.findMany({ where: { forId: userId, kind: "overdue" }, select: { taskId: true, workTaskId: true, createdAt: true } });
+  if (!notices.length) return [];
+  // the latest notice each task had
+  const latest = new Map<string, Date>();
+  for (const n of notices) {
+    const k = n.taskId ?? n.workTaskId;
+    if (k && (latest.get(k)?.getTime() ?? 0) < n.createdAt.getTime()) latest.set(k, n.createdAt);
+  }
+  const before = new Date(`${dayOf(now)}T00:00:00+05:30`);
+  // a client task is whoever it's assigned to (else whoever made it); a to-do always has someone
+  const theirs = { OR: [{ assignedToId: userId }, { assignedToId: null, createdById: userId }] };
+  const ids = (key: "taskId" | "workTaskId") => notices.flatMap((n) => (n[key] ? [n[key]] : []));
+  const [tasks, todos] = await Promise.all([
+    prisma.task.findMany({
+      where: { id: { in: ids("taskId") }, ...theirs, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } },
+      select: { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, project: { select: { client: { select: { name: true } } } } },
+    }),
+    prisma.workTask.findMany({
+      where: { id: { in: ids("workTaskId") }, assignedToId: userId, status: { not: "done" }, dueDate: { lt: before } },
+      select: { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, project: { select: { client: { select: { name: true } } } } },
+    }),
+  ]);
+  return [...tasks.map((t) => ({ ...t, kind: "task" as const })), ...todos.map((t) => ({ ...t, kind: "work" as const }))]
+    .filter((t) => needsAnswer({ ...t, noticeAt: latest.get(t.id) ?? null }, now))
+    .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null }));
 }
 
 const SWEPT = "overdue.sweptOn";

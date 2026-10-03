@@ -3,7 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflowOf, type Role, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
-import { destroySession, getSessionUserId, requireOps } from "@/lib/auth";
+import { destroySession, getRealUserId, getSessionUserId, requireOps } from "@/lib/auth";
+import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deleteWithRecord, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
@@ -947,4 +948,28 @@ export async function copyFrameioFileToDrive(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't copy that file." };
   }
+}
+
+// Answering an overdue notice from the lock (lib/taskTrack overdueToAnswer):
+// a new completion date, today or later, and the reason, on a task that's
+// the person's own. The move is kept like any other, and the task's overdue
+// notices count as read.
+export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
+  const meId = await getRealUserId();
+  if (!meId) return { error: "Your session has ended. Please sign in again." };
+  const why = reason.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < dayOf(new Date())) return { error: "Pick today or a later day." };
+  if (!why) return { error: "Add a short reason." };
+  const select = { dueDate: true, strikes: true, assignedToId: true, createdById: true } as const;
+  const row = kind === "task" ? await prisma.task.findUnique({ where: { id }, select }) : await prisma.workTask.findUnique({ where: { id }, select });
+  if (!row || (row.assignedToId ?? row.createdById) !== meId) return { error: "That task isn't yours to move." };
+  const due = new Date(day);
+  if (kind === "task") await prisma.task.update({ where: { id }, data: { dueDate: due } });
+  else await prisma.workTask.update({ where: { id }, data: { dueDate: due } });
+  await Promise.all([
+    recordDateChange({ kind, id }, row.dueDate, due, why, meId, row.strikes),
+    prisma.notice.updateMany({ where: { forId: meId, kind: "overdue", readAt: null, ...(kind === "task" ? { taskId: id } : { workTaskId: id }) }, data: { readAt: new Date() } }),
+  ]);
+  revalidatePath("/", "layout");
+  return {};
 }

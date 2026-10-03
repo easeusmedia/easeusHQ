@@ -28,3 +28,14 @@ export function overdueText({ title, due, strike, owner, toOwner }: { title: str
   const slipped = strike === 1 ? "" : ` It has slipped ${strike === 2 ? "twice" : `${strike} times`}.`;
   return `${name ? `${name}'s task` : "A task"} "${title}" ${was}${slipped} Please check in${name ? ` with ${name}` : ""} and help get it back on track.`;
 }
+
+// A Level 2 or 3 has a day to answer an overdue notice (a new date and a
+// reason). Past that, while the task is still past the date the notice was
+// about, the app is locked for them until they do.
+export const ANSWER_WITHIN_MS = 24 * 60 * 60 * 1000;
+export function needsAnswer(t: { dueDate: Date | null; overdueFor: Date | null; noticeAt: Date | null }, now: Date): boolean {
+  if (!t.dueDate || !t.overdueFor || !t.noticeAt) return false;
+  // a date moved since the notice is a new date, not the one it was about
+  if (t.overdueFor.getTime() !== t.dueDate.getTime()) return false;
+  return now.getTime() - t.noticeAt.getTime() > ANSWER_WITHIN_MS;
+}
