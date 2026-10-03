@@ -8,8 +8,8 @@ export type SpaceNode = { id: string; teamId: string; parentId: string | null; k
 
 const NODE = { id: true, teamId: true, parentId: true, kind: true, name: true, slug: true } as const;
 
-// The pages a path names under a department: ["outreach", "podcast"] →
-// [Outreach, Podcast]. null if any step doesn't exist, or it goes past a
+// The pages a path names under a department: ["podcast"] →
+// [Podcast]. null if any step doesn't exist, or it goes past a
 // portal (boards are picked on the portal's page, not by path).
 export async function resolvePath(teamId: string, path: string[]): Promise<SpaceNode[] | null> {
   if (!path.length || path.length > 2) return null;

@@ -27,7 +27,13 @@ export default async function SpacePage({
   const team = (await visibleDepartments(viewer)).find((d) => d.slug === slug);
   if (!team) notFound();
   const nodes = await resolvePath(team.id, path);
-  if (!nodes) notFound();
+  if (!nodes) {
+    // an old link through a section that's gone (Sales > Outreach > Podcast): the portal moved up
+    const moved = path.length === 2 && (await resolvePath(team.id, path.slice(1)));
+    if (!moved) notFound();
+    const keep = new URLSearchParams(Object.entries(query).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : [])));
+    redirect(`/org/${slug}/${path[1]}${keep.size ? `?${keep}` : ""}`);
+  }
 
   const node = nodes[nodes.length - 1];
   const home = `/org/${slug}`;

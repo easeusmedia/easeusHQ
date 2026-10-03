@@ -4,14 +4,14 @@ import { buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../departments";
 import { DepartmentHead } from "../DepartmentHead";
 import { ProductionBoard } from "../ProductionBoard";
-import { childCards } from "../space/data";
+import { childCards, templatesOf } from "../space/data";
 import { SpaceGrid } from "../space/SpaceGrid";
 
 export const dynamic = "force-dynamic";
 
 // A department's own page. Production's is its board (Video editing and
-// Graphic design); the rest are their sections, each opening onto its
-// portals. Only for the people in it (Level 1: every one).
+// Graphic design); the rest are their portals (Sales: Podcast), each
+// opening onto its boards. Only for the people in it (Level 1: every one).
 export default async function DepartmentPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ scope?: string }> }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
@@ -22,7 +22,7 @@ export default async function DepartmentPage({ params, searchParams }: { params:
   if (slug === "production") return <ProductionBoard scope={(await searchParams).scope} name={department.name} />;
 
   const base = `/org/${slug}`;
-  const cards = await childCards(department.id, null, base);
+  const [cards, templates] = await Promise.all([childCards(department.id, null, base), templatesOf(department.id, "portal")]);
   return (
     <>
       <DepartmentHead name={department.name} />
@@ -30,11 +30,11 @@ export default async function DepartmentPage({ params, searchParams }: { params:
         <h1 className="text-2xl font-semibold tracking-tight">{department.name}</h1>
         {cards.length > 0 && (
           <p className="mt-1.5 text-sm text-muted">
-            {cards.length} {cards.length === 1 ? "section" : "sections"}, each with its own portals and boards.
+            {cards.length} {cards.length === 1 ? "portal" : "portals"}, each with its own boards.
           </p>
         )}
       </header>
-      <SpaceGrid teamId={department.id} parentId={null} kind="section" base={base} cards={cards} canBuild={buildsDepartment(viewer, department.id)} />
+      <SpaceGrid teamId={department.id} parentId={null} kind="portal" base={base} cards={cards} canBuild={buildsDepartment(viewer, department.id)} templates={templates} />
     </>
   );
 }

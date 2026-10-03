@@ -1,4 +1,4 @@
-// Sales > Outreach > Podcast, with Notion's Dream 156 board, in the one live
+// Sales > Podcast, with Notion's Dream 156 board, in the one live
 // database; plus a few sample leads copied from Notion to try it with.
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts setup
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts sample <json>
@@ -7,10 +7,13 @@
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts messages
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts sync
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts split
+//   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts flatten
 // tidy trims a board first copied whole from Notion to what outreach uses;
 // messages puts the sequence's messages on any stage that has none;
 // sync rewrites every stage's messages from the sequence; split makes a
-// day sent on two platforms into one stage per platform.
+// day sent on two platforms into one stage per platform; flatten moves
+// Podcast up out of the old Outreach section and adds the Amplifier and Core
+// boards beside Dream 156.
 // setup can run again safely: a page already there (same parent and slug) is
 // left exactly as it is, so nobody's edits are undone. sample skips a lead
 // whose title is already on the board; remove-sample deletes only the copies it made.
@@ -62,8 +65,7 @@ async function ensure(teamId: string, parentId: string | null, kind: SpaceKind, 
 async function setup() {
   const team = await salesTeam();
   const me = await prisma.user.findUnique({ where: { email: ME }, select: { id: true } });
-  const section = await ensure(team.id, null, "section", "Outreach", me?.id ?? null);
-  const portal = await ensure(team.id, section, "portal", "Podcast", me?.id ?? null);
+  const portal = await ensure(team.id, null, "portal", "Podcast", me?.id ?? null);
   await ensure(team.id, portal, "board", DREAM_156.name, me?.id ?? null, async (tx, boardId) => {
     await tx.boardStage.createMany({ data: DREAM_156.stages.map((s, i) => ({ boardId, name: s.name, color: s.color, sortOrder: i + 1 })) });
     for (const [i, f] of DREAM_156.fields.entries()) {
@@ -79,8 +81,7 @@ async function setup() {
 // The Dream 156 board setup made, with its stages and properties
 async function findBoard() {
   const team = await salesTeam();
-  const section = await prisma.space.findFirst({ where: { teamId: team.id, parentId: null, slug: "outreach" }, select: { id: true } });
-  const portal = section && (await prisma.space.findFirst({ where: { teamId: team.id, parentId: section.id, slug: "podcast" }, select: { id: true } }));
+  const portal = await prisma.space.findFirst({ where: { teamId: team.id, slug: "podcast", kind: "portal" }, select: { id: true } });
   const board =
     portal &&
     (await prisma.space.findFirst({
@@ -294,7 +295,45 @@ async function tidy() {
   }
 }
 
+// A board's stages (with their messages) and properties, copied onto a new one
+async function copyInto(tx: Prisma.TransactionClient, fromId: string, boardId: string) {
+  const from = await tx.space.findUniqueOrThrow({
+    where: { id: fromId },
+    select: {
+      stages: { select: { name: true, color: true, sortOrder: true, messages: { select: { name: true, channel: true, subject: true, body: true, note: true, sortOrder: true } } } },
+      fields: { select: { name: true, kind: true, onCard: true, required: true, sortOrder: true, options: { select: { name: true, color: true, sortOrder: true } } } },
+    },
+  });
+  for (const { messages, ...st } of from.stages) {
+    const stage = await tx.boardStage.create({ data: { ...st, boardId }, select: { id: true } });
+    if (messages.length) await tx.stageMessage.createMany({ data: messages.map((m) => ({ ...m, stageId: stage.id })) });
+  }
+  for (const { options, ...f } of from.fields) {
+    const field = await tx.boardField.create({ data: { ...f, boardId }, select: { id: true } });
+    if (options.length) await tx.fieldOption.createMany({ data: options.map((o) => ({ ...o, fieldId: field.id })) });
+  }
+}
+
+// Sales opens straight onto its portals: Podcast moves up out of the old
+// Outreach section (removed once empty), and gets Amplifier and Core boards
+// beside Dream 156, each with its stages, properties and messages
+async function flatten() {
+  const team = await salesTeam();
+  const me = await prisma.user.findUniqueOrThrow({ where: { email: ME }, select: { id: true } });
+  const section = await prisma.space.findFirst({ where: { teamId: team.id, parentId: null, slug: "outreach", kind: "section" }, select: { id: true } });
+  if (section) {
+    const inside = await prisma.space.findMany({ where: { parentId: section.id }, select: { slug: true } });
+    const clash = await prisma.space.findFirst({ where: { teamId: team.id, parentId: null, slug: { in: inside.map((p) => p.slug) } }, select: { name: true } });
+    if (clash) throw new Error(`"${clash.name}" is already on Sales itself. Nothing was changed.`);
+    await prisma.$transaction([prisma.space.updateMany({ where: { parentId: section.id }, data: { parentId: null } }), prisma.space.delete({ where: { id: section.id } })]);
+    console.log(`Moved up to Sales: ${inside.map((p) => p.slug).join(", ")}; Outreach removed`);
+  }
+  const { board } = await findBoard();
+  const { parentId } = await prisma.space.findUniqueOrThrow({ where: { id: board.id }, select: { parentId: true } });
+  for (const name of ["Amplifier", "Core"]) await ensure(team.id, parentId, "board", name, me.id, (tx, id) => copyInto(tx, board.id, id));
+}
+
 const [mode, path] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
-const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, sync, split, rename };
+const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, sync, split, rename, flatten };
 await (modes[mode]?.() ?? Promise.reject(new Error(`Say one of: ${Object.keys(modes).join(", ")}.`)));
 await prisma.$disconnect();

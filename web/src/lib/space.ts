@@ -1,5 +1,6 @@
-// A department's own pages, Notion-style (prisma Space): sections hold
-// portals, portals hold boards, a board is a database of leads moving
+// A department's own pages, Notion-style (prisma Space): a department holds
+// portals (sections, a layer between, are no longer made), portals hold
+// boards, a board is a database of leads moving
 // through its stages, with properties every lead records. The rules here are
 // pure, so the server enforces them and the client can preview them.
 
@@ -7,7 +8,7 @@ export type SpaceKind = "section" | "portal" | "board";
 
 // What each level is called, and what it holds
 export const CHILD_OF: Record<"department" | "section" | "portal", SpaceKind> = {
-  department: "section",
+  department: "portal",
   section: "portal",
   portal: "board",
 };
