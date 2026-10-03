@@ -69,10 +69,11 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
   const otherCount = others.reduce((n, st) => n + board.messages.filter((m) => m.stageId === st.id).length, 0);
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
-  const blanks = names.filter((n) => !vars[n]);
-  // where the sequence picks up, for a stage with nothing to send
-  const here = board.stages.findIndex((s) => s.id === stageId);
-  const next = board.stages.slice(here + 1).find((s) => board.messages.some((m) => m.stageId === s.id));
+  // a stage with nothing to send shows no messages at all
+  if (!current.length) return null;
+  // the variables this stage's message uses, and which are still blank
+  const used = variablesIn(current.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
+  const blanks = used.filter((n) => !vars[n]);
 
   const card = (m: MessageData) => (
     <MessageCard
@@ -109,18 +110,7 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       )}
 
       {/* this stage's: the message to send now */}
-      {current.length ? (
-        current.map(card)
-      ) : (
-        <div className={`${BLOCK} flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3`}>
-          <p className="text-sm text-muted">Nothing to send at this stage.</p>
-          {next && (
-            <p className="flex items-center gap-1.5 text-xs text-muted">
-              The next message is at <StagePill name={next.name} color={next.color} />
-            </p>
-          )}
-        </div>
-      )}
+      {current.map(card)}
 
       {/* every other stage's, folded into one row */}
       {others.length > 0 && (
@@ -156,12 +146,12 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       )}
 
       {/* the words that change per lead, all in one place */}
-      {names.length > 0 && (
+      {used.length > 0 && (
         <div className={BLOCK}>
-          <FoldHead open={detailsOpen} onClick={() => setDetailsOpen(!detailsOpen)} title="Variables for this lead" summary={blanks.length ? `${blanks.length} to fill` : "All filled"} alert={blanks.length > 0} />
+          <FoldHead open={detailsOpen} onClick={() => setDetailsOpen(!detailsOpen)} title="Variables in this message" summary={blanks.length ? `${blanks.length} to fill` : "All filled"} alert={blanks.length > 0} />
           <Reveal open={detailsOpen}>
             <div className="grid gap-x-3 gap-y-2 px-3 pb-3 sm:grid-cols-2">
-              {names.map((name) => (
+              {used.map((name) => (
                 <label key={name} className="flex min-w-0 flex-col gap-1">
                   <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
                   <input

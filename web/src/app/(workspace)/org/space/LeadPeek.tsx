@@ -475,7 +475,7 @@ function WriteUp({ notes, onSave }: { notes: string | null; onSave: (text: strin
     setTimeout(() => setCopied(false), 1600);
   }
   return (
-    <section className="rounded-xl bg-foreground/[0.03] px-3 pt-2 pb-3">
+    <section className="rounded-xl bg-foreground/[0.03] px-3 py-2">
       <div className="flex items-center gap-2">
         <FileText size={14} className="shrink-0 text-muted" />
         <span className="py-0.5 text-xs font-medium text-foreground/90">Write-up</span>
@@ -486,14 +486,14 @@ function WriteUp({ notes, onSave }: { notes: string | null; onSave: (text: strin
                 {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
               </button>
             )}
-            <button type="button" onClick={edit} title="Edit the write-up" className={ACTION}>
-              <Pencil size={13} /> Edit
+            <button type="button" onClick={edit} title={notes ? "Edit the write-up" : "Write it"} className={ACTION}>
+              <Pencil size={13} /> {notes.trim() ? "Edit" : "Write"}
             </button>
           </span>
         )}
       </div>
       {editing ? (
-        <div className="mt-2 flex flex-col gap-2">
+        <div className="mt-2 flex flex-col gap-2 pb-1">
           <textarea
             autoFocus
             value={draft}
@@ -518,14 +518,8 @@ function WriteUp({ notes, onSave }: { notes: string | null; onSave: (text: strin
             </button>
           </div>
         </div>
-      ) : notes === null ? (
-        <p className="mt-1.5 px-0.5 text-sm text-muted">Loading…</p>
-      ) : notes.trim() ? (
-        <p className="mt-1.5 px-0.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{notes}</p>
       ) : (
-        <button type="button" onClick={edit} className="mt-1.5 px-0.5 text-left text-sm text-muted hover:text-foreground">
-          Nothing written yet. Add what the show does and the gap you spotted.
-        </button>
+        notes?.trim() && <p className="mt-1.5 px-0.5 pb-1 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{notes}</p>
       )}
     </section>
   );
