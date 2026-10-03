@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, ExternalLink, LayoutTemplate, Mail, MessageSquare, MessagesSquare, Pencil, RotateCcw, Send, Trash2, Undo2 } from "lucide-react";
-import { fillParts, fillText, leadVars, MESSAGE_CHANNELS, sendLink, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
+import { Braces, BriefcaseBusiness, Check, ChevronRight, Copy, LayoutTemplate, Mail, MessageSquare, MessagesSquare, Pencil, RotateCcw, Send, Trash2, Undo2 } from "lucide-react";
+import { fillParts, fillText, leadVars, MESSAGE_CHANNELS, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
 import { deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -70,7 +70,6 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
   const blanks = names.filter((n) => !vars[n]);
-  const contacts = board.fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(lead.values[f.id]) ? (lead.values[f.id] as Contact[]) : []));
   // where the sequence picks up, for a stage with nothing to send
   const here = board.stages.findIndex((s) => s.id === stageId);
   const next = board.stages.slice(here + 1).find((s) => board.messages.some((m) => m.stageId === s.id));
@@ -92,7 +91,6 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       onError={setError}
       onVar={saveVar}
       onMine={(d) => saveMine(m.id, d)}
-      contacts={contacts}
     />
   );
 
@@ -220,7 +218,6 @@ function MessageCard({
   onError,
   onVar,
   onMine,
-  contacts,
 }: {
   message: MessageData;
   stages: StageData[];
@@ -236,7 +233,6 @@ function MessageCard({
   onError: (e: string | null) => void;
   onVar: (name: string, value: string) => void;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
-  contacts: Contact[];
 }) {
   const [mode, setMode] = useState<"view" | "mine" | "template">("view");
   const [busy, setBusy] = useState(false);
@@ -275,7 +271,6 @@ function MessageCard({
   if (mode === "template") return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setMode("view")} />;
   if (mode === "mine") return <OwnEditor message={message} subject={fillText(source.subject, vars)} body={fillText(source.body, vars)} hasOwn={!!own} onDone={() => setMode("view")} onSave={onMine} />;
 
-  const link = sent ? null : sendLink(message.channel, contacts, subject, body);
   const ACTION = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
 
   return (
@@ -340,8 +335,7 @@ function MessageCard({
         </div>
       )}
 
-      {/* Sending happens in Gmail, Instagram or LinkedIn: this opens it
-          ready to go; marking it sent then keeps a record of what went out */}
+      {/* sent from wherever it goes out; marking it here keeps the record */}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
         {sent ? (
           <>
@@ -354,19 +348,6 @@ function MessageCard({
           </>
         ) : (
           <>
-            {link &&
-              (missing.length ? (
-                <span title={`Fill in ${missing.join(", ")} first`} className="btn btn-sm btn-glow pointer-events-none opacity-50">
-                  <ExternalLink size={13} /> {link.label}
-                </span>
-              ) : (
-                <a href={link.href} target="_blank" rel="noopener noreferrer" onClick={() => message.channel !== "email" && copy()} className="btn btn-sm btn-glow">
-                  <ExternalLink size={13} /> {link.label}
-                </a>
-              ))}
-            {!link && message.channel !== "email" && message.channel !== "other" && (
-              <span className="text-[11px] text-muted">Add their {message.channel === "instagram" ? "Instagram" : "LinkedIn"} under Contacts to open it from here.</span>
-            )}
             <span className="ml-auto flex items-center gap-2">
               <span className="text-[11px] text-muted">Sent it?</span>
               <button

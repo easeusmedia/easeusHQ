@@ -253,28 +253,6 @@ export function leadVars(lead: { title: string; values: Record<string, unknown>;
   return { ...auto, ...typed };
 }
 
-// Where a message goes out from, since nothing is sent from the app: Gmail's
-// compose window filled in (to the first contact email: one person, not
-// every address on file), or the first contact's
-// Instagram or LinkedIn, to paste the message into a DM.
-export function sendLink(channel: string, contacts: Contact[], subject: string, body: string): { href: string; label: string } | null {
-  const all = (kind: ChannelKind) => contacts.flatMap((c) => (c.channels ?? []).filter((x) => x.kind === kind && x.value?.trim()).map((x) => x.value.trim()));
-  const url = (v: string) => /^https?:\/\//i.test(v);
-  if (channel === "email") {
-    const q = { view: "cm", fs: "1", to: all("email")[0] ?? "", su: subject, body };
-    return { href: `https://mail.google.com/mail/?${Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}`, label: "Open in Gmail" };
-  }
-  if (channel === "instagram") {
-    const v = all("instagram")[0];
-    return v ? { href: url(v) ? v : `https://www.instagram.com/${v.replace(/^@/, "").replace(/\/+$/, "")}/`, label: "Copy and open Instagram" } : null;
-  }
-  if (channel === "linkedin") {
-    const v = all("linkedin")[0];
-    return v ? { href: url(v) ? v : `https://www.linkedin.com/in/${v.replace(/^@/, "")}`, label: "Copy and open LinkedIn" } : null;
-  }
-  return null;
-}
-
 // A message split into its fixed text and its variables, filled where known
 export function fillParts(text: string, vars: Record<string, string>): ({ text: string } | { name: string; value: string | null })[] {
   const parts: ({ text: string } | { name: string; value: string | null })[] = [];
