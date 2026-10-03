@@ -2,7 +2,7 @@
 
 import { createElement } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, ChartColumn } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
 import { Avatar } from "../TaskCard";
 import { markOf } from "./marks";
@@ -15,14 +15,12 @@ export type MapDepartment = { id: string; slug: string; name: string; open: numb
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
 // The company at a glance: a panel a department, its people up front with
-// what each is on, and the work by department as bars. The department with
-// the most people gets the wide panel, first. A panel opens its department.
+// what each is on. The department with the most people gets the wide panel,
+// first. A panel opens its department.
 export function OrgMap({ departments }: { departments: MapDepartment[] }) {
   const widest = departments.reduce((w, d) => (d.people.length > w.people.length ? d : w), departments[0]);
   // the wide one first, then the rest in order
   const panels = [widest, ...departments.filter((d) => d !== widest)].map((d) => <Department key={d.slug} d={d} wide={d === widest && departments.length > 1} />);
-  // the work by department sits after the first two, filling a row with the third
-  if (departments.length > 1) panels.splice(2, 0, <WorkChart key="chart" departments={departments} />);
 
   return (
     <div className="flex flex-col gap-5">
@@ -81,43 +79,5 @@ function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
         <p className="relative text-xs text-muted">No one yet</p>
       )}
     </PrefetchLink>
-  );
-}
-
-// each department's open work against the busiest's: on time in blue, late in rose
-function WorkChart({ departments }: { departments: MapDepartment[] }) {
-  const most = Math.max(1, ...departments.map((d) => d.open));
-  return (
-    <section className="relative flex flex-col gap-4 overflow-hidden panel panel-hover rounded-3xl p-5 @2xl:col-span-2">
-      <div className="relative flex items-center gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg badge-lit">
-          <ChartColumn size={15} />
-        </span>
-        <p className="flex-1 text-[15px] font-medium tracking-tight">Work by department</p>
-        <span className="flex items-center gap-3 text-[11px] text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-accent" /> On time
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-rose-400/80" /> Late
-          </span>
-        </span>
-      </div>
-      <ul className="relative flex flex-col gap-3">
-        {departments.map((d) => (
-          <li key={d.slug} className="grid grid-cols-[minmax(0,11rem)_1fr_2.5rem] items-center gap-3 text-xs">
-            <span className="flex min-w-0 items-center gap-2 text-muted">
-              {createElement(markOf(d.name), { size: 13, className: "shrink-0" })}
-              <span className="truncate">{d.name}</span>
-            </span>
-            <span className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/[0.05]" title={`${d.open} open, ${d.late} late`}>
-              {d.open > d.late && <span className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${((d.open - d.late) / most) * 100}%` }} />}
-              {d.late > 0 && <span className="h-full rounded-full bg-rose-400/80 transition-[width] duration-500" style={{ width: `${(d.late / most) * 100}%` }} />}
-            </span>
-            <span className="text-right font-medium tabular-nums">{d.open}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
