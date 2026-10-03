@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, moveNeedsReason, sendLink, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -105,4 +105,17 @@ test("a lead's Name and Podcast fill themselves; typed values win", () => {
   const lead = { title: "Harlem Capital", values: { c: [{ id: "1", name: "Jarrid Tingle", role: "", channels: [] }] }, vars: {} };
   assert.deepEqual(leadVars(lead, fields), { Podcast: "Harlem Capital", Name: "Jarrid" });
   assert.deepEqual(leadVars({ ...lead, vars: { Name: "J", Guest: " " } }, fields), { Podcast: "Harlem Capital", Name: "J" });
+});
+
+test("sendLink opens Gmail filled in, or the contact's profile", () => {
+  const contacts = [
+    { id: "a", name: "Jo Bloggs", role: "Host", channels: [{ kind: "email" as const, value: "jo@show.fm" }, { kind: "instagram" as const, value: "@showfm" }] },
+    { id: "b", name: "Al", role: "Producer", channels: [{ kind: "email" as const, value: "al@show.fm" }, { kind: "linkedin" as const, value: "https://linkedin.com/in/al" }] },
+  ];
+  const mail = sendLink("email", contacts, "Hi & hello", "Line one\nLine two")!;
+  assert.ok(mail.href.startsWith("https://mail.google.com/mail/?view=cm&fs=1&to=jo%40show.fm&su=Hi%20%26%20hello&body=Line%20one%0ALine%20two"));
+  assert.equal(sendLink("instagram", contacts, "", "x")!.href, "https://www.instagram.com/showfm/");
+  assert.equal(sendLink("linkedin", contacts, "", "x")!.href, "https://linkedin.com/in/al");
+  assert.equal(sendLink("instagram", [], "", "x"), null);
+  assert.equal(sendLink("other", contacts, "", "x"), null);
 });

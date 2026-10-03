@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Copy, FileText, Hash, Link2, List, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -34,9 +34,9 @@ const lastInStage = () => Date.now();
 type Status = "saving" | "saved" | { error: string } | null;
 
 // A lead's window, built like a task's (TaskDetailsDialog): where it stands
-// and a History switch on top; the name and write-up as plain text; its
-// stage and assignee as chips; then its messages, details and contacts;
-// along the bottom, delete, who added it, and Close. History slides open
+// and a History switch on top; the name; its stage and assignee as chips;
+// then everything known about it (details, contacts, the write-up), and
+// last its messages; along the bottom, delete, who added it, and Close. History slides open
 // beside it. Open while `lead` is set; closing calls onClose. Every change
 // saves as it's made.
 export function LeadPeek({
@@ -215,10 +215,11 @@ function LeadPage({
     });
   }
 
-  function saveNotes() {
-    if (notes == null || notes === savedNotes.current) return;
-    const text = notes;
-    run(setLeadNotes(id, text)).then((r) => {
+  function saveNotes(text: string) {
+    if (text === savedNotes.current) return;
+    const before = savedNotes.current;
+    setNotes(text);
+    run(setLeadNotes(id, text), () => setNotes(before)).then((r) => {
       if (!r.error) savedNotes.current = text;
     });
   }
@@ -290,7 +291,7 @@ function LeadPage({
 
       <div className="flex min-h-0 flex-1">
         <div className="flex w-[39rem] min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1">
-          {/* the name and the write-up, as plain text, like a task's title and notes */}
+          {/* the name, as plain text, like a task's title */}
           <div className="flex flex-col gap-1.5">
             <textarea
               rows={1}
@@ -306,16 +307,6 @@ function LeadPage({
               placeholder="Podcast name"
               aria-label="Lead name"
               className="field-sizing-content block w-full resize-none bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
-            />
-            <textarea
-              value={notes ?? ""}
-              disabled={notes === null}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={saveNotes}
-              placeholder={notes === null ? "Loading…" : "Write-up: what the show does, the gap you spotted…"}
-              aria-label="Write-up"
-              rows={1}
-              className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-sm leading-relaxed text-foreground/90 outline-none! placeholder:text-muted/60 disabled:opacity-60"
             />
           </div>
 
@@ -371,11 +362,8 @@ function LeadPage({
             {missing.length > 0 && <p className="fade-in px-1 text-xs text-red-300">Missing: {missing.join(", ")}</p>}
           </div>
 
-          {/* the message to send, first */}
-          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
-
-          {/* its details, open while some are missing */}
-          <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={detailsMissing} defaultOpen={detailsMissing}>
+          {/* everything known about it first */}
+          <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={detailsMissing} defaultOpen>
             <div className="flex flex-col">
               {fieldsShown.map((f) => (
                 <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)} missing={f.required && !isFilled(f.kind, values[f.id])}>
@@ -390,6 +378,11 @@ function LeadPage({
               <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
             </Fold>
           )}
+
+          <WriteUp notes={notes} onSave={saveNotes} />
+
+          {/* then the messages to send */}
+          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
         </div>
 
         {/* beside it, the same height: every stage it has been through */}
@@ -463,6 +456,78 @@ function LeadPage({
         }}
       />
     </>
+  );
+}
+
+// The write-up: read it, copy it, or press the pencil to change it
+function WriteUp({ notes, onSave }: { notes: string | null; onSave: (text: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [copied, setCopied] = useState(false);
+  const ACTION = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  function edit() {
+    setDraft(notes ?? "");
+    setEditing(true);
+  }
+  async function copy() {
+    await navigator.clipboard.writeText(notes ?? "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+  return (
+    <section className="rounded-xl bg-foreground/[0.03] px-3 pt-2 pb-3">
+      <div className="flex items-center gap-2">
+        <FileText size={14} className="shrink-0 text-muted" />
+        <span className="py-0.5 text-xs font-medium text-foreground/90">Write-up</span>
+        {!editing && notes !== null && (
+          <span className="ml-auto flex items-center gap-0.5">
+            {notes && (
+              <button type="button" onClick={copy} title="Copy the write-up" className={ACTION}>
+                {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+              </button>
+            )}
+            <button type="button" onClick={edit} title="Edit the write-up" className={ACTION}>
+              <Pencil size={13} /> Edit
+            </button>
+          </span>
+        )}
+      </div>
+      {editing ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="What the show does, the gap you spotted…"
+            aria-label="Write-up"
+            className="field-sizing-content min-h-28 w-full resize-none rounded-lg border border-border/60 bg-white/[0.02] px-3 py-2 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover"
+          />
+          <div className="flex justify-end gap-1.5">
+            <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(draft);
+                setEditing(false);
+              }}
+              className="btn btn-sm btn-glow"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      ) : notes === null ? (
+        <p className="mt-1.5 px-0.5 text-sm text-muted">Loading…</p>
+      ) : notes.trim() ? (
+        <p className="mt-1.5 px-0.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{notes}</p>
+      ) : (
+        <button type="button" onClick={edit} className="mt-1.5 px-0.5 text-left text-sm text-muted hover:text-foreground">
+          Nothing written yet. Add what the show does and the gap you spotted.
+        </button>
+      )}
+    </section>
   );
 }
 
