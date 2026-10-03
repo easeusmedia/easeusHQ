@@ -300,9 +300,11 @@ export type BoardTemplate = {
   stages: { name: string; color: ColorName }[];
   fields: { name: string; kind: FieldKind; onCard?: boolean; required?: boolean; options?: { name: string; color: ColorName }[] }[];
 };
-// what each day of the sequence sends, in its name
-const DAYS = ["Email 1 and LinkedIn note", "Instagram 1", "Email 2", "LinkedIn DM", "Instagram 2", "Email 3", "Instagram 3 and LinkedIn 3", "Final email"].map((what, i) => ({
-  name: `Day ${i + 1} · ${what}`,
+// one stage per touch: each day, and each platform it goes out on that day
+// (Day 1 is an email and a LinkedIn note, Day 7 an Instagram and a LinkedIn
+// message), as on the FigJam reply map
+const DAYS = ["Day 1 · Email 1", "Day 1 · LinkedIn note", "Day 2 · Instagram 1", "Day 3 · Email 2", "Day 4 · LinkedIn DM", "Day 5 · Instagram 2", "Day 6 · Email 3", "Day 7 · Instagram 3", "Day 7 · LinkedIn 3", "Day 8 · Email 4"].map((name) => ({
+  name,
   color: "blue" as ColorName,
 }));
 export const DREAM_156: BoardTemplate = {

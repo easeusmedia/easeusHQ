@@ -6,9 +6,11 @@
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts tidy
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts messages
 //   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts sync
+//   node --env-file=.env scripts/run.cjs scripts/outreach-setup.ts split
 // tidy trims a board first copied whole from Notion to what outreach uses;
 // messages puts the sequence's messages on any stage that has none;
-// sync rewrites every stage's messages from the sequence.
+// sync rewrites every stage's messages from the sequence; split makes a
+// day sent on two platforms into one stage per platform.
 // setup can run again safely: a page already there (same parent and slug) is
 // left exactly as it is, so nobody's edits are undone. sample skips a lead
 // whose title is already on the board; remove-sample deletes only the copies it made.
@@ -85,7 +87,7 @@ async function findBoard() {
       where: { teamId: team.id, parentId: portal.id, slug: slugify(DREAM_156.name), kind: "board" },
       select: {
         id: true,
-        stages: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } },
+        stages: { select: { id: true, name: true, color: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
         fields: { select: { id: true, name: true, kind: true, options: { select: { id: true, name: true } } }, orderBy: { sortOrder: "asc" } },
       },
     }));
@@ -222,8 +224,36 @@ async function sync() {
   }
 }
 
+// A day that went out on two platforms becomes one stage per platform: the
+// stage keeps its leads under the first name, the second platform's stage
+// comes right after it and takes that platform's messages.
+const SPLITS: [string, string, string, string][] = [
+  ["Day 1 · Email 1 and LinkedIn note", "Day 1 · Email 1", "Day 1 · LinkedIn note", "linkedin"],
+  ["Day 7 · Instagram 3 and LinkedIn 3", "Day 7 · Instagram 3", "Day 7 · LinkedIn 3", "linkedin"],
+];
+async function split() {
+  const { board } = await findBoard();
+  for (const [old, first, second, channel] of SPLITS) {
+    const i = board.stages.findIndex((x) => x.name === old);
+    if (i < 0) continue;
+    const st = board.stages[i];
+    const next = board.stages[i + 1];
+    await prisma.$transaction(async (tx) => {
+      await tx.boardStage.update({ where: { id: st.id }, data: { name: first } });
+      const made = await tx.boardStage.create({ data: { boardId: board.id, name: second, color: st.color, sortOrder: next ? (st.sortOrder + next.sortOrder) / 2 : st.sortOrder + 1 } });
+      await tx.stageMessage.updateMany({ where: { stageId: st.id, channel }, data: { stageId: made.id } });
+    });
+    console.log(`${old} is now ${first}, then ${second}`);
+  }
+  const last = board.stages.find((x) => x.name === "Day 8 · Final email");
+  if (last) {
+    await prisma.boardStage.update({ where: { id: last.id }, data: { name: "Day 8 · Email 4" } });
+    console.log("Day 8 · Final email is now Day 8 · Email 4");
+  }
+}
+
 // Stage names that say what each stage is ("Day 3 · Email 2")
-const RENAMES: [string, string][] = [["Dream 156", "Dream 156 list"], ["Shortlist", "Shortlisted"], ["Writeup Done", "Write-up done"], ["Ready to Reachout", "Ready to reach out"], ["Day 1", "Day 1 · Email 1 and LinkedIn note"], ["Day 2", "Day 2 · Instagram 1"], ["Day 3", "Day 3 · Email 2"], ["Day 4", "Day 4 · LinkedIn DM"], ["Day 5", "Day 5 · Instagram 2"], ["Day 6", "Day 6 · Email 3"], ["Day 7", "Day 7 · Instagram 3 and LinkedIn 3"], ["Day 8", "Day 8 · Final email"], ["Lead Magnet Sent", "Audit sent"], ["Didn't respond after the loom", "No reply after the audit"], ["Parked", "Parked for later"]];
+const RENAMES: [string, string][] = [["Dream 156", "Dream 156 list"], ["Shortlist", "Shortlisted"], ["Writeup Done", "Write-up done"], ["Ready to Reachout", "Ready to reach out"], ["Day 1", "Day 1 · Email 1"], ["Day 2", "Day 2 · Instagram 1"], ["Day 3", "Day 3 · Email 2"], ["Day 4", "Day 4 · LinkedIn DM"], ["Day 5", "Day 5 · Instagram 2"], ["Day 6", "Day 6 · Email 3"], ["Day 7", "Day 7 · Instagram 3"], ["Day 8", "Day 8 · Email 4"], ["Lead Magnet Sent", "Audit sent"], ["Didn't respond after the loom", "No reply after the audit"], ["Parked", "Parked for later"]];
 async function rename() {
   const { board } = await findBoard();
   for (const [from, to] of RENAMES) {
@@ -265,6 +295,6 @@ async function tidy() {
 }
 
 const [mode, path] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
-const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, sync, rename };
+const modes: Record<string, () => Promise<unknown>> = { setup, sample: () => sample(path), "remove-sample": () => removeSample(path), tidy, messages, sync, split, rename };
 await (modes[mode]?.() ?? Promise.reject(new Error(`Say one of: ${Object.keys(modes).join(", ")}.`)));
 await prisma.$disconnect();
