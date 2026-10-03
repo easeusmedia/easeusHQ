@@ -359,6 +359,13 @@ function LeadPage({
                 options={[{ value: "", label: "Unassigned" }, ...people.map((p) => ({ value: p.id, label: p.name })), ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : [])]}
               />
             </div>
+            {/* who handed it to whom; every earlier hand-off is in History */}
+            {assignee && assignee === lead.assignedTo?.id && lead.assignedByName && (
+              <p className="fade-in px-1 text-xs text-muted">
+                Assigned to {lead.assignedTo.name} by {lead.assignedByName}
+                {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
+              </p>
+            )}
             {missing.length > 0 && <p className="fade-in px-1 text-xs text-muted">To add: {missing.join(", ")}</p>}
           </div>
 
@@ -391,7 +398,7 @@ function LeadPage({
           className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"}`}
         >
           <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
-            <p className="shrink-0 text-xs font-medium text-muted">Every stage this lead has been through</p>
+            <p className="shrink-0 text-xs font-medium text-muted">Every stage and hand-off, in order</p>
             <div className="min-h-0 flex-1 overflow-y-auto rounded-xl panel-soft p-4">{events ? <LeadHistory events={events} flat /> : <p className="text-xs text-muted">Loading the record…</p>}</div>
           </div>
         </div>

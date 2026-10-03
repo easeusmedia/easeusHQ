@@ -102,6 +102,9 @@ export type LeadData = {
   // whoever added it, and whoever it's given to (if anyone)
   createdBy: Person;
   assignedTo: Person | null;
+  // who assigned it, and when
+  assignedByName: string | null;
+  assignedAt: string | null;
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
@@ -251,6 +254,29 @@ export function leadVars(lead: { title: string; values: Record<string, unknown>;
   if (first) auto.Name = first;
   const typed = Object.fromEntries(Object.entries(lead.vars ?? {}).filter(([, v]) => typeof v === "string" && v.trim()));
   return { ...auto, ...typed };
+}
+
+// "Day 3 · Email 2" is day 3; a stage outside the sequence has no day
+export function dayOf(stageName: string): number | null {
+  const m = /^Day (\d+)\b/.exec(stageName);
+  return m ? Number(m[1]) : null;
+}
+
+// A board's messages in groups, in board order: each day of the sequence
+// with all its stages together (Day 1's email and LinkedIn note), then every
+// other stage that has messages (the replies, the audit…)
+export function messageGroups(board: Pick<BoardData, "stages" | "messages">): { key: string; title: string; items: MessageData[] }[] {
+  const groups: { key: string; title: string; items: MessageData[] }[] = [];
+  for (const st of board.stages) {
+    const items = board.messages.filter((m) => m.stageId === st.id);
+    if (!items.length) continue;
+    const day = dayOf(st.name);
+    const key = day == null ? st.id : `day-${day}`;
+    const g = groups.find((x) => x.key === key);
+    if (g) g.items.push(...items);
+    else groups.push({ key, title: day == null ? st.name : `Day ${day}`, items });
+  }
+  return groups;
 }
 
 // A message split into its fixed text and its variables, filled where known

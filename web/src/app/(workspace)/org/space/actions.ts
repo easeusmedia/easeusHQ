@@ -578,12 +578,20 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
   if ("error" in who) return who;
   if ((userId ?? null) === lead.assignedToId) return {};
   try {
+    let name = "";
     if (userId) {
       const person = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, role: true, email: true, employment: true, departments: { select: { id: true } } } });
       if (!person || person.employment === "former") return { error: "That person isn't on the team any more." };
       if (!isFounder(person) && !person.departments.some((d) => d.id === lead.board.teamId)) return { error: `${person.name} isn't in this department.` };
+      name = person.name;
     }
-    await prisma.lead.update({ where: { id }, data: { assignedToId: userId, ...edited(who) } });
+    const before = lead.assignedToId ? ((await prisma.user.findUnique({ where: { id: lead.assignedToId }, select: { name: true } }))?.name ?? "someone") : null;
+    // who passed it to whom stays on its record, hand-off after hand-off
+    const summary = userId ? (before ? `Reassigned from ${before} to ${name}` : `Assigned to ${name}`) : `Unassigned from ${before}`;
+    await prisma.$transaction(async (tx) => {
+      await tx.lead.update({ where: { id }, data: { assignedToId: userId, assignedByName: userId ? who.name : null, assignedAt: userId ? new Date() : null, ...edited(who) } });
+      await record(tx, id, who, { kind: "assigned", summary });
+    });
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");
@@ -829,7 +837,7 @@ export async function getLeadDetails(id: string): Promise<Done & { notes?: strin
   if ("error" in who) return who;
   const [full, events, sent] = await Promise.all([
     prisma.lead.findUnique({ where: { id }, select: { notes: true } }),
-    prisma.leadEvent.findMany({ where: { leadId: id, kind: { in: ["created", "moved", "restored"] } }, orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.leadEvent.findMany({ where: { leadId: id, kind: { in: ["created", "moved", "restored", "assigned"] } }, orderBy: { createdAt: "desc" }, take: 500 }),
     prisma.sentMessage.findMany({ where: { leadId: id }, orderBy: { sentAt: "desc" } }),
   ]);
   return {

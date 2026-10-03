@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, Plus, Search, Table2, Users } from "lucide-react";
-import type { BoardData, Contact, LeadData, Person } from "@/lib/space";
+import { EyeOff, Kanban, Library, Plus, Search, Table2, Users } from "lucide-react";
+import { variablesIn, type BoardData, type Contact, type LeadData, type Person } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
+import { MessageLibrary, TemplatePreview } from "./Messages";
 import { NewSpaceDialog } from "./NewSpaceDialog";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
@@ -27,7 +28,7 @@ function searchText(lead: LeadData, contactFields: string[]) {
 }
 
 // A portal's page under its heading: the boards as tabs, the toolbar
-// (view, search, filters, properties, bin), the board or table, and the
+// (view, search, filters, every message), the board or table, and the
 // open lead. The open lead is in the address (?lead=), so a link opens it.
 export function PortalView({
   teamId,
@@ -60,6 +61,7 @@ export function PortalView({
   const [query, setQuery] = useState("");
   const [who, setWho] = useState("all");
   const [creating, setCreating] = useState(false);
+  const [library, setLibrary] = useState(false);
 
   const boardId = board?.id;
   // this board's saved view, once in the browser (localStorage only exists after mount)
@@ -198,6 +200,12 @@ export function PortalView({
             <EyeOff size={13} /> Hide empty stages
           </button>
         )}
+        {/* every message template, grouped, to read or edit without a lead */}
+        {board.messages.length > 0 && (
+          <button type="button" onClick={() => setLibrary(true)} className="chip ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs">
+            <Library size={13} /> Messages <span className="text-muted tabular-nums">{board.messages.length}</span>
+          </button>
+        )}
       </div>
 
       {/* keyed by view so a switch eases in; dimmed while another board loads */}
@@ -210,6 +218,12 @@ export function PortalView({
       </div>
 
       <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} />
+      <MessageLibrary
+        open={library}
+        onClose={() => setLibrary(false)}
+        board={board}
+        render={(m) => <TemplatePreview key={m.id} message={m} stages={board.stages} names={variablesIn(board.messages.flatMap((x) => [x.subject, x.body]))} />}
+      />
     </div>
   );
 }

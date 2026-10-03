@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, dayOf, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -105,4 +105,15 @@ test("a lead's Name and Podcast fill themselves; typed values win", () => {
   const lead = { title: "Harlem Capital", values: { c: [{ id: "1", name: "Jarrid Tingle", role: "", channels: [] }] }, vars: {} };
   assert.deepEqual(leadVars(lead, fields), { Podcast: "Harlem Capital", Name: "Jarrid" });
   assert.deepEqual(leadVars({ ...lead, vars: { Name: "J", Guest: " " } }, fields), { Podcast: "Harlem Capital", Name: "J" });
+});
+
+test("messages group by day, then by stage", () => {
+  const st = (id: string, name: string) => ({ id, name, color: "blue" });
+  const msg = (id: string, stageId: string) => ({ id, stageId, name: id, channel: "email", subject: "", body: "", note: "" });
+  const stages = [st("a", "Dream List"), st("b", "Day 1 · Email 1"), st("c", "Day 1 · LinkedIn note"), st("d", "Day 2 · Instagram 1"), st("e", "Replied"), st("f", "Dead")];
+  const groups = messageGroups({ stages, messages: [msg("e1", "b"), msg("l1", "c"), msg("i1", "d"), msg("r1", "e"), msg("r2", "e")] });
+  assert.deepEqual(groups.map((g) => [g.title, g.items.map((m) => m.id)]), [["Day 1", ["e1", "l1"]], ["Day 2", ["i1"]], ["Replied", ["r1", "r2"]]]);
+  assert.equal(dayOf("Day 12 · Email 9"), 12);
+  assert.equal(dayOf("Daydream"), null);
+  assert.equal(dayOf("Audit sent"), null);
 });

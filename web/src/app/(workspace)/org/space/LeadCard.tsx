@@ -39,7 +39,7 @@ export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: Fie
           <>
             <span className="text-muted/50">→</span>
             <Avatar name={lead.assignedTo.name} size={16} />
-            <span className="min-w-0 truncate" title={`Assigned to ${lead.assignedTo.name}`}>
+            <span className="min-w-0 truncate" title={`Assigned to ${lead.assignedTo.name}${lead.assignedByName ? ` by ${lead.assignedByName}` : ""}`}>
               {first(lead.assignedTo.name)}
             </span>
           </>

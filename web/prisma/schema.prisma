@@ -1222,6 +1222,9 @@ model Lead {
   sortOrder    Float       @default(0)
   assignedToId String?
   assignedTo   User?       @relation("LeadsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  // who gave it to them, and when (every hand-off is also on its record)
+  assignedByName String?
+  assignedAt     DateTime?
   // each property's value, by field id (lib/space.ts)
   values       Json        @default("{}")
   // the write-up: what the show does, the gap, drafts

@@ -63,7 +63,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       fields: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, kind: true, onCard: true, required: true, options: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } } } },
       leads: {
         orderBy: { sortOrder: "asc" },
-        select: { id: true, title: true, stageId: true, sortOrder: true, values: true, vars: true, drafts: true, stageSince: true, createdAt: true, editedByName: true, editedAt: true, createdBy: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } } },
+        select: { id: true, title: true, stageId: true, sortOrder: true, values: true, vars: true, drafts: true, assignedByName: true, assignedAt: true, stageSince: true, createdAt: true, editedByName: true, editedAt: true, createdBy: { select: { id: true, name: true } }, assignedTo: { select: { id: true, name: true } } },
       },
     },
   });
@@ -82,6 +82,8 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       sortOrder: l.sortOrder,
       createdBy: l.createdBy,
       assignedTo: l.assignedTo,
+      assignedByName: l.assignedByName,
+      assignedAt: l.assignedAt?.toISOString() ?? null,
       values: (l.values ?? {}) as Record<string, unknown>,
       vars: (l.vars ?? {}) as Record<string, string>,
       drafts: (l.drafts ?? {}) as Record<string, Draft>,
