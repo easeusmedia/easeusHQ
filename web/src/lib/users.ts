@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "./prisma";
-import { userPhotoSrc } from "./photos";
+import { photoSrcAt } from "./photos";
+import { photoVersions } from "./pictureVersions";
 import { isFounder } from "./scope";
 
 // De-duplicated across one request — layout.tsx and whichever page renders
@@ -17,27 +18,31 @@ import { isFounder } from "./scope";
 // with them. Anything that genuinely needs salary reads it server-side in
 // the people directory, which gates on canEditPeople.
 // avatarUrl comes back as the photo's address (lib/photos.ts), never the
-// stored picture — these rows go to the browser on every refresh.
-export const getAllUsers = cache(async () =>
-  (await prisma.user.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatarUrl: true,
-      lastSeenAt: true,
-      teamId: true,
-      jobTitleId: true,
-      // the title everyone sees
-      position: true,
-      // their own look: dark or mist
-      theme: true,
-      employment: true,
-    },
-    orderBy: { name: "asc" },
-  })).map((u) => ({ ...u, avatarUrl: userPhotoSrc(u) }))
-);
+// stored picture — these rows go to the browser on every refresh, and the
+// picture isn't even read from the database (lib/pictureVersions.ts).
+export const getAllUsers = cache(async () => {
+  const [users, photos] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        lastSeenAt: true,
+        teamId: true,
+        jobTitleId: true,
+        // the title everyone sees
+        position: true,
+        // their own look: dark or mist
+        theme: true,
+        employment: true,
+      },
+      orderBy: { name: "asc" },
+    }),
+    photoVersions(),
+  ]);
+  return users.map((u) => ({ ...u, avatarUrl: photoSrcAt(u.id, photos.get(u.id)) }));
+});
 
 // Who's still here. A former employee keeps their history — the work they
 // finished, tasks still on them, their name in an activity trail — but stops

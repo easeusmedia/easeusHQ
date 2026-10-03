@@ -21,7 +21,8 @@ import { MainScroll } from "./MainScroll";
 import { ClientDock } from "./clients/ClientDock";
 import { PeopleProvider } from "./photos";
 import { ACTIVE_WINDOW_MS } from "./presence/constants";
-import { clientLogoSrc } from "@/lib/photos";
+import { logoSrcAt } from "@/lib/photos";
+import { logoVersions } from "@/lib/pictureVersions";
 import { liveLine } from "@/lib/live";
 import { overdueToAnswer } from "@/lib/taskTrack";
 import { OverdueLock } from "./OverdueLock";
@@ -38,7 +39,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // page and every live refresh, so its queries running one after another
   // was a fixed cost on every click. Two rounds to the database now: who's
   // signed in, then all of the rest side by side.
-  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer] = await Promise.all([
+  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos] = await Promise.all([
     getRealUserId(),
     getSessionUserId(),
     getViewer(),
@@ -47,7 +48,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     // the current clients: the sidebar's tree and the client bar — everyone sees them
     prisma.client.findMany({
       where: { status: "current" },
-      select: { id: true, slug: true, name: true, avatarUrl: true, editors: { select: { id: true } }, hiddenFrom: { select: { id: true } } },
+      select: { id: true, slug: true, name: true, editors: { select: { id: true } }, hiddenFrom: { select: { id: true } } },
       // the same order as the Clients dashboard
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -69,6 +70,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     Promise.all([getRealViewer(), getSessionUserId()])
       .then(([me, as]) => (me && me.id === as && me.role !== "admin" && !isFounder(me) ? overdueToAnswer(me.id) : []))
       .catch(() => []),
+    // each logo's version, for its address: not the logos themselves
+    logoVersions().catch(() => new Map<string, string>()),
   ]);
   if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
@@ -95,7 +98,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const editor = worksTheBoard(viewer);
   const currentClients = clientRows
     .filter((c) => seesClient(viewer, c))
-    .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: clientLogoSrc(c) }));
+    .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: logoSrcAt(c.slug, logos.get(c.id)) }));
 
   // the departments they may open under Organization: Level 1 all, others their own
   const departments = isFounder(viewer) ? teams : teams.filter((t) => viewer.departments.some((d) => d.id === t.id));
