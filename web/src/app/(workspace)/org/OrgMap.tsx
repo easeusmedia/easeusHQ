@@ -1,106 +1,120 @@
 "use client";
 
 import { createElement } from "react";
-import { ArrowRight, Building2, Clapperboard, Clock, Handshake, Lightbulb, ListChecks, Send, TrendingUp, UserPlus, Users, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, ChartColumn, Clock, ListChecks, Users } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
+import { Avatar } from "../TaskCard";
+import { StatTile } from "../StatTile";
+import { markOf } from "./marks";
 
-export type MapDepartment = { slug: string; name: string; open: number; late: number; members: string[] };
+export type MapPerson = { name: string; on: string | null; stage: string | null; open: number; late: number; leads: number };
+export type MapDepartment = { slug: string; name: string; open: number; late: number; leads: number | null; people: MapPerson[] };
 
-// What each department does, as its icon
-const MARKS: [RegExp, LucideIcon][] = [
-  [/sales/i, TrendingUp],
-  [/client|operat/i, Handshake],
-  [/content|strateg|idea/i, Lightbulb],
-  [/produc/i, Clapperboard],
-  [/distrib|growth/i, Send],
-  [/\bhr\b|talent|hiring|recruit/i, UserPlus],
-  [/financ|admin/i, Wallet],
-];
-function Mark({ name, size }: { name: string; size: number }) {
-  return createElement(MARKS.find(([key]) => key.test(name))?.[1] ?? Building2, { size, strokeWidth: 2.2 });
-}
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
-// The company under soft light: its headline counts, then a dark card a
-// department, each with its icon, its people, and a row each for its open
-// work, its late work and its team, every row opening the department.
+// The company at a glance: its people and its open and late work, then a
+// panel a department, its people up front with what each is on, and the work
+// by department as bars. The department with the most people gets the wide
+// panel, first. A panel opens its department.
 export function OrgMap({ departments, people }: { departments: MapDepartment[]; people: number }) {
   const open = departments.reduce((s, d) => s + d.open, 0);
   const late = departments.reduce((s, d) => s + d.late, 0);
+  const widest = departments.reduce((w, d) => (d.people.length > w.people.length ? d : w), departments[0]);
+  // the wide one first, then the rest in order
+  const panels = [widest, ...departments.filter((d) => d !== widest)].map((d) => <Department key={d.slug} d={d} wide={d === widest && departments.length > 1} />);
+  // the work by department sits after the first two, filling a row with the third
+  if (departments.length > 1) panels.splice(2, 0, <WorkChart key="chart" departments={departments} />);
+
   return (
-    <div className="@container relative min-h-full overflow-hidden rounded-3xl bg-[#090a0c] px-4 py-8 sm:px-8 sm:py-10">
-      {/* the light: soft white rays across from the top left */}
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 left-[4%] h-[70rem] w-28 origin-top -rotate-[42deg] bg-gradient-to-b from-white/30 via-white/[0.06] to-transparent blur-2xl" />
-        <div className="absolute -top-24 left-[11%] h-[58rem] w-10 origin-top -rotate-[42deg] bg-gradient-to-b from-white/40 via-white/[0.05] to-transparent blur-xl" />
-        <div className="absolute -top-24 left-[18%] h-[48rem] w-20 origin-top -rotate-[42deg] bg-gradient-to-b from-white/20 via-white/[0.04] to-transparent blur-2xl" />
-        <div className="absolute -top-40 right-[8%] size-[28rem] rounded-full bg-accent/[0.07] blur-3xl" />
+    <div className="flex flex-col gap-5">
+      <h1 className="text-xl font-semibold tracking-tight">Organization</h1>
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="People" value={people} Icon={Users} />
+        <StatTile label="Open" value={open} Icon={ListChecks} />
+        <StatTile label="Late" value={late} Icon={Clock} />
       </div>
-
-      <header className="relative">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Organization</h1>
-        <p className="mt-1.5 text-sm text-white/50 tabular-nums">
-          {people} {people === 1 ? "person" : "people"} · {open} open · {late} late
-        </p>
-      </header>
-
-      <div className="relative mt-8 grid gap-5 @2xl:grid-cols-2 @5xl:grid-cols-3">
-        {departments.map((d, i) => (
-          <Card key={d.slug} d={d} delay={i * 60} />
-        ))}
+      <div className="@container">
+        <div className="grid grid-flow-dense gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">{panels}</div>
       </div>
     </div>
   );
 }
 
-function Card({ d, delay }: { d: MapDepartment; delay: number }) {
-  const href = `/org/${d.slug}`;
-  const first = d.members.map((n) => n.split(" ")[0]);
-  const team = first.length ? `${first.slice(0, 3).join(", ")}${first.length > 3 ? ` +${first.length - 3}` : ""}` : "No one yet";
+function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
   return (
-    <section
-      className="rise-in relative overflow-hidden rounded-[2rem] border border-white/[0.07] bg-[linear-gradient(180deg,#1b1e24_0%,#14161a_48%,#111316_100%)] px-6 pt-9 pb-5 shadow-[0_40px_80px_-36px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.05)]"
-      style={{ animationDelay: `${delay}ms` }}
+    <PrefetchLink
+      href={`/org/${d.slug}`}
+      className={`@container group relative flex min-w-0 flex-col gap-4 overflow-hidden panel panel-hover rounded-3xl p-5 hover:-translate-y-0.5 ${wide ? "@2xl:col-span-2" : ""}`}
     >
-      {/* a fine dot grid, fading down the card */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:14px_14px] [mask-image:linear-gradient(180deg,black,transparent_50%)]" />
-      {/* the accent caught on the top and left edges */}
-      <div aria-hidden className="pointer-events-none absolute top-0 left-[16%] h-px w-[42%] bg-gradient-to-r from-transparent via-accent to-transparent" />
-      <div aria-hidden className="pointer-events-none absolute top-[40%] left-0 h-[40%] w-px bg-gradient-to-b from-transparent via-accent/80 to-transparent" />
-      <div aria-hidden className="pointer-events-none absolute -top-16 left-[20%] size-36 rounded-full bg-accent/[0.14] blur-3xl" />
-
-      {/* the department's icon, as a glossy tile */}
-      <div className="relative mx-auto flex size-[4.5rem] items-center justify-center rounded-[1.25rem] bg-[linear-gradient(180deg,#363a43,#1b1d22)] text-accent shadow-[0_16px_32px_-10px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-2px_6px_rgba(0,0,0,0.4)]">
-        <Mark name={d.name} size={30} />
+      {d.open > 0 && <div className="glass-glow" />}
+      <div className="relative flex items-center gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg badge-lit">{createElement(markOf(d.name), { size: 15 })}</span>
+        <p className="min-w-0 flex-1 text-[15px] leading-snug font-medium tracking-tight">{d.name}</p>
+        <p className="shrink-0 text-xs text-muted tabular-nums">
+          {d.leads !== null && <span>{plural(d.leads, "lead")} · </span>}
+          {d.open} open{d.late > 0 && <span className="text-rose-300"> · {d.late} late</span>}
+        </p>
+        <ArrowUpRight size={15} className="shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
-      <h2 className="relative mt-5 truncate text-center text-xl font-semibold tracking-tight text-white">{d.name}</h2>
-      <p className="relative mt-1 text-center text-sm text-white/45 tabular-nums">
-        {d.members.length} {d.members.length === 1 ? "person" : "people"}
-      </p>
 
-      <ul className="relative mt-7 flex flex-col gap-1">
-        <Row href={href} Icon={ListChecks} tile="badge-lit" title="Open work" note={`${d.open} ${d.open === 1 ? "task" : "tasks"} in hand`} />
-        <Row href={href} Icon={Clock} tile={d.late ? "bg-rose-500/15 text-rose-300" : "badge"} title="Late" note={`${d.late} past due`} />
-        <Row href={href} Icon={Users} tile="badge-lit" title="Team" note={team} />
-      </ul>
-    </section>
+      {d.people.length > 0 ? (
+        <ul className="relative grid gap-x-6 gap-y-1 @xl:grid-cols-2">
+          {d.people.map((p) => (
+            <li key={p.name} className="flex min-w-0 items-center gap-3 rounded-xl py-1.5">
+              <Avatar name={p.name} size={30} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium">{p.name}</span>
+                <span className="block truncate text-xs text-muted">{p.on ? (p.stage ? `${p.stage} · ${p.on}` : p.on) : "Free"}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums">
+                {p.leads > 0 && <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-muted">{plural(p.leads, "lead")}</span>}
+                {p.open > 0 && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-accent">{p.open}</span>}
+                {p.late > 0 && <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-rose-300">{p.late} late</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="relative text-xs text-muted">No one yet</p>
+      )}
+    </PrefetchLink>
   );
 }
 
-function Row({ href, Icon, tile, title, note }: { href: string; Icon: LucideIcon; tile: string; title: string; note: string }) {
+// each department's open work against the busiest's: on time in blue, late in rose
+function WorkChart({ departments }: { departments: MapDepartment[] }) {
+  const most = Math.max(1, ...departments.map((d) => d.open));
   return (
-    <li>
-      <PrefetchLink href={href} className="group -mx-2 flex items-center gap-3.5 rounded-2xl px-2 py-2 hover:bg-white/[0.03]">
-        <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-white/[0.05] ${tile}`}>
-          <Icon size={18} strokeWidth={2.2} />
+    <section className="relative flex flex-col gap-4 overflow-hidden panel panel-hover rounded-3xl p-5 @2xl:col-span-2">
+      <div className="relative flex items-center gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg badge-lit">
+          <ChartColumn size={15} />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14.5px] font-medium text-white">{title}</span>
-          <span className="block truncate text-[13px] text-white/45 tabular-nums">{note}</span>
+        <p className="flex-1 text-[15px] font-medium tracking-tight">Work by department</p>
+        <span className="flex items-center gap-3 text-[11px] text-muted">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-accent" /> On time
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-rose-400/80" /> Late
+          </span>
         </span>
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.14] bg-[#141518] text-white transition-colors group-hover:border-white/25 group-hover:bg-white/[0.07]">
-          <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
-        </span>
-      </PrefetchLink>
-    </li>
+      </div>
+      <ul className="relative flex flex-col gap-3">
+        {departments.map((d) => (
+          <li key={d.slug} className="grid grid-cols-[minmax(0,11rem)_1fr_2.5rem] items-center gap-3 text-xs">
+            <span className="flex min-w-0 items-center gap-2 text-muted">
+              {createElement(markOf(d.name), { size: 13, className: "shrink-0" })}
+              <span className="truncate">{d.name}</span>
+            </span>
+            <span className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/[0.05]" title={`${d.open} open, ${d.late} late`}>
+              {d.open > d.late && <span className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${((d.open - d.late) / most) * 100}%` }} />}
+              {d.late > 0 && <span className="h-full rounded-full bg-rose-400/80 transition-[width] duration-500" style={{ width: `${(d.late / most) * 100}%` }} />}
+            </span>
+            <span className="text-right font-medium tabular-nums">{d.open}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
