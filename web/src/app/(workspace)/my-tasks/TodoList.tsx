@@ -715,6 +715,25 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<typeof blank>) => setF((cur) => ({ ...cur, ...patch }));
 
+  // A click anywhere else puts the form away, while nothing is written in it
+  // (so a stray click never loses a half-typed task). A click in one of its
+  // own menus, or one that only dismisses an open menu, doesn't count.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const empty = !f.title.trim() && !f.notes.trim();
+  useEffect(() => {
+    if (!open || !empty) return;
+    const away = (e: PointerEvent) => {
+      const box = boxRef.current;
+      const at = e.target instanceof Element ? e.target : null;
+      if (!box || !at || box.contains(at)) return;
+      if (at.closest("[popover], dialog, .popover") || box.querySelector('[aria-haspopup][aria-expanded="true"]')) return;
+      setOpenState(false);
+      onClose?.();
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open, empty, onClose]);
+
   const kind = kinds.find((k) => k.id === f.kindId);
   // every kind of work offered here is Production's, and Production's work
   // is always for a client; a plain to-do (no kind) needn't have one
@@ -772,7 +791,7 @@ export function Composer({
   }
 
   return (
-    <div className="fade-in rounded-2xl border border-border bg-surface-2/40 p-4">
+    <div ref={boxRef} className="fade-in rounded-2xl border border-border bg-surface-2/40 p-4">
       <input
         autoFocus
         value={f.title}

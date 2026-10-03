@@ -12,6 +12,7 @@ import type { TaskTagOption } from "./TaskTagPicker";
 import { Checkbox } from "./Checkbox";
 import { keepDraft, readDraft } from "./draft";
 import { Reveal } from "./Reveal";
+import { closeOnBackdrop } from "./dialog";
 
 type Project = { id: string; name: string; client: { id: string; name: string } };
 type Editor = { id: string; name: string };
@@ -180,10 +181,12 @@ export function NewTaskRow({
         </button>
       )}
 
-      {/* no closing on a click outside: that's also how an open menu inside
-          is dismissed, and it took everything written with it */}
+      {/* a click outside puts it away, like ×: what's written stays for next
+          time (the draft), and a click that only dismisses an open menu
+          inside doesn't count (dialog.ts) */}
       <dialog
         ref={dialogRef}
+        {...closeOnBackdrop}
         // centred like every other dialog here; opening "⋯" eases it taller
         // and it re-centres as it grows, rather than jumping
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
