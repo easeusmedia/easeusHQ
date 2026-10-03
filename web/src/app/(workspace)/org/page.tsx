@@ -8,9 +8,9 @@ import { OrgMap } from "./OrgMap";
 
 export const dynamic = "force-dynamic";
 
-// The agency's departments round one ring (OrgMap): each a glass card with
-// its people and its open and late work, opening its own page. Only the
-// departments someone is in (Level 1: all).
+// The agency's work as a radar (OrgMap): a spoke a department, reaching as far
+// as its open work, each opening its own page. Only the departments someone
+// is in (Level 1: all).
 export default async function OrganizationPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
@@ -19,7 +19,7 @@ export default async function OrganizationPage() {
   const today = new Date(`${dayOf(new Date())}T00:00:00+05:30`);
   const ids = departments.map((d) => d.id);
   const [people, tasks, todos] = await Promise.all([
-    prisma.user.findMany({ where: { employment: { not: "former" } }, select: { name: true, teamId: true, departments: { select: { id: true } } }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { employment: { not: "former" } }, select: { teamId: true, departments: { select: { id: true } } } }),
     prisma.task.findMany({ where: { AND: [LIVE_TASK, { teamId: { in: ids } }] }, select: { teamId: true, dueDate: true, handedOffAt: true } }),
     prisma.workTask.findMany({ where: { AND: [LIVE_WORK_TASK, { teamId: { in: ids } }] }, select: { teamId: true, dueDate: true } }),
   ]);
@@ -28,23 +28,20 @@ export default async function OrganizationPage() {
   const map = departments.map((d) => ({
     slug: d.slug,
     name: d.name,
-    people: members(d.id).length,
-    members: members(d.id).map((p) => p.name.split(" ")[0]),
     open: work.filter((w) => w.teamId === d.id).length,
     late: work.filter((w) => w.teamId === d.id && w.late).length,
   }));
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <header className="shrink-0">
+  if (departments.length === 0)
+    return (
+      <div className="flex flex-col gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Organization</h1>
-        <p className="mt-0.5 text-xs text-muted">Each department and its board.</p>
-      </header>
-      {departments.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">You aren&apos;t in a department yet.</p>
-      ) : (
-        <OrgMap departments={map} />
-      )}
+      </div>
+    );
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <OrgMap departments={map} people={new Set(departments.flatMap((d) => members(d.id))).size} />
     </div>
   );
 }

@@ -2,194 +2,201 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { createElement, useState } from "react";
-import { ArrowRight, Building2, Clapperboard, Handshake, Lightbulb, Send, TrendingUp, UserPlus, Wallet, type LucideIcon } from "lucide-react";
+import { useState } from "react";
 
-export type MapDepartment = { slug: string; name: string; people: number; open: number; late: number; members: string[] };
+export type MapDepartment = { slug: string; name: string; open: number; late: number };
 
-// What each department does, as its mark
-const MARKS: [RegExp, LucideIcon][] = [
-  [/sales/i, TrendingUp],
-  [/client|operat/i, Handshake],
-  [/content|strateg|idea/i, Lightbulb],
-  [/produc/i, Clapperboard],
-  [/distrib|growth/i, Send],
-  [/\bhr\b|talent|hiring|recruit/i, UserPlus],
-  [/financ|admin/i, Wallet],
-];
-function Mark({ name, size, color, className }: { name: string; size: number; color: string; className?: string }) {
-  const Icon = MARKS.find(([key]) => key.test(name))?.[1] ?? Building2;
-  return createElement(Icon, { size, className, style: { color } });
-}
-// the glows round the ring, one per department, in turn
-const HUES = ["#34d399", "#a855f7", "#3b82f6", "#facc15", "#f472b6", "#22d3ee", "#fb923c", "#a3e635"];
+// the line round the work goes cyan on the left to pink on the right
+const COOL = [56, 189, 248];
+const WARM = [244, 114, 182];
+const tint = (t: number) => `rgb(${COOL.map((c, k) => Math.round(c + (WARM[k] - c) * t)).join(",")})`;
 
-// where something sits on the ring: an angle (0 at the top, clockwise) and a
-// radius, both as a share of the square, as left/top percentages
-const at = (deg: number, r: number) => {
+const R = 38; // the outer ring
+const CORE = 9; // just outside the logo, where no work sits
+
+// a point at an angle (0 at the top, clockwise) and a radius, in the 100-unit square
+const polar = (deg: number, r: number) => {
   const a = ((deg - 90) * Math.PI) / 180;
-  return { left: `${50 + Math.cos(a) * r}%`, top: `${50 + Math.sin(a) * r}%` };
+  return [50 + Math.cos(a) * r, 50 + Math.sin(a) * r];
 };
+const f = (n: number) => n.toFixed(2);
 
-// The company as a ring, after a "scope of work" diagram: the Easeus mark at
-// the centre, each department a glass card round it, its glowing mark on the
-// ticked outer ring, joined to the centre by a dashed spoke. A card shows the
-// department's people and its open and late work, and opens its page.
-// Phones get the cards in a column.
-export function OrgMap({ departments }: { departments: MapDepartment[] }) {
-  const [hot, setHot] = useState<string | null>(null);
+// a smooth closed curve through the points (Catmull-Rom as cubic Béziers)
+function blob(p: number[][]) {
+  const n = p.length;
+  const at = (i: number) => p[(i + n) % n];
+  let d = `M${f(p[0][0])} ${f(p[0][1])}`;
+  for (let i = 0; i < n; i++) {
+    const [a, b, c, e] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    d += ` C${f(b[0] + (c[0] - a[0]) / 6)} ${f(b[1] + (c[1] - a[1]) / 6)} ${f(c[0] - (e[0] - b[0]) / 6)} ${f(c[1] - (e[1] - b[1]) / 6)} ${f(c[0])} ${f(c[1])}`;
+  }
+  return `${d} Z`;
+}
+
+// The company's work as a radar, after a skills chart: the Easeus mark at the
+// centre, a spoke a department, and one glowing line round them that reaches
+// out as far as each department's open work. The rings count the work. Each
+// department's name sits at the end of its spoke and opens its page. Phones
+// get the departments as rows with a bar each.
+export function OrgMap({ departments, people }: { departments: MapDepartment[]; people: number }) {
+  const [hot, setHot] = useState<number | null>(null);
   const n = departments.length;
+  const open = departments.reduce((s, d) => s + d.open, 0);
+  const most = Math.max(0, ...departments.map((d) => d.open));
+  const step = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 75, 100, 150, 200, 250, 500].find((s) => s * 4 >= most) ?? Math.ceil(most / 4);
+  const top = step * 4;
   const angle = (i: number) => (360 / n) * i;
+  const reach = (v: number) => CORE + ((R - CORE) * v) / top;
+  const points = departments.map((d, i) => polar(angle(i), reach(d.open)));
+  // a spoke's colour: where it points between the cool left and the warm right
+  const hue = (i: number) => tint((1 + Math.sin((angle(i) * Math.PI) / 180)) / 2);
 
   return (
-    <>
-      <div className="relative hidden min-h-[34rem] flex-1 items-center justify-center overflow-hidden rounded-2xl border border-white/[0.06] bg-[#050607] [container-type:size] sm:flex">
-        <div className="relative" style={{ width: "min(100cqw, 100cqh)", height: "min(100cqw, 100cqh)" }}>
-          {/* colour in the dark: a soft glow behind each department, one at the core */}
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            {departments.map((d, i) => (
-              <span
-                key={d.slug}
-                className="absolute size-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-opacity duration-500"
-                style={{ ...at(angle(i), 22), background: HUES[i % HUES.length], opacity: hot === d.slug ? 0.26 : 0.13 }}
-              />
-            ))}
-            <span className="absolute top-1/2 left-1/2 size-[30%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#3b82f6] opacity-[0.12] blur-3xl" />
-          </div>
+    <section className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[linear-gradient(180deg,#30333b,#24262c)] shadow-[0_24px_60px_rgba(0,0,0,0.45)] sm:min-h-[34rem] sm:flex-1">
+      {/* the soft colour in the corners */}
+      <div aria-hidden className="pointer-events-none absolute -top-24 right-[12%] size-80 rounded-full bg-[#f472b6] opacity-[0.07] blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-28 left-1/2 size-96 -translate-x-1/2 rounded-full bg-[#38bdf8] opacity-[0.07] blur-3xl" />
 
-          {/* the rings, the ticks and the spokes */}
-          <svg aria-hidden viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 size-full">
+      <header className="relative flex shrink-0 items-end justify-between gap-4 border-b border-white/[0.06] px-5 pt-5 pb-4 sm:px-7">
+        <div className="flex items-end gap-3">
+          <h1 className="text-xl tracking-wide whitespace-nowrap text-white uppercase sm:text-2xl">
+            <span className="font-bold">Easeus</span> <span className="font-light">Media</span>
+          </h1>
+          <p className="hidden pb-1 text-[9px] leading-tight tracking-wider text-white/45 uppercase sm:block">
+            {n} {n === 1 ? "department" : "departments"}
+            <br />
+            {people} {people === 1 ? "person" : "people"}
+          </p>
+        </div>
+        <div className="flex items-end gap-3">
+          <p className="pb-1 text-right text-[9px] leading-tight tracking-wider text-white/45 uppercase">
+            Open
+            <br />
+            work
+          </p>
+          <p className="text-3xl leading-none font-extralight text-white tabular-nums sm:text-4xl">{String(open).padStart(2, "0")}</p>
+        </div>
+        <span aria-hidden className="absolute -bottom-px left-5 h-0.5 w-20 bg-[#38bdf8] sm:left-7" />
+        <span aria-hidden className="absolute right-5 -bottom-px h-0.5 w-14 bg-[#f472b6] sm:right-7" />
+      </header>
+
+      {/* the radar */}
+      <div className="relative hidden min-h-0 flex-1 items-center justify-center [container-type:size] sm:flex">
+        <div className="relative" style={{ width: "min(100cqh, calc(100cqw - 18rem))", height: "min(100cqh, calc(100cqw - 18rem))" }}>
+          <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 size-full overflow-visible">
             <defs>
-              <radialGradient id="org-core" cx="50%" cy="45%" r="60%">
-                <stop offset="0%" stopColor="#141922" />
-                <stop offset="100%" stopColor="#07090c" />
-              </radialGradient>
-              <linearGradient id="org-mid" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#34d399" stopOpacity="0.5" />
-                <stop offset="50%" stopColor="#ffffff" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#a855f7" stopOpacity="0.5" />
+              <linearGradient id="radar-line" x1="0" y1="0.5" x2="1" y2="0.5">
+                <stop offset="0%" stopColor={tint(0)} />
+                <stop offset="55%" stopColor="#818cf8" />
+                <stop offset="100%" stopColor={tint(1)} />
               </linearGradient>
+              <radialGradient id="radar-fill">
+                <stop offset="0%" stopColor="#818cf8" stopOpacity="0.02" />
+                <stop offset="100%" stopColor="#818cf8" stopOpacity="0.12" />
+              </radialGradient>
+              <filter id="radar-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="1.1" />
+              </filter>
             </defs>
-            <circle cx="50" cy="50" r="47.6" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.15" />
-            <circle cx="50" cy="50" r="45.6" fill="none" stroke="rgba(255,255,255,0.13)" strokeWidth="2.2" strokeDasharray="0.16 0.64" />
-            <circle cx="50" cy="50" r="31" fill="rgba(255,255,255,0.012)" stroke="url(#org-mid)" strokeWidth="0.18" />
-            <circle cx="50" cy="50" r="15.5" fill="url(#org-core)" stroke="rgba(255,255,255,0.06)" strokeWidth="0.15" />
+            <circle cx="50" cy="50" r={R} fill="#202227" stroke="rgba(255,255,255,0.05)" strokeWidth="0.2" />
+            {[1, 2, 3].map((k) => (
+              <circle key={k} cx="50" cy="50" r={reach(step * k)} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="0.18" />
+            ))}
             {departments.map((d, i) => {
-              const a = ((angle(i) - 90) * Math.PI) / 180;
-              const on = hot === d.slug;
+              const [x1, y1] = polar(angle(i), CORE);
+              const [x2, y2] = polar(angle(i), R);
               return (
                 <line
                   key={d.slug}
-                  x1={50 + Math.cos(a) * 6.5}
-                  y1={50 + Math.sin(a) * 6.5}
-                  x2={50 + Math.cos(a) * 43}
-                  y2={50 + Math.sin(a) * 43}
-                  stroke={on ? HUES[i % HUES.length] : "rgba(255,255,255,0.14)"}
-                  strokeWidth={on ? 0.22 : 0.14}
-                  strokeDasharray="0.7 0.7"
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={hot === i ? hue(i) : "rgba(255,255,255,0.07)"}
+                  strokeWidth={hot === i ? 0.3 : 0.18}
                   className="transition-[stroke] duration-300"
                 />
               );
             })}
+            {[1, 2, 3, 4].map((k) => (
+              <text key={k} x="50" y={50 - reach(step * k) + 2.6} textAnchor="middle" fontSize="1.9" fill="rgba(255,255,255,0.35)" className="tabular-nums">
+                {step * k}
+              </text>
+            ))}
+
+            {/* the work: one glowing line round the spokes */}
+            <g className="radar-in">
+              {n === 1 ? (
+                <circle cx="50" cy="50" r={reach(departments[0].open)} fill="url(#radar-fill)" stroke="url(#radar-line)" strokeWidth="0.8" />
+              ) : (
+                <>
+                  <path d={blob(points)} fill="none" stroke="url(#radar-line)" strokeWidth="2.2" opacity="0.55" filter="url(#radar-glow)" />
+                  <path d={blob(points)} fill="url(#radar-fill)" stroke="url(#radar-line)" strokeWidth="0.8" strokeLinejoin="round" />
+                </>
+              )}
+              {hot !== null && <circle cx={points[hot][0]} cy={points[hot][1]} r="1" fill="#fff" stroke={hue(hot)} strokeWidth="0.5" />}
+            </g>
+
+            {/* a dot where each spoke meets the outer ring */}
+            {departments.map((d, i) => {
+              const [x, y] = polar(angle(i), R);
+              return <circle key={d.slug} cx={x} cy={y} r={hot === i ? 1.3 : 0.85} fill={hue(i)} style={{ filter: `drop-shadow(0 0 1.2px ${hue(i)})` }} />;
+            })}
           </svg>
 
-          {/* the way round, between the departments */}
-          {departments.map((d, i) => (
-            <span
-              key={`arrow-${d.slug}`}
-              aria-hidden
-              className="absolute flex size-[clamp(1.5rem,4.4cqmin,2rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#0c0e11] text-white/45 ring-1 ring-white/10"
-              style={at(angle(i) + 180 / n, 45.6)}
-            >
-              <ArrowRight size={12} style={{ transform: `rotate(${angle(i) + 180 / n}deg)` }} />
-            </span>
-          ))}
-
-          {/* each department's mark on the outer ring */}
-          {departments.map((d, i) => {
-            const hue = HUES[i % HUES.length];
-            const on = hot === d.slug;
-            return (
-              <span
-                key={`mark-${d.slug}`}
-                aria-hidden
-                className="absolute flex size-[clamp(2.4rem,7cqmin,3.25rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full ring-1 ring-white/15 transition-[box-shadow] duration-300"
-                style={{
-                  ...at(angle(i), 45.6),
-                  background: `radial-gradient(circle at 50% 30%, ${hue}66, #0b0d10 72%)`,
-                  boxShadow: `0 0 ${on ? 44 : 30}px ${hue}${on ? "cc" : "88"}, inset 0 0 14px ${hue}55`,
-                }}
-              >
-                <Mark name={d.name} size={18} color={hue} />
-              </span>
-            );
-          })}
-
           {/* the centre: the Easeus mark */}
-          <span className="absolute top-1/2 left-1/2 flex size-[11%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#0d1015] ring-1 ring-white/[0.12] shadow-[0_0_40px_rgba(59,130,246,0.25)]">
-            <Image src="/logo.png" alt="Easeus Media" width={28} height={28} className="h-[42%] w-auto object-contain" />
+          <span className="absolute top-1/2 left-1/2 flex size-[14%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#17191d] shadow-[0_0_0_3px_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.5)]">
+            <Image src="/logo.png" alt="Easeus Media" width={32} height={32} className="h-[42%] w-auto object-contain" />
           </span>
 
-          {/* the departments, as glass cards on the middle ring */}
-          {departments.map((d, i) => (
-            <Card key={d.slug} d={d} hue={HUES[i % HUES.length]} style={at(angle(i), 30.5)} onHover={(on) => setHot(on ? d.slug : null)} hot={hot === d.slug} />
-          ))}
+          {/* each department's name at the end of its spoke */}
+          {departments.map((d, i) => {
+            const [x, y] = polar(angle(i), R + 3.2);
+            const side = Math.sin((angle(i) * Math.PI) / 180);
+            const up = Math.cos((angle(i) * Math.PI) / 180);
+            const middle = Math.abs(side) < 0.3;
+            const shift = middle ? `-50%, ${up > 0 ? "-100%" : "0"}` : `${side > 0 ? "0" : "-100%"}, -50%`;
+            return (
+              <Link
+                key={d.slug}
+                href={`/org/${d.slug}`}
+                onMouseEnter={() => setHot(i)}
+                onMouseLeave={() => setHot(null)}
+                onFocus={() => setHot(i)}
+                onBlur={() => setHot(null)}
+                className={`absolute rounded-md px-1.5 py-1 whitespace-nowrap outline-none ${middle ? "text-center" : side > 0 ? "text-left" : "text-right"}`}
+                style={{ left: `${x}%`, top: `${y}%`, transform: `translate(${shift})` }}
+              >
+                <span className={`block text-[12px] font-semibold tracking-wider uppercase transition-colors duration-300 ${hot === i ? "text-white" : "text-white/85"}`}>{d.name}</span>
+                <span className="block text-[10.5px] text-white/45 tabular-nums">
+                  {d.open} open{d.late > 0 && <span className="text-rose-300/90"> · {d.late} late</span>}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </div>
 
-      {/* phones: the same cards, one under another */}
-      <div className="flex flex-col gap-2.5 sm:hidden">
+      {/* phones: a row a department, its bar as long as its open work */}
+      <ul className="relative flex flex-col px-5 py-3 sm:hidden">
         {departments.map((d, i) => (
-          <Card key={d.slug} d={d} hue={HUES[i % HUES.length]} />
+          <li key={d.slug}>
+            <Link href={`/org/${d.slug}`} className="flex flex-col gap-1.5 py-2.5">
+              <span className="flex items-baseline justify-between gap-3">
+                <span className="text-[12px] font-semibold tracking-wider text-white/85 uppercase">{d.name}</span>
+                <span className="text-[10.5px] text-white/45 tabular-nums">
+                  {d.open} open{d.late > 0 && <span className="text-rose-300/90"> · {d.late} late</span>}
+                </span>
+              </span>
+              <span className="h-1 overflow-hidden rounded-full bg-white/[0.06]">
+                <span className="block h-full rounded-full" style={{ width: `${top ? (d.open / top) * 100 : 0}%`, background: `linear-gradient(90deg, ${tint(0)}, ${hue(i)})` }} />
+              </span>
+            </Link>
+          </li>
         ))}
-      </div>
-    </>
-  );
-}
+      </ul>
 
-function Card({ d, hue, style, hot = false, onHover }: { d: MapDepartment; hue: string; style?: React.CSSProperties; hot?: boolean; onHover?: (on: boolean) => void }) {
-  const shown = d.members.slice(0, 3);
-  const more = d.members.length - shown.length;
-  return (
-    <Link
-      href={`/org/${d.slug}`}
-      onMouseEnter={() => onHover?.(true)}
-      onMouseLeave={() => onHover?.(false)}
-      onFocus={() => onHover?.(true)}
-      onBlur={() => onHover?.(false)}
-      style={style}
-      className={`group flex flex-col gap-2.5 rounded-2xl border bg-white/[0.045] p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl transition-[border-color,background-color,transform] duration-300 ${
-        style ? "absolute w-[clamp(9.5rem,21cqmin,13rem)] -translate-x-1/2 -translate-y-1/2" : "w-full"
-      } ${hot ? "border-white/25 bg-white/[0.07]" : "border-white/[0.1] hover:border-white/20"}`}
-    >
-      <div className="flex items-start gap-2">
-        {!style && <Mark name={d.name} size={15} color={hue} className="mt-0.5 shrink-0" />}
-        <p className="min-w-0 flex-1 text-[13px] leading-snug font-medium text-white">{d.name}</p>
-        {/* the team, a dot a person */}
-        <span className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
-          <span className="text-[9px] leading-none text-white/45">Team</span>
-          <span className="flex gap-0.5">
-            {Array.from({ length: Math.max(1, Math.min(6, d.people)) }, (_, k) => (
-              <span key={k} className="h-1 w-1.5 rounded-full" style={{ background: d.people ? hue : "rgba(255,255,255,0.15)" }} />
-            ))}
-          </span>
-        </span>
-      </div>
-      {shown.length > 0 && (
-        <ul className="flex flex-col gap-1 text-[11px] text-white/65">
-          {shown.map((name, k) => (
-            <li key={`${name}-${k}`} className="flex items-center gap-1.5">
-              <span className="size-1 shrink-0 rounded-full bg-white/35" />
-              <span className="truncate">{name}</span>
-            </li>
-          ))}
-          {more > 0 && <li className="pl-2.5 text-white/40">+{more} more</li>}
-        </ul>
-      )}
-      <p className="flex items-center gap-2 text-[10.5px] text-white/50 tabular-nums">
-        <span>{d.open} open</span>
-        {d.late > 0 && <span className="text-rose-300">{d.late} late</span>}
-      </p>
-    </Link>
+      <div aria-hidden className="h-0.5 shrink-0 bg-[linear-gradient(90deg,#38bdf8,#818cf8,#f472b6)] opacity-70" />
+    </section>
   );
 }
