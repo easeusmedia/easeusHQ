@@ -4,8 +4,9 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname, useRouter } from "next/navigation";
 import { createElement, useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, type LucideIcon } from "lucide-react";
+import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
 import { markOf } from "./org/marks";
+import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./TaskCard";
 import { usePhoto } from "./photos";
 import { updatePersonPhoto } from "./team/actions";
@@ -178,6 +179,7 @@ export function Sidebar({
   viewAsPeople = null,
   canSeeFinance = false,
   name,
+  account = null,
   fullAccess,
   isEditor = false,
   sessionUserId,
@@ -198,6 +200,8 @@ export function Sidebar({
   departments?: { id: string; slug: string; name: string; children?: SidebarSpace[] }[];
   // everyone a Level 1 can view the app as (null for anyone else)
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
+  // their own name and sign-in email, to change (null while looking as someone else)
+  account?: { name: string; email: string } | null;
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;
@@ -227,6 +231,7 @@ export function Sidebar({
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
   const [viewAsOpen, setViewAsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [look, setLook] = useState<Theme>(theme);
   // the frame changes at once; saved for next time
   function pickTheme(t: Theme) {
@@ -600,6 +605,20 @@ export function Sidebar({
               </button>
             )}
             {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
+            {/* their own name, sign-in email and password */}
+            {account && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen(false);
+                  setAccountOpen(true);
+                }}
+                className="menu-item px-2.5 py-2 text-sm"
+              >
+                <UserCog size={15} />
+                Account
+              </button>
+            )}
             {/* how the app looks to them: one row, Mist on or off */}
             <button type="button" role="switch" aria-checked={look === "mist"} onClick={() => pickTheme(look === "mist" ? "dark" : "mist")} className="menu-item px-2.5 py-2 text-sm">
               <CloudFog size={15} />
@@ -692,6 +711,7 @@ export function Sidebar({
       </div>
       </div>
     </nav>
+    {account && <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} account={account} />}
 
     </>
   );

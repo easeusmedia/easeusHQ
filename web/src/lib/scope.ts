@@ -37,7 +37,7 @@ export const DEPT = { production: "production", clientServices: "client-services
 // Abhishek, the developer, shows as Level 2 but keeps everything Level 1
 // has, wherever access is decided. (Level 2 can still see his work: what's
 // hidden from them is Level 1's by level, not his.)
-const DEVELOPER = "abhishek@easeus.media";
+export const DEVELOPER = "abhishek@easeus.media";
 export const isFounder = (u: { role: string; email?: string | null }) => u.role === "admin" || u.email === DEVELOPER;
 // the role a page acts with: full access counts as Level 1's
 export const effectiveRole = <R extends string>(u: { role: R; email?: string | null }): R | "admin" => (isFounder(u) ? "admin" : u.role);

@@ -136,6 +136,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         viewAsPeople={viewAsPeople}
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
+        // their own account to change: not while looking as someone else
+        account={viewingAs ? null : { name: sessionUser.name, email: sessionUser.email }}
         fullAccess={isAbhishekOrAdmin(sessionUser)}
         isEditor={editor}
         sessionUserId={sessionUser.id}
