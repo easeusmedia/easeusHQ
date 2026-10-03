@@ -3,6 +3,7 @@
 // NEW_DATABASE_URL and NEW_DIRECT_URL (Supabase > Connect > ORMs > Prisma),
 // so no password ever passes through chat.
 //
+//   node --env-file=.env scripts/run.cjs scripts/move-db.ts backup [folder]  every row into one file on this machine (reads only)
 //   node --env-file=.env scripts/run.cjs scripts/move-db.ts rehearse  prove every table survives the trip (reads only; needs no new database)
 //   node --env-file=.env scripts/run.cjs scripts/move-db.ts schema   make the tables there
 //   node --env-file=.env scripts/run.cjs scripts/move-db.ts copy     empty them, copy every row, then check
@@ -18,9 +19,12 @@
 // timestamps to the microsecond, enums, arrays, JSON. That takes every
 // table in the public schema, the many-to-many ones Prisma makes too.
 import { execFileSync } from "child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import { resolve } from "path";
+import { gunzipSync, gzipSync } from "zlib";
 import { PrismaClient } from "@prisma/client";
 
-const [mode] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
+const [mode, where] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
 const OLD = process.env.DIRECT_URL;
 const NEW = process.env.NEW_DIRECT_URL;
 const NEW_POOLED = process.env.NEW_DATABASE_URL;
@@ -166,7 +170,57 @@ async function rehearse(db: Db) {
   return off === 0;
 }
 
-if (mode === "rehearse") {
+// The whole database in one gzipped JSON file: { takenAt, tables: { name:
+// rows } }, each row as Postgres writes it (the same JSON the copy sends).
+// Outside the repository by default: it holds people's details. Read back
+// and counted against the database before it's called done.
+// ponytail: no "restore from file" yet; the rows are in the form copy
+// inserts, so add a file source to copy if a backup ever has to be loaded.
+async function backup(db: Db, folder: string) {
+  const tables = await tablesOf(db);
+  const parts: string[] = [];
+  for (const table of tables) {
+    const chunks: string[] = [];
+    for (let offset = 0; ; offset += BATCH) {
+      const [{ rows, n }] = await db.$queryRawUnsafe<{ rows: string; n: number }[]>(
+        `select coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)::text as rows, count(*)::int as n from (select * from ${q(table)} order by ctid limit ${BATCH} offset ${offset}) t`,
+      );
+      // the rows without their [ ], to join the batches into one list
+      if (n) chunks.push(rows.trim().slice(1, -1));
+      if (n < BATCH) break;
+    }
+    parts.push(`${JSON.stringify(table)}:[${chunks.join(",")}]`);
+  }
+  const takenAt = new Date().toISOString();
+  mkdirSync(folder, { recursive: true });
+  const file = resolve(folder, `easeus-hq-${takenAt.slice(0, 16).replace(/[:T]/g, "-")}.json.gz`);
+  writeFileSync(file, gzipSync(`{"takenAt":${JSON.stringify(takenAt)},"tables":{${parts.join(",")}}}`));
+
+  // the check: what's in the file against what's in the database
+  const kept = JSON.parse(gunzipSync(readFileSync(file)).toString()) as { tables: Record<string, unknown[]> };
+  let total = 0;
+  let off = 0;
+  for (const table of tables) {
+    const [{ n }] = await db.$queryRawUnsafe<{ n: bigint }[]>(`select count(*)::bigint as n from ${q(table)}`);
+    total += kept.tables[table]?.length ?? 0;
+    if ((kept.tables[table]?.length ?? -1) !== Number(n)) {
+      off++;
+      console.log(`DIFFERENT  ${table}: ${Number(n)} rows in the database, ${kept.tables[table]?.length ?? 0} in the file`);
+    }
+  }
+  console.log(off ? `${off} tables don't match (written to while it ran?). Run it again.` : `Backed up ${tables.length} tables, ${total} rows: ${file} (${Math.round(readFileSync(file).length / 1024)} KB)`);
+  return off === 0;
+}
+
+if (mode === "backup") {
+  const db = one(OLD);
+  try {
+    // beside the repository, never in it
+    if (!(await backup(db, where ? resolve(where) : resolve(process.cwd(), "..", "..", "easeus-hq-backups")))) process.exitCode = 1;
+  } finally {
+    await db.$disconnect();
+  }
+} else if (mode === "rehearse") {
   const db = one(OLD);
   try {
     if (!(await rehearse(db))) process.exitCode = 1;
@@ -187,5 +241,5 @@ if (mode === "rehearse") {
     await Promise.all([from.$disconnect(), to.$disconnect()]);
   }
 } else {
-  throw new Error("Say one of: rehearse, schema, copy, check.");
+  throw new Error("Say one of: backup, rehearse, schema, copy, check.");
 }
