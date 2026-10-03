@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, ChartColumn, Clapperboard, Eye, Heart, Image as ImageIcon, MonitorPlay, Smartphone } from "lucide-react";
 import { StatTile } from "../StatTile";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getViewer } from "@/lib/viewer";
 import { clientLogoSrc } from "@/lib/photos";
 import { clientHref } from "@/lib/slug";
 import { istDay, lastWeek, previousRange, shiftDay, type Item, type Platform } from "@/lib/analytics";
@@ -128,8 +128,7 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string; platform?: string }>;
 }) {
-  const id = await getSessionUserId();
-  const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
+  const me = await getViewer();
   if (!me) redirect("/login");
   if (me.role === "employee") redirect("/board");
 

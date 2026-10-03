@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_CLIENT_SELECT } from "@/lib/publicUser";
 import { getSessionUserId } from "@/lib/auth";
-import { userPhotoSrc } from "@/lib/photos";
+import { photoSrcAt } from "@/lib/photos";
+import { photoVersions } from "@/lib/pictureVersions";
 import { canEditPeople, canSetAccess, isFounder, peopleWhere } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PeopleDirectory, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
@@ -39,9 +40,19 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   // a Lead sees the people in their departments, never a Founder
   const where = peopleWhere(viewer);
 
-  const [people, teams, jobTitles, workTags] = await Promise.all([
+  // editors are read by their videos' grades (Performance), this week:
+  // asked for now, alongside everything else, and read further down
+  const today = indiaDay(new Date());
+  const week = periodFrom({}, today);
+  const kpi = loadPerformance({ from: week.from });
+  // if it fails, it fails where it's read below, not as a stray rejection meanwhile
+  kpi.catch(() => {});
+
+  const [people, teams, jobTitles, workTags, photos] = await Promise.all([
     prisma.user.findMany({
       where,
+      // not the stored photo (it's addressed by its version) nor the password hash
+      omit: { avatarUrl: true, passwordHash: true },
       include: { team: true, jobTitle: true, departments: { select: { id: true } }, roles: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } } },
       orderBy: [{ employment: "asc" }, { name: "asc" }],
     }),
@@ -50,6 +61,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     canEdit
       ? prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { _count: { select: { tasks: true, workTasks: true } } } })
       : [],
+    photoVersions(),
   ]);
 
   // What the roster is carrying now and what it finished in the last 30
@@ -58,7 +70,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const ids = people.map((p) => p.id);
   // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the moment of this request
   const since = new Date(Date.now() - 30 * 86_400_000);
-  const today = indiaDay(new Date());
   const [openWorkRows, openClientRows, finishedWork, deliveredClient] = await Promise.all([
     prisma.workTask.findMany({
       where: { assignedToId: { in: ids }, ...LIVE_WORK_TASK },
@@ -82,9 +93,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   const dueOf = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
-  // editors are read by their videos' grades (Performance), this week
-  const week = periodFrom({}, today);
-  const kpiData = await loadPerformance({ from: week.from });
+  const kpiData = await kpi;
   const editorKpiFor = (id: string) => {
     if (!kpiData.editors.some((e) => e.id === id)) return null;
     const sum = kpiData.summary(week.from, week.to, id);
@@ -147,7 +156,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     name: p.name,
     email: p.email,
     phone: p.phone,
-    avatarUrl: userPhotoSrc(p),
+    avatarUrl: photoSrcAt(p.id, photos.get(p.id)),
     role: p.role,
     employment: p.employment,
     employmentType: p.employmentType,

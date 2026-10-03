@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { getRealUserId } from "@/lib/auth";
@@ -82,7 +83,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // the notices are on screen now: seen (the number on Home clears), but
   // marked new this once. Not while Level 1 is looking as someone else.
   const fresh = new Set(mine.filter((n) => !n.readAt).map((n) => n.id));
-  if (fresh.size && (await getRealUserId()) === viewer.id) await prisma.notice.updateMany({ where: { id: { in: [...fresh] } }, data: { readAt: new Date() } });
+  // Marked once the page has been sent, so it doesn't hold the page up.
+  if (fresh.size && (await getRealUserId()) === viewer.id) {
+    const seen = [...fresh];
+    after(() => prisma.notice.updateMany({ where: { id: { in: seen } }, data: { readAt: new Date() } }).catch(() => {}));
+  }
 
   const departmentName = new Map(teams.map((t) => [t.slug, t.name]));
   const items: HomeItem[] = [

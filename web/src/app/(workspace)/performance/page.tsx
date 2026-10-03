@@ -2,8 +2,7 @@ import Link from "next/link";
 import { isFounder } from "@/lib/scope";
 import { redirect } from "next/navigation";
 import { Settings2 } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getViewer } from "@/lib/viewer";
 import { chartSpans, dayOf, periodFrom } from "@/lib/editorKpi";
 import { LETTER_LABEL, PART_LABEL } from "@/lib/videoScore";
 import { Avatar } from "../TaskCard";
@@ -21,8 +20,7 @@ export const dynamic = "force-dynamic";
 // made S and A+, their three parts, and everyone's weeks on one chart. An
 // editor who comes here is taken to their own.
 export default async function PerformancePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const id = await getSessionUserId();
-  const me = id ? await prisma.user.findUnique({ where: { id } }) : null;
+  const me = await getViewer();
   if (!me) redirect("/login");
   if (me.role === "employee") redirect(`/performance/${me.id}`);
   // grading is a Founder's: a Lead has no Performance page
