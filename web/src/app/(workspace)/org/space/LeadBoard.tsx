@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, Eye, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { dayOf, moveNeedsReason, phaseKey, toneOf, type BoardData, type LeadData, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
@@ -554,8 +554,8 @@ export function LeadBoard({
                   </button>
                 )}
                 {hidden > 0 && (
-                  <button type="button" onClick={onShowEmpty} className="flex items-center gap-1.5 px-2 text-left text-xs text-muted transition-colors hover:text-foreground">
-                    <EyeOff size={13} className="shrink-0" /> {hidden} empty {hidden === 1 ? "stage" : "stages"} hidden · <span className="text-accent">Show</span>
+                  <button type="button" onClick={onShowEmpty} title="Show the empty stages" className={QUIET_ROW}>
+                    <Eye size={14} className="shrink-0" /> Show {hidden} empty
                   </button>
                 )}
               </div>
