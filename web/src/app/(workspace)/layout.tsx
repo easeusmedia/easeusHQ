@@ -66,7 +66,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       .catch(() => 0),
     // a Level 2 or 3 who left an overdue notice unanswered for over a day
     // sees only that until each task has a new date and a reason (never
-    // Level 1, nor anyone looking as someone else)
+    // Level 1; a Level 1 looking as them sees it too, below)
     Promise.all([getRealViewer(), getSessionUserId()])
       .then(([me, as]) => (me && me.id === as && me.role !== "admin" && !isFounder(me) ? overdueToAnswer(me.id) : []))
       .catch(() => []),
@@ -83,10 +83,13 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const viewAsPeople =
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
-  if (toAnswer.length)
+  // looking as a Level 2 or 3: their lock, as they'd see it, to read
+  const locked = viewingAs ? (!isFounder(sessionUser) ? await overdueToAnswer(sessionUser.id).catch(() => []) : []) : toAnswer;
+  if (locked.length)
     return (
       <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
-        <OverdueLock items={toAnswer} logout={logout} />
+        <OverdueLock items={locked} logout={logout} preview={viewingAs} />
+        {viewingAs && <ViewAsBanner name={sessionUser.name} level={LEVEL_LABEL[sessionUser.role]} />}
       </div>
     );
 

@@ -12,7 +12,8 @@ import { answerOverdue } from "./actions";
 // In place of the app for a Level 2 or 3 who left an overdue notice
 // unanswered for over a day (lib/taskTrack overdueToAnswer): each task needs
 // a new due date and a reason, and the app opens once the last one is in.
-export function OverdueLock({ items, logout }: { items: ToAnswer[]; logout: () => Promise<void> }) {
+// `preview`: a Level 1 looking as them sees the same screen, to read only.
+export function OverdueLock({ items, logout, preview = false }: { items: ToAnswer[]; logout: () => Promise<void>; preview?: boolean }) {
   return (
     <div className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-4 py-12">
       <section className="rise-in relative w-full max-w-xl overflow-hidden panel rounded-3xl p-6 sm:p-8">
@@ -27,20 +28,22 @@ export function OverdueLock({ items, logout }: { items: ToAnswer[]; logout: () =
         </p>
         <ul className="relative mt-6 flex flex-col gap-3">
           {items.map((t) => (
-            <Item key={t.id} t={t} />
+            <Item key={t.id} t={t} preview={preview} />
           ))}
         </ul>
-        <form action={logout} className="relative mt-6 flex justify-end">
-          <button type="submit" className="btn btn-sm btn-ghost">
-            <LogOut size={13} /> Sign out
-          </button>
-        </form>
+        {!preview && (
+          <form action={logout} className="relative mt-6 flex justify-end">
+            <button type="submit" className="btn btn-sm btn-ghost">
+              <LogOut size={13} /> Sign out
+            </button>
+          </form>
+        )}
       </section>
     </div>
   );
 }
 
-function Item({ t }: { t: ToAnswer }) {
+function Item({ t, preview }: { t: ToAnswer; preview: boolean }) {
   const router = useRouter();
   const [day, setDay] = useState("");
   const [reason, setReason] = useState("");
@@ -66,6 +69,7 @@ function Item({ t }: { t: ToAnswer }) {
           {t.strikes > 1 && <span className="text-rose-300"> · late for the {ordinal(t.strikes)} time</span>}
         </p>
       </div>
+      <fieldset disabled={preview} className="flex flex-col gap-2.5 disabled:opacity-60">
       <DatePicker value={day} onChange={setDay} placeholder="New due date" clearable={false} />
       <textarea
         value={reason}
@@ -82,6 +86,7 @@ function Item({ t }: { t: ToAnswer }) {
       <button type="button" onClick={save} disabled={busy || !day || !reason.trim()} className="btn btn-sm btn-glow self-end disabled:opacity-50">
         {busy ? "Saving…" : "Save"}
       </button>
+      </fieldset>
     </li>
   );
 }
