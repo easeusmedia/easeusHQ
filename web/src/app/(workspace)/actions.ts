@@ -953,7 +953,7 @@ export async function copyFrameioFileToDrive(
   }
 }
 
-// Answering an overdue notice from the lock (lib/taskTrack overdueToAnswer):
+// Answering an overdue notice for a frozen task (lib/taskTrack overdueToAnswer):
 // a new completion date, today or later, and the reason, on a task that's
 // the person's own. The move is kept like any other, and the task's overdue
 // notices count as read.
@@ -965,9 +965,10 @@ export async function answerOverdue(kind: "task" | "work", id: string, day: stri
   if (!why) return { error: "Add a short reason." };
   const select = { dueDate: true, strikes: true, assignedToId: true, createdById: true } as const;
   const row = kind === "task" ? await prisma.task.findUnique({ where: { id }, select }) : await prisma.workTask.findUnique({ where: { id }, select });
-  // theirs, or a Level 1 looking as them sets it for them (on the record as the Level 1)
+  // theirs; a Lead's, for their departments' frozen work; or a Level 1
+  // looking as them. The record says who set it.
   const owner = row?.assignedToId ?? row?.createdById;
-  if (!row || !owner || (owner !== me.id && !(isFounder(me) && lookingAs === owner))) return { error: "That task isn't yours to move." };
+  if (!row || !owner || (owner !== me.id && !(isFounder(me) && lookingAs === owner) && !(await frozenFor(me, id)))) return { error: "That task isn't yours to move." };
   const due = new Date(day);
   if (kind === "task") await prisma.task.update({ where: { id }, data: { dueDate: due } });
   else await prisma.workTask.update({ where: { id }, data: { dueDate: due } });

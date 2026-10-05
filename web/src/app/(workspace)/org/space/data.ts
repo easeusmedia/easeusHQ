@@ -152,14 +152,3 @@ export async function templatesOf(teamId: string, kind: SpaceKind) {
   });
   return rows.map((r) => ({ id: r.id, name: r.parent ? `${r.name} (${r.parent.name})` : r.name }));
 }
-
-// Reach-outs done on a board: every move into a "Day …" stage is one (a
-// first email, a follow-up). All time, and the last seven days.
-export async function reachOuts(boardId: string) {
-  const where = { lead: { boardId }, kind: "moved", toStage: { startsWith: "Day " } };
-  const [total, week] = await Promise.all([
-    prisma.leadEvent.count({ where }),
-    prisma.leadEvent.count({ where: { ...where, createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
-  ]);
-  return { total, week };
-}

@@ -115,7 +115,7 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
       <div>
         <p className="text-sm font-medium">{t.title}</p>
         <p className="mt-0.5 text-xs text-muted">
-          Was due {shortDay(t.due)}
+          {t.owner && `${t.owner} · `}Was due {shortDay(t.due)}
           {t.client && ` · ${t.client}`}
           {t.strikes > 1 && <span className="text-rose-300"> · late for the {ordinal(t.strikes)} time</span>}
         </p>

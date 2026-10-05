@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { dayOf, shortDay } from "./editorKpi";
-import { isFounder, type Viewer } from "./scope";
+import { isFounder, isLead, type Viewer } from "./scope";
 import { ACTIVE_STATUSES } from "./workflow";
 import { needsAnswer, overdueAudience, overdueText } from "./overdue.ts";
 import { departmentFromTitle } from "./department.ts";
@@ -119,39 +119,60 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
   return counted;
 }
 
-// Someone's own tasks whose overdue notice is over a day old and still
-// unanswered (lib/overdue.ts needsAnswer): each needs a new date and a reason
-// before the app opens for them again
-export type ToAnswer = { kind: "task" | "work"; id: string; title: string; due: string; strikes: number; client: string | null };
-export async function overdueToAnswer(userId: string, now = new Date()): Promise<ToAnswer[]> {
+// Tasks whose overdue notice is over a day old and still unanswered
+// (lib/overdue.ts needsAnswer): frozen until each has a new date and a
+// reason (FrozenTasks). Someone's own; for a Lead, also their departments'
+// Members' (`teamIds`), since late work is theirs to answer for too. Never a
+// Level 1's.
+export type ToAnswer = {
+  kind: "task" | "work";
+  id: string;
+  title: string;
+  due: string;
+  strikes: number;
+  client: string | null;
+  // whose it is, when it isn't the viewer's own
+  owner: string | null;
+};
+export async function overdueToAnswer(userId: string, now = new Date(), teamIds: string[] = []): Promise<ToAnswer[]> {
   const before = new Date(`${dayOf(now)}T00:00:00+05:30`);
+  // a Lead's departments' work, given to a Member (Level 3): a fellow Lead's answers for itself
+  const below = { teamId: { in: teamIds }, assignedTo: { role: "employee" as const } };
+  const team = teamIds.length ? [below] : [];
   // a client task is whoever it's assigned to (else whoever made it); a to-do always has someone
-  const theirs = { OR: [{ assignedToId: userId }, { assignedToId: null, createdById: userId }] };
-  const select = { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, project: { select: { client: { select: { name: true } } } } } as const;
-  // their overdue notices and their overdue work, side by side: this runs
-  // on every page, so it's one round to the database, matched up here
+  const theirs = { OR: [{ assignedToId: userId }, { assignedToId: null, createdById: userId }, ...(teamIds.length ? [{ ...below, assignedToId: { not: null } }] : [])] };
+  const select = { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } as const;
+  // the overdue notices and the overdue work, side by side: this runs on
+  // every page, so it's one round to the database, matched up here
   const [notices, tasks, todos] = await Promise.all([
-    prisma.notice.findMany({ where: { forId: userId, kind: "overdue" }, select: { taskId: true, workTaskId: true, createdAt: true } }),
+    prisma.notice.findMany({
+      where: teamIds.length ? { kind: "overdue", createdAt: { gte: new Date(now.getTime() - 90 * 86_400_000) } } : { forId: userId, kind: "overdue" },
+      select: { forId: true, taskId: true, workTaskId: true, createdAt: true },
+    }),
     prisma.task.findMany({ where: { ...theirs, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } }, select }),
-    prisma.workTask.findMany({ where: { assignedToId: userId, status: { not: "done" }, dueDate: { lt: before } }, select }),
+    prisma.workTask.findMany({ where: { OR: [{ assignedToId: userId }, ...team], status: { not: "done" }, dueDate: { lt: before } }, select }),
   ]);
-  // the latest notice each task had
+  // the latest notice each task's own person had
   const latest = new Map<string, Date>();
   for (const n of notices) {
-    const k = n.taskId ?? n.workTaskId;
-    if (k && (latest.get(k)?.getTime() ?? 0) < n.createdAt.getTime()) latest.set(k, n.createdAt);
+    const k = `${n.taskId ?? n.workTaskId}:${n.forId}`;
+    if ((latest.get(k)?.getTime() ?? 0) < n.createdAt.getTime()) latest.set(k, n.createdAt);
   }
   return [...tasks.map((t) => ({ ...t, kind: "task" as const })), ...todos.map((t) => ({ ...t, kind: "work" as const }))]
-    .filter((t) => needsAnswer({ ...t, noticeAt: latest.get(t.id) ?? null }, now))
-    .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null }));
+    .map((t) => ({ t, owner: t.assignedToId ?? t.createdById }))
+    .filter(({ t, owner }) => needsAnswer({ ...t, noticeAt: latest.get(`${t.id}:${owner}`) ?? null }, now))
+    .map(({ t, owner }) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: owner === userId ? null : (t.assignedTo?.name ?? null) }));
 }
 
-// One of a Level 2 or 3's own tasks, frozen until it has a new date and a
-// reason (overdueToAnswer): nothing moves it till then
+// The departments a Lead answers for (overdueToAnswer); none for anyone else
+export const answersFor = (user: { role: string; departments?: { id: string }[] }) => (isLead(user) ? (user.departments ?? []).map((d) => d.id) : []);
+
+// A task frozen for this person (theirs, or for a Lead their departments'),
+// until it has a new date and a reason: nothing moves it till then
 export const FROZEN = "Set a new due date for this task first.";
-export async function frozenFor(user: { id: string; role: string; email?: string | null }, taskId: string): Promise<boolean> {
+export async function frozenFor(user: { id: string; role: string; email?: string | null; departments?: { id: string }[] }, taskId: string): Promise<boolean> {
   if (isFounder(user)) return false;
-  return (await overdueToAnswer(user.id)).some((t) => t.id === taskId);
+  return (await overdueToAnswer(user.id, new Date(), answersFor(user))).some((t) => t.id === taskId);
 }
 
 const SWEPT = "overdue.sweptOn";
