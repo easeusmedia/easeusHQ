@@ -1,5 +1,5 @@
 {
-  "regions": ["hnd1"],
+  "regions": ["bom1"],
   "crons": [{ "path": "/api/cron/analytics", "schedule": "30 20 * * *" }],
   "git": { "deploymentEnabled": { "dev": false } }
 }

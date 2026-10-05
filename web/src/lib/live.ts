@@ -3,7 +3,8 @@
 // key. That key is public by design and the database is closed to it, so
 // it's fine to reach the browser. The project is read off DATABASE_URL
 // ("postgres.<project>") when no address is set.
-const PUBLISHABLE_KEY = "";
+// the Mumbai project's (Easeus HQ, ap-south-1), since 6 Oct 2026
+const PUBLISHABLE_KEY = "sb_publishable_a2jgmRHl38Ld8MklrzNHQA_NBZ1IrRa";
 
 export function liveLine(): { url: string; key: string } | null {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PUBLISHABLE_KEY;
