@@ -356,7 +356,9 @@ function LeadPage({
             </Fold>
           )}
 
-          <WriteUp notes={notes} onSave={saveNotes} />
+          {/* no write-up on a lead just added (the first stage): its
+              messages are the templates. One already written still shows. */}
+          {(notes || order.indexOf(stageId) > 0) && <WriteUp notes={notes} onSave={saveNotes} />}
 
           {/* then the messages to send */}
           <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />

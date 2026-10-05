@@ -76,7 +76,7 @@ export function LeadHistory({ events, flat = false }: { events: LeadEventData[];
                 <div className="min-w-0 flex-1 pt-0.5 text-xs">
                   {e.kind === "moved" && e.fromStage && e.toStage ? (
                     <p className="flex flex-wrap items-center gap-1.5 text-foreground/90">
-                      Moved <Stage name={e.fromStage} />
+                      <Stage name={e.fromStage} />
                       <ArrowRight size={11} className="shrink-0 text-muted" />
                       <Stage name={e.toStage} />
                     </p>
