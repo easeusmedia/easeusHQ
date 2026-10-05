@@ -14,6 +14,7 @@ import { TaskTagChip } from "../TaskTagPicker";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
 import { dueState } from "@/lib/due";
+import { useFrozen } from "../FrozenTasks";
 
 export type WorkTaskCardData = {
   id: string;
@@ -70,6 +71,7 @@ export function WorkTaskCard({
   canManageTags?: boolean;
   actingUserId: string;
 }) {
+  const frozen = useFrozen();
   const dialogRef = useRef<{ open: () => void }>(null);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export function WorkTaskCard({
           then its stage. A div, not a button: the stage menu inside it is
           a button of its own. */}
       <div
+        {...frozen(task.id)}
         role="button"
         tabIndex={0}
         onClick={() => dialogRef.current?.open()}

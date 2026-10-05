@@ -15,6 +15,7 @@ import { CalendarClock, RotateCcw, EyeOff } from "lucide-react";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { dueState } from "@/lib/due";
 import { needsGrade } from "@/lib/videoScore";
+import { useFrozen } from "./FrozenTasks";
 
 // kept as re-exports so the existing call sites don't all have to change —
 // STAGE in @/lib/stages is the single definition
@@ -305,6 +306,7 @@ export function TaskCard({
   actingRole: Role;
   taskTags?: TaskTagOption[];
 }) {
+  const frozen = useFrozen();
   const isAssignee = task.assignedTo?.id === actingUserId || !!task.shares?.length;
   const canManage = actingRole === "admin" || actingRole === "core";
   const options = availableStatuses(task.status, { role: actingRole, isAssignee }, task.workflow);
@@ -322,6 +324,7 @@ export function TaskCard({
   // get a details dialog AND, say, a notes dialog stacked on top of it.
   return (
     <div
+      {...frozen(task.id)}
       onClick={() => detailsRef.current?.open()}
       className={`card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm ${tierClass(tier)}`}
     >

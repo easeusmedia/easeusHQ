@@ -146,6 +146,14 @@ export async function overdueToAnswer(userId: string, now = new Date()): Promise
     .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null }));
 }
 
+// One of a Level 2 or 3's own tasks, frozen until it has a new date and a
+// reason (overdueToAnswer): nothing moves it till then
+export const FROZEN = "Set a new due date for this task first.";
+export async function frozenFor(user: { id: string; role: string; email?: string | null }, taskId: string): Promise<boolean> {
+  if (isFounder(user)) return false;
+  return (await overdueToAnswer(user.id)).some((t) => t.id === taskId);
+}
+
 const SWEPT = "overdue.sweptOn";
 // the sweep, unless it's already run today
 export async function sweepIfDue(now = new Date()) {

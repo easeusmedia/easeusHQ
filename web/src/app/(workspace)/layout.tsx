@@ -25,7 +25,7 @@ import { logoSrcAt } from "@/lib/photos";
 import { logoVersions } from "@/lib/pictureVersions";
 import { liveLine } from "@/lib/live";
 import { overdueToAnswer } from "@/lib/taskTrack";
-import { OverdueLock } from "./OverdueLock";
+import { FrozenTasks } from "./FrozenTasks";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   // read server-side so the very first paint already matches the user's
@@ -64,9 +64,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     getViewer()
       .then((v) => (v ? prisma.notice.count({ where: { forId: v.id, readAt: null } }) : 0))
       .catch(() => 0),
-    // a Level 2 or 3 who left an overdue notice unanswered for over a day
-    // sees only that until each task has a new date and a reason (never
-    // Level 1; a Level 1 looking as them sees it too, below)
+    // a Level 2 or 3's work with an overdue notice unanswered for over a
+    // day is frozen until it has a new date and a reason (never Level 1's;
+    // a Level 1 looking as them sees theirs, below)
     Promise.all([getRealViewer(), getSessionUserId()])
       .then(([me, as]) => (me && me.id === as && me.role !== "admin" && !isFounder(me) ? overdueToAnswer(me.id) : []))
       .catch(() => []),
@@ -83,15 +83,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const viewAsPeople =
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
-  // looking as a Level 2 or 3: their lock, as they'd see it, to read
-  const locked = viewingAs ? (!isFounder(sessionUser) ? await overdueToAnswer(sessionUser.id).catch(() => []) : []) : toAnswer;
-  if (locked.length)
-    return (
-      <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
-        <OverdueLock items={locked} logout={logout} preview={viewingAs} />
-        {viewingAs && <ViewAsBanner name={sessionUser.name} level={LEVEL_LABEL[sessionUser.role]} />}
-      </div>
-    );
+  // looking as a Level 2 or 3: their frozen work, as they'd see it, to read
+  const frozen = viewingAs ? (!isFounder(sessionUser) ? await overdueToAnswer(sessionUser.id).catch(() => []) : []) : toAnswer;
 
   // Founders and Leads run things; Members do their own work
   const isOps = !isMember(viewer);
@@ -129,6 +122,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
 
   return (
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
+    <FrozenTasks items={frozen} preview={viewingAs}>
     {/* their own look (the profile menu's Theme): dark, or mist (globals.css) */}
     <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
       <Pulse live={liveLine()} />
@@ -165,6 +159,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       {/* the admin's assistant, over whatever page is open */}
       {canEditPeople(sessionUser) && <Assistant name={sessionUser.name.split(" ")[0]} />}
     </div>
+    </FrozenTasks>
     </PeopleProvider>
   );
 }

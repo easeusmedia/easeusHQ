@@ -3,11 +3,11 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflowOf, type Role, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
-import { destroySession, getRealUserId, getSessionUserId, requireOps } from "@/lib/auth";
+import { destroySession, getRealUserId, getRealViewer, getSessionUserId, requireOps } from "@/lib/auth";
 import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
-import { deleteWithRecord, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
+import { deleteWithRecord, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
@@ -253,6 +253,9 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
 // called directly (not via a form) — both the StatusSelect dropdown and
 // dragging a card call this exact same function, so they behave identically
 export async function moveTask(taskId: string, to: TaskStatus, extras: StatusChangeExtras = {}): Promise<TaskFormState> {
+  // frozen till it has a new date (FrozenTasks)
+  const me = await getRealViewer();
+  if (me && (await frozenFor(me, taskId))) return { error: FROZEN };
   return changeStatus(taskId, to, extras);
 }
 

@@ -10,6 +10,7 @@ import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { STAGE } from "@/lib/stages";
 import { availableStatuses, type Role } from "@/lib/workflow";
 import { needsGrade } from "@/lib/videoScore";
+import { useFrozen } from "./FrozenTasks";
 
 // One task as a list row — the same click-to-open-details behaviour the
 // board cards have, so a task is editable everywhere it's shown rather
@@ -43,6 +44,7 @@ export function TaskRow({
   selected?: boolean;
   onSelect?: (id: string) => void;
 }) {
+  const frozen = useFrozen();
   const detailsRef = useRef<{ open: () => void }>(null);
   const { tier, onGrade } = useTierGuess(task);
 
@@ -64,6 +66,7 @@ export function TaskRow({
   return (
     <>
       <div
+        {...frozen(task.id)}
         onClick={() => detailsRef.current?.open()}
         className={
           (flat

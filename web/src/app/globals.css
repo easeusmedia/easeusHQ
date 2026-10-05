@@ -1268,6 +1268,18 @@ dialog[open]::backdrop {
   box-shadow: none;
 }
 
+/* A task frozen until it has a new due date (FrozenTasks): dimmed, and
+   any touch on it asks for the date */
+[data-frozen-task] {
+  opacity: 0.5;
+  filter: saturate(0.4);
+  cursor: pointer;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+[data-frozen-task]:hover {
+  opacity: 0.75;
+}
+
 /* Sign in: a simple frosted button, brighter on hover */
 .btn-frost {
   border: 1px solid rgba(255, 255, 255, 0.16);

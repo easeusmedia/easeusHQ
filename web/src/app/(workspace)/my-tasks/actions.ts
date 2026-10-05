@@ -7,7 +7,7 @@ import { assigneeWhere, canAssign, type Viewer } from "@/lib/scope";
 import { pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
-import { deleteWithRecord, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
+import { deleteWithRecord, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
 import type { WorkTaskStatus } from "@prisma/client";
 
 export type WorkTaskLink = { label: string; url: string };
@@ -262,6 +262,8 @@ export async function updateWorkTask(input: {
 export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortOrder: number): Promise<WorkTaskFormState> {
   try {
     await assertCanTouch(taskId);
+    // frozen till it has a new date (FrozenTasks)
+    if (await frozenFor(await requireRealUser(), taskId)) return { error: FROZEN };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't move that task." };
   }

@@ -16,6 +16,7 @@ import { availableStatuses, workflowOf, type Role } from "@/lib/workflow";
 import type { TaskCardData } from "../TaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
+import { useFrozen } from "../FrozenTasks";
 
 export type TodoKind = { id: string; name: string; workflow: string; clientFacing: boolean; department: string | null };
 type Done = { id: string; title: string; kind: "todo" | "task"; workflow?: string; at: string; client: string | null };
@@ -563,6 +564,7 @@ function Row({
   cols: { client: boolean; stage: boolean };
   grid: React.CSSProperties;
 }) {
+  const frozen = useFrozen();
   const ref = useRef<{ open: () => void }>(null);
   const task = item.task;
   const flow = workflowOf(task?.workflow);
@@ -608,6 +610,7 @@ function Row({
 
   return (
     <div
+      {...frozen(item.id)}
       onClick={() => ref.current?.open()}
       style={wide ? grid : undefined}
       className={`group grid cursor-pointer items-center gap-3 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.04] ${ticked ? "opacity-50" : ""} ${

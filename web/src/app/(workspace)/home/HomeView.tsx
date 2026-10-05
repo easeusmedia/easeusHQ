@@ -43,6 +43,7 @@ import { calendarConsentUrl } from "@/lib/driveClient";
 import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, scheduleMeeting } from "./actions";
+import { useFrozen } from "../FrozenTasks";
 
 export type HomeItem = {
   key: string;
@@ -189,9 +190,11 @@ function dueText(due: string | null, today: string): { text: string; pill: strin
 // late, and who's on it
 function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string; sub: string; onOpen: () => void }) {
   const due = dueText(item.due, today);
+  const frozen = useFrozen();
   return (
     <button
       type="button"
+      {...frozen(item.id)}
       onClick={onOpen}
       className="panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:-translate-y-px"
     >
@@ -436,17 +439,6 @@ export function HomeView({
     router.refresh();
   }
 
-  // the greeting's second line: how today looks, the numbers brighter
-  const tasks = (n: number) => (n === 1 ? "task is" : "tasks are");
-  const summary: [string, boolean?][] =
-    dueToday.length && overdue.length
-      ? [[String(dueToday.length), true], ["due today and"], [String(overdue.length), true], ["running late."]]
-      : dueToday.length
-        ? [[String(dueToday.length), true], [`${tasks(dueToday.length)} due today.`]]
-        : overdue.length
-          ? [[String(overdue.length), true], [`${tasks(overdue.length)} running late.`]]
-          : [["Everything is"], ["on track", true], ["today."]];
-
   const toggles: { key: Show; value: number; label: string; late?: boolean }[] = [
     { key: "active", value: live.length, label: "Active" },
     { key: "today", value: dueToday.length, label: "Due today" },
@@ -642,14 +634,6 @@ export function HomeView({
           <h1 className="greet-in mt-1.5 text-2xl font-semibold tracking-tight sm:text-3xl" style={{ animationDelay: "80ms" }}>
             {greeting}
           </h1>
-          <p className="greet-in mt-1 text-base text-muted sm:text-lg" style={{ animationDelay: "180ms" }}>
-            {summary.map(([text, strong], i) => (
-              <span key={i} className={strong ? "font-medium text-foreground" : undefined}>
-                {i ? " " : ""}
-                {text}
-              </span>
-            ))}
-          </p>
         </div>
         <div className="flex gap-2">
           {showMine && (
