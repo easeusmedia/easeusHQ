@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { collect, dailySync } from "@/lib/contentSync";
 import { trackContracts } from "@/app/(workspace)/contracts/tracking";
+import ffmpegPath from "ffmpeg-static";
 import { syncFrameioFeedback } from "@/lib/frameioFeedback";
 import { clearOldSnapshots } from "@/lib/snapshots";
 import { sweepOverdue } from "@/lib/taskTrack";
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
   // last, so a slow Frame.io can't hold up the rest: yesterday's review
   // comments into the editors' feedback log, sorted by keywords, with
   // snapshots
-  await syncFrameioFeedback().catch(() => {});
+  await syncFrameioFeedback(ffmpegPath).catch(() => {});
   // feedback snapshots older than four months go; their text stays
   await clearOldSnapshots().catch(() => {});
   // tasks past their completion date: a strike each, and notices (lib/overdue.ts)

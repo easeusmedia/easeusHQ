@@ -101,7 +101,9 @@ export async function aiSortEntries(ids: string[]): Promise<number> {
 
 // Pulls in whatever's new since the last run. Safe to run as often as
 // anyone likes: a comment already in the log is never added twice.
-export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: number; snapshots: number }> {
+// Snapshots only with ffmpeg handed in (the nightly job); a Sync from the
+// page leaves them for tonight.
+export async function syncFrameioFeedback(ffmpegPath: string | null = null): Promise<{ added: number; mistakes: number; snapshots: number }> {
   if (!(await frameioConnected())) throw new Error("Frame.io isn't connected. Connect it under Integrations first.");
 
   const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
@@ -192,6 +194,7 @@ export async function syncFrameioFeedback(): Promise<{ added: number; mistakes: 
     (await prisma.performanceEntry.findMany({ where: { sourceId: { in: found.map((c) => `frameio:${c.id}`) } }, select: { id: true, sourceId: true } })).map((e) => [e.sourceId, e.id])
   );
   const snapshots = await takeSnapshots(
+    ffmpegPath,
     found.filter((c) => c.frame !== null && ids.has(`frameio:${c.id}`)).map((c) => ({ entryId: ids.get(`frameio:${c.id}`)!, accountId: c.accountId, fileId: c.fileId, frame: c.frame! }))
   ).catch(() => 0);
   const now = new Date().toISOString();

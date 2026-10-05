@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import ffmpegPath from "ffmpeg-static";
 import { prisma } from "./prisma";
 import { smallVideoUrl } from "./frameio";
 
@@ -12,7 +11,11 @@ export const SNAPSHOT_DAYS = 120;
 // a sync takes this many at most; the rest wait for the next one
 const PER_RUN = 40;
 
-function ffmpeg(args: string[]): Promise<{ out: Buffer; err: string }> {
+// The ffmpeg binary (about 77 MB) is handed in by the nightly job, the one
+// function that ships it (api/cron/analytics): imported here, it rode along
+// in every page that can sync Frame.io, in every deployment Vercel keeps,
+// and filled the free plan's 10 GB of Functions Storage.
+function ffmpeg(ffmpegPath: string | null, args: string[]): Promise<{ out: Buffer; err: string }> {
   return new Promise((resolve) => {
     if (!ffmpegPath) return resolve({ out: Buffer.alloc(0), err: "no ffmpeg" });
     execFile(ffmpegPath, args, { encoding: "buffer", maxBuffer: 5_000_000, timeout: 20_000 }, (_e, out, err) => resolve({ out, err: err.toString() }));
@@ -25,7 +28,8 @@ export type SnapshotJob = { entryId: string; accountId: string; fileId: string; 
 // Anything that fails (no proxy yet, ffmpeg missing) is simply skipped: the
 // feedback still counts, it just has no picture.
 // A time limit too, so a sync never runs long; the rest wait for the next.
-export async function takeSnapshots(jobs: SnapshotJob[], budgetMs = 20_000): Promise<number> {
+export async function takeSnapshots(ffmpegPath: string | null, jobs: SnapshotJob[], budgetMs = 20_000): Promise<number> {
+  if (!ffmpegPath) return 0;
   const stop = Date.now() + budgetMs;
   const cutoff = new Date(Date.now() - SNAPSHOT_DAYS * 86_400_000);
   const have = new Set(
@@ -42,11 +46,11 @@ export async function takeSnapshots(jobs: SnapshotJob[], budgetMs = 20_000): Pro
     if (Date.now() > stop) break;
     const url = await smallVideoUrl(list[0].accountId, fileId).catch(() => null);
     if (!url) continue;
-    const fps = Number((await ffmpeg(["-hide_banner", "-i", url])).err.match(/([\d.]+) fps/)?.[1] ?? 0);
+    const fps = Number((await ffmpeg(ffmpegPath, ["-hide_banner", "-i", url])).err.match(/([\d.]+) fps/)?.[1] ?? 0);
     if (!fps) continue;
     for (const j of list) {
       if (Date.now() > stop) break;
-      const { out } = await ffmpeg(["-hide_banner", "-loglevel", "error", "-ss", String(j.frame / fps), "-i", url, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "7", "-c:v", "mjpeg", "-f", "image2", "pipe:1"]);
+      const { out } = await ffmpeg(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-ss", String(j.frame / fps), "-i", url, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "7", "-c:v", "mjpeg", "-f", "image2", "pipe:1"]);
       if (out.length < 200) continue;
       const image = new Uint8Array(out);
       await prisma.feedbackSnapshot.upsert({ where: { entryId: j.entryId }, create: { entryId: j.entryId, image }, update: { image } });

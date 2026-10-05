@@ -3,13 +3,18 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   devIndicators: false,
   // ffmpeg takes the feedback snapshots (lib/snapshots.ts): kept as a real
-  // package so it finds its own binary, and the binary shipped with every
-  // function that syncs Frame.io
+  // package so it finds its own binary, and the binary (about 77 MB) shipped
+  // only with the nightly job, the one place snapshots are taken. On every
+  // page that could sync it filled Vercel's free 10 GB of Functions Storage.
   serverExternalPackages: ["ffmpeg-static"],
   outputFileTracingIncludes: {
-    "/performance": ["./node_modules/ffmpeg-static/ffmpeg"],
-    "/performance/[id]": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/cron/analytics": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
+  // Prisma's engines for every other database and runtime (MySQL, SQLite,
+  // SQL Server, CockroachDB, the edge's WebAssembly one): about 55 MB in
+  // every function, never loaded here (Postgres, the native engine)
+  outputFileTracingExcludes: {
+    "/*": ["./node_modules/@prisma/client/runtime/*.wasm-base64.*"],
   },
   experimental: {
     // files attached for the contract assistant ride in the action's body —
