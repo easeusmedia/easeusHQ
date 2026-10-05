@@ -1,7 +1,7 @@
 // The podcast outreach sequence exactly as the FigJam board "Podcast Outreach
 // Sequence — Full Reply Map (Final)" has it, by stage of the Dream 156 board:
-// one stage per touch, so a day that goes out on two platforms (Day 1, Day 7)
-// is two stages. Each message's name is its card's heading, its body the
+// one stage per day, so a day that goes out on two platforms (Day 1, Day 7)
+// is one stage with both messages, picked between on the lead. Each message's name is its card's heading, its body the
 // card's words, and its note only the card's own rule lines. Nothing is
 // added. The board's placeholders become {{Variables}} so each lead fills
 // them: NAME is {{Name}}, PODCAST {{Podcast}}, GUEST and X {{Guest}}, (Gap)
@@ -160,7 +160,8 @@ A — Sign: Is growing {{Podcast}} a priority yet?
 Blackbar: Audit's still here if the answer is yes`,
     },
   ],
-  "Day 7 · Instagram 3": [
+  // one Day 7 stage, two messages: Instagram first, then LinkedIn
+  "Day 7": [
     {
       name: "DAY 7 · INSTAGRAM 3 · STILL SILENT · LAST MESSAGE",
       was: ["Instagram 3 · last message", "Instagram 3 (last message)"],
@@ -170,8 +171,6 @@ Blackbar: Audit's still here if the answer is yes`,
 The audit I am to share is my way of connecting with you so even if we don't work right now, there would still be a potential for collaboration in the future.
 Should I send the audit, or is it not relevant right now?`,
     },
-  ],
-  "Day 7 · LinkedIn 3": [
     {
       name: "DAY 7 · LinkedIn 3 · STILL SILENT · LAST MESSAGE",
       was: ["LinkedIn 3 · last message", "LinkedIn 3 (last message)"],

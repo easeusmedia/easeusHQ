@@ -432,10 +432,9 @@ export type BoardTemplate = {
   stages: { name: string; color: ColorName }[];
   fields: { name: string; kind: FieldKind; onCard?: boolean; required?: boolean; options?: { name: string; color: ColorName }[] }[];
 };
-// one stage per touch: each day, and each platform it goes out on that day
-// (Day 1 is an email and a LinkedIn note, Day 7 an Instagram and a LinkedIn
-// message), as on the FigJam reply map
-const DAYS = ["Day 1 · Email 1", "Day 1 · LinkedIn note", "Day 2 · Instagram 1", "Day 3 · Email 2", "Day 4 · LinkedIn DM", "Day 5 · Instagram 2", "Day 6 · Email 3", "Day 7 · Instagram 3", "Day 7 · LinkedIn 3", "Day 8 · Email 4"].map((name) => ({
+// one stage per day, as on the FigJam reply map: Day 1 (an email and a
+// LinkedIn note) and Day 7 (Instagram and LinkedIn) each hold both messages
+const DAYS = ["Day 1", "Day 2 · Instagram 1", "Day 3 · Email 2", "Day 4 · LinkedIn DM", "Day 5 · Instagram 2", "Day 6 · Email 3", "Day 7", "Day 8 · Email 4"].map((name) => ({
   name,
   color: "blue" as ColorName,
 }));
