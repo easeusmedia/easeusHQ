@@ -534,7 +534,9 @@ export function LeadBoard({
             else if (e.clientX > r.right - 80) e.currentTarget.scrollLeft += 18;
             scrollPageNearEdge(e);
           }}
-          className="overflow-x-auto pb-4"
+          // a little room on every side, taken back with negative margins:
+          // a card's focus ring and hover lift aren't cut at the edge
+          className="-mx-2 -mt-1.5 overflow-x-auto px-2 pt-1.5 pb-4"
         >
           <div className="flex w-max items-start gap-3">
             {stages.map((stage, i) => {
