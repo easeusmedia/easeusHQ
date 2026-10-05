@@ -276,10 +276,6 @@ export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortO
   // a stage change is the thing most worth mirroring, so it goes up now
   // rather than waiting for someone to press sync
   await mirrorIfOperations(moved.assignedToId, moved.id);
-  // a request just finished: whoever asked hears of it (requests.ts)
-  if (status === "done" && !existing?.completedAt && moved.category === "Request" && moved.createdById !== moved.assignedToId) {
-    await prisma.notice.create({ data: { workTaskId: moved.id, forId: moved.createdById, kind: "shared", body: `Done: ${moved.title}` } }).catch(() => {});
-  }
   revalidatePath("/my-tasks");
   revalidatePath("/team");
   return { success: true };

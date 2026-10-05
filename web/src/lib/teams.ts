@@ -22,11 +22,6 @@ export function departmentFor(role: string, positionDepartment: string | null | 
   return picked || null;
 }
 
-// The department whose roles take requests (profile menu > Request): ask
-// one of its roles and whoever holds it gets it. Its address stays when it's
-// renamed.
-export const REQUEST_DEPARTMENT = "admin-technical";
-
 // A department's address, from its name: "Post production" → "post-production"
 export function slugOf(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
