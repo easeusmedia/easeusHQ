@@ -10,6 +10,7 @@ import {
   peopleWhere,
   runsClients,
   runsProduction,
+  seesClients,
   seesEveryTeam,
   visibleClientWhere,
   visibleTagWhere,
@@ -99,4 +100,13 @@ test("kinds of work follow departments; clients are all visible except to a Memb
   assert.equal(canEditTag(pankaj, { teamId: null }), false);
   assert.deepEqual(visibleClientWhere(jyotsna), { hiddenFrom: { none: { id: jyotsna.id } } });
   assert.deepEqual(visibleClientWhere(sparsh), { editors: { some: { id: sparsh.id } } });
+});
+
+test("the Clients area: hidden only from those whose one department is Sales", () => {
+  assert.equal(seesClients(pankaj), false);
+  assert.equal(seesClients({ ...pankaj, role: "employee" }), false);
+  assert.equal(seesClients({ ...pankaj, departments: [SALES, CS] }), true);
+  assert.equal(seesClients({ ...ashmit, departments: [SALES] }), true);
+  assert.equal(seesClients(sparsh), true);
+  assert.equal(seesClients(unplaced), true);
 });

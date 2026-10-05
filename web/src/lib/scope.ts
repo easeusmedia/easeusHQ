@@ -51,6 +51,12 @@ export function seesEveryTeam(user: { role: string; email?: string | null }): bo
   return isFounder(user);
 }
 
+// The Clients area (its sidebar item, the client bar, its pages): everyone
+// but those whose only department is Sales, who don't work on clients.
+export function seesClients(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
+  return isFounder(user) || !user.departments.length || user.departments.some((d) => d.slug !== DEPT.sales);
+}
+
 // Clients' feedback, posting dates and client records: Level 1, and the
 // Leads of Client Services and Distribution.
 export function runsClients(user: Pick<Viewer, "role" | "departments">): boolean {

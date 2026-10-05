@@ -190,6 +190,7 @@ export function ClientFace({ client, size }: { client: { name: string; logo?: st
 export function Sidebar({
   isOps = false,
   isFounder = false,
+  showClients = true,
   departments = [],
   viewAsPeople = null,
   canSeeFinance = false,
@@ -208,6 +209,8 @@ export function Sidebar({
   isOps?: boolean;
   // a Founder: Home, and Performance (grading is theirs)
   isFounder?: boolean;
+  // the Clients item (not for Sales alone)
+  showClients?: boolean;
   // whether the Board (Production's queues) is theirs to see
   // the departments they may open under Organization, each with its
   // sections and their portals
@@ -314,8 +317,8 @@ export function Sidebar({
     },
   };
 
-  // History is Level 1's; Organization only with a department to open
-  const main = MAIN.filter((i) => (departments.length > 0 || i.href !== "/org") && (isFounder || i.href !== "/history"));
+  // History is Level 1's; Organization only with a department to open; Clients not for Sales alone
+  const main = MAIN.filter((i) => (departments.length > 0 || i.href !== "/org") && (isFounder || i.href !== "/history") && (showClients || i.href !== "/clients"));
   const groups = [
     // an editor sees their own numbers, read-only (the page takes them there)
     {

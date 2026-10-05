@@ -11,7 +11,7 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients } from "@/lib/scope";
 import { ViewAsBanner } from "./ViewAsBanner";
 import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -92,8 +92,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const hearsFromClients = runsClients(viewer);
   // an editor has only the clients given to them (lib/scope)
   const editor = worksTheBoard(viewer);
+  // none at all for Sales alone: they don't work on clients
   const currentClients = clientRows
-    .filter((c) => seesClient(viewer, c))
+    .filter((c) => seesClients(viewer) && seesClient(viewer, c))
     .map((c) => ({ id: c.id, slug: c.slug, name: c.name, logo: logoSrcAt(c.slug, logos.get(c.id)) }));
 
   // the departments they may open under Organization: Level 1 all, others their own
@@ -145,6 +146,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         noticesWaiting={noticesWaiting}
         theme={realUser?.theme === "mist" ? "mist" : "dark"}
         clients={currentClients}
+        showClients={seesClients(viewer)}
         logout={logout}
         initialOpen={sidebarOpen}
       />
