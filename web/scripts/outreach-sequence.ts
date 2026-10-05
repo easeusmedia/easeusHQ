@@ -22,7 +22,8 @@ export type SequenceMessage = {
 };
 
 export const SEQUENCE: Record<string, SequenceMessage[]> = {
-  "Day 1 · Email 1": [
+  // one Day 1 stage, two messages: the email first, then the LinkedIn note
+  "Day 1": [
     {
       name: "DAY 1 · EMAIL 1 · ALL ACCOUNTS",
       was: ["Email 1"],
@@ -49,8 +50,6 @@ Should I send it over?
 
 ${SIGN}`,
     },
-  ],
-  "Day 1 · LinkedIn note": [
     {
       name: "DAY 1 · LINKEDIN · ALL ACCOUNTS",
       was: ["LinkedIn connection note"],
