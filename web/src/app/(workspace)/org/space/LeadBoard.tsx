@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronLeft, ChevronRight, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { moveNeedsReason, toneOf, type BoardData, type LeadData, type StageData } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
@@ -217,26 +217,6 @@ export function LeadBoard({
   const order = stages.map((s) => s.id);
   const shown = leads.map((l) => (live.moved[l.id] ? { ...l, ...live.moved[l.id] } : l));
   const columnOf = (stageId: string) => shown.filter((l) => l.stageId === stageId).sort((a, b) => a.sortOrder - b.sortOrder);
-
-  // ---- the sideways scroll: arrows show while there's more to either side ----
-  const scroller = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: false });
-  const measure = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const left = el.scrollLeft > 4;
-    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-    setEdges((p) => (p.left === left && p.right === right ? p : { left, right }));
-  }, []);
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    if (el.firstElementChild) ro.observe(el.firstElementChild);
-    return () => ro.disconnect();
-  }, [measure]);
-  const scrollBy = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.8, behavior: "smooth" });
 
   // ---- leads ----
   const endDrag = () => {
@@ -521,11 +501,9 @@ export function LeadBoard({
 
   return (
     <>
-      {/* one row of stages that scrolls sideways; arrows, since scrollbars are hidden */}
+      {/* one row of stages that scrolls sideways (a trackpad, or Shift and the wheel) */}
       <div className="relative">
         <div
-          ref={scroller}
-          onScroll={measure}
           onDragOver={(e) => {
             if (!drag && !dragStage) return;
             // follow a dragged card to a stage off to the side, or down the page
@@ -574,16 +552,6 @@ export function LeadBoard({
             )}
           </div>
         </div>
-        {edges.left && (
-          <button type="button" aria-label="Scroll left" onClick={() => scrollBy(-1)} className="fade-in absolute top-0 left-0 z-10 grid size-8 place-items-center rounded-full popover text-muted shadow-lg transition-colors hover:text-foreground">
-            <ChevronLeft size={16} />
-          </button>
-        )}
-        {edges.right && (
-          <button type="button" aria-label="Scroll right" onClick={() => scrollBy(1)} className="fade-in absolute top-0 right-0 z-10 grid size-8 place-items-center rounded-full popover text-muted shadow-lg transition-colors hover:text-foreground">
-            <ChevronRight size={16} />
-          </button>
-        )}
       </div>
 
       <ReasonDialog
