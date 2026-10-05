@@ -1,12 +1,16 @@
 "use client";
 
-import { CircleDashed } from "lucide-react";
+import { CircleDashed, MailOpen, Plus, Reply } from "lucide-react";
 import { missingDetails, type FieldData, type LeadData } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 
+export type Outreach = { opens?: number; replied?: boolean };
+
 // One lead on the board: its name, the details not added yet (quietly, as
-// information, not a warning), and who added it, with whoever it's given to.
-export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: FieldData[]; onOpen: (id: string) => void }) {
+// information, not a warning), who added it, with whoever it's given to,
+// and from Day 1 whether its email was opened (and how often) and whether
+// it replied: a tap on the card sets each.
+export function LeadCard({ lead, fields, onOpen, tracks = false, onTrack }: { lead: LeadData; fields: FieldData[]; onOpen: (id: string) => void; tracks?: boolean; onTrack?: (id: string, change: Outreach) => void }) {
   const missing = missingDetails(fields, lead.values);
   const first = (name: string) => name.split(" ")[0];
 
@@ -45,6 +49,34 @@ export function LeadCard({ lead, fields, onOpen }: { lead: LeadData; fields: Fie
           </>
         )}
       </div>
+      {tracks && onTrack && (
+        // its own taps, not the card's: they don't open the lead
+        <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
+          <button
+            type="button"
+            aria-pressed={lead.opens > 0}
+            onClick={() => onTrack(lead.id, { opens: lead.opens > 0 ? 0 : 1 })}
+            title={lead.opens > 0 ? "Opened. Tap to undo." : "The email was opened"}
+            className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+          >
+            <MailOpen size={11} /> {lead.opens > 0 ? `Opened ${lead.opens}×` : "Opened"}
+          </button>
+          {lead.opens > 0 && (
+            <button type="button" onClick={() => onTrack(lead.id, { opens: lead.opens + 1 })} aria-label="Opened once more" title="Opened once more" className="chip grid size-5 place-items-center rounded-full">
+              <Plus size={10} />
+            </button>
+          )}
+          <button
+            type="button"
+            aria-pressed={lead.replied}
+            onClick={() => onTrack(lead.id, { replied: !lead.replied })}
+            title={lead.replied ? "Replied. Tap to undo." : "They replied, anywhere"}
+            className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+          >
+            <Reply size={11} /> Replied
+          </button>
+        </div>
+      )}
     </div>
   );
 }

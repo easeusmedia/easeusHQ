@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, Library, Plus, Search, Table2, Users } from "lucide-react";
-import { variablesIn, type BoardData, type Contact, type LeadData, type Person } from "@/lib/space";
+import { EyeOff, Kanban, MailOpen, Plus, Reply, Search, Send, Table2, Users } from "lucide-react";
+import { outreachStart, outreachStats, type BoardData, type Contact, type LeadData, type Person } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
-import { MessageLibrary, TemplatePreview } from "./Messages";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { renameSpace } from "./actions";
+import { renameSpace, setLeadOutreach } from "./actions";
+import type { Outreach } from "./LeadCard";
+import { StatTile } from "../../StatTile";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
@@ -29,9 +30,10 @@ function searchText(lead: LeadData, contactFields: string[]) {
   return [lead.title, ...people.flatMap((p) => [p.name, p.role, ...(p.channels ?? []).map((c) => c.value)])].join(" ").toLowerCase();
 }
 
-// A portal's page under its heading: the boards as tabs, the toolbar
-// (view, search, filters, every message), the board or table, and the
-// open lead. The open lead is in the address (?lead=), so a link opens it.
+// A portal's page under its heading: the boards as tabs, the board's
+// reaching-out numbers, the toolbar (view, search, filters), the board or
+// table, and the open lead. The open lead is in the address (?lead=), so a
+// link opens it.
 export function PortalView({
   teamId,
   portal,
@@ -69,7 +71,20 @@ export function PortalView({
   const [query, setQuery] = useState("");
   const [who, setWho] = useState("all");
   const [creating, setCreating] = useState(false);
-  const [library, setLibrary] = useState(false);
+  // opens and replies tapped here show at once, ahead of the board's refresh
+  const [tracked, setTracked] = useState<Record<string, Outreach>>({});
+  const [trackError, setTrackError] = useState<string | null>(null);
+  async function track(id: string, change: Outreach) {
+    const before = tracked[id];
+    setTrackError(null);
+    setTracked((t) => ({ ...t, [id]: { ...t[id], ...change } }));
+    const res = await setLeadOutreach(id, change).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    if (res.error) {
+      setTracked((t) => ({ ...t, [id]: before ?? {} }));
+      return setTrackError(res.error);
+    }
+    router.refresh();
+  }
 
   const boardId = board?.id;
   // this board's saved view, once in the browser (localStorage only exists after mount)
@@ -132,13 +147,13 @@ export function PortalView({
 
   const contactFields = board.fields.filter((f) => f.kind === "contacts").map((f) => f.id);
   const q = query.trim().toLowerCase();
-  const shown = board.leads.filter(
-    (l) =>
-      (who === "all" || [l.createdBy.id, l.assignedTo?.id].includes(who === "mine" ? viewerId : who)) &&
-      (!q || searchText(l, contactFields).includes(q))
-  );
+  const leads = board.leads.map((l) => (tracked[l.id] ? { ...l, ...tracked[l.id] } : l));
+  const whose = leads.filter((l) => who === "all" || [l.createdBy.id, l.assignedTo?.id].includes(who === "mine" ? viewerId : who));
+  const shown = whose.filter((l) => !q || searchText(l, contactFields).includes(q));
+  // reaching out, in numbers: for whoever is picked, whatever is searched
+  const stats = outreachStart(board.stages) >= 0 ? outreachStats(board.stages, whose) : null;
   const filtered = shown.length !== board.leads.length;
-  const lead = openId ? (board.leads.find((l) => l.id === openId) ?? null) : null;
+  const lead = openId ? (leads.find((l) => l.id === openId) ?? null) : null;
   const whoOptions = [
     { value: "all", label: "Everyone" },
     ...(viewerId ? [{ value: "mine", label: "Mine" }] : []),
@@ -170,6 +185,27 @@ export function PortalView({
               </button>
             ),
           )}
+        </div>
+      )}
+
+      {/* reaching out, in numbers */}
+      {stats && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatTile label="Reached out" value={stats.reached} Icon={Send} />
+          <StatTile
+            label="Emails opened"
+            value={stats.opened}
+            Icon={MailOpen}
+            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.openRate}% of reached out · {stats.opens} {stats.opens === 1 ? "open" : "opens"}</p>}
+          />
+          <StatTile
+            label="Reply rate"
+            value={`${stats.replyRate}%`}
+            lit={stats.replied > 0}
+            tone="emerald"
+            Icon={Reply}
+            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.replied} {stats.replied === 1 ? "reply" : "replies"}</p>}
+          />
         </div>
       )}
 
@@ -215,30 +251,23 @@ export function PortalView({
             <EyeOff size={13} /> Hide empty stages
           </button>
         )}
-        {/* every message template, grouped, to read or edit without a lead */}
-        {board.messages.length > 0 && (
-          <button type="button" onClick={() => setLibrary(true)} className="chip ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs">
-            <Library size={13} /> Messages <span className="text-muted tabular-nums">{board.messages.length}</span>
-          </button>
-        )}
       </div>
+      {trackError && (
+        <p role="alert" className="fade-in text-xs text-red-300">
+          {trackError}
+        </p>
+      )}
 
       {/* keyed by view so a switch eases in; dimmed while another board loads */}
       <div key={prefs.view} className={`fade-in min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {prefs.view === "board" ? (
-          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} />
+          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} onTrack={track} />
         ) : (
           <LeadTable board={board} leads={shown} filtered={filtered} onOpen={open} />
         )}
       </div>
 
-      <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} />
-      <MessageLibrary
-        open={library}
-        onClose={() => setLibrary(false)}
-        board={board}
-        render={(m) => <TemplatePreview key={m.id} message={m} stages={board.stages} names={variablesIn(board.messages.flatMap((x) => [x.subject, x.body]))} />}
-      />
+      <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} onTrack={track} />
     </div>
   );
 }

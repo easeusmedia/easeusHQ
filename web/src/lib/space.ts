@@ -110,6 +110,11 @@ export type LeadData = {
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
+  // from Day 1: times its first email was opened, and whether it replied
+  opens: number;
+  replied: boolean;
+  // it has been in Ready to reach out or later, by its record (outreachStats)
+  reached: boolean;
   // messages rewritten for this lead alone, by message id
   drafts: Record<string, Draft>;
   stageSince: string;
@@ -266,6 +271,75 @@ export function leadVars(lead: { title: string; values: Record<string, unknown>;
 export function dayOf(stageName: string): number | null {
   const m = /^Day (\d+)\b/.exec(stageName);
   return m ? Number(m[1]) : null;
+}
+
+// ---- Reaching out ----
+// Ready to reach out: the stage just before Day 1, where reaching out
+// starts. -1 on a board without a day sequence.
+export function outreachStart(stages: Pick<StageData, "name">[]): number {
+  const first = stages.findIndex((s) => dayOf(s.name) != null);
+  return first - 1;
+}
+export const isDead = (stageName: string) => /^dead\b/i.test(stageName.trim());
+
+type Tracked = { stageId: string; reached: boolean; opens: number; replied: boolean };
+// Reached out: in Ready to reach out or a stage after it (Dead only if it
+// got that far first, which its record says)
+export function reachedOut(stages: Pick<StageData, "id" | "name">[], lead: Pick<Tracked, "stageId" | "reached">): boolean {
+  const start = outreachStart(stages);
+  const i = stages.findIndex((s) => s.id === lead.stageId);
+  if (start < 0 || i < 0) return false;
+  return lead.reached || (i >= start && !isDead(stages[i].name));
+}
+// From Day 1 on, a lead's opens and reply are kept (its card and Details)
+export function tracksOutreach(stages: Pick<StageData, "id" | "name">[], lead: Pick<Tracked, "stageId" | "reached">): boolean {
+  const first = stages.findIndex((s) => dayOf(s.name) != null);
+  const i = stages.findIndex((s) => s.id === lead.stageId);
+  if (first < 0 || i < first) return false;
+  return !isDead(stages[i].name) || lead.reached;
+}
+// The board's numbers: leads reached out to, how many opened the first
+// email (and how often), and how many replied, anywhere
+export function outreachStats(stages: Pick<StageData, "id" | "name">[], leads: Tracked[]) {
+  const reached = leads.filter((l) => reachedOut(stages, l));
+  const opened = reached.filter((l) => l.opens > 0).length;
+  const replied = reached.filter((l) => l.replied).length;
+  const rate = (n: number) => (reached.length ? Math.round((n / reached.length) * 100) : 0);
+  return { reached: reached.length, opened, opens: reached.reduce((n, l) => n + l.opens, 0), replied, openRate: rate(opened), replyRate: rate(replied) };
+}
+
+// A lead's messages, a phase per day, for its timeline. Reaching out starts
+// at Ready to reach out: there every day shows, Day 1 next. On a day, that
+// day (now) and the next one show. Outside the sequence (the replies, the
+// audit), a stage shows its own; before Ready to reach out, nothing.
+export type Phase = { key: string; title: string; day: number | null; when: "now" | "next" | null; messages: MessageData[] };
+export function messagePhases(board: Pick<BoardData, "stages" | "messages">, stageId: string): Phase[] {
+  const { stages } = board;
+  const i = stages.findIndex((s) => s.id === stageId);
+  if (i < 0) return [];
+  const start = outreachStart(stages);
+  const here = dayOf(stages[i].name);
+  const days = [...new Set(stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const outside = start < 0 || (here == null && i > start);
+  if (!outside && i < start) return [];
+  const next = here == null ? days[0] : days.find((d) => d > here);
+  const picked = outside ? [stages[i]] : stages.filter((s) => {
+    const d = dayOf(s.name);
+    return d != null && (i === start || d === here || d === next);
+  });
+  const phases: Phase[] = [];
+  for (const s of picked) {
+    const d = dayOf(s.name);
+    const key = d == null ? s.id : `day-${d}`;
+    let p = phases.find((x) => x.key === key);
+    if (!p) {
+      const when = outside || (d != null && d === here) ? "now" : d === next ? "next" : null;
+      p = { key, title: d == null ? s.name : `Day ${d}`, day: d, when, messages: [] };
+      phases.push(p);
+    }
+    p.messages.push(...board.messages.filter((m) => m.stageId === s.id));
+  }
+  return phases.filter((p) => p.messages.length);
 }
 
 // A board's messages in groups, in board order: each day of the sequence

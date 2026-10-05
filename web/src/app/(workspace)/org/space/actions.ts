@@ -575,6 +575,27 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
   }
 }
 
+// A lead's opens (times its first email was opened; 0 is not opened) and
+// whether it replied: the board's numbers
+export async function setLeadOutreach(id: string, patch: { opens?: number; replied?: boolean }): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  const data: { opens?: number; replied?: boolean } = {};
+  if (patch.opens !== undefined) {
+    if (!Number.isInteger(patch.opens) || patch.opens < 0 || patch.opens > 999) return { error: "Opens is a whole number from 0." };
+    data.opens = patch.opens;
+  }
+  if (patch.replied !== undefined) data.replied = patch.replied === true;
+  try {
+    await prisma.lead.update({ where: { id }, data: { ...data, ...edited(who) } });
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
 export async function setLeadNotes(id: string, notes: string): Promise<Done> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, dayOf, moveNeedsReason, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, dayOf, moveNeedsReason, outreachStats, tracksOutreach, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -116,4 +116,45 @@ test("messages group by day, then by stage", () => {
   assert.equal(dayOf("Day 12 · Email 9"), 12);
   assert.equal(dayOf("Daydream"), null);
   assert.equal(dayOf("Audit sent"), null);
+});
+
+// the podcast board's shape: three before reaching out, two days, the end
+const outreach = ["Dream List", "Ready to reach out", "Day 1", "Day 2 · Instagram 1", "Replied", "Dead"].map((name, i) => ({ id: `s${i}`, name }));
+const lead = (stageId: string, more: Partial<{ reached: boolean; opens: number; replied: boolean }> = {}) => ({ stageId, reached: false, opens: 0, replied: false, ...more });
+
+test("reached out: Ready to reach out and after, Dead only if it got there first", () => {
+  const stats = outreachStats(outreach, [lead("s0"), lead("s1"), lead("s2", { opens: 3 }), lead("s3", { opens: 1, replied: true }), lead("s5"), lead("s5", { reached: true, replied: true })]);
+  assert.deepEqual(stats, { reached: 4, opened: 2, opens: 4, replied: 2, openRate: 50, replyRate: 50 });
+});
+
+test("opens and replies are kept from Day 1 on", () => {
+  assert.equal(tracksOutreach(outreach, lead("s1")), false);
+  assert.equal(tracksOutreach(outreach, lead("s2")), true);
+  assert.equal(tracksOutreach(outreach, lead("s4")), true);
+  assert.equal(tracksOutreach(outreach, lead("s5")), false);
+  assert.equal(tracksOutreach(outreach, lead("s5", { reached: true })), true);
+});
+
+test("no day sequence: nothing to count", () => {
+  assert.deepEqual(outreachStats([{ id: "a", name: "To do" }], [lead("a", { opens: 2 })]), { reached: 0, opened: 0, opens: 0, replied: 0, openRate: 0, replyRate: 0 });
+});
+
+// Ready, Day 1 (email and LinkedIn on one stage), Day 2, Day 7 on two stages, then the replies
+const seq = { stages: ["Write-up done", "Ready to reach out", "Day 1", "Day 2 · Instagram 1", "Day 7 · Instagram 3", "Day 7 · LinkedIn 3", "Replied", "Dead"].map((name, i) => ({ id: `t${i}`, name, color: "default" })), messages: [["t2", "email"], ["t2", "linkedin"], ["t3", "instagram"], ["t4", "instagram"], ["t5", "linkedin"], ["t6", "email"]].map(([stageId, channel], i) => ({ id: `m${i}`, stageId, name: `m${i}`, channel, subject: "", body: "", note: "" })) };
+const shape = (stageId: string) => messagePhases(seq, stageId).map((p) => `${p.title}:${p.when ?? "-"}:${p.messages.map((m) => m.id).join("+")}`);
+
+test("before Ready to reach out there is nothing to send", () => {
+  assert.deepEqual(shape("t0"), []);
+});
+test("at Ready to reach out every day shows, Day 1 next", () => {
+  assert.deepEqual(shape("t1"), ["Day 1:next:m0+m1", "Day 2:-:m2", "Day 7:-:m3+m4"]);
+});
+test("on a day: that day now and the next one", () => {
+  assert.deepEqual(shape("t2"), ["Day 1:now:m0+m1", "Day 2:next:m2"]);
+  assert.deepEqual(shape("t3"), ["Day 2:now:m2", "Day 7:next:m3+m4"]);
+  assert.deepEqual(shape("t5"), ["Day 7:now:m3+m4"]);
+});
+test("outside the sequence a stage shows its own", () => {
+  assert.deepEqual(shape("t6"), ["Replied:now:m5"]);
+  assert.deepEqual(shape("t7"), []);
 });

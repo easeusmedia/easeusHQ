@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
-import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, overLimit, messageGroups, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
+import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, overLimit, messageGroups, messagePhases, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
@@ -25,15 +25,21 @@ const BLOCK = "rounded-xl bg-foreground/[0.03]";
 
 const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
 
-// A lead's messages. Today's come first, written out for this lead: every
-// message of its day (Day 1 is an email and a LinkedIn note), or its stage's
-// own. Copy one, mark it sent, or change it, on the message itself:
+// A lead's messages as a timeline, day by day, the way its history reads.
+// Reaching out starts at Ready to reach out: there every day of the
+// sequence shows (Day 1 open, the rest folded), so the whole run can be read
+// ahead. On a day, only that day and the next show, both open: what to send
+// now, and what comes after. Outside the sequence (the replies, the audit)
+// a stage shows its own. Before Ready to reach out there is nothing to send.
+// The words that change per lead are filled once, in one place above, and
+// appear in every message that uses them. On a message: copy it, mark it
+// sent, or change it:
 // - Edit (the pencil): this lead's copy only; the template stays as it is.
 // - Template: that message's template, for every lead that hasn't sent it
 //   (a lead with its own copy keeps it). Variables are made here.
 // Every other message is in All messages, grouped and searchable.
 export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead: LeadData; board: BoardData; stageId: string; sent: SentData[] | null; onSent: (sent: SentData[]) => void; onSaved: () => void }) {
-  // what's typed here shows at once, ahead of the board's refresh
+  // what's typed above shows in every message at once, ahead of the save
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [mine, setMine] = useState<Record<string, Draft | null>>({});
   const vars = leadVars({ ...lead, vars: { ...lead.vars, ...typed } }, board.fields);
@@ -41,11 +47,10 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
   const names = variablesIn(board.messages.flatMap((m) => [m.subject, m.body]));
   const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [library, setLibrary] = useState(false);
 
   async function saveVar(name: string, value: string) {
-    if ((lead.vars[name] ?? "") === value.trim() && typed[name] === undefined) return;
+    if ((lead.vars[name] ?? "") === value.trim()) return;
     setTyped((t) => ({ ...t, [name]: value.trim() }));
     const res = await setLeadVar(lead.id, name, value).catch(() => ({ error: OFFLINE }));
     if (res.error) setError(res.error);
@@ -59,18 +64,14 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
     onSaved();
   }
 
-  const stage = board.stages.find((s) => s.id === stageId);
-  const day = stage ? dayOf(stage.name) : null;
-  // today's: every stage of this day (one per platform), or just this stage
-  const today = day == null ? [stageId] : board.stages.filter((s) => dayOf(s.name) === day).map((s) => s.id);
-  const current = board.messages.filter((m) => today.includes(m.stageId));
+  const phases = messagePhases(board, stageId);
+  const shown = phases.flatMap((p) => p.messages);
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
-  // a new lead (the first stage) is sent nothing yet: no messages at all
-  if (!current.length && board.stages[0]?.id === stageId) return null;
-  // the variables today's messages use, and which are still blank
-  const used = variablesIn(current.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
+  // the variables the shown messages use, and which are still blank
+  const used = variablesIn(shown.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
   const blanks = used.filter((n) => !vars[n]);
+  const sentIds = new Set((sent ?? []).map((x) => x.messageId ?? ""));
 
   const card = (m: MessageData, folded = false) => (
     <MessageCard
@@ -80,7 +81,6 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       stages={board.stages}
       leadId={lead.id}
       vars={vars}
-      auto={auto}
       names={names}
       own={own(m.id)}
       sent={sent?.find((x) => x.messageId === m.id) ?? null}
@@ -88,17 +88,15 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       onSent={onSent}
       onSaved={onSaved}
       onError={setError}
-      onVar={saveVar}
       onMine={(d) => saveMine(m.id, d)}
     />
   );
 
   return (
-    <section className="flex flex-col gap-2.5">
+    <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2 px-1">
         <MessagesSquare size={14} className="shrink-0 text-muted" />
         <h3 className="text-xs font-medium text-muted">Messages</h3>
-        {current.length > 0 && <span className="min-w-0 truncate text-xs text-muted/70">for {day == null ? stage?.name : `Day ${day}`}</span>}
         <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} ml-auto shrink-0`}>
           <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
         </button>
@@ -110,35 +108,59 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
         </p>
       )}
 
-      {/* today's, in full; a stage with many (the replies) lists them by name */}
-      {current.map((m) => card(m, current.length > 2))}
-
-      {/* the words that change per lead, all in one place */}
+      {/* the words that change per lead: typed once, in every message that uses them */}
       {used.length > 0 && (
-        <div className={BLOCK}>
-          <FoldHead
-            open={detailsOpen}
-            onClick={() => setDetailsOpen(!detailsOpen)}
-            title={current.length > 1 ? "Variables in these messages" : "Variables in this message"}
-            summary={blanks.length ? `${blanks.length} to fill` : "All filled"}
-            alert={blanks.length > 0}
-          />
-          <Reveal open={detailsOpen}>
-            <div className="grid gap-x-3 gap-y-2 px-3 pb-3 sm:grid-cols-2">
-              {used.map((name) => (
-                <label key={name} className="flex min-w-0 flex-col gap-1">
-                  <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
-                  <input
-                    defaultValue={lead.vars[name] ?? ""}
-                    onBlur={(e) => saveVar(name, e.target.value)}
-                    placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                    className={INPUT}
-                  />
-                </label>
-              ))}
-            </div>
-          </Reveal>
+        <div className={`${BLOCK} p-3`}>
+          <div className="mb-2 flex items-center gap-2 px-1 text-xs">
+            <Braces size={13} className="shrink-0 text-muted" />
+            <span className="font-medium text-foreground/90">Fill in once</span>
+            <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+          </div>
+          <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+            {used.map((name) => (
+              <label key={name} className="flex min-w-0 flex-col gap-1">
+                <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
+                <input
+                  value={typed[name] ?? lead.vars[name] ?? ""}
+                  onChange={(e) => setTyped((t) => ({ ...t, [name]: e.target.value }))}
+                  onBlur={(e) => saveVar(name, e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
+                  className={INPUT}
+                />
+              </label>
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* day by day, as the history reads */}
+      {phases.length > 0 && (
+        <ol className="flex flex-col">
+          {phases.map((p, i) => {
+            const done = p.messages.length > 0 && p.messages.every((m) => sentIds.has(m.id));
+            return (
+              <li key={p.key} className="relative flex gap-3 pb-5 last:pb-0">
+                {/* the line down to the next day */}
+                {i < phases.length - 1 && <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/10" />}
+                <span
+                  className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
+                    done ? "bg-emerald-400/15 text-emerald-300" : p.when ? "bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
+                  }`}
+                >
+                  {done ? <Check size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <p className="flex items-center gap-2 pt-0.5 text-xs">
+                    <span className="font-medium text-foreground/90">{p.title}</span>
+                    {p.when && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent">{p.when === "now" ? "Today" : "Next"}</span>}
+                  </p>
+                  {p.messages.map((m) => card(m, !p.when || p.messages.length > 2))}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
 
       {orphans.length > 0 && (
@@ -152,7 +174,7 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
         </div>
       )}
 
-      <MessageLibrary open={library} onClose={() => setLibrary(false)} board={board} sentIds={new Set((sent ?? []).map((x) => x.messageId ?? ""))} highlight={current.map((m) => m.id)} render={(m) => card(m)} />
+      <MessageLibrary open={library} onClose={() => setLibrary(false)} board={board} sentIds={sentIds} highlight={shown.map((m) => m.id)} render={(m) => card(m)} />
     </section>
   );
 }
@@ -280,59 +302,6 @@ export function MessageLibrary({
   );
 }
 
-// A template on its own, outside any lead: its words with the variables lit,
-// to copy or edit for every lead
-export function TemplatePreview({ message, stages, names }: { message: MessageData; stages: StageData[]; names: string[] }) {
-  const [editing, setEditing] = useState(false);
-  const [copied, setCopied] = useState(false);
-  if (editing) return <TemplateEditor message={message} stages={stages} names={names} onDone={() => setEditing(false)} />;
-  const ACTION = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
-  return (
-    <div className={`fade-in rounded-xl p-4 ${BLOCK}`}>
-      <div className="flex items-center gap-2">
-        <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
-        <span className="min-w-0 truncate text-sm font-medium">{message.name}</span>
-        <span className="ml-auto flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            onClick={async () => {
-              await navigator.clipboard.writeText(message.subject ? `Subject: ${message.subject}\n\n${message.body}` : message.body);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1600);
-            }}
-            className={ACTION}
-          >
-            {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
-          </button>
-          <button type="button" onClick={() => setEditing(true)} title="Edit this message's template, for every lead" className={ACTION}>
-            <LayoutTemplate size={13} /> Edit template
-          </button>
-        </span>
-      </div>
-      {message.note && <p className="mt-1.5 text-xs leading-relaxed text-muted">{message.note}</p>}
-      <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-        {message.subject && (
-          <p className="mb-2 text-foreground">
-            <span className="text-muted">Subject: </span>
-            <Filled text={message.subject} vars={{}} template />
-          </p>
-        )}
-        <Filled text={message.body} vars={{}} template />
-      </div>
-    </div>
-  );
-}
-
-function FoldHead({ open, onClick, title, summary, alert = false }: { open: boolean; onClick: () => void; title: string; summary: string; alert?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
-      <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-      <span className="font-medium text-foreground/90">{title}</span>
-      <span className={`ml-auto ${alert ? "text-red-300" : "text-muted"}`}>{summary}</span>
-    </button>
-  );
-}
-
 // One message for this lead: read it, fill what's missing, copy it, mark it
 // sent; or change this lead's copy, or the template behind it
 // LinkedIn's limit, counted as you go: grey under it, rose over it
@@ -352,7 +321,6 @@ function MessageCard({
   stages,
   leadId,
   vars,
-  auto,
   names,
   own,
   sent,
@@ -360,7 +328,6 @@ function MessageCard({
   onSent,
   onSaved,
   onError,
-  onVar,
   onMine,
   folded = false,
 }: {
@@ -368,7 +335,6 @@ function MessageCard({
   stages: StageData[];
   leadId: string;
   vars: Record<string, string>;
-  auto: Record<string, string>;
   names: string[];
   own: Draft | undefined;
   sent: SentData | null;
@@ -376,7 +342,6 @@ function MessageCard({
   onSent: (sent: SentData[]) => void;
   onSaved: () => void;
   onError: (e: string | null) => void;
-  onVar: (name: string, value: string) => void;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
   folded?: boolean;
 }) {
@@ -478,25 +443,6 @@ function MessageCard({
             {sent ? body : <Filled text={source.body} vars={vars} />}
           </div>
 
-          {/* what's still blank, filled right here */}
-          {missing.length > 0 && (
-            <div className="mt-3 flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-2.5">
-              <p className="text-[11px] text-red-300">Fill in before sending</p>
-              {missing.map((name) => (
-                <label key={name} className="flex items-center gap-2.5">
-                  <span className="w-24 shrink-0 truncate text-xs text-muted">{name}</span>
-                  <input
-                    defaultValue=""
-                    onBlur={(e) => e.target.value.trim() && onVar(name, e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                    placeholder={auto[name] ?? `Type the ${name.toLowerCase()}`}
-                    className={`${INPUT} py-1`}
-                  />
-                </label>
-              ))}
-            </div>
-          )}
-
           {/* sent from wherever it goes out; marking it here keeps the record */}
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
             {sent ? (
@@ -517,7 +463,7 @@ function MessageCard({
                     type="button"
                     onClick={toggleSent}
                     disabled={busy || missing.length > 0 || overLimit(message.channel, body)}
-                    title={missing.length ? `Fill in ${missing.join(", ")} first` : overLimit(message.channel, body) ? `LinkedIn allows ${LINKEDIN_LIMIT} characters; shorten it first` : "Keep a record of what went out"}
+                    title={missing.length ? `Fill in ${missing.join(", ")} above first` : overLimit(message.channel, body) ? `LinkedIn allows ${LINKEDIN_LIMIT} characters; shorten it first` : "Keep a record of what went out"}
                     className="btn btn-sm btn-ghost"
                   >
                     <Send size={12} /> {busy ? "Saving…" : "Mark as sent"}
@@ -546,7 +492,7 @@ function Filled({ text, vars, template = false }: { text: string; vars: Record<s
             {p.value || `{{${p.name}}}`}
           </span>
         ) : (
-          <span key={i} title="Fill this in below" className="rounded bg-red-400/10 px-0.5 text-red-300">
+          <span key={i} title="Fill this in above" className="rounded bg-red-400/10 px-0.5 text-red-300">
             {`{{${p.name}}}`}
           </span>
         ),

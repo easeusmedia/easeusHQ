@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Copy, FileText, Hash, Link2, List, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
-import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadNotes, setLeadValue } from "./actions";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, MailOpen, Minus, Plus, Reply, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
+import type { Outreach } from "./LeadCard";
+import { Checkbox } from "../../Checkbox";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
@@ -15,7 +17,7 @@ import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
+import { isFilled, missingDetails, moveNeedsReason, toneOf, tracksOutreach, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -35,11 +37,11 @@ type Status = "saving" | "saved" | { error: string } | null;
 
 // A lead's window, built like a task's (TaskDetailsDialog): the name and a
 // History switch on top; its stage and assignee as chips;
-// then everything known about it (details, contacts, the write-up), and
-// last its messages; along the bottom, delete, who added it, and Close. History slides open
-// beside it. Open while `lead` is set; closing calls onClose. Every change
-// saves as it's made.
-export function LeadPeek({ lead, board, people, onClose }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; onClose: () => void }) {
+// then everything known about it (details, from Day 1 its opens and reply,
+// contacts), and last its messages, day by day; along the bottom, delete,
+// who added it, and Close. History slides open beside it. Open while `lead`
+// is set; closing calls onClose. Every change saves as it's made.
+export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; onClose: () => void; onTrack: (id: string, change: Outreach) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   // the last lead stays drawn while the window fades out
   const [shown, setShown] = useState(lead);
@@ -74,7 +76,7 @@ export function LeadPeek({ lead, board, people, onClose }: { lead: LeadData | nu
       className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${history ? "w-[63rem]" : "w-[41rem]"}`}
     >
       {shown && (
-        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} history={history} onHistory={() => setHistory((h) => !h)} close={() => ref.current?.close()} onDeleted={onClose} />
+        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} history={history} onHistory={() => setHistory((h) => !h)} close={() => ref.current?.close()} onDeleted={onClose} onTrack={onTrack} />
       )}
     </dialog>
   );
@@ -89,6 +91,7 @@ function LeadPage({
   onHistory,
   close,
   onDeleted,
+  onTrack,
 }: {
   lead: LeadData;
   open: boolean;
@@ -98,6 +101,7 @@ function LeadPage({
   onHistory: () => void;
   close: () => void;
   onDeleted: () => void;
+  onTrack: (id: string, change: Outreach) => void;
 }) {
   const router = useRouter();
   const id = lead.id;
@@ -120,8 +124,6 @@ function LeadPage({
     if (lead.assignedTo?.id !== synced.assignedTo?.id) setAssignee(lead.assignedTo?.id ?? "");
   }
 
-  const [notes, setNotes] = useState<string | null>(null);
-  const savedNotes = useRef("");
   const [events, setEvents] = useState<LeadEventData[] | null>(null);
   const [sent, setSent] = useState<SentData[] | null>(null);
   const [status, setStatus] = useState<Status>(null);
@@ -130,15 +132,13 @@ function LeadPage({
   const [move, setMove] = useState<{ to: string; hint: string; asking: boolean }>({ to: "", hint: "", asking: false });
   const [deleting, setDeleting] = useState(false);
 
-  // the write-up and the record, each time it opens
+  // the record, and what's been sent, each time it opens
   useEffect(() => {
     if (!open) return;
     let live = true;
     getLeadDetails(id).then((r) => {
       if (!live) return;
       if (r.error) return setStatus({ error: r.error });
-      savedNotes.current = r.notes ?? "";
-      setNotes(r.notes ?? "");
       setEvents(r.events ?? []);
       setSent(r.sent ?? []);
     });
@@ -191,15 +191,6 @@ function LeadPage({
     });
   }
 
-  function saveNotes(text: string) {
-    if (text === savedNotes.current) return;
-    const before = savedNotes.current;
-    setNotes(text);
-    run(setLeadNotes(id, text), () => setNotes(before)).then((r) => {
-      if (!r.error) savedNotes.current = text;
-    });
-  }
-
   function assign(userId: string) {
     const before = assignee;
     setAssignee(userId);
@@ -244,7 +235,6 @@ function LeadPage({
   // what the folded blocks say while closed
   const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
   const filled = fieldsShown.filter((f) => isFilled(f.kind, values[f.id])).length;
-  const detailsMissing = missing.some((m) => fieldsShown.some((f) => f.name === m));
   const contactField = board.fields.find((f) => f.kind === "contacts");
   const contacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as unknown[]).length : 0;
 
@@ -335,30 +325,48 @@ function LeadPage({
           </div>
 
           {/* everything known about it first */}
-          <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} missing={detailsMissing} defaultOpen>
+          <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} defaultOpen>
             <div className="flex flex-col">
               {fieldsShown.map((f) => (
-                <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)} missing={f.required && !isFilled(f.kind, values[f.id])}>
+                <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
                   <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
                 </Row>
               ))}
+              {/* from Day 1: the first email opened (how often), and a reply, anywhere */}
+              {tracksOutreach(board.stages, { ...lead, stageId }) && (
+                <>
+                  <Row icon={MailOpen} label="Email opened">
+                    <div className="flex min-h-8 flex-wrap items-center gap-3 px-2">
+                      <Checkbox checked={lead.opens > 0} onChange={(on) => onTrack(id, { opens: on ? Math.max(1, lead.opens) : 0 })} label="Email opened" />
+                      {lead.opens > 0 && (
+                        <span className="fade-in flex items-center gap-1.5 text-xs text-muted">
+                          <button type="button" onClick={() => onTrack(id, { opens: lead.opens - 1 })} aria-label="One open fewer" className="grid size-6 place-items-center rounded-md transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                            <Minus size={12} />
+                          </button>
+                          <span className="min-w-4 text-center text-sm tabular-nums text-foreground">{lead.opens}</span>
+                          <button type="button" onClick={() => onTrack(id, { opens: lead.opens + 1 })} aria-label="One open more" className="grid size-6 place-items-center rounded-md transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                            <Plus size={12} />
+                          </button>
+                          {lead.opens === 1 ? "time" : "times"}
+                        </span>
+                      )}
+                    </div>
+                  </Row>
+                  <Row icon={Reply} label="Replied">
+                    <div className="flex min-h-8 items-center px-2">
+                      <Checkbox checked={lead.replied} onChange={(on) => onTrack(id, { replied: on })} label="Replied" />
+                    </div>
+                  </Row>
+                </>
+              )}
             </div>
           </Fold>
 
           {contactField && (
-            <Fold
-              icon={Users}
-              title={contactField.name}
-              summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"}
-              missing={contactField.required && !isFilled(contactField.kind, values[contactField.id])}
-            >
+            <Fold icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"}>
               <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
             </Fold>
           )}
-
-          {/* no write-up on a lead just added (the first stage): its
-              messages are the templates. One already written still shows. */}
-          {(notes || order.indexOf(stageId) > 0) && <WriteUp notes={notes} onSave={saveNotes} />}
 
           {/* then the messages to send */}
           <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
@@ -440,81 +448,13 @@ function LeadPage({
   );
 }
 
-// The write-up: read it, copy it, or press the pencil to change it
-function WriteUp({ notes, onSave }: { notes: string | null; onSave: (text: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [copied, setCopied] = useState(false);
-  const ACTION = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
-  function edit() {
-    setDraft(notes ?? "");
-    setEditing(true);
-  }
-  async function copy() {
-    await navigator.clipboard.writeText(notes ?? "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  }
-  return (
-    <section className="rounded-xl bg-foreground/[0.03] px-3 py-2">
-      <div className="flex items-center gap-2">
-        <FileText size={14} className="shrink-0 text-muted" />
-        <span className="py-0.5 text-xs font-medium text-foreground/90">Write-up</span>
-        {!editing && notes !== null && (
-          <span className="ml-auto flex items-center gap-0.5">
-            {notes && (
-              <button type="button" onClick={copy} title="Copy the write-up" className={ACTION}>
-                {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
-              </button>
-            )}
-            <button type="button" onClick={edit} title={notes ? "Edit the write-up" : "Write it"} className={ACTION}>
-              <Pencil size={13} /> {notes.trim() ? "Edit" : "Write"}
-            </button>
-          </span>
-        )}
-      </div>
-      {editing ? (
-        <div className="mt-2 flex flex-col gap-2 pb-1">
-          <textarea
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="What the show does, the gap you spotted…"
-            aria-label="Write-up"
-            className="field-sizing-content min-h-28 w-full resize-none rounded-lg border border-border/60 bg-white/[0.02] px-3 py-2 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover"
-          />
-          <div className="flex justify-end gap-1.5">
-            <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onSave(draft);
-                setEditing(false);
-              }}
-              className="btn btn-sm btn-glow"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      ) : (
-        notes?.trim() && <p className="mt-1.5 px-0.5 pb-1 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{notes}</p>
-      )}
-    </section>
-  );
-}
-
-// One property: its name (with a hollow ring while a basic detail is
-// empty), then its value. Stacked on a phone.
-function Row({ icon: Icon, label, missing = false, children }: { icon: LucideIcon; label: React.ReactNode; missing?: boolean; children: React.ReactNode }) {
+// One property: its name, then its value. Stacked on a phone.
+function Row({ icon: Icon, label, children }: { icon: LucideIcon; label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-x-3 py-0.5 sm:grid-cols-[11rem_minmax(0,1fr)]">
       <div className="flex min-h-8 min-w-0 items-center gap-2 px-1 text-xs text-muted">
         <Icon size={14} className="shrink-0" />
         <span className="flex min-w-0">{label}</span>
-        {missing && <Dot />}
       </div>
       <div className="flex min-h-8 min-w-0 items-center">{children}</div>
     </div>
@@ -527,14 +467,12 @@ function Fold({
   icon: Icon,
   title,
   summary,
-  missing = false,
   defaultOpen = false,
   children,
 }: {
   icon: LucideIcon;
   title: React.ReactNode;
   summary: string;
-  missing?: boolean;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
@@ -545,7 +483,6 @@ function Fold({
         <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
         <Icon size={14} className="shrink-0 text-muted" />
         <span className="font-medium text-foreground/90">{title}</span>
-        {missing && <Dot />}
         <span className="ml-auto min-w-0 truncate text-muted">{summary}</span>
       </button>
       <Reveal open={open}>
@@ -555,8 +492,6 @@ function Fold({
   );
 }
 
-// not added yet: a quiet hollow ring, information rather than a warning
-const Dot = () => <span title="Not added yet" aria-label="Not added yet" className="size-1.5 shrink-0 rounded-full border border-muted" />;
 
 function Editor({ field, value, save }: { field: FieldData; value: unknown; save: (v: unknown) => void }) {
   switch (field.kind) {

@@ -1231,6 +1231,10 @@ model Lead {
   notes        String      @default("") @db.Text
   // its messages' variables, by name: { "Guest": "Steven Bartlett" }
   vars         Json        @default("{}")
+  // from Day 1: how many times its first email was opened (0: not opened),
+  // and whether it has replied, on any platform (the board's numbers)
+  opens        Int         @default(0)
+  replied      Boolean     @default(false)
   // a message rewritten for this lead alone, by message id: { subject, body }.
   // It keeps its own wording when the stage's template changes.
   drafts       Json        @default("{}")

@@ -3,11 +3,11 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { moveNeedsReason, toneOf, type BoardData, type LeadData, type StageData } from "@/lib/space";
+import { moveNeedsReason, toneOf, type BoardData, type LeadData, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
-import { LeadCard } from "./LeadCard";
+import { LeadCard, type Outreach } from "./LeadCard";
 import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
 import { scrollPageNearEdge } from "../../StickyColumns";
@@ -178,6 +178,7 @@ export function LeadBoard({
   hideEmpty,
   onShowEmpty,
   onOpen,
+  onTrack,
 }: {
   board: BoardData;
   // the board's leads after the search and filters
@@ -186,6 +187,8 @@ export function LeadBoard({
   hideEmpty: boolean;
   onShowEmpty: () => void;
   onOpen: (id: string) => void;
+  // a lead's opens or reply, tapped on its card
+  onTrack?: (id: string, change: Outreach) => void;
 }) {
   const router = useRouter();
   const [local, setLocal] = useState(() => fresh(board));
@@ -482,7 +485,7 @@ export function LeadBoard({
               onDragEnd={endDrag}
               className={drag === lead.id ? "opacity-35" : ""}
             >
-              <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} />
+              <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} onTrack={onTrack} />
             </div>
           </Fragment>
         ))}
