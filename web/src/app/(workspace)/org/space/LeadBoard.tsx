@@ -534,9 +534,12 @@ export function LeadBoard({
             else if (e.clientX > r.right - 80) e.currentTarget.scrollLeft += 18;
             scrollPageNearEdge(e);
           }}
-          // a little room on every side, taken back with negative margins:
-          // a card's focus ring and hover lift aren't cut at the edge
-          className="-mx-2 -mt-1.5 overflow-x-auto px-2 pt-1.5 pb-4"
+          // runs out to the page's own edges (its padding taken back), so
+          // stages scrolled sideways fade out softly in the margin rather
+          // than being cut off in mid air; the room above keeps a card's
+          // focus ring and hover lift whole. (Menus open in the top layer,
+          // so the fade never touches them.)
+          className="-mx-(--page-pad) -mt-1.5 overflow-x-auto px-(--page-pad) pt-1.5 pb-4 [mask-image:linear-gradient(to_right,transparent,#000_var(--page-pad),#000_calc(100%_-_var(--page-pad)),transparent)]"
         >
           <div className="flex w-max items-start gap-3">
             {stages.map((stage, i) => {
