@@ -9,7 +9,8 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer, seesClient, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
-import { clientLogoSrc } from "@/lib/photos";
+import { logoSrcAt } from "@/lib/photos";
+import { logoVersions } from "@/lib/pictureVersions";
 import { Board } from "../../Board";
 import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
@@ -205,7 +206,7 @@ export default async function ClientDetailPage({
         {/* a floor under the name: past it, the buttons wrap to their own
             line rather than squeezing the name away and the logo up */}
         <div className="min-w-[min(360px,100%)] flex-1">
-        <ProfileHead photo={<PhotoEdit name={client.name} src={clientLogoSrc(client)} size="fill" save={updateClientAvatar.bind(null, client.id)} />}>
+        <ProfileHead photo={<PhotoEdit name={client.name} src={logoSrcAt(client.slug, (await logoVersions()).get(client.id))} size="fill" save={updateClientAvatar.bind(null, client.id)} />}>
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
@@ -452,7 +453,7 @@ async function EditorClientPage({
     }),
     weekEntries(client.projects.map((p) => p.id), { assignedToId: me.id, postings: false }),
   ]);
-  const logo = clientLogoSrc(client);
+  const logo = logoSrcAt(client.slug, (await logoVersions()).get(client.id));
 
   return (
     <div className="flex min-h-full flex-col">

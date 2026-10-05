@@ -12,7 +12,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email }, omit: { passwordHash: false } });
   if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
     return { error: "That email and password don't match. Please try again." };
   }

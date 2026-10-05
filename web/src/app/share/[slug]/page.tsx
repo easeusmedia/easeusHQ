@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
-import { clientLogoSrc } from "@/lib/photos";
+import { logoSrcAt } from "@/lib/photos";
+import { logoVersions } from "@/lib/pictureVersions";
 import { Avatar } from "../../(workspace)/TaskCard";
 import { ClientStats } from "../../(workspace)/clients/ClientStats";
 import { ClientTabs } from "../../(workspace)/clients/ClientTabs";
@@ -63,7 +64,7 @@ export default async function SharedClientPage({
     where: { projectId: { in: client.projects.map((p) => p.id) }, status: { in: ACTIVE_STATUSES }, internal: false },
   });
 
-  const logo = clientLogoSrc(client);
+  const logo = logoSrcAt(client.slug, (await logoVersions()).get(client.id));
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   // their numbers, on the accounts we have for them — no tab without one
   const accounts = {

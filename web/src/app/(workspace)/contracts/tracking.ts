@@ -30,6 +30,10 @@ export async function trackContracts(onlyId?: string, force = false): Promise<vo
     },
   });
   if (!contracts.length) return;
+  // which already hold their signed copy (the file itself stays in the database)
+  const filed = new Set(
+    (await prisma.contract.findMany({ where: { id: { in: contracts.map((c) => c.id) }, signedPdf: { not: null } }, select: { id: true } })).map((c) => c.id),
+  );
 
   // one search covers them all: Adobe's mail since the earliest approval
   const since = Math.floor(Math.min(...contracts.map((c) => c.approvedAt!.getTime())) / 1000) - 86_400;
@@ -47,7 +51,7 @@ export async function trackContracts(onlyId?: string, force = false): Promise<vo
       const event = readAdobeMail(m.subject, m.snippet, name);
       if (!event) continue;
       events.push({ ...event, id: m.id, at: m.at.toISOString() });
-      if (event.kind === "completed" && !c.signedPdf) {
+      if (event.kind === "completed" && !filed.has(c.id)) {
         // the signed copy comes attached to Adobe's "Signed and Filed" email
         const full = await readMail(m.id, true);
         const pdf = full.files.find((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));

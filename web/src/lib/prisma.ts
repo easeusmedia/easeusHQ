@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
 // avoid exhausting DB connections from hot-reloading in dev
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma?: ReturnType<typeof create> };
 
 // On Vercel every serverless instance builds its own connection pool, and
 // Prisma's default size is (cores * 2 + 1). A dozen warm instances is then
@@ -36,7 +36,24 @@ function datasourceUrl(): string | undefined {
 
 const url = datasourceUrl();
 
-export const prisma =
-  globalForPrisma.prisma ?? new PrismaClient(url ? { datasources: { db: { url } } } : undefined);
+// Pictures and files kept in the database (a person's photo, a client's
+// logo, a signed contract, a feedback snapshot) and password hashes are
+// left out of every query unless it asks for them by name (select, or
+// omit: { field: false }). Whole-row lookups used to carry them on every
+// page load and every 5-second pulse: 7.5 GB out of the database in a
+// month, over the free plan's 5 GB. Photos and logos reach the browser
+// through their own cached routes (team/[id]/photo, clients/[slug]/logo).
+const OMIT = {
+  user: { avatarUrl: true, passwordHash: true },
+  client: { avatarUrl: true },
+  contract: { signedPdf: true },
+  feedbackSnapshot: { image: true },
+} as const;
+
+function create() {
+  return new PrismaClient({ omit: OMIT, ...(url ? { datasources: { db: { url } } } : {}) });
+}
+
+export const prisma = globalForPrisma.prisma ?? create();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

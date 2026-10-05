@@ -24,20 +24,24 @@ export async function GET() {
     // happens (scripts/realtime.ts): it moves whenever any of their rows do
     prisma.$queryRaw<{ n: bigint | null }[]>`select last_value as n from public.hq_change_seq`.catch(() => null),
     prisma.user.findMany({
-      where: { lastSeenAt: { gt: new Date(now.getTime() - ACTIVE_WINDOW_MS) } },
-      select: { id: true },
-      orderBy: { id: "asc" },
+      where: { lastSeenAt: { gt: new Date(now.getTime() - ACTIVE_WINDOW_MS) }, employment: { not: "former" } },
+      select: { name: true },
     }),
-    prisma.task.findMany({
-      where: { assignedToId: userId, status: { not: "delivered_and_uploaded" } },
-      select: { id: true, title: true, status: true },
-    }),
-    prisma.clientFeedback.findMany({
-      where: { readAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, name: true, message: true, client: { select: { name: true, slug: true } } },
-    }),
+    // only for those it's for: a Member's own tasks, client messages for those who run clients
+    user.role === "employee"
+      ? prisma.task.findMany({
+          where: { assignedToId: userId, status: { not: "delivered_and_uploaded" } },
+          select: { id: true, title: true, status: true },
+        })
+      : null,
+    runsClients(user)
+      ? prisma.clientFeedback.findMany({
+          where: { readAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: { id: true, name: true, message: true, client: { select: { name: true, slug: true } } },
+        })
+      : null,
     // here: at most once every 45s, not a write on every ask. Never from a
     // local dev server: it shares the live database, so testing there would
     // show whoever it's signed in as online to the whole team.
@@ -49,16 +53,15 @@ export async function GET() {
       : null,
   ]);
 
-  const seesFeedback = runsClients(user);
   return NextResponse.json(
     {
       // if the count can't be read, a fresh value each time: the page then
-      // refreshes on every tick, as it did before this existed
-      v: `${writes?.[0]?.n ?? now.getTime()}:${online.map((u) => u.id).join(",")}`,
-      approvals: user.role === "employee" ? approvals : undefined,
-      feedback: seesFeedback
-        ? feedback.map((r) => ({ id: r.id, from: r.name, message: r.message.slice(0, 140), client: r.client.name, slug: r.client.slug }))
-        : undefined,
+      // refreshes on every tick, as it did before this existed. Who's online
+      // travels on its own (the avatars' dots), never reloading the page.
+      v: String(writes?.[0]?.n ?? now.getTime()),
+      online: online.map((u) => u.name),
+      approvals: approvals ?? undefined,
+      feedback: feedback?.map((r) => ({ id: r.id, from: r.name, message: r.message.slice(0, 140), client: r.client.name, slug: r.client.slug })),
     },
     { headers: { "Cache-Control": "no-store" } }
   );

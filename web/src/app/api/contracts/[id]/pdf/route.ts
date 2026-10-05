@@ -9,7 +9,7 @@ import { contractPdf } from "@/lib/contractPdf";
 // that came with Adobe's "Signed and Filed" email.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await requireOps())) return new Response("Not allowed", { status: 403 });
-  const contract = await prisma.contract.findUnique({ where: { id: (await params).id } });
+  const contract = await prisma.contract.findUnique({ where: { id: (await params).id }, omit: { signedPdf: false } });
   if (!contract) return new Response("Not found", { status: 404 });
 
   const details = withDefaults(contract.details);

@@ -2,6 +2,8 @@
 // the page that act on it — the delivery chime, client messages.
 export type PulseData = {
   v: string;
+  // who's online, by name (the avatars' dots)
+  online?: string[];
   approvals?: { id: string; title: string; status: string }[];
   feedback?: { id: string; from: string; message: string; client: string; slug: string }[];
 };
