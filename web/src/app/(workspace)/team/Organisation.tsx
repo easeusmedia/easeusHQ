@@ -67,7 +67,7 @@ export function Organisation({
     setRoles((all) => all.filter((r) => r.teamId !== id));
     setTags((all) => all.map((t) => (t.teamId === id ? { ...t, teamId: null } : t)));
   }
-  async function addRole(name: string, teamId: string | null) {
+  async function addRole(name: string, teamId: string) {
     const res = await createJobTitle(name, teamId);
     if (res.error || !res.id) return fail(res.error ?? "That role couldn't be added.");
     if (res.teamId !== teamId) return fail(`"${res.name}" already exists, under ${teams.find((t) => t.id === res.teamId)?.name ?? "another department"}.`);
@@ -214,34 +214,6 @@ export function Organisation({
           <div className="pt-1">
             <AddInline label="Add department" onAdd={addDepartment} />
           </div>
-          {/* roles outside every department take requests: whoever holds
-              one gets what's asked of it (profile menu > Request) */}
-          <section className="rounded-xl border border-border bg-surface-2/30 p-4">
-            <h3 className="mb-3 text-sm font-semibold">Requests</h3>
-            <div className="flex flex-col divide-y divide-border/50">
-              {roles
-                .filter((r) => r.teamId === null)
-                .map((r) => (
-                  <div key={r.id} className="group flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <EditableName pencil="hover" name={r.name} onSave={(name) => renameOneRole(r.id, name)} className="text-sm" />
-                      {r.people > 0 && <span className="text-xs text-muted">{people(r.people)}</span>}
-                    </div>
-                    <ConfirmButton
-                      confirm="Remove"
-                      message={roleMessage(r)}
-                      className="rounded-md p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
-                      onConfirm={() => removeRole(r.id)}
-                    >
-                      <X size={12} />
-                    </ConfirmButton>
-                  </div>
-                ))}
-            </div>
-            <div className="mt-2">
-              <AddInline label="Add request role" onAdd={(name) => addRole(name, null)} />
-            </div>
-          </section>
         </div>
         {error && <p className="fade-in px-5 pb-4 text-xs text-red-300">{error}</p>}
       </dialog>

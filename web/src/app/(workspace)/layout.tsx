@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { REQUEST_DEPARTMENT } from "@/lib/teams";
 import { getRealUserId, getRealViewer, getSessionUserId } from "@/lib/auth";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { logout } from "./actions";
@@ -72,9 +73,9 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       .catch(() => []),
     // each logo's version, for its address: not the logos themselves
     logoVersions().catch(() => new Map<string, string>()),
-    // the roles that take requests (outside every department), held by someone
+    // the roles that take requests (Admin & Technical's), held by someone
     prisma.jobTitle
-      .findMany({ where: { teamId: null, holders: { some: { employment: { not: "former" } } } }, select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] })
+      .findMany({ where: { team: { slug: REQUEST_DEPARTMENT }, holders: { some: { employment: { not: "former" } } } }, select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] })
       .catch(() => []),
   ]);
   if (!sessionUserId) redirect("/login");

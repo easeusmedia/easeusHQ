@@ -53,7 +53,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
       where,
       // not the stored photo (it's addressed by its version) nor the password hash
       omit: { avatarUrl: true, passwordHash: true },
-      include: { team: true, jobTitle: true, departments: { select: { id: true } }, roles: { select: { id: true, name: true, teamId: true }, orderBy: { sortOrder: "asc" } } },
+      include: { team: true, jobTitle: true, departments: { select: { id: true } }, roles: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } } },
       orderBy: [{ employment: "asc" }, { name: "asc" }],
     }),
     prisma.team.findMany({ orderBy: { sortOrder: "asc" }, include: { _count: { select: { access: { where: { employment: { not: "former" } } } } } } }),
@@ -169,12 +169,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
     shownTeam: displayTeam(p)?.slug ?? null,
     jobTitleId: p.jobTitleId,
     // what they do: their roles (positions are gone)
-    // what they do; a role that only takes requests (no department) isn't a title
-    jobTitleName:
-      p.roles
-        .filter((r) => r.teamId)
-        .map((r) => r.name)
-        .join(", ") || null,
+    jobTitleName: p.roles.map((r) => r.name).join(", ") || null,
     position: p.position,
     joinedAt: dueOf(p.joinedAt),
     birthday: dueOf(p.birthday),
