@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { MessageSquare, X } from "lucide-react";
 import { onPulse, type PulseData } from "./pulseStore";
 

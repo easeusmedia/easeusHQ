@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import type { WorkTaskStatus } from "@prisma/client";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { AssigneeLabel, DueDate, StageColumn } from "../TaskCard";

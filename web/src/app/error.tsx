@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 
 // Root error boundary — catches anything a Server or Client Component
 // throws instead of letting Next.js show the generic "Server Components

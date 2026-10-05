@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { Repeat2 } from "lucide-react";
 import { LETTER_LABEL, type Letter, type VideoScoring } from "@/lib/videoScore";
 import { Info } from "./ui";

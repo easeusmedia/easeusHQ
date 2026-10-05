@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 
 // Catches any URL that doesn't match a real route — a mistyped link, a
 // stale bookmark, a copy-pasted gateway link that's since moved — instead

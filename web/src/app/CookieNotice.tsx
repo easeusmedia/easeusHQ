@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { Cookie } from "lucide-react";
 import { readConsent, saveConsent, type Consent } from "@/lib/consent";
 

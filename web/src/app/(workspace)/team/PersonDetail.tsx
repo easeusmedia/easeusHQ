@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { ArrowUpRight, Eye, EyeOff, History, KeyRound, Mail, PenLine, Phone } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { Dropdown } from "../Dropdown";

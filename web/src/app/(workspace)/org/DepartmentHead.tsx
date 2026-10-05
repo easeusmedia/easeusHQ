@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 
 type Crumb = { name: string; href: string };
 

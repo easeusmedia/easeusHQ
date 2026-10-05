@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import type { LucideIcon } from "lucide-react";
 
 // The frame for the pages anyone can read — home, privacy, terms: the name

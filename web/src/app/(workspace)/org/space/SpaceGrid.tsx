@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Copy, Layers, LayoutGrid, MoreHorizontal, Trash2 } from "lucide-react";
 import { CHILD_OF, KIND_LABEL, type SpaceCard } from "@/lib/space";

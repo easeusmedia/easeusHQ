@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { ArrowUpRight, CalendarClock, Check, CircleAlert, CircleCheck, Hourglass, Receipt, Sheet, Wallet } from "lucide-react";
 import { clientLogoSrc } from "@/lib/photos";
 import { clientHref } from "@/lib/slug";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getSessionUserId } from "@/lib/auth";

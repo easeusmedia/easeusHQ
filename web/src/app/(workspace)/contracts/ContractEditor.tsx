@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Check, CheckCheck, Eye, PenLine, RefreshCw, TriangleAlert, Copy, Download, FileDown, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } from "@/lib/contract";

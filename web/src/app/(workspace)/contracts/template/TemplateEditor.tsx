@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import type { Clause } from "@/lib/contract";
 import { ConfirmButton } from "../../ConfirmButton";

@@ -27,7 +27,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { addDays, shiftMonth, shortDay, type PeriodKind } from "@/lib/editorKpi";
 import { LETTER_LABEL, PART_LABEL, type Letter, type Part, type VideoScoring } from "@/lib/videoScore";
 import { GRADE_STYLE } from "../gradeStyle";

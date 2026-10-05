@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { isFounder } from "@/lib/scope";
 import { redirect } from "next/navigation";
 import { Settings2 } from "lucide-react";

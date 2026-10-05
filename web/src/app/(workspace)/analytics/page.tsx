@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { redirect } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, ChartColumn, Clapperboard, Eye, Heart, Image as ImageIcon, MonitorPlay, Smartphone } from "lucide-react";
 import { StatTile } from "../StatTile";

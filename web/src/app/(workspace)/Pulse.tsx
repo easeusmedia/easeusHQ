@@ -16,8 +16,9 @@ import { emitPulse, type PulseData } from "./pulseStore";
 // it) it asks /api/pulse whether anything changed: the backstop if the live
 // line drops, and what marks you active and feeds the delivery chime and
 // client messages. With no live line it's all there is, so it asks more
-// often. A tab nobody has touched for a few minutes stops asking (each ask
-// reads the database) and catches up the moment someone moves or types.
+// often. A tab nobody has touched for a few minutes stops asking and stops
+// refreshing (each reads the database), and catches up the moment someone
+// moves or types.
 // no mouse, keys, touch or scrolling for this long: the tab is left alone
 const IDLE_MS = 3 * 60 * 1000;
 const INPUT_EVENTS = ["pointermove", "pointerdown", "keydown", "wheel", "touchstart"] as const;
@@ -61,7 +62,9 @@ export function Pulse({ live }: { live?: { url: string; key: string } | null }) 
 
     function refreshNow() {
       pending = null;
-      if (document.visibilityState !== "visible") {
+      // hidden, or nobody at it: catch up when someone's back, not now
+      // (each refresh reads the page's data again)
+      if (document.visibilityState !== "visible" || idle()) {
         stale = true;
         return;
       }
@@ -72,6 +75,8 @@ export function Pulse({ live }: { live?: { url: string; key: string } | null }) 
     }
 
     function onVisible() {
+      // coming back to the tab is someone at it
+      if (document.visibilityState === "visible") lastInput = Date.now();
       if (document.visibilityState === "visible" && stale) {
         stale = false;
         refreshNow();
@@ -81,7 +86,11 @@ export function Pulse({ live }: { live?: { url: string; key: string } | null }) 
     function onInput() {
       const wasIdle = idle();
       lastInput = Date.now();
-      if (wasIdle) tick();
+      if (!wasIdle) return;
+      if (stale) {
+        stale = false;
+        refreshNow();
+      } else tick();
     }
     tick();
     const id = setInterval(tick, intervalMs);
