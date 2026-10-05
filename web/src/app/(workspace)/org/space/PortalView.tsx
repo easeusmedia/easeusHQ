@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, MailOpen, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
+import { EyeOff, Kanban, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
 import { outreachStart, outreachStats, type BoardData, type Contact, type LeadData, type Person } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
@@ -73,6 +73,10 @@ export function PortalView({
   const [who, setWho] = useState("all");
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  // the board being switched to, until it arrives
+  const [going, setGoing] = useState<string | null>(null);
+  if (going && (board?.slug === going || !switching)) setGoing(null);
   // opens and replies tapped here show at once, ahead of the board's refresh
   const [tracked, setTracked] = useState<Record<string, Outreach>>({});
   const [trackError, setTrackError] = useState<string | null>(null);
@@ -121,6 +125,7 @@ export function PortalView({
     setOpenId(null);
     setQuery("");
     setWho("all");
+    setGoing(slug);
     startSwitch(() => router.push(`${url.pathname}${url.search}`, { scroll: false }));
   }
 
@@ -170,35 +175,37 @@ export function PortalView({
       {(boards.length > 1 || canBuild) && (
         <div className="flex max-w-full items-center gap-2">
         <div role="tablist" aria-label="Boards" className={`${SEG_ROW} max-w-full overflow-x-auto`}>
-          {boards.map((b) =>
-            b.id === board.id ? (
-              <span key={b.id} role="tab" aria-selected className="seg group/tab flex max-w-[18rem] shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-sm font-medium">
-                <EditableName name={b.name} onSave={rename(b.id)} pencil="tuck" />
-                {canBuild && (
-                  <button
-                    type="button"
-                    onClick={() => setDeleting(true)}
-                    aria-label={`Delete ${b.name}`}
-                    title={`Delete ${b.name}`}
-                    className="-ml-1 grid h-6 w-0 shrink-0 place-items-center overflow-hidden rounded-full text-muted opacity-0 transition-all duration-200 group-hover/tab:-mr-1 group-hover/tab:ml-0 group-hover/tab:w-6 group-hover/tab:opacity-100 hover:text-red-300 focus-visible:-mr-1 focus-visible:ml-0 focus-visible:w-6 focus-visible:opacity-100"
-                  >
-                    <Trash2 size={12} />
+          {boards.map((b) => {
+            // the one picked lights at once, ahead of its board loading
+            const on = (going ?? board.slug) === b.slug;
+            const tools = on && !going && !renaming;
+            return (
+              <div key={b.id} role="tab" aria-selected={on} className="seg group/tab flex max-w-[18rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium">
+                {on && !going ? (
+                  <EditableName name={b.name} onSave={rename(b.id)} pencil="none" editing={renaming} onEditingChange={setRenaming} />
+                ) : (
+                  <button type="button" onClick={() => switchTo(b.slug)} className="-mx-3.5 -my-1.5 truncate px-3.5 py-1.5">
+                    {b.name}
                   </button>
                 )}
-              </span>
-            ) : (
-              <button
-                key={b.id}
-                type="button"
-                role="tab"
-                aria-selected={false}
-                onClick={() => switchTo(b.slug)}
-                className="seg flex max-w-[16rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium"
-              >
-                <span className="truncate">{b.name}</span>
-              </button>
-            ),
-          )}
+                {/* rename and delete, sliding out of the open tab on hover */}
+                {canBuild && (
+                  <span
+                    className={`flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity,margin] duration-300 ease-out ${
+                      tools ? "group-focus-within/tab:-mr-1.5 group-focus-within/tab:ml-1.5 group-focus-within/tab:max-w-14 group-focus-within/tab:opacity-100 group-hover/tab:-mr-1.5 group-hover/tab:ml-1.5 group-hover/tab:max-w-14 group-hover/tab:opacity-100" : ""
+                    }`}
+                  >
+                    <button type="button" tabIndex={tools ? 0 : -1} onClick={() => setRenaming(true)} aria-label={`Rename ${b.name}`} className="grid size-6 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-foreground">
+                      <Pencil size={12} />
+                    </button>
+                    <button type="button" tabIndex={tools ? 0 : -1} onClick={() => setDeleting(true)} aria-label={`Delete ${b.name}`} className="grid size-6 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-red-300">
+                      <Trash2 size={12} />
+                    </button>
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
         {canBuild && (
           <button type="button" onClick={() => setCreating(true)} aria-label="New board" title="New board" className="chip grid size-9 shrink-0 place-items-center rounded-full">

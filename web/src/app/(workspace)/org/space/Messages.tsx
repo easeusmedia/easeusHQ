@@ -161,24 +161,26 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
             const canReply = p.day != null && today != null && p.day <= today;
             return (
               <li key={p.key} className="relative flex gap-3 pb-5 last:pb-0">
-                {/* the line down to the next day, lit from today to the next */}
+                {/* the line down to the next day, glowing from today (green) to the next (blue) */}
                 {i < phases.length - 1 &&
                   (p.when === "now" && phases[i + 1].when === "next" ? (
-                    <span className="progress-line absolute top-7 bottom-1 left-[11px] w-0.5 rounded-full" />
+                    <span className="progress-line absolute top-7 bottom-1 left-[11.25px] w-[1.5px] rounded-full" />
                   ) : (
                     <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/10" />
                   ))}
                 <span
                   className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
-                    replied ? "bg-emerald-400/15 text-emerald-300" : p.when ? "bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
-                  } ${p.when === "now" && !replied ? "step-now" : p.when === "next" && !replied ? "step-next" : ""}`}
+                    replied ? "bg-emerald-400/15 text-emerald-300" : p.when === "now" ? "step-now" : p.when === "next" ? "step-next bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
+                  }`}
                 >
                   {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <p className="flex items-center gap-2 pt-0.5 text-xs">
                     <span className="font-medium text-foreground/90">{p.title}</span>
-                    {p.when && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent">{p.when === "now" ? "Today" : "Next"}</span>}
+                    {p.when && (
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
+                    )}
                   </p>
                   {options.length > 1 &&
                     (options.length <= 4 ? (

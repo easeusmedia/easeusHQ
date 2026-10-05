@@ -12,21 +12,28 @@ const keep = (e: React.SyntheticEvent) => {
 // A name with a pencil beside it: click it and it becomes a field. Enter (or
 // leaving it) saves, Escape puts it back. onSave returns an error to show,
 // or nothing. The pencil shows always (where renaming is the point), only
-// on hover (in dense lists), or takes no room at all until hovered (tuck).
+// on hover (in dense lists), or not at all (none: the parent has its own,
+// and opens the field through editing / onEditingChange).
 export function EditableName({
   name,
   onSave,
   className = "",
   pencil = "always",
   readOnly = false,
+  editing: editingProp,
+  onEditingChange,
 }: {
   name: string;
   onSave: (name: string) => Promise<string | undefined>;
   className?: string;
-  pencil?: "always" | "hover" | "tuck";
+  pencil?: "always" | "hover" | "none";
   readOnly?: boolean;
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [ownEditing, setOwnEditing] = useState(false);
+  const editing = editingProp ?? ownEditing;
+  const setEditing = onEditingChange ?? setOwnEditing;
   const [value, setValue] = useState(name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +41,8 @@ export function EditableName({
   const [saved, setSaved] = useState<{ from: string; to: string } | null>(null);
   if (saved && saved.from !== name) setSaved(null);
   const shown = saved?.to ?? name;
+  // the field opens on the name as it is now (a rename elsewhere may have landed)
+  if (!editing && value !== shown) setValue(shown);
 
   async function save() {
     const next = value.trim();
@@ -66,25 +75,16 @@ export function EditableName({
           onClick={(e) => {
             keep(e);
             setError(null);
-            // start from the name as it is now (a rename elsewhere may have landed)
-            setValue(shown);
             setEditing(true);
           }}
-          title="Rename"
+          title={pencil === "none" ? undefined : "Rename"}
           aria-label={`Rename ${shown}`}
           className={`group/name inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}
         >
           <span className="truncate">{shown}</span>
-          <Pencil
-            size={11}
-            className={`shrink-0 text-muted ${
-              pencil === "always"
-                ? "opacity-45 transition-opacity group-hover/name:opacity-100"
-                : pencil === "hover"
-                  ? "opacity-0 transition-opacity group-hover/name:opacity-100"
-                  : "-ml-1.5 w-0 opacity-0 transition-all duration-200 group-hover/name:ml-0 group-hover/name:w-[11px] group-hover/name:opacity-100"
-            }`}
-          />
+          {pencil !== "none" && (
+            <Pencil size={11} className={`shrink-0 text-muted transition-opacity ${pencil === "always" ? "opacity-45 group-hover/name:opacity-100" : "opacity-0 group-hover/name:opacity-100"}`} />
+          )}
         </button>
         {error && (
           <span role="alert" className="fade-in text-[11px] font-normal text-red-300">
