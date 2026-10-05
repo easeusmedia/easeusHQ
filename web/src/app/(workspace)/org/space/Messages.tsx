@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
-import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type Reply as ReplyRecord, type SentData, type StageData } from "@/lib/space";
+import { Braces, Check, ChevronDown, ChevronRight, Copy, History, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type Phase, type Reply as ReplyRecord, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
@@ -48,6 +48,7 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
   const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState(false);
+  const [past, setPast] = useState(false);
   // a day's message picked here, ahead of the save
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const pickOf = (key: string) => (key in picked ? picked[key] : (lead.picks?.[key] ?? null));
@@ -83,7 +84,10 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
   }
 
   const phases = messagePhases(board, stageId);
-  const shown = phases.flatMap((p) => p.messages);
+  // the days already done, folded until opened; the rest (today, next) open
+  const done = phases.filter((p) => p.when === "done");
+  const ahead = phases.filter((p) => p.when !== "done");
+  const shown = ahead.flatMap((p) => p.messages);
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
   // the variables the shown messages use, and which are still blank
@@ -105,6 +109,69 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
       onMine={(d) => saveMine(m.id, d)}
     />
   );
+
+  // one day on the timeline: its node, the line down to the next shown day,
+  // its message (or the options to pick from) and its reply
+  const step = (p: Phase, below: Phase | undefined, last: boolean) => {
+    const options = p.messages;
+    const chosenId = options.length > 1 ? pickOf(p.key) : options[0].id;
+    const chosen = options.find((m) => m.id === chosenId) ?? null;
+    const replied = repliedOn(p.key);
+    const canReply = p.day != null && today != null && p.day <= today;
+    return (
+      <div className={`relative flex gap-3 ${last ? "" : "pb-5"}`}>
+        {/* the line down: quiet through the days done, easing into today
+            (green), then glowing from today to the next (blue) */}
+        {below &&
+          (p.when === "now" && below.when === "next" ? (
+            <span className="progress-line absolute top-7 bottom-1 left-[11.25px] w-[1.5px] rounded-full" />
+          ) : p.when === "done" && below.when === "now" ? (
+            <span className="absolute top-7 bottom-1 left-[11px] w-px bg-linear-to-b from-white/15 to-emerald-400/50" />
+          ) : (
+            <span className={`absolute top-7 bottom-1 left-[11px] w-px ${p.when === "done" ? "bg-white/15" : "bg-white/10"}`} />
+          ))}
+        <span
+          className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
+            p.when === "now" ? "step-now" : replied ? "bg-emerald-400/15 text-emerald-300" : p.when === "next" ? "step-next bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
+          }`}
+        >
+          {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <p className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+            <span className="font-medium text-foreground/90">{p.title}</span>
+            {(p.when === "now" || p.when === "next") && (
+              <span className={`rounded-full px-2 py-0.5 text-[11px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
+            )}
+            {p.when === "done" && p.day === 1 && lead.opens > 0 && (
+              <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">
+                <MailOpen size={11} /> Opened {lead.opens}×
+              </span>
+            )}
+          </p>
+          {options.length > 1 &&
+            (options.length <= 4 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {options.map((m) => (
+                  <button key={m.id} type="button" aria-pressed={chosen?.id === m.id} onClick={() => chosen?.id !== m.id && pick(p.key, m.id)} className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                    <span className="flex shrink-0">{CHANNEL_ICON[m.channel] ?? CHANNEL_ICON.other}</span>
+                    {optionLabel(options, m)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((m) => ({ value: m.id, label: m.name }))} onChange={(v) => v && pick(p.key, v)} />
+            ))}
+          {chosen && card(chosen, p.when === "done" || (options.length === 1 && !p.when))}
+          {canReply && (
+            <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+              <Reply size={12} /> Replied
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <section className="flex flex-col gap-3">
@@ -148,63 +215,47 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
         </div>
       )}
 
-      {/* day by day, as the history reads: a day with more than one
-          message offers them first, and the one picked opens (kept for
-          the lead); a day it has reached takes its reply */}
+      {/* day by day, as the history reads: the days already done folded
+          into one row (opens and replies at a glance), then today and the
+          next. A day with more than one message offers them first, and the
+          one picked opens (kept for the lead); a day it has reached takes
+          its reply */}
       {phases.length > 0 && (
         <ol className="flex flex-col">
-          {phases.map((p, i) => {
-            const options = p.messages;
-            const chosenId = options.length > 1 ? pickOf(p.key) : options[0].id;
-            const chosen = options.find((m) => m.id === chosenId) ?? null;
-            const replied = repliedOn(p.key);
-            const canReply = p.day != null && today != null && p.day <= today;
-            return (
-              <li key={p.key} className="relative flex gap-3 pb-5 last:pb-0">
-                {/* the line down to the next day, glowing from today (green) to the next (blue) */}
-                {i < phases.length - 1 &&
-                  (p.when === "now" && phases[i + 1].when === "next" ? (
-                    <span className="progress-line absolute top-7 bottom-1 left-[11.25px] w-[1.5px] rounded-full" />
-                  ) : (
-                    <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/10" />
-                  ))}
-                <span
-                  className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
-                    replied ? "bg-emerald-400/15 text-emerald-300" : p.when === "now" ? "step-now" : p.when === "next" ? "step-next bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
-                  }`}
-                >
-                  {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
+          {done.length > 0 && (
+            <li>
+              <button type="button" onClick={() => setPast((o) => !o)} aria-expanded={past} className="group/past relative flex w-full gap-3 pb-5 text-left">
+                <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/15" />
+                <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-muted transition-colors group-hover/past:text-foreground">
+                  <History size={12} />
                 </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <p className="flex items-center gap-2 pt-0.5 text-xs">
-                    <span className="font-medium text-foreground/90">{p.title}</span>
-                    {p.when && (
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
-                    )}
-                  </p>
-                  {options.length > 1 &&
-                    (options.length <= 4 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {options.map((m) => (
-                          <button key={m.id} type="button" aria-pressed={chosen?.id === m.id} onClick={() => chosen?.id !== m.id && pick(p.key, m.id)} className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                            <span className="flex shrink-0">{CHANNEL_ICON[m.channel] ?? CHANNEL_ICON.other}</span>
-                            {optionLabel(options, m)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((m) => ({ value: m.id, label: m.name }))} onChange={(v) => v && pick(p.key, v)} />
-                    ))}
-                  {chosen && card(chosen, options.length === 1 && !p.when)}
-                  {canReply && (
-                    <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                      <Reply size={12} /> Replied
-                    </button>
+                <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pt-0.5 text-xs">
+                  <span className="font-medium text-foreground/90 transition-colors group-hover/past:text-foreground">
+                    {done.length === 1 ? done[0].title : `Days ${done[0].day}–${done[done.length - 1].day}`}
+                  </span>
+                  {done.some((p) => p.day === 1) && lead.opens > 0 && (
+                    <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">
+                      <MailOpen size={11} /> Opened {lead.opens}×
+                    </span>
                   )}
-                </div>
-              </li>
-            );
-          })}
+                  {done.some((p) => repliedOn(p.key)) && (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                      <Reply size={11} /> Replied
+                    </span>
+                  )}
+                  <ChevronDown size={13} className={`ml-auto shrink-0 text-muted transition-transform duration-300 ${past ? "rotate-180" : ""}`} />
+                </span>
+              </button>
+            </li>
+          )}
+          {done.map((p, i) => (
+            <li key={p.key} aria-hidden={!past} inert={!past} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${past ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+              <div className="min-h-0 overflow-hidden">{step(p, done[i + 1] ?? ahead[0], false)}</div>
+            </li>
+          ))}
+          {ahead.map((p, i) => (
+            <li key={p.key}>{step(p, ahead[i + 1], i === ahead.length - 1)}</li>
+          ))}
         </ol>
       )}
 

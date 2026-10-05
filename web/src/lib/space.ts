@@ -322,9 +322,10 @@ export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {
 // A lead's messages, a phase per day, for its timeline. Before Ready to
 // reach out (Dream List, Shortlisted) it has none. In Ready to reach out
 // every day shows, Day 1 next, so all of it is ready.
-// On a day, that day (now) and the next one show. Outside the sequence
+// On a day, the days before it (done), that day (now) and the next one
+// show. Outside the sequence
 // (the replies, the audit), a stage shows its own.
-export type Phase = { key: string; title: string; day: number | null; when: "now" | "next" | null; messages: MessageData[] };
+export type Phase = { key: string; title: string; day: number | null; when: "done" | "now" | "next" | null; messages: MessageData[] };
 export function messagePhases(board: Pick<BoardData, "stages" | "messages">, stageId: string): Phase[] {
   const { stages } = board;
   const i = stages.findIndex((s) => s.id === stageId);
@@ -338,7 +339,7 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
   const next = here == null ? days[0] : days.find((d) => d > here);
   const picked = outside ? [stages[i]] : stages.filter((s) => {
     const d = dayOf(s.name);
-    return d != null && (ahead || d === here || d === next);
+    return d != null && (ahead || (here != null && d <= here) || d === next);
   });
   const phases: Phase[] = [];
   for (const s of picked) {
@@ -346,7 +347,7 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
     const key = phaseKey(s);
     let p = phases.find((x) => x.key === key);
     if (!p) {
-      const when = outside || (d != null && d === here) ? "now" : d === next ? "next" : null;
+      const when = outside || (d != null && d === here) ? "now" : d === next ? "next" : d != null && here != null && d < here ? "done" : null;
       p = { key, title: d == null ? s.name : `Day ${d}`, day: d, when, messages: [] };
       phases.push(p);
     }

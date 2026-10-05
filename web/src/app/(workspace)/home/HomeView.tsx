@@ -200,7 +200,7 @@ function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string;
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.title}</p>
-        <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>
+        {sub && <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>}
       </div>
       {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
       {item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
@@ -446,7 +446,8 @@ export function HomeView({
   ];
 
   // what's under each card's title: whatever the grouping doesn't already say
-  const subOf = (i: HomeItem) => (view === "client" ? (i.person?.name ?? "Not assigned") : [i.client ?? ADMIN_TASKS, view === "department" && i.person?.name].filter(Boolean).join(" · "));
+  // (nothing for a Member: it's all their own work, by client)
+  const subOf = (i: HomeItem) => (!showMine ? "" : view === "client" ? (i.person?.name ?? "Not assigned") : [i.client ?? ADMIN_TASKS, view === "department" && i.person?.name].filter(Boolean).join(" · "));
   // the work, as the section shows it and (wide) as the full-screen view does
   const workBody = (wide: boolean) => (
     <>
@@ -470,7 +471,8 @@ export function HomeView({
             );
           })}
         </div>
-        <Segmented options={VIEWS} value={view} onChange={setView} />
+        {/* grouped by client, department or person: for those who see others' work */}
+        {showMine && <Segmented options={VIEWS} value={view} onChange={setView} />}
       </div>
       {show === "overdue" && overdue.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-1.5">
@@ -623,7 +625,7 @@ export function HomeView({
           against the sidebar */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[36rem] bg-[radial-gradient(55%_75%_at_82%_0%,rgb(75_149_230/0.24),transparent_70%)] [mask-image:linear-gradient(to_right,transparent,black_30%)]"
+        className="home-glow pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[36rem]"
       />
 
       <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-4 pt-1">

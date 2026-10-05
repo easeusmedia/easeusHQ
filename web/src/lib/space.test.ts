@@ -150,10 +150,10 @@ test("before Ready to reach out (Dream List, Shortlisted) there is nothing to se
 test("in Ready to reach out every day shows, Day 1 next", () => {
   assert.deepEqual(shape("t2"), ["Day 1:next:m0+m1", "Day 2:-:m2", "Day 7:-:m3+m4"]);
 });
-test("on a day: that day now and the next one", () => {
+test("on a day: the days before it done, that day now and the next one", () => {
   assert.deepEqual(shape("t3"), ["Day 1:now:m0+m1", "Day 2:next:m2"]);
-  assert.deepEqual(shape("t4"), ["Day 2:now:m2", "Day 7:next:m3+m4"]);
-  assert.deepEqual(shape("t6"), ["Day 7:now:m3+m4"]);
+  assert.deepEqual(shape("t4"), ["Day 1:done:m0+m1", "Day 2:now:m2", "Day 7:next:m3+m4"]);
+  assert.deepEqual(shape("t6"), ["Day 1:done:m0+m1", "Day 2:done:m2", "Day 7:now:m3+m4"]);
 });
 test("outside the sequence a stage shows its own", () => {
   assert.deepEqual(shape("t7"), ["Replied:now:m5"]);

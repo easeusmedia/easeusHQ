@@ -659,6 +659,32 @@ dialog[open]::backdrop {
   caret-color: var(--foreground);
   transition: background-color 9999s;
 }
+/* Home's blue wash from the top right. Eased stops, so it fades with no
+   edge; a fine grain over it (strongest where the wash is), so the dark
+   steps between shades never show as bands. Faded out to the left, so it
+   never stops in a line against the sidebar. */
+.home-glow {
+  background: radial-gradient(
+    55% 75% at 82% 0%,
+    rgb(75 149 230 / 0.24) 0%,
+    rgb(75 149 230 / 0.2) 14%,
+    rgb(75 149 230 / 0.145) 28%,
+    rgb(75 149 230 / 0.09) 42%,
+    rgb(75 149 230 / 0.045) 56%,
+    rgb(75 149 230 / 0.016) 68%,
+    transparent 80%
+  );
+  mask-image: linear-gradient(to right, transparent, black 30%);
+}
+.home-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.045;
+  mask-image: radial-gradient(55% 75% at 82% 0%, black, transparent 80%);
+}
+
 /* a lead's message timeline: today's step green, breathing softly; the
    next one ringed in blue; the line between them a feathered green-to-blue
    glow with a soft bead of light drifting down it */
