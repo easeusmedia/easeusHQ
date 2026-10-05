@@ -173,14 +173,14 @@ export function PortalView({
           {boards.map((b) =>
             b.id === board.id ? (
               <span key={b.id} role="tab" aria-selected className="seg group/tab flex max-w-[18rem] shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-sm font-medium">
-                <EditableName name={b.name} onSave={rename(b.id)} pencil="hover" />
+                <EditableName name={b.name} onSave={rename(b.id)} pencil="tuck" />
                 {canBuild && (
                   <button
                     type="button"
                     onClick={() => setDeleting(true)}
                     aria-label={`Delete ${b.name}`}
                     title={`Delete ${b.name}`}
-                    className="-mr-1 grid size-6 shrink-0 place-items-center rounded-full text-muted opacity-0 transition-opacity duration-200 group-hover/tab:opacity-100 hover:text-red-300 focus-visible:opacity-100"
+                    className="-ml-1 grid h-6 w-0 shrink-0 place-items-center overflow-hidden rounded-full text-muted opacity-0 transition-all duration-200 group-hover/tab:-mr-1 group-hover/tab:ml-0 group-hover/tab:w-6 group-hover/tab:opacity-100 hover:text-red-300 focus-visible:-mr-1 focus-visible:ml-0 focus-visible:w-6 focus-visible:opacity-100"
                   >
                     <Trash2 size={12} />
                   </button>

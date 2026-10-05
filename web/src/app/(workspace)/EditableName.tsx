@@ -11,8 +11,8 @@ const keep = (e: React.SyntheticEvent) => {
 
 // A name with a pencil beside it: click it and it becomes a field. Enter (or
 // leaving it) saves, Escape puts it back. onSave returns an error to show,
-// or nothing. The pencil shows always (where renaming is the point) or only
-// on hover (in dense lists).
+// or nothing. The pencil shows always (where renaming is the point), only
+// on hover (in dense lists), or takes no room at all until hovered (tuck).
 export function EditableName({
   name,
   onSave,
@@ -23,7 +23,7 @@ export function EditableName({
   name: string;
   onSave: (name: string) => Promise<string | undefined>;
   className?: string;
-  pencil?: "always" | "hover";
+  pencil?: "always" | "hover" | "tuck";
   readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -77,7 +77,13 @@ export function EditableName({
           <span className="truncate">{shown}</span>
           <Pencil
             size={11}
-            className={`shrink-0 text-muted transition-opacity ${pencil === "always" ? "opacity-45 group-hover/name:opacity-100" : "opacity-0 group-hover/name:opacity-100"}`}
+            className={`shrink-0 text-muted ${
+              pencil === "always"
+                ? "opacity-45 transition-opacity group-hover/name:opacity-100"
+                : pencil === "hover"
+                  ? "opacity-0 transition-opacity group-hover/name:opacity-100"
+                  : "-ml-1.5 w-0 opacity-0 transition-all duration-200 group-hover/name:ml-0 group-hover/name:w-[11px] group-hover/name:opacity-100"
+            }`}
           />
         </button>
         {error && (

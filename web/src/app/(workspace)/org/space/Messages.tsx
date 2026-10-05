@@ -161,12 +161,17 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
             const canReply = p.day != null && today != null && p.day <= today;
             return (
               <li key={p.key} className="relative flex gap-3 pb-5 last:pb-0">
-                {/* the line down to the next day */}
-                {i < phases.length - 1 && <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/10" />}
+                {/* the line down to the next day, lit from today to the next */}
+                {i < phases.length - 1 &&
+                  (p.when === "now" && phases[i + 1].when === "next" ? (
+                    <span className="progress-line absolute top-7 bottom-1 left-[11px] w-0.5 rounded-full" />
+                  ) : (
+                    <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/10" />
+                  ))}
                 <span
                   className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
                     replied ? "bg-emerald-400/15 text-emerald-300" : p.when ? "bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
-                  }`}
+                  } ${p.when === "now" && !replied ? "step-now" : p.when === "next" && !replied ? "step-next" : ""}`}
                 >
                   {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
                 </span>

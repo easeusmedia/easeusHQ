@@ -659,6 +659,35 @@ dialog[open]::backdrop {
   caret-color: var(--foreground);
   transition: background-color 9999s;
 }
+/* a lead's message timeline: today's step lit, the next one ringed, and
+   the line between them glowing, a soft light running down it */
+.step-now {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.step-next {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.progress-line {
+  overflow: hidden;
+  background: linear-gradient(to bottom, var(--accent), color-mix(in srgb, var(--accent) 18%, transparent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.progress-line::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 45%;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, white 85%, var(--accent)), transparent);
+  animation: progress-run 2.6s ease-in-out infinite;
+}
+@keyframes progress-run {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(230%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-line::after { display: none; }
+}
+
 /* the one solid accent on the page */
 .btn-primary {
   background: var(--accent);

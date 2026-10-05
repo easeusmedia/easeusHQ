@@ -319,9 +319,9 @@ export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {
   return d == null ? stage.id : `day-${d}`;
 };
 
-// A lead's messages, a phase per day, for its timeline. A new lead (the
-// first stage) has none. From the next stage until Day 1 (Shortlisted,
-// Ready to reach out) every day shows, Day 1 next, so all of it is ready.
+// A lead's messages, a phase per day, for its timeline. Before Ready to
+// reach out (Dream List, Shortlisted) it has none. In Ready to reach out
+// every day shows, Day 1 next, so all of it is ready.
 // On a day, that day (now) and the next one show. Outside the sequence
 // (the replies, the audit), a stage shows its own.
 export type Phase = { key: string; title: string; day: number | null; when: "now" | "next" | null; messages: MessageData[] };
@@ -333,7 +333,7 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
   const here = dayOf(stages[i].name);
   const days = [...new Set(stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
   const outside = first < 0 || (here == null && i > first);
-  if (!outside && i === 0) return [];
+  if (!outside && i < first - 1) return [];
   const ahead = !outside && i < first;
   const next = here == null ? days[0] : days.find((d) => d > here);
   const picked = outside ? [stages[i]] : stages.filter((s) => {
