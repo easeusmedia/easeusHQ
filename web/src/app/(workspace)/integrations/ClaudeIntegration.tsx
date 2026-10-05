@@ -51,7 +51,7 @@ export function ClaudeIntegration({
   );
 
   return (
-    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
+    <section className="flex flex-col gap-4 px-6 py-6">
       <div className="flex items-center justify-between gap-2.5">
         <div className="flex items-center gap-2.5">
           <Sparkles size={18} className="text-muted" />
@@ -71,7 +71,7 @@ export function ClaudeIntegration({
       <p className="-mt-2 text-sm text-muted">Powers Nyra and the contract assistant. Runs on Claude Haiku 4.5, and Sonnet only when a question needs real analysis.</p>
       {editing === "key" && keyField("Anthropic API key (sk-ant-…)", () => run(() => saveClaudeKey(key)))}
 
-      <div className="flex flex-col gap-3 border-t border-border pt-4">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-sm font-medium">Spend this month</p>
           <p className="text-sm tabular-nums">

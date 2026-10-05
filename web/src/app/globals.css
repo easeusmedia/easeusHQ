@@ -199,6 +199,17 @@ body {
   outline: 1px solid color-mix(in srgb, var(--foreground) 25%, var(--border));
   outline-offset: 1px;
 }
+/* A text field shows it's in use by its own edge and the caret, not a
+   second line drawn round it (which anything clipping the field's box cut
+   short at the sides) */
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), textarea, select, [contenteditable="true"]):focus-visible {
+  outline: none;
+}
+/* ...that edge lighting up as the old line did, unless the field picks its
+   own colour (a warning field's amber) */
+:is(input, textarea, select):focus:not([class*="focus:border-accent"], [class*="focus:border-amber"]) {
+  border-color: color-mix(in srgb, var(--foreground) 28%, transparent);
+}
 
 /* A base fade for every plain button/link — nav items, dropdown option
    rows, status-pill controls, and anything else using a bare
@@ -641,10 +652,6 @@ dialog[open]::backdrop {
 .field:focus-within {
   border-color: rgba(75, 149, 230, 0.55);
 }
-/* the field shows focus itself — not a second box around the input inside */
-.field input:focus-visible {
-  outline: none;
-}
 /* the browser's saved-login fill would otherwise paint the field pale blue */
 .field input:-webkit-autofill {
   -webkit-text-fill-color: var(--foreground);
@@ -1011,8 +1018,8 @@ dialog[open]::backdrop {
 /* ---- Mist: frosted glass on a misty blue, for whoever picks it (the profile
    menu's Theme). Minimal: no glows, no shadows under cards, no light
    following the pointer.
-     - the backdrop is the sign-in page's mist, deeper at its light corner
-       because the app has words there;
+     - the backdrop is the sign-in page's mist, whitest at its top-left
+       corner;
      - a panel or a card is dark blue glass with one thin hairline. The
        glass carries its own tint, so words on it read as well over the
        light corner as over the dark one;
@@ -1028,18 +1035,15 @@ dialog[open]::backdrop {
    Icons and highlights are an icy blue, since the app's own blue vanishes
    on a blue page. Coloured words (late, done, a stage, a link) are a step
    paler than on the dark theme, so they read as well as the white ones. ---- */
-.mist-bg {
-  background:
+.mist-bg,
+.app-root[data-theme="mist"] {
+  --mist-backdrop:
     radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.22), transparent 70%),
     linear-gradient(135deg, #67809a 0%, #4b6785 22%, #2e4967 45%, #1a2f4a 68%, #0c1a2c 86%, #070d17 100%);
+  background: var(--mist-backdrop);
   background-attachment: fixed;
 }
 .app-root[data-theme="mist"] {
-  --mist-backdrop:
-    radial-gradient(55% 65% at 0% 0%, rgba(215, 226, 236, 0.1), transparent 70%),
-    linear-gradient(135deg, #3f5872 0%, #334c69 22%, #25405c 45%, #182c46 68%, #0c1a2c 86%, #070d17 100%);
-  background: var(--mist-backdrop);
-  background-attachment: fixed;
   --background: #14243a;
   /* straight on the page a fill is tinted glass, so its words read over the
      light corner too; inside a panel it is plain frost (below) */
@@ -1047,7 +1051,7 @@ dialog[open]::backdrop {
   --surface-2: rgba(12, 22, 38, 0.28);
   --border: rgba(255, 255, 255, 0.12);
   --hover-surface: rgba(255, 255, 255, 0.1);
-  --muted: #d3dde7;
+  --muted: #e4ebf2;
   --accent: #bcdcff;
   /* the glass every panel and card is made of, its hairline, and the deeper
      glass of what floats */

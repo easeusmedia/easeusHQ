@@ -44,7 +44,7 @@ export function AnalyticsIntegration({
   );
 
   return (
-    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
+    <section className="flex flex-col gap-4 px-6 py-6">
       <div className="flex items-center gap-2.5">
         <BarChart3 size={18} className="text-muted" />
         <h2 className="text-base font-medium">Client analytics</h2>
@@ -53,7 +53,7 @@ export function AnalyticsIntegration({
         Public YouTube and Instagram numbers for every client, collected through Apify. No logins are needed and nothing is asked of clients beyond their channel link and Instagram handle.
       </p>
 
-      <div className="flex flex-col gap-2 border-t border-border pt-4">
+      <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm">
             Apify
@@ -69,9 +69,9 @@ export function AnalyticsIntegration({
           Apify reads each client&apos;s public pages, at about $0.005 per YouTube video and $0.0027 per Instagram post. Results are cached for six hours. With several tokens, each run uses the first one with credit remaining, so the next takes over when one runs out.
         </p>
         {apifyReady && !editing && (
-          <ol className="flex flex-col gap-1">
+          <ol className="flex flex-col divide-y divide-border/60">
             {apifyAccounts.map((a, i) => (
-              <li key={i} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2/60 px-3 py-1.5 text-xs">
+              <li key={i} className="flex items-center justify-between gap-3 py-2 text-xs">
                 <span>
                   <span className="text-muted tabular-nums">{i + 1}.</span> {a.username}
                 </span>

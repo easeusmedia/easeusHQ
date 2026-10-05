@@ -10,7 +10,7 @@ import { disconnectCalendar } from "./actions";
 export function CalendarIntegration({ account, clientId }: { account: string | null; clientId: string }) {
   const router = useRouter();
   return (
-    <section className="flex flex-col gap-3 panel rounded-2xl p-5">
+    <section className="flex flex-col gap-3 px-6 py-6">
       <div className="flex items-center justify-between gap-2.5">
         <div className="flex items-center gap-2.5">
           <CalendarDays size={18} className="text-muted" />

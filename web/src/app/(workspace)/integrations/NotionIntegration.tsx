@@ -16,7 +16,7 @@ export function NotionIntegration({
   clients: { id: string; name: string | null };
 }) {
   return (
-    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
+    <section className="flex flex-col gap-4 px-6 py-6">
       <div className="flex items-center gap-2.5">
         {/* eslint-disable-next-line @next/next/no-img-element -- a fixed 18px icon */}
         <img src="/notion-logo.webp" width={18} height={18} alt="" className="shrink-0" />
@@ -26,7 +26,7 @@ export function NotionIntegration({
         The Notion databases that Sync and Push use. Share any new database with the Easeus HQ integration in Notion first.
       </p>
 
-      <div className="flex flex-col divide-y divide-border/60 border-t border-border pt-4">
+      <div className="flex flex-col divide-y divide-border/60">
         <SettingRow
           label="Editing Queue"
           hint="Board: Sync from Notion reads it, Push to Notion writes to it."

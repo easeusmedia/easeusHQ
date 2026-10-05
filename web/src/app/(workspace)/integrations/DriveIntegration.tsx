@@ -78,7 +78,7 @@ export function DriveIntegration({
   }
 
   return (
-    <section className="flex flex-col gap-4 panel rounded-2xl p-5">
+    <section className="flex flex-col gap-4 px-6 py-6">
       <div className="flex items-center gap-3">
         <Image src="/logo.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" />
         <div className="min-w-0 flex-1">
@@ -97,7 +97,7 @@ export function DriveIntegration({
       </div>
 
       {!connected && (
-        <ol className="flex flex-col gap-4 border-t border-border pt-4 text-sm">
+        <ol className="flex flex-col gap-4 text-sm">
           <li className="flex flex-col gap-2">
             <p className="font-medium">1. The Google app</p>
             <p className="text-xs text-muted">
@@ -136,7 +136,7 @@ export function DriveIntegration({
       {/* Everything the app files into, each changeable in place. A new
           folder is checked before it replaces the old one. */}
       {connected && (
-        <div className="flex flex-col divide-y divide-border/60 border-t border-border pt-4">
+        <div className="flex flex-col divide-y divide-border/60">
           <SettingRow
             label="Raw Files"
             hint="Where each new client's folder is made when they onboard."
@@ -168,7 +168,7 @@ export function DriveIntegration({
       )}
 
       {connected && (
-        <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        <div className="flex flex-wrap gap-2">
           <button onClick={test} disabled={busy === "test"} className="btn btn-ghost disabled:opacity-60">
             {busy === "test" ? "Testing…" : "Test it"}
           </button>
