@@ -78,7 +78,7 @@ export function DriveIntegration({
   }
 
   return (
-    <section className="flex flex-col gap-4 px-6 py-6">
+    <section className="mb-4 flex break-inside-avoid flex-col gap-4 panel rounded-2xl p-5">
       <div className="flex items-center gap-3">
         <Image src="/logo.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" />
         <div className="min-w-0 flex-1">

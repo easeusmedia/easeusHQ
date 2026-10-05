@@ -2,19 +2,16 @@
 
 import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createElement, useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Camera, Plug, Trash2, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
+import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
 import { markOf } from "./org/marks";
 import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./TaskCard";
-import { usePhoto } from "./photos";
-import { updatePersonPhoto } from "./team/actions";
 import { viewAs } from "./viewAs";
 import { setTheme, type Theme } from "./theme";
 
 import { Reveal } from "./Reveal";
-import { resizeToJpeg } from "@/lib/imageResize";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
 import { clientHref } from "@/lib/slug";
@@ -182,7 +179,6 @@ export function Sidebar({
   account = null,
   fullAccess,
   isEditor = false,
-  sessionUserId,
   unreadBySender,
   contractsWaiting = 0,
   noticesWaiting = 0,
@@ -201,7 +197,7 @@ export function Sidebar({
   // everyone a Level 1 can view the app as (null for anyone else)
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // their own name and sign-in email, to change (null while looking as someone else)
-  account?: { name: string; email: string } | null;
+  account?: { id: string; name: string; email: string } | null;
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;
@@ -209,7 +205,6 @@ export function Sidebar({
   fullAccess: boolean;
   // an editor's work is the Board's editing queue: no My tasks
   isEditor?: boolean;
-  sessionUserId: string;
   unreadBySender: Record<string, number>;
   // contracts whose client has sent the form, waiting on ops
   contractsWaiting?: number;
@@ -226,7 +221,6 @@ export function Sidebar({
   initialOpen: boolean;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   // click-only — no hover peek. Opens/closes only via the toggle button.
   const [open, setOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -238,21 +232,6 @@ export function Sidebar({
     setLook(t);
     document.querySelector(".app-root")?.setAttribute("data-theme", t);
     setTheme(t);
-  }
-  const photoInput = useRef<HTMLInputElement>(null);
-  const [photoState, setPhotoState] = useState<string | null>(null);
-  const hasPhoto = !!usePhoto(name);
-
-  // your own photo, from the profile menu — open to everyone
-  async function setPhoto(file: File | null) {
-    setPhotoState("Saving…");
-    try {
-      const res = await updatePersonPhoto(sessionUserId, file ? await resizeToJpeg(file, 160, 160) : null);
-      setPhotoState(res.error ?? null);
-      if (!res.error) router.refresh();
-    } catch {
-      setPhotoState("That image couldn't be read. Please try a JPEG or PNG.");
-    }
   }
   const profileRef = useRef<HTMLDivElement>(null);
   const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
@@ -575,37 +554,7 @@ export function Sidebar({
             className="pop-in panel-accent absolute bottom-full left-0 mb-1 w-60 rounded-2xl p-1"
           >
             <p className="truncate px-2.5 pt-2 pb-2 text-sm font-medium">{name}</p>
-            <input
-              ref={photoInput}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = ""; // picking the same file again still counts
-                if (file) setPhoto(file);
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => photoInput.current?.click()}
-              className="menu-item px-2.5 py-2 text-sm"
-            >
-              <Camera size={15} />
-              {hasPhoto ? "Change photo" : "Add a photo"}
-            </button>
-            {hasPhoto && (
-              <button
-                type="button"
-                onClick={() => setPhoto(null)}
-                className="menu-item px-2.5 py-2 text-sm"
-              >
-                <Trash2 size={15} />
-                Remove photo
-              </button>
-            )}
-            {photoState && <p className="px-2 py-1 text-xs text-muted">{photoState}</p>}
-            {/* their own name, sign-in email and password */}
+            {/* their own photo, name, sign-in email and password */}
             {account && (
               <button
                 type="button"

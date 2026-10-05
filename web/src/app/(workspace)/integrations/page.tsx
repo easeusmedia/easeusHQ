@@ -58,7 +58,7 @@ export default async function IntegrationsPage({
         <p className="mt-1 text-sm text-muted">The services Easeus HQ connects to.</p>
       </div>
 
-      <div className="panel flex max-w-4xl flex-col divide-y divide-border rounded-3xl">
+      <div className="columns-1 gap-4 xl:columns-2">
 
       <DriveIntegration
         hasApp={!!settings[DRIVE_SETTINGS.clientId] && !!settings[DRIVE_SETTINGS.clientSecret]}

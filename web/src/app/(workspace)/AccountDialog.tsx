@@ -2,19 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Camera, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import { checkAccount } from "@/lib/account";
+import { resizeToJpeg } from "@/lib/imageResize";
 import { closeOnBackdrop } from "./dialog";
 import { Reveal } from "./Reveal";
 import { updateAccount } from "./account";
+import { usePhoto } from "./photos";
+import { Avatar } from "./TaskCard";
+import { updatePersonPhoto } from "./team/actions";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-hover disabled:opacity-60";
 
-// Your own account, from the profile menu: your name and the email you sign
-// in with, and a "Change password" button that opens the password fields
-// only when asked for. A new email or password needs the current password,
-// which appears only then. Opens on `open`.
-export function AccountDialog({ open, onClose, account }: { open: boolean; onClose: () => void; account: { name: string; email: string } }) {
+// Your own account, from the profile menu: your photo (saved as soon as it's
+// picked), your name and the email you sign in with, and a "Change
+// password" button that opens the password fields only when asked for. A new
+// email or password needs the current password, which appears only then.
+// Opens on `open`.
+export function AccountDialog({ open, onClose, account }: { open: boolean; onClose: () => void; account: { id: string; name: string; email: string } }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(account.name);
@@ -26,6 +31,20 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
   const [changing, setChanging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const [photoState, setPhotoState] = useState<string | null>(null);
+  const hasPhoto = !!usePhoto(account.name);
+
+  async function setPhoto(file: File | null) {
+    setPhotoState("Saving…");
+    try {
+      const res = await updatePersonPhoto(account.id, file ? await resizeToJpeg(file, 160, 160) : null);
+      setPhotoState(res.error ?? null);
+      if (!res.error) router.refresh();
+    } catch {
+      setPhotoState("That image couldn't be read. Please try a JPEG or PNG.");
+    }
+  }
 
   useEffect(() => {
     const d = ref.current;
@@ -40,6 +59,7 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
       setChanging(false);
       setError(null);
       setBusy(false);
+      setPhotoState(null);
       d.showModal();
     } else if (!open && d.open) d.close();
   }, [open, account.name, account.email]);
@@ -87,6 +107,34 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
         }}
       >
         <h2 className="text-base font-semibold">Your account</h2>
+
+        <div className="flex items-center gap-3">
+          <Avatar name={account.name} size={48} presence={false} />
+          <div className="flex min-w-0 flex-col items-start gap-1">
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => photoInput.current?.click()} className="btn btn-sm btn-glow flex items-center gap-1.5">
+                <Camera size={13} /> {hasPhoto ? "Change photo" : "Add a photo"}
+              </button>
+              {hasPhoto && (
+                <button type="button" onClick={() => setPhoto(null)} className="btn btn-sm btn-ghost flex items-center gap-1.5">
+                  <Trash2 size={13} /> Remove
+                </button>
+              )}
+            </div>
+            {photoState && <p className="fade-in text-xs text-muted">{photoState}</p>}
+          </div>
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = ""; // picking the same file again still counts
+              if (file) setPhoto(file);
+            }}
+          />
+        </div>
 
         <label className="flex flex-col gap-1.5 text-xs text-muted">
           Name

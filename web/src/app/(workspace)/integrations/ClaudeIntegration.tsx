@@ -51,7 +51,7 @@ export function ClaudeIntegration({
   );
 
   return (
-    <section className="flex flex-col gap-4 px-6 py-6">
+    <section className="mb-4 flex break-inside-avoid flex-col gap-4 panel rounded-2xl p-5">
       <div className="flex items-center justify-between gap-2.5">
         <div className="flex items-center gap-2.5">
           <Sparkles size={18} className="text-muted" />
