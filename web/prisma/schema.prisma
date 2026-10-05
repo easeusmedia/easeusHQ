@@ -1235,6 +1235,10 @@ model Lead {
   // and whether it has replied, on any platform (the board's numbers)
   opens        Int         @default(0)
   replied      Boolean     @default(false)
+  // the days it replied on, each once: [{ key: "day-2", at }] (replied: any)
+  replies      Json        @default("[]")
+  // the message picked for a day or stage with more than one: { "day-1": messageId }
+  picks        Json        @default("{}")
   // a message rewritten for this lead alone, by message id: { subject, body }.
   // It keeps its own wording when the stage's template changes.
   drafts       Json        @default("{}")

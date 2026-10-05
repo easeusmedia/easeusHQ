@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, RotateCcw, Search, Send, Trash2, Undo2, X } from "lucide-react";
-import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, overLimit, messageGroups, messagePhases, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type SentData, type StageData } from "@/lib/space";
-import { createMessage, deleteMessage, markSent, setLeadDraft, setLeadVar, unmarkSent, updateMessage } from "./actions";
+import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type Reply as ReplyRecord, type SentData, type StageData } from "@/lib/space";
+import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
@@ -38,7 +38,7 @@ const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 
 // - Template: that message's template, for every lead that hasn't sent it
 //   (a lead with its own copy keeps it). Variables are made here.
 // Every other message is in All messages, grouped and searchable.
-export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead: LeadData; board: BoardData; stageId: string; sent: SentData[] | null; onSent: (sent: SentData[]) => void; onSaved: () => void }) {
+export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lead: LeadData; board: BoardData; stageId: string; sent: SentData[] | null; onReply: (replies: ReplyRecord[]) => void; onSaved: () => void }) {
   // what's typed above shows in every message at once, ahead of the save
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [mine, setMine] = useState<Record<string, Draft | null>>({});
@@ -48,6 +48,24 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
   const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState(false);
+  // a day's message picked here, ahead of the save
+  const [picked, setPicked] = useState<Record<string, string | null>>({});
+  const pickOf = (key: string) => (key in picked ? picked[key] : (lead.picks?.[key] ?? null));
+  async function pick(key: string, messageId: string) {
+    const before = pickOf(key);
+    setError(null);
+    setPicked((p) => ({ ...p, [key]: messageId }));
+    const res = await pickMessage(lead.id, key, messageId).catch(() => ({ error: OFFLINE }));
+    if (res.error) {
+      setPicked((p) => ({ ...p, [key]: before }));
+      return setError(res.error);
+    }
+    onSaved();
+  }
+  // a reply, ticked under the day it came on
+  const repliedOn = (key: string) => lead.replies.some((r) => r.key === key);
+  const toggleReply = (key: string) => onReply(repliedOn(key) ? lead.replies.filter((r) => r.key !== key) : [...lead.replies, { key, at: new Date().toISOString() }]);
+  const today = dayOf(board.stages.find((s) => s.id === stageId)?.name ?? "");
 
   async function saveVar(name: string, value: string) {
     if ((lead.vars[name] ?? "") === value.trim()) return;
@@ -84,10 +102,6 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
       names={names}
       own={own(m.id)}
       sent={sent?.find((x) => x.messageId === m.id) ?? null}
-      all={sent}
-      onSent={onSent}
-      onSaved={onSaved}
-      onError={setError}
       onMine={(d) => saveMine(m.id, d)}
     />
   );
@@ -134,28 +148,52 @@ export function Messages({ lead, board, stageId, sent, onSent, onSaved }: { lead
         </div>
       )}
 
-      {/* day by day, as the history reads */}
+      {/* day by day, as the history reads: a day with more than one
+          message offers them first, and the one picked opens (kept for
+          the lead); a day it has reached takes its reply */}
       {phases.length > 0 && (
         <ol className="flex flex-col">
           {phases.map((p, i) => {
-            const done = p.messages.length > 0 && p.messages.every((m) => sentIds.has(m.id));
+            const options = p.messages;
+            const chosenId = options.length > 1 ? pickOf(p.key) : options[0].id;
+            const chosen = options.find((m) => m.id === chosenId) ?? null;
+            const replied = repliedOn(p.key);
+            const canReply = p.day != null && today != null && p.day <= today;
             return (
               <li key={p.key} className="relative flex gap-3 pb-5 last:pb-0">
                 {/* the line down to the next day */}
                 {i < phases.length - 1 && <span className="absolute top-7 bottom-1 left-[11px] w-px bg-white/10" />}
                 <span
                   className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
-                    done ? "bg-emerald-400/15 text-emerald-300" : p.when ? "bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
+                    replied ? "bg-emerald-400/15 text-emerald-300" : p.when ? "bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
                   }`}
                 >
-                  {done ? <Check size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
+                  {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <p className="flex items-center gap-2 pt-0.5 text-xs">
                     <span className="font-medium text-foreground/90">{p.title}</span>
                     {p.when && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent">{p.when === "now" ? "Today" : "Next"}</span>}
                   </p>
-                  {p.messages.map((m) => card(m, !p.when || p.messages.length > 2))}
+                  {options.length > 1 &&
+                    (options.length <= 4 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {options.map((m) => (
+                          <button key={m.id} type="button" aria-pressed={chosen?.id === m.id} onClick={() => chosen?.id !== m.id && pick(p.key, m.id)} className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                            <span className="flex shrink-0">{CHANNEL_ICON[m.channel] ?? CHANNEL_ICON.other}</span>
+                            {optionLabel(options, m)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((m) => ({ value: m.id, label: m.name }))} onChange={(v) => v && pick(p.key, v)} />
+                    ))}
+                  {chosen && card(chosen, options.length === 1 && !p.when)}
+                  {canReply && (
+                    <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                      <Reply size={12} /> Replied
+                    </button>
+                  )}
                 </div>
               </li>
             );
@@ -324,10 +362,6 @@ function MessageCard({
   names,
   own,
   sent,
-  all,
-  onSent,
-  onSaved,
-  onError,
   onMine,
   folded = false,
 }: {
@@ -338,21 +372,15 @@ function MessageCard({
   names: string[];
   own: Draft | undefined;
   sent: SentData | null;
-  all: SentData[] | null;
-  onSent: (sent: SentData[]) => void;
-  onSaved: () => void;
-  onError: (e: string | null) => void;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
   folded?: boolean;
 }) {
   const [mode, setMode] = useState<"view" | "mine" | "template">("view");
   const [open, setOpen] = useState(!folded);
-  const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const source = own ?? message;
   const subject = sent ? sent.subject : fillText(source.subject, vars);
   const body = sent ? sent.body : fillText(source.body, vars);
-  const missing = sent ? [] : variablesIn([subject, body]);
   const isEmail = message.channel === "email";
 
   async function copy() {
@@ -360,26 +388,6 @@ function MessageCard({
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   }
-  async function toggleSent() {
-    setBusy(true);
-    onError(null);
-    if (sent) {
-      const res = await unmarkSent(sent.id).catch(() => ({ error: OFFLINE }));
-      setBusy(false);
-      if (res.error) return onError(res.error);
-      onSent((all ?? []).filter((s) => s.id !== sent.id));
-    } else {
-      const res = await markSent(leadId, message.id).catch(() => ({
-        error: OFFLINE,
-        sent: undefined,
-      }));
-      setBusy(false);
-      if (res.error || !res.sent) return onError(res.error ?? OFFLINE);
-      onSent([res.sent, ...(all ?? [])]);
-    }
-    onSaved();
-  }
-
   if (mode === "template") return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setMode("view")} />;
   if (mode === "mine") return <OwnEditor message={message} subject={fillText(source.subject, vars)} body={fillText(source.body, vars)} hasOwn={!!own} onDone={() => setMode("view")} onSave={onMine} />;
 
@@ -443,35 +451,12 @@ function MessageCard({
             {sent ? body : <Filled text={source.body} vars={vars} />}
           </div>
 
-          {/* sent from wherever it goes out; marking it here keeps the record */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
-            {sent ? (
-              <>
-                <span className="text-[11px] text-muted">
-                  Sent by {sent.byName} · {formatDateTime(sent.sentAt)}
-                </span>
-                <button type="button" onClick={toggleSent} disabled={busy} className={`${SMALL_BTN} ml-auto`}>
-                  <Undo2 size={12} /> {busy ? "Saving…" : "Mark as not sent"}
-                </button>
-              </>
-            ) : (
-              <>
-                <Limit channel={message.channel} text={body} />
-                <span className="ml-auto flex items-center gap-2">
-                  <span className="text-[11px] text-muted">Sent it?</span>
-                  <button
-                    type="button"
-                    onClick={toggleSent}
-                    disabled={busy || missing.length > 0 || overLimit(message.channel, body)}
-                    title={missing.length ? `Fill in ${missing.join(", ")} above first` : overLimit(message.channel, body) ? `LinkedIn allows ${LINKEDIN_LIMIT} characters; shorten it first` : "Keep a record of what went out"}
-                    className="btn btn-sm btn-ghost"
-                  >
-                    <Send size={12} /> {busy ? "Saving…" : "Mark as sent"}
-                  </button>
-                </span>
-              </>
-            )}
-          </div>
+          {/* LinkedIn's limit, counted as it reads */}
+          {message.channel === "linkedin" && !sent && (
+            <div className="mt-3 flex border-t border-border/40 pt-3">
+              <Limit channel={message.channel} text={body} />
+            </div>
+          )}
         </>
       )}
     </div>

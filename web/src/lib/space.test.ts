@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, dayOf, moveNeedsReason, outreachStats, tracksOutreach, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, moveNeedsReason, outreachStats, tracksOutreach, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -140,13 +140,13 @@ test("no day sequence: nothing to count", () => {
 });
 
 // Ready, Day 1 (email and LinkedIn on one stage), Day 2, Day 7 on two stages, then the replies
-const seq = { stages: ["Write-up done", "Ready to reach out", "Day 1", "Day 2 · Instagram 1", "Day 7 · Instagram 3", "Day 7 · LinkedIn 3", "Replied", "Dead"].map((name, i) => ({ id: `t${i}`, name, color: "default" })), messages: [["t2", "email"], ["t2", "linkedin"], ["t3", "instagram"], ["t4", "instagram"], ["t5", "linkedin"], ["t6", "email"]].map(([stageId, channel], i) => ({ id: `m${i}`, stageId, name: `m${i}`, channel, subject: "", body: "", note: "" })) };
+const seq = { stages: ["Dream List", "Ready to reach out", "Day 1", "Day 2 · Instagram 1", "Day 7 · Instagram 3", "Day 7 · LinkedIn 3", "Replied", "Dead"].map((name, i) => ({ id: `t${i}`, name, color: "default" })), messages: [["t2", "email"], ["t2", "linkedin"], ["t3", "instagram"], ["t4", "instagram"], ["t5", "linkedin"], ["t6", "email"]].map(([stageId, channel], i) => ({ id: `m${i}`, stageId, name: `m${i}`, channel, subject: "", body: "", note: "" })) };
 const shape = (stageId: string) => messagePhases(seq, stageId).map((p) => `${p.title}:${p.when ?? "-"}:${p.messages.map((m) => m.id).join("+")}`);
 
-test("before Ready to reach out there is nothing to send", () => {
+test("a new lead (the first stage) has nothing to send", () => {
   assert.deepEqual(shape("t0"), []);
 });
-test("at Ready to reach out every day shows, Day 1 next", () => {
+test("before Day 1 every day shows, Day 1 next", () => {
   assert.deepEqual(shape("t1"), ["Day 1:next:m0+m1", "Day 2:-:m2", "Day 7:-:m3+m4"]);
 });
 test("on a day: that day now and the next one", () => {
@@ -157,4 +157,11 @@ test("on a day: that day now and the next one", () => {
 test("outside the sequence a stage shows its own", () => {
   assert.deepEqual(shape("t6"), ["Replied:now:m5"]);
   assert.deepEqual(shape("t7"), []);
+});
+
+test("a day's messages are picked by platform, or by what sets them apart", () => {
+  const day1 = [{ channel: "email", name: "DAY 1 · EMAIL 1 · ALL ACCOUNTS" }, { channel: "linkedin", name: "DAY 1 · LINKEDIN · ALL ACCOUNTS" }];
+  assert.deepEqual(day1.map((m) => optionLabel(day1, m)), ["Email", "LinkedIn"]);
+  const day2 = [{ channel: "instagram", name: "DAY 2 · INSTAGRAM 1 · DIDN'T OPEN EMAIL 1" }, { channel: "instagram", name: "DAY 2 · INSTAGRAM 1 · ALREADY OPENED EMAIL 1" }];
+  assert.deepEqual(day2.map((m) => optionLabel(day2, m)), ["Didn't open Email 1", "Already opened Email 1"]);
 });

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, EyeOff, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { moveNeedsReason, toneOf, type BoardData, type LeadData, type StageData, tracksOutreach } from "@/lib/space";
+import { dayOf, moveNeedsReason, phaseKey, toneOf, type BoardData, type LeadData, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
@@ -219,6 +219,13 @@ export function LeadBoard({
   });
   const order = stages.map((s) => s.id);
   const shown = leads.map((l) => (live.moved[l.id] ? { ...l, ...live.moved[l.id] } : l));
+  // the day (or stage) a lead is on, for the reply it gets there
+  const dayOfStage = (stageId: string) => {
+    const st = board.stages.find((s) => s.id === stageId);
+    if (!st) return undefined;
+    const d = dayOf(st.name);
+    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}` };
+  };
   const columnOf = (stageId: string) => shown.filter((l) => l.stageId === stageId).sort((a, b) => a.sortOrder - b.sortOrder);
 
   // ---- leads ----
@@ -485,7 +492,7 @@ export function LeadBoard({
               onDragEnd={endDrag}
               className={drag === lead.id ? "opacity-35" : ""}
             >
-              <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} onTrack={onTrack} />
+              <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfStage(lead.stageId)} onTrack={onTrack} />
             </div>
           </Fragment>
         ))}

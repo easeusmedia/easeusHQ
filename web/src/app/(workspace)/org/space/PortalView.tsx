@@ -79,8 +79,9 @@ export function PortalView({
   async function track(id: string, change: Outreach) {
     const before = tracked[id];
     setTrackError(null);
-    setTracked((t) => ({ ...t, [id]: { ...t[id], ...change } }));
-    const res = await setLeadOutreach(id, change).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    const local = change.replies ? { ...change, replied: change.replies.length > 0 } : change;
+    setTracked((t) => ({ ...t, [id]: { ...t[id], ...local } }));
+    const res = await setLeadOutreach(id, { opens: change.opens, replies: change.replies }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
     if (res.error) {
       setTracked((t) => ({ ...t, [id]: before ?? {} }));
       return setTrackError(res.error);

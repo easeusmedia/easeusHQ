@@ -576,20 +576,51 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
 }
 
 // A lead's opens (times its first email was opened; 0 is not opened) and
-// whether it replied: the board's numbers
-export async function setLeadOutreach(id: string, patch: { opens?: number; replied?: boolean }): Promise<Done> {
+// the days it replied on (replied: on any), the board's numbers.
+// ponytail: replies are written whole, so two people ticking different days
+// at the same moment keep the later list; a per-day row if that ever bites.
+export async function setLeadOutreach(id: string, patch: { opens?: number; replies?: { key: string; at: string }[] }): Promise<Done> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
-  const data: { opens?: number; replied?: boolean } = {};
+  const data: { opens?: number; replied?: boolean; replies?: { key: string; at: string }[] } = {};
   if (patch.opens !== undefined) {
     if (!Number.isInteger(patch.opens) || patch.opens < 0 || patch.opens > 999) return { error: "Opens is a whole number from 0." };
     data.opens = patch.opens;
   }
-  if (patch.replied !== undefined) data.replied = patch.replied === true;
+  if (patch.replies !== undefined) {
+    if (!Array.isArray(patch.replies) || patch.replies.length > 100) return { error: "Those replies couldn't be read." };
+    const seen = new Set<string>();
+    const clean = patch.replies
+      .filter((r) => r && typeof r.key === "string" && r.key.length <= 80 && !seen.has(r.key) && seen.add(r.key))
+      .map((r) => ({ key: r.key, at: typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date().toISOString() }));
+    data.replies = clean;
+    data.replied = clean.length > 0;
+  }
   try {
     await prisma.lead.update({ where: { id }, data: { ...data, ...edited(who) } });
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
+// The message picked for a day (or stage) with more than one, kept per
+// lead; null forgets it. Written alone, so picks on other days stay.
+export async function pickMessage(id: string, key: string, messageId: string | null): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  if (typeof key !== "string" || !key || key.length > 80) return { error: "That day couldn't be found." };
+  try {
+    if (messageId == null) await prisma.$executeRaw`UPDATE "Lead" SET "picks" = "picks" - ${key}::text WHERE id = ${id}`;
+    else {
+      const ok = await prisma.stageMessage.count({ where: { id: messageId, stage: { boardId: lead.boardId } } });
+      if (!ok) return { error: "That message no longer exists. Refresh and try again." };
+      await prisma.$executeRaw`UPDATE "Lead" SET "picks" = jsonb_set(coalesce("picks", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(messageId)}::jsonb, true) WHERE id = ${id}`;
+    }
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");

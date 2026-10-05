@@ -220,6 +220,8 @@ function LeadPage({
   }
 
   const missing = missingDetails(board.fields, values);
+  // "day-2" is Day 2; a stage's own key is its name
+  const replyDay = (key: string) => (key.startsWith("day-") ? `Day ${key.slice(4)}` : (board.stages.find((st) => st.id === key)?.name ?? "Earlier"));
   const fieldName = (f: FieldData) => (
     <EditableName
       name={f.name}
@@ -352,10 +354,11 @@ function LeadPage({
                       )}
                     </div>
                   </Row>
+                  {/* the days it replied on; each is ticked under that day's messages */}
                   <Row icon={Reply} label="Replied">
-                    <div className="flex min-h-8 items-center px-2">
-                      <Checkbox checked={lead.replied} onChange={(on) => onTrack(id, { replied: on })} label="Replied" />
-                    </div>
+                    <p className="px-2 text-sm text-foreground/90">
+                      {lead.replies.length ? lead.replies.map((r) => replyDay(r.key)).join(", ") : <span className="text-muted">No reply yet</span>}
+                    </p>
                   </Row>
                 </>
               )}
@@ -369,7 +372,7 @@ function LeadPage({
           )}
 
           {/* then the messages to send */}
-          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onSent={setSent} onSaved={saved} />
+          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onReply={(replies) => onTrack(id, { replies })} onSaved={saved} />
         </div>
 
         {/* beside it, the same height: every stage it has been through */}

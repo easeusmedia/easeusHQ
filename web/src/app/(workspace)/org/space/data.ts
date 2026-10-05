@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayOf, isDead, outreachStart, type BoardData, type Draft, type FieldKind, type Person, type SpaceCard, type SpaceKind } from "@/lib/space";
+import { dayOf, isDead, outreachStart, type BoardData, type Reply, type Draft, type FieldKind, type Person, type SpaceCard, type SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -73,6 +73,8 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
           drafts: true,
           opens: true,
           replied: true,
+          replies: true,
+          picks: true,
           assignedByName: true,
           assignedAt: true,
           stageSince: true,
@@ -113,6 +115,8 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       vars: (l.vars ?? {}) as Record<string, string>,
       opens: l.opens,
       replied: l.replied,
+      replies: (Array.isArray(l.replies) ? l.replies : []) as Reply[],
+      picks: (l.picks ?? {}) as Record<string, string>,
       reached: reached([board.stages.find((s) => s.id === l.stageId)?.name ?? null, ...l.events.map((e) => e.toStage)]),
       drafts: (l.drafts ?? {}) as Record<string, Draft>,
       stageSince: l.stageSince.toISOString(),

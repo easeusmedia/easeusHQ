@@ -110,9 +110,13 @@ export type LeadData = {
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
-  // from Day 1: times its first email was opened, and whether it replied
+  // from Day 1: times its first email was opened, whether it replied at
+  // all, and the days it replied on (each once, by phase key: "day-2")
   opens: number;
   replied: boolean;
+  replies: Reply[];
+  // the message picked for a day (or stage) with more than one, by phase key
+  picks: Record<string, string>;
   // it has been in Ready to reach out or later, by its record (outreachStats)
   reached: boolean;
   // messages rewritten for this lead alone, by message id
@@ -308,29 +312,38 @@ export function outreachStats(stages: Pick<StageData, "id" | "name">[], leads: T
   return { reached: reached.length, opened, opens: reached.reduce((n, l) => n + l.opens, 0), replied, openRate: rate(opened), replyRate: rate(replied) };
 }
 
-// A lead's messages, a phase per day, for its timeline. Reaching out starts
-// at Ready to reach out: there every day shows, Day 1 next. On a day, that
-// day (now) and the next one show. Outside the sequence (the replies, the
-// audit), a stage shows its own; before Ready to reach out, nothing.
+export type Reply = { key: string; at: string };
+// A day's (or a stage's) key: one for every stage of a day ("day-7"), else the stage's own
+export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {
+  const d = dayOf(stage.name);
+  return d == null ? stage.id : `day-${d}`;
+};
+
+// A lead's messages, a phase per day, for its timeline. A new lead (the
+// first stage) has none. From the next stage until Day 1 (Shortlisted,
+// Ready to reach out) every day shows, Day 1 next, so all of it is ready.
+// On a day, that day (now) and the next one show. Outside the sequence
+// (the replies, the audit), a stage shows its own.
 export type Phase = { key: string; title: string; day: number | null; when: "now" | "next" | null; messages: MessageData[] };
 export function messagePhases(board: Pick<BoardData, "stages" | "messages">, stageId: string): Phase[] {
   const { stages } = board;
   const i = stages.findIndex((s) => s.id === stageId);
   if (i < 0) return [];
-  const start = outreachStart(stages);
+  const first = stages.findIndex((s) => dayOf(s.name) != null);
   const here = dayOf(stages[i].name);
   const days = [...new Set(stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
-  const outside = start < 0 || (here == null && i > start);
-  if (!outside && i < start) return [];
+  const outside = first < 0 || (here == null && i > first);
+  if (!outside && i === 0) return [];
+  const ahead = !outside && i < first;
   const next = here == null ? days[0] : days.find((d) => d > here);
   const picked = outside ? [stages[i]] : stages.filter((s) => {
     const d = dayOf(s.name);
-    return d != null && (i === start || d === here || d === next);
+    return d != null && (ahead || d === here || d === next);
   });
   const phases: Phase[] = [];
   for (const s of picked) {
     const d = dayOf(s.name);
-    const key = d == null ? s.id : `day-${d}`;
+    const key = phaseKey(s);
     let p = phases.find((x) => x.key === key);
     if (!p) {
       const when = outside || (d != null && d === here) ? "now" : d === next ? "next" : null;
@@ -340,6 +353,18 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
     p.messages.push(...board.messages.filter((m) => m.stageId === s.id));
   }
   return phases.filter((p) => p.messages.length);
+}
+
+// What to call each of a day's messages when picking one: its platform when
+// they differ (Day 1: Email, LinkedIn), else the last part of its name
+// (Day 2: "Didn't open Email 1", "Already opened Email 1")
+const PLATFORM_WORDS: Record<string, string> = { email: "Email", linkedin: "LinkedIn", instagram: "Instagram" };
+export function optionLabel(messages: Pick<MessageData, "channel" | "name">[], m: Pick<MessageData, "channel" | "name">): string {
+  const channels = new Set(messages.map((x) => x.channel));
+  if (channels.size === messages.length) return PLATFORM_WORDS[m.channel] ?? m.name;
+  const last = m.name.split("·").pop()!.trim().toLowerCase();
+  const words = last.replace(/\b(email|linkedin|instagram)\b/g, (w) => PLATFORM_WORDS[w]);
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 // A board's messages in groups, in board order: each day of the sequence

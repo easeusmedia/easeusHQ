@@ -1,16 +1,17 @@
 "use client";
 
 import { CircleDashed, MailOpen, Plus, Reply } from "lucide-react";
-import { missingDetails, type FieldData, type LeadData } from "@/lib/space";
+import { missingDetails, type FieldData, type LeadData, type Reply as ReplyRecord } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 
-export type Outreach = { opens?: number; replied?: boolean };
+export type Outreach = { opens?: number; replies?: ReplyRecord[]; replied?: boolean };
 
 // One lead on the board: its name, the details not added yet (quietly, as
 // information, not a warning), who added it, with whoever it's given to,
 // and from Day 1 whether its email was opened (and how often) and whether
-// it replied: a tap on the card sets each.
-export function LeadCard({ lead, fields, onOpen, tracks = false, onTrack }: { lead: LeadData; fields: FieldData[]; onOpen: (id: string) => void; tracks?: boolean; onTrack?: (id: string, change: Outreach) => void }) {
+// it replied on the day it's on (`day`: its key and name): a tap sets each.
+export function LeadCard({ lead, fields, onOpen, tracks = false, day, onTrack }: { lead: LeadData; fields: FieldData[]; onOpen: (id: string) => void; tracks?: boolean; day?: { key: string; name: string }; onTrack?: (id: string, change: Outreach) => void }) {
+  const repliedToday = !!day && lead.replies.some((r) => r.key === day.key);
   const missing = missingDetails(fields, lead.values);
   const first = (name: string) => name.split(" ")[0];
 
@@ -66,15 +67,17 @@ export function LeadCard({ lead, fields, onOpen, tracks = false, onTrack }: { le
               <Plus size={10} />
             </button>
           )}
-          <button
-            type="button"
-            aria-pressed={lead.replied}
-            onClick={() => onTrack(lead.id, { replied: !lead.replied })}
-            title={lead.replied ? "Replied. Tap to undo." : "They replied, anywhere"}
-            className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-          >
-            <Reply size={11} /> Replied
-          </button>
+          {day && (
+            <button
+              type="button"
+              aria-pressed={repliedToday}
+              onClick={() => onTrack(lead.id, { replies: repliedToday ? lead.replies.filter((r) => r.key !== day.key) : [...lead.replies, { key: day.key, at: new Date().toISOString() }] })}
+              title={repliedToday ? `Replied on ${day.name}. Tap to undo.` : `They replied on ${day.name}, anywhere`}
+              className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+            >
+              <Reply size={11} /> Replied
+            </button>
+          )}
         </div>
       )}
     </div>
