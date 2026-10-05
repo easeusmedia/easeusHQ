@@ -278,7 +278,7 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
 }
 
 // editing details (title/editor/links) — admin & core have full rights to
-// tweak everything (see PLAN.md). Editors get exactly one field here: their
+// tweak everything. Editors get exactly one field here: their
 // own task's Frame.io link (everything else — title, assignee, raw footage,
 // editing notes — is ops' input, not theirs to change; they drive status,
 // not task details).

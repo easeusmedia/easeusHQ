@@ -1,4 +1,5 @@
-// Sample data for trying every case by hand, in the one live database.
+// Sample data for trying every case by hand, in the dev database (Tokyo) only:
+// never production, whose real data lives in Mumbai.
 //   node --env-file=.env scripts/run.cjs scripts/test-data.ts add
 //   node --env-file=.env scripts/run.cjs scripts/test-data.ts remove
 // Three sample clients (slugs start "sample-") and eight sample people
