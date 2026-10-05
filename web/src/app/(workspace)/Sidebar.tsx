@@ -89,7 +89,8 @@ function FadeLabel({ open, children }: { open: boolean; children: React.ReactNod
 // The current clients under the Clients item, joined by a line that runs
 // down from it and curves into each row; the one you're on is the selected
 // pill, and the line to it is lit. A department's sections and their
-// portals hang beneath it the same way, unfolded while you're inside it:
+// portals hang beneath it the same way, unfolded while you're inside it (a
+// chevron on any row with more beneath it folds or unfolds them by hand):
 // the deepest one you're on is the pill, the rows above it lead to it.
 const NESTED_ICON = [null, Layers, LayoutGrid];
 function ClientTree({
@@ -107,6 +108,8 @@ function ClientTree({
 }) {
   const at = clients.findIndex((c) => c.slug === current);
   const Icon = NESTED_ICON[depth];
+  // rows folded or unfolded by hand; the rest follow where you are
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   return (
     <ul>
       {clients.map((c, i) => {
@@ -114,6 +117,7 @@ function ClientTree({
         const kids = c.children ?? [];
         // the page you're on is further in: this row leads to it
         const inner = on ? kids.find((k) => k.href && isActive(k.href, pathname)) : undefined;
+        const shown = kids.length > 0 && (unfolded[c.id] ?? on);
         return (
           <li key={c.id} className="relative pb-1">
             {/* the line down to this row, curving into it on the 32px row's centre line */}
@@ -128,7 +132,7 @@ function ClientTree({
             <PrefetchLink
               href={c.href ?? hrefOf(c)}
               onClick={(e) => e.stopPropagation()}
-              className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${ROW} ${
+              className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${kids.length ? "pr-8" : ""} ${ROW} ${
                 on ? (inner ? "font-medium text-foreground hover:bg-white/[0.04]" : "selected font-medium") : IDLE
               }`}
             >
@@ -140,9 +144,23 @@ function ClientTree({
               <span className="truncate">{c.name}</span>
             </PrefetchLink>
             {kids.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setUnfolded((u) => ({ ...u, [c.id]: !shown }));
+                }}
+                aria-label={`${shown ? "Hide" : "Show"} what's under ${c.name}`}
+                aria-expanded={shown}
+                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+              >
+                <ChevronDown size={14} className={`transition-transform duration-200 ${shown ? "" : "-rotate-90"}`} />
+              </button>
+            )}
+            {kids.length > 0 && (
               <div
-                inert={!on}
-                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${on ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                inert={!shown}
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${shown ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
               >
                 <div className="overflow-hidden">
                   {/* the line runs down from under this row's icon */}
