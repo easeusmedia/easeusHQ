@@ -24,8 +24,9 @@ export function useFrozen() {
 // dimmed, and any click, drag or Enter on it opens a prompt for a new due
 // date and a reason instead. Everything else in the app works as usual, and
 // the task thaws once its date is in. The server refuses to move a frozen
-// task too. `preview`: a Level 1 looking as them sees it, to read only.
-export function FrozenTasks({ items, preview = false, children }: { items: ToAnswer[]; preview?: boolean; children: React.ReactNode }) {
+// task too. A Level 1 looking as them sees their frozen work and can set
+// the dates for them.
+export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: React.ReactNode }) {
   const ids = useMemo(() => new Set(items.map((t) => t.id)), [items]);
   const [asking, setAsking] = useState<ToAnswer | null>(null);
   const ref = useRef<HTMLDialogElement>(null);
@@ -84,7 +85,7 @@ export function FrozenTasks({ items, preview = false, children }: { items: ToAns
               <h2 className="text-base font-semibold">Set a new due date</h2>
             </div>
             <p className="text-sm text-muted">This task passed its due date and the notice is more than a day old. Give it a new date and a short reason to work on it again.</p>
-            <Answer key={asking.id} t={asking} preview={preview} onDone={() => setAsking(null)} />
+            <Answer key={asking.id} t={asking} onDone={() => setAsking(null)} />
           </div>
         )}
       </dialog>
@@ -92,7 +93,7 @@ export function FrozenTasks({ items, preview = false, children }: { items: ToAns
   );
 }
 
-function Answer({ t, preview, onDone }: { t: ToAnswer; preview: boolean; onDone: () => void }) {
+function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
   const router = useRouter();
   const [day, setDay] = useState("");
   const [reason, setReason] = useState("");
@@ -110,7 +111,7 @@ function Answer({ t, preview, onDone }: { t: ToAnswer; preview: boolean; onDone:
   }
 
   return (
-    <fieldset disabled={preview} className="flex flex-col gap-2.5 panel-soft rounded-2xl p-4 disabled:opacity-60">
+    <div className="flex flex-col gap-2.5 panel-soft rounded-2xl p-4">
       <div>
         <p className="text-sm font-medium">{t.title}</p>
         <p className="mt-0.5 text-xs text-muted">
@@ -135,6 +136,6 @@ function Answer({ t, preview, onDone }: { t: ToAnswer; preview: boolean; onDone:
       <button type="button" onClick={save} disabled={busy || !day || !reason.trim()} className="btn btn-sm btn-glow self-end disabled:opacity-50">
         {busy ? "Saving…" : "Save"}
       </button>
-    </fieldset>
+    </div>
   );
 }

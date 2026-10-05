@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, MailOpen, Plus, Reply, Search, Send, Table2, Users } from "lucide-react";
+import { EyeOff, Kanban, MailOpen, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
 import { outreachStart, outreachStats, type BoardData, type Contact, type LeadData, type Person } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { renameSpace, setLeadOutreach } from "./actions";
+import { deleteSpace, renameSpace, setLeadOutreach } from "./actions";
+import { ReasonDialog } from "./ReasonDialog";
 import type { Outreach } from "./LeadCard";
 import { StatTile } from "../../StatTile";
 import { EditableName } from "../../EditableName";
@@ -71,6 +72,7 @@ export function PortalView({
   const [query, setQuery] = useState("");
   const [who, setWho] = useState("all");
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // opens and replies tapped here show at once, ahead of the board's refresh
   const [tracked, setTracked] = useState<Record<string, Outreach>>({});
   const [trackError, setTrackError] = useState<string | null>(null);
@@ -162,15 +164,26 @@ export function PortalView({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {/* the boards */}
-      {/* more than one board in this portal: pick which */}
-      {boards.length > 1 && (
+      {/* the boards: pick which; the open one is renamed or deleted where
+          it sits, and a new one starts from the + */}
+      {(boards.length > 1 || canBuild) && (
+        <div className="flex max-w-full items-center gap-2">
         <div role="tablist" aria-label="Boards" className={`${SEG_ROW} max-w-full overflow-x-auto`}>
           {boards.map((b) =>
-            // the open board's name can be changed where it sits
             b.id === board.id ? (
-              <span key={b.id} role="tab" aria-selected className="seg flex max-w-[18rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium">
+              <span key={b.id} role="tab" aria-selected className="seg group/tab flex max-w-[18rem] shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-sm font-medium">
                 <EditableName name={b.name} onSave={rename(b.id)} pencil="hover" />
+                {canBuild && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(true)}
+                    aria-label={`Delete ${b.name}`}
+                    title={`Delete ${b.name}`}
+                    className="-mr-1 grid size-6 shrink-0 place-items-center rounded-full text-muted opacity-0 transition-opacity duration-200 group-hover/tab:opacity-100 hover:text-red-300 focus-visible:opacity-100"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
               </span>
             ) : (
               <button
@@ -185,6 +198,12 @@ export function PortalView({
               </button>
             ),
           )}
+        </div>
+        {canBuild && (
+          <button type="button" onClick={() => setCreating(true)} aria-label="New board" title="New board" className="chip grid size-9 shrink-0 place-items-center rounded-full">
+            <Plus size={15} />
+          </button>
+        )}
         </div>
       )}
 
@@ -269,6 +288,25 @@ export function PortalView({
       </div>
 
       <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} onTrack={track} />
+      <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boardTemplates ?? boards} />
+      <ReasonDialog
+        open={deleting}
+        danger
+        title={`Delete ${board.name}?`}
+        hint="Its stages, properties and messages go with it, kept with what was deleted. A board still holding leads can't be deleted."
+        confirm="Delete board"
+        onCancel={() => setDeleting(false)}
+        onConfirm={async (reason) => {
+          const res = await deleteSpace(board.id, reason);
+          if (res.error) return res.error;
+          setDeleting(false);
+          // on to another board, or the portal's empty page
+          const next = boards.find((b) => b.id !== board.id);
+          if (next) switchTo(next.slug);
+          else router.replace(pathname);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

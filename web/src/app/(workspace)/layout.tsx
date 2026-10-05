@@ -83,7 +83,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const viewAsPeople =
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
-  // looking as a Level 2 or 3: their frozen work, as they'd see it, to read
+  // looking as a Level 2 or 3: their frozen work, as they'd see it (a Level 1 can set the dates for them)
   const frozen = viewingAs ? (!isFounder(sessionUser) ? await overdueToAnswer(sessionUser.id).catch(() => []) : []) : toAnswer;
 
   // Founders and Leads run things; Members do their own work
@@ -122,7 +122,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
 
   return (
     <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
-    <FrozenTasks items={frozen} preview={viewingAs}>
+    <FrozenTasks items={frozen}>
     {/* their own look (the profile menu's Theme): dark, or mist (globals.css) */}
     <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
       <Pulse live={liveLine()} />
