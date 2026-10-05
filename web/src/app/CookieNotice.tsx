@@ -12,12 +12,25 @@ import { readConsent, saveConsent, type Consent } from "@/lib/consent";
 export function CookieNotice() {
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // the look of the page it sits over (the app or sign-in), followed live
+  const [theme, setTheme] = useState<string | null>(null);
 
   useEffect(() => {
     if (readConsent()) return;
     const t = setTimeout(() => setOpen(true), 700);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const page = document.querySelector(".app-root, .login-root");
+    if (!page) return;
+    const read = () => setTheme(page.getAttribute("data-theme"));
+    read();
+    const watch = new MutationObserver(read);
+    watch.observe(page, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => watch.disconnect();
+  }, [open]);
 
   function choose(c: Consent) {
     saveConsent(c);
@@ -27,10 +40,11 @@ export function CookieNotice() {
 
   if (!open) return null;
   return (
+    <div data-theme={theme ?? undefined} className="contents">
     <div
       role="dialog"
       aria-label="Cookies"
-      className={`panel fixed bottom-4 right-4 z-[70] w-[min(24rem,calc(100vw-2rem))] rounded-2xl p-5 transition-[opacity,translate] duration-300 ease-out ${
+      className={`panel float-panel fixed bottom-4 right-4 z-[70] w-[min(24rem,calc(100vw-2rem))] rounded-2xl p-5 transition-[opacity,translate] duration-300 ease-out ${
         leaving ? "translate-y-2 opacity-0" : "rise-in"
       }`}
     >
@@ -55,6 +69,7 @@ export function CookieNotice() {
           Accept all
         </button>
       </div>
+    </div>
     </div>
   );
 }

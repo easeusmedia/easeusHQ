@@ -15,7 +15,7 @@ import { Reveal } from "./Reveal";
 import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
 import { clientHref } from "@/lib/slug";
-import { readConsent } from "@/lib/consent";
+import { readConsent, saveTheme } from "@/lib/consent";
 
 // logo: the logo's own address (see clientLogoSrc), not the image itself
 export type SidebarClient = { id: string; slug: string; name: string; logo: string | null };
@@ -231,6 +231,7 @@ export function Sidebar({
   function pickTheme(t: Theme) {
     setLook(t);
     document.querySelector(".app-root")?.setAttribute("data-theme", t);
+    saveTheme(t);
     setTheme(t);
   }
   const profileRef = useRef<HTMLDivElement>(null);
@@ -323,8 +324,8 @@ export function Sidebar({
       label: "Admin",
       items: isOps
         ? [
-            // core members see their own team here (read-only); admin edits everyone
-            { href: "/team", label: "Employees", hint: "Everyone's record and current work", Icon: UsersRound },
+            // everyone's record, and their departments and roles: Level 1 only
+            ...(isFounder ? [{ href: "/team", label: "Employees", hint: "Everyone's record and current work", Icon: UsersRound }] : []),
             // how each editor and designer is doing: a Founder's to grade
             ...(isFounder ? [{ href: "/performance", label: "Performance", hint: "Grades, feedback and issues", Icon: Gauge }] : []),
             ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),

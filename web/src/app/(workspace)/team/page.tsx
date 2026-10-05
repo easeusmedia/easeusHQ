@@ -34,8 +34,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   const viewer = me;
   const canEdit = canEditPeople(viewer);
-  // a Member has no directory to look at — their own record is their own
-  if (me.role === "employee") redirect("/board");
+  // the directory, and who sits in which department, is Level 1's alone
+  if (!isFounder(me)) redirect("/home");
 
   // a Lead sees the people in their departments, never a Founder
   const where = peopleWhere(viewer);

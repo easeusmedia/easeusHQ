@@ -1043,7 +1043,7 @@ dialog[open]::backdrop {
   background: var(--mist-backdrop);
   background-attachment: fixed;
 }
-.app-root[data-theme="mist"] {
+[data-theme="mist"] {
   --background: #14243a;
   /* straight on the page a fill is tinted glass, so its words read over the
      light corner too; inside a panel it is plain frost (below) */

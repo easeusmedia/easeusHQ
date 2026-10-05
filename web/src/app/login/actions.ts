@@ -18,6 +18,10 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
   if (!onStaff(user)) return { error: "This account no longer has access. Please speak to your admin." };
 
+  // a look picked on the sign-in page is theirs in the app too
+  const theme = String(formData.get("theme") ?? "");
+  if ((theme === "dark" || theme === "mist") && theme !== user.theme) await prisma.user.update({ where: { id: user.id }, data: { theme } });
+
   await createSession(user.id);
   // a Founder starts on Home; everyone else on the Board
   // everyone starts on Home
