@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, ChartColumn, Clapperboard, Eye, Heart, Im
 import { StatTile } from "../StatTile";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
+import { isFounder } from "@/lib/scope";
 import { clientLogoSrc } from "@/lib/photos";
 import { clientHref } from "@/lib/slug";
 import { istDay, lastWeek, previousRange, shiftDay, type Item, type Platform } from "@/lib/analytics";
@@ -130,7 +131,7 @@ export default async function AnalyticsPage({
 }) {
   const me = await getViewer();
   if (!me) redirect("/login");
-  if (me.role === "employee") redirect("/board");
+  if (!isFounder(me)) redirect("/home");
 
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const q = await searchParams;

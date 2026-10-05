@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { ArrowUpRight, CircleCheck, Clock, FileSignature, PenLine, ScrollText, Send } from "lucide-react";
 import { StatTile } from "../StatTile";
 import { prisma } from "@/lib/prisma";
-import { requireOps } from "@/lib/auth";
+import { requireFounder } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { compose, withDefaults, type Clause } from "@/lib/contract";
 import { STEPS, contractStage, stepOf } from "./status";
@@ -23,7 +23,7 @@ const ago = (d: Date) => {
 // Every client contract: how many sit at each stage, then each one, newest
 // activity first, with how far it's got.
 export default async function ContractsPage() {
-  if (!(await requireOps())) redirect("/board");
+  if (!(await requireFounder())) redirect("/home");
   // anything out for signature: catch up on Adobe's emails — once the page
   // is on its way, so Gmail's second or two isn't spent before it; what it
   // finds arrives on the next pulse

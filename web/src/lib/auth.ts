@@ -77,6 +77,14 @@ export async function requireOps() {
   return user && user.role !== "employee" ? user : null;
 }
 
+// The signed-in user if they are Level 1 (Contracts, Analytics, History,
+// Employees), otherwise null
+export async function requireFounder() {
+  const sessionUserId = await getSessionUserId();
+  const user = sessionUserId ? await prisma.user.findUnique({ where: { id: sessionUserId } }) : null;
+  return user && isFounder(user) ? user : null;
+}
+
 // The signed-in user if they may read client feedback (see runsClients),
 // otherwise null.
 export async function requireFeedbackViewer() {

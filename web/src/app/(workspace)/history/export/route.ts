@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { assigneeWhere } from "@/lib/scope";
+import { assigneeWhere, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { STAGE, parseStageChange } from "@/lib/stages";
 import { displayTeam } from "@/lib/teams";
@@ -46,6 +46,7 @@ export async function GET(request: Request) {
 
   const viewer = await getViewer();
   if (!viewer) return new Response("Sign in first.", { status: 401 });
+  if (!isFounder(viewer)) return new Response("Not allowed", { status: 403 });
   const scope = assigneeWhere(viewer);
   const person = { select: { id: true, name: true, role: true, team: { select: { slug: true, name: true } } } };
   const project = { select: { name: true, type: true, client: { select: { name: true } } } };

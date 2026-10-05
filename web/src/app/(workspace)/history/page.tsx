@@ -37,6 +37,8 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
 
   const viewer = await getViewer();
   if (!viewer) return null;
+  // the record of finished and deleted work is Level 1's
+  if (!isFounder(viewer)) redirect("/home");
   const scope = assigneeWhere(viewer);
 
   const [tasks, workTasks, logs] = await Promise.all([

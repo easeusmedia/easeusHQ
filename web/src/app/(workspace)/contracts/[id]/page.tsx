@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireOps } from "@/lib/auth";
+import { requireFounder } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { withDefaults, type Clause } from "@/lib/contract";
 import type { ChatMessage } from "../assistant";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function ContractPage({ params }: { params: Promise<{ id: string }> }) {
-  if (!(await requireOps())) redirect("/board");
+  if (!(await requireFounder())) redirect("/home");
   const { id } = await params;
   // the signed PDF itself stays in the database: whether there is one is all
   // this page needs, and loading the file slowed every open

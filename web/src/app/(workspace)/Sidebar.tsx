@@ -296,6 +296,8 @@ export function Sidebar({
     },
   };
 
+  // History is Level 1's; Organization only with a department to open
+  const main = MAIN.filter((i) => (departments.length > 0 || i.href !== "/org") && (isFounder || i.href !== "/history"));
   const groups = [
     // an editor sees their own numbers, read-only (the page takes them there)
     {
@@ -304,8 +306,8 @@ export function Sidebar({
       items: [
         { href: "/home", label: "Home", hint: "Your work and notices, at a glance", Icon: House, count: noticesWaiting },
         ...(isEditor
-          ? [...MAIN.filter((i) => i.href !== "/my-tasks" && (departments.length > 0 || i.href !== "/org")), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
-          : MAIN.filter((i) => departments.length > 0 || i.href !== "/org")),
+          ? [...main.filter((i) => i.href !== "/my-tasks"), { href: "/performance", label: "My performance", hint: "Your grade, feedback and what to work on", Icon: Gauge }]
+          : main),
       ],
     },
     {
@@ -313,8 +315,8 @@ export function Sidebar({
       items: isOps
         ? [
             { href: "/calendar", label: "Calendar", hint: "The team's workload, day by day", Icon: CalendarDays },
-            // every client's YouTube and Instagram views in one place
-            { href: "/analytics", label: "Analytics", hint: "Performance across every client", Icon: ChartColumn },
+            // every client's YouTube and Instagram views in one place: Level 1's
+            ...(isFounder ? [{ href: "/analytics", label: "Analytics", hint: "Performance across every client", Icon: ChartColumn }] : []),
           ]
         : [],
     },
@@ -329,8 +331,8 @@ export function Sidebar({
             // how each editor and designer is doing: a Founder's to grade
             ...(isFounder ? [{ href: "/performance", label: "Performance", hint: "Grades, feedback and issues", Icon: Gauge }] : []),
             ...(canSeeFinance ? [{ href: "/finance", label: "Finance", hint: "Client payments and team pay", Icon: Wallet }] : []),
-            // client contracts, from the form to the signed copy
-            { href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting },
+            // client contracts, from the form to the signed copy: Level 1's
+            ...(isFounder ? [{ href: "/contracts", label: "Contracts", hint: "Client agreements and e-signatures", Icon: FileSignature, count: contractsWaiting }] : []),
           ]
         : [],
     },
