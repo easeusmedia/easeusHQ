@@ -1,4 +1,5 @@
 {
   "regions": ["hnd1"],
-  "crons": [{ "path": "/api/cron/analytics", "schedule": "30 20 * * *" }]
+  "crons": [{ "path": "/api/cron/analytics", "schedule": "30 20 * * *" }],
+  "git": { "deploymentEnabled": { "dev": false } }
 }
