@@ -193,10 +193,11 @@ export function PortalView({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatTile label="Reached out" value={stats.reached} Icon={Send} />
           <StatTile
-            label="Emails opened"
-            value={stats.opened}
+            label="Open rate"
+            value={`${stats.openRate}%`}
+            lit={stats.opened > 0}
             Icon={MailOpen}
-            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.openRate}% of reached out · {stats.opens} {stats.opens === 1 ? "open" : "opens"}</p>}
+            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} {stats.opened === 1 ? "email" : "emails"} opened</p>}
           />
           <StatTile
             label="Reply rate"
