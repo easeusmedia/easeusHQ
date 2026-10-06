@@ -193,7 +193,7 @@ export function Messages({
             (green), then glowing from today to the next (blue) */}
         {below &&
           (p.when === "now" && below.when === "next" ? (
-            <span className="progress-line absolute top-7 bottom-1 left-[11.25px] w-[1.5px] rounded-full" />
+            <span className="progress-line absolute top-7 bottom-1 left-[11px] w-0.5 rounded-full" />
           ) : p.when === "done" && below.when === "now" ? (
             <span className="absolute top-7 bottom-1 left-[11px] w-px bg-linear-to-b from-white/15 to-emerald-400/50" />
           ) : (
