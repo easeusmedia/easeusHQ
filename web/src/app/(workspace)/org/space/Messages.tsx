@@ -181,7 +181,7 @@ export function Messages({
               </>
             )}
             <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-              <Reply size={12} /> Replied
+              <Reply size={12} /> {replied ? "Replied" : "Reply"}
             </button>
           </div>
         )}

@@ -8,8 +8,9 @@ export type Outreach = { opens?: number; replies?: ReplyRecord[]; replied?: bool
 
 // One lead on the board: its name, the details not added yet (quietly, as
 // information, not a warning), who added it, with whoever it's given to,
-// and from Day 1 whether its email was opened (and how often) and whether
-// it replied on the day it's on (`day`: its key and name): a tap sets each.
+// and from Day 1 whether it replied on the day it's on (`day`: its key and
+// name). Opened (and how often) only on Day 1, the email it's about. A tap
+// sets each: Reply marks it Replied.
 export function LeadCard({ lead, fields, onOpen, tracks = false, day, onTrack }: { lead: LeadData; fields: FieldData[]; onOpen: (id: string) => void; tracks?: boolean; day?: { key: string; name: string }; onTrack?: (id: string, change: Outreach) => void }) {
   const repliedToday = !!day && lead.replies.some((r) => r.key === day.key);
   const missing = missingDetails(fields, lead.values);
@@ -53,16 +54,18 @@ export function LeadCard({ lead, fields, onOpen, tracks = false, day, onTrack }:
       {tracks && onTrack && (
         // its own taps, not the card's: they don't open the lead
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
-          <button
-            type="button"
-            aria-pressed={lead.opens > 0}
-            onClick={() => onTrack(lead.id, { opens: lead.opens > 0 ? 0 : 1 })}
-            title={lead.opens > 0 ? "Opened. Tap to undo." : "The email was opened"}
-            className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-          >
-            <MailOpen size={11} /> {lead.opens > 0 ? `Opened ${lead.opens}×` : "Opened"}
-          </button>
-          {lead.opens > 0 && (
+          {day?.key === "day-1" && (
+            <button
+              type="button"
+              aria-pressed={lead.opens > 0}
+              onClick={() => onTrack(lead.id, { opens: lead.opens > 0 ? 0 : 1 })}
+              title={lead.opens > 0 ? "Opened. Tap to undo." : "The email was opened"}
+              className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+            >
+              <MailOpen size={11} /> {lead.opens > 0 ? `Opened ${lead.opens}×` : "Opened"}
+            </button>
+          )}
+          {day?.key === "day-1" && lead.opens > 0 && (
             <button type="button" onClick={() => onTrack(lead.id, { opens: lead.opens + 1 })} aria-label="Opened once more" title="Opened once more" className="chip grid size-5 place-items-center rounded-full">
               <Plus size={10} />
             </button>
@@ -75,7 +78,7 @@ export function LeadCard({ lead, fields, onOpen, tracks = false, day, onTrack }:
               title={repliedToday ? `Replied on ${day.name}. Tap to undo.` : `They replied on ${day.name}, anywhere`}
               className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
             >
-              <Reply size={11} /> Replied
+              <Reply size={11} /> {repliedToday ? "Replied" : "Reply"}
             </button>
           )}
         </div>
