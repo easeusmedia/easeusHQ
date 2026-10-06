@@ -97,9 +97,9 @@ export function Board({
       return next;
     });
 
-  async function deleteSelected(reason: string) {
+  async function deleteSelected() {
     setDeleting(true);
-    const res = await deleteTasks([...selected], reason);
+    const res = await deleteTasks([...selected]);
     setDeleting(false);
     if (res.error) return;
     setSelected(new Set());
@@ -465,8 +465,7 @@ export function Board({
             <X size={13} /> Clear
           </button>
           <ConfirmButton
-            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}?`}
-            reason="Reason"
+            message={`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? This can't be undone.`}
             onConfirm={deleteSelected}
             className="btn btn-sm btn-danger"
           >

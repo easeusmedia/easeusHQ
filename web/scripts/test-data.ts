@@ -12,7 +12,7 @@
 import { prisma } from "../src/lib/prisma";
 import { addDays, dayOf } from "../src/lib/editorKpi";
 import { stageChangeAction } from "../src/lib/stages";
-import { deleteWithRecord, recordDateChange, sweepOverdue, type TaskRef } from "../src/lib/taskTrack";
+import { deleteForGood, recordDateChange, sweepOverdue, type TaskRef } from "../src/lib/taskTrack";
 
 const EMAIL = "@example.com";
 const SLUG = "sample-";
@@ -32,7 +32,6 @@ async function remove() {
   await prisma.feedback.deleteMany({ where: { OR: [{ taskId: { in: tasks } }, { authorId: { in: users } }] } });
   await prisma.task.deleteMany({ where: { id: { in: tasks } } });
   await prisma.workTask.deleteMany({ where: { id: { in: todos } } });
-  await prisma.deletedTask.deleteMany({ where: { OR: [{ byId: { in: users } }, { title: { startsWith: "[Test]" } }] } });
   await prisma.project.deleteMany({ where: { client: sampleClient } });
   await prisma.client.deleteMany({ where: sampleClient });
   await prisma.user.deleteMany({ where: { id: { in: users } } });
@@ -347,8 +346,8 @@ async function add() {
   await share({ kind: "task", id: peel.id }, peel.title, karan, riya, "Ishaan is behind; take the captions and the B-roll.", -1);
 
   // ---------- deleted, kept in History ----------
-  await deleteWithRecord({ kind: "task", id: teaser.id }, "Glow Derma dropped the Diwali campaign.", riya);
-  await deleteWithRecord({ kind: "work", id: dupe.id }, "Duplicate", aditi);
+  await deleteForGood({ kind: "task", id: teaser.id });
+  await deleteForGood({ kind: "work", id: dupe.id });
 
   const notices = await prisma.notice.groupBy({ by: ["forId"], where: { kind: "overdue", OR: [{ taskId: { in: dated.map((d) => d.ref.id) } }, { workTaskId: { in: dated.map((d) => d.ref.id) } }] }, _count: true });
   const names = new Map((await prisma.user.findMany({ where: { id: { in: notices.map((n) => n.forId!) } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));

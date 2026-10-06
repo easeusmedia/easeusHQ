@@ -184,32 +184,14 @@ export async function sweepIfDue(now = new Date()) {
 
 // ---------- deleting ----------
 
-// A task goes from every list, but a whole copy stays (DeletedTask), with
-// who deleted it and why: History shows it, and Level 1 can bring it back
-export async function deleteWithRecord(ref: TaskRef, reason: string, by: { id: string; name: string }): Promise<{ error?: string }> {
-  const why = reason.trim();
-  if (!why) return { error: "Say why it's being deleted." };
+// A task goes for good: no copy is kept, since deleted work would only pile
+// up in the database (6 Oct 2026; it used to be kept whole with a reason)
+export async function deleteForGood(ref: TaskRef): Promise<void> {
   if (ref.kind === "task") {
-    const t = await prisma.task.findUnique({ where: { id: ref.id }, include: { tags: { select: { id: true } }, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } });
-    if (!t) return {};
-    await prisma.$transaction([
-      prisma.deletedTask.create({
-        data: { kind: "client", originalId: t.id, title: t.title, client: t.project.client.name, assignee: t.assignedTo?.name ?? null, data: JSON.parse(JSON.stringify(t)), reason: why, byId: by.id, byName: by.name, createdAt: t.createdAt },
-      }),
-      prisma.feedback.deleteMany({ where: { taskId: t.id } }),
-      prisma.task.delete({ where: { id: t.id } }),
-    ]);
+    await prisma.$transaction([prisma.feedback.deleteMany({ where: { taskId: ref.id } }), prisma.task.deleteMany({ where: { id: ref.id } })]);
   } else {
-    const t = await prisma.workTask.findUnique({ where: { id: ref.id }, include: { tags: { select: { id: true } }, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } });
-    if (!t) return {};
-    await prisma.$transaction([
-      prisma.deletedTask.create({
-        data: { kind: "todo", originalId: t.id, title: t.title, client: t.project?.client.name ?? null, assignee: t.assignedTo.name, data: JSON.parse(JSON.stringify(t)), reason: why, byId: by.id, byName: by.name, createdAt: t.createdAt },
-      }),
-      prisma.workTask.delete({ where: { id: t.id } }),
-    ]);
+    await prisma.workTask.deleteMany({ where: { id: ref.id } });
   }
-  return {};
 }
 
 // ---------- which department ----------

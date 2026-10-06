@@ -9,7 +9,7 @@ import { ConfirmButton } from "./ConfirmButton";
 // without opening the task. Still asks first: it's one stray click from
 // losing the task otherwise. Nothing inside reaches the card's own click,
 // which opens the task.
-export function HoverDelete({ title, onDelete }: { title: string; onDelete: (reason: string) => void | Promise<void> }) {
+export function HoverDelete({ title, onDelete }: { title: string; onDelete: () => void | Promise<void> }) {
   return (
     <span
       onClick={(e) => e.stopPropagation()}
@@ -17,8 +17,7 @@ export function HoverDelete({ title, onDelete }: { title: string; onDelete: (rea
       className="absolute right-2 top-2 z-10 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
     >
       <ConfirmButton
-        message={`Delete "${title}"?`}
-        reason="Reason"
+        message={`Delete "${title}"? This can't be undone.`}
         onConfirm={onDelete}
         className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300"
       >

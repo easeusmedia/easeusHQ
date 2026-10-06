@@ -7,7 +7,7 @@ import { destroySession, getRealViewer, getSessionUserId, requireOps } from "@/l
 import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
-import { deleteWithRecord, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
+import { deleteForGood, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
@@ -486,14 +486,12 @@ export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> 
   return {};
 }
 
-// Deleting needs a reason; the task is kept whole in the record (History
-// shows it, Level 1 can bring it back: lib/taskTrack.ts)
-export async function deleteTask(taskId: string, reason: string): Promise<{ error?: string }> {
+// Deleting is for good: nothing is kept (lib/taskTrack.ts)
+export async function deleteTask(taskId: string): Promise<{ error?: string }> {
   const actor = await getViewer();
   if (!actor || actor.role === "employee") return { error: "Only Level 1 and 2 can delete client tasks." };
   if (!(await prisma.task.count({ where: { AND: [{ id: taskId }, assigneeWhere(actor)] } }))) return { error: "You can't delete this task." };
-  const res = await deleteWithRecord({ kind: "task", id: taskId }, reason, actor);
-  if (res.error) return res;
+  await deleteForGood({ kind: "task", id: taskId });
   revalidatePath("/board");
   revalidatePath("/history");
   return {};
@@ -502,12 +500,11 @@ export async function deleteTask(taskId: string, reason: string): Promise<{ erro
 // Several at once, from the list view's selection. Same bar as deleting one
 // (admin/core), and one query rather than one per task — picking ten rows
 // and deleting them one at a time is exactly what the selection is for.
-export async function deleteTasks(taskIds: string[], reason: string): Promise<{ deleted?: number; error?: string }> {
+export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number; error?: string }> {
   const actor = await getViewer();
   if (!actor || actor.role === "employee") return { error: "Only Level 1 and 2 can delete client tasks." };
-  if (!reason.trim()) return { error: "Say why they're being deleted." };
   const ids = (await prisma.task.findMany({ where: { AND: [{ id: { in: taskIds.filter(Boolean) } }, assigneeWhere(actor)] }, select: { id: true } })).map((t) => t.id);
-  for (const id of ids) await deleteWithRecord({ kind: "task", id }, reason, actor);
+  for (const id of ids) await deleteForGood({ kind: "task", id });
   revalidatePath("/board");
   revalidatePath("/history");
   return { deleted: ids.length };
@@ -520,12 +517,11 @@ export async function deleteTasks(taskIds: string[], reason: string): Promise<{ 
 // Admin and Abhishek only, checked against the signed-in session. Either
 // kind of task: someone's own work ("internal") has nothing hanging off it
 // but its tags, which go with it.
-// From History: a finished task, deleted with a reason (kept in the record)
-export async function deleteTaskPermanently(taskId: string, kind: "client" | "internal", reason: string): Promise<{ error?: string }> {
+// From History: a finished task, deleted for good
+export async function deleteTaskPermanently(taskId: string, kind: "client" | "internal"): Promise<{ error?: string }> {
   const user = await getViewer();
   if (!user || !isAbhishekOrAdmin(user)) return { error: "Only Level 1 can delete a finished task." };
-  const res = await deleteWithRecord({ kind: kind === "internal" ? "work" : "task", id: taskId }, reason, user);
-  if (res.error) return res;
+  await deleteForGood({ kind: kind === "internal" ? "work" : "task", id: taskId });
   revalidatePath("/history");
   revalidatePath("/team");
   return {};

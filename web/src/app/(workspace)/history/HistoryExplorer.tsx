@@ -196,7 +196,21 @@ export function HistoryExplorer({
       />
 
       {filtersOpen && (
-        <div className="fade-in grid gap-3 panel-soft rounded-xl p-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="fade-in grid grid-cols-2 gap-3 panel-soft rounded-xl p-3 sm:grid-cols-4 xl:grid-cols-7">
+          <div className="flex flex-col gap-1 text-xs text-muted">
+            Work
+            <Dropdown
+              defaultValue={filters.kind ?? ""}
+              placeholder="Everything"
+              options={[
+                { value: "", label: "Everything" },
+                { value: "client", label: "Client work" },
+                { value: "internal", label: "Own work" },
+              ]}
+              onChange={(v) => set({ kind: (v || undefined) as Filters["kind"] })}
+              size="sm"
+            />
+          </div>
           <label className="flex flex-col gap-1 text-xs text-muted">
             Person
             <Dropdown
@@ -239,25 +253,11 @@ export function HistoryExplorer({
           </label>
           <div className="flex flex-col gap-1 text-xs text-muted">
             Finished from
-            <DatePicker value={filters.from ?? ""} onChange={(v) => set({ from: v || undefined })} placeholder="Any time" />
+            <DatePicker value={filters.from ?? ""} onChange={(v) => set({ from: v || undefined })} placeholder="Any time" size="sm" />
           </div>
           <div className="flex flex-col gap-1 text-xs text-muted">
             Finished to
-            <DatePicker value={filters.to ?? ""} onChange={(v) => set({ to: v || undefined })} placeholder="Today" />
-          </div>
-          <div className="flex flex-col gap-1 text-xs text-muted sm:col-span-3 lg:col-span-2">
-            Work
-            <Dropdown
-              defaultValue={filters.kind ?? ""}
-              placeholder="Everything"
-              options={[
-                { value: "", label: "Everything" },
-                { value: "client", label: "Client work" },
-                { value: "internal", label: "Own work" },
-              ]}
-              onChange={(v) => set({ kind: (v || undefined) as Filters["kind"] })}
-              size="sm"
-            />
+            <DatePicker value={filters.to ?? ""} onChange={(v) => set({ to: v || undefined })} placeholder="Today" size="sm" />
           </div>
         </div>
       )}
@@ -336,11 +336,10 @@ export function HistoryExplorer({
                     {canDelete && (
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <ConfirmButton
-                          message={`Delete "${i.title}"?`}
-                          reason="Reason"
+                          message={`Delete "${i.title}"? This can't be undone.`}
                           className="text-xs text-muted hover:text-red-400"
-                          onConfirm={async (reason) => {
-                            await deleteTaskPermanently(i.id, i.kind === "internal" ? "internal" : "client", reason);
+                          onConfirm={async () => {
+                            await deleteTaskPermanently(i.id, i.kind === "internal" ? "internal" : "client");
                             router.refresh();
                           }}
                         >

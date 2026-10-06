@@ -334,8 +334,8 @@ export function TaskCard({
       {canManage && (
         <HoverDelete
           title={task.title}
-          onDelete={async (reason) => {
-            const res = await deleteTasks([task.id], reason);
+          onDelete={async () => {
+            const res = await deleteTasks([task.id]);
             if (!res.error) router.refresh();
           }}
         />

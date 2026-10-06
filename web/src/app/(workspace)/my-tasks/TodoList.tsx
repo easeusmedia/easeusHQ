@@ -251,10 +251,10 @@ export function TodoList({
   }, [undo]);
 
   // deleted with a reason (kept in History); gone at once, back if it fails
-  async function remove(item: Item, reason: string) {
+  async function remove(item: Item) {
     setError(null);
     setGone((g) => new Set(g).add(item.key));
-    const res = item.todo ? await deleteWorkTask(item.id, reason) : await deleteTask(item.id, reason);
+    const res = item.todo ? await deleteWorkTask(item.id) : await deleteTask(item.id);
     if (res.error) {
       setGone((g) => new Set([...g].filter((k) => k !== item.key)));
       return setError(res.error);
@@ -434,7 +434,7 @@ export function TodoList({
                         showDue={wide || s.key === "overdue"}
                         onTick={() => tick(i)}
                         // client work is deleted by Level 1 and 2; your own to-dos by you
-                        onDelete={i.todo || env.actingRole !== "employee" ? (reason) => remove(i, reason) : undefined}
+                        onDelete={i.todo || env.actingRole !== "employee" ? () => remove(i) : undefined}
                         {...env}
                       />
                     ))}
@@ -559,7 +559,7 @@ function Row({
   ticked: boolean;
   showDue: boolean;
   onTick: () => void;
-  onDelete?: (reason: string) => void;
+  onDelete?: () => void;
   // which of full width's columns the list has, and their sizes
   cols: { client: boolean; stage: boolean };
   grid: React.CSSProperties;
@@ -591,7 +591,7 @@ function Row({
     ) : null;
   const del = onDelete ? (
     <span onClick={(e) => e.stopPropagation()} className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
-      <ConfirmButton message={`Delete "${item.title}"?`} reason="Reason" onConfirm={onDelete} className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
+      <ConfirmButton message={`Delete "${item.title}"? This can't be undone.`} onConfirm={onDelete} className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
         <Trash2 size={13} aria-label="Delete task" />
       </ConfirmButton>
     </span>

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { assigneeWhere, isFounder } from "@/lib/scope";
-import type { Prisma } from "@prisma/client";
 import { bringOn, canBringOn, taskRecord, type TaskRef, type TaskRecord } from "@/lib/taskTrack";
 
 // whether this person may see the task: it's in their view, theirs, or
@@ -52,34 +51,6 @@ export async function setTaskDepartment(ref: TaskRef, teamId: string): Promise<{
   if (!(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
   if (ref.kind === "task") await prisma.task.update({ where: { id: ref.id }, data: { teamId } });
   else await prisma.workTask.update({ where: { id: ref.id }, data: { teamId } });
-  revalidatePath("/home");
-  return {};
-}
-
-// Level 1 brings a deleted task back, as it was
-export async function restoreDeleted(id: string): Promise<{ error?: string }> {
-  const viewer = await getViewer();
-  if (!viewer || !isFounder(viewer)) return { error: "Only Level 1 can bring a task back." };
-  const record = await prisma.deletedTask.findUnique({ where: { id } });
-  if (!record) return {};
-  // the row as it was, without what hung off it
-  const { tags, assignedTo, project, createdBy, team, ...row } = record.data as Record<string, unknown> & { tags?: { id: string }[] };
-  void assignedTo;
-  void project;
-  void createdBy;
-  void team;
-  const connect = (tags ?? []).map((t) => ({ id: t.id }));
-  try {
-    if (record.kind === "client") {
-      await prisma.task.create({ data: { ...(row as Prisma.TaskUncheckedCreateInput), tags: { connect } } });
-    } else {
-      await prisma.workTask.create({ data: { ...(row as Prisma.WorkTaskUncheckedCreateInput), tags: { connect } } });
-    }
-  } catch {
-    return { error: "It couldn't come back: its client or project may be gone." };
-  }
-  await prisma.deletedTask.delete({ where: { id } });
-  revalidatePath("/history");
   revalidatePath("/home");
   return {};
 }

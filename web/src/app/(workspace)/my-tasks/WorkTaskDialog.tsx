@@ -173,10 +173,10 @@ export const WorkTaskDialog = forwardRef<
     router.refresh();
   }
 
-  async function remove(reason: string) {
+  async function remove() {
     if (!task) return;
     setSaving(true);
-    const res = await deleteWorkTask(task.id, reason);
+    const res = await deleteWorkTask(task.id);
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -377,7 +377,6 @@ export const WorkTaskDialog = forwardRef<
             {mode === "edit" && (
               <ConfirmButton
                 message="Delete this task?"
-                reason="Reason"
                 onConfirm={remove}
                 className="btn btn-sm btn-ghost px-2 hover:text-red-300"
               >

@@ -111,8 +111,8 @@ export function WorkTaskCard({
         {canDelete && (
           <HoverDelete
             title={task.title}
-            onDelete={async (reason) => {
-              const res = await deleteWorkTask(task.id, reason);
+            onDelete={async () => {
+              const res = await deleteWorkTask(task.id);
               if (res.error) setError(res.error);
               else router.refresh();
             }}

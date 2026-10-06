@@ -94,6 +94,7 @@ export function DatePicker({
   placeholder = "Pick a date",
   clearable = true,
   pill,
+  size = "md",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -101,6 +102,8 @@ export function DatePicker({
   clearable?: boolean;
   // a compact chip instead of a full-width field — see Dropdown's own pill
   pill?: { icon?: React.ReactNode; label?: string };
+  // "sm" sits level with a small Dropdown in a dense row of filters
+  size?: "sm" | "md";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -212,11 +215,11 @@ export function DatePicker({
           onClick={() => (open ? setOpen(false) : openPanel())}
           // py-2, like a text input and a Dropdown, so a date field sits level
           // with the fields beside it in a form
-          className={`flex w-full items-center gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-sm ${
+          className={`flex w-full items-center gap-2 border bg-surface-2 text-left ${size === "sm" ? "rounded-md px-2 py-1 text-xs" : "rounded-lg px-3 py-2 text-sm"} ${
             open ? "border-hover" : "border-border"
           }`}
         >
-          <CalendarDays size={15} className="shrink-0 text-muted" />
+          <CalendarDays size={size === "sm" ? 13 : 15} className="shrink-0 text-muted" />
           <span className={`min-w-0 flex-1 truncate ${selected ? "text-foreground" : "text-muted"}`}>
             {selected ? longLabel(selected) : placeholder}
           </span>

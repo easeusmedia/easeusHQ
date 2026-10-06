@@ -510,10 +510,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           {canManage ? (
             <ConfirmButton
               message={`Delete "${task.title}"?`}
-              reason="Reason"
               className="shrink-0 rounded-md p-1.5 text-muted hover:text-red-400"
-              onConfirm={async (reason) => {
-                const res = await deleteTask(task.id, reason);
+              onConfirm={async () => {
+                const res = await deleteTask(task.id);
                 if (res.error) return;
                 dialogRef.current?.close();
                 router.refresh();

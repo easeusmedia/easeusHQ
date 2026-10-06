@@ -7,7 +7,7 @@ import { assigneeWhere, canAssign, type Viewer } from "@/lib/scope";
 import { pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
-import { deleteWithRecord, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
+import { deleteForGood, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
 import type { WorkTaskStatus } from "@prisma/client";
 
 export type WorkTaskLink = { label: string; url: string };
@@ -294,18 +294,15 @@ export async function reorderWorkTask(taskId: string, sortOrder: number): Promis
   return { success: true };
 }
 
-// Deleting needs a reason; the task is kept whole in the record (History
-// shows it, Level 1 can bring it back: lib/taskTrack.ts)
-export async function deleteWorkTask(taskId: string, reason: string): Promise<WorkTaskFormState> {
-  let me;
+// Deleting is for good: nothing is kept (lib/taskTrack.ts)
+export async function deleteWorkTask(taskId: string): Promise<WorkTaskFormState> {
   try {
-    me = await requireRealUser();
+    await requireRealUser();
     await assertCanTouch(taskId);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't delete that task." };
   }
-  const res = await deleteWithRecord({ kind: "work", id: taskId }, reason, me);
-  if (res.error) return res;
+  await deleteForGood({ kind: "work", id: taskId });
   revalidatePath("/my-tasks");
   revalidatePath("/history");
   return { success: true };

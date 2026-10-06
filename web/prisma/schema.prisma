@@ -1099,25 +1099,6 @@ model TaskDateChange {
   createdAt  DateTime  @default(now())
 }
 
-// A task that was deleted: kept whole, with who deleted it and why, so the
-// record survives (History shows it; Level 1 can bring it back)
-model DeletedTask {
-  id         String   @id @default(uuid())
-  // "client" (Task) or "todo" (WorkTask), and its id while it lived
-  kind       String
-  originalId String
-  title      String
-  client     String?
-  assignee   String?
-  // the whole row as it was, to restore it
-  data       Json
-  reason     String   @db.Text
-  byId       String
-  byName     String
-  createdAt  DateTime
-  deletedAt  DateTime @default(now())
-}
-
 // A department's own pages, Notion-style: sections (Sales > Outreach), the
 // portals in a section (Outreach > Podcast) and the boards in a portal
 // (Podcast > Dream 156), each board a database of leads moving through its
