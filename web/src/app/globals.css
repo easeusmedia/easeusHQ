@@ -704,21 +704,16 @@ dialog[open]::backdrop {
 .step-next {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 16%, transparent);
 }
+/* the glow is layered soft shadows: a shadow has no box to be cut to, so it
+   fades out evenly on every side (a blurred, masked layer was clipped to its
+   own narrow box and showed as a band with hard sides). Within ~18px of the
+   line: the lead window's scroll box clips beyond about 20. */
 .progress-line {
   background: linear-gradient(to bottom, rgba(52, 211, 153, 0.7), color-mix(in srgb, var(--accent) 55%, transparent));
-}
-/* the glow: wide, faint and well blurred, so it fades out evenly on both
-   sides, and faded at the ends rather than stopping in a block */
-.progress-line::before {
-  content: "";
-  position: absolute;
-  inset: -4px -5px;
-  border-radius: 999px;
-  background: linear-gradient(to bottom, rgba(52, 211, 153, 0.5), color-mix(in srgb, var(--accent) 40%, transparent));
-  /* kept within the timeline's room: the window's scroll box clips past ~20px */
-  filter: blur(7px);
-  opacity: 0.45;
-  mask-image: linear-gradient(to bottom, transparent, #000 20%, #000 80%, transparent);
+  box-shadow:
+    0 0 3px 0 rgba(52, 211, 153, 0.4),
+    0 0 8px 1px rgba(52, 211, 153, 0.2),
+    0 0 16px 2px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .progress-line::after {
   content: "";
