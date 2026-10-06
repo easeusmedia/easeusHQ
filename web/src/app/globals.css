@@ -705,16 +705,20 @@ dialog[open]::backdrop {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 8px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .progress-line {
-  background: linear-gradient(to bottom, rgba(52, 211, 153, 0.85), color-mix(in srgb, var(--accent) 70%, transparent));
+  background: linear-gradient(to bottom, rgba(52, 211, 153, 0.7), color-mix(in srgb, var(--accent) 55%, transparent));
 }
+/* the glow: wide, faint and well blurred, so it fades out evenly on both
+   sides, and faded at the ends rather than stopping in a block */
 .progress-line::before {
   content: "";
   position: absolute;
-  inset: 0 -3px;
-  border-radius: inherit;
-  background: inherit;
-  filter: blur(5px);
-  opacity: 0.5;
+  inset: -4px -5px;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, rgba(52, 211, 153, 0.5), color-mix(in srgb, var(--accent) 40%, transparent));
+  /* kept within the timeline's room: the window's scroll box clips past ~20px */
+  filter: blur(7px);
+  opacity: 0.45;
+  mask-image: linear-gradient(to bottom, transparent, #000 20%, #000 80%, transparent);
 }
 .progress-line::after {
   content: "";

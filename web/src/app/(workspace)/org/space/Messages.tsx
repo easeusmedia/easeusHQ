@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Minus, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type Phase, type Reply as ReplyRecord, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
@@ -38,7 +38,23 @@ const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 
 // - Template: that message's template, for every lead that hasn't sent it
 //   (a lead with its own copy keeps it). Variables are made here.
 // Every other message is in All messages, grouped and searchable.
-export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lead: LeadData; board: BoardData; stageId: string; sent: SentData[] | null; onReply: (replies: ReplyRecord[]) => void; onSaved: () => void }) {
+export function Messages({
+  lead,
+  board,
+  stageId,
+  sent,
+  onReply,
+  onOpens,
+  onSaved,
+}: {
+  lead: LeadData;
+  board: BoardData;
+  stageId: string;
+  sent: SentData[] | null;
+  onReply: (replies: ReplyRecord[]) => void;
+  onOpens: (opens: number) => void;
+  onSaved: () => void;
+}) {
   // what's typed above shows in every message at once, ahead of the save
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [mine, setMine] = useState<Record<string, Draft | null>>({});
@@ -144,9 +160,30 @@ export function Messages({ lead, board, stageId, sent, onReply, onSaved }: { lea
           ))}
         {chosen && card(chosen, p.when === "done" || (options.length === 1 && !p.when))}
         {canReply && (
-          <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-            <Reply size={12} /> Replied
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Day 1's email: opened, and how often */}
+            {p.day === 1 && (
+              <>
+                <button type="button" aria-pressed={lead.opens > 0} onClick={() => onOpens(lead.opens > 0 ? 0 : 1)} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                  <MailOpen size={12} /> Opened
+                </button>
+                {lead.opens > 0 && (
+                  <span className="fade-in flex items-center gap-0.5 text-xs text-muted">
+                    <button type="button" onClick={() => onOpens(lead.opens - 1)} aria-label="One open fewer" className="grid size-6 place-items-center rounded-full transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                      <Minus size={12} />
+                    </button>
+                    <span className="min-w-6 text-center tabular-nums text-foreground">{lead.opens}×</span>
+                    <button type="button" onClick={() => onOpens(lead.opens + 1)} aria-label="One open more" className="grid size-6 place-items-center rounded-full transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                      <Plus size={12} />
+                    </button>
+                  </span>
+                )}
+              </>
+            )}
+            <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+              <Reply size={12} /> Replied
+            </button>
+          </div>
         )}
       </>
     );

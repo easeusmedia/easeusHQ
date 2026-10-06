@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, MailOpen, Minus, Plus, Reply, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import type { Outreach } from "./LeadCard";
-import { Checkbox } from "../../Checkbox";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
@@ -17,7 +16,7 @@ import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { isFilled, missingDetails, moveNeedsReason, toneOf, tracksOutreach, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
+import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -221,7 +220,6 @@ function LeadPage({
 
   const missing = missingDetails(board.fields, values);
   // "day-2" is Day 2; a stage's own key is its name
-  const replyDay = (key: string) => (key.startsWith("day-") ? `Day ${key.slice(4)}` : (board.stages.find((st) => st.id === key)?.name ?? "Earlier"));
   const fieldName = (f: FieldData) => (
     <EditableName
       name={f.name}
@@ -334,34 +332,6 @@ function LeadPage({
                   <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
                 </Row>
               ))}
-              {/* from Day 1: the first email opened (how often), and a reply, anywhere */}
-              {tracksOutreach(board.stages, { ...lead, stageId }) && (
-                <>
-                  <Row icon={MailOpen} label="Email opened">
-                    <div className="flex min-h-8 flex-wrap items-center gap-3 px-2">
-                      <Checkbox checked={lead.opens > 0} onChange={(on) => onTrack(id, { opens: on ? Math.max(1, lead.opens) : 0 })} label="Email opened" />
-                      {lead.opens > 0 && (
-                        <span className="fade-in flex items-center gap-1.5 text-xs text-muted">
-                          <button type="button" onClick={() => onTrack(id, { opens: lead.opens - 1 })} aria-label="One open fewer" className="grid size-6 place-items-center rounded-md transition-colors hover:bg-white/[0.06] hover:text-foreground">
-                            <Minus size={12} />
-                          </button>
-                          <span className="min-w-4 text-center text-sm tabular-nums text-foreground">{lead.opens}</span>
-                          <button type="button" onClick={() => onTrack(id, { opens: lead.opens + 1 })} aria-label="One open more" className="grid size-6 place-items-center rounded-md transition-colors hover:bg-white/[0.06] hover:text-foreground">
-                            <Plus size={12} />
-                          </button>
-                          {lead.opens === 1 ? "time" : "times"}
-                        </span>
-                      )}
-                    </div>
-                  </Row>
-                  {/* the days it replied on; each is ticked under that day's messages */}
-                  <Row icon={Reply} label="Replied">
-                    <p className="px-2 text-sm text-foreground/90">
-                      {lead.replies.length ? lead.replies.map((r) => replyDay(r.key)).join(", ") : <span className="text-muted">No reply yet</span>}
-                    </p>
-                  </Row>
-                </>
-              )}
             </div>
           </Fold>
 
@@ -372,7 +342,7 @@ function LeadPage({
           )}
 
           {/* then the messages to send */}
-          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onReply={(replies) => onTrack(id, { replies })} onSaved={saved} />
+          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onReply={(replies) => onTrack(id, { replies })} onOpens={(opens) => onTrack(id, { opens })} onSaved={saved} />
         </div>
 
         {/* beside it, the same height: every stage it has been through */}
