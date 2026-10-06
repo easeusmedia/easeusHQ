@@ -127,6 +127,18 @@ export async function updatePerson(input: {
   return { success: true };
 }
 
+// Someone's main role as everyone sees it under their name ("Senior Video
+// Editor"), in place of the list of every role they hold
+export async function setPosition(personId: string, position: string): Promise<string | undefined> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return "Only Level 1 can change someone's title.";
+  const title = position.trim().replace(/\s+/g, " ");
+  if (title.length > 80) return "Keep it short: 80 characters at most.";
+  await prisma.user.update({ where: { id: personId }, data: { position: title || null } });
+  revalidatePath("/team");
+  return undefined;
+}
+
 // Someone's departments and roles. A Founder sets anyone's; a Lead a
 // Member's, and only within their own departments: whatever the Member has
 // elsewhere is kept as it is, whatever was sent (lib/scope canSetAccess).

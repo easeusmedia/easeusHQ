@@ -6,7 +6,8 @@ import { ArrowUpRight, Eye, EyeOff, History, KeyRound, Mail, PenLine, Phone } fr
 import type { EmploymentStatus, Role } from "@prisma/client";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
-import { resetPassword, setAccess, updatePerson, updatePersonPhoto } from "./actions";
+import { resetPassword, setAccess, setPosition, updatePerson, updatePersonPhoto } from "./actions";
+import { EditableName } from "../EditableName";
 import { closeOnBackdrop } from "../dialog";
 import { MIN_PASSWORD } from "@/lib/account";
 import { Organisation } from "./Organisation";
@@ -373,8 +374,20 @@ export function PersonDetail({
           }
         >
           <h1 className="truncate text-lg font-semibold">{person.name}</h1>
-          <p className="truncate text-sm text-muted">
-            {[person.position ?? person.jobTitleName, seesLevels && ROLE_LABEL[person.role]].filter(Boolean).join(" · ")}
+          {/* their main role, as everyone sees it: Level 1 writes it here (the
+              list of every role they hold until then) */}
+          <p className="flex min-w-0 items-center gap-1.5 text-sm text-muted">
+            {canEdit ? (
+              <EditableName
+                name={person.position || person.jobTitleName || "Add their main role"}
+                onSave={(title) => setPosition(person.id, title)}
+                pencil="hover"
+                className="min-w-0"
+              />
+            ) : (
+              <span className="truncate">{person.position || person.jobTitleName}</span>
+            )}
+            {seesLevels && <span className="shrink-0">· {ROLE_LABEL[person.role]}</span>}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
