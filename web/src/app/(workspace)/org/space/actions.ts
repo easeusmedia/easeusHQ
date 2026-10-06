@@ -509,7 +509,8 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
 // ================= Leads =================
 
 // Every lead starts at the board's first stage, wherever it was added from
-// (with the podcast's links, when given, on the board's links property)
+// (with the podcast's links, when given, on the board's links property),
+// given to whoever added it until someone hands it on
 export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = []): Promise<Done & { id?: string }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
@@ -526,7 +527,7 @@ export async function createLead(boardId: string, title: string, links: { label:
       const field = links.length ? await tx.boardField.findFirst({ where: { boardId, kind: "links" }, orderBy: { sortOrder: "asc" }, select: { id: true } }) : null;
       const clean = field ? cleanValue("links", links) : null;
       const values = field && clean && "value" in clean && clean.value ? { [field.id]: clean.value } : {};
-      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values, sortOrder: Date.now(), createdById: who.id }, select: { id: true } });
+      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values, sortOrder: Date.now(), createdById: who.id, assignedToId: who.id, assignedByName: who.name, assignedAt: new Date() }, select: { id: true } });
       await record(tx, lead.id, who, { kind: "created", summary: `Created in ${stage.name}`, toStage: stage.name });
       return lead.id;
     });
