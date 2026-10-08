@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id, n } = await params;
   // someone signed in to the app is one of us, testing their own link
   const staff = !!(await getRealViewer().catch(() => null));
-  const url = await recordClick(id, Number(n), staff).catch(() => null);
+  const url = await recordClick(id, Number(n), staff, request.headers.get("user-agent")).catch(() => null);
   if (url) return NextResponse.redirect(url, 302);
   return new Response("This link has expired.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }

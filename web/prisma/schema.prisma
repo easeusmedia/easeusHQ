@@ -1344,6 +1344,9 @@ model MailEvent {
   kind   String
   // which link, for a click
   link   Int?
+  // what loaded it (Google's image proxy, Apple Mail, a browser), to tell a
+  // person from a scanner when the numbers are compared with Mailsuite's
+  agent  String?
   at     DateTime    @default(now())
 
   @@index([mailId])

@@ -71,26 +71,26 @@ const SELF_MS = 30_000;
 // The image loaded. Not an open: a load straight from Gmail's page (the
 // sender's compose window; a recipient's Gmail goes through Google's proxy),
 // the sender's own look, or a repeat within 10 seconds (one view, fetched twice).
-export async function recordOpen(id: string, fromGmailPage: boolean) {
+export async function recordOpen(id: string, fromGmailPage: boolean, agent: string | null) {
   if (fromGmailPage || !MAIL_ID.test(id)) return;
   const mail = await prisma.trackedMail.findUnique({ where: { id }, select: { selfAt: true, lastOpenAt: true } });
   if (!mail) return;
   const now = Date.now();
   if (mail.selfAt && now - mail.selfAt.getTime() < SELF_MS) return;
   if (mail.lastOpenAt && now - mail.lastOpenAt.getTime() < 10_000) return;
-  await prisma.mailEvent.create({ data: { mailId: id, kind: "open" } });
+  await prisma.mailEvent.create({ data: { mailId: id, kind: "open", agent: agent?.slice(0, 200) } });
   await refresh(id);
 }
 
 // A link was used: where it goes, or null for one we don't know. Not a
 // click when the person is signed in to the app (their own test).
-export async function recordClick(id: string, n: number, staff: boolean): Promise<string | null> {
+export async function recordClick(id: string, n: number, staff: boolean, agent: string | null): Promise<string | null> {
   if (!MAIL_ID.test(id)) return null;
   const mail = await prisma.trackedMail.findUnique({ where: { id }, select: { links: true } });
   const url = (mail?.links as string[] | undefined)?.[n];
   if (!url) return null;
   if (!staff) {
-    await prisma.mailEvent.create({ data: { mailId: id, kind: "click", link: n } });
+    await prisma.mailEvent.create({ data: { mailId: id, kind: "click", link: n, agent: agent?.slice(0, 200) } });
     await refresh(id);
   }
   return url;

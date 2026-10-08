@@ -12,7 +12,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   // straight from Gmail's own page: the sender's compose window
   const fromGmailPage = (request.headers.get("referer") ?? "").startsWith("https://mail.google.com");
-  after(() => recordOpen(id.replace(/\.gif$/, ""), fromGmailPage).catch(() => {}));
+  const agent = request.headers.get("user-agent");
+  after(() => recordOpen(id.replace(/\.gif$/, ""), fromGmailPage, agent).catch(() => {}));
   return new Response(PIXEL, {
     headers: {
       "Content-Type": "image/gif",
