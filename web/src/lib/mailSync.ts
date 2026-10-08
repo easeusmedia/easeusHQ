@@ -1,5 +1,7 @@
 import { prisma } from "./prisma";
 import { gmail, gmailAccount } from "./gmail";
+import { refresh } from "./mailTrack";
+import { leadEmails, phaseKey } from "./space";
 
 // The sales inbox (sales.easeus.media@gmail.com), read from Gmail into
 // MailMessage: every email sent and received, tracked or not. From it the
@@ -133,7 +135,49 @@ async function link() {
       "repliedAt" = case when f.bounce then x."repliedAt" else coalesce(least(x."repliedAt", f.at), f.at) end,
       "bouncedAt" = case when f.bounce then coalesce(x."bouncedAt", f.at) else x."bouncedAt" end
     from firsts f where f.id = x.id`;
-  await prisma.$executeRaw`
-    update "Lead" l set replied = true
-    where not l.replied and exists (select 1 from "TrackedMail" t where t."leadId" = l.id and t."repliedAt" is not null)`;
+  await leads();
+}
+
+// The outreach boards' numbers, from the inbox, whichever computer sent the
+// emails: a tracked email sent before its lead was added (or before its
+// address was) is joined to it now, for its opens; and a lead whose address
+// wrote back after our first email to it (a person, not a bounce) has
+// replied, on the day it was at then
+export async function leads() {
+  const joined = await prisma.$queryRaw<{ id: string }[]>`
+    update "TrackedMail" t set "leadId" = l.id from "Lead" l
+    where t."leadId" is null and t."sentAt" > now() - interval '45 days'
+      and position('"' || t."to" || '"' in lower(l.values::text)) > 0
+    returning t.id`;
+  for (const t of joined) await refresh(t.id);
+
+  const open = await prisma.lead.findMany({
+    where: { replied: false },
+    select: {
+      id: true,
+      values: true,
+      stageId: true,
+      board: { select: { stages: { select: { id: true, name: true } } } },
+      events: { where: { kind: "moved" }, select: { toStage: true, createdAt: true }, orderBy: { createdAt: "asc" } },
+    },
+  });
+  const emails = new Map(open.map((l) => [l.id, leadEmails(l.values)]));
+  const all = [...new Set([...emails.values()].flat())];
+  if (!all.length) return;
+  const [sent, heard] = await Promise.all([
+    prisma.mailMessage.groupBy({ by: ["to"], where: { outgoing: true, to: { in: all } }, _min: { at: true } }),
+    prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true }, orderBy: { at: "asc" } }),
+  ]);
+  const firstTo = new Map(sent.map((s) => [s.to, s._min.at!]));
+  for (const lead of open) {
+    const mine = emails.get(lead.id) ?? [];
+    const first = mine.map((e) => firstTo.get(e)).filter((d): d is Date => !!d).sort((a, b) => +a - +b)[0];
+    const reply = first && heard.find((h) => mine.includes(h.from) && h.at > first);
+    if (!reply) continue;
+    // the stage it was at when the reply came: the last move before it, else where it is
+    const moved = lead.events.filter((e) => e.createdAt <= reply.at).pop()?.toStage;
+    const stage = lead.board.stages.find((s) => (moved ? s.name === moved : s.id === lead.stageId)) ?? lead.board.stages.find((s) => s.id === lead.stageId);
+    if (!stage) continue;
+    await prisma.lead.update({ where: { id: lead.id }, data: { replied: true, replies: [{ key: phaseKey(stage), at: reply.at.toISOString() }] } });
+  }
 }

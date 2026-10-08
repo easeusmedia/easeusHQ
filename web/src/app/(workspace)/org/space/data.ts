@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayOf, isDead, outreachStart, type BoardData, type Reply, type Draft, type FieldKind, type Person, type SpaceCard, type SpaceKind } from "@/lib/space";
+import { dayOf, isDead, leadEmails, outreachStart, type BoardData, type Reply, type Draft, type FieldKind, type Person, type SpaceCard, type SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -90,6 +90,12 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     },
   });
   if (!board) return null;
+  // and reached out to by email from the sales inbox, whatever its stage
+  const leadAddresses = new Map(board.leads.map((l) => [l.id, leadEmails(l.values)]));
+  const all = [...new Set([...leadAddresses.values()].flat())];
+  const emailed = new Set(
+    all.length ? (await prisma.mailMessage.findMany({ where: { outgoing: true, to: { in: all } }, select: { to: true }, distinct: ["to"] })).map((m) => m.to) : []
+  );
   // reached out: it has been in Ready to reach out, a day, or a stage after
   // them (but Dead), by the stage names its record kept
   const start = outreachStart(board.stages);
@@ -117,7 +123,9 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       replied: l.replied,
       replies: (Array.isArray(l.replies) ? l.replies : []) as Reply[],
       picks: (l.picks ?? {}) as Record<string, string>,
-      reached: reached([board.stages.find((s) => s.id === l.stageId)?.name ?? null, ...l.events.map((e) => e.toStage)]),
+      reached:
+        reached([board.stages.find((s) => s.id === l.stageId)?.name ?? null, ...l.events.map((e) => e.toStage)]) ||
+        (start >= 0 && (leadAddresses.get(l.id) ?? []).some((e) => emailed.has(e))),
       drafts: (l.drafts ?? {}) as Record<string, Draft>,
       stageSince: l.stageSince.toISOString(),
       createdAt: l.createdAt.toISOString(),

@@ -312,6 +312,11 @@ export function outreachStats(stages: Pick<StageData, "id" | "name">[], leads: T
   return { reached: reached.length, opened, opens: reached.reduce((n, l) => n + l.opens, 0), replied, openRate: rate(opened), replyRate: rate(replied) };
 }
 
+// every email address in a lead's details (its contacts' emails), for
+// matching it to the sales inbox (lib/mailSync.ts)
+const EMAILS = /[^\s"'<>,;:]+@[^\s"'<>,;:]+\.[a-z]{2,}/gi;
+export const leadEmails = (values: unknown) => [...new Set((JSON.stringify(values ?? {}).match(EMAILS) ?? []).map((e) => e.toLowerCase()))];
+
 export type Reply = { key: string; at: string };
 // A day's (or a stage's) key: one for every stage of a day ("day-7"), else the stage's own
 export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {

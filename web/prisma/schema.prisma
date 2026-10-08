@@ -1379,6 +1379,9 @@ model MailMessage {
 
   @@index([threadId])
   @@index([at])
+  // a lead's emails, sent and received (the outreach boards' numbers)
+  @@index([to])
+  @@index([from])
 }
 
 // A PDF sent as a tracked link (/d/[id]): kept in Google Drive, read in our
