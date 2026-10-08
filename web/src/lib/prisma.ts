@@ -27,7 +27,14 @@ function datasourceUrl(): string | undefined {
   try {
     const parsed = new URL(url);
     if (!parsed.searchParams.has("pgbouncer")) return undefined;
-    if (!parsed.searchParams.has("connection_limit")) parsed.searchParams.set("connection_limit", "5");
+    // Dev (dev.easeus.media, this machine) is on the Tokyo database, where
+    // each query through the pooler takes about 750 ms from India (5 round
+    // trips; live's takes 130). With 5 connections, Home's 30-odd queries
+    // queued past Prisma's 10-second wait and the page failed (8 Oct 2026):
+    // so dev gets more connections and waits longer rather than failing.
+    const dev = process.env.VERCEL_ENV !== "production";
+    if (!parsed.searchParams.has("connection_limit")) parsed.searchParams.set("connection_limit", dev ? "10" : "5");
+    if (dev && !parsed.searchParams.has("pool_timeout")) parsed.searchParams.set("pool_timeout", "60");
     return parsed.toString();
   } catch {
     return undefined; // malformed URL — let Prisma report it rather than masking it here

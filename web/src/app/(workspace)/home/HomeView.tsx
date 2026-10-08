@@ -196,7 +196,7 @@ function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem;
       type="button"
       {...frozen(item.id)}
       onClick={onOpen}
-      className="panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:-translate-y-px"
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.title}</p>
@@ -499,7 +499,7 @@ export function HomeView({
       {groups.length === 0 ? (
         <p className="px-1 py-2 text-sm text-muted">{show === "today" ? "Nothing due today." : show === "overdue" ? "Nothing overdue." : "Nothing in progress."}</p>
       ) : (
-        <div key={`${show}:${view}:${times}`} className="fade-in flex flex-col gap-3">
+        <div key={`${show}:${view}:${times}`} className={`fade-in ${wide ? "grid items-start gap-3 md:grid-cols-2 2xl:grid-cols-3" : "flex flex-col gap-3"}`}>
           {/* each group its own panel, headed by who or what it is */}
           {groups.map((g) => {
             const person = showMine && view === "person" ? g.items[0].person : null;
@@ -510,7 +510,8 @@ export function HomeView({
                   <span className="truncate text-base font-semibold tracking-tight">{g.name}</span>
                   <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs font-medium tabular-nums text-muted">{g.items.length}</span>
                 </div>
-                <div className={wide ? "grid gap-2 md:grid-cols-2 2xl:grid-cols-3" : "flex flex-col gap-2"}>
+                {/* its work as one list, row under row */}
+                <div className="panel-soft flex flex-col divide-y divide-white/[0.06] overflow-hidden rounded-2xl">
                   {g.items.map((i) => (
                     <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} avatar={!person} />
                   ))}
