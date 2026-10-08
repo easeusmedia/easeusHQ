@@ -848,6 +848,22 @@ function NoticesSection({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // cleared: fading out, then gone at once, while the server catches up
+  const [leaving, setLeaving] = useState<Set<string>>(new Set());
+  const [gone, setGone] = useState<Set<string>>(new Set());
+  const shown = notices.filter((n) => !n.id || !gone.has(n.id));
+
+  async function clear(id: string) {
+    setLeaving((s) => new Set(s).add(id));
+    setTimeout(() => setGone((s) => new Set(s).add(id)), 200);
+    const res = await clearNotice(id);
+    if (res.error) {
+      setError(res.error);
+      setGone((s) => new Set([...s].filter((x) => x !== id)));
+      setLeaving((s) => new Set([...s].filter((x) => x !== id)));
+    }
+    router.refresh();
+  }
 
   async function add() {
     if (!text.trim()) return setWriting(false);
@@ -866,7 +882,7 @@ function NoticesSection({
       id="notices"
       icon={<Bell size={15} />}
       title="Notices"
-      count={notices.length}
+      count={shown.length}
       collapsed={collapsed}
       onCollapse={onCollapse}
       drag={drag}
@@ -899,11 +915,11 @@ function NoticesSection({
         </div>
       )}
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
-      {notices.length === 0 ? (
+      {shown.length === 0 ? (
         !writing && <p className="px-1 py-2 text-sm text-muted">All clear.</p>
       ) : (
         <div className="flex flex-col gap-1.5">
-          {notices.map((n) => {
+          {shown.map((n) => {
             const body = (
               <>
                 <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${TONE[n.tone]}`}>{NOTICE_ICON[n.kind]}</span>
@@ -920,11 +936,10 @@ function NoticesSection({
                     role="button"
                     tabIndex={0}
                     aria-label="Clear"
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      await clearNotice(n.id!);
-                      router.refresh();
+                      clear(n.id!);
                     }}
                     className="shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
                   >
@@ -933,7 +948,7 @@ function NoticesSection({
                 )}
               </>
             );
-            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3";
+            const cls = `group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 transition-[opacity,scale] duration-200 ease-out ${n.id && leaving.has(n.id) ? "scale-[0.98] opacity-0" : ""}`;
             if (n.href)
               return (
                 <Link key={n.key} href={n.href} className={cls}>
