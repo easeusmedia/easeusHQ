@@ -101,16 +101,25 @@ export async function recordSelfView(id: string) {
   await refresh(id);
 }
 
+// Loads that aren't a person reading: within 20 seconds of sending, or from
+// a scanner. Tested on Gmail 8 Oct 2026: an email nobody opened was fetched
+// 14 to 18 seconds after delivery as "Chrome/42 ... Edge/12.246", every time.
+// They're kept, with what loaded them, but not counted.
+const SCANNER = "(Edge/12\\.246|bot|crawl|spider|scan|preview|python|wget|curl)";
+
 // its counts from its events (every one is kept; what counts is decided
 // here), and the board's number for its lead
 async function refresh(id: string) {
   const [c] = await prisma.$queryRaw<{ opens: number; first: Date | null; last: Date | null; clicks: number }[]>`
     with counted as (
-      select e.kind, e.at from "MailEvent" e
+      select e.kind, e.at from "MailEvent" e join "TrackedMail" m on m.id = e."mailId"
       where e."mailId" = ${id} and e.kind in ('open', 'click')
-        and not (e.kind = 'open' and exists (
-          select 1 from "MailEvent" s where s."mailId" = e."mailId" and s.kind = 'self'
-            and s.at between e.at - interval '30 seconds' and e.at + interval '30 seconds'))
+        and not (e.kind = 'open' and (
+          e.at < m."sentAt" + interval '20 seconds'
+          or coalesce(e.agent, '') ~* ${SCANNER}
+          or exists (
+            select 1 from "MailEvent" s where s."mailId" = e."mailId" and s.kind = 'self'
+              and s.at between e.at - interval '30 seconds' and e.at + interval '30 seconds')))
     )
     select count(*) filter (where kind = 'open')::int opens, min(at) filter (where kind = 'open') first,
            max(at) filter (where kind = 'open') last, count(*) filter (where kind = 'click')::int clicks
