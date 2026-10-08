@@ -28,10 +28,40 @@ function tell(msg) {
 const account = () => (document.title.match(EMAIL) || [""])[0].toLowerCase();
 
 // the compose window (or reply in a thread) something belongs to: the
-// nearest box holding a message body
+// nearest box holding the message body and its From and Subject (Gmail's
+// .M9; the body's own box holds neither, checked on Gmail 8 Oct 2026)
 function composeOf(el) {
-  for (let n = el; n && n !== document.body; n = n.parentElement) if (n.querySelector(BODY)) return n;
-  return null;
+  for (let n = el; n && n !== document.body; n = n.parentElement)
+    if (n.querySelector(BODY) && n.querySelector('input[name="subjectbox"], input[name="from"]')) return n;
+  return el?.closest?.(".M9") || null;
+}
+
+// A link typed as plain text is only made a link by Gmail as it sends, so
+// it's made one here first, to be tracked like any other
+const URL_TEXT = /\b(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+function linkify(body) {
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (t) => (t.parentElement.closest("a, .gmail_quote") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  const texts = [];
+  for (let t = walker.nextNode(); t; t = walker.nextNode()) if (t.data.search(URL_TEXT) !== -1) texts.push(t);
+  for (const t of texts) {
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    t.data.replace(URL_TEXT, (match, at) => {
+      // a full stop or bracket after a link belongs to the sentence
+      const url = match.replace(/[.,;:!?)\]]+$/, "");
+      frag.append(t.data.slice(last, at));
+      const a = document.createElement("a");
+      a.setAttribute("href", /^www\./i.test(url) ? `https://${url}` : url);
+      a.textContent = url;
+      frag.append(a);
+      last = at + url.length;
+      return match;
+    });
+    frag.append(t.data.slice(last));
+    t.replaceWith(frag);
+  }
 }
 
 function recipients(root, body, me) {
@@ -59,6 +89,7 @@ function prepare(root) {
   const id = existing ? existing[1] : crypto.randomUUID().replace(/-/g, "");
   const links = [];
   if (!existing) {
+    linkify(body);
     for (const a of body.querySelectorAll("a[href]")) {
       // the earlier messages quoted under a reply stay as they are
       if (a.closest(".gmail_quote")) continue;
