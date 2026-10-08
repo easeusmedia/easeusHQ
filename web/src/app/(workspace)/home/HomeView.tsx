@@ -188,7 +188,7 @@ function dueText(due: string | null, today: string): { text: string; pill: strin
 
 // one piece of work as a card: what it is, a line under it, whether it's
 // late, and who's on it
-function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string; sub: string; onOpen: () => void }) {
+function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem; today: string; sub: string; onOpen: () => void; avatar?: boolean }) {
   const due = dueText(item.due, today);
   const frozen = useFrozen();
   return (
@@ -203,7 +203,7 @@ function WorkCard({ item, today, sub, onOpen }: { item: HomeItem; today: string;
         {sub && <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>}
       </div>
       {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
-      {item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
+      {!avatar ? null : item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
     </button>
   );
 }
@@ -498,20 +498,25 @@ export function HomeView({
       {groups.length === 0 ? (
         <p className="px-1 py-2 text-sm text-muted">{show === "today" ? "Nothing due today." : show === "overdue" ? "Nothing overdue." : "Nothing in progress."}</p>
       ) : (
-        <div key={`${show}:${view}:${times}`} className="fade-in flex flex-col gap-5">
-          {groups.map((g) => (
-            <div key={g.name} className="flex flex-col gap-2">
-              <p className="flex items-center gap-2 px-1 text-xs font-medium">
-                <span className="text-foreground/80">{g.name}</span>
-                <span className="text-muted/70 tabular-nums">{g.items.length}</span>
-              </p>
-              <div className={wide ? "grid gap-2 md:grid-cols-2 2xl:grid-cols-3" : "flex flex-col gap-2"}>
-                {g.items.map((i) => (
-                  <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} />
-                ))}
+        <div key={`${show}:${view}:${times}`} className="fade-in flex flex-col gap-3">
+          {/* each group its own panel, headed by who or what it is */}
+          {groups.map((g) => {
+            const person = showMine && view === "person" ? g.items[0].person : null;
+            return (
+              <div key={g.name} className="rounded-[1.25rem] bg-white/[0.025] p-2 ring-1 ring-white/[0.06]">
+                <div className="flex items-center gap-2.5 px-2 pt-1 pb-2.5">
+                  {person && <Avatar name={person.name} size={24} />}
+                  <span className="truncate text-sm font-semibold">{g.name}</span>
+                  <span className="rounded-full bg-white/[0.06] px-2 py-px text-[11px] font-medium tabular-nums text-muted">{g.items.length}</span>
+                </div>
+                <div className={wide ? "grid gap-2 md:grid-cols-2 2xl:grid-cols-3" : "flex flex-col gap-2"}>
+                  {g.items.map((i) => (
+                    <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} avatar={!person} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
