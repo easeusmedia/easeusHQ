@@ -5,6 +5,7 @@ import ffmpegPath from "ffmpeg-static";
 import { syncFrameioFeedback } from "@/lib/frameioFeedback";
 import { clearOldSnapshots } from "@/lib/snapshots";
 import { sweepOverdue } from "@/lib/taskTrack";
+import { syncSalesInbox } from "@/lib/mailSync";
 
 // The daily refresh of every client's public YouTube and Instagram numbers
 // (vercel.json runs it at 2am India time). Safe to call any time by anyone:
@@ -32,5 +33,7 @@ export async function GET(request: Request) {
   await clearOldSnapshots().catch(() => {});
   // tasks past their completion date: a strike each, and notices (lib/overdue.ts)
   await sweepOverdue().catch(() => 0);
+  // the sales inbox: replies, received emails and response times (lib/mailSync.ts)
+  await syncSalesInbox().catch(() => null);
   return NextResponse.json(result);
 }

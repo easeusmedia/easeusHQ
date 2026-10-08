@@ -1328,6 +1328,13 @@ model TrackedMail {
   selfAt      DateTime?
   // the lead it went to, matched by email
   leadId      String?
+  // from the sales inbox (lib/mailSync.ts): its Gmail conversation, when
+  // it was first answered, and when it bounced
+  threadId    String?
+  repliedAt   DateTime?
+  bouncedAt   DateTime?
+  // tracked PDFs linked in it (TrackedDoc ids)
+  docs        String[]    @default([])
   events      MailEvent[]
 
   @@index([userId, sentAt])
@@ -1347,8 +1354,64 @@ model MailEvent {
   // what loaded it (Google's image proxy, Apple Mail, a browser), to tell a
   // person from a scanner when the numbers are compared with Mailsuite's
   agent  String?
+  // whether it counts (lib/mailTrack.ts refresh): not a scanner, not one of us
+  counted Boolean    @default(false)
   at     DateTime    @default(now())
 
   @@index([mailId])
   @@index([at])
+}
+
+// A message in the sales inbox (sales.easeus.media@gmail.com), read from
+// Gmail (lib/mailSync.ts): every email sent and received, tracked or not,
+// for the sent and received counts, replies and response times
+model MailMessage {
+  // Gmail's id
+  id       String   @id
+  threadId String
+  outgoing Boolean
+  from     String
+  to       String
+  subject  String   @default("")
+  at       DateTime
+  // a bounce, an auto-reply or a no-reply sender: not a person writing
+  auto     Boolean  @default(false)
+
+  @@index([threadId])
+  @@index([at])
+}
+
+// A PDF sent as a tracked link (/d/[id]): kept in Google Drive, read in our
+// viewer, which times each page (lib/docTrack.ts)
+model TrackedDoc {
+  id          String    @id
+  name        String
+  driveFileId String
+  pages       Int       @default(0)
+  size        Int       @default(0)
+  createdById String
+  createdAt   DateTime  @default(now())
+  views       DocView[]
+}
+
+// One reading of a tracked PDF
+model DocView {
+  id         String     @id @default(uuid())
+  docId      String
+  doc        TrackedDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  // the tracked email its link came in, when it did
+  mailId     String?
+  startedAt  DateTime   @default(now())
+  lastAt     DateTime   @default(now())
+  // seconds on each page: { "1": 12, "2": 40 }
+  pages      Json       @default("{}")
+  seconds    Int        @default(0)
+  downloaded Boolean    @default(false)
+  // one of us (signed in to the app): kept, not counted
+  self       Boolean    @default(false)
+  agent      String?
+
+  @@index([docId])
+  @@index([mailId])
+  @@index([startedAt])
 }

@@ -35,7 +35,7 @@ const email = (v: unknown) => (typeof v === "string" ? (v.match(/[^\s<>"',;]+@[^
 
 // An email the extension saw go out. Sending it again (after Undo send) only
 // refreshes it.
-export async function recordSent(userId: string, input: { id?: unknown; from?: unknown; to?: unknown; subject?: unknown; links?: unknown }): Promise<string | null> {
+export async function recordSent(userId: string, input: { id?: unknown; from?: unknown; to?: unknown; subject?: unknown; links?: unknown; docs?: unknown }): Promise<string | null> {
   const id = typeof input.id === "string" && MAIL_ID.test(input.id) ? input.id : null;
   const to = (Array.isArray(input.to) ? input.to : []).map(email).filter(Boolean).slice(0, 50);
   if (!id || !to.length) return "That email couldn't be read.";
@@ -48,6 +48,8 @@ export async function recordSent(userId: string, input: { id?: unknown; from?: u
     others: to.slice(1).join(", "),
     subject: typeof input.subject === "string" ? input.subject.slice(0, 500) : "",
     links,
+    // tracked PDFs linked in it
+    docs: (Array.isArray(input.docs) ? input.docs : []).filter((d): d is string => typeof d === "string" && MAIL_ID.test(d)).slice(0, 20),
     sentAt: new Date(),
     leadId: await leadFor(to[0]),
   };
@@ -107,23 +109,24 @@ export async function recordSelfView(id: string) {
 // They're kept, with what loaded them, but not counted.
 const SCANNER = "(Edge/12\\.246|bot|crawl|spider|scan|preview|python|wget|curl)";
 
-// its counts from its events (every one is kept; what counts is decided
-// here), and the board's number for its lead
-async function refresh(id: string) {
+// its counts from its events (every one is kept; which count is decided
+// here and marked on each, so every report agrees), and the board's number
+// for its lead
+export async function refresh(id: string) {
+  // every click counts; an open counts unless a scanner's, within 20 seconds
+  // of sending, or next to one of our own looks
+  await prisma.$executeRaw`
+    update "MailEvent" e set counted = e.kind = 'click' or (e.kind = 'open' and not (
+        e.at < m."sentAt" + interval '20 seconds'
+        or coalesce(e.agent, '') ~* ${SCANNER}
+        or exists (
+          select 1 from "MailEvent" s where s."mailId" = e."mailId" and s.kind = 'self'
+            and s.at between e.at - interval '30 seconds' and e.at + interval '30 seconds')))
+    from "TrackedMail" m where m.id = e."mailId" and e."mailId" = ${id}`;
   const [c] = await prisma.$queryRaw<{ opens: number; first: Date | null; last: Date | null; clicks: number }[]>`
-    with counted as (
-      select e.kind, e.at from "MailEvent" e join "TrackedMail" m on m.id = e."mailId"
-      where e."mailId" = ${id} and e.kind in ('open', 'click')
-        and not (e.kind = 'open' and (
-          e.at < m."sentAt" + interval '20 seconds'
-          or coalesce(e.agent, '') ~* ${SCANNER}
-          or exists (
-            select 1 from "MailEvent" s where s."mailId" = e."mailId" and s.kind = 'self'
-              and s.at between e.at - interval '30 seconds' and e.at + interval '30 seconds')))
-    )
     select count(*) filter (where kind = 'open')::int opens, min(at) filter (where kind = 'open') first,
            max(at) filter (where kind = 'open') last, count(*) filter (where kind = 'click')::int clicks
-    from counted`;
+    from "MailEvent" where "mailId" = ${id} and counted`;
   const mail = await prisma.trackedMail.update({
     where: { id },
     data: { opens: c?.opens ?? 0, firstOpenAt: c?.first ?? null, lastOpenAt: c?.last ?? null, clicks: c?.clicks ?? 0 },

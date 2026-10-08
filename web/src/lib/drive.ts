@@ -288,6 +288,11 @@ export async function driveFileName(id: string): Promise<string> {
   return file.name as string;
 }
 
+// A file's bytes as Drive streams them (a tracked PDF to its viewer)
+export async function downloadFile(id: string): Promise<Response> {
+  return fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&${SHARED}`, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+}
+
 export async function deleteFile(id: string): Promise<void> {
   await fetch(`https://www.googleapis.com/drive/v3/files/${id}?${SHARED}`, {
     method: "DELETE",

@@ -33,8 +33,8 @@ export async function MailSection({ base, range }: { base: string; range?: strin
             </Link>
           ))}
         </div>
-        <Link href="/mail-tracker" className="btn btn-ghost ml-auto text-sm">
-          Set up tracker
+        <Link href="/email" className="btn btn-ghost ml-auto text-sm">
+          Open
         </Link>
       </div>
 

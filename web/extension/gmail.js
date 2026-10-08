@@ -90,12 +90,20 @@ function prepare(root) {
   const existing = [...body.querySelectorAll("img")].map((i) => (i.getAttribute("src") || "").match(PIXEL)).find(Boolean);
   const id = existing ? existing[1] : crypto.randomUUID().replace(/-/g, "");
   const links = [];
+  const docs = [];
   if (!existing) {
     linkify(body);
     for (const a of body.querySelectorAll("a[href]")) {
       // the earlier messages quoted under a reply stay as they are
       if (a.closest(".gmail_quote")) continue;
       const href = a.getAttribute("href") || "";
+      // a tracked PDF: its viewer is told which email it came in (not a click)
+      const doc = href.startsWith(config.base) && href.match(/\/d\/([A-Za-z0-9_-]{12,40})(?:[?#]|$)/);
+      if (doc) {
+        a.setAttribute("href", `${config.base}/d/${doc[1]}?m=${id}`);
+        docs.push(doc[1]);
+        continue;
+      }
       if (!/^https?:\/\//i.test(href) || href.startsWith(config.base)) continue;
       a.setAttribute("href", `${config.base}/m/c/${id}/${links.length}`);
       links.push(href);
@@ -109,7 +117,7 @@ function prepare(root) {
     body.appendChild(img);
   }
   const subject = root.querySelector('input[name="subjectbox"]')?.value || root.querySelector('input[name="subject"]')?.value || document.querySelector("h2.hP")?.textContent || "";
-  const msg = { kind: "sent", id, from: me, to, subject, links };
+  const msg = { kind: "sent", id, from: me, to, subject, links, docs };
   const started = Date.now();
   const timer = setInterval(() => {
     if (!root.isConnected || !root.offsetParent) {

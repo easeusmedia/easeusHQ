@@ -57,6 +57,11 @@ export function seesClients(user: Pick<Viewer, "role" | "email" | "departments">
   return isFounder(user) || !user.departments.length || user.departments.some((d) => d.slug !== DEPT.sales);
 }
 
+// Sales' email numbers and tracked PDFs (the Email pages): Level 1 and Sales
+export function seesSalesMail(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
+  return isFounder(user) || inDepartment(user, DEPT.sales);
+}
+
 // Clients' feedback, posting dates and client records: Level 1, and the
 // Leads of Client Services and Distribution.
 export function runsClients(user: Pick<Viewer, "role" | "departments">): boolean {

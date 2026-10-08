@@ -1,49 +1,57 @@
 import { prisma } from "./prisma";
 import { DRIVE_SETTINGS } from "./drive";
 
-// Reading easeus.media@gmail.com, read-only — for Adobe's emails about
-// contracts out for signature. Connected under Integrations with the same
-// Google app Drive uses, as its own connection.
+// Reading Gmail, read-only, through the same Google app Drive uses, each
+// inbox as its own connection under Integrations:
+// - contracts: easeus.media@gmail.com, for Adobe's emails about contracts
+//   out for signature
+// - sales: sales.easeus.media@gmail.com, the inbox outreach goes from, for
+//   replies, received emails and response times (lib/mailSync.ts)
 
 export const GMAIL_SETTINGS = { refreshToken: "gmail.refreshToken", account: "gmail.account" } as const;
+export const SALES_GMAIL_SETTINGS = { refreshToken: "salesGmail.refreshToken", account: "salesGmail.account" } as const;
+export type Inbox = "contracts" | "sales";
+const KEYS = { contracts: GMAIL_SETTINGS, sales: SALES_GMAIL_SETTINGS };
 
-async function settings() {
+async function settings(inbox: Inbox) {
   const rows = await prisma.appSetting.findMany({
-    where: { key: { in: [GMAIL_SETTINGS.refreshToken, GMAIL_SETTINGS.account, DRIVE_SETTINGS.clientId, DRIVE_SETTINGS.clientSecret] } },
+    where: { key: { in: [KEYS[inbox].refreshToken, KEYS[inbox].account, DRIVE_SETTINGS.clientId, DRIVE_SETTINGS.clientSecret] } },
   });
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return { refresh: s[KEYS[inbox].refreshToken], account: s[KEYS[inbox].account], clientId: s[DRIVE_SETTINGS.clientId], clientSecret: s[DRIVE_SETTINGS.clientSecret] };
 }
 
 // the connected address, or null when there's no connection
-export async function gmailAccount(): Promise<string | null> {
-  const s = await settings();
-  return s[GMAIL_SETTINGS.refreshToken] ? (s[GMAIL_SETTINGS.account] ?? "") : null;
+export async function gmailAccount(inbox: Inbox = "contracts"): Promise<string | null> {
+  const s = await settings(inbox);
+  return s.refresh ? (s.account ?? "") : null;
 }
 
-let cached: { token: string; expires: number } | null = null;
-async function token(): Promise<string> {
-  if (cached && cached.expires > Date.now() + 60_000) return cached.token;
-  const s = await settings();
-  const refresh = s[GMAIL_SETTINGS.refreshToken];
+const cached = new Map<Inbox, { token: string; expires: number }>();
+async function token(inbox: Inbox): Promise<string> {
+  const hit = cached.get(inbox);
+  if (hit && hit.expires > Date.now() + 60_000) return hit.token;
+  const s = await settings(inbox);
+  const refresh = s.refresh;
   if (!refresh) throw new Error("Gmail isn't connected.");
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: s[DRIVE_SETTINGS.clientId] ?? "",
-      client_secret: s[DRIVE_SETTINGS.clientSecret] ?? "",
+      client_id: s.clientId ?? "",
+      client_secret: s.clientSecret ?? "",
       refresh_token: refresh,
       grant_type: "refresh_token",
     }),
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error_description ?? "Google wouldn't refresh the Gmail connection.");
-  cached = { token: body.access_token, expires: Date.now() + body.expires_in * 1000 };
-  return cached.token;
+  cached.set(inbox, { token: body.access_token, expires: Date.now() + body.expires_in * 1000 });
+  return body.access_token;
 }
 
-async function gmail<T>(path: string): Promise<T> {
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { Authorization: `Bearer ${await token()}` } });
+export async function gmail<T>(path: string, inbox: Inbox = "contracts"): Promise<T> {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { Authorization: `Bearer ${await token(inbox)}` } });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error?.message ?? `Gmail answered ${res.status}.`);
   return body as T;

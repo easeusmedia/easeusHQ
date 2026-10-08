@@ -35,7 +35,7 @@ export default async function IntegrationsPage({
 
   // every connection's settings side by side: nothing here waits on anything
   // else, and the Apify accounts are a call out to Apify each
-  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, calendar] = await Promise.all([
+  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, salesGmail, calendar] = await Promise.all([
     driveSettings(),
     frameioSettings(),
     notionSettings(),
@@ -48,6 +48,7 @@ export default async function IntegrationsPage({
     prisma.appSetting.findUnique({ where: { key: AI_ADMIN_KEY } }),
     aiSpend(),
     gmailAccount(),
+    gmailAccount("sales"),
     calendarAccount(),
   ]);
 
@@ -91,6 +92,7 @@ export default async function IntegrationsPage({
       />
 
       <GmailIntegration account={gmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
+      <GmailIntegration inbox="sales" account={salesGmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 
       <CalendarIntegration account={calendar} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 

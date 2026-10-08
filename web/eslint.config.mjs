@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // PDF.js's worker, served as is (npm run pdf-worker)
+    "public/**",
   ]),
 ]);
 

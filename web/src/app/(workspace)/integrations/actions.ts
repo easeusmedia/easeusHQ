@@ -10,7 +10,7 @@ import { NOTION_SETTINGS, databaseIdFrom, databaseTitle, saveNotionSettings } fr
 import { APIFY_SETTINGS } from "@/lib/apify";
 import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
 import { AI_ADMIN_KEY, AI_BUDGET, readCostReport } from "@/lib/ai";
-import { GMAIL_SETTINGS } from "@/lib/gmail";
+import { GMAIL_SETTINGS, SALES_GMAIL_SETTINGS } from "@/lib/gmail";
 import { CALENDAR_SETTINGS } from "@/lib/googleCalendar";
 
 // Connecting the team's Google Drive, from inside the app rather than from
@@ -215,10 +215,11 @@ export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
   return {};
 }
 
-// Drops the Gmail connection contract tracking reads with
-export async function disconnectGmail(): Promise<{ error?: string }> {
+// Drops a Gmail connection: contract tracking's, or the sales inbox's
+export async function disconnectGmail(inbox: "contracts" | "sales" = "contracts"): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
-  await prisma.appSetting.deleteMany({ where: { key: { in: [GMAIL_SETTINGS.refreshToken, GMAIL_SETTINGS.account] } } });
+  const keys = inbox === "sales" ? SALES_GMAIL_SETTINGS : GMAIL_SETTINGS;
+  await prisma.appSetting.deleteMany({ where: { key: { in: [keys.refreshToken, keys.account] } } });
   revalidatePath("/integrations");
   return {};
 }
