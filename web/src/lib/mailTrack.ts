@@ -128,8 +128,10 @@ async function refresh(id: string) {
 
 // ---------- the Sales page's numbers ----------
 
-export type MailTotals = { sent: number; opened: number; opens: number; clicked: number; clicks: number };
-export type MailRow = { id: string; from: string; to: string; subject: string; sentAt: string; opens: number; clicks: number; lastOpenAt: string | null };
+// As Mailsuite counts them: the open rate is emails opened of emails sent,
+// and the click rate emails clicked of the emails that had a link in them
+export type MailTotals = { sent: number; opened: number; opens: number; withLinks: number; clicked: number; clicks: number };
+export type MailRow = { id: string; from: string; to: string; others: string; subject: string; sentAt: string; opens: number; clicks: number; lastOpenAt: string | null };
 
 // Since a moment: the totals, each sending address's (the sales inbox's
 // aliases, one per person), and the latest emails
@@ -137,18 +139,26 @@ export async function mailStats(since: Date, latest = 50) {
   const [aliases, rows] = await Promise.all([
     prisma.$queryRaw<({ from: string } & MailTotals)[]>`
       select "from", count(*)::int sent, count(*) filter (where opens > 0)::int opened, coalesce(sum(opens), 0)::int opens,
+             count(*) filter (where jsonb_array_length(links) > 0)::int "withLinks",
              count(*) filter (where clicks > 0)::int clicked, coalesce(sum(clicks), 0)::int clicks
       from "TrackedMail" where "sentAt" >= ${since} group by "from" order by sent desc`,
     prisma.trackedMail.findMany({
       where: { sentAt: { gte: since } },
-      select: { id: true, from: true, to: true, subject: true, sentAt: true, opens: true, clicks: true, lastOpenAt: true },
+      select: { id: true, from: true, to: true, others: true, subject: true, sentAt: true, opens: true, clicks: true, lastOpenAt: true },
       orderBy: { sentAt: "desc" },
       take: latest,
     }),
   ]);
-  const add = (a: MailTotals, b: MailTotals): MailTotals => ({ sent: a.sent + b.sent, opened: a.opened + b.opened, opens: a.opens + b.opens, clicked: a.clicked + b.clicked, clicks: a.clicks + b.clicks });
+  const add = (a: MailTotals, b: MailTotals): MailTotals => ({
+    sent: a.sent + b.sent,
+    opened: a.opened + b.opened,
+    opens: a.opens + b.opens,
+    withLinks: a.withLinks + b.withLinks,
+    clicked: a.clicked + b.clicked,
+    clicks: a.clicks + b.clicks,
+  });
   return {
-    total: aliases.reduce(add, { sent: 0, opened: 0, opens: 0, clicked: 0, clicks: 0 }),
+    total: aliases.reduce(add, { sent: 0, opened: 0, opens: 0, withLinks: 0, clicked: 0, clicks: 0 }),
     aliases,
     latest: rows.map((r): MailRow => ({ ...r, sentAt: r.sentAt.toISOString(), lastOpenAt: r.lastOpenAt?.toISOString() ?? null })),
   };

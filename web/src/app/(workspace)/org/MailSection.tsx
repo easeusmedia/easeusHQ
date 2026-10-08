@@ -42,7 +42,7 @@ export async function MailSection({ base, range }: { base: string; range?: strin
         <StatTile label="Sent" value={total.sent} Icon={Send} />
         <StatTile label="Open rate" value={pct(total.opened, total.sent)} lit={total.opened > 0} Icon={Percent} />
         <StatTile label="Opens" value={total.opens} Icon={MailOpen} />
-        <StatTile label="Click rate" value={pct(total.clicked, total.sent)} lit={total.clicked > 0} Icon={Target} />
+        <StatTile label="Click rate" value={pct(total.clicked, total.withLinks)} lit={total.clicked > 0} Icon={Target} />
         <StatTile label="Clicks" value={total.clicks} Icon={MousePointerClick} />
       </div>
 
@@ -66,7 +66,7 @@ export async function MailSection({ base, range }: { base: string; range?: strin
                   <td className="px-3 py-2.5 text-right tabular-nums">{a.sent}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{pct(a.opened, a.sent)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{a.opens}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{pct(a.clicked, a.sent)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{pct(a.clicked, a.withLinks)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{a.clicks}</td>
                 </tr>
               ))}
@@ -82,16 +82,22 @@ export async function MailSection({ base, range }: { base: string; range?: strin
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">
                   {m.to}
+                  {m.others && <span className="text-muted"> +{m.others.split(", ").length}</span>}
                   {m.subject && <span className="text-muted"> · {m.subject}</span>}
                 </p>
                 <p className="truncate text-xs text-muted">
-                  {m.from} · {when(m.sentAt)}
+                  {m.from} · Sent {when(m.sentAt)}
                 </p>
               </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${m.opens ? "bg-emerald-400/15 text-emerald-300" : "bg-white/[0.05] text-muted"}`} title={m.lastOpenAt ? `Last opened ${when(m.lastOpenAt)}` : undefined}>
-                {m.opens ? `Opened ${m.opens}×` : "Not opened"}
-              </span>
-              {m.clicks > 0 && <span className="shrink-0 rounded-full bg-accent/15 px-2.5 py-0.5 text-[11px] font-medium tabular-nums text-accent">Clicked {m.clicks}×</span>}
+              <div className="shrink-0 text-right">
+                <div className="flex justify-end gap-1.5">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${m.opens ? "bg-emerald-400/15 text-emerald-300" : "bg-white/[0.05] text-muted"}`}>
+                    {m.opens ? `${m.opens} open${m.opens === 1 ? "" : "s"}` : "Not opened"}
+                  </span>
+                  {m.clicks > 0 && <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[11px] font-medium tabular-nums text-accent">{m.clicks} click{m.clicks === 1 ? "" : "s"}</span>}
+                </div>
+                {m.lastOpenAt && <p className="mt-0.5 text-[11px] text-muted">Last open {when(m.lastOpenAt)}</p>}
+              </div>
             </div>
           ))}
         </div>
