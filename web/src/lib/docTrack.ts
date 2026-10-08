@@ -13,9 +13,9 @@ export const DOC_ID = /^[A-Za-z0-9_-]{12,40}$/;
 export const newDocId = () => randomBytes(12).toString("base64url");
 
 // where the browser sends the file itself, straight to Drive
-export async function docUploadUrl(file: { name: string; size: number }): Promise<string> {
+export async function docUploadUrl(file: { name: string; size: number }, origin: string): Promise<string> {
   const into = await folder("Tracked PDFs", await parentFolderId());
-  return resumableUploadUrl({ name: file.name, type: "application/pdf", size: file.size }, into.id);
+  return resumableUploadUrl({ name: file.name, type: "application/pdf", size: file.size }, into.id, origin);
 }
 
 // A reading starts. One of us (signed in to the app) is kept but not counted.

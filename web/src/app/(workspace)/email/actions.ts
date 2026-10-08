@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getRealViewer } from "@/lib/auth";
 import { seesSalesMail } from "@/lib/scope";
@@ -20,7 +21,9 @@ export async function startPdfUpload(name: string, size: number): Promise<{ id?:
   if (!/\.pdf$/i.test(name)) return { error: "Choose a PDF." };
   if (!(size > 0) || size > MAX_MB * 1024 * 1024) return { error: `A PDF can be up to ${MAX_MB} MB.` };
   try {
-    return { id: newDocId(), url: await docUploadUrl({ name, size }) };
+    const h = await headers();
+    const origin = h.get("origin") ?? `https://${h.get("host")}`;
+    return { id: newDocId(), url: await docUploadUrl({ name, size }, origin) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Google Drive couldn't take the PDF." };
   }

@@ -197,9 +197,12 @@ export async function clientFolder(clientName: string, subfolder: string) {
 // permission (that's why it must be treated as a secret and handed only to
 // the person doing that upload), so the browser talks to Google directly and
 // we only ever see the answers on the form.
+// Google answers the browser's upload (CORS) only for the site named when
+// the upload was started: pass the page's origin.
 export async function resumableUploadUrl(
   file: { name: string; type: string; size: number },
-  folderId: string
+  folderId: string,
+  origin?: string
 ): Promise<string> {
   const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&${SHARED}`, {
     method: "POST",
@@ -208,6 +211,7 @@ export async function resumableUploadUrl(
       "Content-Type": "application/json",
       "X-Upload-Content-Type": file.type || "application/octet-stream",
       "X-Upload-Content-Length": String(file.size),
+      ...(origin ? { Origin: origin } : {}),
     },
     body: JSON.stringify({ name: file.name, parents: [folderId] }),
   });
