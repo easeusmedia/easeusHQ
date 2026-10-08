@@ -253,9 +253,9 @@ function TaskWindow({ item, env, assignees }: { item: HomeItem; env: Env; assign
 // ---------- Home ----------
 
 const VIEWS = [
+  { key: "person", label: "Person" },
   { key: "client", label: "Client" },
   { key: "department", label: "Department" },
-  { key: "person", label: "Person" },
 ];
 type Show = "active" | "today" | "overdue";
 
@@ -294,7 +294,8 @@ export function HomeView({
   const have = useMemo<SectionId[]>(() => (showMine ? ["work", "mine", "calendar", "notices"] : ["work", "calendar", "notices"]), [showMine]);
   const [layout, setLayout] = useState<Layout>(() => ({ ...DEFAULT_LAYOUT, columns: DEFAULT_LAYOUT.columns.map((c) => c.filter((s) => have.includes(s))) }));
   const [dragging, setDragging] = useState<SectionId | null>(null);
-  const [view, setView] = useState("client");
+  // by person, for those who see others' work; a Member's own, by client
+  const [view, setView] = useState(showMine ? "person" : "client");
   const [day, setDay] = useState(monday <= today && today < addDays(monday, 7) ? today : monday);
   const [adding, setAdding] = useState(false);
   const [gone, setGone] = useState<Set<string>>(new Set());
