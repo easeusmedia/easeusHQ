@@ -143,8 +143,12 @@ function Section({
     <section
       ref={drag.mount(id)}
       data-section={id}
-      className={`panel relative flex min-h-0 flex-col rounded-2xl transition-[flex-grow,box-shadow] duration-300 ${
-        collapsed ? "flex-none" : grow ? "lg:flex-[1_1_0]" : "flex-none"
+      // folding changes only its share of the column (the basis stays 0), so it
+      // eases between sizes; switching to a content-sized basis made it jump
+      // taller, then shrink (and drop to nothing before opening). It never goes
+      // below its header.
+      className={`panel relative flex min-h-[51px] flex-col rounded-2xl transition-[flex-grow,box-shadow] duration-300 ease-out ${
+        !grow ? "flex-none" : collapsed ? "lg:flex-[0_1_0]" : "lg:flex-[1_1_0]"
       } ${drag.dragging === id ? "z-20 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : ""}`}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
@@ -167,8 +171,24 @@ function Section({
           <ChevronDown size={15} className={`transition-transform duration-300 ${collapsed ? "-rotate-90" : ""}`} />
         </button>
       </header>
-      {!collapsed && <div className="fade-in min-h-0 flex-1 overflow-y-auto px-4 pb-4 max-lg:max-h-[70vh] sm:px-5">{children}</div>}
+      <div
+        inert={collapsed}
+        className={`grid min-h-0 transition-[grid-template-rows,opacity] duration-300 ease-out ${grow ? "lg:flex-1" : ""} ${collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]"}`}
+      >
+        <div className="min-h-0 overflow-y-auto max-lg:max-h-[70vh]">
+          <div className="px-4 pb-4 sm:px-5">{children}</div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+// Opens and closes by height, smoothly; what's inside stays in place
+function Fold({ open, children }: { open: boolean; children: React.ReactNode }) {
+  return (
+    <div inert={!open} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr] opacity-0"}`}>
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
   );
 }
 
@@ -304,6 +324,9 @@ export function HomeView({
   const [show, setShow] = useState<Show>("active");
   // overdue: all, or only what's been late once, twice, or 3 or more times
   const [times, setTimes] = useState(0);
+  // groups folded in Work in progress, by view and name
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const fold = (k: string) => setFolded((s) => (s.has(k) ? new Set([...s].filter((x) => x !== k)) : new Set(s).add(k)));
   const meetingRef = useRef<{ open: (day: string) => void }>(null);
   const fullRef = useRef<HTMLDialogElement>(null);
 
@@ -503,19 +526,26 @@ export function HomeView({
           {/* each group its own panel, headed by who or what it is */}
           {groups.map((g) => {
             const person = showMine && view === "person" ? g.items[0].person : null;
+            const k = `${view}:${g.name}`;
+            const isOpen = !folded.has(k);
             return (
               <div key={g.name} className="rounded-[1.25rem] bg-white/[0.025] p-2 ring-1 ring-white/[0.06]">
-                <div className="flex items-center gap-2.5 px-2 pt-1.5 pb-3">
+                <button type="button" onClick={() => fold(k)} aria-expanded={isOpen} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left">
                   {person && <Avatar name={person.name} size={28} />}
                   <span className="truncate text-base font-semibold tracking-tight">{g.name}</span>
                   <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs font-medium tabular-nums text-muted">{g.items.length}</span>
-                </div>
+                  <ChevronDown size={15} className={`ml-auto shrink-0 text-muted transition-transform duration-300 ${isOpen ? "" : "-rotate-90"}`} />
+                </button>
                 {/* its work as one list, row under row */}
-                <div className="panel-soft flex flex-col divide-y divide-white/[0.06] overflow-hidden rounded-2xl">
-                  {g.items.map((i) => (
-                    <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} avatar={!person} />
-                  ))}
-                </div>
+                <Fold open={isOpen}>
+                  <div className="pt-1.5">
+                    <div className="panel-soft flex flex-col divide-y divide-white/[0.06] overflow-hidden rounded-2xl">
+                      {g.items.map((i) => (
+                        <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} avatar={!person} />
+                      ))}
+                    </div>
+                  </div>
+                </Fold>
               </div>
             );
           })}
@@ -856,7 +886,7 @@ function NoticesSection({
 
   async function clear(id: string) {
     setLeaving((s) => new Set(s).add(id));
-    setTimeout(() => setGone((s) => new Set(s).add(id)), 200);
+    setTimeout(() => setGone((s) => new Set(s).add(id)), 300);
     const res = await clearNotice(id);
     if (res.error) {
       setError(res.error);
@@ -919,7 +949,7 @@ function NoticesSection({
       {shown.length === 0 ? (
         !writing && <p className="px-1 py-2 text-sm text-muted">All clear.</p>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col">
           {shown.map((n) => {
             const body = (
               <>
@@ -949,21 +979,23 @@ function NoticesSection({
                 )}
               </>
             );
-            const cls = `group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 transition-[opacity,scale] duration-200 ease-out ${n.id && leaving.has(n.id) ? "scale-[0.98] opacity-0" : ""}`;
-            if (n.href)
-              return (
-                <Link key={n.key} href={n.href} className={cls}>
-                  {body}
-                </Link>
-              );
-            return n.open ? (
-              <button key={n.key} type="button" onClick={() => onOpen(n.open!)} className={cls}>
+            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3";
+            const card = n.href ? (
+              <Link href={n.href} className={cls}>
+                {body}
+              </Link>
+            ) : n.open ? (
+              <button type="button" onClick={() => onOpen(n.open!)} className={cls}>
                 {body}
               </button>
             ) : (
-              <div key={n.key} className={cls}>
-                {body}
-              </div>
+              <div className={cls}>{body}</div>
+            );
+            // cleared: it folds away and the ones below move up
+            return (
+              <Fold key={n.key} open={!(n.id && leaving.has(n.id))}>
+                <div className="pb-1.5">{card}</div>
+              </Fold>
             );
           })}
         </div>
