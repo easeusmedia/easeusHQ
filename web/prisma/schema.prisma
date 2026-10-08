@@ -230,6 +230,7 @@ model User {
   hiddenClients     Client[]           @relation("ClientHidden")
   leadsAssigned     Lead[]             @relation("LeadsAssigned")
   leadsCreated      Lead[]             @relation("LeadsCreated")
+  trackedMails      TrackedMail[]
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -1301,4 +1302,50 @@ model SpaceTrash {
   restoredAt DateTime?
 
   @@index([spaceId])
+}
+
+// An email sent from Gmail with the mail tracker on (the Chrome extension in
+// /extension): it carries a 1-pixel image and its links pass through here
+// (lib/mailTrack.ts), so every open and click is counted, like Mailsuite
+model TrackedMail {
+  // made by the extension; it's in the pixel's and the links' addresses
+  id          String      @id
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // the Gmail address it went from, and who it went to (the first is `to`)
+  from        String
+  to          String
+  others      String      @default("")
+  subject     String      @default("")
+  // the links in it, as written, by number
+  links       Json        @default("[]")
+  sentAt      DateTime    @default(now())
+  opens       Int         @default(0)
+  firstOpenAt DateTime?
+  lastOpenAt  DateTime?
+  clicks      Int         @default(0)
+  // when the sender last looked at it themselves (their own view isn't an open)
+  selfAt      DateTime?
+  // the lead it went to, matched by email
+  leadId      String?
+  events      MailEvent[]
+
+  @@index([userId, sentAt])
+  @@index([sentAt])
+  @@index([leadId])
+}
+
+// One open or click of a tracked email
+model MailEvent {
+  id     String      @id @default(uuid())
+  mailId String
+  mail   TrackedMail @relation(fields: [mailId], references: [id], onDelete: Cascade)
+  // open | click
+  kind   String
+  // which link, for a click
+  link   Int?
+  at     DateTime    @default(now())
+
+  @@index([mailId])
+  @@index([at])
 }

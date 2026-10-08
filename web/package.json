@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "extension": "rm -rf .extension-build && mkdir -p '.extension-build/Easeus Mail Tracker' && cp extension/* '.extension-build/Easeus Mail Tracker/' && rm -f public/mail-tracker.zip && cd .extension-build && zip -qrX ../public/mail-tracker.zip 'Easeus Mail Tracker' && cd .. && rm -rf .extension-build"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

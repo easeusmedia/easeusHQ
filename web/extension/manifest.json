@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Easeus Mail Tracker",
+  "version": "1.0.0",
+  "description": "Counts opens and link clicks on the emails you send from Gmail, for Easeus HQ.",
+  "permissions": ["storage", "alarms", "declarativeNetRequest"],
+  "host_permissions": ["https://mail.google.com/*", "https://app.easeus.media/*", "https://dev.easeus.media/*", "http://localhost:3000/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://mail.google.com/*"], "js": ["gmail.js"], "run_at": "document_idle" },
+    {
+      "matches": ["https://app.easeus.media/mail-tracker*", "https://dev.easeus.media/mail-tracker*", "http://localhost:3000/mail-tracker*"],
+      "js": ["connect.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "declarative_net_request": { "rule_resources": [{ "id": "own-pixel", "enabled": true, "path": "rules.json" }] },
+  "icons": { "128": "icon.png" }
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "regexFilter": "^(https://(app|dev)\\.easeus\\.media|http://localhost:3000)/m/o/",
+      "initiatorDomains": ["mail.google.com"],
+      "resourceTypes": ["image"]
+    }
+  }
+]
