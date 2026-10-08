@@ -370,6 +370,7 @@ export function PerformanceView({
   const sent = inboxOn ? p.inbox.sent : p.now.sent;
   const sentBefore = inboxOn ? p.inboxBefore.sent : p.before.sent;
   const label = (d: string) => (p.unit === "month" ? new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { month: "short" }) : day(`${d}T00:00:00+05:30`));
+  const series = slots(p).map((d) => p.byDay.find((x) => x.d === d) ?? { d, sent: 0, received: 0, tracked: 0 });
   const top = by === "domain" ? domains(p.top) : p.top.slice(0, 15);
   return (
     <div className="flex flex-col gap-4">
@@ -405,13 +406,13 @@ export function PerformanceView({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel title={p.unit === "month" ? "Emails sent by month" : "Emails sent by day"}>
-          <Trend points={p.byDay.map((d) => ({ label: label(d.d), value: inboxOn ? d.sent : d.tracked }))} />
+          <Trend points={series.map((d) => ({ label: label(d.d), value: inboxOn ? d.sent : d.tracked }))} />
         </Panel>
         <Panel title="Time until first open">
           <Bars labels={WAIT_BUCKETS} values={p.firstOpen} />
         </Panel>
         <Panel title={p.unit === "month" ? "Emails received by month" : "Emails received by day"}>
-          <Trend points={p.byDay.map((d) => ({ label: label(d.d), value: d.received }))} tone="emerald" />
+          <Trend points={series.map((d) => ({ label: label(d.d), value: d.received }))} tone="emerald" />
         </Panel>
       </div>
 
@@ -480,6 +481,19 @@ export function PerformanceView({
       </Panel>
     </div>
   );
+}
+
+// each day (or month, over a year) of the period, as India's dates
+function slots(p: Performance): string[] {
+  const out: string[] = [];
+  const istDay = (t: number) => new Date(t + 5.5 * 3_600_000).toISOString().slice(0, 10);
+  const end = new Date(p.end).getTime() - 1;
+  for (let t = new Date(p.start).getTime(); t <= end; t += 86_400_000) {
+    const d = istDay(t);
+    const key = p.unit === "month" ? `${d.slice(0, 7)}-01` : d;
+    if (out[out.length - 1] !== key) out.push(key);
+  }
+  return out;
 }
 
 function domains(rows: Performance["top"]) {

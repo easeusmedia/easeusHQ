@@ -6,8 +6,11 @@ import { prisma } from "./prisma";
 // the sales inbox holds (lib/mailSync.ts). Everything can be narrowed to
 // one alias of the sales inbox. Days are India's.
 
-const TZ = "Asia/Kolkata";
 const DAY = 86_400_000;
+// a stored time (UTC, without a zone) as India's wall clock
+const ist = (col: Prisma.Sql) => Prisma.sql`((${col} at time zone 'UTC') at time zone 'Asia/Kolkata')`;
+// whether the sales inbox has been read: if not, the tracker's emails stand in for what was sent
+const noInbox = Prisma.sql`not exists (select 1 from "MailMessage" m0 where m0.outgoing)`;
 
 // one alias, or all of them: tracked emails by their From, inbox messages
 // by From when sent and To when received
@@ -158,19 +161,19 @@ export async function performance(alias: string | null, range: Range) {
     // or the tracker when the inbox isn't connected
     prisma.$queryRaw<{ d: string; sent: number; received: number; tracked: number }[]>`
       select to_char(d, 'YYYY-MM-DD') d, coalesce(sum(sent), 0)::int sent, coalesce(sum(received), 0)::int received, coalesce(sum(tracked), 0)::int tracked from (
-        select date_trunc(${unit}, m.at at time zone ${TZ}) d, (m.outgoing)::int sent, (not m.outgoing)::int received, 0 tracked
+        select date_trunc(${unit}, ${ist(Prisma.sql`m.at`)}) d, (m.outgoing)::int sent, (not m.outgoing)::int received, 0 tracked
         from "MailMessage" m where m.at >= ${start} and m.at < ${end} ${inboxBy(alias)}
         union all
-        select date_trunc(${unit}, t."sentAt" at time zone ${TZ}), 0, 0, 1 from "TrackedMail" t
+        select date_trunc(${unit}, ${ist(Prisma.sql`t."sentAt"`)}), 0, 0, 1 from "TrackedMail" t
         where t."sentAt" >= ${start} and t."sentAt" < ${end} ${trackedBy(alias)}
       ) x group by d order by d`,
     // when emails go out: weekday (0 Sunday) by hour
     prisma.$queryRaw<{ dow: number; h: number; n: number }[]>`
-      select extract(dow from at at time zone ${TZ})::int dow, extract(hour from at at time zone ${TZ})::int h, count(*)::int n from (
+      select extract(dow from ${ist(Prisma.sql`at`)})::int dow, extract(hour from ${ist(Prisma.sql`at`)})::int h, count(*)::int n from (
         select m.at from "MailMessage" m where m.outgoing and m.at >= ${start} and m.at < ${end} ${inboxBy(alias)}
         union all
         select t."sentAt" from "TrackedMail" t where t."sentAt" >= ${start} and t."sentAt" < ${end} ${trackedBy(alias)}
-          and not exists (select 1 from "MailMessage" m2 where m2.outgoing)
+          and ${noInbox}
       ) x group by 1, 2`,
     prisma.$queryRaw<{ b: number; n: number }[]>`
       select ${bucket(Prisma.sql`t."firstOpenAt" - t."sentAt"`)} b, count(*)::int n from "TrackedMail" t
@@ -196,7 +199,7 @@ export async function performance(alias: string | null, range: Range) {
         select case when m.outgoing then m."to" else m."from" end who, (m.outgoing)::int sent, (not m.outgoing)::int received, 0 opens
         from "MailMessage" m where m.at >= ${start} and m.at < ${end} ${inboxBy(alias)}
         union all
-        select t."to", 0, 0, t.opens from "TrackedMail" t where t."sentAt" >= ${start} and t."sentAt" < ${end} ${trackedBy(alias)}
+        select t."to", (${noInbox})::int, 0, t.opens from "TrackedMail" t where t."sentAt" >= ${start} and t."sentAt" < ${end} ${trackedBy(alias)}
       ) x where who <> '' group by who order by sum(sent) + sum(received) desc, sum(opens) desc limit 200`,
   ]);
   return {
