@@ -1,5 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { notionGet, notionPatch, notionPost, taskDatabaseId } from "./notion";
+import { getDate, getTitleText, notionGet, notionPatch, notionPost, taskDatabaseId, type NotionRow } from "./notion";
+import { deleteForGood } from "./taskTrack";
 import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, clearsEditor, editorPeople, exportedLinkFor, sameNotionId, workTaskHome } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
@@ -199,6 +201,9 @@ export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?
     }
     if (!databaseId) return {};
 
+    // matched now: Push skips it until it changes here again
+    const now = new Date();
+    const synced = { notionSyncedAt: now, updatedAt: now };
     const properties =
       home === "workbook"
         ? await workbookProperties(databaseId, t)
@@ -206,7 +211,7 @@ export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?
     if (pageId) {
       try {
         await notionPatch(`/pages/${pageId}`, { properties });
-        if (!t.notionDatabaseId) await prisma.workTask.update({ where: { id: workTaskId }, data: { notionDatabaseId: databaseId } });
+        await prisma.workTask.update({ where: { id: workTaskId }, data: { notionDatabaseId: databaseId, ...synced } });
         return {};
       } catch (err) {
         const message = err instanceof Error ? err.message : "";
@@ -217,11 +222,106 @@ export async function pushWorkTaskToNotion(workTaskId: string): Promise<{ error?
       }
     }
     const page = await notionPost("/pages", { parent: { database_id: databaseId }, properties });
-    await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: page.id, notionDatabaseId: databaseId } });
+    await prisma.workTask.update({ where: { id: workTaskId }, data: { notionPageId: page.id, notionDatabaseId: databaseId, ...synced } });
     return {};
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't reach Notion." };
   }
+}
+
+// A person's Notion workbook, brought down into their to-dos, the same
+// columns as on the way up: the title, the tick (done), Start Date (when it
+// was made) and End Date (its due date). A row new there becomes a to-do; a
+// row edited there takes over its to-do, unless the to-do has changed here
+// since (Push sends that up first); a row deleted there goes here too.
+// Only open rows and rows edited in the past month come down: a workbook
+// holds years of finished work (about 4,000 rows across three in Oct 2026),
+// which would only weigh on every page that lists to-dos.
+export async function pullWorkbook(userId: string): Promise<{ added: number; updated: number; removed: number }> {
+  const none = { added: 0, updated: 0, removed: 0 };
+  const person = await prisma.user.findUnique({ where: { id: userId }, select: { notionWorkbookDbId: true, teamId: true } });
+  const databaseId = person?.notionWorkbookDbId;
+  if (!databaseId) return none;
+
+  const s = await workbookSchema(databaseId);
+  const recent = { timestamp: "last_edited_time", last_edited_time: { past_month: {} } };
+  const filter = s.checkbox ? { or: [{ property: s.checkbox, checkbox: { equals: false } }, recent] } : recent;
+  const rows: NotionRow[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await notionPost(`/databases/${databaseId}/query`, { page_size: 100, filter, ...(cursor ? { start_cursor: cursor } : {}) });
+    rows.push(...page.results);
+    cursor = page.has_more ? page.next_cursor : undefined;
+  } while (cursor);
+
+  const key = (id: string) => id.replace(/-/g, "");
+  const tasks = await prisma.workTask.findMany({
+    where: { assignedToId: userId, notionPageId: { not: null } },
+    select: { id: true, title: true, status: true, dueDate: true, completedAt: true, updatedAt: true, notionSyncedAt: true, notionPageId: true, notionDatabaseId: true },
+  });
+  const byPage = new Map(tasks.map((t) => [key(t.notionPageId!), t]));
+  const now = new Date();
+  const synced = { notionSyncedAt: now, updatedAt: now };
+  const fresh: Prisma.WorkTaskCreateManyInput[] = [];
+  let updated = 0;
+
+  for (const row of rows) {
+    const title = getTitleText(row.properties)?.slice(0, 500);
+    if (!title) continue;
+    const done = !!s.checkbox && row.properties[s.checkbox]?.checkbox === true;
+    const start = s.startDate ? getDate(row.properties, s.startDate) : null;
+    const due = s.endDate ? getDate(row.properties, s.endDate) : null;
+    const finished = due ?? start ?? new Date(row.last_edited_time ?? now);
+    const t = byPage.get(key(row.id));
+    if (!t) {
+      fresh.push({
+        title,
+        status: done ? "done" : "todo",
+        dueDate: due,
+        createdAt: start ?? new Date((row as { created_time?: string }).created_time ?? now),
+        completedAt: done ? finished : null,
+        assignedToId: userId,
+        createdById: userId,
+        teamId: person.teamId,
+        notionPageId: row.id,
+        notionDatabaseId: databaseId,
+        sortOrder: now.getTime(),
+        ...synced,
+      });
+      continue;
+    }
+    // changed here since the last sync: this side wins, and Push sends it
+    if (!t.notionSyncedAt || t.updatedAt.getTime() > t.notionSyncedAt.getTime() + 1000) continue;
+    const data: Prisma.WorkTaskUpdateInput = {};
+    if (t.title !== title) data.title = title;
+    if (done && t.status !== "done") Object.assign(data, { status: "done", completedAt: t.completedAt ?? finished });
+    if (!done && t.status === "done") Object.assign(data, { status: "todo", completedAt: null });
+    if (s.endDate && (t.dueDate?.getTime() ?? null) !== (due?.getTime() ?? null)) data.dueDate = due;
+    if (!Object.keys(data).length) continue;
+    await prisma.workTask.update({ where: { id: t.id }, data: { ...data, ...synced } });
+    updated++;
+  }
+
+  // in this workbook here and missing from what came down: either deleted
+  // there (so it goes here too) or finished long enough ago to be left out,
+  // which only Notion can say, page by page (a few at most)
+  const there = new Set(rows.map((r) => key(r.id)));
+  const monthAgo = now.getTime() - 30 * 86_400_000;
+  let removed = 0;
+  for (const t of tasks) {
+    if (!sameNotionId(t.notionDatabaseId, databaseId) || there.has(key(t.notionPageId!))) continue;
+    if (t.status === "done" && (t.completedAt ?? t.updatedAt).getTime() < monthAgo) continue;
+    const page = await notionGet(`/pages/${t.notionPageId}`).catch((err: Error) => {
+      if (/could not find|not found/i.test(err.message)) return null;
+      throw err;
+    });
+    if (page && !page.archived && !page.in_trash) continue;
+    await deleteForGood({ kind: "work", id: t.id });
+    removed++;
+  }
+
+  if (fresh.length) await prisma.workTask.createMany({ data: fresh });
+  return { added: fresh.length, updated, removed };
 }
 
 type WorkTaskRow = {

@@ -3,8 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { assigneeWhere, canAssign, type Viewer } from "@/lib/scope";
-import { pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
+import { assigneeWhere, canAssign, isFounder, type Viewer } from "@/lib/scope";
+import { pullWorkbook, pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
 import { revalidatePath } from "next/cache";
 import { deleteForGood, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
@@ -141,10 +141,30 @@ async function mirrorIfOperations(userId: string, workTaskId: string) {
   await pushWorkTaskToNotion(workTaskId).catch(() => {});
 }
 
-// Sends every mirrorable work task in view up to Notion — creating the rows
-// that don't exist yet and refreshing the status and links on the ones that
-// do. These tasks are born here, so this is one-directional by nature:
-// there's nothing in Notion to pull back down over the top of them.
+// Brings Notion workbooks down into to-dos (lib/notionPush.ts pullWorkbook):
+// your own, or for Level 1, everyone's
+export async function pullFromNotion(): Promise<{ added: number; updated: number; removed: number; error?: string }> {
+  const total = { added: 0, updated: 0, removed: 0 };
+  const me = await requireRealUser().catch(() => null);
+  if (!me) return { ...total, error: "Your session has ended. Please sign in again." };
+  const people = await prisma.user.findMany({ where: { notionWorkbookDbId: { not: null }, ...(isFounder(me) ? {} : { id: me.id }) }, select: { id: true } });
+  try {
+    for (const r of await Promise.all(people.map((p) => pullWorkbook(p.id)))) {
+      total.added += r.added;
+      total.updated += r.updated;
+      total.removed += r.removed;
+    }
+  } catch (err) {
+    return { ...total, error: err instanceof Error ? err.message : "Couldn't reach Notion." };
+  } finally {
+    revalidatePath("/my-tasks");
+  }
+  return total;
+}
+
+// Sends every mirrorable work task in view that changed since its last sync
+// up to Notion: creating the rows that don't exist yet and refreshing the
+// ones that do
 export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped: number; error?: string }> {
   const me = await requireRealUser().catch(() => null);
   if (!me || me.role === "employee") return { pushed: 0, skipped: 0, error: "Only the operations team can sync." };
@@ -172,6 +192,8 @@ export async function syncWorkTasksToNotion(): Promise<{ pushed: number; skipped
             },
           ],
         },
+        // new, or changed here since it last matched Notion
+        { OR: [{ notionSyncedAt: null }, { updatedAt: { gt: prisma.workTask.fields.notionSyncedAt } }] },
       ],
     },
     select: { id: true },

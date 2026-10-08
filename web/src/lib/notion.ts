@@ -71,6 +71,10 @@ function token(): string {
 }
 
 async function notionFetch(path: string, init?: RequestInit) {
+  // Only the live site changes Notion: dev and this machine hold sample
+  // data, and Notion is the real one. Reading (a query too) works anywhere.
+  if (init?.method && !/\/query$/.test(path) && process.env.VERCEL_ENV !== "production")
+    throw new Error("Notion takes changes from app.easeus.media only, so sample data stays out of it.");
   const res = await fetch(`https://api.notion.com/v1${path}`, {
     ...init,
     headers: {
