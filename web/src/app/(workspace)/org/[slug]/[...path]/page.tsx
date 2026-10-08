@@ -1,4 +1,6 @@
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
+import { syncSalesInboxIfDue } from "@/lib/mailSync";
 import { getViewer } from "@/lib/viewer";
 import { buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../../departments";
@@ -26,6 +28,9 @@ export default async function SpacePage({
   const [{ slug, path }, query] = await Promise.all([params, searchParams]);
   const team = (await visibleDepartments(viewer)).find((d) => d.slug === slug);
   if (!team) notFound();
+  // Sales' boards count opens and replies from the sales inbox: read it
+  // again after this page has gone (at most every 10 minutes)
+  if (slug === "sales") after(() => syncSalesInboxIfDue());
   const nodes = await resolvePath(team.id, path);
   if (!nodes) {
     // an old link through a section that's gone (Sales > Outreach > Podcast): the portal moved up
