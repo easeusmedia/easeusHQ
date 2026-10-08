@@ -10,8 +10,15 @@ import { gmail, gmailAccount } from "./gmail";
 
 const SYNCED = "salesGmail.syncedAt";
 const TRIED = "salesGmail.triedAt";
-const FIRST_DAYS = 30;
-const PER_RUN = 400;
+// the first read goes back to the 1st of last month, so whole months compare
+const firstSince = () => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1) - 5.5 * 3_600_000);
+};
+// Gmail allows each inbox only so many reads a minute (hit at about 400 on
+// 8 Oct 2026), so a run reads fewer, a few at a time, and stops at the first
+// "slow down"; the next run carries on
+const PER_RUN = 200;
 
 type Header = { name: string; value: string };
 type Meta = { id: string; threadId: string; labelIds?: string[]; internalDate: string; payload?: { headers?: Header[] } };
@@ -19,6 +26,9 @@ type Meta = { id: string; threadId: string; labelIds?: string[]; internalDate: s
 // not a person writing: a bounce, an auto-reply, a no-reply sender
 const AUTO_FROM = /mailer-daemon|postmaster|no-?reply|do-?not-?reply|notifications?@/i;
 const AUTO_SUBJECT = /^(automatic reply|auto(matic)?[- ]?reply|out of office|undeliverable|delivery status notification|mail delivery (failed|subsystem))/i;
+// Mailsuite's own notices: not mail anyone sent us (Mailsuite leaves them
+// out of its counts too), and gone once Mailsuite is
+const SKIP_FROM = /@(mailsuite\.com|mailtrack\.io)\b/i;
 const address = (v: string) => (v.match(/[^\s<>"',;]+@[^\s<>"',;]+\.[a-z]{2,}/i)?.[0] ?? "").toLowerCase();
 
 const setting = async (key: string) => (await prisma.appSetting.findUnique({ where: { key } }))?.value ?? null;
@@ -37,13 +47,19 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
   await save(TRIED, startedAt.toISOString());
   const synced = await setting(SYNCED);
   // two days back from the last full run, so nothing that arrived late is missed
-  const since = synced ? new Date(new Date(synced).getTime() - 2 * 86_400_000) : new Date(Date.now() - FIRST_DAYS * 86_400_000);
+  const since = synced ? new Date(new Date(synced).getTime() - 2 * 86_400_000) : firstSince();
 
   const ids: string[] = [];
   let pageToken: string | undefined;
   do {
-    const q = encodeURIComponent(`after:${Math.floor(since.getTime() / 1000)} -in:chats -in:drafts`);
-    const page = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(`messages?maxResults=500&q=${q}${pageToken ? `&pageToken=${pageToken}` : ""}`, "sales");
+    // trash too: the team deletes replies and bounces once dealt with, and
+    // they still count (in Sep 2026, 114 of 132 emails received were in the
+    // trash); spam doesn't
+    const q = encodeURIComponent(`after:${Math.floor(since.getTime() / 1000)} -in:chats -in:drafts -in:spam`);
+    const page = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(
+      `messages?maxResults=500&includeSpamTrash=true&q=${q}${pageToken ? `&pageToken=${pageToken}` : ""}`,
+      "sales"
+    );
     ids.push(...(page.messages ?? []).map((m) => m.id));
     pageToken = page.nextPageToken;
   } while (pageToken && ids.length < 10_000);
@@ -54,10 +70,14 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
   const batch = fresh.slice(0, PER_RUN);
 
   const rows = [];
-  for (let i = 0; i < batch.length; i += 10) {
+  let limited = false;
+  for (let i = 0; i < batch.length && !limited; i += 5) {
     const got = await Promise.all(
-      batch.slice(i, i + 10).map((id) =>
-        gmail<Meta>(`messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject`, "sales").catch(() => null)
+      batch.slice(i, i + 5).map((id) =>
+        gmail<Meta>(`messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject`, "sales").catch((err: Error) => {
+          if (/quota|rate limit/i.test(err.message)) limited = true;
+          return null;
+        })
       )
     );
     for (const m of got) {
@@ -66,6 +86,7 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
       const outgoing = !!m.labelIds?.includes("SENT");
       const from = header("from");
       const subject = header("subject").slice(0, 300);
+      if (SKIP_FROM.test(from)) continue;
       rows.push({
         id: m.id,
         threadId: m.threadId,
@@ -80,8 +101,8 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
   }
   if (rows.length) await prisma.mailMessage.createMany({ data: rows, skipDuplicates: true });
   await link();
-  if (fresh.length <= PER_RUN) await save(SYNCED, startedAt.toISOString());
-  return { read: rows.length, left: Math.max(0, fresh.length - PER_RUN) };
+  if (fresh.length <= PER_RUN && !limited) await save(SYNCED, startedAt.toISOString());
+  return { read: rows.length, left: fresh.length - rows.length };
 }
 
 // Tracked emails to their Gmail conversations, then the replies and bounces

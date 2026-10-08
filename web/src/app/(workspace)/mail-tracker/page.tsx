@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getRealViewer } from "@/lib/auth";
-import { trackerKey } from "@/lib/mailTrack";
+import { TRACKED_INBOXES, trackerKey } from "@/lib/mailTrack";
 import { TrackerStatus } from "./TrackerStatus";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function MailTrackerPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <span hidden data-tracker-key={trackerKey(me.id)} />
+      <span hidden data-tracker-key={trackerKey(me.id)} data-tracker-inboxes={TRACKED_INBOXES.join(",")} />
       <h1 className="text-2xl font-semibold tracking-tight">Mail tracker</h1>
       <TrackerStatus
         tracked={tracked.map((t) => ({ from: t.from, count: t._count, last: t._max.sentAt?.toISOString() ?? null }))}

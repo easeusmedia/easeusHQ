@@ -1,11 +1,12 @@
-// Easeus Mail Tracker, on Gmail. As an email is sent it adds a 1-pixel image
+// Easeus Mail Tracker, on Gmail, in the sales inbox only (the accounts the
+// app names when connecting; anyone's own Gmail is left alone). As an email is sent it adds a 1-pixel image
 // and routes each link through Easeus HQ, then logs the email there. It also
 // tells Easeus HQ when you're looking at an email you sent, so your own look
 // isn't counted as an open. Nothing happens until the tracker is connected
 // from the app's Mail tracker page.
 
 let config = {};
-chrome.storage.local.get(["key", "base"], (c) => (config = c));
+chrome.storage.local.get(["key", "base", "inboxes"], (c) => (config = c));
 chrome.storage.onChanged.addListener((changes) => {
   for (const [k, v] of Object.entries(changes)) config[k] = v.newValue;
 });
@@ -24,8 +25,10 @@ function tell(msg) {
   }
 }
 
-// the signed-in Gmail address ("Inbox - name@gmail.com - Gmail")
+// the signed-in Gmail address ("Inbox - name@gmail.com - Gmail"), and
+// whether it's one the tracker works in
 const account = () => (document.title.match(EMAIL) || [""])[0].toLowerCase();
+const tracking = () => !!config.key && !!config.base && (config.inboxes || []).includes(account());
 
 // the compose window (or reply in a thread) something belongs to: the
 // nearest box holding the message body and its From and Subject (Gmail's
@@ -80,7 +83,7 @@ function recipients(root, body, me) {
 // a wrong address) leaves the box open and logs nothing. Sending the same
 // email again (after Undo send) keeps its id.
 function prepare(root) {
-  if (!root || !config.key || !config.base) return;
+  if (!root || !tracking()) return;
   const body = root.querySelector(BODY);
   if (!body) return;
   const me = ((root.querySelector('input[name="from"]')?.value || "").match(EMAIL)?.[0] || account()).toLowerCase();
@@ -161,7 +164,7 @@ function looked(node) {
   }
 }
 new MutationObserver((records) => {
-  if (!config.key) return;
+  if (!tracking()) return;
   for (const r of records) {
     if (r.type === "attributes") looked(r.target);
     else for (const n of r.addedNodes) if (n.nodeType === 1) looked(n);

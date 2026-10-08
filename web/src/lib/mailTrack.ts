@@ -7,6 +7,10 @@ import { prisma } from "./prisma";
 // a link a click, as with Mailsuite. This file holds each person's key, what
 // gets recorded, and the numbers the Sales page shows.
 
+// The Gmail accounts the extension works in: only the sales inbox, never
+// anyone's own Gmail open in the same browser
+export const TRACKED_INBOXES = ["sales.easeus.media@gmail.com"];
+
 // a tracked email's id, as the extension makes them
 export const MAIL_ID = /^[A-Za-z0-9_-]{12,40}$/;
 
