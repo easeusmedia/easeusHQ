@@ -297,6 +297,15 @@ export async function downloadFile(id: string): Promise<Response> {
   return fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&${SHARED}`, { headers: { Authorization: `Bearer ${await accessToken()}` } });
 }
 
+// Into Drive's trash, where it can be restored for 30 days
+export async function trashFile(id: string): Promise<void> {
+  await fetch(`https://www.googleapis.com/drive/v3/files/${id}?${SHARED}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${await accessToken()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ trashed: true }),
+  });
+}
+
 export async function deleteFile(id: string): Promise<void> {
   await fetch(`https://www.googleapis.com/drive/v3/files/${id}?${SHARED}`, {
     method: "DELETE",

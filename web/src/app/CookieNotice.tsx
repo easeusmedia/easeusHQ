@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { Cookie } from "lucide-react";
 import { readConsent, saveConsent, type Consent } from "@/lib/consent";
@@ -10,6 +11,8 @@ import { readConsent, saveConsent, type Consent } from "@/lib/consent";
 // year. Shown only after mount, so the server never renders it for someone
 // who has already chosen.
 export function CookieNotice() {
+  // not over a tracked PDF someone was sent (/d/...): it sets no cookies of ours
+  const away = usePathname().startsWith("/d/");
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   // the look of the page it sits over (the app or sign-in), followed live
@@ -38,7 +41,7 @@ export function CookieNotice() {
     setTimeout(() => setOpen(false), 300);
   }
 
-  if (!open) return null;
+  if (!open || away) return null;
   return (
     <div data-theme={theme ?? undefined} className="contents">
     <div

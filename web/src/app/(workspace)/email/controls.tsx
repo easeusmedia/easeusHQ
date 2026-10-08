@@ -96,7 +96,7 @@ export function DeletePdf({ id, name }: { id: string; name: string }) {
   const router = useRouter();
   return (
     <ConfirmButton
-      message={`Delete "${name}"? Its link stops working. This can't be undone.`}
+      message={`Delete "${name}"? Its link stops working, and the file goes to Google Drive's trash.`}
       onConfirm={async () => {
         await deletePdf(id);
         router.push("/email?tab=pdfs");

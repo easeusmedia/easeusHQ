@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getRealViewer } from "@/lib/auth";
 import { seesSalesMail } from "@/lib/scope";
-import { deleteFile } from "@/lib/drive";
+import { trashFile } from "@/lib/drive";
 import { DOC_ID, docUploadUrl, newDocId } from "@/lib/docTrack";
 
 const MAX_MB = 25;
@@ -39,13 +39,13 @@ export async function finishPdfUpload(id: string, name: string, size: number, dr
   return {};
 }
 
-// Gone for good, from Drive too; its link stops working
+// Gone from the app, and into Drive's trash; its link stops working
 export async function deletePdf(id: string): Promise<{ error?: string }> {
   if (!(await allowed())) return { error: "Only Sales can delete a PDF." };
   const doc = await prisma.trackedDoc.findUnique({ where: { id }, select: { driveFileId: true } });
   if (!doc) return {};
   await prisma.trackedDoc.delete({ where: { id } });
-  await deleteFile(doc.driveFileId).catch(() => {});
+  await trashFile(doc.driveFileId).catch(() => {});
   revalidatePath("/email");
   return {};
 }
