@@ -504,10 +504,10 @@ export function HomeView({
             const person = showMine && view === "person" ? g.items[0].person : null;
             return (
               <div key={g.name} className="rounded-[1.25rem] bg-white/[0.025] p-2 ring-1 ring-white/[0.06]">
-                <div className="flex items-center gap-2.5 px-2 pt-1 pb-2.5">
-                  {person && <Avatar name={person.name} size={24} />}
-                  <span className="truncate text-sm font-semibold">{g.name}</span>
-                  <span className="rounded-full bg-white/[0.06] px-2 py-px text-[11px] font-medium tabular-nums text-muted">{g.items.length}</span>
+                <div className="flex items-center gap-2.5 px-2 pt-1.5 pb-3">
+                  {person && <Avatar name={person.name} size={28} />}
+                  <span className="truncate text-base font-semibold tracking-tight">{g.name}</span>
+                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs font-medium tabular-nums text-muted">{g.items.length}</span>
                 </div>
                 <div className={wide ? "grid gap-2 md:grid-cols-2 2xl:grid-cols-3" : "flex flex-col gap-2"}>
                   {g.items.map((i) => (
