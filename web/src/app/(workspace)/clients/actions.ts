@@ -477,6 +477,7 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
     // a task's own trail first — nothing else can reference it afterwards
     prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
     prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
+    prisma.notice.deleteMany({ where: { taskId: { in: taskIds } } }),
     prisma.task.deleteMany({ where: { projectId: { in: projectIds } } }),
     // the team's own work only loses the link to this client's projects
     prisma.workTask.updateMany({ where: { projectId: { in: projectIds } }, data: { projectId: null } }),
@@ -997,6 +998,7 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
   await prisma.$transaction([
     prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
     prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
+    prisma.notice.deleteMany({ where: { taskId: { in: taskIds } } }),
     prisma.task.deleteMany({ where: { projectId } }),
     prisma.workTask.updateMany({ where: { projectId }, data: { projectId: null } }),
     prisma.projectAsset.deleteMany({ where: { projectId } }),

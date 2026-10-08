@@ -187,10 +187,11 @@ export async function sweepIfDue(now = new Date()) {
 // A task goes for good: no copy is kept, since deleted work would only pile
 // up in the database (6 Oct 2026; it used to be kept whole with a reason)
 export async function deleteForGood(ref: TaskRef): Promise<void> {
+  // its notices ("... was due and isn't finished") go with it
   if (ref.kind === "task") {
-    await prisma.$transaction([prisma.feedback.deleteMany({ where: { taskId: ref.id } }), prisma.task.deleteMany({ where: { id: ref.id } })]);
+    await prisma.$transaction([prisma.notice.deleteMany({ where: { taskId: ref.id } }), prisma.feedback.deleteMany({ where: { taskId: ref.id } }), prisma.task.deleteMany({ where: { id: ref.id } })]);
   } else {
-    await prisma.workTask.deleteMany({ where: { id: ref.id } });
+    await prisma.$transaction([prisma.notice.deleteMany({ where: { workTaskId: ref.id } }), prisma.workTask.deleteMany({ where: { id: ref.id } })]);
   }
 }
 

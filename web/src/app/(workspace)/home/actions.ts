@@ -43,11 +43,12 @@ export async function addNotice(body: string): Promise<{ error?: string }> {
   return {};
 }
 
-// Clearing a notice: your own, or (Level 1) a note on Home
+// Clearing a notice: your own, or (Level 1) any, so it works in View as too,
+// where a save runs as the real person
 export async function clearNotice(id: string): Promise<{ error?: string }> {
   const me = await getViewer();
   if (!me) return { error: "Your session has ended. Please sign in again." };
-  await prisma.notice.deleteMany({ where: { id, OR: [{ forId: me.id }, ...(isFounder(me) ? [{ forId: null }] : [])] } });
+  await prisma.notice.deleteMany({ where: isFounder(me) ? { id } : { id, forId: me.id } });
   revalidatePath("/home");
   return {};
 }
