@@ -63,21 +63,15 @@ async function leadFor(address: string): Promise<string | null> {
   return rows[0]?.id ?? null;
 }
 
-// How long the sender's own look at their email covers: Gmail fetches the
-// image through Google's proxy either way, so an open this close to the
-// extension saying "that was me" is theirs
-const SELF_MS = 30_000;
-
 // The image loaded. Not an open: a load straight from Gmail's page (the
 // sender's compose window; a recipient's Gmail goes through Google's proxy),
-// the sender's own look, or a repeat within 10 seconds (one view, fetched twice).
+// or a repeat within 10 seconds (one view, fetched twice). The sender's own
+// looks are set aside when counting (refresh).
 export async function recordOpen(id: string, fromGmailPage: boolean, agent: string | null) {
   if (fromGmailPage || !MAIL_ID.test(id)) return;
-  const mail = await prisma.trackedMail.findUnique({ where: { id }, select: { selfAt: true, lastOpenAt: true } });
+  const mail = await prisma.trackedMail.findUnique({ where: { id }, select: { lastOpenAt: true } });
   if (!mail) return;
-  const now = Date.now();
-  if (mail.selfAt && now - mail.selfAt.getTime() < SELF_MS) return;
-  if (mail.lastOpenAt && now - mail.lastOpenAt.getTime() < 10_000) return;
+  if (mail.lastOpenAt && Date.now() - mail.lastOpenAt.getTime() < 10_000) return;
   await prisma.mailEvent.create({ data: { mailId: id, kind: "open", agent: agent?.slice(0, 200) } });
   await refresh(id);
 }
@@ -97,26 +91,33 @@ export async function recordClick(id: string, n: number, staff: boolean, agent: 
 }
 
 // One of us looked at a sent email (the extension saw it on their screen;
-// the sales inbox is shared, so anyone on the team): opens in the last half
-// minute were ours.
+// the sales inbox is shared, so anyone on the team). Kept as its own event:
+// an open within half a minute of it, before or after (the two race), was ours.
 export async function recordSelfView(id: string) {
   if (!MAIL_ID.test(id)) return;
   const mail = await prisma.trackedMail.findUnique({ where: { id }, select: { id: true } });
   if (!mail) return;
-  await prisma.$transaction([
-    prisma.mailEvent.deleteMany({ where: { mailId: id, kind: "open", at: { gte: new Date(Date.now() - SELF_MS) } } }),
-    prisma.trackedMail.update({ where: { id }, data: { selfAt: new Date() } }),
-  ]);
+  await prisma.$transaction([prisma.mailEvent.create({ data: { mailId: id, kind: "self" } }), prisma.trackedMail.update({ where: { id }, data: { selfAt: new Date() } })]);
   await refresh(id);
 }
 
-// its counts from its events, and the board's number for its lead
+// its counts from its events (every one is kept; what counts is decided
+// here), and the board's number for its lead
 async function refresh(id: string) {
-  const kinds = await prisma.mailEvent.groupBy({ by: ["kind"], where: { mailId: id }, _count: true, _min: { at: true }, _max: { at: true } });
-  const open = kinds.find((k) => k.kind === "open");
+  const [c] = await prisma.$queryRaw<{ opens: number; first: Date | null; last: Date | null; clicks: number }[]>`
+    with counted as (
+      select e.kind, e.at from "MailEvent" e
+      where e."mailId" = ${id} and e.kind in ('open', 'click')
+        and not (e.kind = 'open' and exists (
+          select 1 from "MailEvent" s where s."mailId" = e."mailId" and s.kind = 'self'
+            and s.at between e.at - interval '30 seconds' and e.at + interval '30 seconds'))
+    )
+    select count(*) filter (where kind = 'open')::int opens, min(at) filter (where kind = 'open') first,
+           max(at) filter (where kind = 'open') last, count(*) filter (where kind = 'click')::int clicks
+    from counted`;
   const mail = await prisma.trackedMail.update({
     where: { id },
-    data: { opens: open?._count ?? 0, firstOpenAt: open?._min.at ?? null, lastOpenAt: open?._max.at ?? null, clicks: kinds.find((k) => k.kind === "click")?._count ?? 0 },
+    data: { opens: c?.opens ?? 0, firstOpenAt: c?.first ?? null, lastOpenAt: c?.last ?? null, clicks: c?.clicks ?? 0 },
     select: { leadId: true },
   });
   // a lead's opens are its first email's (the board shows them on Day 1)

@@ -1340,7 +1340,7 @@ model MailEvent {
   id     String      @id @default(uuid())
   mailId String
   mail   TrackedMail @relation(fields: [mailId], references: [id], onDelete: Cascade)
-  // open | click
+  // open | click | self (one of us looking at it: opens next to it aren't counted)
   kind   String
   // which link, for a click
   link   Int?

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Easeus Mail Tracker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Counts opens and link clicks on the emails you send from Gmail, for Easeus HQ.",
   "permissions": ["storage", "alarms", "declarativeNetRequest"],
   "host_permissions": ["https://mail.google.com/*", "https://app.easeus.media/*", "https://dev.easeus.media/*", "http://localhost:3000/*"],
