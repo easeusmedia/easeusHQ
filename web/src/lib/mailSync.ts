@@ -55,7 +55,7 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
     // trash too: the team deletes replies and bounces once dealt with, and
     // they still count (in Sep 2026, 114 of 132 emails received were in the
     // trash); spam doesn't
-    const q = encodeURIComponent(`after:${Math.floor(since.getTime() / 1000)} -in:chats -in:drafts -in:spam`);
+    const q = encodeURIComponent(`after:${Math.floor(since.getTime() / 1000)} -in:chats -in:drafts -in:spam -from:mailsuite.com -from:mailtrack.io`);
     const page = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(
       `messages?maxResults=500&includeSpamTrash=true&q=${q}${pageToken ? `&pageToken=${pageToken}` : ""}`,
       "sales"
