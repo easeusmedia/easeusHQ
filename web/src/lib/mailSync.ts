@@ -112,11 +112,14 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
 // in them, then the board's "Replied" for their leads. `readTo` is how far
 // the inbox has been read in full.
 async function link(readTo: Date | null) {
-  // the sent message to one of its recipients closest in time, within 10 minutes
+  // the sent message with its subject to one of its recipients, closest in
+  // time within 10 minutes (the subject too: a discarded draft to the same
+  // person took the thread of the email sent a minute later, 8 Oct 2026)
   await prisma.$executeRaw`
     update "TrackedMail" t set "threadId" = (
       select m."threadId" from "MailMessage" m
       where m.outgoing and (m."to" = t."to" or position(m."to" in t.others) > 0)
+        and lower(btrim(m.subject)) = lower(btrim(left(t.subject, 300)))
         and m.at between t."sentAt" - interval '10 minutes' and t."sentAt" + interval '10 minutes'
       order by abs(extract(epoch from m.at - t."sentAt")) limit 1)
     where t."threadId" is null and t."sentAt" > now() - interval '45 days'`;
@@ -147,6 +150,8 @@ async function link(readTo: Date | null) {
       "repliedAt" = case when f.bounce then x."repliedAt" else coalesce(least(x."repliedAt", f.at), f.at) end,
       "bouncedAt" = case when f.bounce then coalesce(x."bouncedAt", f.at) else x."bouncedAt" end
     from firsts f where f.id = x.id`;
+  // an email that bounced counts no opens (refresh): its counts again
+  for (const t of await prisma.trackedMail.findMany({ where: { bouncedAt: { not: null }, opens: { gt: 0 } }, select: { id: true } })) await refresh(t.id);
   await leads();
 }
 

@@ -118,9 +118,11 @@ const SCANNER = "(Edge/12\\.246|bot|crawl|spider|scan|preview|python|wget|curl)"
 // for its lead
 export async function refresh(id: string) {
   // every click counts; an open counts unless a scanner's, within 20 seconds
-  // of sending, or next to one of our own looks
+  // of sending, next to one of our own looks, or on an email that bounced
+  // (a bounce notice carries the email, image and all, and whoever reads it
+  // in the sales inbox loads it: seen 8 Oct 2026)
   await prisma.$executeRaw`
-    update "MailEvent" e set counted = e.kind = 'click' or (e.kind = 'open' and not (
+    update "MailEvent" e set counted = e.kind = 'click' or (e.kind = 'open' and m."bouncedAt" is null and not (
         e.at < m."sentAt" + interval '20 seconds'
         or coalesce(e.agent, '') ~* ${SCANNER}
         or exists (
