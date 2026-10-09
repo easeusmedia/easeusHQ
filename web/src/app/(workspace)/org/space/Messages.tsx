@@ -7,6 +7,7 @@ import { dayOf, defaultMessage, fillParts, fillText, leadVars, LINKEDIN_LIMIT, M
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
+import { SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE } from "./values";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -242,74 +243,75 @@ export function Messages({
     );
   };
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 px-1">
+    <section className={SECTION}>
+      <div className={SECTION_HEAD}>
         <MessagesSquare size={14} className="shrink-0 text-muted" />
-        <h3 className="text-xs font-medium text-muted">Messages</h3>
+        <h3 className={SECTION_TITLE}>Messages</h3>
         <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} ml-auto shrink-0`}>
           <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
         </button>
       </div>
+      <div className={`${SECTION_BODY} flex flex-col gap-3`}>
+        {error && (
+          <p role="alert" className="fade-in px-1 text-xs text-red-300">
+            {error}
+          </p>
+        )}
 
-      {error && (
-        <p role="alert" className="fade-in px-1 text-xs text-red-300">
-          {error}
-        </p>
-      )}
-
-      {/* the words that change per lead: typed once, in every message that uses them */}
-      {used.length > 0 && (
-        <div className={`${BLOCK} p-3`}>
-          <div className="mb-2 flex items-center gap-2 px-1 text-xs">
-            <Braces size={13} className="shrink-0 text-muted" />
-            <span className="font-medium text-foreground/90">Fill in once</span>
-            <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+        {/* the words that change per lead: typed once, in every message that uses them */}
+        {used.length > 0 && (
+          <div className={`${BLOCK} p-3`}>
+            <div className="mb-2 flex items-center gap-2 px-1 text-xs">
+              <Braces size={13} className="shrink-0 text-muted" />
+              <span className="font-medium text-foreground/90">Fill in once</span>
+              <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+            </div>
+            <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+              {used.map((name) => (
+                <label key={name} className="flex min-w-0 flex-col gap-1">
+                  <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
+                  <input
+                    value={typed[name] ?? lead.vars[name] ?? ""}
+                    onChange={(e) => setTyped((t) => ({ ...t, [name]: e.target.value }))}
+                    onBlur={(e) => saveVar(name, e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                    placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
+                    className={INPUT}
+                  />
+                </label>
+              ))}
+            </div>
           </div>
-          <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
-            {used.map((name) => (
-              <label key={name} className="flex min-w-0 flex-col gap-1">
-                <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
-                <input
-                  value={typed[name] ?? lead.vars[name] ?? ""}
-                  onChange={(e) => setTyped((t) => ({ ...t, [name]: e.target.value }))}
-                  onBlur={(e) => saveVar(name, e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                  placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                  className={INPUT}
-                />
-              </label>
+        )}
+
+        {/* day by day, as the history reads: each day already done folded
+            to one line (opens and replies at a glance) that opens to what
+            was sent, then today and the next. A day with more than one message offers them first, and the
+            one picked opens (kept for the lead); a day it has reached takes
+            its reply */}
+        {phases.length > 0 && (
+          // inset a little, so the nodes' glow has room inside the window's scroll box
+          <ol className="flex flex-col pl-1.5">
+            {done.map((p, i) => (
+              <li key={p.key}>{step(p, done[i + 1] ?? ahead[0], false)}</li>
             ))}
+            {ahead.map((p, i) => (
+              <li key={p.key}>{step(p, ahead[i + 1], i === ahead.length - 1)}</li>
+            ))}
+          </ol>
+        )}
+
+        {orphans.length > 0 && (
+          <div className={BLOCK}>
+            <p className="px-3 pt-2.5 pb-1 text-xs font-medium text-foreground/90">Sent from templates since deleted</p>
+            <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
+              {orphans.map((x) => (
+                <SentRow key={x.id} sent={x} />
+              ))}
+            </ul>
           </div>
-        </div>
-      )}
-
-      {/* day by day, as the history reads: each day already done folded
-          to one line (opens and replies at a glance) that opens to what
-          was sent, then today and the next. A day with more than one message offers them first, and the
-          one picked opens (kept for the lead); a day it has reached takes
-          its reply */}
-      {phases.length > 0 && (
-        // inset a little, so the nodes' glow has room inside the window's scroll box
-        <ol className="flex flex-col pl-1.5">
-          {done.map((p, i) => (
-            <li key={p.key}>{step(p, done[i + 1] ?? ahead[0], false)}</li>
-          ))}
-          {ahead.map((p, i) => (
-            <li key={p.key}>{step(p, ahead[i + 1], i === ahead.length - 1)}</li>
-          ))}
-        </ol>
-      )}
-
-      {orphans.length > 0 && (
-        <div className={BLOCK}>
-          <p className="px-3 pt-2.5 pb-1 text-xs font-medium text-foreground/90">Sent from templates since deleted</p>
-          <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
-            {orphans.map((x) => (
-              <SentRow key={x.id} sent={x} />
-            ))}
-          </ul>
-        </div>
-      )}
+        )}
+      </div>
 
       <MessageLibrary open={library} onClose={() => setLibrary(false)} board={board} sentIds={sentIds} highlight={shown.map((m) => m.id)} render={(m) => card(m)} />
     </section>

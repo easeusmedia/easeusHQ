@@ -103,6 +103,13 @@ export const CELL = "flex min-h-8 w-full min-w-0 flex-wrap items-center gap-1 ro
 const ICON_BTN = "flex size-6 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground";
 const Empty = () => <span className="text-sm text-muted/50">Empty</span>;
 
+// A block of the lead's page (Details, Contacts, Messages): a hairline edge,
+// its heading on a bar, and a line between the heading and what's in it
+export const SECTION = "rounded-xl border border-white/[0.07] bg-foreground/[0.025]";
+export const SECTION_HEAD = "flex min-h-11 items-center gap-2 px-3.5 py-2 text-xs";
+export const SECTION_TITLE = "text-[13px] font-medium text-foreground/90";
+export const SECTION_BODY = "border-t border-white/[0.06] p-3";
+
 function AddChip({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="chip flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px]">

@@ -8,7 +8,7 @@ import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
-import { CheckboxEditor, ContactsEditor, ContactsView, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, ValueRead, dateOf } from "./values";
+import { CheckboxEditor, ContactsEditor, ContactsView, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, ValueRead, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
@@ -459,7 +459,7 @@ function Row({ icon: Icon, label, children }: { icon: LucideIcon; label: React.R
 }
 
 // A block of the lead: its name, a one-line summary, and Edit (Done while
-// editing). The same soft fill as a task's links block.
+// editing), on a bar above what's in it
 function Section({
   icon: Icon,
   title,
@@ -476,17 +476,17 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl bg-foreground/[0.03]">
-      <div className="flex items-center gap-2 px-3 py-2 text-xs">
+    <section className={SECTION}>
+      <div className={SECTION_HEAD}>
         <Icon size={14} className="shrink-0 text-muted" />
-        <span className="font-medium text-foreground/90">{title}</span>
+        <h3 className={SECTION_TITLE}>{title}</h3>
         <span className="ml-auto min-w-0 truncate text-muted">{summary}</span>
         <button type="button" onClick={onEdit} aria-pressed={editing} className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-muted transition-colors hover:bg-hover hover:text-foreground">
           {editing ? <Check size={12} /> : <Pencil size={12} />}
           {editing ? "Done" : "Edit"}
         </button>
       </div>
-      {children && <div className="px-3 pb-3">{children}</div>}
+      {children && <div className={SECTION_BODY}>{children}</div>}
     </section>
   );
 }
