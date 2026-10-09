@@ -548,8 +548,9 @@ export function LeadBoard({
   // so stages scrolled sideways fade out softly in the margin rather than
   // being cut off in mid air; the room above keeps a card's focus ring and
   // hover lift whole. (Menus open in the top layer, so the fade never
-  // touches them.)
-  const row = (at: number[], end: boolean) => (
+  // touches them.) In a section's card it stays inside the card, fading at
+  // the card's own edges.
+  const row = (at: number[], end: boolean, inCard: boolean) => (
     <div
       onDragOver={(e) => {
         if (!drag && !dragStage) return;
@@ -559,7 +560,11 @@ export function LeadBoard({
         else if (e.clientX > r.right - 80) e.currentTarget.scrollLeft += 18;
         scrollPageNearEdge(e);
       }}
-      className="overflow-x-auto px-(--page-pad) pt-1.5 pb-4 [mask-image:linear-gradient(to_right,transparent,#000_var(--page-pad),#000_calc(100%_-_var(--page-pad)),transparent)]"
+      className={
+        inCard
+          ? "overflow-x-auto px-4 pt-3 pb-4 [mask-image:linear-gradient(to_right,transparent,#000_1rem,#000_calc(100%_-_1rem),transparent)]"
+          : "overflow-x-auto px-(--page-pad) pt-1.5 pb-4 [mask-image:linear-gradient(to_right,transparent,#000_var(--page-pad),#000_calc(100%_-_var(--page-pad)),transparent)]"
+      }
     >
       <div className="flex w-max items-start gap-3">
         {at.map((i) => {
@@ -606,30 +611,32 @@ export function LeadBoard({
 
   return (
     <>
-      <div className="flex flex-col gap-3">
-        {groups.map((g) => {
-          const open = isOpen(g.key);
-          return (
-            <div key={g.key ?? "all"}>
-              {/* a section's name and how many leads it holds; a tap folds it */}
-              {g.key && (
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() => setFolded((f) => flip(f, g.key as Section))}
-                  className="mb-1 flex items-center gap-1.5 rounded-lg py-1 pr-2 text-sm font-medium text-foreground"
-                >
-                  <ChevronDown size={15} className={`text-muted transition-transform duration-300 ${open ? "" : "-rotate-90"}`} />
-                  {SECTIONS[g.key]}
-                  <span className="text-muted tabular-nums">{g.at.reduce((n, i) => n + (counts.get(stages[i].id)?.length ?? 0), 0)}</span>
-                </button>
-              )}
-              <div className="-mx-(--page-pad) -mt-1.5">
-                <Reveal open={open}>{row(g.at, g === last)}</Reveal>
-              </div>
+      <div className="flex flex-col gap-4">
+        {groups.map((g) =>
+          g.key ? (
+            // a section: its own card, its name and how many leads it holds
+            // on a bar (a tap folds it), a line, then its row of stages
+            <section key={g.key} aria-label={SECTIONS[g.key]} className="min-w-0 rounded-2xl border border-white/[0.07] bg-foreground/[0.02]">
+              <button
+                type="button"
+                aria-expanded={isOpen(g.key)}
+                onClick={() => setFolded((f) => flip(f, g.key as Section))}
+                className="flex w-full items-center gap-2 rounded-2xl px-4 py-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-white/[0.02]"
+              >
+                <ChevronDown size={15} className={`shrink-0 text-muted transition-transform duration-300 ${isOpen(g.key) ? "" : "-rotate-90"}`} />
+                {SECTIONS[g.key]}
+                <span className="rounded-full bg-white/[0.06] px-2 py-px text-xs font-normal text-muted tabular-nums">{g.at.reduce((n, i) => n + (counts.get(stages[i].id)?.length ?? 0), 0)}</span>
+              </button>
+              <Reveal open={isOpen(g.key)}>
+                <div className="border-t border-white/[0.06]">{row(g.at, g === last, true)}</div>
+              </Reveal>
+            </section>
+          ) : (
+            <div key="all" className="-mx-(--page-pad) -mt-1.5">
+              {row(g.at, g === last, false)}
             </div>
-          );
-        })}
+          ),
+        )}
       </div>
 
       <ReasonDialog
