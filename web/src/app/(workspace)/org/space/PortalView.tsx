@@ -228,41 +228,44 @@ export function PortalView({
         </div>
       )}
 
-      {/* reaching out, in numbers: on every platform, or one; and whether
-          this browser's mail tracker is counting the email opens */}
+      {/* reaching out, in numbers: one panel, its platform tabs on top and
+          the three numbers under them for whichever is picked (all, or one);
+          and whether this browser's mail tracker is counting email opens */}
       {stats && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className={SEG_ROW}>
-            {(["all", ...PLATFORMS] as const).map((p) => (
-              <button key={p} type="button" aria-pressed={prefs.platform === p} onClick={() => savePrefs({ platform: p })} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
-                {PLATFORM_ICON[p]} {p === "all" ? "All" : PLATFORM_NAME[p]}
-              </button>
-            ))}
+        <section className="panel overflow-hidden rounded-2xl">
+          <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] p-2.5">
+            <div className={SEG_ROW}>
+              {(["all", ...PLATFORMS] as const).map((p) => (
+                <button key={p} type="button" aria-pressed={prefs.platform === p} onClick={() => savePrefs({ platform: p })} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+                  {PLATFORM_ICON[p]} {p === "all" ? "All" : PLATFORM_NAME[p]}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto">
+              <TrackerChip />
+            </div>
           </div>
-          <div className="ml-auto">
-            <TrackerChip />
+          <div className="grid grid-cols-1 divide-y divide-white/[0.06] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <StatTile bare label="Reached out" value={stats.reached} Icon={Send} />
+            <StatTile
+              bare
+              label="Open rate"
+              value={`${stats.openRate}%`}
+              lit={stats.opened > 0}
+              Icon={MailOpen}
+              note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} {prefs.platform === "instagram" || prefs.platform === "linkedin" ? "seen" : "opened"}</p>}
+            />
+            <StatTile
+              bare
+              label="Reply rate"
+              value={`${stats.replyRate}%`}
+              lit={stats.replied > 0}
+              tone="emerald"
+              Icon={Reply}
+              note={stats.reached > 0 && <p className="text-xs text-muted">{stats.replied} {stats.replied === 1 ? "reply" : "replies"}</p>}
+            />
           </div>
-        </div>
-      )}
-      {stats && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatTile label="Reached out" value={stats.reached} Icon={Send} />
-          <StatTile
-            label="Open rate"
-            value={`${stats.openRate}%`}
-            lit={stats.opened > 0}
-            Icon={MailOpen}
-            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} {prefs.platform === "instagram" || prefs.platform === "linkedin" ? "seen" : "opened"}</p>}
-          />
-          <StatTile
-            label="Reply rate"
-            value={`${stats.replyRate}%`}
-            lit={stats.replied > 0}
-            tone="emerald"
-            Icon={Reply}
-            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.replied} {stats.replied === 1 ? "reply" : "replies"}</p>}
-          />
-        </div>
+        </section>
       )}
 
       {/* how to see it, and what */}

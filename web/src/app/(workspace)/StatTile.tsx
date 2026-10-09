@@ -10,6 +10,7 @@ export function StatTile({
   lit = typeof value === "number" ? value > 0 : true,
   tone = "accent",
   note,
+  bare = false,
 }: {
   label: string;
   value: number | string;
@@ -18,10 +19,12 @@ export function StatTile({
   tone?: "accent" | "emerald";
   // a line under the label — a change on the period before, say
   note?: React.ReactNode;
+  // one of a row inside a shared panel: no card of its own
+  bare?: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden panel rounded-2xl px-5 py-4">
-      {lit && <div className={`glass-glow ${tone === "emerald" ? "emerald" : ""}`} />}
+    <div className={`relative px-5 py-4 ${bare ? "" : "overflow-hidden panel rounded-2xl"}`}>
+      {lit && !bare && <div className={`glass-glow ${tone === "emerald" ? "emerald" : ""}`} />}
       <span
         className={`absolute right-4 top-4 flex size-7 items-center justify-center rounded-lg ${
           !lit ? "badge" : tone === "emerald" ? "badge-lit emerald" : "badge-lit"
