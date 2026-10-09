@@ -191,7 +191,12 @@ export function ClientInfo({
 
   async function confirmDelete() {
     setDeleting(true);
-    await deleteClient(clientId);
+    const res = await deleteClient(clientId).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+    // refused or failed: say so, and stay here
+    if (res.error) {
+      setDeleting(false);
+      return setError(res.error);
+    }
     router.push("/clients");
   }
 
@@ -279,18 +284,20 @@ export function ClientInfo({
           {/* what "everything" actually means, counted from their record */}
           {footprint && (
             <ul className="fade-in mt-3 flex flex-col gap-1 rounded-lg border border-border bg-surface-2 p-3 text-xs text-muted">
-              {[
-                ["projects", footprint.projects],
-                ["tasks, delivered work included", footprint.tasks],
-                ["documents", footprint.documents],
-                ["deliverables", footprint.deliverables],
-                ["invoices", footprint.invoices],
-                ["messages from them", footprint.feedback],
-              ]
-                .filter(([, n]) => (n as number) > 0)
-                .map(([label, n]) => (
-                  <li key={label as string}>
-                    <strong className="text-foreground">{n as number}</strong> {label as string}
+              {(
+                [
+                  ["project", "projects", footprint.projects],
+                  ["task, delivered work included", "tasks, delivered work included", footprint.tasks],
+                  ["document", "documents", footprint.documents],
+                  ["deliverable", "deliverables", footprint.deliverables],
+                  ["invoice", "invoices", footprint.invoices],
+                  ["message from them", "messages from them", footprint.feedback],
+                ] as const
+              )
+                .filter(([, , n]) => n > 0)
+                .map(([one, many, n]) => (
+                  <li key={many}>
+                    <strong className="text-foreground">{n}</strong> {n === 1 ? one : many}
                   </li>
                 ))}
               {Object.values(footprint).every((n) => n === 0) && <li>Nothing else is connected to them.</li>}

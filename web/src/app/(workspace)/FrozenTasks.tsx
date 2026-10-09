@@ -133,9 +133,15 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
           {error}
         </p>
       )}
-      <button type="button" onClick={save} disabled={busy || !day || !reason.trim()} className="btn btn-sm btn-glow self-end disabled:opacity-50">
-        {busy ? "Saving…" : "Save"}
-      </button>
+      <div className="flex justify-end gap-2">
+        {/* not now: the task stays frozen until a date is in */}
+        <button type="button" onClick={onDone} className="btn btn-sm btn-ghost">
+          Cancel
+        </button>
+        <button type="button" onClick={save} disabled={busy || !day || !reason.trim()} className="btn btn-sm btn-glow disabled:opacity-50">
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
     </div>
   );
 }

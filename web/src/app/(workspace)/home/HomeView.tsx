@@ -458,7 +458,8 @@ export function HomeView({
 
   async function tick(item: HomeItem) {
     setGone((g) => new Set(g).add(item.key));
-    const res = item.source === "work" ? await moveWorkTask(item.id, "done", item.todo?.sortOrder ?? 0) : await moveTask(item.id, "delivered_and_uploaded");
+    // failed outright (offline) as well as refused: it comes back
+    const res = await (item.source === "work" ? moveWorkTask(item.id, "done", item.todo?.sortOrder ?? 0) : moveTask(item.id, "delivered_and_uploaded")).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     if (res.error) setGone((g) => new Set([...g].filter((k) => k !== item.key)));
     router.refresh();
   }
@@ -887,7 +888,7 @@ function NoticesSection({
   async function clear(id: string) {
     setLeaving((s) => new Set(s).add(id));
     setTimeout(() => setGone((s) => new Set(s).add(id)), 300);
-    const res = await clearNotice(id);
+    const res = await clearNotice(id).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     if (res.error) {
       setError(res.error);
       setGone((s) => new Set([...s].filter((x) => x !== id)));

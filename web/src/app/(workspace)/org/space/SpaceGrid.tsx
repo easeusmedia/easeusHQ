@@ -43,8 +43,9 @@ export function SpaceTitle({ id, name }: { id: string; name: string }) {
 }
 
 // A department's own title, renamed the same way
-export function DepartmentTitle({ id, name }: { id: string; name: string }) {
+export function DepartmentTitle({ id, name, canRename }: { id: string; name: string; canRename: boolean }) {
   const router = useRouter();
+  if (!canRename) return <h1 className="min-w-0 text-2xl font-semibold tracking-tight">{name}</h1>;
   return (
     <h1 className="min-w-0 text-2xl font-semibold tracking-tight">
       <EditableName

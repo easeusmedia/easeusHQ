@@ -166,9 +166,13 @@ export default async function AnalyticsPage({
   const host = (await headers()).get("host");
   const origin = host ? `${host.startsWith("localhost") ? "http" : "https"}://${host}` : undefined;
   let syncing = running > 0;
+  // "Refreshing…" only for a read that really started: one that couldn't start
+  // used to leave the page saying so, reloading every 8 seconds, for good
   if (missing.length && !syncing) {
-    await startSync({ clientIds: [...new Set(missing.map((t) => t.clientId))], since: prev.from, origin }).catch(() => {});
-    syncing = true;
+    syncing = await startSync({ clientIds: [...new Set(missing.map((t) => t.clientId))], since: prev.from, origin }).then(
+      (r) => r.started > 0,
+      () => false
+    );
   }
   // older than a few hours: a light background read of the recent posts
   if (!syncing && (await freshen({ platform, origin }).catch(() => ({ started: 0 }))).started > 0) syncing = true;

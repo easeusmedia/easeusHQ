@@ -226,7 +226,8 @@ export function TodoList({
     // a beat to see it ticked
     await new Promise((r) => setTimeout(r, 450));
     setGone((g) => new Set(g).add(item.key));
-    const res = item.todo ? await moveWorkTask(item.id, "done", item.todo.sortOrder) : await moveTask(item.id, "delivered_and_uploaded");
+    // a request that fails outright (offline) puts it back too, not just a refusal
+    const res = await (item.todo ? moveWorkTask(item.id, "done", item.todo.sortOrder) : moveTask(item.id, "delivered_and_uploaded")).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     setTicking((t) => {
       const next = new Set(t);
       next.delete(item.key);
@@ -254,7 +255,7 @@ export function TodoList({
   async function remove(item: Item) {
     setError(null);
     setGone((g) => new Set(g).add(item.key));
-    const res = item.todo ? await deleteWorkTask(item.id) : await deleteTask(item.id);
+    const res = await (item.todo ? deleteWorkTask(item.id) : deleteTask(item.id)).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     if (res.error) {
       setGone((g) => new Set([...g].filter((k) => k !== item.key)));
       return setError(res.error);

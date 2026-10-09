@@ -188,8 +188,10 @@ export async function createSpace(input: { teamId: string; parentId: string | nu
 
 // A department's new name, by anyone in it (Level 1: any). Only the name
 // changes: its address (slug), people and work stay.
+// a department's own name shows in everyone's sidebar: Level 1 and its
+// Leads rename it, not its Members
 export async function renameTeam(id: string, name: string): Promise<Done> {
-  const who = await whoFor(id);
+  const who = await whoFor(id, true);
   if ("error" in who) return who;
   const n = cleanName(name);
   if (typeof n !== "string") return n;

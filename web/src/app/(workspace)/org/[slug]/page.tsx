@@ -27,7 +27,7 @@ export default async function DepartmentPage({ params, searchParams }: { params:
   return (
     <>
       <DepartmentHead>
-        <DepartmentTitle id={department.id} name={department.name} />
+        <DepartmentTitle id={department.id} name={department.name} canRename={buildsDepartment(viewer, department.id)} />
       </DepartmentHead>
       <SpaceGrid teamId={department.id} parentId={null} kind="portal" base={base} cards={cards} canBuild={buildsDepartment(viewer, department.id)} templates={templates} />
       {slug === "sales" && <MailSection base={base} range={(await searchParams).mail} />}

@@ -17,7 +17,7 @@ import { DUE_TONE } from "../TaskCard";
 import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type PersonRecord, type Position, type WorkTag } from "./PeopleDirectory";
 import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
-import { LEVEL_NOTE } from "@/lib/scope";
+import { effectiveRole, LEVEL_NOTE } from "@/lib/scope";
 import { indiaDay } from "@/lib/due";
 import { GradeBadge, ScoreTile } from "../performance/ui";
 import { LETTER_LABEL } from "@/lib/videoScore";
@@ -387,7 +387,7 @@ export function PersonDetail({
             ) : (
               <span className="truncate">{person.position || person.jobTitleName}</span>
             )}
-            {seesLevels && <span className="shrink-0">· {ROLE_LABEL[person.role]}</span>}
+            {seesLevels && <span className="shrink-0">· {ROLE_LABEL[effectiveRole(person)]}</span>}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span
@@ -528,7 +528,7 @@ export function PersonDetail({
           ) : (
             <dl className="fade-in grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
               <Fact label="Position">{person.position}</Fact>
-              {seesLevels && <Fact label="Level">{ROLE_LABEL[person.role]}</Fact>}
+              {seesLevels && <Fact label="Level">{ROLE_LABEL[effectiveRole(person)]}</Fact>}
               <Fact label="Joined">
                 {person.joinedAt && (
                   <>

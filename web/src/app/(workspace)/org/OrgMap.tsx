@@ -12,7 +12,8 @@ import { EditableName } from "../EditableName";
 import { renameTeam } from "./space/actions";
 
 export type MapPerson = { name: string; on: string | null; status: TaskStatus | null; open: number; late: number; leads: number };
-export type MapDepartment = { id: string; slug: string; name: string; open: number; late: number; leads: number | null; people: MapPerson[] };
+// canRename: Level 1 and the department's Leads (set by the page)
+export type MapDepartment = { id: string; slug: string; name: string; open: number; late: number; leads: number | null; people: MapPerson[]; canRename?: boolean };
 
 // A count as a small pill: blue for work in hand, rose for late, grey else
 const PILL = { open: "bg-accent/10 text-accent", late: "bg-rose-500/10 text-rose-300", plain: "bg-white/[0.05] text-muted" };
@@ -49,7 +50,7 @@ export function OrgMap({ departments }: { departments: MapDepartment[] }) {
 
 function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
   const router = useRouter();
-  // anyone in the department can rename it, right here
+  // Level 1 and its Leads can rename it, right here
   const rename = async (name: string) => {
     const res = await renameTeam(d.id, name);
     if (res.error) return res.error;
@@ -65,7 +66,7 @@ function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
       <div className="relative flex items-center gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl badge-lit">{createElement(markOf(d.name), { size: 16 })}</span>
         <p className="min-w-0 flex-1 text-base leading-snug font-semibold tracking-tight">
-          <EditableName name={d.name} onSave={rename} pencil="hover" />
+          {d.canRename ? <EditableName name={d.name} onSave={rename} pencil="hover" /> : d.name}
         </p>
         <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           {slim && <span className="text-xs text-muted">No one in it yet</span>}

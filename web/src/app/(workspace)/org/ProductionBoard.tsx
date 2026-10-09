@@ -5,7 +5,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
-import { assigneeWhere, effectiveRole, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, buildsDepartment, effectiveRole, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
@@ -66,7 +66,7 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
     return (
       <>
         <DepartmentHead>
-          <DepartmentTitle id={id} name={name} />
+          <DepartmentTitle id={id} name={name} canRename={buildsDepartment(viewer, id)} />
         </DepartmentHead>
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">No video or design work of yours here yet.</p>
       </>
@@ -84,7 +84,7 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
   return (
     <>
     <DepartmentHead>
-          <DepartmentTitle id={id} name={name} />
+          <DepartmentTitle id={id} name={name} canRename={buildsDepartment(viewer, id)} />
         </DepartmentHead>
     <BoardViews
       scopes={scopes}

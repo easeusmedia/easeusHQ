@@ -376,7 +376,7 @@ export const WorkTaskDialog = forwardRef<
           <div className="flex items-center gap-3 border-t border-white/[0.06] px-5 py-3.5">
             {mode === "edit" && (
               <ConfirmButton
-                message="Delete this task?"
+                message="Delete this task? This can't be undone."
                 onConfirm={remove}
                 className="btn btn-sm btn-ghost px-2 hover:text-red-300"
               >

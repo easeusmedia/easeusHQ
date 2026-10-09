@@ -7,6 +7,7 @@ import type { Letter, Part } from "@/lib/videoScore";
 import { Avatar } from "../TaskCard";
 import { PersonDetail } from "./PersonDetail";
 import { Organisation } from "./Organisation";
+import { effectiveRole } from "@/lib/scope";
 
 // One thing currently on someone's plate, from either task system.
 export type TaskEntry = {
@@ -128,7 +129,7 @@ export function PeopleDirectory({
 
   // Level 1 sees people by level; everyone else by department, since levels
   // are internal. Former employees go at the bottom either way.
-  const groupOf = useCallback((p: PersonRecord) => (p.employment === "former" ? FORMER : seesLevels ? ROLE_LABEL[p.role] : (p.departmentName ?? LEADERSHIP)), [seesLevels]);
+  const groupOf = useCallback((p: PersonRecord) => (p.employment === "former" ? FORMER : seesLevels ? ROLE_LABEL[effectiveRole(p)] : (p.departmentName ?? LEADERSHIP)), [seesLevels]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return people.filter(

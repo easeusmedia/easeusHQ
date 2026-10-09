@@ -6,7 +6,9 @@ import { createSession } from "@/lib/auth";
 import { onStaff } from "@/lib/users";
 import { redirect } from "next/navigation";
 
-export type LoginState = { error?: string };
+// the email comes back with a refusal, so the form keeps it (a submitted
+// form otherwise clears) and only the password is typed again
+export type LoginState = { error?: string; email?: string };
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -14,9 +16,9 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   const user = await prisma.user.findUnique({ where: { email }, omit: { passwordHash: false } });
   if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-    return { error: "That email and password don't match. Please try again." };
+    return { error: "That email and password don't match. Please try again.", email };
   }
-  if (!onStaff(user)) return { error: "This account no longer has access. Please speak to your admin." };
+  if (!onStaff(user)) return { error: "This account no longer has access. Please speak to your admin.", email };
 
   // a look picked on the sign-in page is theirs in the app too
   const theme = String(formData.get("theme") ?? "");

@@ -60,7 +60,7 @@ export function LoginForm({ theme: initial }: { theme: "dark" | "mist" }) {
         <div className="mt-14 flex w-full flex-col gap-6">
           <label className={`flex flex-col gap-1.5 pb-2 ${LINE}`}>
             <span className={LABEL}>Email address</span>
-            <input name="email" type="email" required autoFocus autoComplete="email" className="bg-transparent text-sm text-white outline-none! [&:-webkit-autofill]:[-webkit-text-fill-color:white] [&:-webkit-autofill]:[transition:background-color_9999s]" />
+            <input name="email" type="email" required autoFocus autoComplete="email" defaultValue={state.email} className="bg-transparent text-sm text-white outline-none! [&:-webkit-autofill]:[-webkit-text-fill-color:white] [&:-webkit-autofill]:[transition:background-color_9999s]" />
           </label>
           <label className={`flex flex-col gap-1.5 pb-2 ${LINE}`}>
             <span className={LABEL}>Password</span>

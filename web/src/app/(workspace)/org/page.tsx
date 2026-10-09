@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/viewer";
+import { buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "./departments";
 import { OrgMap } from "./OrgMap";
 import { orgData } from "./orgData";
@@ -21,5 +22,5 @@ export default async function OrganizationPage() {
       </div>
     );
 
-  return <OrgMap departments={await orgData(departments)} />;
+  return <OrgMap departments={(await orgData(departments)).map((d) => ({ ...d, canRename: buildsDepartment(viewer, d.id) }))} />;
 }

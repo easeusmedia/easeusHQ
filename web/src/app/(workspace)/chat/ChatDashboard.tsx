@@ -73,6 +73,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
   const [messages, setMessages] = useState<ThreadMessage[] | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const open = people.find((p) => p.id === openId) ?? null;
@@ -109,11 +110,17 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
     const body = draft.trim();
     if (!body || !openId) return;
     setSending(true);
+    setError(null);
     setDraft("");
-    const res = await sendMessage(openId, body);
+    const res = await sendMessage(openId, body).catch(() => ({ error: "That didn't send. Check your connection and try again." }));
     setSending(false);
-    if (res.error) return;
-    setMessages(await getThreadMessages(openId));
+    // not sent: the words go back in the box, so nothing typed is lost
+    if (res.error) {
+      setDraft((d) => d || body);
+      return setError(res.error);
+    }
+    const thread = await getThreadMessages(openId).catch(() => null);
+    if (thread) setMessages(thread);
     router.refresh(); // keeps the conversation list's previews/badges current
   }
 
@@ -244,7 +251,9 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
               )}
             </div>
 
-            <div className="px-5 pb-5 pt-2">
+            {/* deep enough at the bottom that the floating Ask Nyra button sits below Send, not on it */}
+            <div className="px-5 pb-16 pt-2">
+              {error && <p className="px-1 pb-1.5 text-xs text-red-300">{error}</p>}
               <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1.5 pl-4 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(75,149,230,0.08)]">
                 <textarea
                   value={draft}

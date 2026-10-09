@@ -53,6 +53,9 @@ export async function startRun(
   input: Record<string, unknown>,
   callback?: string
 ): Promise<{ id: string; account: string }> {
+  // Runs cost money, and the local copy of the database holds the same
+  // tokens: only the live site starts them
+  if (process.env.VERCEL_ENV !== "production") throw new Error("Analytics refreshes run on app.easeus.media only.");
   const tokens = await apifyTokens();
   if (!tokens.length) throw new Error("Analytics isn't set up yet. An admin can add an Apify token under Integrations → Client analytics.");
   const hook = callback

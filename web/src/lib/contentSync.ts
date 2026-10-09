@@ -352,6 +352,13 @@ export async function matchOurWork(clientId: string): Promise<number> {
 // Collects every run that has finished — its results into the database.
 // Cheap when nothing's pending (one query); throttled per run.
 export async function collect(): Promise<{ pending: number }> {
+  // A run still RUNNING or SAVING after an hour never will finish (a save cut
+  // off half-way stays SAVING): it's lost. Left alone, one kept Analytics
+  // saying "Refreshing…" and reloading every 8 seconds from 1 Oct 2026 on.
+  await prisma.scrapeRun.updateMany({
+    where: { status: { in: ["RUNNING", "SAVING"] }, startedAt: { lt: new Date(Date.now() - 60 * 60 * 1000) } },
+    data: { status: "LOST", doneAt: new Date() },
+  });
   const runs = await prisma.scrapeRun.findMany({ where: { status: "RUNNING" } });
   let pending = 0;
   for (const run of runs) {
