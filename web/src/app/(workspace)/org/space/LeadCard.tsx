@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDashed, Mail, Reply } from "lucide-react";
+import { Mail, Reply } from "lucide-react";
 import { MARKED, missingDetails, PLATFORM_NAME, type FieldData, type LeadData, type Marked, type MarkChange } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -54,9 +54,8 @@ export function LeadCard({
     >
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
       {missing.length > 0 && (
-        <p title={`Not added yet: ${missing.join(", ")}`} className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted/80">
-          <CircleDashed size={12} className="shrink-0" />
-          <span className="truncate">To add: {missing.join(", ")}</span>
+        <p title={`Not added yet: ${missing.join(", ")}`} className="truncate text-[11.5px] text-muted/80">
+          To add: {missing.join(", ")}
         </p>
       )}
       <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted">

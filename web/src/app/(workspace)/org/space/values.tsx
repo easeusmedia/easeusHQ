@@ -15,7 +15,6 @@ import {
   Pencil,
   Phone,
   Plus,
-  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -28,7 +27,6 @@ import { DatePicker } from "../../DatePicker";
 import { Checkbox } from "../../Checkbox";
 import { Reveal } from "../../Reveal";
 import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
-import { colorFor, initials } from "@/lib/avatar";
 import { dayOf, shortDay } from "@/lib/editorKpi";
 import {
   CHANNELS,
@@ -329,6 +327,90 @@ export function ValueView({ field, value, compact = false }: { field: FieldData;
         <span className="line-clamp-2 min-w-0 text-xs text-foreground/85">{String(value)}</span>
       );
   }
+}
+
+// A filled value in full, on the lead's page when it isn't being edited
+export function ValueRead({ field, value }: { field: FieldData; value: unknown }) {
+  switch (field.kind) {
+    case "count": {
+      const { n, remark } = value as CountValue;
+      return (
+        <span className="min-w-0 px-2 py-1 text-sm text-foreground/90">
+          {n != null && <span className="tabular-nums">{/short|reel/i.test(field.name) ? plural(n, "short", "shorts") : n}</span>}
+          {remark && <span className="whitespace-pre-wrap text-muted">{n != null && " · "}{remark}</span>}
+        </span>
+      );
+    }
+    case "links":
+      return (
+        <div className="flex min-w-0 flex-col px-2 py-1">
+          {(value as LinkValue[]).map((l, i) => {
+            const href = hrefOf("other", l.url);
+            return (
+              <div key={i} className="flex min-w-0 items-center gap-2 py-0.5 text-sm">
+                <PlatformMark url={l.url} size={13} className="shrink-0 text-muted" />
+                {l.label && <span className="shrink-0 text-muted">{l.label}</span>}
+                {href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-foreground/90 hover:text-accent hover:underline">
+                    {l.url}
+                  </a>
+                ) : (
+                  <span className="min-w-0 truncate text-foreground/90">{l.url}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    case "text":
+      return <p className="min-w-0 px-2 py-1 text-sm whitespace-pre-wrap text-foreground/90">{String(value)}</p>;
+    case "checkbox":
+      return <span className="px-2 py-1 text-sm text-foreground/90">Yes</span>;
+    case "date":
+      return <span className="px-2 py-1 text-sm text-foreground/90">{dayLabel(String(value))}</span>;
+    default:
+      return (
+        <span className="flex min-w-0 px-2 py-1">
+          <ValueView field={field} value={value} />
+        </span>
+      );
+  }
+}
+
+// A lead's people as they read: each one's name and role, then where to reach them
+export function ContactsView({ value }: { value: unknown }) {
+  const people = (Array.isArray(value) ? (value as Contact[]) : []).filter((p) => p.name.trim() || p.role || p.channels.some((c) => c.value.trim()));
+  if (!people.length) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {people.map((p) => (
+        <div key={p.id} className="panel-soft flex min-w-0 flex-col gap-1 rounded-xl px-3.5 py-2.5">
+          <p className="truncate text-sm font-medium text-foreground">
+            {p.name.trim() || "No name"}
+            {p.role && <span className="font-normal text-muted"> · {p.role}</span>}
+          </p>
+          {p.channels
+            .filter((c) => c.value.trim())
+            .map((c, i) => {
+              const Icon = CHANNEL_ICON[c.kind];
+              const href = hrefOf(c.kind, c.value);
+              return (
+                <div key={i} className="flex min-w-0 items-center gap-2 text-sm">
+                  <Icon size={13} className="shrink-0 text-muted" />
+                  {href ? (
+                    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="min-w-0 truncate text-foreground/85 hover:text-accent hover:underline">
+                      {c.value.trim()}
+                    </a>
+                  ) : (
+                    <span className="min-w-0 truncate text-foreground/85">{c.value.trim()}</span>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ---------- editors ----------
@@ -746,23 +828,10 @@ function PersonCard({
   // removing someone filled in takes a second click
   const [sure, setSure] = useState(false);
   const filled = !!person.name.trim() || person.channels.some((c) => c.value.trim());
-  const name = person.name.trim();
 
   return (
     <div className="panel-soft fade-in flex min-w-0 flex-col gap-2 rounded-xl px-3.5 py-3">
       <div className="flex items-center gap-2">
-        {name ? (
-          <span
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-black"
-            style={{ backgroundColor: colorFor(name) }}
-          >
-            {initials(name)}
-          </span>
-        ) : (
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-muted">
-            <UserRound size={14} />
-          </span>
-        )}
         <input
           autoFocus={focus === person.id}
           onFocus={focus === person.id ? onFocusUsed : undefined}
@@ -809,7 +878,7 @@ function PersonCard({
       </div>
 
       {person.channels.length > 0 && (
-        <div className="flex flex-col gap-0.5 pl-9">
+        <div className="flex flex-col gap-0.5">
           {person.channels.map((c, i) => (
             <ChannelRow
               key={i}
@@ -841,7 +910,7 @@ function PersonCard({
       )}
 
       {/* each place they can be reached, with its mark */}
-      <div className="flex flex-wrap items-center gap-1 pl-9">
+      <div className="flex flex-wrap items-center gap-1 pl-1.5">
         {QUICK.map((kind) => {
           const Mark = CHANNEL_ICON[kind];
           return (

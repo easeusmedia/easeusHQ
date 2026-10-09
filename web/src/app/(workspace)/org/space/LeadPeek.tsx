@@ -2,17 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
-import { CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
+import { CheckboxEditor, ContactsEditor, ContactsView, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, ValueRead, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
-import { Reveal } from "../../Reveal";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
 import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type SentData } from "@/lib/space";
@@ -129,6 +128,9 @@ function LeadPage({
   // a move that needs a reason (kept while its prompt fades out)
   const [move, setMove] = useState<{ to: string; hint: string; asking: boolean }>({ to: "", hint: "", asking: false });
   const [deleting, setDeleting] = useState(false);
+  // details and contacts read as plain text until Edit
+  const [editDetails, setEditDetails] = useState(false);
+  const [editContacts, setEditContacts] = useState(false);
 
   // the record, and what's been sent, each time it opens
   useEffect(() => {
@@ -231,9 +233,10 @@ function LeadPage({
     />
   );
 
-  // what the folded blocks say while closed
+  // what each block says in its heading; read, it shows only what's filled
   const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
-  const filled = fieldsShown.filter((f) => isFilled(f.kind, values[f.id])).length;
+  const filledFields = fieldsShown.filter((f) => isFilled(f.kind, values[f.id]));
+  const filled = filledFields.length;
   const contactField = board.fields.find((f) => f.kind === "contacts");
   const contacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as unknown[]).length : 0;
 
@@ -324,20 +327,42 @@ function LeadPage({
           </div>
 
           {/* everything known about it first */}
-          <Fold icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} defaultOpen>
-            <div className="flex flex-col">
-              {fieldsShown.map((f) => (
-                <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
-                  <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
-                </Row>
-              ))}
-            </div>
-          </Fold>
+          <Section icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} editing={editDetails} onEdit={() => setEditDetails((e) => !e)}>
+            {editDetails ? (
+              <div key="edit" className="fade-in flex flex-col">
+                {fieldsShown.map((f) => (
+                  <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
+                    <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
+                  </Row>
+                ))}
+              </div>
+            ) : (
+              filled > 0 && (
+                <div key="view" className="fade-in flex flex-col">
+                  {filledFields.map((f) => (
+                    <Row key={f.id} icon={KIND_ICON[f.kind]} label={f.name}>
+                      <ValueRead field={f} value={values[f.id]} />
+                    </Row>
+                  ))}
+                </div>
+              )
+            )}
+          </Section>
 
           {contactField && (
-            <Fold icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"}>
-              <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
-            </Fold>
+            <Section icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} editing={editContacts} onEdit={() => setEditContacts((e) => !e)}>
+              {editContacts ? (
+                <div key="edit" className="fade-in">
+                  <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
+                </div>
+              ) : (
+                contacts > 0 && (
+                  <div key="view" className="fade-in">
+                    <ContactsView value={values[contactField.id]} />
+                  </div>
+                )
+              )}
+            </Section>
           )}
 
           {/* then the messages to send */}
@@ -433,37 +458,38 @@ function Row({ icon: Icon, label, children }: { icon: LucideIcon; label: React.R
   );
 }
 
-// A block kept shut until it's wanted: its name and a one-line summary.
-// The same soft fill as a task's links block.
-function Fold({
+// A block of the lead: its name, a one-line summary, and Edit (Done while
+// editing). The same soft fill as a task's links block.
+function Section({
   icon: Icon,
   title,
   summary,
-  defaultOpen = false,
+  editing,
+  onEdit,
   children,
 }: {
   icon: LucideIcon;
   title: React.ReactNode;
   summary: string;
-  defaultOpen?: boolean;
+  editing: boolean;
+  onEdit: () => void;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="rounded-xl bg-foreground/[0.03]">
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs">
-        <ChevronRight size={14} className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+      <div className="flex items-center gap-2 px-3 py-2 text-xs">
         <Icon size={14} className="shrink-0 text-muted" />
         <span className="font-medium text-foreground/90">{title}</span>
         <span className="ml-auto min-w-0 truncate text-muted">{summary}</span>
-      </button>
-      <Reveal open={open}>
-        <div className="px-3 pb-3">{children}</div>
-      </Reveal>
+        <button type="button" onClick={onEdit} aria-pressed={editing} className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-muted transition-colors hover:bg-hover hover:text-foreground">
+          {editing ? <Check size={12} /> : <Pencil size={12} />}
+          {editing ? "Done" : "Edit"}
+        </button>
+      </div>
+      {children && <div className="px-3 pb-3">{children}</div>}
     </section>
   );
 }
-
 
 function Editor({ field, value, save }: { field: FieldData; value: unknown; save: (v: unknown) => void }) {
   switch (field.kind) {
