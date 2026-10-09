@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, markedOn, moveNeedsReason, outreachStats, reachedByDay, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -157,6 +157,13 @@ test("a card's buttons follow the platform its day's message goes out on", () =>
   assert.equal(dayPlatform(days, {}, 9), null);
 });
 
+test("a day's message before one is picked follows whether the email was opened", () => {
+  const day2 = [{ name: "DAY 2 · INSTAGRAM 1 · DIDN'T OPEN EMAIL 1" }, { name: "DAY 2 · INSTAGRAM 1 · ALREADY OPENED EMAIL 1" }];
+  assert.equal(defaultMessage(day2, false)?.name, day2[0].name);
+  assert.equal(defaultMessage(day2, true)?.name, day2[1].name);
+  assert.equal(defaultMessage([{ name: "Email" }, { name: "LinkedIn" }], true)?.name, "Email");
+});
+
 test("a mark is set on a day, and cleared", () => {
   const set = withMark({}, { platform: "instagram", kind: "seen", day: "day-2" }, "t");
   assert.deepEqual(set, { instagram: { seen: { day: "day-2", at: "t" } } });
@@ -165,7 +172,7 @@ test("a mark is set on a day, and cleared", () => {
 
 type T = { email?: { tracked?: boolean; opens?: number; replied?: boolean }; marks?: Marks; on?: Platform[] };
 const row = ({ email = {}, marks = {}, on = [] }: T) => ({
-  email: { tracked: !!email.tracked, opens: email.opens ?? 0, replied: email.replied ? { day: "day-1", at: "t" } : null },
+  email: { sent: on.includes("email"), tracked: !!email.tracked, opens: email.opens ?? 0, replied: email.replied ? { day: "day-1", at: "t" } : null, bounced: false },
   marks,
   reachedOn: on,
 });

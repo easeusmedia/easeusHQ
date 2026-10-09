@@ -224,7 +224,7 @@ export function LeadBoard({
     const st = board.stages.find((s) => s.id === lead.stageId);
     if (!st) return undefined;
     const d = dayOf(st.name);
-    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}`, platform: d == null ? null : dayPlatform(board, lead.picks, d) };
+    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}`, platform: d == null ? null : dayPlatform(board, lead.picks, d, lead.email.opens > 0) };
   };
   const columnOf = (stageId: string) => shown.filter((l) => l.stageId === stageId).sort((a, b) => a.sortOrder - b.sortOrder);
 

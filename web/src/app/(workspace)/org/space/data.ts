@@ -94,11 +94,13 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
   // a bounce or an auto-reply)
   const leadAddresses = new Map(board.leads.map((l) => [l.id, leadEmails(l.values)]));
   const all = [...new Set([...leadAddresses.values()].flat())];
-  const [inbox, tracked, heard] = await Promise.all([
+  const [inbox, tracked, heard, bounces] = await Promise.all([
     prisma.mailMessage.groupBy({ by: ["to"], where: { outgoing: true, to: { in: all } }, _min: { at: true } }),
     prisma.trackedMail.groupBy({ by: ["to"], where: { to: { in: all } }, _min: { sentAt: true }, _sum: { opens: true } }),
     prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true }, orderBy: { at: "asc" } }),
+    prisma.trackedMail.findMany({ where: { to: { in: all }, bouncedAt: { not: null } }, select: { to: true }, distinct: ["to"] }),
   ]);
+  const bounced = new Set(bounces.map((b) => b.to));
   const firstSent = new Map<string, Date>();
   for (const [to, at] of [...inbox.map((m) => [m.to, m._min.at] as const), ...tracked.map((t) => [t.to, t._min.sentAt] as const)]) {
     const had = firstSent.get(to);
@@ -112,12 +114,15 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     // the day it was on when the reply came: its last move before, else where it is
     const moved = reply ? l.events.filter((e) => e.createdAt <= reply.at).pop()?.toStage : null;
     const stage = board.stages.find((s) => (moved ? s.name === moved : s.id === l.stageId)) ?? board.stages.find((s) => s.id === l.stageId);
+    const opens = mine.reduce((n, e) => n + (opensTo.get(e) ?? 0), 0);
     return {
       sent: !!first,
       email: {
+        sent: !!first,
         tracked: mine.some((e) => opensTo.has(e)),
-        opens: mine.reduce((n, e) => n + (opensTo.get(e) ?? 0), 0),
+        opens,
         replied: reply && stage ? ({ day: phaseKey(stage), at: reply.at.toISOString() } satisfies Mark) : null,
+        bounced: !reply && !opens && mine.some((e) => bounced.has(e)),
       },
     };
   };

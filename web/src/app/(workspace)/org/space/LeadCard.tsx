@@ -9,9 +9,6 @@ const ICON: Record<Marked, React.ReactNode> = {
   instagram: <InstagramIcon size={11} className="text-pink-400" />,
   linkedin: <LinkedinIcon size={11} className="text-blue-400" />,
 };
-const PILL = "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]";
-const QUIET = `${PILL} bg-white/[0.05] text-muted`;
-const DONE = `${PILL} bg-emerald-400/10 text-emerald-300`;
 
 // One lead on the board: its name, the details not added yet (quietly, as
 // information, not a warning), who added it, with whoever it's given to,
@@ -36,7 +33,7 @@ export function LeadCard({
 }) {
   const missing = missingDetails(fields, lead.values);
   // the platform its day goes out on: email shows by itself, the others are tapped
-  const mail = day?.platform === "email" && (lead.email.opens > 0 || !!lead.email.replied);
+  const mail = day?.platform === "email";
   const marked = MARKED.find((p) => p === day?.platform);
   const m = (marked && lead.marks[marked]) || {};
   const toggle = (kind: "seen" | "replied") => marked && day && onTrack?.(lead.id, { platform: marked, kind, day: m[kind] ? null : day.key });
@@ -80,16 +77,7 @@ export function LeadCard({
       {tracks && (mail || (marked && onTrack)) && (
         // its own taps, not the card's: they don't open the lead
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
-          {mail && lead.email.opens > 0 && (
-            <span title="Opened, by the mail tracker" className={QUIET}>
-              <Mail size={11} className="text-sky-400" /> Opened {lead.email.opens}×
-            </span>
-          )}
-          {mail && lead.email.replied && (
-            <span title="Replied by email" className={DONE}>
-              <Mail size={11} /> Replied
-            </span>
-          )}
+          {mail && <EmailStatus email={lead.email} />}
           {marked && onTrack && (
             <>
               <button type="button" aria-pressed={!!m.seen} onClick={() => toggle("seen")} title={m.seen ? "Seen. Tap to undo." : `They saw it on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
@@ -103,5 +91,31 @@ export function LeadCard({
         </div>
       )}
     </div>
+  );
+}
+
+// A lead's email, by itself (the sales inbox and the mail tracker): not
+// emailed yet, sent, not opened yet, opened (how often), replied, bounced.
+// The card's size, or the lead window's (md).
+export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; size?: "sm" | "md" }) {
+  const box = size === "sm" ? "gap-1 px-2 py-0.5 text-[11px]" : "gap-1.5 px-3 py-1 text-xs";
+  const icon = <Mail size={size === "sm" ? 11 : 12} className="shrink-0" />;
+  const chip = (tone: string, title: string, text: string) => (
+    <span title={title} className={`flex w-fit items-center rounded-full ${box} ${tone}`}>
+      {icon} {text}
+    </span>
+  );
+  const quiet = "bg-white/[0.05] text-muted";
+  if (email.bounced) return chip("bg-rose-400/10 text-rose-300", "The email didn't reach them", "Bounced");
+  if (!email.sent) return chip(quiet, "No email has gone to them from the sales inbox yet", "Not emailed yet");
+  return (
+    <>
+      {email.opens > 0
+        ? chip(quiet, "Opened, by the mail tracker", `Opened ${email.opens}×`)
+        : email.tracked
+          ? chip(quiet, "Sent with the mail tracker, not opened yet", "Not opened yet")
+          : !email.replied && chip(quiet, "Sent without the mail tracker, so opens aren't known", "Sent")}
+      {email.replied && chip("bg-emerald-400/10 text-emerald-300", "They replied by email", "Replied")}
+    </>
   );
 }

@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronDown, ChevronRight, Copy, Eye, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
-import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, PLATFORM_NAME, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
+import { dayOf, defaultMessage, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, PLATFORM_NAME, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
+import { EmailStatus } from "./LeadCard";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -131,7 +132,10 @@ export function Messages({
   // its message (or the options to pick from) and its reply
   const step = (p: Phase, below: Phase | undefined, last: boolean) => {
     const options = p.messages;
-    const chosenId = options.length > 1 ? pickOf(p.key) : options[0].id;
+    // a day with more than one message: the one picked, else its default
+    // (Email on Day 1; on Day 2 the one for whether Email 1 was opened), as
+    // the card has it
+    const chosenId = options.length > 1 ? (pickOf(p.key) ?? defaultMessage(options, lead.email.opens > 0)?.id) : options[0].id;
     const chosen = options.find((m) => m.id === chosenId) ?? null;
     const replied = repliedOn(p.key);
     // a day reached shows its message's platform only: Seen and Reply for
@@ -145,19 +149,10 @@ export function Messages({
         <MailOpen size={11} /> Opened {lead.email.opens}×
       </span>
     );
-    // an email day not yet done: its emails, by themselves (the card's too)
-    const mailNote = p.when !== "done" && reached && chosen?.channel === "email" && (lead.email.opens > 0 || !!lead.email.replied) && (
+    // an email day not yet done: its email, by itself (as on the card)
+    const mailNote = p.when !== "done" && reached && chosen?.channel === "email" && (
       <span className="flex flex-wrap items-center gap-1.5">
-        {lead.email.opens > 0 && (
-          <span className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-xs text-muted">
-            <Mail size={12} className="text-sky-400" /> Opened {lead.email.opens}×
-          </span>
-        )}
-        {lead.email.replied && (
-          <span className="flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
-            <Mail size={12} /> Replied
-          </span>
-        )}
+        <EmailStatus email={lead.email} size="md" />
       </span>
     );
     const content = (

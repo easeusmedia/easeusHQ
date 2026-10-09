@@ -111,9 +111,10 @@ export type LeadData = {
   // its messages' variables, by name
   vars: Record<string, string>;
   // Email, from the sales inbox and the mail tracker, never by hand: whether
-  // a tracked email went to it, how often its emails were opened, and its
-  // first reply (on the day it was at then)
-  email: { tracked: boolean; opens: number; replied: Mark | null };
+  // an email went to it (and a tracked one), how often its emails were
+  // opened, its first reply (on the day it was at then), and whether its
+  // email bounced (and nothing came back)
+  email: { sent: boolean; tracked: boolean; opens: number; replied: Mark | null; bounced: boolean };
   // Instagram and LinkedIn, marked by hand
   marks: Marks;
   // the platforms it has been reached on (reachedOn)
@@ -324,12 +325,19 @@ export function markedOn(board: Pick<BoardData, "stages" | "messages">, day: num
   return MARKED.filter((p) => messagesOnDay(board, day).some((m) => m.channel === p));
 }
 
+// A day's message before one is picked: the one for whether its email was
+// opened ("Already opened Email 1" or "Didn't open Email 1"), else the first
+// (Email on Day 1)
+export function defaultMessage<T extends Pick<MessageData, "name">>(options: T[], opened: boolean): T | undefined {
+  return options.find((m) => (opened ? /already opened/i : /didn.?t open/i).test(m.name)) ?? options[0];
+}
+
 // The platform a lead's day goes out on, so its card shows only that
 // platform's buttons: the message picked for the day (a day with more than
-// one), else the day's first
-export function dayPlatform(board: Pick<BoardData, "stages" | "messages">, picks: Record<string, string>, day: number): string | null {
+// one), else its default
+export function dayPlatform(board: Pick<BoardData, "stages" | "messages">, picks: Record<string, string>, day: number, opened = false): string | null {
   const on = messagesOnDay(board, day);
-  return (on.find((m) => m.id === picks[`day-${day}`]) ?? on[0])?.channel ?? null;
+  return (on.find((m) => m.id === picks[`day-${day}`]) ?? defaultMessage(on, opened))?.channel ?? null;
 }
 
 // Instagram and LinkedIn reached by a lead's record: from their first day
