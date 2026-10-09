@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { DEVELOPER, DEVELOPER_MODE } from "@/lib/scope";
 import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, type BoardData, type Contact, type Draft, type FieldKind, type Mark, type Marks, type Person, type Platform, type SpaceCard, type SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
@@ -183,7 +182,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
 // Who a lead can be given to: on staff, and in the department (or Level 1)
 export async function peopleOf(teamId: string): Promise<Person[]> {
   return prisma.user.findMany({
-    where: { employment: { not: "former" }, OR: [{ role: "admin" }, ...(DEVELOPER_MODE ? [{ email: DEVELOPER }] : []), { departments: { some: { id: teamId } } }] },
+    where: { employment: { not: "former" }, OR: [{ role: "admin" }, { email: "abhishek@easeus.media" }, { departments: { some: { id: teamId } } }] },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
