@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { getRealUserId } from "@/lib/auth";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
-import { assigneeWhere, effectiveRole, isFounder, isMember } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, isFounder, isLead, isMember } from "@/lib/scope";
 import { LIVE_TASK } from "@/lib/workflow";
 import { STAGE, stageLabel, stageMeaning } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
@@ -155,7 +155,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       meId={viewer.id}
       // a Level 3's work is all their own: no separate My tasks
       showMine={!member}
-      canMeet={full}
+      // Level 1 and 2 schedule meetings
+      canMeet={full || isLead(viewer)}
       canNote={full}
       items={items}
       notices={notices}

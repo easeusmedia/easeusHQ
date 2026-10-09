@@ -3,7 +3,7 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
-import { isFounder } from "@/lib/scope";
+import { isFounder, isLead } from "@/lib/scope";
 import { createMeeting, MEETINGS_TAG } from "@/lib/googleCalendar";
 
 // A town hall or group meeting, made from Home: into easeus.media@gmail.com's
@@ -12,7 +12,7 @@ import { createMeeting, MEETINGS_TAG } from "@/lib/googleCalendar";
 // as addresses from the form.
 export async function scheduleMeeting(input: { title: string; day: string; time: string; minutes: number; people: string[]; note: string }): Promise<{ error?: string }> {
   const me = await getViewer();
-  if (!me || !isFounder(me)) return { error: "Only a Founder can schedule a meeting." };
+  if (!me || !(isFounder(me) || isLead(me))) return { error: "Only Level 1 and Level 2 can schedule a meeting." };
   const title = input.title.trim();
   if (!title) return { error: "Give the meeting a name." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day) || !/^\d{2}:\d{2}$/.test(input.time)) return { error: "Pick a day and a time." };
