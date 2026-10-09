@@ -144,6 +144,22 @@ export function Messages({
         <MailOpen size={11} /> Opened {lead.email.opens}×
       </span>
     );
+    // and while it's not folded away: its emails, by themselves (opens on
+    // Day 1, a reply on the day it came)
+    const mailNote = p.when !== "done" && p.day != null && today != null && p.day <= today && (p.day === 1 && lead.email.opens > 0 || lead.email.replied?.day === p.key) && (
+      <span className="flex flex-wrap items-center gap-1.5">
+        {p.day === 1 && lead.email.opens > 0 && (
+          <span className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-xs text-muted">
+            <Mail size={12} className="text-sky-400" /> Opened {lead.email.opens}×
+          </span>
+        )}
+        {lead.email.replied?.day === p.key && (
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
+            <Mail size={12} /> Replied
+          </span>
+        )}
+      </span>
+    );
     const content = (
       <>
         {options.length > 1 &&
@@ -160,8 +176,9 @@ export function Messages({
             <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((m) => ({ value: m.id, label: m.name }))} onChange={(v) => v && pick(p.key, v)} />
           ))}
         {chosen && card(chosen, p.when === "done" || (options.length === 1 && !p.when))}
-        {marked.length > 0 && (
+        {(marked.length > 0 || mailNote) && (
           <div className="flex flex-wrap items-center gap-1.5">
+            {mailNote}
             {marked.map((c) => {
               const m = lead.marks[c] ?? {};
               return (
