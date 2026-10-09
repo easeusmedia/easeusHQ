@@ -23,7 +23,7 @@ const LOOK: Record<Exclude<State, "asking">, { dot: string; text: (base: string)
 
 // While the page is on screen the sales inbox is read every minute, and the
 // moment you come back to it (from replying in Gmail, say), so replies
-// reach the numbers by themselves (api/mail/sync, once a minute at most)
+// reach the numbers by themselves (api/mail/sync, every 15 seconds at most)
 function useInboxSync() {
   useEffect(() => {
     const read = () => document.visibilityState === "visible" && fetch("/api/mail/sync", { method: "POST" }).catch(() => null);

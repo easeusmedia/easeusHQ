@@ -44,17 +44,22 @@ export async function syncSalesInboxIfDue(every = 10 * 60_000): Promise<void> {
   await syncSalesInbox().catch(() => {});
 }
 
-export async function syncSalesInbox(): Promise<{ read: number; left: number } | null> {
+export async function syncSalesInbox(forceFull = false): Promise<{ read: number; left: number } | null> {
   if ((await gmailAccount("sales")) === null) return null;
   const startedAt = new Date();
   await save(TRIED, startedAt.toISOString());
   const synced = await setting(SYNCED);
   // two days back from the last full run, so nothing that arrived late is missed
   const since = synced ? new Date(new Date(synced).getTime() - 2 * 86_400_000) : firstSince();
+  const from = await setting(HISTORY);
 
+  // Gmail's change feed (below) lists new mail at once in one call; the full
+  // search, which takes a few seconds, runs every 10 minutes as the catch-all
+  // (and whenever the feed can't be read)
   const ids: string[] = [];
   let pageToken: string | undefined;
-  do {
+  const full = forceFull || !from || !synced || Date.now() - new Date(synced).getTime() >= 10 * 60_000;
+  if (full) do {
     // trash too: the team deletes replies and bounces once dealt with, and
     // they still count (in Sep 2026, 114 of 132 emails received were in the
     // trash); spam doesn't
@@ -71,8 +76,8 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
   // Its search (above) takes a few seconds to list a new email, and a reply
   // read 4 seconds after it came was missed that way, twice (9 Oct 2026).
   // A feed too old to read (Gmail keeps about a week) leaves it to the search.
-  const from = await setting(HISTORY);
   let upTo: string | null = null;
+  let feedRead = false;
   if (from) {
     let token: string | undefined;
     do {
@@ -81,12 +86,15 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
         "sales"
       ).catch(() => null);
       if (!page) break;
+      feedRead = true;
       for (const h of page.history ?? [])
         for (const { message } of h.messagesAdded ?? []) if (!message.labelIds?.some((l) => l === "SPAM" || l === "DRAFT" || l === "CHAT")) ids.push(message.id);
       upTo = page.historyId ?? upTo;
       token = page.nextPageToken;
     } while (token);
   }
+  // the feed couldn't be read: the search instead, now
+  if (!full && !feedRead) return syncSalesInbox(true);
   // the feed's next start: where it reached, or (first run, or out of date) now
   upTo ??= (await gmail<{ historyId?: string }>("profile", "sales").catch(() => null))?.historyId ?? null;
   if (upTo) await save(HISTORY, upTo);
@@ -127,7 +135,7 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
     }
   }
   if (rows.length) await prisma.mailMessage.createMany({ data: rows, skipDuplicates: true });
-  const complete = fresh.length <= PER_RUN && !limited;
+  const complete = full && fresh.length <= PER_RUN && !limited;
   if (complete) await save(SYNCED, startedAt.toISOString());
   await link(complete ? startedAt : synced ? new Date(synced) : null);
   return { read: rows.length, left: fresh.length - rows.length };

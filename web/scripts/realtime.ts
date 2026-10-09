@@ -14,15 +14,20 @@ import { prisma } from "@/lib/prisma";
 // Written to constantly in the background, or always alongside a change
 // that already signals: they'd only refresh every tab for nothing
 // (AppSetting: the syncs' "last read" times, every few minutes)
-const QUIET = new Set(["ActivityLog", "AiUsage", "ScrapeRun", "ContentItem", "SocialAccount", "KpiSnapshot", "AppSetting"]);
+const QUIET = new Set(["ActivityLog", "AiUsage", "ScrapeRun", "ContentItem", "SocialAccount", "KpiSnapshot", "AppSetting", "MailEvent"]);
 
 // The mail tables signal only new rows a page shows, never the background
-// around them: a person's open or click (not the sender's own look), an
-// email new to the inbox (the sync re-reads two days every run, and a row
-// already kept inserts nothing), a newly tracked email, a PDF reading
+// around them: an email new to the inbox (the sync re-reads two days, and a
+// row already kept inserts nothing), a newly tracked email, a PDF reading
 // starting (not its progress every 5 seconds). Checking mail in Gmail
 // refreshed every open page, and so did each inbox read (9 Oct 2026).
-const NEW_ROWS: Record<string, string> = { MailEvent: "kind <> 'self'", MailMessage: "true", TrackedMail: "true", DocView: "true" };
+const NEW_ROWS: Record<string, string> = { MailMessage: "true", TrackedMail: "true", DocView: "true" };
+// An open or click signals once it's counted, as its email's numbers change
+// (lib/mailTrack.ts refresh): signalling on the raw event (MailEvent, now
+// quiet) refreshed pages before the count moved, so they showed the old one.
+const CHANGED_ROWS: Record<string, string> = {
+  TrackedMail: `exists (select 1 from old_rows o where o.id = new_rows.id and (o.opens, o.clicks, o."repliedAt", o."bouncedAt") is distinct from (new_rows.opens, new_rows.clicks, new_rows."repliedAt", new_rows."bouncedAt"))`,
+};
 
 const run = (sql: string) => prisma.$executeRawUnsafe(sql);
 
@@ -80,8 +85,11 @@ const userColumns = await prisma.$queryRaw<{ name: string }[]>`
 for (const { name } of tables) {
   await run(`drop trigger if exists hq_changed on "${name}"`);
   if (QUIET.has(name)) continue;
+  await run(`drop trigger if exists hq_changed_rows on "${name}"`);
   if (NEW_ROWS[name]) {
     await run(`create trigger hq_changed after insert on "${name}" referencing new table as new_rows for each statement execute function public.hq_changed_new(${`'${NEW_ROWS[name].replace(/'/g, "''")}'`})`);
+    if (CHANGED_ROWS[name])
+      await run(`create trigger hq_changed_rows after update on "${name}" referencing old table as old_rows new table as new_rows for each statement execute function public.hq_changed_new(${`'${CHANGED_ROWS[name].replace(/'/g, "''")}'`})`);
     continue;
   }
   // a person's record, but not the "seen at" every open tab bumps
