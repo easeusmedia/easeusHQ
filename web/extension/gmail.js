@@ -78,10 +78,12 @@ function recipients(root, body, me) {
   return [...found];
 }
 
-// Just before Gmail sends: the image and the links. It's logged once Gmail
-// has sent it, when the compose box closes: a send Gmail stops (no subject,
-// a wrong address) leaves the box open and logs nothing. Sending the same
-// email again (after Undo send) keeps its id.
+// Just before Gmail sends: the image and the links, then log it. A send
+// that never goes out (Gmail refused it, it was undone) is removed by Easeus
+// HQ once it doesn't turn up in Gmail's Sent (lib/mailSync.ts); waiting for
+// the compose box to close missed every email sent from the full-page and
+// pop-out compose, which stays open (9 Oct 2026). Sending the same email
+// again (after Undo send) keeps its id.
 function prepare(root) {
   if (!root || !tracking()) return;
   const body = root.querySelector(BODY);
@@ -122,14 +124,7 @@ function prepare(root) {
   // the subject box (a reply's carries "Re: ..."); only without one, the thread's
   const box = root.querySelector('input[name="subjectbox"]');
   const subject = box ? box.value : document.querySelector("h2.hP")?.textContent || "";
-  const msg = { kind: "sent", id, from: me, to, subject, links, docs };
-  const started = Date.now();
-  const timer = setInterval(() => {
-    if (!root.isConnected || !root.offsetParent) {
-      clearInterval(timer);
-      tell(msg);
-    } else if (Date.now() - started > 120_000) clearInterval(timer);
-  }, 500);
+  tell({ kind: "sent", id, from: me, to, subject, links, docs });
 }
 
 // Send, by mouse (on press, before Gmail acts on the click) or keyboard
