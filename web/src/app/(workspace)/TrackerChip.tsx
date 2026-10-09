@@ -21,7 +21,19 @@ const LOOK: Record<Exclude<State, "asking">, { dot: string; text: (base: string)
   missing: { dot: "bg-rose-400", text: () => "Set up mail tracker", title: "The mail tracker isn't in this browser, or it needs an update. Opens and clicks aren't tracked until it is." },
 };
 
+// While the page is open and on screen, the sales inbox is read every 2
+// minutes (api/mail/sync), so replies reach the numbers by themselves
+function useInboxSync() {
+  useEffect(() => {
+    const read = () => document.visibilityState === "visible" && fetch("/api/mail/sync", { method: "POST" }).catch(() => null);
+    read();
+    const timer = setInterval(read, 2 * 60_000);
+    return () => clearInterval(timer);
+  }, []);
+}
+
 export function TrackerChip() {
+  useInboxSync();
   const [state, setState] = useState<State>("asking");
   const [base, setBase] = useState("");
 

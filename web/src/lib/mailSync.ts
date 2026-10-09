@@ -36,9 +36,9 @@ const setting = async (key: string) => (await prisma.appSetting.findUnique({ whe
 const save = (key: string, value: string) => prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
 
 // A run, unless one started in the last 10 minutes (pages call this freely)
-export async function syncSalesInboxIfDue(): Promise<void> {
+export async function syncSalesInboxIfDue(every = 10 * 60_000): Promise<void> {
   const tried = await setting(TRIED);
-  if (tried && Date.now() - new Date(tried).getTime() < 10 * 60_000) return;
+  if (tried && Date.now() - new Date(tried).getTime() < every) return;
   await syncSalesInbox().catch(() => {});
 }
 
