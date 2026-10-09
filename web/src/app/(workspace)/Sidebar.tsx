@@ -110,6 +110,18 @@ function ClientTree({
   const Icon = NESTED_ICON[depth];
   // rows folded or unfolded by hand; the rest follow where you are
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
+  // the row the pointer rests on opens too, after a beat (so sweeping past
+  // rows doesn't flicker them open) and folds back a beat after it leaves
+  // the row and everything under it
+  const [hovered, setHovered] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTo = (id: string | null, wait: number) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setHovered(id), wait);
+  };
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
   return (
     <ul>
       {clients.map((c, i) => {
@@ -117,9 +129,14 @@ function ClientTree({
         const kids = c.children ?? [];
         // the page you're on is further in: this row leads to it
         const inner = on ? kids.find((k) => k.href && isActive(k.href, pathname)) : undefined;
-        const shown = kids.length > 0 && (unfolded[c.id] ?? on);
+        const shown = kids.length > 0 && (hovered === c.id || (unfolded[c.id] ?? on));
         return (
-          <li key={c.id} className="relative pb-1">
+          <li
+            key={c.id}
+            className="relative pb-1"
+            onPointerEnter={kids.length ? (e) => e.pointerType === "mouse" && hoverTo(c.id, 180) : undefined}
+            onPointerLeave={kids.length ? (e) => e.pointerType === "mouse" && hoverTo(null, 250) : undefined}
+          >
             {/* the line down to this row, curving into it on the 32px row's centre line */}
             <span
               className={`absolute left-0 top-0 h-4 w-3 rounded-bl-lg border-b border-l transition-colors duration-300 ${
