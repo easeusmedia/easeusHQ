@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, type BoardData, type Contact, type Draft, type FieldKind, type Mark, type Marks, type Person, type Platform, type SpaceCard, type SpaceKind } from "@/lib/space";
+import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, reachOutDays, type BoardData, type Contact, type Draft, type FieldKind, type Mark, type Marks, type Person, type Platform, type SpaceCard, type SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -82,7 +82,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
           createdBy: { select: { id: true, name: true } },
           assignedTo: { select: { id: true, name: true } },
           // where it has been (and when): whether it was ever reached out to, and on what
-          events: { where: { kind: "moved" }, select: { toStage: true, createdAt: true }, orderBy: { createdAt: "asc" } },
+          events: { where: { kind: { in: ["created", "moved"] } }, select: { kind: true, fromStage: true, toStage: true, createdAt: true }, orderBy: { createdAt: "asc" } },
         },
       },
     },
@@ -168,6 +168,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       marks: (l.marks ?? {}) as Marks,
       reachedOn: [...(start >= 0 && sent ? (["email"] as Platform[]) : []), ...reachedByDay({ stages: board.stages, messages }, [stageName, ...l.events.map((e) => e.toStage)])],
       picks: (l.picks ?? {}) as Record<string, string>,
+      reachOuts: reachOutDays(l.events, stageName),
       reached: reached([stageName, ...l.events.map((e) => e.toStage)]) || (start >= 0 && sent),
       drafts: (l.drafts ?? {}) as Record<string, Draft>,
       stageSince: l.stageSince.toISOString(),

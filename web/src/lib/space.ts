@@ -120,6 +120,8 @@ export type LeadData = {
   marks: Marks;
   // the platforms it has been reached on (reachedOn)
   reachedOn: Platform[];
+  // its first reach out and each move on from day to day (reachOutDays)
+  reachOuts: ReachOuts;
   // the message picked for a day (or stage) with more than one, by phase key
   picks: Record<string, string>;
   // it has been in Ready to reach out or later, by its record, or emailed
@@ -348,6 +350,43 @@ export function reachedByDay(board: Pick<BoardData, "stages" | "messages">, stag
   if (!days.length) return [];
   const furthest = Math.max(...days);
   return MARKED.filter((p) => [...Array(furthest).keys()].some((i) => markedOn(board, i + 1).includes(p)));
+}
+
+// A lead's reach outs from its record (9 Oct 2026, Abhishek): its first, the
+// day it first came into the sequence (Ready to reach out to Day 1, or made
+// in a day), and each move on from one day to a later one after it (Day 1 to
+// 2, 2 to 3…), by the day moved to. A move back, or out, isn't one. A lead
+// with no record of coming in (added by a script) came in on the day it's on.
+export type ReachOuts = { first: number | null; next: number[] };
+
+export function reachOutDays(events: { kind: string; fromStage: string | null; toStage: string | null }[], stageName: string | null): ReachOuts {
+  const out: ReachOuts = { first: null, next: [] };
+  for (const e of events) {
+    const to = e.toStage ? dayOf(e.toStage) : null;
+    if (to == null) continue;
+    const from = e.kind === "moved" && e.fromStage ? dayOf(e.fromStage) : null;
+    if (out.first == null) out.first = to;
+    else if (from != null && to > from) out.next.push(to);
+  }
+  out.first ??= stageName ? dayOf(stageName) : null;
+  return out;
+}
+
+// The board's reach outs, on every platform or one (a day counts for the
+// platform its message goes out on): unique, the leads reached, each once;
+// total, every move on from one day to the next (5 leads from Day 1 to 2, 5
+// from 2 to 3 and 5 from 3 to 4 make 15)
+export function reachOutCounts(board: Pick<BoardData, "stages" | "messages">, leads: Pick<LeadData, "reachOuts" | "picks" | "email">[], platform: Platform | null) {
+  let unique = 0;
+  let total = 0;
+  for (const l of leads) {
+    const on = (d: number) => !platform || dayPlatform(board, l.picks, d, l.email.opens > 0) === platform;
+    const { first, next } = l.reachOuts;
+    const moves = next.filter(on).length;
+    total += moves;
+    if ((first != null && on(first)) || moves) unique++;
+  }
+  return { unique, total };
 }
 
 // One platform for one lead: reached, opened (seen; a reply means it was

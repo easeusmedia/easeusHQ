@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
-import { outreachStart, outreachStats, PLATFORM_NAME, PLATFORMS, withMark, type BoardData, type Contact, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
+import { outreachStart, outreachStats, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
@@ -173,6 +173,7 @@ export function PortalView({
   // reaching out, in numbers: for whoever is picked, whatever is searched
   // on one platform or all
   const stats = outreachStart(board.stages) >= 0 ? outreachStats(whose, prefs.platform === "all" ? null : prefs.platform) : null;
+  const reach = stats && reachOutCounts(board, whose, prefs.platform === "all" ? null : prefs.platform);
   const manualOnly = prefs.platform === "instagram" || prefs.platform === "linkedin";
   const filtered = shown.length !== board.leads.length;
   const lead = openId ? (leads.find((l) => l.id === openId) ?? null) : null;
@@ -247,8 +248,9 @@ export function PortalView({
             </div>
           </div>
           {/* Instagram and LinkedIn are marked Replied only: no open rate to show */}
-          <div className={`grid grid-cols-1 divide-y divide-white/[0.06] sm:divide-x sm:divide-y-0 ${manualOnly ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
-            <StatTile bare label="Reached out" value={stats.reached} Icon={Send} />
+          <div className={`grid grid-cols-1 divide-y divide-white/[0.06] sm:divide-x sm:divide-y-0 ${manualOnly ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
+            <StatTile bare label="Unique reach outs" value={reach?.unique ?? 0} Icon={Users} />
+            <StatTile bare label="Total reach outs" value={reach?.total ?? 0} Icon={Send} />
             {!manualOnly && (
               <StatTile
                 bare
