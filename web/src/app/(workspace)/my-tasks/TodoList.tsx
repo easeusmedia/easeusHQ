@@ -84,7 +84,7 @@ function dueLabel(due: string, today: string): { text: string; tone: string } {
     const n = daysBetween(due, today);
     return { text: `${n} ${n === 1 ? "day" : "days"} late`, tone: "text-rose-300" };
   }
-  return { text: dayLabel(due, today), tone: due === today ? "text-amber-300" : "text-muted" };
+  return { text: dayLabel(due, today), tone: due === today ? "text-accent" : "text-muted" };
 }
 
 type Env = {
@@ -128,7 +128,7 @@ const monthBefore = (day: string) => {
 function SectionIcon({ id, today }: { id: string; today: string }) {
   if (id === "overdue") return <CircleAlert size={15} className="text-rose-300" />;
   if (id === "none") return <Inbox size={15} className="text-muted" />;
-  if (id === today) return <Sun size={15} className="text-amber-300" />;
+  if (id === today) return <Sun size={15} className="text-accent" />;
   if (id === addDays(today, 1)) return <Sunrise size={15} className="text-sky-300" />;
   return <CalendarDays size={15} className="text-muted" />;
 }
