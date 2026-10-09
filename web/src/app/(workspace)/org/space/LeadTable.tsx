@@ -24,7 +24,7 @@ const HEAD = "px-3 py-2.5 text-left text-xs font-medium whitespace-nowrap text-m
 const CELL = "px-3 py-2 align-middle whitespace-nowrap";
 // the frozen name column: solid enough that rows scrolled under it don't
 // show through, with a hairline on its right edge
-const FROZEN = "mist-pin sticky left-0 z-10 bg-surface backdrop-blur-md shadow-[1px_0_0_var(--border)]";
+const FROZEN = "mist-pin sticky left-0 z-10 bg-surface shadow-[1px_0_0_var(--border)]";
 
 // The same leads as a Notion table: one row each, a column per property.
 // Wide boards scroll sideways while the name stays put.

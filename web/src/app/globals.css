@@ -170,16 +170,17 @@ body {
 }
 /* the soft glassy glow in a lit card's top corner: a wash of the card's
    colour, blurred into the dark */
+/* Drawn soft, not blurred: Safari (the Dock app included) cuts a blurred
+   shape off at its card's square corner rather than the rounded one, so a
+   filter here showed as a square behind the card's corner. */
 .glass-glow {
   --tint: 75, 149, 230;
   position: absolute;
-  right: -2rem;
-  top: -2.5rem;
-  width: 7rem;
-  height: 7rem;
-  border-radius: 9999px;
-  background: linear-gradient(to bottom right, rgba(var(--tint), 0.25), transparent);
-  filter: blur(40px);
+  right: -5rem;
+  top: -5.5rem;
+  width: 13rem;
+  height: 13rem;
+  background: radial-gradient(closest-side, rgba(var(--tint), 0.085), rgba(var(--tint), 0.05) 40%, rgba(var(--tint), 0.02) 70%, transparent);
   pointer-events: none;
 }
 .glass-glow.emerald {

@@ -102,7 +102,7 @@ export function ProjectCard({
 
   return (
     <div data-project={project.id} className="group relative">
-      <PrefetchLink href={href} className="card-surface card-interactive flex flex-col overflow-hidden rounded-xl shadow-sm">
+      <PrefetchLink href={href} className="card-surface card-interactive isolate flex flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {project.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled

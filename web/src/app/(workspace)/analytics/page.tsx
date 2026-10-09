@@ -60,7 +60,7 @@ function Top({ item, rank, tall, client }: { item: Item; rank: number; tall: boo
     </span>
   );
   const picture = (
-    <span className={`relative block shrink-0 overflow-hidden rounded-xl bg-surface-2 ${tall ? "aspect-[9/16] w-24" : "aspect-video w-full"}`}>
+    <span className={`relative isolate block shrink-0 overflow-hidden rounded-xl bg-surface-2 ${tall ? "aspect-[9/16] w-24" : "aspect-video w-full"}`}>
       {item.thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element -- the platform's own thumbnail
         <img src={item.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />

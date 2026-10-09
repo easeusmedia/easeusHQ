@@ -121,7 +121,7 @@ export function Organisation({
         onClose={() => changed && router.refresh()}
         className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(44rem,calc(100vh-2rem))] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
       >
-        <header className="mist-pin sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-background/80 px-5 py-4 backdrop-blur">
+        <header className="mist-pin sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-2xl border-b border-border bg-background/80 px-5 py-4 backdrop-blur">
           <div>
             <h2 className="text-base font-semibold">Departments and roles</h2>
             <p className="mt-0.5 text-xs text-muted">Each department has its roles, and each role its kinds of work: what Add task offers the people who hold it.</p>
