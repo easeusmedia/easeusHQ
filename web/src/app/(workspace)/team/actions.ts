@@ -319,3 +319,33 @@ export async function deleteWorkTag(id: string): Promise<PeopleFormState> {
   await prisma.taskTag.deleteMany({ where: { id } });
   return { success: true };
 }
+
+// Someone new: their sign-in (email, and a first password they change under
+// Account), their level and main department. The rest (roles, pay, dates)
+// is set on their page afterwards. Level 1 only.
+export async function createPerson(input: { name: string; email: string; role: string; teamId: string; password: string }): Promise<PeopleFormState & { id?: string }> {
+  const actor = await requirePeopleAdmin();
+  if (!actor) return { error: "Only Level 1 can add someone." };
+  const name = input.name.trim().slice(0, 80);
+  const email = input.email.trim().toLowerCase();
+  if (!name) return { error: "Give them a name." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email doesn't look right." };
+  if (!["admin", "core", "employee"].includes(input.role)) return { error: "Choose their level." };
+  if (input.password.length < MIN_PASSWORD) return { error: `The password needs at least ${MIN_PASSWORD} characters.` };
+  const team = input.teamId ? await prisma.team.findUnique({ where: { id: input.teamId }, select: { id: true } }) : null;
+  if (input.teamId && !team) return { error: "That department no longer exists." };
+  if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) return { error: "Someone already signs in with that email." };
+  const person = await prisma.user.create({
+    data: {
+      name,
+      email,
+      role: input.role as Role,
+      passwordHash: hashPassword(input.password),
+      joinedAt: new Date(),
+      ...(team ? { teamId: team.id, departments: { connect: { id: team.id } } } : {}),
+    },
+    select: { id: true },
+  });
+  revalidatePath("/team");
+  return { id: person.id };
+}

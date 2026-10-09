@@ -7,6 +7,7 @@ import type { Letter, Part } from "@/lib/videoScore";
 import { Avatar } from "../TaskCard";
 import { PersonDetail } from "./PersonDetail";
 import { Organisation } from "./Organisation";
+import { NewPerson } from "./NewPerson";
 import { effectiveRole } from "@/lib/scope";
 
 // One thing currently on someone's plate, from either task system.
@@ -165,6 +166,7 @@ export function PeopleDirectory({
                 className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
               />
             </div>
+            {canEdit && <NewPerson departments={teams} onAdded={setOpenId} className="relative flex w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-muted transition-colors hover:text-foreground" />}
             {canEdit && (
               <Organisation
                 departments={teams}
