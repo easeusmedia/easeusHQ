@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { CookieNotice } from "./CookieNotice";
@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   title: "Easeus HQ",
   description: "The Easeus Media team workspace",
 };
+
+// the installed app's window bar, in the app's own dark
+export const viewport: Viewport = { themeColor: "#0b0d10" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

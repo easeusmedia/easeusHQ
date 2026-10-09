@@ -2,7 +2,7 @@ import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { prisma } from "./prisma";
 import { onStaff } from "./users";
-import { COOKIE_NAME, sign, unsign } from "./sessionToken";
+import { COOKIE_NAME, COOKIE_OPTIONS, sign, unsign } from "./sessionToken";
 import { isFounder, runsClients } from "./scope";
 
 export { hashPassword, verifyPassword } from "./password";
@@ -50,13 +50,7 @@ export const getSessionUserId = cache(async (): Promise<string | null> => {
 
 export async function createSession(userId: string) {
   const store = await cookies();
-  store.set(COOKIE_NAME, sign(userId), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
+  store.set(COOKIE_NAME, sign(userId), COOKIE_OPTIONS);
 }
 
 export async function destroySession() {

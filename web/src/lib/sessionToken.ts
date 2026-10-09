@@ -7,6 +7,15 @@ import { createHmac, timingSafeEqual } from "crypto";
 // cookie too.
 const SECRET = process.env.SESSION_SECRET ?? "dev-only-insecure-secret-set-SESSION_SECRET";
 export const COOKIE_NAME = "session";
+// how it's set: on signing in, and again on each page opened (proxy.ts), so
+// a sign-in lasts 30 days from the last visit, not the first
+export const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30,
+} as const;
 
 export function sign(userId: string): string {
   const sig = createHmac("sha256", SECRET).update(userId).digest("hex");
