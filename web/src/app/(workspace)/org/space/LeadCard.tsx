@@ -14,7 +14,7 @@ const ICON: Record<Marked, React.ReactNode> = {
 // information, not a warning), who added it, with whoever it's given to,
 // and from Day 1 how it's going on the platform its day's message goes out
 // on (`day`: its key, name and platform), only that one. Email shows by
-// itself (opened, how often, replied and by whom: from the sales inbox and
+// itself (opened and replied, how often and by whom: from the sales inbox and
 // the mail tracker); Instagram and LinkedIn are tapped, Reply only.
 export function LeadCard({
   lead,
@@ -110,7 +110,12 @@ export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; 
   return (
     <>
       {email.opens > 0
-        ? chip(lit, "Opened, by the mail tracker", `Opened ${email.opens}×`)
+        ? chip(
+            lit,
+            email.openedBy.map((o) => `${o.address} opened it ${o.opens}×`).join("\n") || "Opened, by the mail tracker",
+            // who opened it: one person "Opened 2× · Akash Raj", more "Opened · Akash Raj 2×, Rohan Mehra 1×"
+            email.openedBy.length > 1 ? `Opened · ${email.openedBy.map((o) => `${o.by} ${o.opens}×`).join(", ")}` : `Opened ${email.opens}×${email.openedBy[0] ? ` · ${email.openedBy[0].by}` : ""}`
+          )
         : email.tracked
           ? chip(quiet, "Sent with the mail tracker, not opened yet", "Not opened yet")
           : !email.replied && chip(quiet, "Sent without the mail tracker, so opens aren't known", "Sent")}

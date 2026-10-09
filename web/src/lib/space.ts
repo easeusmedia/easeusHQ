@@ -114,7 +114,8 @@ export type LeadData = {
   // an email went to it (and a tracked one), how often its emails were
   // opened, its first reply (on the day it was at then), and whether its
   // email bounced (and nothing came back)
-  email: { sent: boolean; tracked: boolean; opens: number; replied: (Mark & { by: string; address: string }) | null; bounced: boolean };
+  // (and who opened: each contact whose email was, how often)
+  email: { sent: boolean; tracked: boolean; opens: number; openedBy: { by: string; address: string; opens: number }[]; replied: (Mark & { by: string; address: string }) | null; bounced: boolean };
   // Instagram and LinkedIn, marked by hand
   marks: Marks;
   // the platforms it has been reached on (reachedOn)

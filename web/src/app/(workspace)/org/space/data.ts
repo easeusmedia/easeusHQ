@@ -127,6 +127,12 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
         sent: !!first,
         tracked: mails.length > 0,
         opens,
+        // who opened: each contact's emails' opens (one email per contact,
+        // so each open is theirs), most first
+        openedBy: [...new Set(mails.map((t) => t.to))]
+          .map((address) => ({ by: nameOf(address), address, opens: mails.filter((t) => t.to === address).reduce((n, t) => n + t.opens, 0) }))
+          .filter((o) => o.opens > 0)
+          .sort((a, b) => b.opens - a.opens),
         replied: reply && stage ? { ...({ day: phaseKey(stage), at: reply.at.toISOString() } satisfies Mark), by: repliers.map(nameOf).join(", "), address: repliers.join(", ") } : null,
         bounced: !reply && !opens && mails.some((t) => t.bouncedAt),
       },

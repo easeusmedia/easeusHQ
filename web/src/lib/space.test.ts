@@ -172,7 +172,7 @@ test("a mark is set on a day, and cleared", () => {
 
 type T = { email?: { tracked?: boolean; opens?: number; replied?: boolean }; marks?: Marks; on?: Platform[] };
 const row = ({ email = {}, marks = {}, on = [] }: T) => ({
-  email: { sent: on.includes("email"), tracked: !!email.tracked, opens: email.opens ?? 0, replied: email.replied ? { day: "day-1", at: "t", by: "Akash", address: "a@x.co" } : null, bounced: false },
+  email: { sent: on.includes("email"), tracked: !!email.tracked, opens: email.opens ?? 0, openedBy: [], replied: email.replied ? { day: "day-1", at: "t", by: "Akash", address: "a@x.co" } : null, bounced: false },
   marks,
   reachedOn: on,
 });
