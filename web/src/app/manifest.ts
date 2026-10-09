@@ -14,12 +14,14 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#0b0d10",
     theme_color: "#0b0d10",
-    // Chrome offers to install only with both sizes; the Mac's Dock (Safari)
-    // takes a full square with no corners or rim of its own, and rounds it
-    // to the Mac's shape itself
+    // Safari's Add to Dock (and Chrome) take the plain icons as they are,
+    // so they're already the Mac's rounded shape, with no rim of their own
+    // (the site's icon has one, which showed as a second edge); Chrome
+    // offers to install only with both sizes. A full square for anything
+    // that rounds icons itself.
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon.png", sizes: "512x512", type: "image/png" },
+      { src: "/app-icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/app-icon-512.png", sizes: "512x512", type: "image/png" },
       { src: "/app-icon.png", sizes: "1024x1024", type: "image/png", purpose: "maskable" },
     ],
   };
