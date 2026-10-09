@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, markedOn, moveNeedsReason, outreachStats, reachedByDay, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, markedOn, moveNeedsReason, outreachStats, reachedByDay, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -148,6 +148,13 @@ test("Instagram and LinkedIn are reached by the furthest day a lead has been on"
   assert.deepEqual(reachedByDay(days, ["Day 1"]), ["linkedin"]);
   // moved on to Replied after Day 2: both, by its record
   assert.deepEqual(reachedByDay(days, ["Replied", "Day 1", "Day 2 · Instagram 1"]), ["instagram", "linkedin"]);
+});
+
+test("a card's buttons follow the platform its day's message goes out on", () => {
+  assert.equal(dayPlatform(days, {}, 1), "email");
+  assert.equal(dayPlatform(days, { "day-1": "l1" }, 1), "linkedin");
+  assert.equal(dayPlatform(days, {}, 2), "instagram");
+  assert.equal(dayPlatform(days, {}, 9), null);
 });
 
 test("a mark is set on a day, and cleared", () => {

@@ -134,9 +134,10 @@ export function Messages({
     const chosenId = options.length > 1 ? pickOf(p.key) : options[0].id;
     const chosen = options.find((m) => m.id === chosenId) ?? null;
     const replied = repliedOn(p.key);
-    // a day reached takes Seen and Reply for its Instagram and LinkedIn
-    // messages (once per platform, whichever day); email's come by themselves
-    const marked = p.day != null && today != null && p.day <= today ? MARKED.filter((c) => options.some((m) => m.channel === c)) : [];
+    // a day reached shows its message's platform only: Seen and Reply for
+    // Instagram or LinkedIn (once per platform, whichever day), email's by themselves
+    const reached = p.day != null && today != null && p.day <= today;
+    const marked = reached ? MARKED.filter((c) => chosen?.channel === c) : [];
     const folded = p.when === "done" && !openDays.has(p.key);
     // its emails' opens (the mail tracker), on Day 1 once it's done
     const opened = p.when === "done" && p.day === 1 && lead.email.opens > 0 && (
@@ -144,16 +145,15 @@ export function Messages({
         <MailOpen size={11} /> Opened {lead.email.opens}×
       </span>
     );
-    // and while it's not folded away: its emails, by themselves (opens on
-    // Day 1, a reply on the day it came)
-    const mailNote = p.when !== "done" && p.day != null && today != null && p.day <= today && (p.day === 1 && lead.email.opens > 0 || lead.email.replied?.day === p.key) && (
+    // an email day not yet done: its emails, by themselves (the card's too)
+    const mailNote = p.when !== "done" && reached && chosen?.channel === "email" && (lead.email.opens > 0 || !!lead.email.replied) && (
       <span className="flex flex-wrap items-center gap-1.5">
-        {p.day === 1 && lead.email.opens > 0 && (
+        {lead.email.opens > 0 && (
           <span className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1 text-xs text-muted">
             <Mail size={12} className="text-sky-400" /> Opened {lead.email.opens}×
           </span>
         )}
-        {lead.email.replied?.day === p.key && (
+        {lead.email.replied && (
           <span className="flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
             <Mail size={12} /> Replied
           </span>

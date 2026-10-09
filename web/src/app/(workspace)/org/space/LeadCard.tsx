@@ -15,11 +15,10 @@ const DONE = `${PILL} bg-emerald-400/10 text-emerald-300`;
 
 // One lead on the board: its name, the details not added yet (quietly, as
 // information, not a warning), who added it, with whoever it's given to,
-// and from Day 1 how it's going on each platform. Email shows by itself
-// (opened, how often, replied: from the sales inbox and the mail tracker).
-// Instagram and LinkedIn are tapped: Seen and Reply for the platforms its
-// day goes out on (`day`: its key, name and those platforms), and what was
-// marked on the others.
+// and from Day 1 how it's going on the platform its day's message goes out
+// on (`day`: its key, name and platform), only that one. Email shows by
+// itself (opened, how often, replied: from the sales inbox and the mail
+// tracker); Instagram and LinkedIn are tapped, Seen and Reply.
 export function LeadCard({
   lead,
   fields,
@@ -32,10 +31,15 @@ export function LeadCard({
   fields: FieldData[];
   onOpen: (id: string) => void;
   tracks?: boolean;
-  day?: { key: string; name: string; marked: Marked[] };
+  day?: { key: string; name: string; platform: string | null };
   onTrack?: (id: string, change: MarkChange) => void;
 }) {
   const missing = missingDetails(fields, lead.values);
+  // the platform its day goes out on: email shows by itself, the others are tapped
+  const mail = day?.platform === "email" && (lead.email.opens > 0 || !!lead.email.replied);
+  const marked = MARKED.find((p) => p === day?.platform);
+  const m = (marked && lead.marks[marked]) || {};
+  const toggle = (kind: "seen" | "replied") => marked && day && onTrack?.(lead.id, { platform: marked, kind, day: m[kind] ? null : day.key });
   const first = (name: string) => name.split(" ")[0];
 
   return (
@@ -73,48 +77,29 @@ export function LeadCard({
           </>
         )}
       </div>
-      {tracks && (
+      {tracks && (mail || (marked && onTrack)) && (
         // its own taps, not the card's: they don't open the lead
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
-          {lead.email.opens > 0 && (
+          {mail && lead.email.opens > 0 && (
             <span title="Opened, by the mail tracker" className={QUIET}>
               <Mail size={11} className="text-sky-400" /> Opened {lead.email.opens}×
             </span>
           )}
-          {lead.email.replied && (
+          {mail && lead.email.replied && (
             <span title="Replied by email" className={DONE}>
               <Mail size={11} /> Replied
             </span>
           )}
-          {MARKED.map((p) => {
-            const m = lead.marks[p] ?? {};
-            const toggle = (kind: "seen" | "replied") => onTrack?.(lead.id, { platform: p, kind, day: m[kind] ? null : day!.key });
-            // its day goes out here: tap Seen and Reply
-            if (onTrack && day?.marked.includes(p))
-              return (
-                <span key={p} className="flex items-center gap-1">
-                  <button type="button" aria-pressed={!!m.seen} onClick={() => toggle("seen")} title={m.seen ? "Seen. Tap to undo." : `They saw it on ${PLATFORM_NAME[p]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
-                    {ICON[p]} <Eye size={11} /> Seen
-                  </button>
-                  <button type="button" aria-pressed={!!m.replied} onClick={() => toggle("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[p]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
-                    {ICON[p]} <Reply size={11} /> {m.replied ? "Replied" : "Reply"}
-                  </button>
-                </span>
-              );
-            if (m.replied)
-              return (
-                <span key={p} title={`Replied on ${PLATFORM_NAME[p]}`} className={DONE}>
-                  {ICON[p]} Replied
-                </span>
-              );
-            if (m.seen)
-              return (
-                <span key={p} title={`Seen on ${PLATFORM_NAME[p]}`} className={QUIET}>
-                  {ICON[p]} Seen
-                </span>
-              );
-            return null;
-          })}
+          {marked && onTrack && (
+            <>
+              <button type="button" aria-pressed={!!m.seen} onClick={() => toggle("seen")} title={m.seen ? "Seen. Tap to undo." : `They saw it on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
+                {ICON[marked]} <Eye size={11} /> Seen
+              </button>
+              <button type="button" aria-pressed={!!m.replied} onClick={() => toggle("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
+                {ICON[marked]} <Reply size={11} /> {m.replied ? "Replied" : "Reply"}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

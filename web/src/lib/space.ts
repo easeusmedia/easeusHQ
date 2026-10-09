@@ -316,10 +316,20 @@ export function withMark(marks: Marks, c: MarkChange, at = new Date().toISOStrin
   return { ...marks, [c.platform]: one };
 }
 
+const messagesOnDay = (board: Pick<BoardData, "stages" | "messages">, day: number) =>
+  board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") === day);
+
 // the platforms marked by hand that a day's messages go out on
 export function markedOn(board: Pick<BoardData, "stages" | "messages">, day: number): Marked[] {
-  const dayOfMessage = (m: Pick<MessageData, "stageId">) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "");
-  return MARKED.filter((p) => board.messages.some((m) => m.channel === p && dayOfMessage(m) === day));
+  return MARKED.filter((p) => messagesOnDay(board, day).some((m) => m.channel === p));
+}
+
+// The platform a lead's day goes out on, so its card shows only that
+// platform's buttons: the message picked for the day (a day with more than
+// one), else the day's first
+export function dayPlatform(board: Pick<BoardData, "stages" | "messages">, picks: Record<string, string>, day: number): string | null {
+  const on = messagesOnDay(board, day);
+  return (on.find((m) => m.id === picks[`day-${day}`]) ?? on[0])?.channel ?? null;
 }
 
 // Instagram and LinkedIn reached by a lead's record: from their first day
