@@ -92,8 +92,18 @@ export function Trend({ points, tone = "accent", unit = "emails" }: { points: { 
           </rect>
         ))}
       </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-muted">
-        {points.map((p, i) => (i % every === 0 || i === points.length - 1 ? <span key={p.label}>{p.label}</span> : null))}
+      {/* each label under its own point (the last always shown, one too close to it left out) */}
+      <div className="relative mt-1 h-4 text-[10px] text-muted">
+        {points.map((p, i) => {
+          const last = points.length - 1;
+          if (i !== last && (i % every !== 0 || last - i < every)) return null;
+          const at = (x(i) / w) * 100;
+          return (
+            <span key={p.label} className="absolute whitespace-nowrap" style={{ left: `${at}%`, transform: `translateX(-${at}%)` }}>
+              {p.label}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
