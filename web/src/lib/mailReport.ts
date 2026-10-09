@@ -118,7 +118,7 @@ function period(range: Range) {
   return { start, end, prevStart: new Date(start.getTime() - RANGES[range].days * DAY) };
 }
 
-type Rates = { sent: number; opened: number; withLinks: number; clicked: number; docsSent: number; docsViewed: number; replied: number; bounced: number };
+export type Rates = { sent: number; opened: number; withLinks: number; clicked: number; docsSent: number; docsViewed: number; replied: number; bounced: number };
 
 async function rates(alias: string | null, from: Date, to: Date): Promise<Rates> {
   const [r] = await prisma.$queryRaw<Rates[]>`
@@ -141,6 +141,63 @@ async function inbox(alias: string | null, from: Date, to: Date): Promise<Inbox>
   return r;
 }
 
+// ---------- replies, from the inbox ----------
+
+// every conversation's first message: the ones we sent first are outreach
+const FIRSTS = Prisma.sql`select distinct on (m."threadId") m."threadId", m.at, m.outgoing, m."from" from "MailMessage" m order by m."threadId", m.at`;
+// a person writing back in one of them (not a bounce or an auto-reply)
+const ANSWERED = Prisma.sql`exists (select 1 from "MailMessage" r where r."threadId" = f."threadId" and not r.outgoing and not r.auto)`;
+
+export type Replies = { replies: number; started: number; answered: number };
+
+// Replies from the sales inbox, whichever computer sent the email (no
+// tracker needed): replies received in the period to conversations we
+// started, and of the conversations started in it, how many were answered
+async function replies(alias: string | null, from: Date, to: Date): Promise<Replies> {
+  const by = alias ? Prisma.sql`and f."from" = ${alias}` : Prisma.empty;
+  const [r] = await prisma.$queryRaw<Replies[]>`
+    with f as (${FIRSTS})
+    select
+      (select count(*) from "MailMessage" r join f on f."threadId" = r."threadId"
+        where f.outgoing and not r.outgoing and not r.auto and r.at >= ${from} and r.at < ${to} ${by})::int replies,
+      (select count(*) from f where f.outgoing and f.at >= ${from} and f.at < ${to} ${by})::int started,
+      (select count(*) from f where f.outgoing and f.at >= ${from} and f.at < ${to} ${by} and ${ANSWERED})::int answered`;
+  return r;
+}
+
+// ---------- the Sales page's summary ----------
+
+export type AliasSummary = { from: string; sent: number; replies: Replies; tracked: Rates };
+
+// Since a moment: everything sent and the replies (the inbox), and the open
+// and click rates of the emails the tracker saw; overall and per alias
+export async function salesSummary(since: Date) {
+  const until = new Date(Date.now() + DAY);
+  const [box, rep, tracked, sentBy, trackedBy2] = await Promise.all([
+    inbox(null, since, until),
+    replies(null, since, until),
+    rates(null, since, until),
+    prisma.$queryRaw<{ from: string; sent: number }[]>`select "from", count(*)::int sent from "MailMessage" where outgoing and at >= ${since} group by "from"`,
+    prisma.$queryRaw<{ from: string }[]>`select distinct "from" from "TrackedMail" where "sentAt" >= ${since}`,
+  ]);
+  const names = [...new Set([...sentBy.map((a) => a.from), ...trackedBy2.map((a) => a.from)])].filter(Boolean);
+  const perAlias: AliasSummary[] = await Promise.all(
+    names.map(async (from) => ({
+      from,
+      sent: sentBy.find((a) => a.from === from)?.sent ?? 0,
+      replies: await replies(from, since, until),
+      tracked: await rates(from, since, until),
+    }))
+  );
+  return {
+    inboxOn: box.sent > 0 || box.received > 0,
+    sent: box.sent || tracked.sent,
+    replies: rep,
+    tracked,
+    aliases: perAlias.sort((a, b) => b.sent - a.sent || b.tracked.sent - a.tracked.sent),
+  };
+}
+
 // waits, bucketed as Mailsuite does them
 export const WAIT_BUCKETS = ["<15m", "1h", "2h", "6h", "12h", "1d", "2d", ">2d"];
 const bucket = (expr: Prisma.Sql) => Prisma.sql`case
@@ -152,7 +209,9 @@ const fill = (rows: { b: number; n: number }[]) => WAIT_BUCKETS.map((_, i) => ro
 export async function performance(alias: string | null, range: Range) {
   const { start, end, prevStart } = period(range);
   const unit = range === "year" ? "month" : "day";
-  const [now, before, box, boxBefore, byDay, heat, firstOpen, respond, firstResponse, avgResponse, top] = await Promise.all([
+  const [repliesNow, repliesBefore, now, before, box, boxBefore, byDay, heat, firstOpen, respond, firstResponse, avgResponse, top] = await Promise.all([
+    replies(alias, start, end),
+    replies(alias, prevStart, start),
     rates(alias, start, end),
     rates(alias, prevStart, start),
     inbox(alias, start, end),
@@ -208,6 +267,7 @@ export async function performance(alias: string | null, range: Range) {
     unit,
     now,
     before,
+    replies: { now: repliesNow, before: repliesBefore },
     inbox: box,
     inboxBefore: boxBefore,
     byDay,

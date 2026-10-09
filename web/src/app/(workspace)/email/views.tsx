@@ -104,6 +104,7 @@ export function ActivityList({ items, now }: { items: Activity[]; now: number })
 
 export function HomeView({ items, report, now }: { items: Activity[]; report: Performance; now: number }) {
   const sent = report.inbox.sent || report.now.sent;
+  const inboxOn = report.inbox.sent > 0 || report.inbox.received > 0;
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
       <Panel title="Latest activity" aside={<Link href="/email?tab=activity" className="text-xs text-muted hover:text-foreground">See all</Link>}>
@@ -115,7 +116,7 @@ export function HomeView({ items, report, now }: { items: Activity[]; report: Pe
             { label: "Sent emails", value: sent, Icon: Send },
             { label: "Recipients", value: report.inbox.recipients, Icon: Users },
             { label: "Received emails", value: report.inbox.received, Icon: Inbox },
-            { label: "Replies", value: report.now.replied, Icon: CornerUpLeft },
+            { label: "Replies", value: inboxOn ? report.replies.now.replies : report.now.replied, Icon: CornerUpLeft },
           ].map((t) => (
             <div key={t.label} className="rounded-xl bg-white/[0.03] px-3 py-2.5 ring-1 ring-white/[0.06]">
               <p className="flex items-center gap-1.5 text-[11px] text-muted">
@@ -135,6 +136,8 @@ export function HomeView({ items, report, now }: { items: Activity[]; report: Pe
             <span className="text-xs text-muted">Link click rate</span>
           </div>
         </div>
+        {/* opens and clicks come only from emails sent with the tracker */}
+        {inboxOn && <p className="mt-3 text-center text-xs text-muted">{report.now.sent} of {sent} emails tracked</p>}
       </Panel>
     </div>
   );
@@ -421,7 +424,9 @@ export function PerformanceView({
           { title: "Opening rate", part: p.now.opened, of: p.now.sent, prev: pct(p.before.opened, p.before.sent), note: "Emails sent/opened" },
           { title: "Link click rate", part: p.now.clicked, of: p.now.withLinks, prev: pct(p.before.clicked, p.before.withLinks), note: "Links sent/clicked", tone: "emerald" as const },
           { title: "PDF viewed rate", part: p.now.docsViewed, of: p.now.docsSent, prev: pct(p.before.docsViewed, p.before.docsSent), note: "PDFs sent/viewed" },
-          { title: "Reply rate", part: p.now.replied, of: p.now.sent, prev: pct(p.before.replied, p.before.sent), note: "Emails sent/replied", tone: "emerald" as const },
+          inboxOn
+            ? { title: "Reply rate", part: p.replies.now.answered, of: p.replies.now.started, prev: pct(p.replies.before.answered, p.replies.before.started), note: "Conversations started/answered", tone: "emerald" as const }
+            : { title: "Reply rate", part: p.now.replied, of: p.now.sent, prev: pct(p.before.replied, p.before.sent), note: "Emails sent/replied", tone: "emerald" as const },
         ].map((r) => (
           <Panel key={r.title} title={r.title} className="flex flex-col items-center text-center">
             <Ring part={r.part} of={r.of} tone={r.tone} />
@@ -432,6 +437,9 @@ export function PerformanceView({
           </Panel>
         ))}
       </div>
+
+      {/* opens, clicks and PDF views come only from emails sent with the tracker */}
+      {inboxOn && <p className="-mt-2 text-xs text-muted">Opening, link click and PDF rates: {p.now.sent} of {sent} emails tracked</p>}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Time taken to respond">
