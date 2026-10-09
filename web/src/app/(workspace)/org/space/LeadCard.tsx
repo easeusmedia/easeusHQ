@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDashed, Eye, Mail, Reply } from "lucide-react";
+import { CircleDashed, Mail, Reply } from "lucide-react";
 import { MARKED, missingDetails, PLATFORM_NAME, type FieldData, type LeadData, type Marked, type MarkChange } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -14,8 +14,8 @@ const ICON: Record<Marked, React.ReactNode> = {
 // information, not a warning), who added it, with whoever it's given to,
 // and from Day 1 how it's going on the platform its day's message goes out
 // on (`day`: its key, name and platform), only that one. Email shows by
-// itself (opened, how often, replied: from the sales inbox and the mail
-// tracker); Instagram and LinkedIn are tapped, Seen and Reply.
+// itself (opened, how often, replied and by whom: from the sales inbox and
+// the mail tracker); Instagram and LinkedIn are tapped, Reply only.
 export function LeadCard({
   lead,
   fields,
@@ -80,9 +80,6 @@ export function LeadCard({
           {mail && <EmailStatus email={lead.email} />}
           {marked && onTrack && (
             <>
-              <button type="button" aria-pressed={!!m.seen} onClick={() => toggle("seen")} title={m.seen ? "Seen. Tap to undo." : `They saw it on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
-                {ICON[marked]} <Eye size={11} /> Seen
-              </button>
               <button type="button" aria-pressed={!!m.replied} onClick={() => toggle("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
                 {ICON[marked]} <Reply size={11} /> {m.replied ? "Replied" : "Reply"}
               </button>
@@ -103,9 +100,9 @@ export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; 
   const lit = "chip-lit border";
   const box = size === "sm" ? "gap-1 px-2 py-0.5 text-[11px]" : "gap-1.5 px-3 py-1 text-xs";
   const chip = (tone: string, title: string, text: string) => (
-    <span title={title} className={`flex w-fit items-center rounded-full ${box} ${tone}`}>
+    <span title={title} className={`flex w-fit max-w-full min-w-0 items-center rounded-full ${box} ${tone}`}>
       {/* the email icon in its own blue when lit, as Seen and Replied carry their platform's */}
-      <Mail size={size === "sm" ? 11 : 12} className={`shrink-0 ${tone === lit ? "text-sky-400" : ""}`} /> {text}
+      <Mail size={size === "sm" ? 11 : 12} className={`shrink-0 ${tone === lit ? "text-sky-400" : ""}`} /> <span className="truncate">{text}</span>
     </span>
   );
   if (email.bounced) return chip("bg-rose-400/10 text-rose-300", "The email didn't reach them", "Bounced");
@@ -117,7 +114,8 @@ export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; 
         : email.tracked
           ? chip(quiet, "Sent with the mail tracker, not opened yet", "Not opened yet")
           : !email.replied && chip(quiet, "Sent without the mail tracker, so opens aren't known", "Sent")}
-      {email.replied && chip(lit, "They replied by email", "Replied")}
+      {/* who wrote back, when a lead has more than one contact */}
+      {email.replied && chip(lit, `${email.replied.address} replied by email`, `Replied · ${email.replied.by}`)}
     </>
   );
 }

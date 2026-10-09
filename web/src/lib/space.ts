@@ -114,7 +114,7 @@ export type LeadData = {
   // an email went to it (and a tracked one), how often its emails were
   // opened, its first reply (on the day it was at then), and whether its
   // email bounced (and nothing came back)
-  email: { sent: boolean; tracked: boolean; opens: number; replied: Mark | null; bounced: boolean };
+  email: { sent: boolean; tracked: boolean; opens: number; replied: (Mark & { by: string; address: string }) | null; bounced: boolean };
   // Instagram and LinkedIn, marked by hand
   marks: Marks;
   // the platforms it has been reached on (reachedOn)
@@ -357,9 +357,11 @@ function onPlatform(l: Tracked, p: Platform) {
     const replied = !!l.email.replied;
     return { reached: l.reachedOn.includes("email"), known: l.email.tracked || replied, opened: l.email.opens > 0 || replied, replied };
   }
+  // Instagram and LinkedIn are marked Replied only (no Seen since 9 Oct
+  // 2026): whether they read it is known only from a reply
   const m = l.marks[p] ?? {};
   const reached = l.reachedOn.includes(p) || !!m.seen || !!m.replied;
-  return { reached, known: reached, opened: !!m.seen || !!m.replied, replied: !!m.replied };
+  return { reached, known: !!m.seen || !!m.replied, opened: !!m.seen || !!m.replied, replied: !!m.replied };
 }
 
 // The board's numbers, by lead, on one platform or on all (null): reached

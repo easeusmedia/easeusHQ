@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, type BoardData, type Draft, type FieldKind, type Mark, type Marks, type Person, type Platform, type SpaceCard, type SpaceKind } from "@/lib/space";
+import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, type BoardData, type Contact, type Draft, type FieldKind, type Mark, type Marks, type Person, type Platform, type SpaceCard, type SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -100,6 +100,11 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     prisma.trackedMail.findMany({ where: { to: { in: all } }, select: { to: true, sentAt: true, opens: true, bouncedAt: true } }),
     prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true }, orderBy: { at: "asc" } }),
   ]);
+  const contactFields = board.fields.filter((f) => f.kind === "contacts").map((f) => f.id);
+  const contactsOf = (values: unknown) => contactFields.flatMap((id) => {
+    const v = (values as Record<string, unknown> | null)?.[id];
+    return Array.isArray(v) ? (v as Contact[]) : [];
+  });
   const emailOf = (l: (typeof board.leads)[number]) => {
     const mine = leadAddresses.get(l.id) ?? [];
     const since = l.createdAt.getTime() - 3_600_000;
@@ -111,13 +116,17 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     const moved = reply ? l.events.filter((e) => e.createdAt <= reply.at).pop()?.toStage : null;
     const stage = board.stages.find((s) => (moved ? s.name === moved : s.id === l.stageId)) ?? board.stages.find((s) => s.id === l.stageId);
     const opens = mails.reduce((n, t) => n + t.opens, 0);
+    // who wrote back (each contact once, in the order they did): its name
+    // from the lead's contacts, else the address
+    const repliers = first ? [...new Set(heard.filter((h) => mine.includes(h.from) && h.at > first).map((h) => h.from))] : [];
+    const nameOf = (address: string) => contactsOf(l.values).find((c) => c.channels?.some((ch) => ch.value?.trim().toLowerCase() === address))?.name?.trim() || address;
     return {
       sent: !!first,
       email: {
         sent: !!first,
         tracked: mails.length > 0,
         opens,
-        replied: reply && stage ? ({ day: phaseKey(stage), at: reply.at.toISOString() } satisfies Mark) : null,
+        replied: reply && stage ? { ...({ day: phaseKey(stage), at: reply.at.toISOString() } satisfies Mark), by: repliers.map(nameOf).join(", "), address: repliers.join(", ") } : null,
         bounced: !reply && !opens && mails.some((t) => t.bouncedAt),
       },
     };

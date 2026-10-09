@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronDown, ChevronRight, Copy, Eye, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { dayOf, defaultMessage, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, PLATFORM_NAME, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
@@ -80,10 +80,9 @@ export function Messages({
     }
     onSaved();
   }
-  // what came on a day: a reply (by email, from the sales inbox; on
-  // Instagram or LinkedIn, marked), or a message seen
+  // a reply that came on a day: by email (the sales inbox) or, marked, on
+  // Instagram or LinkedIn
   const repliedOn = (key: string) => lead.email.replied?.day === key || MARKED.some((c) => lead.marks[c]?.replied?.day === key);
-  const seenOn = (key: string) => MARKED.some((c) => lead.marks[c]?.seen?.day === key);
   const today = dayOf(board.stages.find((s) => s.id === stageId)?.name ?? "");
 
   async function saveVar(name: string, value: string) {
@@ -138,8 +137,8 @@ export function Messages({
     const chosenId = options.length > 1 ? (pickOf(p.key) ?? defaultMessage(options, lead.email.opens > 0)?.id) : options[0].id;
     const chosen = options.find((m) => m.id === chosenId) ?? null;
     const replied = repliedOn(p.key);
-    // a day reached shows its message's platform only: Seen and Reply for
-    // Instagram or LinkedIn (once per platform, whichever day), email's by themselves
+    // a day reached shows its message's platform only: Reply for Instagram
+    // or LinkedIn (once per platform, whichever day), email's by itself
     const reached = p.day != null && today != null && p.day <= today;
     const marked = reached ? MARKED.filter((c) => chosen?.channel === c) : [];
     const folded = p.when === "done" && !openDays.has(p.key);
@@ -178,9 +177,6 @@ export function Messages({
               const m = lead.marks[c] ?? {};
               return (
                 <span key={c} className="flex flex-wrap items-center gap-1.5">
-                  <button type="button" aria-pressed={!!m.seen} onClick={() => onMark({ platform: c, kind: "seen", day: m.seen ? null : p.key })} title={m.seen ? "Seen. Tap to undo." : `They saw it on ${PLATFORM_NAME[c]}`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                    {CHANNEL_ICON[c]} <Eye size={12} /> Seen
-                  </button>
                   <button type="button" aria-pressed={!!m.replied} onClick={() => onMark({ platform: c, kind: "replied", day: m.replied ? null : p.key })} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[c]}`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
                     {CHANNEL_ICON[c]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
                   </button>
@@ -216,11 +212,6 @@ export function Messages({
             <button type="button" onClick={() => toggleDay(p.key)} aria-expanded={!folded} className="group/day flex flex-wrap items-center gap-2 pt-0.5 text-left text-xs">
               <span className="font-medium text-foreground/80 transition-colors group-hover/day:text-foreground">{p.title}</span>
               {opened}
-              {seenOn(p.key) && !replied && (
-                <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">
-                  <Eye size={11} /> Seen
-                </span>
-              )}
               {replied && (
                 <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-300">
                   <Reply size={11} /> Replied

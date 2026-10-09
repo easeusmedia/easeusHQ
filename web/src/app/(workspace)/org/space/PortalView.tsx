@@ -173,6 +173,7 @@ export function PortalView({
   // reaching out, in numbers: for whoever is picked, whatever is searched
   // on one platform or all
   const stats = outreachStart(board.stages) >= 0 ? outreachStats(whose, prefs.platform === "all" ? null : prefs.platform) : null;
+  const manualOnly = prefs.platform === "instagram" || prefs.platform === "linkedin";
   const filtered = shown.length !== board.leads.length;
   const lead = openId ? (leads.find((l) => l.id === openId) ?? null) : null;
   const whoOptions = [
@@ -245,16 +246,19 @@ export function PortalView({
               <TrackerChip />
             </div>
           </div>
-          <div className="grid grid-cols-1 divide-y divide-white/[0.06] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {/* Instagram and LinkedIn are marked Replied only: no open rate to show */}
+          <div className={`grid grid-cols-1 divide-y divide-white/[0.06] sm:divide-x sm:divide-y-0 ${manualOnly ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
             <StatTile bare label="Reached out" value={stats.reached} Icon={Send} />
-            <StatTile
-              bare
-              label="Open rate"
-              value={`${stats.openRate}%`}
-              lit={stats.opened > 0}
-              Icon={MailOpen}
-              note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} {prefs.platform === "instagram" || prefs.platform === "linkedin" ? "seen" : "opened"}</p>}
-            />
+            {!manualOnly && (
+              <StatTile
+                bare
+                label="Open rate"
+                value={`${stats.openRate}%`}
+                lit={stats.opened > 0}
+                Icon={MailOpen}
+                note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} opened</p>}
+              />
+            )}
             <StatTile
               bare
               label="Reply rate"
