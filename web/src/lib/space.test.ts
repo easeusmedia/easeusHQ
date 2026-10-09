@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, stageSections, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -249,4 +249,10 @@ test("unique reach outs count each lead once, total every reach out", () => {
   assert.deepEqual(reachOutCounts(days, leads, "email"), { unique: 5, total: 10 });
   assert.deepEqual(reachOutCounts(days, leads, "instagram"), { unique: 5, total: 5 });
   assert.deepEqual(reachOutCounts(days, leads, "linkedin"), { unique: 0, total: 0 });
+});
+
+test("a board with a day sequence is in sections: in process to the last day, then replied, then closed", () => {
+  const names = ["Dream List", "Ready to reach out", "Day 1", "Day 8 · Email 4", "Audit sent", "Replied", "No reply after the audit", "Parked for later", "Dead"];
+  assert.deepEqual(stageSections(names.map((name) => ({ name }))), ["process", "process", "process", "process", "replied", "replied", "replied", "closed", "closed"]);
+  assert.equal(stageSections([{ name: "To do" }, { name: "Done" }]), null);
 });

@@ -292,6 +292,19 @@ export function outreachStart(stages: Pick<StageData, "name">[]): number {
   return first - 1;
 }
 export const isDead = (stageName: string) => /^dead\b/i.test(stageName.trim());
+export const isReplied = (stageName: string) => /^replied\b/i.test(stageName.trim());
+
+// The board in sections, a row of stages each (9 Oct 2026, Abhishek): In
+// process, from the first stage to the sequence's last day; Replied, the
+// stages after it (Replied, Audit sent, No reply after the audit); Closed,
+// Parked for later and Dead. null on a board without a day sequence.
+export const SECTIONS = { process: "In process", replied: "Replied", closed: "Closed" } as const;
+export type Section = keyof typeof SECTIONS;
+export function stageSections(stages: Pick<StageData, "name">[]): Section[] | null {
+  const last = stages.map((s) => dayOf(s.name) != null).lastIndexOf(true);
+  if (last < 0) return null;
+  return stages.map((s, i) => (i <= last ? "process" : isDead(s.name) || /^parked\b/i.test(s.name.trim()) ? "closed" : "replied"));
+}
 
 // From Day 1 on, a lead's opens and replies show (its card and timeline)
 export function tracksOutreach(stages: Pick<StageData, "id" | "name">[], lead: Pick<LeadData, "stageId" | "reached">): boolean {

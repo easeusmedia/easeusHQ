@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { gmail, gmailAccount } from "./gmail";
 import { refresh } from "./mailTrack";
+import { moveRepliedByEmail } from "./leadMoves";
 
 // The sales inbox (sales.easeus.media@gmail.com), read from Gmail into
 // MailMessage: every email sent and received, tracked or not. From it the
@@ -135,6 +136,8 @@ export async function syncSalesInbox(forceFull = false): Promise<{ read: number;
     }
   }
   if (rows.length) await prisma.mailMessage.createMany({ data: rows, skipDuplicates: true });
+  // a lead that wrote back moves to Replied by itself
+  await moveRepliedByEmail(rows.filter((r) => !r.outgoing && !r.auto)).catch((err) => console.error(err));
   const complete = full && fresh.length <= PER_RUN && !limited;
   if (complete) await save(SYNCED, startedAt.toISOString());
   await link(complete ? startedAt : synced ? new Date(synced) : null);

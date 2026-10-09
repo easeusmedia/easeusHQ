@@ -1,7 +1,7 @@
 "use client";
 
 import { Mail, Reply } from "lucide-react";
-import { MARKED, missingDetails, PLATFORM_NAME, type FieldData, type LeadData, type Marked, type MarkChange } from "@/lib/space";
+import { dayOf, MARKED, missingDetails, PLATFORM_NAME, type FieldData, type LeadData, type Marked, type MarkChange } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
@@ -15,7 +15,9 @@ const ICON: Record<Marked, React.ReactNode> = {
 // and from Day 1 how it's going on the platform its day's message goes out
 // on (`day`: its key, name and platform), only that one. Email shows by
 // itself (opened and replied, how often and by whom: from the sales inbox and
-// the mail tracker); Instagram and LinkedIn are tapped, Reply only.
+// the mail tracker); Instagram and LinkedIn are tapped, Reply only. Past the
+// days (Replied, Audit sent…) it shows how it replied; untapping Instagram's
+// or LinkedIn's Replied takes it back to its day.
 export function LeadCard({
   lead,
   fields,
@@ -38,6 +40,8 @@ export function LeadCard({
   const m = (marked && lead.marks[marked]) || {};
   const toggle = (kind: "seen" | "replied") => marked && day && onTrack?.(lead.id, { platform: marked, kind, day: m[kind] ? null : day.key });
   const first = (name: string) => name.split(" ")[0];
+  const past = tracks && !!day && dayOf(day.name) == null;
+  const repliedOn = past ? MARKED.filter((p) => lead.marks[p]?.replied) : [];
 
   return (
     <div
@@ -86,6 +90,24 @@ export function LeadCard({
           )}
         </div>
       )}
+      {past && (lead.email.replied || repliedOn.length > 0) && (
+        <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
+          <EmailStatus email={lead.email} repliedOnly />
+          {repliedOn.map((p) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed
+              disabled={!onTrack}
+              onClick={() => onTrack?.(lead.id, { platform: p, kind: "replied", day: null })}
+              title={`Replied on ${PLATFORM_NAME[p]}. Tap to undo.`}
+              className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+            >
+              {ICON[p]} <Reply size={11} /> Replied
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -93,7 +115,7 @@ export function LeadCard({
 // A lead's email, by itself (the sales inbox and the mail tracker): not
 // emailed yet, sent, not opened yet, opened (how often), replied, bounced.
 // The card's size, or the lead window's (md).
-export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; size?: "sm" | "md" }) {
+export function EmailStatus({ email, size = "sm", repliedOnly = false }: { email: LeadData["email"]; size?: "sm" | "md"; repliedOnly?: boolean }) {
   const quiet = "bg-white/[0.05] text-muted";
   // opened and replied light up as the pressed Seen and Replied do
   const lit = "chip-lit border";
@@ -104,6 +126,9 @@ export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; 
       <Mail size={size === "sm" ? 11 : 12} className={`shrink-0 ${tone === lit ? "text-sky-400" : ""}`} /> <span className="truncate">{text}</span>
     </span>
   );
+  // who wrote back, when a lead has more than one contact
+  const replied = email.replied && chip(lit, `${email.replied.address} replied by email`, `Replied · ${email.replied.by}`);
+  if (repliedOnly) return replied || null;
   if (email.bounced) return chip("bg-rose-400/10 text-rose-300", "The email didn't reach them", "Bounced");
   if (!email.sent) return chip(quiet, "No email has gone to them from the sales inbox yet", "Not emailed yet");
   return (
@@ -118,8 +143,7 @@ export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; 
         : email.tracked
           ? chip(quiet, "Sent with the mail tracker, not opened yet", "Not opened yet")
           : !email.replied && chip(quiet, "Sent without the mail tracker, so opens aren't known", "Sent")}
-      {/* who wrote back, when a lead has more than one contact */}
-      {email.replied && chip(lit, `${email.replied.address} replied by email`, `Replied · ${email.replied.by}`)}
+      {replied}
     </>
   );
 }

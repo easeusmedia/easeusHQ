@@ -2,19 +2,22 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, Eye, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { dayOf, dayPlatform, moveNeedsReason, phaseKey, toneOf, type BoardData, type LeadData, type MarkChange, type StageData, tracksOutreach } from "@/lib/space";
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { dayOf, dayPlatform, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadCard } from "./LeadCard";
 import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
+import { Reveal } from "../../Reveal";
 import { scrollPageNearEdge } from "../../StickyColumns";
 import { topLayer, useCloseOnScroll, usePopover } from "../../popover";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 const COLUMN = "w-[15rem] shrink-0";
+// a column shows this many cards, the rest on Show more
+const PER_COLUMN = 10;
 export const MENU_ITEM = "menu-item px-2.5 py-1.5 text-xs disabled:pointer-events-none disabled:opacity-40";
 const QUIET_ROW = "flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-foreground/[0.05] hover:text-foreground";
 
@@ -170,7 +173,9 @@ const fresh = (board: BoardData): Local => ({ for: board, moved: {}, order: null
 // sideways. Cards drag between and within columns (one step forward is
 // free; anything else asks why), each column adds a lead at its foot, and
 // stages are renamed, recoloured and (for builders) added, moved and
-// deleted from their headers.
+// deleted from their headers. A board with a day sequence is a row per
+// section (In process, Replied, Closed), each folded by its name; Closed
+// starts folded. A column shows 10 cards, the rest on Show more.
 export function LeadBoard({
   board,
   leads,
@@ -211,6 +216,14 @@ export function LeadBoard({
   // held after closing too, so the dialogs keep their words while they fade
   const [asking, setAsking] = useState<{ open: boolean; lead: LeadData; from: StageData; to: StageData; sortOrder: number } | null>(null);
   const [removing, setRemoving] = useState<{ open: boolean; stage: StageData } | null>(null);
+  // the columns showing all their cards, and the sections folded away
+  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
+  const [folded, setFolded] = useState<Set<Section>>(() => new Set(["closed"]));
+  const flip = <T,>(set: Set<T>, key: T) => {
+    const next = new Set(set);
+    if (!next.delete(key)) next.add(key);
+    return next;
+  };
 
   const byId = new Map(board.stages.map((s) => [s.id, s]));
   const stages: StageData[] = (live.order ?? board.stages.map((s) => s.id)).flatMap((id) => {
@@ -452,11 +465,14 @@ export function LeadBoard({
 
   // A stage's cards: drop a card in, drag one out; the first stage adds leads.
   // While a card is dragged, only a slot of its size shows where it will land.
-  function body(stage: StageData, i: number, col: LeadData[]) {
+  function body(stage: StageData, i: number, col: LeadData[], short: boolean) {
+    const all = unfolded.has(stage.id);
+    const list = all ? col : col.slice(0, PER_COLUMN);
+    const more = col.length - PER_COLUMN;
     const isOver = !!drag && over?.stageId === stage.id;
-    const rest = col.filter((l) => l.id !== drag);
+    const rest = list.filter((l) => l.id !== drag);
     // the slot, unless dropping there would leave the card where it is
-    const from = col.findIndex((l) => l.id === drag);
+    const from = list.findIndex((l) => l.id === drag);
     const slotAt = isOver && over.index !== from ? over.index : -1;
     const slot = <div key="slot" style={{ height: dragHeight || 56 }} className="shrink-0 rounded-xl border border-dashed border-white/15 bg-white/[0.03]" />;
     return (
@@ -471,11 +487,12 @@ export function LeadBoard({
           if (!isOver || over.index !== index) setOver({ stageId: stage.id, index });
         }}
         onDrop={(e) => (dragStage ? stageDrop(stage).onDrop(e) : drop(stage, e))}
-        className="flex min-h-[60vh] min-w-0 flex-col gap-2"
+        // in sections, rows sit one under another: no tall empty columns
+        className={`flex min-w-0 flex-col gap-2 ${short ? "min-h-24" : "min-h-[60vh]"}`}
       >
         {/* every lead starts here, at the first stage */}
         {i === 0 && <NewLead boardId={board.id} onCreated={onOpen} />}
-        {col.map((lead) => (
+        {list.map((lead, n) => (
           <Fragment key={lead.id}>
             {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}
             <div
@@ -490,78 +507,129 @@ export function LeadBoard({
               // always fires, wherever the drop lands (or Escape), so a
               // card is never left faded
               onDragEnd={endDrag}
-              className={drag === lead.id ? "opacity-35" : ""}
+              className={drag === lead.id ? "opacity-35" : n >= PER_COLUMN ? "fade-in" : ""}
             >
               <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfLead(lead)} onTrack={onTrack} />
             </div>
           </Fragment>
         ))}
         {slotAt >= 0 && slotAt >= rest.length && slot}
+        {more > 0 && (
+          <button type="button" onClick={() => setUnfolded((u) => flip(u, stage.id))} className="btn btn-sm btn-glow w-full">
+            {all ? "Show less" : `Show ${more} more`}
+          </button>
+        )}
       </section>
     );
   }
 
   const counts = new Map(stages.map((s) => [s.id, columnOf(s.id)]));
-  const hidden = hideEmpty ? stages.filter((s, i) => i > 0 && !counts.get(s.id)?.length).length : 0;
+  // the board's sections, each a row of its stages (by their place on the
+  // board); without a day sequence, one row
+  const sectionOf = stageSections(stages);
+  const groups: { key: Section | null; at: number[] }[] = sectionOf
+    ? (Object.keys(SECTIONS) as Section[]).map((key) => ({ key, at: stages.flatMap((_, i) => (sectionOf[i] === key ? [i] : [])) })).filter((g) => g.at.length)
+    : [{ key: null, at: stages.map((_, i) => i) }];
+  const isOpen = (key: Section | null) => !key || !folded.has(key);
+  // the first stage of each section always shows, empty or not
+  const firsts = new Set(groups.map((g) => g.at[0]));
+  const showsStage = (i: number) => !hideEmpty || firsts.has(i) || !!counts.get(stages[i].id)?.length;
+  const hidden = stages.filter((_, i) => !showsStage(i)).length;
+  // the last row showing ends with adding a stage
+  const last = groups.filter((g) => isOpen(g.key)).pop();
   const stageInput = (at: number) => (
     <div key={`new-${at}`} className={`${COLUMN}`}>
       <InlineInput placeholder="Stage name, then Enter" className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs" onSubmit={(name) => addStage(name, at)} onCancel={() => setNewStageAt(null)} />
     </div>
   );
 
-  return (
-    <>
-      {/* one row of stages that scrolls sideways (a trackpad, or Shift and the wheel) */}
-      <div className="relative">
-        <div
-          onDragOver={(e) => {
-            if (!drag && !dragStage) return;
-            // follow a dragged card to a stage off to the side, or down the page
-            const r = e.currentTarget.getBoundingClientRect();
-            if (e.clientX < r.left + 80) e.currentTarget.scrollLeft -= 18;
-            else if (e.clientX > r.right - 80) e.currentTarget.scrollLeft += 18;
-            scrollPageNearEdge(e);
-          }}
-          // runs out to the page's own edges (its padding taken back), so
-          // stages scrolled sideways fade out softly in the margin rather
-          // than being cut off in mid air; the room above keeps a card's
-          // focus ring and hover lift whole. (Menus open in the top layer,
-          // so the fade never touches them.)
-          className="-mx-(--page-pad) -mt-1.5 overflow-x-auto px-(--page-pad) pt-1.5 pb-4 [mask-image:linear-gradient(to_right,transparent,#000_var(--page-pad),#000_calc(100%_-_var(--page-pad)),transparent)]"
-        >
-          <div className="flex w-max items-start gap-3">
-            {stages.map((stage, i) => {
-              const col = counts.get(stage.id) ?? [];
-              const shownHere = !(hideEmpty && i > 0 && !col.length);
-              return (
-                <Fragment key={stage.id}>
-                  {newStageAt === i && stageInput(i)}
-                  {shownHere && (
-                    <div className={`${COLUMN} flex flex-col gap-2`}>
-                      {header(stage, i, col.length)}
-                      {body(stage, i, col)}
-                    </div>
-                  )}
-                </Fragment>
-              );
-            })}
-            {newStageAt === stages.length && stageInput(stages.length)}
-            {(canBuild || hidden > 0) && newStageAt === null && (
-              <div className="flex w-44 shrink-0 flex-col gap-2">
-                {canBuild && (
-                  <button type="button" onClick={() => setNewStageAt(stages.length)} className={QUIET_ROW}>
-                    <Plus size={14} /> Add a stage
-                  </button>
-                )}
-                {hidden > 0 && (
-                  <button type="button" onClick={onShowEmpty} title="Show the empty stages" className={QUIET_ROW}>
-                    <Eye size={14} className="shrink-0" /> Show {hidden} empty
-                  </button>
-                )}
-              </div>
+  // a row of stages that scrolls sideways (a trackpad, or Shift and the
+  // wheel). It runs out to the page's own edges (its padding taken back),
+  // so stages scrolled sideways fade out softly in the margin rather than
+  // being cut off in mid air; the room above keeps a card's focus ring and
+  // hover lift whole. (Menus open in the top layer, so the fade never
+  // touches them.)
+  const row = (at: number[], end: boolean) => (
+    <div
+      onDragOver={(e) => {
+        if (!drag && !dragStage) return;
+        // follow a dragged card to a stage off to the side, or down the page
+        const r = e.currentTarget.getBoundingClientRect();
+        if (e.clientX < r.left + 80) e.currentTarget.scrollLeft -= 18;
+        else if (e.clientX > r.right - 80) e.currentTarget.scrollLeft += 18;
+        scrollPageNearEdge(e);
+      }}
+      className="overflow-x-auto px-(--page-pad) pt-1.5 pb-4 [mask-image:linear-gradient(to_right,transparent,#000_var(--page-pad),#000_calc(100%_-_var(--page-pad)),transparent)]"
+    >
+      <div className="flex w-max items-start gap-3">
+        {at.map((i) => {
+          const stage = stages[i];
+          const col = counts.get(stage.id) ?? [];
+          return (
+            <Fragment key={stage.id}>
+              {newStageAt === i && stageInput(i)}
+              {showsStage(i) && (
+                <div className={`${COLUMN} flex flex-col gap-2`}>
+                  {header(stage, i, col.length)}
+                  {body(stage, i, col, !!sectionOf)}
+                </div>
+              )}
+            </Fragment>
+          );
+        })}
+        {end && newStageAt === stages.length && stageInput(stages.length)}
+        {end && (canBuild || hidden > 0) && newStageAt === null && (
+          <div className="flex w-44 shrink-0 flex-col gap-2">
+            {canBuild && (
+              <button
+                type="button"
+                onClick={() => {
+                  // a new stage goes at the end: every section open to show it
+                  setFolded(new Set());
+                  setNewStageAt(stages.length);
+                }}
+                className={QUIET_ROW}
+              >
+                <Plus size={14} /> Add a stage
+              </button>
+            )}
+            {hidden > 0 && (
+              <button type="button" onClick={onShowEmpty} title="Show the empty stages" className={QUIET_ROW}>
+                <Eye size={14} className="shrink-0" /> Show {hidden} empty
+              </button>
             )}
           </div>
-        </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        {groups.map((g) => {
+          const open = isOpen(g.key);
+          return (
+            <div key={g.key ?? "all"}>
+              {/* a section's name and how many leads it holds; a tap folds it */}
+              {g.key && (
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setFolded((f) => flip(f, g.key as Section))}
+                  className="mb-1 flex items-center gap-1.5 rounded-lg py-1 pr-2 text-sm font-medium text-foreground"
+                >
+                  <ChevronDown size={15} className={`text-muted transition-transform duration-300 ${open ? "" : "-rotate-90"}`} />
+                  {SECTIONS[g.key]}
+                  <span className="text-muted tabular-nums">{g.at.reduce((n, i) => n + (counts.get(stages[i].id)?.length ?? 0), 0)}</span>
+                </button>
+              )}
+              <div className="-mx-(--page-pad) -mt-1.5">
+                <Reveal open={open}>{row(g.at, g === last)}</Reveal>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <ReasonDialog

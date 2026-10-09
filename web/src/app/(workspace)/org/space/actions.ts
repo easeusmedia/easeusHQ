@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
+import { moveToReplied, undoReplied } from "@/lib/leadMoves";
 import { buildsDepartment, isFounder, worksDepartment } from "@/lib/scope";
 import {
   CHILD_OF,
@@ -18,6 +19,7 @@ import {
   MESSAGE_CHANNELS,
   overLimit,
   moveNeedsReason,
+  PLATFORM_NAME,
   uniqueSlug,
   type FieldData,
   type FieldKind,
@@ -583,7 +585,8 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
 // Instagram or LinkedIn, marked by hand: seen or replied (once each, kept
 // with the day it was marked on); no day clears it. Email's opens and
 // replies come from the sales inbox, never from here. Each mark is written
-// alone, so two people marking the same lead keep both.
+// alone, so two people marking the same lead keep both. Replied moves a lead
+// on a day to Replied; untapped, it goes back (lib/leadMoves.ts).
 export async function setLeadMark(id: string, platform: Marked, kind: "seen" | "replied", day: string | null): Promise<Done> {
   if (!MARKED.includes(platform) || (kind !== "seen" && kind !== "replied")) return { error: "That couldn't be read." };
   if (day !== null && (typeof day !== "string" || !day || day.length > 80)) return { error: "That day couldn't be found." };
@@ -597,6 +600,10 @@ export async function setLeadMark(id: string, platform: Marked, kind: "seen" | "
     else {
       const mark = JSON.stringify({ day, at: new Date().toISOString() });
       await prisma.$executeRaw`UPDATE "Lead" SET "marks" = jsonb_set(coalesce("marks", '{}'::jsonb), ARRAY[${platform}::text], coalesce("marks" -> ${platform}::text, '{}'::jsonb) || jsonb_build_object(${kind}::text, ${mark}::jsonb), true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    }
+    if (kind === "replied") {
+      const why = `Replied on ${PLATFORM_NAME[platform]}`;
+      await (day === null ? undoReplied(id, who, why) : moveToReplied(id, who, why));
     }
     return {};
   } catch (err) {
