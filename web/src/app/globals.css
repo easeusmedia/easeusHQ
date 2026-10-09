@@ -1089,8 +1089,11 @@ dialog[open]::backdrop {
 .seg:hover {
   color: var(--foreground);
 }
+/* (.chip-lit: the same look on a status that isn't a button, like email's
+   Opened, so it reads as the Seen and Replied taps do) */
 .chip[aria-pressed="true"],
 .chip[aria-selected="true"],
+.chip-lit,
 .seg[aria-pressed="true"],
 .seg[aria-selected="true"] {
   border-color: transparent;

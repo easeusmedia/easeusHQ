@@ -13,7 +13,16 @@ import { prisma } from "@/lib/prisma";
 
 // Written to constantly in the background, or always alongside a change
 // that already signals: they'd only refresh every tab for nothing
-const QUIET = new Set(["ActivityLog", "AiUsage", "ScrapeRun", "ContentItem", "SocialAccount", "KpiSnapshot"]);
+// (AppSetting: the syncs' "last read" times, every few minutes)
+const QUIET = new Set(["ActivityLog", "AiUsage", "ScrapeRun", "ContentItem", "SocialAccount", "KpiSnapshot", "AppSetting"]);
+
+// The mail tables signal only new rows a page shows, never the background
+// around them: a person's open or click (not the sender's own look), an
+// email new to the inbox (the sync re-reads two days every run, and a row
+// already kept inserts nothing), a newly tracked email, a PDF reading
+// starting (not its progress every 5 seconds). Checking mail in Gmail
+// refreshed every open page, and so did each inbox read (9 Oct 2026).
+const NEW_ROWS: Record<string, string> = { MailEvent: "kind <> 'self'", MailMessage: "true", TrackedMail: "true", DocView: "true" };
 
 const run = (sql: string) => prisma.$executeRawUnsafe(sql);
 
@@ -40,8 +49,24 @@ await run(`
   exception when others then
     return null;
   end $$`);
+// the same, only when the statement's new rows include one that counts
+await run(`
+  create or replace function public.hq_changed_new() returns trigger
+  language plpgsql security definer set search_path = '' as $$
+  declare hit boolean;
+  begin
+    execute format('select exists (select 1 from new_rows where %s)', tg_argv[0]) into hit;
+    if hit then
+      perform nextval('public.hq_change_seq');
+      perform realtime.send(jsonb_build_object('table', tg_table_name), 'changed', 'hq-changes', false);
+    end if;
+    return null;
+  exception when others then
+    return null;
+  end $$`);
 await run(`revoke all on sequence public.hq_change_seq from anon, authenticated`);
 await run(`revoke all on function public.hq_changed() from public, anon, authenticated`);
+await run(`revoke all on function public.hq_changed_new() from public, anon, authenticated`);
 
 // 3. On every table the pages show, once per statement (a sync that writes
 // 200 rows in one statement signals once)
@@ -55,6 +80,10 @@ const userColumns = await prisma.$queryRaw<{ name: string }[]>`
 for (const { name } of tables) {
   await run(`drop trigger if exists hq_changed on "${name}"`);
   if (QUIET.has(name)) continue;
+  if (NEW_ROWS[name]) {
+    await run(`create trigger hq_changed after insert on "${name}" referencing new table as new_rows for each statement execute function public.hq_changed_new(${`'${NEW_ROWS[name].replace(/'/g, "''")}'`})`);
+    continue;
+  }
   // a person's record, but not the "seen at" every open tab bumps
   const events = name === "User" ? `insert or delete or update of ${userColumns.map((c) => `"${c.name}"`).join(", ")}` : "insert or update or delete or truncate";
   await run(`create trigger hq_changed after ${events} on "${name}" for each statement execute function public.hq_changed()`);

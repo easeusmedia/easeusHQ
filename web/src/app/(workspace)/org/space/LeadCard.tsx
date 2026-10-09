@@ -98,24 +98,26 @@ export function LeadCard({
 // emailed yet, sent, not opened yet, opened (how often), replied, bounced.
 // The card's size, or the lead window's (md).
 export function EmailStatus({ email, size = "sm" }: { email: LeadData["email"]; size?: "sm" | "md" }) {
+  const quiet = "bg-white/[0.05] text-muted";
+  // opened and replied light up as the pressed Seen and Replied do
+  const lit = "chip-lit border";
   const box = size === "sm" ? "gap-1 px-2 py-0.5 text-[11px]" : "gap-1.5 px-3 py-1 text-xs";
-  const icon = <Mail size={size === "sm" ? 11 : 12} className="shrink-0" />;
   const chip = (tone: string, title: string, text: string) => (
     <span title={title} className={`flex w-fit items-center rounded-full ${box} ${tone}`}>
-      {icon} {text}
+      {/* the email icon in its own blue when lit, as Seen and Replied carry their platform's */}
+      <Mail size={size === "sm" ? 11 : 12} className={`shrink-0 ${tone === lit ? "text-sky-400" : ""}`} /> {text}
     </span>
   );
-  const quiet = "bg-white/[0.05] text-muted";
   if (email.bounced) return chip("bg-rose-400/10 text-rose-300", "The email didn't reach them", "Bounced");
   if (!email.sent) return chip(quiet, "No email has gone to them from the sales inbox yet", "Not emailed yet");
   return (
     <>
       {email.opens > 0
-        ? chip(quiet, "Opened, by the mail tracker", `Opened ${email.opens}×`)
+        ? chip(lit, "Opened, by the mail tracker", `Opened ${email.opens}×`)
         : email.tracked
           ? chip(quiet, "Sent with the mail tracker, not opened yet", "Not opened yet")
           : !email.replied && chip(quiet, "Sent without the mail tracker, so opens aren't known", "Sent")}
-      {email.replied && chip("bg-emerald-400/10 text-emerald-300", "They replied by email", "Replied")}
+      {email.replied && chip(lit, "They replied by email", "Replied")}
     </>
   );
 }

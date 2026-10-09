@@ -21,14 +21,19 @@ const LOOK: Record<Exclude<State, "asking">, { dot: string; text: (base: string)
   missing: { dot: "bg-rose-400", text: () => "Set up mail tracker", title: "The mail tracker isn't in this browser, or it needs an update. Opens and clicks aren't tracked until it is." },
 };
 
-// While the page is open and on screen, the sales inbox is read every 2
-// minutes (api/mail/sync), so replies reach the numbers by themselves
+// While the page is on screen the sales inbox is read every minute, and the
+// moment you come back to it (from replying in Gmail, say), so replies
+// reach the numbers by themselves (api/mail/sync, once a minute at most)
 function useInboxSync() {
   useEffect(() => {
     const read = () => document.visibilityState === "visible" && fetch("/api/mail/sync", { method: "POST" }).catch(() => null);
     read();
-    const timer = setInterval(read, 2 * 60_000);
-    return () => clearInterval(timer);
+    const timer = setInterval(read, 60_000);
+    document.addEventListener("visibilitychange", read);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", read);
+    };
   }, []);
 }
 
