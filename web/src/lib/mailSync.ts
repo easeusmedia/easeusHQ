@@ -11,6 +11,8 @@ import { refresh } from "./mailTrack";
 
 const SYNCED = "salesGmail.syncedAt";
 const TRIED = "salesGmail.triedAt";
+// where Gmail's change feed was read up to (History API)
+const HISTORY = "salesGmail.historyId";
 // the first read goes back to the 1st of last month, so whole months compare
 const firstSince = () => {
   const d = new Date();
@@ -65,9 +67,33 @@ export async function syncSalesInbox(): Promise<{ read: number; left: number } |
     pageToken = page.nextPageToken;
   } while (pageToken && ids.length < 10_000);
 
+  // Gmail's change feed too: every email added since the last run, at once.
+  // Its search (above) takes a few seconds to list a new email, and a reply
+  // read 4 seconds after it came was missed that way, twice (9 Oct 2026).
+  // A feed too old to read (Gmail keeps about a week) leaves it to the search.
+  const from = await setting(HISTORY);
+  let upTo: string | null = null;
+  if (from) {
+    let token: string | undefined;
+    do {
+      const page = await gmail<{ history?: { messagesAdded?: { message: { id: string; labelIds?: string[] } }[] }[]; historyId?: string; nextPageToken?: string }>(
+        `history?startHistoryId=${from}&historyTypes=messageAdded&maxResults=500${token ? `&pageToken=${token}` : ""}`,
+        "sales"
+      ).catch(() => null);
+      if (!page) break;
+      for (const h of page.history ?? [])
+        for (const { message } of h.messagesAdded ?? []) if (!message.labelIds?.some((l) => l === "SPAM" || l === "DRAFT" || l === "CHAT")) ids.push(message.id);
+      upTo = page.historyId ?? upTo;
+      token = page.nextPageToken;
+    } while (token);
+  }
+  // the feed's next start: where it reached, or (first run, or out of date) now
+  upTo ??= (await gmail<{ historyId?: string }>("profile", "sales").catch(() => null))?.historyId ?? null;
+  if (upTo) await save(HISTORY, upTo);
+
   const known = new Set((await prisma.mailMessage.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((m) => m.id));
   // oldest first (Gmail lists newest first), so a run cut short leaves the newest for the next
-  const fresh = ids.filter((id) => !known.has(id)).reverse();
+  const fresh = [...new Set(ids)].filter((id) => !known.has(id)).reverse();
   const batch = fresh.slice(0, PER_RUN);
 
   const rows = [];
