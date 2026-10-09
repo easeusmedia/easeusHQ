@@ -12,10 +12,20 @@ const ist = (col: Prisma.Sql) => Prisma.sql`((${col} at time zone 'UTC') at time
 // whether the sales inbox has been read: if not, the tracker's emails stand in for what was sent
 const noInbox = Prisma.sql`not exists (select 1 from "MailMessage" m0 where m0.outgoing)`;
 
-// one alias, or all of them: tracked emails by their From, inbox messages
-// by From when sent and To when received
-const trackedBy = (alias: string | null, t = Prisma.sql`t`) => (alias ? Prisma.sql`and ${t}."from" = ${alias}` : Prisma.empty);
-const inboxBy = (alias: string | null) => (alias ? Prisma.sql`and ((m.outgoing and m."from" = ${alias}) or (not m.outgoing and m."to" = ${alias}))` : Prisma.empty);
+// The people on the boards: every email address in a lead's details. Every
+// number here counts only emails to and from them ("only those we've added
+// as leads", 9 Oct 2026), and a lead added later brings its earlier emails in.
+const LEAD_EMAIL = "[^\\s\"'<>,;:]+@[^\\s\"'<>,;:]+\\.[a-z]{2,}";
+export const LEADS = Prisma.sql`(select lower((regexp_matches(l.values::text, ${LEAD_EMAIL}, 'gi'))[1]) from "Lead" l)`;
+
+// leads only, and one alias or all of them: tracked emails by their From,
+// inbox messages by From when sent and To when received
+const trackedBy = (alias: string | null, t = Prisma.sql`t`) =>
+  Prisma.sql`and ${t}."to" in ${LEADS} ${alias ? Prisma.sql`and ${t}."from" = ${alias}` : Prisma.empty}`;
+const inboxBy = (alias: string | null) =>
+  Prisma.sql`and (case when m.outgoing then m."to" else m."from" end) in ${LEADS} ${
+    alias ? Prisma.sql`and ((m.outgoing and m."from" = ${alias}) or (not m.outgoing and m."to" = ${alias}))` : Prisma.empty
+  }`;
 
 export async function aliases(): Promise<string[]> {
   const rows = await prisma.$queryRaw<{ from: string }[]>`select distinct "from" from "TrackedMail" where "from" <> '' order by 1`;
@@ -45,7 +55,7 @@ export async function activity(alias: string | null, limit = 60, before?: Date):
       select 'pdf', v."startedAt", t.id, coalesce(t."to", ''), d.name,
         (row_number() over (partition by v."docId", v."mailId" order by v."startedAt"))::int, null, v.seconds
       from "DocView" v join "TrackedDoc" d on d.id = v."docId" left join "TrackedMail" t on t.id = v."mailId"
-      where not v.self ${alias ? Prisma.sql`and t."from" = ${alias}` : Prisma.empty}
+      where not v.self ${trackedBy(alias)}
     ) a where a.at < ${until} order by a.at desc limit ${limit}`;
   return rows.map((r) => ({ ...r, at: r.at.toISOString() }));
 }
@@ -144,7 +154,7 @@ async function inbox(alias: string | null, from: Date, to: Date): Promise<Inbox>
 // ---------- replies, from the inbox ----------
 
 // every conversation's first message: the ones we sent first are outreach
-const FIRSTS = Prisma.sql`select distinct on (m."threadId") m."threadId", m.at, m.outgoing, m."from" from "MailMessage" m order by m."threadId", m.at`;
+const FIRSTS = Prisma.sql`select distinct on (m."threadId") m."threadId", m.at, m.outgoing, m."from", m."to" from "MailMessage" m order by m."threadId", m.at`;
 // a person writing back in one of them (not a bounce or an auto-reply)
 const ANSWERED = Prisma.sql`exists (select 1 from "MailMessage" r where r."threadId" = f."threadId" and not r.outgoing and not r.auto)`;
 
@@ -154,7 +164,7 @@ export type Replies = { replies: number; started: number; answered: number };
 // tracker needed): replies received in the period to conversations we
 // started, and of the conversations started in it, how many were answered
 async function replies(alias: string | null, from: Date, to: Date): Promise<Replies> {
-  const by = alias ? Prisma.sql`and f."from" = ${alias}` : Prisma.empty;
+  const by = Prisma.sql`and f."to" in ${LEADS} ${alias ? Prisma.sql`and f."from" = ${alias}` : Prisma.empty}`;
   const [r] = await prisma.$queryRaw<Replies[]>`
     with f as (${FIRSTS})
     select
@@ -169,16 +179,17 @@ async function replies(alias: string | null, from: Date, to: Date): Promise<Repl
 
 export type AliasSummary = { from: string; sent: number; replies: Replies; tracked: Rates };
 
-// Since a moment: everything sent and the replies (the inbox), and the open
-// and click rates of the emails the tracker saw; overall and per alias
+// Since a moment, to and from leads: what was sent and the replies (the
+// inbox), and the open and click rates of the emails the tracker saw;
+// overall and per alias
 export async function salesSummary(since: Date) {
   const until = new Date(Date.now() + DAY);
   const [box, rep, tracked, sentBy, trackedBy2] = await Promise.all([
     inbox(null, since, until),
     replies(null, since, until),
     rates(null, since, until),
-    prisma.$queryRaw<{ from: string; sent: number }[]>`select "from", count(*)::int sent from "MailMessage" where outgoing and at >= ${since} group by "from"`,
-    prisma.$queryRaw<{ from: string }[]>`select distinct "from" from "TrackedMail" where "sentAt" >= ${since}`,
+    prisma.$queryRaw<{ from: string; sent: number }[]>`select "from", count(*)::int sent from "MailMessage" where outgoing and at >= ${since} and "to" in ${LEADS} group by "from"`,
+    prisma.$queryRaw<{ from: string }[]>`select distinct "from" from "TrackedMail" where "sentAt" >= ${since} and "to" in ${LEADS}`,
   ]);
   const names = [...new Set([...sentBy.map((a) => a.from), ...trackedBy2.map((a) => a.from)])].filter(Boolean);
   const perAlias: AliasSummary[] = await Promise.all(

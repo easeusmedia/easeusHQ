@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { folder, parentFolderId, resumableUploadUrl } from "./drive";
+import { LEADS } from "./mailReport";
 
 // Tracked PDFs (Mailsuite's PDF analytics, rebuilt). A PDF is kept in Google
 // Drive ("Tracked PDFs" in the app's folder) and sent as a link to its
@@ -52,7 +53,8 @@ export async function markDownloaded(viewId: string) {
 export type DocRow = { id: string; name: string; pages: number; createdAt: string; sends: number; viewedSends: number; views: number; seconds: number; downloads: number; lastAt: string | null };
 
 export async function docs(alias: string | null): Promise<DocRow[]> {
-  const byAlias = alias ? Prisma.sql`and t."from" = ${alias}` : Prisma.empty;
+  // sent to leads only (lib/mailReport.ts), and one alias or all
+  const byAlias = Prisma.sql`and t."to" in ${LEADS} ${alias ? Prisma.sql`and t."from" = ${alias}` : Prisma.empty}`;
   const rows = await prisma.$queryRaw<(Omit<DocRow, "createdAt" | "lastAt"> & { createdAt: Date; lastAt: Date | null })[]>`
     select d.id, d.name, d.pages, d."createdAt",
       (select count(*) from "TrackedMail" t where d.id = any(t.docs) ${byAlias})::int sends,
@@ -60,7 +62,7 @@ export async function docs(alias: string | null): Promise<DocRow[]> {
          and exists (select 1 from "DocView" v2 where v2."mailId" = t.id and v2."docId" = d.id and not v2.self))::int "viewedSends",
       count(v.id) filter (where not v.self)::int views, coalesce(sum(v.seconds) filter (where not v.self), 0)::int seconds,
       count(v.id) filter (where not v.self and v.downloaded)::int downloads, max(v."startedAt") filter (where not v.self) "lastAt"
-    from "TrackedDoc" d left join "DocView" v on v."docId" = d.id
+    from "TrackedDoc" d left join "DocView" v on v."docId" = d.id and v."mailId" in (select t.id from "TrackedMail" t where true ${byAlias})
     group by d.id order by d."createdAt" desc`;
   return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), lastAt: r.lastAt?.toISOString() ?? null }));
 }
@@ -71,11 +73,11 @@ export async function docDetail(id: string) {
     prisma.trackedDoc.findUnique({ where: { id }, select: { id: true, name: true, pages: true, createdAt: true } }),
     prisma.$queryRaw<{ page: number; seconds: number }[]>`
       select p.key::int page, sum(p.value::int)::int seconds from "DocView" v, jsonb_each_text(v.pages) p
-      where v."docId" = ${id} and not v.self group by 1 order by 1`,
+      where v."docId" = ${id} and not v.self and v."mailId" in (select t.id from "TrackedMail" t where t."to" in ${LEADS}) group by 1 order by 1`,
     prisma.$queryRaw<{ id: string; to: string | null; startedAt: Date; seconds: number; visited: number; downloaded: boolean }[]>`
       select v.id, t."to", v."startedAt", v.seconds, (select count(*) from jsonb_each_text(v.pages) p where p.value::int >= 2)::int visited, v.downloaded
       from "DocView" v left join "TrackedMail" t on t.id = v."mailId"
-      where v."docId" = ${id} and not v.self order by v."startedAt" desc limit 100`,
+      where v."docId" = ${id} and not v.self and t."to" in ${LEADS} order by v."startedAt" desc limit 100`,
   ]);
   if (!doc) return null;
   return { ...doc, createdAt: doc.createdAt.toISOString(), pageSeconds: pages, views: views.map((v) => ({ ...v, startedAt: v.startedAt.toISOString() })) };
