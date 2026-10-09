@@ -233,7 +233,7 @@ test("a day's messages are picked by platform, or by what sets them apart", () =
   assert.deepEqual(day2.map((m) => optionLabel(day2, m)), ["Didn't open Email 1", "Already opened Email 1"]);
 });
 
-test("unique reach outs count each lead once, total every move on from day to day", () => {
+test("unique reach outs count each lead once, total every reach out", () => {
   const move = (fromStage: string, toStage: string) => ({ kind: "moved", fromStage, toStage });
   const r = reachOutDays([{ kind: "created", fromStage: null, toStage: "Ready to reach out" }, move("Ready to reach out", "Day 1"), move("Day 1", "Day 2 · Instagram 1"), move("Day 2 · Instagram 1", "Day 1"), move("Day 1", "Day 2 · Instagram 1"), move("Day 2 · Instagram 1", "Replied")], "Replied");
   // back to Day 1 isn't one; on to Day 2 again is
@@ -242,11 +242,11 @@ test("unique reach outs count each lead once, total every move on from day to da
   assert.deepEqual(reachOutDays([], "Day 1"), { first: 1, next: [] });
   assert.deepEqual(reachOutDays([], "Ready to reach out"), { first: null, next: [] });
   const lead = (first: number | null, next: number[]) => ({ reachOuts: { first, next }, picks: {}, email: row({}).email });
-  // 5 leads from Day 1 to 2, 5 from 2 to 3 (and 1 never reached): 5 unique, 10 total
+  // 5 leads into Day 1, on to 2 and to 3 (and 1 never reached): 5 unique, 15 total
   const leads = [...Array(5)].map(() => lead(1, [2, 3])).concat(lead(null, []));
-  assert.deepEqual(reachOutCounts(days, leads, null), { unique: 5, total: 10 });
+  assert.deepEqual(reachOutCounts(days, leads, null), { unique: 5, total: 15 });
   // by the day's platform: Day 1 and 3 email, Day 2 Instagram
-  assert.deepEqual(reachOutCounts(days, leads, "email"), { unique: 5, total: 5 });
+  assert.deepEqual(reachOutCounts(days, leads, "email"), { unique: 5, total: 10 });
   assert.deepEqual(reachOutCounts(days, leads, "instagram"), { unique: 5, total: 5 });
   assert.deepEqual(reachOutCounts(days, leads, "linkedin"), { unique: 0, total: 0 });
 });

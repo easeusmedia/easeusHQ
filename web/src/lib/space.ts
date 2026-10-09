@@ -374,17 +374,18 @@ export function reachOutDays(events: { kind: string; fromStage: string | null; t
 
 // The board's reach outs, on every platform or one (a day counts for the
 // platform its message goes out on): unique, the leads reached, each once;
-// total, every move on from one day to the next (5 leads from Day 1 to 2, 5
-// from 2 to 3 and 5 from 3 to 4 make 15)
+// total, every reach out, the first (Ready to reach out to Day 1) and each
+// move on from day to day (5 leads into Day 1, then on to 2 and to 3, make 15)
 export function reachOutCounts(board: Pick<BoardData, "stages" | "messages">, leads: Pick<LeadData, "reachOuts" | "picks" | "email">[], platform: Platform | null) {
   let unique = 0;
   let total = 0;
   for (const l of leads) {
     const on = (d: number) => !platform || dayPlatform(board, l.picks, d, l.email.opens > 0) === platform;
     const { first, next } = l.reachOuts;
+    const reachedFirst = first != null && on(first);
     const moves = next.filter(on).length;
-    total += moves;
-    if ((first != null && on(first)) || moves) unique++;
+    total += moves + (reachedFirst ? 1 : 0);
+    if (reachedFirst || moves) unique++;
   }
   return { unique, total };
 }
