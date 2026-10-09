@@ -89,40 +89,36 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
   });
   if (!board) return null;
   // Email, whatever its stage, from the sales inbox (whichever computer sent
-  // it) and the mail tracker: when each address was first emailed, its
-  // tracked emails' opens, and what each address wrote back (a person, not
-  // a bounce or an auto-reply)
+  // it) and the mail tracker: what went to its addresses since it was added
+  // (an hour's grace for an email sent just before), those emails' opens,
+  // and what they wrote back after (a person, not a bounce or an auto-reply).
+  // Emails from before it was a lead aren't its outreach.
   const leadAddresses = new Map(board.leads.map((l) => [l.id, leadEmails(l.values)]));
   const all = [...new Set([...leadAddresses.values()].flat())];
-  const [inbox, tracked, heard, bounces] = await Promise.all([
-    prisma.mailMessage.groupBy({ by: ["to"], where: { outgoing: true, to: { in: all } }, _min: { at: true } }),
-    prisma.trackedMail.groupBy({ by: ["to"], where: { to: { in: all } }, _min: { sentAt: true }, _sum: { opens: true } }),
+  const [sentTo, tracked, heard] = await Promise.all([
+    prisma.mailMessage.findMany({ where: { outgoing: true, to: { in: all } }, select: { to: true, at: true } }),
+    prisma.trackedMail.findMany({ where: { to: { in: all } }, select: { to: true, sentAt: true, opens: true, bouncedAt: true } }),
     prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true }, orderBy: { at: "asc" } }),
-    prisma.trackedMail.findMany({ where: { to: { in: all }, bouncedAt: { not: null } }, select: { to: true }, distinct: ["to"] }),
   ]);
-  const bounced = new Set(bounces.map((b) => b.to));
-  const firstSent = new Map<string, Date>();
-  for (const [to, at] of [...inbox.map((m) => [m.to, m._min.at] as const), ...tracked.map((t) => [t.to, t._min.sentAt] as const)]) {
-    const had = firstSent.get(to);
-    if (at && (!had || at < had)) firstSent.set(to, at);
-  }
-  const opensTo = new Map(tracked.map((t) => [t.to, t._sum.opens ?? 0]));
   const emailOf = (l: (typeof board.leads)[number]) => {
     const mine = leadAddresses.get(l.id) ?? [];
-    const first = mine.map((e) => firstSent.get(e)).filter((d): d is Date => !!d).sort((a, b) => +a - +b)[0] ?? null;
+    const since = l.createdAt.getTime() - 3_600_000;
+    const out = sentTo.filter((m) => mine.includes(m.to) && m.at.getTime() >= since).map((m) => m.at);
+    const mails = tracked.filter((t) => mine.includes(t.to) && t.sentAt.getTime() >= since);
+    const first = [...out, ...mails.map((t) => t.sentAt)].sort((a, b) => +a - +b)[0] ?? null;
     const reply = first && heard.find((h) => mine.includes(h.from) && h.at > first);
     // the day it was on when the reply came: its last move before, else where it is
     const moved = reply ? l.events.filter((e) => e.createdAt <= reply.at).pop()?.toStage : null;
     const stage = board.stages.find((s) => (moved ? s.name === moved : s.id === l.stageId)) ?? board.stages.find((s) => s.id === l.stageId);
-    const opens = mine.reduce((n, e) => n + (opensTo.get(e) ?? 0), 0);
+    const opens = mails.reduce((n, t) => n + t.opens, 0);
     return {
       sent: !!first,
       email: {
         sent: !!first,
-        tracked: mine.some((e) => opensTo.has(e)),
+        tracked: mails.length > 0,
         opens,
         replied: reply && stage ? ({ day: phaseKey(stage), at: reply.at.toISOString() } satisfies Mark) : null,
-        bounced: !reply && !opens && mine.some((e) => bounced.has(e)),
+        bounced: !reply && !opens && mails.some((t) => t.bouncedAt),
       },
     };
   };
