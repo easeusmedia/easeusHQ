@@ -219,7 +219,7 @@ export async function saveClaudeKey(key: string): Promise<{ error?: string }> {
 export async function disconnectGmail(inbox: "contracts" | "sales" = "contracts"): Promise<{ error?: string }> {
   if (!(await requireAdmin())) return { error: "Only an admin can change this." };
   const keys = inbox === "sales" ? SALES_GMAIL_SETTINGS : GMAIL_SETTINGS;
-  await prisma.appSetting.deleteMany({ where: { key: { in: [keys.refreshToken, keys.account] } } });
+  await prisma.appSetting.deleteMany({ where: { key: { in: Object.values(keys) } } });
   revalidatePath("/integrations");
   return {};
 }

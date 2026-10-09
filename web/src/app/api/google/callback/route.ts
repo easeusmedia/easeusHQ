@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   if (!code) return NextResponse.redirect(new URL("/integrations?error=no-code", url.origin));
 
   try {
-    const { refreshToken, email } = await exchangeCode(code, url.origin);
+    const { refreshToken, email, scope } = await exchangeCode(code, url.origin);
     // the Gmail connection (contract tracking), kept apart from Drive's
     // the sales inbox (replies and response times), its own connection too
     if (url.searchParams.get("state") === "sales-gmail") {
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/integrations?salesGmail=1", url.origin));
     }
     if (url.searchParams.get("state") === "gmail") {
-      await saveDriveSettings({ [GMAIL_SETTINGS.refreshToken]: refreshToken, [GMAIL_SETTINGS.account]: email });
+      await saveDriveSettings({ [GMAIL_SETTINGS.refreshToken]: refreshToken, [GMAIL_SETTINGS.account]: email, [GMAIL_SETTINGS.canSend]: scope.includes("gmail.send") ? "1" : "" });
       return NextResponse.redirect(new URL("/integrations?gmail=1", url.origin));
     }
     // the Calendar connection (Home's meetings), kept apart too

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BLANK_DETAILS, DEFAULT_CLAUSES, compose, money, ordinalDate, termLength, listOf, type ContractDetails } from "./contract.ts";
+import { BLANK_DETAILS, DEFAULT_CLAUSES, compose, currencyOf, money, ordinalDate, termLength, listOf, type ContractDetails } from "./contract.ts";
 
 const ready: ContractDetails = {
   ...BLANK_DETAILS,
@@ -115,4 +115,19 @@ test("a thank-you keeps a title with its surname", async () => {
   assert.equal(greetingName("Dr. Yusra Al Mukhtar"), "Dr. Mukhtar");
   assert.equal(greetingName("Jane Doe"), "Jane");
   assert.equal(greetingName(""), "");
+});
+
+test("a client's country sets the contract's currency", () => {
+  assert.equal(currencyOf("GB"), "GBP");
+  assert.equal(currencyOf("IN"), "INR");
+  assert.equal(currencyOf("DE"), "EUR");
+  assert.equal(currencyOf("BG"), "EUR"); // on the euro since 2026
+  assert.equal(currencyOf("SN"), "XOF");
+  // by name when there's no code (an older form)
+  assert.equal(currencyOf("", "United Arab Emirates"), "AED");
+  assert.equal(currencyOf("", "saudi arabia"), "SAR");
+  assert.equal(currencyOf("", "United States"), "USD");
+  // anywhere unknown: US dollars
+  assert.equal(currencyOf("", "Atlantis"), "USD");
+  assert.equal(currencyOf("ZZ"), "USD");
 });

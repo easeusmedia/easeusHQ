@@ -28,6 +28,7 @@ export type ContractDetails = {
   country: string;
   podcastName: string;
   platforms: string[];
+  paymentMethod: string; // how they'll pay: one of PAYMENT_METHODS or their own words; "" before the form asked
   // what we decide
   signingDate: string; // yyyy-mm-dd; "" = the day it's sent
   commencementDate: string; // yyyy-mm-dd, optional — the term still runs from the first publish
@@ -62,6 +63,7 @@ export const BLANK_DETAILS: ContractDetails = {
   country: "",
   podcastName: "",
   platforms: [],
+  paymentMethod: "",
   signingDate: "",
   commencementDate: "",
   contentUnit: "episode",
@@ -104,7 +106,55 @@ export const PROVIDER = {
 
 export const CONTENT_UNITS = ["episode", "YouTube video", "piece of content"];
 export const PLATFORMS = ["YouTube", "Instagram", "TikTok", "LinkedIn", "X", "Facebook", "Spotify", "Apple Podcasts"];
-export const CURRENCIES = ["GBP", "USD", "EUR", "AUD", "CAD", "AED", "SAR", "INR"];
+// How a client can pay us, as they pick it on the form; or, under Other,
+// in their own words
+export const PAYMENT_METHODS = ["Net banking", "Credit card"];
+
+// A country's own currency, by its ISO code (or its English name): the one
+// the contract is written in, set from the client's form. Anywhere not
+// listed is billed in US dollars.
+const CURRENCY_OF: Record<string, string> = Object.fromEntries(
+  (
+    "AE:AED AF:AFN AL:ALL AM:AMD AO:AOA AR:ARS AU:AUD AW:AWG AZ:AZN BA:BAM BB:BBD BD:BDT BH:BHD BI:BIF BM:BMD BN:BND BO:BOB BR:BRL " +
+    "BS:BSD BT:BTN BW:BWP BY:BYN BZ:BZD CA:CAD CD:CDF CH:CHF CL:CLP CN:CNY CO:COP CR:CRC CU:CUP CV:CVE CZ:CZK DJ:DJF DK:DKK DO:DOP " +
+    "DZ:DZD EG:EGP ER:ERN ET:ETB FJ:FJD GB:GBP GE:GEL GG:GBP GH:GHS GI:GIP GM:GMD GN:GNF GT:GTQ GY:GYD HK:HKD HN:HNL HT:HTG HU:HUF " +
+    "ID:IDR IL:ILS IM:GBP IN:INR IQ:IQD IR:IRR IS:ISK JE:GBP JM:JMD JO:JOD JP:JPY KE:KES KG:KGS KH:KHR KM:KMF KR:KRW KW:KWD KY:KYD " +
+    "KZ:KZT LA:LAK LB:LBP LI:CHF LK:LKR LR:LRD LS:LSL LY:LYD MA:MAD MD:MDL MG:MGA MK:MKD MM:MMK MN:MNT MO:MOP MR:MRU MU:MUR MV:MVR " +
+    "MW:MWK MX:MXN MY:MYR MZ:MZN NA:NAD NG:NGN NI:NIO NO:NOK NP:NPR NZ:NZD OM:OMR PE:PEN PG:PGK PH:PHP PK:PKR PL:PLN PY:PYG QA:QAR " +
+    "RO:RON RS:RSD RU:RUB RW:RWF SA:SAR SB:SBD SC:SCR SD:SDG SE:SEK SG:SGD SL:SLE SO:SOS SR:SRD SS:SSP SY:SYP SZ:SZL TH:THB TJ:TJS " +
+    "TM:TMT TN:TND TO:TOP TR:TRY TT:TTD TW:TWD TZ:TZS UA:UAH UG:UGX US:USD UY:UYU UZ:UZS VE:VES VN:VND VU:VUV WS:WST YE:YER ZA:ZAR " +
+    "ZM:ZMW FO:DKK GL:DKK SJ:NOK CK:NZD NU:NZD KI:AUD NR:AUD TV:AUD NF:AUD"
+  )
+    .split(" ")
+    .map((x) => x.split(":"))
+    .concat(
+      // the euro, the CFA francs, the East Caribbean dollar, the CFP franc
+      ..."AD AT BE BG CY DE EE ES FI FR GR HR IE IT LT LU LV MC ME MT NL PT SI SK SM VA XK GF GP MQ RE YT PM BL MF".split(" ").map((c) => [[c, "EUR"]]),
+      ..."CM CF TD CG GQ GA".split(" ").map((c) => [[c, "XAF"]]),
+      ..."BJ BF CI GW ML NE SN TG".split(" ").map((c) => [[c, "XOF"]]),
+      ..."AG DM GD KN LC VC AI MS".split(" ").map((c) => [[c, "XCD"]]),
+      ..."PF NC WF".split(" ").map((c) => [[c, "XPF"]])
+    )
+);
+// a country's ISO code from its English name, as browsers name them
+function regionCode(name: string): string {
+  const want = name.trim().toLowerCase();
+  if (!want) return "";
+  const names = new Intl.DisplayNames(["en"], { type: "region" });
+  for (let a = 65; a < 91; a++)
+    for (let b = 65; b < 91; b++) {
+      const code = String.fromCharCode(a, b);
+      try {
+        if (names.of(code)?.toLowerCase() === want) return code;
+      } catch {}
+    }
+  return "";
+}
+export function currencyOf(countryCode: string, countryName = ""): string {
+  const code = /^[A-Z]{2}$/.test(countryCode) ? countryCode : regionCode(countryName);
+  return CURRENCY_OF[code] ?? "USD";
+}
+
 const SYMBOL: Record<string, string> = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "CA$" };
 
 // When a clause (or a paragraph in one) applies. Shown in the template editor.

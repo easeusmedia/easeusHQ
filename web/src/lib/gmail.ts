@@ -8,7 +8,8 @@ import { DRIVE_SETTINGS } from "./drive";
 // - sales: sales.easeus.media@gmail.com, the inbox outreach goes from, for
 //   replies, received emails and response times (lib/mailSync.ts)
 
-export const GMAIL_SETTINGS = { refreshToken: "gmail.refreshToken", account: "gmail.account" } as const;
+// canSend: "1" once the connection was allowed to send (the client acknowledgement)
+export const GMAIL_SETTINGS = { refreshToken: "gmail.refreshToken", account: "gmail.account", canSend: "gmail.canSend" } as const;
 export const SALES_GMAIL_SETTINGS = { refreshToken: "salesGmail.refreshToken", account: "salesGmail.account" } as const;
 export type Inbox = "contracts" | "sales";
 const KEYS = { contracts: GMAIL_SETTINGS, sales: SALES_GMAIL_SETTINGS };
@@ -25,6 +26,11 @@ async function settings(inbox: Inbox) {
 export async function gmailAccount(inbox: Inbox = "contracts"): Promise<string | null> {
   const s = await settings(inbox);
   return s.refresh ? (s.account ?? "") : null;
+}
+
+// whether easeus.media@gmail.com's connection may send (asked for since 10 Oct 2026)
+export async function gmailCanSend(): Promise<boolean> {
+  return (await prisma.appSetting.findUnique({ where: { key: GMAIL_SETTINGS.canSend } }))?.value === "1";
 }
 
 const cached = new Map<Inbox, { token: string; expires: number }>();
@@ -89,4 +95,25 @@ export async function readMail(id: string, full = false) {
 export async function mailAttachment(messageId: string, attachmentId: string): Promise<Buffer> {
   const { data } = await gmail<{ data: string }>(`messages/${messageId}/attachments/${attachmentId}`);
   return Buffer.from(data, "base64url");
+}
+
+// Sending one email from easeus.media@gmail.com (the contracts inbox), as
+// written by lib/contractAck.ts's `mime`. That connection needs Gmail's send
+// permission as well as read (Integrations → Gmail → reconnect). From the
+// live site only, so testing on localhost never emails a real client.
+export async function sendMail(raw: string): Promise<{ error?: string }> {
+  if (process.env.VERCEL_ENV !== "production") return { error: "Emails are sent from app.easeus.media only." };
+  try {
+    const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await token("contracts")}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw: Buffer.from(raw).toString("base64url") }),
+    });
+    if (res.ok) return {};
+    const body = await res.json().catch(() => null);
+    const msg: string = body?.error?.message ?? "";
+    return { error: res.status === 403 && /scope/i.test(msg) ? "Gmail can't send yet. Reconnect it under Integrations." : msg || `Gmail answered ${res.status}.` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Gmail couldn't be reached." };
+  }
 }

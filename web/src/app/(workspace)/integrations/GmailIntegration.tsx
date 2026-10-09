@@ -5,17 +5,19 @@ import { Check, Mail } from "lucide-react";
 import { gmailConsentUrl } from "@/lib/driveClient";
 import { disconnectGmail } from "./actions";
 
-// A Gmail inbox, read-only:
+// A Gmail inbox:
 // - contracts: easeus.media@gmail.com. Adobe's emails there say when a
 //   contract sent through Acrobat has gone out and when it's signed, so the
-//   contract pages follow along by themselves, signed copy included.
+//   contract pages follow along by themselves, signed copy included. It also
+//   sends each client their acknowledgement after the contract form, which
+//   needs one more permission (canSend): "Allow sending" asks for it.
 // - sales: sales.easeus.media@gmail.com, for the Email pages' replies,
 //   received emails and response times.
 const COPY = {
   contracts: {
     title: "Contract tracking (Gmail)",
     address: "easeus.media@gmail.com",
-    about: "Read-only. Adobe emails easeus.media@gmail.com when a contract is sent, signed and filed, so each contract updates automatically and keeps its signed copy.",
+    about: "Adobe emails easeus.media@gmail.com when a contract is sent, signed and filed, so each contract updates automatically and keeps its signed copy. It also sends each client an acknowledgement with a copy of their form.",
   },
   sales: {
     title: "Sales inbox (Gmail)",
@@ -24,7 +26,7 @@ const COPY = {
   },
 };
 
-export function GmailIntegration({ account, clientId, inbox = "contracts" }: { account: string | null; clientId: string; inbox?: "contracts" | "sales" }) {
+export function GmailIntegration({ account, clientId, inbox = "contracts", canSend = true }: { account: string | null; clientId: string; inbox?: "contracts" | "sales"; canSend?: boolean }) {
   const copy = COPY[inbox];
   const router = useRouter();
   return (
@@ -40,16 +42,28 @@ export function GmailIntegration({ account, clientId, inbox = "contracts" }: { a
           )}
         </div>
         {account !== null ? (
-          <button
-            type="button"
-            onClick={async () => {
-              await disconnectGmail(inbox);
-              router.refresh();
-            }}
-            className="btn btn-xs btn-ghost"
-          >
-            Disconnect
-          </button>
+          <div className="flex items-center gap-2">
+            {!canSend && (
+              <button
+                type="button"
+                disabled={!clientId}
+                onClick={() => (window.location.href = gmailConsentUrl(clientId, window.location.origin, inbox))}
+                className="btn btn-sm btn-glow disabled:opacity-50"
+              >
+                Allow sending
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                await disconnectGmail(inbox);
+                router.refresh();
+              }}
+              className="btn btn-xs btn-ghost"
+            >
+              Disconnect
+            </button>
+          </div>
         ) : (
           <button
             type="button"

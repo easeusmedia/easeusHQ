@@ -5,6 +5,7 @@ import { requireFounder } from "@/lib/auth";
 import { indiaDay } from "@/lib/due";
 import { withDefaults, type Clause } from "@/lib/contract";
 import type { ChatMessage } from "../assistant";
+import type { ClientIntake } from "../ContractForm";
 import { ContractEditor } from "../ContractEditor";
 import { trackContracts, type TrackedEvent } from "../tracking";
 import { gmailAccount } from "@/lib/gmail";
@@ -51,6 +52,8 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
       }))}
       tracking={(await gmailAccount()) !== null}
       hasSignedCopy={signedCopies > 0}
+      intake={(contract.intake as ClientIntake | null) ?? null}
+      submittedOn={contract.submittedAt ? contract.submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : null}
       sentAt={contract.sentAt ? contract.sentAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }) : null}
     />
   );

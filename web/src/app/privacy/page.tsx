@@ -59,12 +59,14 @@ const SECTIONS: Section[] = [
     tint: "251, 113, 133",
     body: (
       <p>
-        To follow each agreement through signing, the app has read-only access to one Easeus Media inbox
-        (easeus.media@gmail.com), using the <code className="text-xs">gmail.readonly</code> permission. It reads only
-        the emails Adobe Acrobat Sign sends about our agreements, when one is sent, signed and filed, and from them
-        records each agreement&apos;s progress and keeps the signed copy. It never sends, changes or deletes email, and
-        reads nothing else in that inbox. We don&apos;t use Google data for advertising, we don&apos;t sell it, and we
-        don&apos;t transfer it to anyone except as described here.
+        To follow each agreement through signing, the app has access to one Easeus Media inbox
+        (easeus.media@gmail.com), using the <code className="text-xs">gmail.readonly</code> and{" "}
+        <code className="text-xs">gmail.send</code> permissions. It reads only the emails Adobe Acrobat Sign sends about
+        our agreements, when one is sent, signed and filed, and from them records each agreement&apos;s progress and
+        keeps the signed copy. It sends one kind of email: the acknowledgement a client receives after filling in our
+        agreement form, with a copy of the details they sent. It never changes or deletes email, and reads nothing else
+        in that inbox. We don&apos;t use Google data for advertising, we don&apos;t sell it, and we don&apos;t transfer it
+        to anyone except as described here.
       </p>
     ),
   },

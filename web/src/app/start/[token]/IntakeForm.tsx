@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Send } from "lucide-react";
 import { Spotlight } from "../../(workspace)/Spotlight";
-import { EMAIL, greetingName } from "@/lib/contract";
+import { EMAIL, greetingName, PAYMENT_METHODS } from "@/lib/contract";
 import { submitIntake } from "../actions";
 
 // The first thing a new client fills in — one short page, only what the
 // contract can't be written without: who they are (and their WhatsApp, the
-// quickest way to reach them), their business, and who signs. Everything else is ours to fill in. A half-filled form survives a
-// reload (kept in this browser only).
+// quickest way to reach them), their business, who signs, and how they'll
+// pay. Everything else is ours to fill in; their country sets the currency.
+// Once sent, they're emailed a copy. A half-filled form survives a reload
+// (kept in this browser only).
 
 const BLANK = {
   contactName: "",
@@ -22,6 +24,9 @@ const BLANK = {
   address: "",
   signsSelf: true,
   signatory: { name: "", email: "" },
+  // one of PAYMENT_METHODS, or "other" with their own words
+  paymentMethod: "",
+  paymentOther: "",
 };
 type Form = typeof BLANK;
 type Errors = Partial<Record<string, string>>;
@@ -40,6 +45,8 @@ function check(f: Form): Errors {
     if (!f.signatory.name.trim()) e.signatoryName = "Add their name.";
     e.signatoryEmail = email(f.signatory.email);
   }
+  if (!f.paymentMethod) e.paymentMethod = "Choose how you'll pay.";
+  else if (f.paymentMethod === "other" && !f.paymentOther.trim()) e.paymentMethod = "Tell us how you'd like to pay.";
   return Object.fromEntries(Object.entries(e).filter(([, v]) => v));
 }
 
@@ -49,6 +56,8 @@ export function IntakeForm({ token }: { token: string }) {
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  // where their copy was emailed, when it was
+  const [copyTo, setCopyTo] = useState<string | null>(null);
   const saved = `start:${token}`;
   const set = (patch: Partial<Form>, field?: string) => {
     setF((cur) => ({ ...cur, ...patch }));
@@ -92,11 +101,14 @@ export function IntakeForm({ token }: { token: string }) {
       whatsapp: !f.whatsapp.trim() ? "" : f.whatsapp.trim().startsWith("+") ? f.whatsapp.trim() : `+${DIAL[f.whatsappCountry] ?? ""} ${f.whatsapp.trim()}`,
       entity: f.entity,
       country: f.country,
+      countryCode: isoOf(f.country) ?? "",
       address: f.address,
       signatory: f.signsSelf ? null : f.signatory,
+      paymentMethod: f.paymentMethod === "other" ? f.paymentOther : f.paymentMethod,
     });
     setSending(false);
     if (res.error) return setProblem(res.error);
+    setCopyTo(res.acknowledged ?? null);
     try {
       localStorage.removeItem(saved);
     } catch {}
@@ -114,6 +126,11 @@ export function IntakeForm({ token }: { token: string }) {
         <p className="mt-2 text-sm leading-relaxed text-muted">
           We have your details. Your agreement will be sent to <span className="text-foreground">{to.trim()}</span> for e-signature shortly.
         </p>
+        {copyTo && (
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            A copy of your details is on its way to <span className="text-foreground">{copyTo}</span>.
+          </p>
+        )}
       </div>
     );
   }
@@ -185,6 +202,30 @@ export function IntakeForm({ token }: { token: string }) {
             </Field>
           </div>
         )}
+
+        <Field label="Mode of payment" required error={errors.paymentMethod}>
+          <div className="grid grid-cols-3 gap-1 rounded-xl panel-soft p-1" role="radiogroup" aria-label="Mode of payment">
+            {[...PAYMENT_METHODS.map((m) => ({ value: m, label: m })), { value: "other", label: "Other" }].map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={f.paymentMethod === o.value}
+                onClick={() => set({ paymentMethod: o.value })}
+                className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
+                  f.paymentMethod === o.value ? "selected" : "border border-transparent text-muted hover:text-foreground"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {f.paymentMethod === "other" && (
+            <div className="fade-in">
+              <Input value={f.paymentOther} onChange={(v) => set({ paymentOther: v }, "paymentMethod")} placeholder="How would you like to pay?" invalid={!!errors.paymentMethod} autoFocus />
+            </div>
+          )}
+        </Field>
       </div>
 
       {problem && <p className="fade-in mt-6 text-xs text-red-300">{problem}</p>}

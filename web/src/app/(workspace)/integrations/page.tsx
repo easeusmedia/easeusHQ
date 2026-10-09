@@ -14,7 +14,7 @@ import { ClaudeIntegration } from "./ClaudeIntegration";
 import { GmailIntegration } from "./GmailIntegration";
 import { CalendarIntegration } from "./CalendarIntegration";
 import { calendarAccount } from "@/lib/googleCalendar";
-import { gmailAccount } from "@/lib/gmail";
+import { gmailAccount, gmailCanSend } from "@/lib/gmail";
 import { claudeKey } from "@/lib/claude";
 import { AI_ADMIN_KEY, aiSpend } from "@/lib/ai";
 
@@ -35,7 +35,7 @@ export default async function IntegrationsPage({
 
   // every connection's settings side by side: nothing here waits on anything
   // else, and the Apify accounts are a call out to Apify each
-  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, salesGmail, calendar] = await Promise.all([
+  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, salesGmail, calendar, gmailSends] = await Promise.all([
     driveSettings(),
     frameioSettings(),
     notionSettings(),
@@ -50,6 +50,7 @@ export default async function IntegrationsPage({
     gmailAccount(),
     gmailAccount("sales"),
     calendarAccount(),
+    gmailCanSend(),
   ]);
 
   return (
@@ -91,7 +92,7 @@ export default async function IntegrationsPage({
         spend={spend}
       />
 
-      <GmailIntegration account={gmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
+      <GmailIntegration account={gmail} canSend={gmailSends} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
       <GmailIntegration inbox="sales" account={salesGmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
 
       <CalendarIntegration account={calendar} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />

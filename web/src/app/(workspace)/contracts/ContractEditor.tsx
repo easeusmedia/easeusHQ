@@ -8,7 +8,7 @@ import { PROVIDER, compose, withDefaults, type Clause, type ContractDetails } fr
 import { ConfirmButton } from "../ConfirmButton";
 import { ContractPaper } from "./ContractPaper";
 import { ContractChat } from "./ContractChat";
-import { ContractForm } from "./ContractForm";
+import { ClientFormPanel, ContractForm, type ClientIntake } from "./ContractForm";
 import { Stepper, stepOf } from "./status";
 import type { ChatMessage } from "./assistant";
 import type { TrackedEvent } from "./tracking";
@@ -45,6 +45,8 @@ export function ContractEditor({
   events,
   tracking,
   hasSignedCopy,
+  intake,
+  submittedOn,
 }: {
   id: string;
   token: string;
@@ -62,6 +64,9 @@ export function ContractEditor({
   tracking: boolean;
   // the signed copy came with Adobe's "Signed and Filed" email
   hasSignedCopy: boolean;
+  // the client's form as they sent it, once they have
+  intake: ClientIntake | null;
+  submittedOn: string | null;
 }) {
   const router = useRouter();
   const [d, setD] = useState(initialDetails);
@@ -448,6 +453,8 @@ export function ContractEditor({
 
           {/* both stay mounted, so nothing typed is lost switching between them */}
           <div className={`${tab === "form" ? "flex" : "hidden"} flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1 lg:pb-(--page-pad)`}>
+            {/* first what the client told us, then what we decide */}
+            {intake && <ClientFormPanel intake={intake} sentOn={submittedOn} currency={d.currency} />}
             <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
 
             {/* after the last question: what to do now */}

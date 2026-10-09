@@ -25,9 +25,10 @@ export function consentUrl(clientId: string, origin: string, state: string) {
 }
 
 // Reading easeus.media@gmail.com's mail — Adobe's emails about contracts
-// out for signature (see lib/contractTracking.ts). Read-only, and a separate
-// connection from Drive's, so either can be dropped without the other.
-// The sales inbox the same way (state "sales-gmail"), for replies and
+// out for signature (see lib/contractTracking.ts) — and sending from it the
+// acknowledgement a client gets after the contract form (lib/contractAck.ts).
+// A separate connection from Drive's, so either can be dropped without the
+// other. The sales inbox reads only (state "sales-gmail"), for replies and
 // response times (lib/mailSync.ts).
 export function gmailConsentUrl(clientId: string, origin: string, inbox: "contracts" | "sales" = "contracts") {
   const params = new URLSearchParams({
@@ -36,7 +37,7 @@ export function gmailConsentUrl(clientId: string, origin: string, inbox: "contra
     response_type: "code",
     access_type: "offline",
     prompt: "consent",
-    scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email",
+    scope: `https://www.googleapis.com/auth/gmail.readonly${inbox === "contracts" ? " https://www.googleapis.com/auth/gmail.send" : ""} https://www.googleapis.com/auth/userinfo.email`,
     login_hint: inbox === "sales" ? "sales.easeus.media@gmail.com" : "easeus.media@gmail.com",
     state: inbox === "sales" ? "sales-gmail" : "gmail",
   });

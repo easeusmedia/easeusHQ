@@ -4,7 +4,6 @@ import { indiaDay } from "@/lib/due";
 import { claude, type Block, type Message, type Tool } from "@/lib/claude";
 import {
   CONDITIONS,
-  CURRENCIES,
   compose,
   withDefaults,
   type Clause,
@@ -98,7 +97,8 @@ const TOOLS: Tool[] = [
         contentUnit: { type: "string", description: "episode / YouTube video / piece of content" },
         termMonths: { type: ["integer", "null"] },
         extensionMonths: { type: ["integer", "null"], description: "Only for a 1-month trial that auto-extends" },
-        currency: { type: "string", enum: CURRENCIES },
+        // set from the client's country, so any currency (ISO code)
+        currency: { type: "string", pattern: "^[A-Z]{3}$", description: "ISO 4217 code, e.g. GBP, USD, AED, SGD" },
         monthlyFee: { type: ["number", "null"] },
         feeNote: { type: "string" },
         payment: { type: "string", enum: ["upfront", "split"] },

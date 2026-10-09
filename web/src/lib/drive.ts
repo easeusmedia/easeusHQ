@@ -315,7 +315,7 @@ export async function deleteFile(id: string): Promise<void> {
 
 // Finishes the connection: swaps the one-time code for the refresh token the
 // uploads will use from then on.
-export async function exchangeCode(code: string, origin: string): Promise<{ refreshToken: string; email: string }> {
+export async function exchangeCode(code: string, origin: string): Promise<{ refreshToken: string; email: string; scope: string }> {
   const settings = await driveSettings();
   const clientId = settings[DRIVE_SETTINGS.clientId];
   const clientSecret = settings[DRIVE_SETTINGS.clientSecret];
@@ -339,7 +339,8 @@ export async function exchangeCode(code: string, origin: string): Promise<{ refr
   const who = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${body.access_token}` },
   }).then((r) => r.json());
-  return { refreshToken: body.refresh_token, email: who?.email ?? "" };
+  // what was actually allowed: someone can untick a permission on Google's screen
+  return { refreshToken: body.refresh_token, email: who?.email ?? "", scope: body.scope ?? "" };
 }
 
 // Confirms the folder client folders are made in is reachable, and

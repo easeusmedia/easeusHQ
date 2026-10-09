@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
 import { money, values, type ContractDetails, type Deliverable } from "@/lib/contract";
+import type { Intake } from "@/lib/contractAck";
 import { AttachButton, FileChips, useAttachments } from "./Attach";
 
 // The few things every contract needs, one row each: click an answer and
@@ -32,12 +33,13 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 // "£2,500", "2500 usd", "3k" — an amount and maybe a currency; anything
 // more than that goes to Claude
 const SIGNS: Record<string, string> = { "£": "GBP", $: "USD", "€": "EUR" };
-const CODES = ["GBP", "USD", "EUR", "AUD", "CAD", "AED", "SAR", "INR"];
+// any real currency's code, as the client's country can set any
+const CODES = new Set(Intl.supportedValuesOf("currency"));
 function plainMoney(text: string): Partial<ContractDetails> | null {
   const m = text.trim().match(/^([£$€]|[a-z]{3})?\s*([\d,]+(?:\.\d+)?)\s*(k)?\s*([a-z]{3})?(?:\s*(?:\/|a|per)\s*(?:month|mo))?$/i);
   if (!m) return null;
   const code = (m[4] ?? m[1] ?? "").toUpperCase();
-  const currency = SIGNS[m[1] ?? ""] ?? (CODES.includes(code) ? code : undefined);
+  const currency = SIGNS[m[1] ?? ""] ?? (CODES.has(code) ? code : undefined);
   if (code && !currency) return null;
   const amount = Number(m[2].replace(/,/g, "")) * (m[3] ? 1000 : 1);
   return amount > 0 ? { monthlyFee: amount, ...(currency ? { currency } : {}) } : null;
@@ -213,6 +215,48 @@ export function ContractForm({
       <Row label="Governing law" needed={needs("GOVERNING_LAW", "JURISDICTION_CLAUSE")} sub={d.termMonths === 1 ? "None on a trial" : v.GOVERNING_LAW || "Not set"}>
         {other("Governing law", "e.g. UAE law, Dubai courts")}
       </Row>
+    </section>
+  );
+}
+
+// What the client sent on their form, first, as they sent it; then whether
+// their copy was emailed (lib/contractAck.ts), or why not.
+export type ClientIntake = Intake & { ack?: { to: string[]; at: string } | { error: string; at: string } };
+
+export function ClientFormPanel({ intake, sentOn, currency }: { intake: ClientIntake; sentOn: string | null; currency: string }) {
+  const signer = intake.signatory;
+  const rows: [string, string][] = [
+    ["Name", intake.contactName],
+    ["Email", intake.contactEmail],
+    ["WhatsApp", intake.whatsapp],
+    ["Business", intake.entity],
+    ["Country", intake.country],
+    ["Address", intake.address],
+    ["Signs", signer ? `${signer.name} (${signer.email})` : "Themselves"],
+    ["Payment", intake.paymentMethod ?? ""],
+    ["Currency", currency],
+  ].filter((r): r is [string, string] => !!r[1]);
+  const ack = intake.ack;
+  return (
+    <section className="panel rounded-3xl px-5 pb-2 pt-4">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-medium">From the client</h2>
+        {sentOn && <span className="text-xs text-muted">Sent {sentOn}</span>}
+      </div>
+      {rows.map(([label, value]) => (
+        <div key={label} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 border-t border-white/[0.05] py-2.5 first:border-t-0 first:pt-0.5">
+          <span className="text-xs text-muted">{label}</span>
+          <span className="min-w-0 text-sm break-words text-foreground/90">{value}</span>
+        </div>
+      ))}
+      {ack && (
+        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 border-t border-white/[0.05] py-2.5">
+          <span className="text-xs text-muted">Their copy</span>
+          <span className="min-w-0 text-sm break-words text-foreground/90">
+            {"to" in ack ? `Emailed to ${ack.to.join(", ")}` : <span className="text-muted">Not emailed. {ack.error}</span>}
+          </span>
+        </div>
+      )}
     </section>
   );
 }
