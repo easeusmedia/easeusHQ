@@ -7,11 +7,17 @@ const EMERALD = "#34d399";
 
 export const pct = (part: number, of: number) => (of ? Math.round((part / of) * 100) : 0);
 
-// a change on the period before: +12% green, -34% red, 0% quiet
-export function Change({ now, before }: { now: number; before: number }) {
-  const d = before ? Math.round(((now - before) / before) * 100) : now ? 100 : 0;
+// A change on the period before: ↗ +12% green, ↘ -34% red, = 0% quiet.
+// Nothing before to compare with: no badge (a "+100%" from nothing says nothing).
+export function Change({ now, before, against = "against the period before" }: { now: number; before: number; against?: string }) {
+  if (!before) return null;
+  const d = before ? Math.round(((now - before) / before) * 100) : 0;
   const tone = d > 0 ? "bg-emerald-400/15 text-emerald-300" : d < 0 ? "bg-rose-400/15 text-rose-300" : "bg-white/[0.06] text-muted";
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${tone}`}>{d > 0 ? `+${d}` : d}%</span>;
+  return (
+    <span title={`${d > 0 ? "+" : ""}${d}% ${against} (${before} then)`} className={`rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${tone}`}>
+      {d > 0 ? `↗ +${d}` : d < 0 ? `↘ ${d}` : "= 0"}%
+    </span>
+  );
 }
 
 // A rate as a ring: the share lit, the percentage and "part/of" inside
@@ -35,8 +41,9 @@ export function Ring({ part, of, tone = "accent", size = 132 }: { part: number; 
           transform="rotate(-90 50 50)"
         />
       )}
-      <text x="50" y="49" textAnchor="middle" fontSize="17" fontWeight="600" fill="currentColor">
-        {pct(part, of)}%
+      {/* nothing to count yet: a dash, not a misleading 0% */}
+      <text x="50" y="49" textAnchor="middle" fontSize="17" fontWeight="600" fill="currentColor" fillOpacity={of ? 1 : 0.5}>
+        {of ? `${pct(part, of)}%` : "–"}
       </text>
       <text x="50" y="64" textAnchor="middle" fontSize="8.5" fill="currentColor" fillOpacity="0.55">
         {part}/{of}
@@ -45,14 +52,15 @@ export function Ring({ part, of, tone = "accent", size = 132 }: { part: number; 
   );
 }
 
-// Counts in columns (waits, by bucket)
-export function Bars({ labels, values, unit = "emails" }: { labels: string[]; values: number[]; unit?: string }) {
+// Counts in columns (waits, by bucket); nothing at all says so
+export function Bars({ labels, values, unit = "emails", empty = "No data for this period", format = String }: { labels: string[]; values: number[]; unit?: string; empty?: string; format?: (n: number) => string }) {
   const max = Math.max(1, ...values);
+  if (!values.some(Boolean)) return <p className="flex h-40 items-center justify-center text-sm text-muted">{empty}</p>;
   return (
     <div className="flex h-40 items-end gap-1.5">
       {values.map((v, i) => (
         <div key={labels[i]} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5" title={`${labels[i]}: ${v} ${unit}`}>
-          <span className="text-[10px] text-muted tabular-nums">{v || ""}</span>
+          <span className="text-[10px] text-muted tabular-nums">{v ? format(v) : ""}</span>
           <div className="w-full max-w-9 rounded-t-[4px] bg-accent/70" style={{ height: `${(v / max) * 100}%`, minHeight: v ? 3 : 0 }} />
           <span className="truncate text-[10px] text-muted">{labels[i]}</span>
         </div>
@@ -73,6 +81,8 @@ export function Trend({ points, tone = "accent", unit = "emails" }: { points: { 
   const id = `trend-${tone}`;
   const every = Math.max(1, Math.ceil(points.length / 6));
   if (!points.length) return <div className="flex h-36 items-center justify-center text-sm text-muted">No emails yet</div>;
+  // one day has no line to draw: its count as a column
+  if (points.length === 1) return <Bars labels={[points[0].label]} values={[points[0].value]} unit={unit} />;
   return (
     <div>
       <div className="mb-1 text-right text-[10px] text-muted tabular-nums">{max}</div>
@@ -111,8 +121,24 @@ export function Trend({ points, tone = "accent", unit = "emails" }: { points: { 
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// When emails go out: a row per weekday, a cell per hour, darker for more
-export function Heatmap({ cells }: { cells: { dow: number; h: number; n: number }[] }) {
+const HEAT = { emerald: "52, 211, 153", accent: "75, 149, 230" };
+const shade = (tone: keyof typeof HEAT, share: number) => (share ? `rgba(${HEAT[tone]}, ${0.15 + share * 0.75})` : "rgba(255, 255, 255, 0.04)");
+
+// Less to more, for a heatmap's corner
+export function HeatLegend({ tone = "emerald" }: { tone?: keyof typeof HEAT }) {
+  return (
+    <span className="flex items-center gap-1 text-[10px] text-muted">
+      Less
+      {[0, 0.25, 0.5, 0.75, 1].map((s) => (
+        <span key={s} className="h-2.5 w-4 rounded-[2px]" style={{ background: shade(tone, s) }} />
+      ))}
+      More
+    </span>
+  );
+}
+
+// Emails by hour of the week: a row per weekday, a cell per hour, darker for more
+export function Heatmap({ cells, tone = "emerald", noun = "email" }: { cells: { dow: number; h: number; n: number }[]; tone?: keyof typeof HEAT; noun?: string }) {
   const max = Math.max(1, ...cells.map((c) => c.n));
   const at = new Map(cells.map((c) => [`${c.dow}-${c.h}`, c.n]));
   return (
@@ -121,7 +147,7 @@ export function Heatmap({ cells }: { cells: { dow: number; h: number; n: number 
         <span />
         {Array.from({ length: 24 }, (_, h) => (
           <span key={h} className="text-center text-[9px] text-muted tabular-nums">
-            {h % 3 === 0 ? `${String(h).padStart(2, "0")}` : ""}
+            {h % 3 === 0 ? `${h}:00` : ""}
           </span>
         ))}
         {DAYS.map((d, dow) => (
@@ -132,15 +158,36 @@ export function Heatmap({ cells }: { cells: { dow: number; h: number; n: number 
               return (
                 <span
                   key={h}
-                  title={`${d} ${String(h).padStart(2, "0")}:00 · ${n} email${n === 1 ? "" : "s"}`}
+                  title={`${d} ${h}:00 to ${h + 1}:00: ${n} ${noun}${n === 1 ? "" : "s"}`}
                   className="h-5 rounded-[3px]"
-                  style={{ background: n ? `rgba(52, 211, 153, ${0.15 + (n / max) * 0.75})` : "rgba(255, 255, 255, 0.04)" }}
+                  style={{ background: shade(tone, n / max) }}
                 />
               );
             })}
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// A rate against the period before, as Mailsuite draws it: for each period a
+// column for all (sent) and inside it the share that did it (opened)
+export function Compare({ periods, tone = "accent" }: { periods: { label: string; part: number; of: number }[]; tone?: "accent" | "emerald" }) {
+  const max = Math.max(1, ...periods.map((p) => p.of));
+  return (
+    <div className="flex h-28 items-end justify-center gap-6">
+      {periods.map((p, i) => (
+        <div key={p.label} className="flex h-full w-20 flex-col items-center justify-end gap-1.5" title={`${p.label}: ${p.part} of ${p.of}`}>
+          <span className="text-[10px] text-muted tabular-nums">
+            {p.part}/{p.of}
+          </span>
+          <div className="relative w-10 rounded-t-[4px] bg-white/[0.08]" style={{ height: `${(p.of / max) * 100}%`, minHeight: 2 }}>
+            <div className={`absolute inset-x-0 bottom-0 rounded-t-[4px] ${tone === "emerald" ? "bg-emerald-400/80" : "bg-accent/80"}`} style={{ height: p.of ? `${(p.part / p.of) * 100}%` : 0 }} />
+          </div>
+          <span className={`max-w-full truncate rounded-full px-2 py-0.5 text-[10px] ${i === periods.length - 1 ? "bg-white/[0.08] text-foreground" : "text-muted"}`}>{p.label}</span>
+        </div>
+      ))}
     </div>
   );
 }

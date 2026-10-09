@@ -30,6 +30,27 @@ export function AliasPicker({ aliases, value }: { aliases: string[]; value: stri
   );
 }
 
+// Which emails the Email tracking list shows (Mailsuite's dropdown)
+export function FilterPicker({ options, value }: { options: { value: string; label: string }[]; value: string }) {
+  const router = useRouter();
+  const params = useSearchParams();
+  return (
+    <div className="w-56">
+      <Dropdown
+        value={value}
+        size="sm"
+        options={options}
+        onChange={(v) => {
+          const next = new URLSearchParams(params);
+          next.set("filter", v);
+          next.delete("n");
+          router.push(`/email?${next}`, { scroll: false });
+        }}
+      />
+    </div>
+  );
+}
+
 // A PDF up to Drive, then recorded: ready for its link to go in an email
 export function PdfUpload() {
   const router = useRouter();

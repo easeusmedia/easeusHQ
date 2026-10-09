@@ -5,11 +5,11 @@ import { getViewer } from "@/lib/viewer";
 import { isFounder, seesSalesMail } from "@/lib/scope";
 import { gmailAccount } from "@/lib/gmail";
 import { syncSalesInboxIfDue } from "@/lib/mailSync";
-import { activity, aliases, EMAIL_FILTERS, emails, linkClicks, performance, RANGES, type EmailFilter, type Range } from "@/lib/mailReport";
+import { ACTIVITY_TABS, activity, aliases, EMAIL_FILTERS, emails, linkClicks, mailDetail, performance, RANGES, type ActivityTab, type EmailFilter, type Range } from "@/lib/mailReport";
 import { docDetail, docs } from "@/lib/docTrack";
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { AliasPicker, PdfUpload } from "./controls";
-import { ActivityList, EmailsView, HomeView, LinksView, PdfDetail, PdfsView, PerformanceView } from "./views";
+import { ActivityView, EmailsView, HomeView, LinksView, MailView, PdfDetail, PdfsView, PerformanceView } from "./views";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ const TABS = [
   { key: "emails", label: "Email tracking" },
   { key: "links", label: "Link clicks" },
   { key: "pdfs", label: "PDF analytics" },
-  { key: "performance", label: "Performance" },
+  { key: "performance", label: "My performance" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
@@ -46,22 +46,18 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
   let body: React.ReactNode;
   if (tab === "home") {
     const [items, report] = await Promise.all([activity(alias, 8), performance(alias, "day")]);
-    body = <HomeView items={items} report={report} now={now} />;
+    body = <HomeView items={items} report={report} now={now} query={query} />;
   } else if (tab === "activity") {
+    const show: ActivityTab = sp.show && sp.show in ACTIVITY_TABS ? (sp.show as ActivityTab) : "all";
     const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? new Date(sp.before) : undefined;
-    const items = await activity(alias, 100, before);
-    body = (
-      <section className="panel rounded-2xl p-5">
-        <ActivityList items={items} now={now} />
-        {items.length === 100 && (
-          <div className="mt-3 text-center">
-            <Link href={query({ tab: "activity", before: items[items.length - 1].at })} className="btn btn-sm btn-ghost">
-              Show older
-            </Link>
-          </div>
-        )}
-      </section>
-    );
+    const items = await activity(alias, 100, before, show);
+    body = <ActivityView items={items} tab={show} now={now} query={query} older={items.length === 100 ? query({ tab: "activity", show, before: items[items.length - 1].at }) : null} />;
+  } else if (tab === "emails" && sp.mail) {
+    // one email, and everything that happened to it
+    const m = await mailDetail(sp.mail);
+    if (!m) redirect(`/email${query({ tab: "emails" })}`);
+    const gmail = m.threadId && inbox ? `https://mail.google.com/mail/?authuser=${encodeURIComponent(inbox)}#all/${m.threadId}` : null;
+    body = <MailView m={m} gmail={gmail} back={query({ tab: "emails" })} now={now} />;
   } else if (tab === "emails") {
     const filter: EmailFilter = sp.filter && sp.filter in EMAIL_FILTERS ? (sp.filter as EmailFilter) : "opened";
     const n = Math.min(1000, Math.max(50, Number(sp.n) || 50));

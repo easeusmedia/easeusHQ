@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowDownRight,
@@ -12,7 +12,6 @@ import {
   Clapperboard,
   FolderOpen,
   Handshake,
-  Info as InfoIcon,
   Lightbulb,
   Minus,
   Palette,
@@ -37,9 +36,9 @@ import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { chip } from "../chip";
-import { topLayer, useCloseOnScroll, usePopover } from "../popover";
 import { deleteEntry, logEntry, setCreative, setGrade, sortWithAi, updateEntry, type EntryInput } from "./actions";
 import { GradePicker } from "../GradePicker";
+import { Info } from "../Info";
 
 // a server action, then the page again; its error, if any, for the caller to show
 export function useRun() {
@@ -119,49 +118,9 @@ export function PeriodBar({ period, today }: { period: PeriodQuery; today: strin
   );
 }
 
-// ---------- what something means ----------
+// ---------- what something means: the (i) (../Info.tsx) ----------
 
-// An (i) beside a mistake or feedback type: what it means, on hover or a tap
-export function Info({ label, text }: { label: string; text: string | null | undefined }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLButtonElement>(null);
-  const { position, place } = usePopover(110);
-  const close = useCallback(() => setOpen(false), []);
-  useCloseOnScroll(open, close);
-  if (!text) return null;
-  const show = () => {
-    place(ref.current, { width: 272 });
-    setOpen(true);
-  };
-  return (
-    <>
-      <button
-        ref={ref}
-        type="button"
-        aria-label={`What ${label} means`}
-        onMouseEnter={show}
-        onMouseLeave={close}
-        onFocus={show}
-        onBlur={close}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (open) close();
-          else show();
-        }}
-        className="grid size-5 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-foreground"
-      >
-        <InfoIcon size={13} />
-      </button>
-      {open && position && (
-        <div {...topLayer} role="tooltip" style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }} className="pop-in pointer-events-none fixed z-50 m-0 rounded-xl popover px-3.5 py-2.5 text-sm shadow-lg">
-          <p className="font-medium text-foreground">{label}</p>
-          <p className="mt-0.5 leading-relaxed text-muted">{text}</p>
-        </div>
-      )}
-    </>
-  );
-}
+export { Info };
 
 // ---------- scores ----------
 
