@@ -16,7 +16,7 @@ export function PublicShell({ current, children }: { current?: "privacy" | "term
   return (
     <div className="flex min-h-screen flex-col">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 pt-6">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/about" className="flex items-center gap-2">
           <Image src="/logo.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" priority />
           <span className="text-sm font-medium tracking-tight">Easeus Media</span>
         </Link>
