@@ -18,7 +18,7 @@ const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
 
 export function Shell({ children, step = 1, name }: { children: React.ReactNode; step?: 1 | 2 | 3 | 4; name?: string | null }) {
   return (
-    <div className="relative flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
+    <div className="relative flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-8">
       <Scene name={name} />
       {/* the card passes pointing through to the picture (the name at the
           summit answers a hover); the form takes it back */}
@@ -67,7 +67,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 
         {/* dark frosted glass: the range goes soft behind the form, lit
             faintly along its top edge like a pane */}
-        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
+        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-10">
           {/* the sheen a pane of glass catches, top left */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
           {/* on a phone the left side is gone, so the name comes along here */}

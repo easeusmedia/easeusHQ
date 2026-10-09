@@ -140,8 +140,9 @@ export function IntakeForm({ token }: { token: string }) {
       <h1 className="text-[26px] font-semibold tracking-tight">A few details for your agreement</h1>
       <p className="mt-1.5 text-sm text-muted">It takes less than a minute.</p>
 
-      <div className="mt-8 flex flex-col gap-5">
-        <div className="grid gap-5 sm:grid-cols-2">
+      {/* short fields in pairs, so the whole form fits a laptop screen without scrolling */}
+      <div className="mt-7 flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Full name" required error={errors.contactName}>
             <Input value={f.contactName} onChange={(v) => set({ contactName: v })} placeholder="Andrew Thomas" autoComplete="name" invalid={!!errors.contactName} />
           </Field>
@@ -149,28 +150,32 @@ export function IntakeForm({ token }: { token: string }) {
             <Input value={f.contactEmail} onChange={(v) => set({ contactEmail: v })} placeholder="andrew@example.com" type="email" autoComplete="email" invalid={!!errors.contactEmail} />
           </Field>
         </div>
-        <Field label="WhatsApp number" error={errors.whatsapp}>
-          <div className="flex gap-2">
-            <DialPicker iso={f.whatsappCountry} onChange={(iso) => set({ whatsappCountry: iso })} />
-            <Input value={f.whatsapp} onChange={(v) => set({ whatsapp: v })} placeholder="98765 43210" type="tel" autoComplete="tel-national" invalid={!!errors.whatsapp} />
-          </div>
-        </Field>
-        <Field label="Business name" required error={errors.entity}>
-          <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name, or yours if there's no company" autoComplete="organization" invalid={!!errors.entity} />
-        </Field>
-        <Field label="Country" required error={errors.country}>
-          <CountryPicker
-            value={f.country}
-            onChange={(v) =>
-              // their country sets the WhatsApp code too, until they've typed a number
-              set({ country: v, ...(!f.whatsapp.trim() && isoOf(v) ? { whatsappCountry: isoOf(v)! } : {}) })
-            }
-            invalid={!!errors.country}
-          />
-        </Field>
-        <Field label="Address" required error={errors.address}>
-          <Input value={f.address} onChange={(v) => set({ address: v })} placeholder="Street, city, postcode" autoComplete="street-address" invalid={!!errors.address} />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="WhatsApp number" error={errors.whatsapp}>
+            <div className="flex gap-2">
+              <DialPicker iso={f.whatsappCountry} onChange={(iso) => set({ whatsappCountry: iso })} />
+              <Input value={f.whatsapp} onChange={(v) => set({ whatsapp: v })} placeholder="98765 43210" type="tel" autoComplete="tel-national" invalid={!!errors.whatsapp} />
+            </div>
+          </Field>
+          <Field label="Business name" required error={errors.entity}>
+            <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name, or yours" autoComplete="organization" invalid={!!errors.entity} />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Country" required error={errors.country}>
+            <CountryPicker
+              value={f.country}
+              onChange={(v) =>
+                // their country sets the WhatsApp code too, until they've typed a number
+                set({ country: v, ...(!f.whatsapp.trim() && isoOf(v) ? { whatsappCountry: isoOf(v)! } : {}) })
+              }
+              invalid={!!errors.country}
+            />
+          </Field>
+          <Field label="Address" required error={errors.address}>
+            <Input value={f.address} onChange={(v) => set({ address: v })} placeholder="Street, city, postcode" autoComplete="street-address" invalid={!!errors.address} />
+          </Field>
+        </div>
 
         <Field label="Who signs the agreement?">
           <div className="grid grid-cols-2 gap-1 rounded-xl panel-soft p-1">
@@ -193,7 +198,7 @@ export function IntakeForm({ token }: { token: string }) {
           </div>
         </Field>
         {!f.signsSelf && (
-          <div className="fade-in grid gap-5 sm:grid-cols-2">
+          <div className="fade-in grid gap-4 sm:grid-cols-2">
             <Field label="Their name" required error={errors.signatoryName}>
               <Input value={f.signatory.name} onChange={(v) => set({ signatory: { ...f.signatory, name: v } }, "signatoryName")} placeholder="Full name" invalid={!!errors.signatoryName} autoFocus />
             </Field>
@@ -235,7 +240,7 @@ export function IntakeForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={sending}
-        className="group/add panel-soft panel-hover glow-hover mt-9 flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground disabled:opacity-60"
+        className="group/add panel-soft panel-hover glow-hover mt-7 flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground disabled:opacity-60"
       >
         <span className="flex size-6 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
           <Send size={12} />
@@ -243,7 +248,7 @@ export function IntakeForm({ token }: { token: string }) {
         {sending ? "Sending…" : "Send details"}
       </button>
 
-      <p className="mt-7 text-center text-xs text-muted/70">
+      <p className="mt-5 text-center text-xs text-muted/70">
         Only used for your agreement ·{" "}
         <a href="/privacy" target="_blank" className="text-foreground/70 hover:text-foreground">
           Privacy Policy
@@ -369,7 +374,7 @@ function CountryPicker({ value, onChange, invalid }: { value: string; onChange: 
           id="countries"
           ref={listRef}
           role="listbox"
-          className="fade-in popover absolute inset-x-0 top-full z-20 mt-1.5 max-h-64 overflow-y-auto rounded-xl p-1"
+          className="fade-in popover absolute left-0 top-full z-20 mt-1.5 max-h-64 w-full min-w-64 overflow-y-auto rounded-xl p-1"
         >
           {shown.length === 0 && <li className="px-3 py-2.5 text-[13px] text-white/40">No matches</li>}
           {shown.map((n, i) => (
