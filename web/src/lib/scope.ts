@@ -34,11 +34,14 @@ export const LEVEL_NOTE: Record<Role, string> = {
 // Services' and Distribution's.
 export const DEPT = { production: "production", clientServices: "client-services", distribution: "distribution", sales: "sales" } as const;
 
-// Abhishek, the developer, shows as Level 2 but keeps everything Level 1
-// has, wherever access is decided. (Level 2 can still see his work: what's
-// hidden from them is Level 1's by level, not his.)
+// Abhishek, the developer, is Level 2. In developer mode (localhost, and
+// tests) he also has everything Level 1 has, wherever access is decided; on
+// the live site he's a plain Level 2. (Level 2 can still see his work:
+// what's hidden from them is Level 1's by level, not his.)
 export const DEVELOPER = "abhishek@easeus.media";
-export const isFounder = (u: { role: string; email?: string | null }) => u.role === "admin" || u.email === DEVELOPER;
+// Next sets NODE_ENV to "production" in the live build, server and browser alike
+export const DEVELOPER_MODE = process.env.NODE_ENV !== "production";
+export const isFounder = (u: { role: string; email?: string | null }) => u.role === "admin" || (DEVELOPER_MODE && u.email === DEVELOPER);
 // the role a page acts with: full access counts as Level 1's
 export const effectiveRole = <R extends string>(u: { role: R; email?: string | null }): R | "admin" => (isFounder(u) ? "admin" : u.role);
 export const isLead = (u: { role: string }) => u.role === "core";
