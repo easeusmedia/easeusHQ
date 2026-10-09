@@ -495,8 +495,9 @@ export function PerformanceView({
 function slots(p: Performance): string[] {
   const out: string[] = [];
   const istDay = (t: number) => new Date(t + 5.5 * 3_600_000).toISOString().slice(0, 10);
-  const end = new Date(p.end).getTime() - 1;
-  for (let t = new Date(p.start).getTime(); t <= end; t += 86_400_000) {
+  // through the end's own day (a period ending now includes today)
+  const last = istDay(new Date(p.end).getTime() - 1);
+  for (let t = new Date(p.start).getTime(); istDay(t) <= last; t += 86_400_000) {
     const d = istDay(t);
     const key = p.unit === "month" ? `${d.slice(0, 7)}-01` : d;
     if (out[out.length - 1] !== key) out.push(key);
