@@ -119,7 +119,9 @@ function prepare(root) {
     img.setAttribute("style", "width:1px;height:1px;border:0");
     body.appendChild(img);
   }
-  const subject = root.querySelector('input[name="subjectbox"]')?.value || root.querySelector('input[name="subject"]')?.value || document.querySelector("h2.hP")?.textContent || "";
+  // the subject box (a reply's carries "Re: ..."); only without one, the thread's
+  const box = root.querySelector('input[name="subjectbox"]');
+  const subject = box ? box.value : document.querySelector("h2.hP")?.textContent || "";
   const msg = { kind: "sent", id, from: me, to, subject, links, docs };
   const started = Date.now();
   const timer = setInterval(() => {
