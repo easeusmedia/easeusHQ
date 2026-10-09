@@ -9,6 +9,7 @@ import { ACTIVITY_TABS, activity, aliases, EMAIL_FILTERS, emails, linkClicks, ma
 import { docDetail, docs } from "@/lib/docTrack";
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { AliasPicker, PdfUpload } from "./controls";
+import { TrackerChip } from "../TrackerChip";
 import { ActivityView, EmailsView, HomeView, LinksView, MailView, PdfDetail, PdfsView, PerformanceView } from "./views";
 
 export const dynamic = "force-dynamic";
@@ -88,9 +89,7 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
         <h1 className="text-2xl font-semibold tracking-tight">Email</h1>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <AliasPicker aliases={all} value={alias ?? ""} />
-          <Link href="/mail-tracker" className="btn btn-sm btn-ghost">
-            Set up tracker
-          </Link>
+          <TrackerChip />
         </div>
       </div>
       <nav role="tablist" className="mb-5 flex flex-wrap gap-1 rounded-2xl bg-white/[0.03] p-1 ring-1 ring-white/[0.06] sm:w-fit sm:rounded-full">

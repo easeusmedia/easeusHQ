@@ -15,6 +15,7 @@ import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
+import { TrackerChip } from "../../TrackerChip";
 
 type View = "board" | "table";
 type Prefs = { view: View; hideEmpty: boolean; platform: Platform | "all" };
@@ -227,14 +228,20 @@ export function PortalView({
         </div>
       )}
 
-      {/* reaching out, in numbers: on every platform, or one */}
+      {/* reaching out, in numbers: on every platform, or one; and whether
+          this browser's mail tracker is counting the email opens */}
       {stats && (
-        <div className={SEG_ROW}>
-          {(["all", ...PLATFORMS] as const).map((p) => (
-            <button key={p} type="button" aria-pressed={prefs.platform === p} onClick={() => savePrefs({ platform: p })} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
-              {PLATFORM_ICON[p]} {p === "all" ? "All" : PLATFORM_NAME[p]}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className={SEG_ROW}>
+            {(["all", ...PLATFORMS] as const).map((p) => (
+              <button key={p} type="button" aria-pressed={prefs.platform === p} onClick={() => savePrefs({ platform: p })} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+                {PLATFORM_ICON[p]} {p === "all" ? "All" : PLATFORM_NAME[p]}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto">
+            <TrackerChip />
+          </div>
         </div>
       )}
       {stats && (

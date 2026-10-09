@@ -88,7 +88,7 @@ export function PdfUpload() {
           if (file) upload(file);
         }}
       />
-      <button type="button" disabled={busy} onClick={() => input.current?.click()} className="btn btn-sm btn-glow flex items-center gap-1.5 disabled:opacity-60">
+      <button type="button" disabled={busy} onClick={() => input.current?.click()} className="btn btn-sm btn-glow inline-flex items-center gap-1.5 disabled:opacity-60">
         <Upload size={14} /> {busy ? "Uploading…" : "Upload PDF"}
       </button>
     </span>
@@ -106,9 +106,9 @@ export function CopyLink({ url }: { url: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="btn btn-xs btn-ghost flex items-center gap-1"
+      className="btn btn-sm btn-glow inline-flex items-center gap-1.5"
     >
-      {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy link"}
+      {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />} {copied ? "Copied" : "Copy link"}
     </button>
   );
 }
@@ -122,9 +122,9 @@ export function DeletePdf({ id, name }: { id: string; name: string }) {
         await deletePdf(id);
         router.push("/email?tab=pdfs");
       }}
-      className="btn btn-xs btn-ghost flex items-center gap-1 text-muted hover:text-rose-300"
+      className="btn btn-sm btn-danger inline-flex items-center gap-1.5"
     >
-      <Trash2 size={12} /> Delete
+      <Trash2 size={14} /> Delete
     </ConfirmButton>
   );
 }

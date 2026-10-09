@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight, Clock, CornerUpLeft, Download, ExternalLink, Eye, FileText, Inbox, MailOpen, MousePointerClick, Send, Star, User, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronRight, Clock, CornerUpLeft, Download, ExternalLink, Eye, FileText, Inbox, MailOpen, MousePointerClick, Send, Star, User, type LucideIcon } from "lucide-react";
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { StatTile } from "../StatTile";
 import { Info } from "../Info";
@@ -193,8 +193,8 @@ export function ActivityView({ items, tab, now, query, older }: { items: Activit
       footer={
         older && (
           <div className="text-center">
-            <Link href={older} className="btn btn-sm btn-ghost">
-              Show older
+            <Link href={older} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+              <ChevronDown size={14} /> Show older
             </Link>
           </div>
         )
@@ -214,8 +214,8 @@ export function HomeView({ items, report, now, query }: { items: Activity[]; rep
       <Panel
         title={<Title text="Latest activity" />}
         footer={
-          <Link href={query({ tab: "activity" })} className="btn btn-sm btn-ghost">
-            View all activity
+          <Link href={query({ tab: "activity" })} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+            View all activity <ArrowRight size={14} />
           </Link>
         }
       >
@@ -224,8 +224,8 @@ export function HomeView({ items, report, now, query }: { items: Activity[]; rep
       <Panel
         title={<Title text="Performance" />}
         footer={
-          <Link href={query({ tab: "performance", range: "day" })} className="btn btn-sm btn-ghost">
-            View full report
+          <Link href={query({ tab: "performance", range: "day" })} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+            View full report <ArrowRight size={14} />
           </Link>
         }
       >
@@ -305,15 +305,15 @@ export function EmailsView({ rows, filter, more, query }: { rows: EmailRow[]; fi
     <Panel
       title={<FilterPicker options={FILTER_OPTIONS} value={filter} />}
       aside={
-        <a href={`/email/export${query({ tab: "emails", filter })}`} className="btn btn-xs btn-ghost flex items-center gap-1.5">
-          <Download size={12} /> Download CSV
+        <a href={`/email/export${query({ tab: "emails", filter })}`} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+          <Download size={14} /> Download CSV
         </a>
       }
       footer={
         more && (
           <div className="text-center">
-            <Link href={more} scroll={false} className="btn btn-sm btn-ghost">
-              Show more
+            <Link href={more} scroll={false} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+              <ChevronDown size={14} /> Show more
             </Link>
           </div>
         )
@@ -390,8 +390,8 @@ export function MailView({ m, gmail, back, now }: { m: MailDetail; gmail: string
         title={<h2 className="min-w-0 text-lg font-semibold">{m.subject || "No subject"}</h2>}
         aside={
           gmail && (
-            <a href={gmail} target="_blank" rel="noreferrer" className="btn btn-xs btn-ghost flex items-center gap-1.5">
-              <ExternalLink size={12} /> Open in Gmail
+            <a href={gmail} target="_blank" rel="noreferrer" className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+              <ExternalLink size={14} /> Open in Gmail
             </a>
           )
         }
@@ -449,8 +449,8 @@ export function LinksView({ rows, csv }: { rows: LinkRow[]; csv: string }) {
     <Panel
       title={<Title text="Link clicks" />}
       aside={
-        <a href={csv} className="btn btn-xs btn-ghost flex items-center gap-1.5">
-          <Download size={12} /> Download CSV
+        <a href={csv} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+          <Download size={14} /> Download CSV
         </a>
       }
     >
@@ -656,8 +656,8 @@ export function PerformanceView({
     <div className="flex flex-col gap-4">
       {!inboxOn && connectHref && (
         <div className="flex justify-end">
-          <Link href={connectHref} className="btn btn-xs btn-ghost">
-            Connect the sales inbox
+          <Link href={connectHref} className="btn btn-sm btn-glow inline-flex items-center gap-1.5">
+            <Inbox size={14} /> Connect the sales inbox
           </Link>
         </div>
       )}
