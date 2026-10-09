@@ -37,7 +37,7 @@ export default function About() {
           used by Easeus Media staff, and by our clients through links we send them. There are no public sign-ups.
         </p>
         <div className="mt-7 flex flex-wrap items-center gap-2">
-          <Link href="/login" className="btn-primary flex h-11 items-center rounded-xl px-5 text-sm font-semibold">
+          <Link href="/login" className="btn btn-glow flex h-11 items-center rounded-xl px-5 text-sm font-semibold">
             Team sign in
           </Link>
           <Link href="/privacy" className="btn btn-ghost h-11 rounded-xl px-4">

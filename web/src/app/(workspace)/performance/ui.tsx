@@ -38,6 +38,7 @@ import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { chip } from "../chip";
 import { deleteEntry, logEntry, setCreative, setGrade, sortWithAi, updateEntry, type EntryInput } from "./actions";
 import { GradePicker } from "../GradePicker";
+import { closeOnBackdrop } from "../dialog";
 import { Info } from "../Info";
 
 // a server action, then the page again; its error, if any, for the caller to show
@@ -409,7 +410,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
   }
 
   return (
-    <dialog ref={ref} onClose={onClose} className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground">
+    <dialog ref={ref} onClose={onClose} {...closeOnBackdrop} className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground">
       <div className="flex items-center justify-between gap-3 px-5 pt-4">
         <div className="flex flex-wrap gap-1 rounded-lg bg-surface-2/60 p-0.5">
           {KINDS.map((k) => (

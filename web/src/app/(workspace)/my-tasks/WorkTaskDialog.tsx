@@ -14,6 +14,7 @@ import { useNewProject } from "../useNewProject";
 import { ProjectChip } from "../composer";
 import { TaskRecordPanel } from "../TaskRecordPanel";
 import { Reveal } from "../Reveal";
+import { closeOnBackdrop } from "../dialog";
 import { ConfirmButton } from "../ConfirmButton";
 import { keepDraft, readDraft } from "../draft";
 
@@ -203,6 +204,7 @@ export const WorkTaskDialog = forwardRef<
           is dismissed, and it took everything written with it */}
       <dialog
         ref={dialogRef}
+        {...closeOnBackdrop}
         className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
       >
         <form
@@ -395,7 +397,7 @@ export const WorkTaskDialog = forwardRef<
               <button type="button" onClick={discard} className="btn btn-ghost">
                 {mode === "create" && written ? "Discard" : "Cancel"}
               </button>
-              <button disabled={saving} className="btn btn-primary disabled:opacity-60">
+              <button disabled={saving} className="btn btn-glow disabled:opacity-60">
                 {saving ? "Saving…" : mode === "create" ? "Add task" : "Save"}
               </button>
             </div>

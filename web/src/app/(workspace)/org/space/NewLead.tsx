@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AudioLines, Link2, X } from "lucide-react";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { InstagramIcon, YoutubeIcon } from "../../PlatformIcon";
+import { closeOnBackdrop } from "../../dialog";
 import { createLead } from "./actions";
 
 // The podcast's own pages, asked for up front (all optional)
@@ -51,7 +52,7 @@ export function NewLead({ boardId, onCreated }: { boardId: string; onCreated: (i
         <PlusBadge /> New lead
       </button>
 
-      <dialog ref={ref} className="glass fixed top-1/2 left-1/2 m-0 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground">
+      <dialog ref={ref} {...closeOnBackdrop} className="glass fixed top-1/2 left-1/2 m-0 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground">
         <form
           onSubmit={(e) => {
             e.preventDefault();
