@@ -55,18 +55,10 @@ export async function recordSent(userId: string, input: { id?: unknown; from?: u
     // tracked PDFs linked in it
     docs: (Array.isArray(input.docs) ? input.docs : []).filter((d): d is string => typeof d === "string" && MAIL_ID.test(d)).slice(0, 20),
     sentAt: new Date(),
-    leadId: await leadFor(to[0]),
   };
   // sent again: its links were changed the first time, so it keeps those
   await prisma.trackedMail.upsert({ where: { id }, create: { id, userId, ...data }, update: { ...data, links: links.some(Boolean) ? links : undefined } });
   return null;
-}
-
-// the newest lead with this email among its contacts
-async function leadFor(address: string): Promise<string | null> {
-  const like = `%"${address.replace(/[\\%_]/g, "\\$&")}"%`;
-  const rows = await prisma.$queryRaw<{ id: string }[]>`select id from "Lead" where lower(values::text) like ${like} order by "createdAt" desc limit 1`;
-  return rows[0]?.id ?? null;
 }
 
 // The image loaded. Not an open: a load straight from Gmail's page (the
@@ -114,8 +106,7 @@ export async function recordSelfView(id: string) {
 const SCANNER = "(Edge/12\\.246|bot|crawl|spider|scan|preview|python|wget|curl)";
 
 // its counts from its events (every one is kept; which count is decided
-// here and marked on each, so every report agrees), and the board's number
-// for its lead
+// here and marked on each, so every report agrees)
 export async function refresh(id: string) {
   // every click counts; an open counts unless a scanner's, within 20 seconds
   // of sending, next to one of our own looks, or on an email that bounced
@@ -133,14 +124,8 @@ export async function refresh(id: string) {
     select count(*) filter (where kind = 'open')::int opens, min(at) filter (where kind = 'open') first,
            max(at) filter (where kind = 'open') last, count(*) filter (where kind = 'click')::int clicks
     from "MailEvent" where "mailId" = ${id} and counted`;
-  const mail = await prisma.trackedMail.update({
+  await prisma.trackedMail.update({
     where: { id },
     data: { opens: c?.opens ?? 0, firstOpenAt: c?.first ?? null, lastOpenAt: c?.last ?? null, clicks: c?.clicks ?? 0 },
-    select: { leadId: true },
   });
-  // a lead's opens are its first email's (the board shows them on Day 1)
-  if (mail.leadId) {
-    const first = await prisma.trackedMail.findFirst({ where: { leadId: mail.leadId }, orderBy: { sentAt: "asc" }, select: { opens: true } });
-    if (first?.opens) await prisma.lead.updateMany({ where: { id: mail.leadId, opens: { lt: first.opens } }, data: { opens: first.opens } });
-  }
 }

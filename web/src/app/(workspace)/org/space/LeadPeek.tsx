@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
-import type { Outreach } from "./LeadCard";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
@@ -16,7 +15,7 @@ import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type Person, type SentData } from "@/lib/space";
+import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -36,11 +35,11 @@ type Status = "saving" | "saved" | { error: string } | null;
 
 // A lead's window, built like a task's (TaskDetailsDialog): the name and a
 // History switch on top; its stage and assignee as chips;
-// then everything known about it (details, from Day 1 its opens and reply,
+// then everything known about it (details, from Day 1 its opens and replies,
 // contacts), and last its messages, day by day; along the bottom, delete,
 // who added it, and Close. History slides open beside it. Open while `lead`
 // is set; closing calls onClose. Every change saves as it's made.
-export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; onClose: () => void; onTrack: (id: string, change: Outreach) => void }) {
+export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; onClose: () => void; onTrack: (id: string, change: MarkChange) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   // the last lead stays drawn while the window fades out
   const [shown, setShown] = useState(lead);
@@ -100,7 +99,7 @@ function LeadPage({
   onHistory: () => void;
   close: () => void;
   onDeleted: () => void;
-  onTrack: (id: string, change: Outreach) => void;
+  onTrack: (id: string, change: MarkChange) => void;
 }) {
   const router = useRouter();
   const id = lead.id;
@@ -342,7 +341,7 @@ function LeadPage({
           )}
 
           {/* then the messages to send */}
-          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onReply={(replies) => onTrack(id, { replies })} onOpens={(opens) => onTrack(id, { opens })} onSaved={saved} />
+          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onMark={(c) => onTrack(id, c)} onSaved={saved} />
         </div>
 
         {/* beside it, the same height: every stage it has been through */}

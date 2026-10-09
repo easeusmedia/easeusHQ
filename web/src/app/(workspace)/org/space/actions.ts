@@ -14,6 +14,7 @@ import {
   isFieldKind,
   leadVars,
   LINKEDIN_LIMIT,
+  MARKED,
   MESSAGE_CHANNELS,
   overLimit,
   moveNeedsReason,
@@ -21,6 +22,7 @@ import {
   type FieldData,
   type FieldKind,
   type LeadEventData,
+  type Marked,
   type MessageData,
   type SentData,
   type OptionData,
@@ -576,31 +578,24 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
   }
 }
 
-// A lead's opens (times its first email was opened; 0 is not opened) and
-// the days it replied on (replied: on any), the board's numbers.
-// ponytail: replies are written whole, so two people ticking different days
-// at the same moment keep the later list; a per-day row if that ever bites.
-export async function setLeadOutreach(id: string, patch: { opens?: number; replies?: { key: string; at: string }[] }): Promise<Done> {
+// Instagram or LinkedIn, marked by hand: seen or replied (once each, kept
+// with the day it was marked on); no day clears it. Email's opens and
+// replies come from the sales inbox, never from here. Each mark is written
+// alone, so two people marking the same lead keep both.
+export async function setLeadMark(id: string, platform: Marked, kind: "seen" | "replied", day: string | null): Promise<Done> {
+  if (!MARKED.includes(platform) || (kind !== "seen" && kind !== "replied")) return { error: "That couldn't be read." };
+  if (day !== null && (typeof day !== "string" || !day || day.length > 80)) return { error: "That day couldn't be found." };
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
-  const data: { opens?: number; replied?: boolean; replies?: { key: string; at: string }[] } = {};
-  if (patch.opens !== undefined) {
-    if (!Number.isInteger(patch.opens) || patch.opens < 0 || patch.opens > 999) return { error: "Opens is a whole number from 0." };
-    data.opens = patch.opens;
-  }
-  if (patch.replies !== undefined) {
-    if (!Array.isArray(patch.replies) || patch.replies.length > 100) return { error: "Those replies couldn't be read." };
-    const seen = new Set<string>();
-    const clean = patch.replies
-      .filter((r) => r && typeof r.key === "string" && r.key.length <= 80 && !seen.has(r.key) && seen.add(r.key))
-      .map((r) => ({ key: r.key, at: typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date().toISOString() }));
-    data.replies = clean;
-    data.replied = clean.length > 0;
-  }
   try {
-    await prisma.lead.update({ where: { id }, data: { ...data, ...edited(who) } });
+    if (day === null)
+      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = "marks" #- ARRAY[${platform}::text, ${kind}::text], "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    else {
+      const mark = JSON.stringify({ day, at: new Date().toISOString() });
+      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = jsonb_set(coalesce("marks", '{}'::jsonb), ARRAY[${platform}::text], coalesce("marks" -> ${platform}::text, '{}'::jsonb) || jsonb_build_object(${kind}::text, ${mark}::jsonb), true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    }
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");

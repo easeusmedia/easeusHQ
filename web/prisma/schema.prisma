@@ -1132,12 +1132,12 @@ model Space {
 
 // A board's stages, left to right ("Shortlist", "Day 1"…)
 model BoardStage {
-  id        String @id @default(uuid())
+  id        String         @id @default(uuid())
   boardId   String
-  board     Space  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board     Space          @relation(fields: [boardId], references: [id], onDelete: Cascade)
   name      String
   // a Notion colour name (lib/space.ts COLORS)
-  color     String @default("default")
+  color     String         @default("default")
   sortOrder Float          @default(0)
   leads     Lead[]
   messages  StageMessage[]
@@ -1198,46 +1198,44 @@ model FieldOption {
 
 // One card on a board: a podcast being reached out to
 model Lead {
-  id           String      @id @default(uuid())
-  boardId      String
-  board        Space       @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  stageId      String
-  stage        BoardStage  @relation(fields: [stageId], references: [id], onDelete: Restrict)
-  title        String
-  sortOrder    Float       @default(0)
-  assignedToId String?
-  assignedTo   User?       @relation("LeadsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  id             String        @id @default(uuid())
+  boardId        String
+  board          Space         @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  stageId        String
+  stage          BoardStage    @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  title          String
+  sortOrder      Float         @default(0)
+  assignedToId   String?
+  assignedTo     User?         @relation("LeadsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
   // who gave it to them, and when (every hand-off is also on its record)
   assignedByName String?
   assignedAt     DateTime?
   // each property's value, by field id (lib/space.ts)
-  values       Json        @default("{}")
+  values         Json          @default("{}")
   // the write-up: what the show does, the gap, drafts
-  notes        String      @default("") @db.Text
+  notes          String        @default("") @db.Text
   // its messages' variables, by name: { "Guest": "Steven Bartlett" }
-  vars         Json        @default("{}")
-  // from Day 1: how many times its first email was opened (0: not opened),
-  // and whether it has replied, on any platform (the board's numbers)
-  opens        Int         @default(0)
-  replied      Boolean     @default(false)
-  // the days it replied on, each once: [{ key: "day-2", at }] (replied: any)
-  replies      Json        @default("[]")
+  vars           Json          @default("{}")
+  // Instagram and LinkedIn, marked by hand: seen and replied, once each, with
+  // the day it was marked on: { "instagram": { "seen": { "day": "day-2", "at" } } }.
+  // Email's opens and replies come from the sales inbox and the mail tracker.
+  marks          Json          @default("{}")
   // the message picked for a day or stage with more than one: { "day-1": messageId }
-  picks        Json        @default("{}")
+  picks          Json          @default("{}")
   // a message rewritten for this lead alone, by message id: { subject, body }.
   // It keeps its own wording when the stage's template changes.
-  drafts       Json        @default("{}")
-  createdById  String
-  createdBy    User        @relation("LeadsCreated", fields: [createdById], references: [id])
+  drafts         Json          @default("{}")
+  createdById    String
+  createdBy      User          @relation("LeadsCreated", fields: [createdById], references: [id])
   // when it reached its stage ("3 days in Day 2")
-  stageSince   DateTime    @default(now())
+  stageSince     DateTime      @default(now())
   // who last changed its details, and when (its history holds only stage moves)
-  editedByName String?
-  editedAt     DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  events       LeadEvent[]
-  sent         SentMessage[]
+  editedByName   String?
+  editedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  events         LeadEvent[]
+  sent           SentMessage[]
 
   @@index([boardId])
   @@index([stageId])
@@ -1326,8 +1324,6 @@ model TrackedMail {
   clicks      Int         @default(0)
   // when the sender last looked at it themselves (their own view isn't an open)
   selfAt      DateTime?
-  // the lead it went to, matched by email
-  leadId      String?
   // from the sales inbox (lib/mailSync.ts): its Gmail conversation, when
   // it was first answered, and when it bounced
   threadId    String?
@@ -1339,24 +1335,23 @@ model TrackedMail {
 
   @@index([userId, sentAt])
   @@index([sentAt])
-  @@index([leadId])
 }
 
 // One open or click of a tracked email
 model MailEvent {
-  id     String      @id @default(uuid())
-  mailId String
-  mail   TrackedMail @relation(fields: [mailId], references: [id], onDelete: Cascade)
+  id      String      @id @default(uuid())
+  mailId  String
+  mail    TrackedMail @relation(fields: [mailId], references: [id], onDelete: Cascade)
   // open | click | self (one of us looking at it: opens next to it aren't counted)
-  kind   String
+  kind    String
   // which link, for a click
-  link   Int?
+  link    Int?
   // what loaded it (Google's image proxy, Apple Mail, a browser), to tell a
   // person from a scanner when the numbers are compared with Mailsuite's
-  agent  String?
+  agent   String?
   // whether it counts (lib/mailTrack.ts refresh): not a scanner, not one of us
-  counted Boolean    @default(false)
-  at     DateTime    @default(now())
+  counted Boolean     @default(false)
+  at      DateTime    @default(now())
 
   @@index([mailId])
   @@index([at])

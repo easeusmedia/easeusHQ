@@ -3,11 +3,11 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, Eye, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { dayOf, moveNeedsReason, phaseKey, toneOf, type BoardData, type LeadData, type StageData, tracksOutreach } from "@/lib/space";
+import { dayOf, markedOn, moveNeedsReason, phaseKey, toneOf, type BoardData, type LeadData, type MarkChange, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
-import { LeadCard, type Outreach } from "./LeadCard";
+import { LeadCard } from "./LeadCard";
 import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
 import { scrollPageNearEdge } from "../../StickyColumns";
@@ -188,7 +188,7 @@ export function LeadBoard({
   onShowEmpty: () => void;
   onOpen: (id: string) => void;
   // a lead's opens or reply, tapped on its card
-  onTrack?: (id: string, change: Outreach) => void;
+  onTrack?: (id: string, change: MarkChange) => void;
 }) {
   const router = useRouter();
   const [local, setLocal] = useState(() => fresh(board));
@@ -219,12 +219,12 @@ export function LeadBoard({
   });
   const order = stages.map((s) => s.id);
   const shown = leads.map((l) => (live.moved[l.id] ? { ...l, ...live.moved[l.id] } : l));
-  // the day (or stage) a lead is on, for the reply it gets there
+  // the day (or stage) a lead is on, and the platforms marked by hand it goes out on
   const dayOfStage = (stageId: string) => {
     const st = board.stages.find((s) => s.id === stageId);
     if (!st) return undefined;
     const d = dayOf(st.name);
-    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}` };
+    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}`, marked: d == null ? [] : markedOn(board, d) };
   };
   const columnOf = (stageId: string) => shown.filter((l) => l.stageId === stageId).sort((a, b) => a.sortOrder - b.sortOrder);
 

@@ -110,14 +110,17 @@ export type LeadData = {
   values: Record<string, unknown>;
   // its messages' variables, by name
   vars: Record<string, string>;
-  // from Day 1: times its first email was opened, whether it replied at
-  // all, and the days it replied on (each once, by phase key: "day-2")
-  opens: number;
-  replied: boolean;
-  replies: Reply[];
+  // Email, from the sales inbox and the mail tracker, never by hand: whether
+  // a tracked email went to it, how often its emails were opened, and its
+  // first reply (on the day it was at then)
+  email: { tracked: boolean; opens: number; replied: Mark | null };
+  // Instagram and LinkedIn, marked by hand
+  marks: Marks;
+  // the platforms it has been reached on (reachedOn)
+  reachedOn: Platform[];
   // the message picked for a day (or stage) with more than one, by phase key
   picks: Record<string, string>;
-  // it has been in Ready to reach out or later, by its record (outreachStats)
+  // it has been in Ready to reach out or later, by its record, or emailed
   reached: boolean;
   // messages rewritten for this lead alone, by message id
   drafts: Record<string, Draft>;
@@ -286,38 +289,76 @@ export function outreachStart(stages: Pick<StageData, "name">[]): number {
 }
 export const isDead = (stageName: string) => /^dead\b/i.test(stageName.trim());
 
-type Tracked = { stageId: string; reached: boolean; opens: number; replied: boolean };
-// Reached out: in Ready to reach out or a stage after it (Dead only if it
-// got that far first, which its record says)
-export function reachedOut(stages: Pick<StageData, "id" | "name">[], lead: Pick<Tracked, "stageId" | "reached">): boolean {
-  const start = outreachStart(stages);
-  const i = stages.findIndex((s) => s.id === lead.stageId);
-  if (start < 0 || i < 0) return false;
-  return lead.reached || (i >= start && !isDead(stages[i].name));
-}
-// From Day 1 on, a lead's opens and reply are kept (its card and Details)
-export function tracksOutreach(stages: Pick<StageData, "id" | "name">[], lead: Pick<Tracked, "stageId" | "reached">): boolean {
+// From Day 1 on, a lead's opens and replies show (its card and timeline)
+export function tracksOutreach(stages: Pick<StageData, "id" | "name">[], lead: Pick<LeadData, "stageId" | "reached">): boolean {
   const first = stages.findIndex((s) => dayOf(s.name) != null);
   const i = stages.findIndex((s) => s.id === lead.stageId);
   if (first < 0 || i < first) return false;
   return !isDead(stages[i].name) || lead.reached;
 }
-// The board's numbers: leads reached out to, how many opened the first
-// email (and how often), and how many replied, anywhere
-export function outreachStats(stages: Pick<StageData, "id" | "name">[], leads: Tracked[]) {
-  const reached = leads.filter((l) => reachedOut(stages, l));
-  const opened = reached.filter((l) => l.opens > 0).length;
-  const replied = reached.filter((l) => l.replied).length;
-  const rate = (n: number) => (reached.length ? Math.round((n / reached.length) * 100) : 0);
-  return { reached: reached.length, opened, opens: reached.reduce((n, l) => n + l.opens, 0), replied, openRate: rate(opened), replyRate: rate(replied) };
+// The platforms a lead is reached on. Email counts what went out of the
+// sales inbox, automatically (opens, replies); Instagram and LinkedIn are
+// marked by hand, seen and replied, once each (the day it was marked kept).
+export const PLATFORMS = ["email", "instagram", "linkedin"] as const;
+export type Platform = (typeof PLATFORMS)[number];
+export const MARKED = ["instagram", "linkedin"] as const;
+export type Marked = (typeof MARKED)[number];
+export type Mark = { day: string; at: string };
+export type Marks = Partial<Record<Marked, { seen?: Mark; replied?: Mark }>>;
+export type MarkChange = { platform: Marked; kind: "seen" | "replied"; day: string | null };
+export const PLATFORM_NAME: Record<Platform, string> = { email: "Email", instagram: "Instagram", linkedin: "LinkedIn" };
+
+// a mark set on a day, or cleared (day null)
+export function withMark(marks: Marks, c: MarkChange, at = new Date().toISOString()): Marks {
+  const one = { ...marks[c.platform] };
+  if (c.day) one[c.kind] = { day: c.day, at };
+  else delete one[c.kind];
+  return { ...marks, [c.platform]: one };
+}
+
+// the platforms marked by hand that a day's messages go out on
+export function markedOn(board: Pick<BoardData, "stages" | "messages">, day: number): Marked[] {
+  const dayOfMessage = (m: Pick<MessageData, "stageId">) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "");
+  return MARKED.filter((p) => board.messages.some((m) => m.channel === p && dayOfMessage(m) === day));
+}
+
+// Instagram and LinkedIn reached by a lead's record: from their first day
+// on, by the furthest day it has been on (its stage and every move)
+export function reachedByDay(board: Pick<BoardData, "stages" | "messages">, stageNames: (string | null)[]): Marked[] {
+  const days = stageNames.map((n) => (n ? dayOf(n) : null)).filter((d): d is number => d != null);
+  if (!days.length) return [];
+  const furthest = Math.max(...days);
+  return MARKED.filter((p) => [...Array(furthest).keys()].some((i) => markedOn(board, i + 1).includes(p)));
+}
+
+// One platform for one lead: reached, opened (seen; a reply means it was
+// read), replied. Email opens are only known where it was tracked.
+type Tracked = Pick<LeadData, "email" | "marks" | "reachedOn">;
+function onPlatform(l: Tracked, p: Platform) {
+  if (p === "email") {
+    const replied = !!l.email.replied;
+    return { reached: l.reachedOn.includes("email"), known: l.email.tracked || replied, opened: l.email.opens > 0 || replied, replied };
+  }
+  const m = l.marks[p] ?? {};
+  const reached = l.reachedOn.includes(p) || !!m.seen || !!m.replied;
+  return { reached, known: reached, opened: !!m.seen || !!m.replied, replied: !!m.replied };
+}
+
+// The board's numbers, by lead, on one platform or on all (null): reached
+// there, opened there, replied there. On all, a lead counts once.
+export function outreachStats(leads: Tracked[], platform: Platform | null) {
+  const per = leads.map((l) => (platform ? [platform] : PLATFORMS).map((p) => onPlatform(l, p)).filter((s) => s.reached)).filter((s) => s.length);
+  const count = (key: "known" | "opened" | "replied") => per.filter((s) => s.some((x) => x[key])).length;
+  const rate = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
+  const [known, opened, replied] = [count("known"), count("opened"), count("replied")];
+  return { reached: per.length, opened, replied, openRate: rate(opened, known), replyRate: rate(replied, per.length) };
 }
 
 // every email address in a lead's details (its contacts' emails), for
-// matching it to the sales inbox (lib/mailSync.ts)
+// matching it to the sales inbox (org/space/data.ts, lib/mailReport.ts)
 const EMAILS = /[^\s"'<>,;:]+@[^\s"'<>,;:]+\.[a-z]{2,}/gi;
 export const leadEmails = (values: unknown) => [...new Set((JSON.stringify(values ?? {}).match(EMAILS) ?? []).map((e) => e.toLowerCase()))];
 
-export type Reply = { key: string; at: string };
 // A day's (or a stage's) key: one for every stage of a day ("day-7"), else the stage's own
 export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {
   const d = dayOf(stage.name);

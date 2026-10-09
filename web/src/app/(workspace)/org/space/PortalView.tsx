@@ -2,26 +2,32 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
-import { outreachStart, outreachStats, type BoardData, type Contact, type LeadData, type Person } from "@/lib/space";
+import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
+import { outreachStart, outreachStats, PLATFORM_NAME, PLATFORMS, withMark, type BoardData, type Contact, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { deleteSpace, renameSpace, setLeadOutreach } from "./actions";
+import { deleteSpace, renameSpace, setLeadMark } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
-import type { Outreach } from "./LeadCard";
 import { StatTile } from "../../StatTile";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { setParam } from "../../urlState";
+import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
 type View = "board" | "table";
-type Prefs = { view: View; hideEmpty: boolean };
-const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false };
+type Prefs = { view: View; hideEmpty: boolean; platform: Platform | "all" };
+const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false, platform: "all" };
 // per board, in this browser: board or table, and whether empty stages show
 const prefsKey = (boardId: string) => `space:board:${boardId}`;
 
+const PLATFORM_ICON: Record<Platform | "all", React.ReactNode> = {
+  all: <Layers size={13} />,
+  email: <Mail size={13} className="text-sky-400" />,
+  instagram: <InstagramIcon size={13} className="text-pink-400" />,
+  linkedin: <LinkedinIcon size={13} className="text-blue-400" />,
+};
 const SEG_ROW = "flex w-fit items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
 
 // Everything a search can find on a lead: its name, and each contact's name,
@@ -77,17 +83,21 @@ export function PortalView({
   // the board being switched to, until it arrives
   const [going, setGoing] = useState<string | null>(null);
   if (going && (board?.slug === going || !switching)) setGoing(null);
-  // opens and replies tapped here show at once, ahead of the board's refresh
-  const [tracked, setTracked] = useState<Record<string, Outreach>>({});
+  // Instagram and LinkedIn marks tapped here show at once, ahead of the board's refresh
+  const [tracked, setTracked] = useState<Record<string, Marks>>({});
   const [trackError, setTrackError] = useState<string | null>(null);
-  async function track(id: string, change: Outreach) {
+  async function track(id: string, change: MarkChange) {
     const before = tracked[id];
     setTrackError(null);
-    const local = change.replies ? { ...change, replied: change.replies.length > 0 } : change;
-    setTracked((t) => ({ ...t, [id]: { ...t[id], ...local } }));
-    const res = await setLeadOutreach(id, { opens: change.opens, replies: change.replies }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    setTracked((t) => ({ ...t, [id]: withMark(t[id] ?? board?.leads.find((l) => l.id === id)?.marks ?? {}, change) }));
+    const res = await setLeadMark(id, change.platform, change.kind, change.day).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
     if (res.error) {
-      setTracked((t) => ({ ...t, [id]: before ?? {} }));
+      setTracked((t) => {
+        const next = { ...t };
+        if (before) next[id] = before;
+        else delete next[id];
+        return next;
+      });
       return setTrackError(res.error);
     }
     router.refresh();
@@ -99,7 +109,8 @@ export function PortalView({
     if (!boardId) return;
     try {
       const saved = JSON.parse(localStorage.getItem(prefsKey(boardId)) ?? "null") as Partial<Prefs> | null;
-      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true }); // eslint-disable-line react-hooks/set-state-in-effect
+      const platform = PLATFORMS.find((p) => p === saved?.platform) ?? "all";
+      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true, platform }); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {
       setPrefs(DEFAULT_PREFS);
     }
@@ -155,11 +166,12 @@ export function PortalView({
 
   const contactFields = board.fields.filter((f) => f.kind === "contacts").map((f) => f.id);
   const q = query.trim().toLowerCase();
-  const leads = board.leads.map((l) => (tracked[l.id] ? { ...l, ...tracked[l.id] } : l));
+  const leads = board.leads.map((l) => (tracked[l.id] ? { ...l, marks: tracked[l.id] } : l));
   const whose = leads.filter((l) => who === "all" || [l.createdBy.id, l.assignedTo?.id].includes(who === "mine" ? viewerId : who));
   const shown = whose.filter((l) => !q || searchText(l, contactFields).includes(q));
   // reaching out, in numbers: for whoever is picked, whatever is searched
-  const stats = outreachStart(board.stages) >= 0 ? outreachStats(board.stages, whose) : null;
+  // on one platform or all
+  const stats = outreachStart(board.stages) >= 0 ? outreachStats(whose, prefs.platform === "all" ? null : prefs.platform) : null;
   const filtered = shown.length !== board.leads.length;
   const lead = openId ? (leads.find((l) => l.id === openId) ?? null) : null;
   const whoOptions = [
@@ -215,7 +227,16 @@ export function PortalView({
         </div>
       )}
 
-      {/* reaching out, in numbers */}
+      {/* reaching out, in numbers: on every platform, or one */}
+      {stats && (
+        <div className={SEG_ROW}>
+          {(["all", ...PLATFORMS] as const).map((p) => (
+            <button key={p} type="button" aria-pressed={prefs.platform === p} onClick={() => savePrefs({ platform: p })} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+              {PLATFORM_ICON[p]} {p === "all" ? "All" : PLATFORM_NAME[p]}
+            </button>
+          ))}
+        </div>
+      )}
       {stats && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatTile label="Reached out" value={stats.reached} Icon={Send} />
@@ -224,7 +245,7 @@ export function PortalView({
             value={`${stats.openRate}%`}
             lit={stats.opened > 0}
             Icon={MailOpen}
-            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} {stats.opened === 1 ? "email" : "emails"} opened</p>}
+            note={stats.reached > 0 && <p className="text-xs text-muted">{stats.opened} {prefs.platform === "instagram" || prefs.platform === "linkedin" ? "seen" : "opened"}</p>}
           />
           <StatTile
             label="Reply rate"

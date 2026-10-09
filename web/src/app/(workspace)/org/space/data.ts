@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayOf, isDead, leadEmails, outreachStart, type BoardData, type Reply, type Draft, type FieldKind, type Person, type SpaceCard, type SpaceKind } from "@/lib/space";
+import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, type BoardData, type Draft, type FieldKind, type Mark, type Marks, type Person, type Platform, type SpaceCard, type SpaceKind } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -71,9 +71,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
           values: true,
           vars: true,
           drafts: true,
-          opens: true,
-          replied: true,
-          replies: true,
+          marks: true,
           picks: true,
           assignedByName: true,
           assignedAt: true,
@@ -83,19 +81,47 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
           editedAt: true,
           createdBy: { select: { id: true, name: true } },
           assignedTo: { select: { id: true, name: true } },
-          // where it has been: whether it was ever reached out to
-          events: { where: { kind: "moved" }, select: { toStage: true } },
+          // where it has been (and when): whether it was ever reached out to, and on what
+          events: { where: { kind: "moved" }, select: { toStage: true, createdAt: true }, orderBy: { createdAt: "asc" } },
         },
       },
     },
   });
   if (!board) return null;
-  // and reached out to by email from the sales inbox, whatever its stage
+  // Email, whatever its stage, from the sales inbox (whichever computer sent
+  // it) and the mail tracker: when each address was first emailed, its
+  // tracked emails' opens, and what each address wrote back (a person, not
+  // a bounce or an auto-reply)
   const leadAddresses = new Map(board.leads.map((l) => [l.id, leadEmails(l.values)]));
   const all = [...new Set([...leadAddresses.values()].flat())];
-  const emailed = new Set(
-    all.length ? (await prisma.mailMessage.findMany({ where: { outgoing: true, to: { in: all } }, select: { to: true }, distinct: ["to"] })).map((m) => m.to) : []
-  );
+  const [inbox, tracked, heard] = await Promise.all([
+    prisma.mailMessage.groupBy({ by: ["to"], where: { outgoing: true, to: { in: all } }, _min: { at: true } }),
+    prisma.trackedMail.groupBy({ by: ["to"], where: { to: { in: all } }, _min: { sentAt: true }, _sum: { opens: true } }),
+    prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true }, orderBy: { at: "asc" } }),
+  ]);
+  const firstSent = new Map<string, Date>();
+  for (const [to, at] of [...inbox.map((m) => [m.to, m._min.at] as const), ...tracked.map((t) => [t.to, t._min.sentAt] as const)]) {
+    const had = firstSent.get(to);
+    if (at && (!had || at < had)) firstSent.set(to, at);
+  }
+  const opensTo = new Map(tracked.map((t) => [t.to, t._sum.opens ?? 0]));
+  const emailOf = (l: (typeof board.leads)[number]) => {
+    const mine = leadAddresses.get(l.id) ?? [];
+    const first = mine.map((e) => firstSent.get(e)).filter((d): d is Date => !!d).sort((a, b) => +a - +b)[0] ?? null;
+    const reply = first && heard.find((h) => mine.includes(h.from) && h.at > first);
+    // the day it was on when the reply came: its last move before, else where it is
+    const moved = reply ? l.events.filter((e) => e.createdAt <= reply.at).pop()?.toStage : null;
+    const stage = board.stages.find((s) => (moved ? s.name === moved : s.id === l.stageId)) ?? board.stages.find((s) => s.id === l.stageId);
+    return {
+      sent: !!first,
+      email: {
+        tracked: mine.some((e) => opensTo.has(e)),
+        opens: mine.reduce((n, e) => n + (opensTo.get(e) ?? 0), 0),
+        replied: reply && stage ? ({ day: phaseKey(stage), at: reply.at.toISOString() } satisfies Mark) : null,
+      },
+    };
+  };
+  const messages = board.stages.flatMap((s) => s.messages.map((m) => ({ ...m, stageId: s.id })));
   // reached out: it has been in Ready to reach out, a day, or a stage after
   // them (but Dead), by the stage names its record kept
   const start = outreachStart(board.stages);
@@ -106,9 +132,12 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     name: board.name,
     slug: board.slug,
     stages: board.stages.map((s) => ({ id: s.id, name: s.name, color: s.color })),
-    messages: board.stages.flatMap((s) => s.messages.map((m) => ({ ...m, stageId: s.id }))),
+    messages,
     fields: board.fields.map((f) => ({ ...f, kind: f.kind as FieldKind })),
-    leads: board.leads.map((l) => ({
+    leads: board.leads.map((l) => {
+      const { sent, email } = emailOf(l);
+      const stageName = board.stages.find((s) => s.id === l.stageId)?.name ?? null;
+      return {
       id: l.id,
       title: l.title,
       stageId: l.stageId,
@@ -119,19 +148,18 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       assignedAt: l.assignedAt?.toISOString() ?? null,
       values: (l.values ?? {}) as Record<string, unknown>,
       vars: (l.vars ?? {}) as Record<string, string>,
-      opens: l.opens,
-      replied: l.replied,
-      replies: (Array.isArray(l.replies) ? l.replies : []) as Reply[],
+      email,
+      marks: (l.marks ?? {}) as Marks,
+      reachedOn: [...(start >= 0 && sent ? (["email"] as Platform[]) : []), ...reachedByDay({ stages: board.stages, messages }, [stageName, ...l.events.map((e) => e.toStage)])],
       picks: (l.picks ?? {}) as Record<string, string>,
-      reached:
-        reached([board.stages.find((s) => s.id === l.stageId)?.name ?? null, ...l.events.map((e) => e.toStage)]) ||
-        (start >= 0 && (leadAddresses.get(l.id) ?? []).some((e) => emailed.has(e))),
+      reached: reached([stageName, ...l.events.map((e) => e.toStage)]) || (start >= 0 && sent),
       drafts: (l.drafts ?? {}) as Record<string, Draft>,
       stageSince: l.stageSince.toISOString(),
       createdAt: l.createdAt.toISOString(),
       editedByName: l.editedByName,
       editedAt: l.editedAt?.toISOString() ?? null,
-    })),
+      };
+    }),
   };
 }
 

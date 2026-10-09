@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Minus, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
-import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MessageData, type Phase, type Reply as ReplyRecord, type SentData, type StageData } from "@/lib/space";
+import { Braces, Check, ChevronDown, ChevronRight, Copy, Eye, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { dayOf, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, PLATFORM_NAME, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { Reveal } from "../../Reveal";
@@ -43,16 +43,14 @@ export function Messages({
   board,
   stageId,
   sent,
-  onReply,
-  onOpens,
+  onMark,
   onSaved,
 }: {
   lead: LeadData;
   board: BoardData;
   stageId: string;
   sent: SentData[] | null;
-  onReply: (replies: ReplyRecord[]) => void;
-  onOpens: (opens: number) => void;
+  onMark: (change: MarkChange) => void;
   onSaved: () => void;
 }) {
   // what's typed above shows in every message at once, ahead of the save
@@ -81,9 +79,10 @@ export function Messages({
     }
     onSaved();
   }
-  // a reply, ticked under the day it came on
-  const repliedOn = (key: string) => lead.replies.some((r) => r.key === key);
-  const toggleReply = (key: string) => onReply(repliedOn(key) ? lead.replies.filter((r) => r.key !== key) : [...lead.replies, { key, at: new Date().toISOString() }]);
+  // what came on a day: a reply (by email, from the sales inbox; on
+  // Instagram or LinkedIn, marked), or a message seen
+  const repliedOn = (key: string) => lead.email.replied?.day === key || MARKED.some((c) => lead.marks[c]?.replied?.day === key);
+  const seenOn = (key: string) => MARKED.some((c) => lead.marks[c]?.seen?.day === key);
   const today = dayOf(board.stages.find((s) => s.id === stageId)?.name ?? "");
 
   async function saveVar(name: string, value: string) {
@@ -135,12 +134,14 @@ export function Messages({
     const chosenId = options.length > 1 ? pickOf(p.key) : options[0].id;
     const chosen = options.find((m) => m.id === chosenId) ?? null;
     const replied = repliedOn(p.key);
-    const canReply = p.day != null && today != null && p.day <= today;
+    // a day reached takes Seen and Reply for its Instagram and LinkedIn
+    // messages (once per platform, whichever day); email's come by themselves
+    const marked = p.day != null && today != null && p.day <= today ? MARKED.filter((c) => options.some((m) => m.channel === c)) : [];
     const folded = p.when === "done" && !openDays.has(p.key);
-    // the first email's opens, on Day 1 once it's done
-    const opened = p.when === "done" && p.day === 1 && lead.opens > 0 && (
+    // its emails' opens (the mail tracker), on Day 1 once it's done
+    const opened = p.when === "done" && p.day === 1 && lead.email.opens > 0 && (
       <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">
-        <MailOpen size={11} /> Opened {lead.opens}×
+        <MailOpen size={11} /> Opened {lead.email.opens}×
       </span>
     );
     const content = (
@@ -159,30 +160,21 @@ export function Messages({
             <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((m) => ({ value: m.id, label: m.name }))} onChange={(v) => v && pick(p.key, v)} />
           ))}
         {chosen && card(chosen, p.when === "done" || (options.length === 1 && !p.when))}
-        {canReply && (
+        {marked.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
-            {/* Day 1's email: opened, and how often */}
-            {p.day === 1 && (
-              <>
-                <button type="button" aria-pressed={lead.opens > 0} onClick={() => onOpens(lead.opens > 0 ? 0 : 1)} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                  <MailOpen size={12} /> Opened
-                </button>
-                {lead.opens > 0 && (
-                  <span className="fade-in flex items-center gap-0.5 text-xs text-muted">
-                    <button type="button" onClick={() => onOpens(lead.opens - 1)} aria-label="One open fewer" className="grid size-6 place-items-center rounded-full transition-colors hover:bg-white/[0.06] hover:text-foreground">
-                      <Minus size={12} />
-                    </button>
-                    <span className="min-w-6 text-center tabular-nums text-foreground">{lead.opens}×</span>
-                    <button type="button" onClick={() => onOpens(lead.opens + 1)} aria-label="One open more" className="grid size-6 place-items-center rounded-full transition-colors hover:bg-white/[0.06] hover:text-foreground">
-                      <Plus size={12} />
-                    </button>
-                  </span>
-                )}
-              </>
-            )}
-            <button type="button" aria-pressed={replied} onClick={() => toggleReply(p.key)} title={replied ? `Replied on ${p.title}. Tap to undo.` : `They replied on ${p.title}, anywhere`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-              <Reply size={12} /> {replied ? "Replied" : "Reply"}
-            </button>
+            {marked.map((c) => {
+              const m = lead.marks[c] ?? {};
+              return (
+                <span key={c} className="flex flex-wrap items-center gap-1.5">
+                  <button type="button" aria-pressed={!!m.seen} onClick={() => onMark({ platform: c, kind: "seen", day: m.seen ? null : p.key })} title={m.seen ? "Seen. Tap to undo." : `They saw it on ${PLATFORM_NAME[c]}`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                    {CHANNEL_ICON[c]} <Eye size={12} /> Seen
+                  </button>
+                  <button type="button" aria-pressed={!!m.replied} onClick={() => onMark({ platform: c, kind: "replied", day: m.replied ? null : p.key })} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[c]}`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                    {CHANNEL_ICON[c]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
+                  </button>
+                </span>
+              );
+            })}
           </div>
         )}
       </>
@@ -212,6 +204,11 @@ export function Messages({
             <button type="button" onClick={() => toggleDay(p.key)} aria-expanded={!folded} className="group/day flex flex-wrap items-center gap-2 pt-0.5 text-left text-xs">
               <span className="font-medium text-foreground/80 transition-colors group-hover/day:text-foreground">{p.title}</span>
               {opened}
+              {seenOn(p.key) && !replied && (
+                <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">
+                  <Eye size={11} /> Seen
+                </span>
+              )}
               {replied && (
                 <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-300">
                   <Reply size={11} /> Replied
