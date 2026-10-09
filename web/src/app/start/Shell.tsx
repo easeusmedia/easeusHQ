@@ -2,6 +2,7 @@ import Image from "next/image";
 import { FileText, Flag, PenLine, UserRound, type LucideIcon } from "lucide-react";
 import { SCENE, STARFIELD, SUMMIT, SUMMIT_RIDGE } from "./everestRidge";
 import { Parallax } from "./Parallax";
+import { FitCard } from "./FitCard";
 
 // The frame every /start page sits in, over Everest at blue hour: the
 // mountain fills the screen (the goal we help clients reach: the top), with
@@ -18,11 +19,11 @@ const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
 
 export function Shell({ children, step = 1, name }: { children: React.ReactNode; step?: 1 | 2 | 3 | 4; name?: string | null }) {
   return (
-    <div className="relative flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-8">
+    <div className="relative flex min-h-dvh w-full items-stretch justify-center bg-background text-foreground lg:items-center lg:p-10">
       <Scene name={name} />
       {/* the card passes pointing through to the picture (the name at the
           summit answers a hover); the form takes it back */}
-      <div className="pointer-events-none relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
+      <div id="start-card" className="pointer-events-none relative flex w-full max-w-[1120px] rounded-none border-white/[0.12] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] lg:min-h-[640px] lg:rounded-[28px] lg:border lg:p-2.5">
         {/* frosted glass round the edge and between the two halves; only
             the window onto the peak stays clear */}
         <div aria-hidden className="absolute inset-0 hidden rounded-[inherit] bg-white/[0.03] backdrop-blur-xl backdrop-saturate-[1.6] lg:block" style={FRAME_MASK} />
@@ -67,7 +68,7 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
 
         {/* dark frosted glass: the range goes soft behind the form, lit
             faintly along its top edge like a pane */}
-        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-10">
+        <div className="pointer-events-auto relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#07090d]/80 px-6 py-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[24px] sm:px-10 lg:ml-2.5 lg:rounded-[20px] lg:border lg:border-white/[0.1] lg:px-12 lg:py-12">
           {/* the sheen a pane of glass catches, top left */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_0%_0%,rgba(255,255,255,0.05),transparent_60%)]" />
           {/* on a phone the left side is gone, so the name comes along here */}
@@ -78,6 +79,8 @@ export function Shell({ children, step = 1, name }: { children: React.ReactNode;
           <div className="relative mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center">{children}</div>
         </div>
       </div>
+      {/* on a desktop, the card scaled to the window (globals.css, then fit.ts) */}
+      <FitCard />
     </div>
   );
 }

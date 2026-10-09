@@ -1388,3 +1388,13 @@ dialog[open]::backdrop {
 }
 
 
+
+/* /start's card on a desktop: scaled as a whole to the window's height, so
+   it's the same composition on every screen (CSS zoom keeps text sharp).
+   788px is its own height; tan(atan2()) divides one length by another.
+   start/fit.ts sets --card-zoom exactly once the page runs. */
+@media (min-width: 1024px) {
+  #start-card {
+    zoom: var(--card-zoom, clamp(0.6, tan(atan2(100dvh - 80px, 788px)), 1.6));
+  }
+}

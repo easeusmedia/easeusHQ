@@ -140,9 +140,8 @@ export function IntakeForm({ token }: { token: string }) {
       <h1 className="text-[26px] font-semibold tracking-tight">A few details for your agreement</h1>
       <p className="mt-1.5 text-sm text-muted">It takes less than a minute.</p>
 
-      {/* short fields in pairs, so the whole form fits a laptop screen without scrolling */}
-      <div className="mt-7 flex flex-col gap-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <div className="mt-8 flex flex-col gap-5">
+        <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Full name" required error={errors.contactName}>
             <Input value={f.contactName} onChange={(v) => set({ contactName: v })} placeholder="Andrew Thomas" autoComplete="name" invalid={!!errors.contactName} />
           </Field>
@@ -150,87 +149,110 @@ export function IntakeForm({ token }: { token: string }) {
             <Input value={f.contactEmail} onChange={(v) => set({ contactEmail: v })} placeholder="andrew@example.com" type="email" autoComplete="email" invalid={!!errors.contactEmail} />
           </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Country" required error={errors.country}>
+            <CountryPicker
+              value={f.country}
+              onChange={(v) =>
+                // their country sets the WhatsApp code beside it (they can still change it)
+                set({ country: v, ...(isoOf(v) ? { whatsappCountry: isoOf(v)! } : {}) })
+              }
+              invalid={!!errors.country}
+            />
+          </Field>
           <Field label="WhatsApp number" error={errors.whatsapp}>
             <div className="flex gap-2">
               <DialPicker iso={f.whatsappCountry} onChange={(iso) => set({ whatsappCountry: iso })} />
               <Input value={f.whatsapp} onChange={(v) => set({ whatsapp: v })} placeholder="98765 43210" type="tel" autoComplete="tel-national" invalid={!!errors.whatsapp} />
             </div>
           </Field>
-          <Field label="Business name" required error={errors.entity}>
-            <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name, or yours" autoComplete="organization" invalid={!!errors.entity} />
-          </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Country" required error={errors.country}>
-            <CountryPicker
-              value={f.country}
-              onChange={(v) =>
-                // their country sets the WhatsApp code too, until they've typed a number
-                set({ country: v, ...(!f.whatsapp.trim() && isoOf(v) ? { whatsappCountry: isoOf(v)! } : {}) })
-              }
-              invalid={!!errors.country}
-            />
-          </Field>
-          <Field label="Address" required error={errors.address}>
-            <Input value={f.address} onChange={(v) => set({ address: v })} placeholder="Street, city, postcode" autoComplete="street-address" invalid={!!errors.address} />
-          </Field>
-        </div>
-
-        <Field label="Who signs the agreement?">
-          <div className="grid grid-cols-2 gap-1 rounded-xl panel-soft p-1">
-            {[
-              { self: true, label: "I'll sign it" },
-              { self: false, label: "Someone else" },
-            ].map((o) => (
-              <button
-                key={o.label}
-                type="button"
-                aria-pressed={f.signsSelf === o.self}
-                onClick={() => set({ signsSelf: o.self })}
-                className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
-                  f.signsSelf === o.self ? "selected" : "border border-transparent text-muted hover:text-foreground"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
+        <Field label="Business name" required error={errors.entity}>
+          <Input value={f.entity} onChange={(v) => set({ entity: v })} placeholder="Registered name, or yours if there's no company" autoComplete="organization" invalid={!!errors.entity} />
         </Field>
-        {!f.signsSelf && (
-          <div className="fade-in grid gap-4 sm:grid-cols-2">
-            <Field label="Their name" required error={errors.signatoryName}>
-              <Input value={f.signatory.name} onChange={(v) => set({ signatory: { ...f.signatory, name: v } }, "signatoryName")} placeholder="Full name" invalid={!!errors.signatoryName} autoFocus />
-            </Field>
-            <Field label="Their email" required error={errors.signatoryEmail}>
-              <Input value={f.signatory.email} onChange={(v) => set({ signatory: { ...f.signatory, email: v } }, "signatoryEmail")} placeholder="name@company.com" type="email" invalid={!!errors.signatoryEmail} />
-            </Field>
-          </div>
-        )}
+        <Field label="Address" required error={errors.address}>
+          <Input value={f.address} onChange={(v) => set({ address: v })} placeholder="Street, city, postcode" autoComplete="street-address" invalid={!!errors.address} />
+        </Field>
 
-        <Field label="Mode of payment" required error={errors.paymentMethod}>
-          <div className="grid grid-cols-3 gap-1 rounded-xl panel-soft p-1" role="radiogroup" aria-label="Mode of payment">
-            {[...PAYMENT_METHODS.map((m) => ({ value: m, label: m })), { value: "other", label: "Other" }].map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                role="radio"
-                aria-checked={f.paymentMethod === o.value}
-                onClick={() => set({ paymentMethod: o.value })}
-                className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
-                  f.paymentMethod === o.value ? "selected" : "border border-transparent text-muted hover:text-foreground"
-                }`}
-              >
-                {o.label}
+        <Field
+          label="Mode of payment"
+          required
+          error={errors.paymentMethod}
+          aside={
+            f.paymentMethod === "other" && (
+              <button type="button" onClick={() => set({ paymentMethod: "" })} className="text-xs text-muted transition-colors hover:text-foreground">
+                Show options
               </button>
-            ))}
-          </div>
-          {f.paymentMethod === "other" && (
+            )
+          }
+        >
+          {/* Other: an ordinary box in place of the options, the same height, for their own words */}
+          {f.paymentMethod === "other" ? (
             <div className="fade-in">
               <Input value={f.paymentOther} onChange={(v) => set({ paymentOther: v }, "paymentMethod")} placeholder="How would you like to pay?" invalid={!!errors.paymentMethod} autoFocus />
             </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-1 rounded-xl panel-soft p-1" role="radiogroup" aria-label="Mode of payment">
+              {[...PAYMENT_METHODS, "Other"].map((m) => {
+                const value = m === "Other" ? "other" : m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={f.paymentMethod === value}
+                    onClick={() => set({ paymentMethod: value })}
+                    className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
+                      f.paymentMethod === value ? "selected" : "border border-transparent text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </Field>
+
+        <Field
+          label="Who signs the agreement?"
+          error={f.signsSelf ? undefined : (errors.signatoryName ?? errors.signatoryEmail)}
+          aside={
+            !f.signsSelf && (
+              <button type="button" onClick={() => set({ signsSelf: true })} className="text-xs text-muted transition-colors hover:text-foreground">
+                I&apos;ll sign it
+              </button>
+            )
+          }
+        >
+          {/* someone else: their name and email in place of the choice, the same height */}
+          {f.signsSelf ? (
+            <div className="grid grid-cols-2 gap-1 rounded-xl panel-soft p-1">
+              {[
+                { self: true, label: "I'll sign it" },
+                { self: false, label: "Someone else" },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  aria-pressed={f.signsSelf === o.self}
+                  onClick={() => set({ signsSelf: o.self })}
+                  className={`h-9 rounded-lg text-sm transition-colors duration-200 ${
+                    f.signsSelf === o.self ? "selected" : "border border-transparent text-muted hover:text-foreground"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="fade-in grid grid-cols-2 gap-2">
+              <Input value={f.signatory.name} onChange={(v) => set({ signatory: { ...f.signatory, name: v } }, "signatoryName")} placeholder="Their full name" aria-label="Their full name" invalid={!!errors.signatoryName} autoFocus />
+              <Input value={f.signatory.email} onChange={(v) => set({ signatory: { ...f.signatory, email: v } }, "signatoryEmail")} placeholder="Their email" aria-label="Their email" type="email" invalid={!!errors.signatoryEmail} />
+            </div>
+          )}
+        </Field>
+
       </div>
 
       {problem && <p className="fade-in mt-6 text-xs text-red-300">{problem}</p>}
@@ -240,7 +262,7 @@ export function IntakeForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={sending}
-        className="group/add panel-soft panel-hover glow-hover mt-7 flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground disabled:opacity-60"
+        className="group/add panel-soft panel-hover glow-hover mt-9 flex h-11 items-center justify-center gap-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground disabled:opacity-60"
       >
         <span className="flex size-6 items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover/add:bg-accent/25">
           <Send size={12} />
@@ -248,7 +270,7 @@ export function IntakeForm({ token }: { token: string }) {
         {sending ? "Sending…" : "Send details"}
       </button>
 
-      <p className="mt-5 text-center text-xs text-muted/70">
+      <p className="mt-7 text-center text-xs text-muted/70">
         Only used for your agreement ·{" "}
         <a href="/privacy" target="_blank" className="text-foreground/70 hover:text-foreground">
           Privacy Policy
@@ -263,20 +285,26 @@ function Field({
   required,
   hint,
   error,
+  aside,
   children,
 }: {
   label: string;
   required?: boolean;
   hint?: string;
   error?: string;
+  // a small link at the end of the label's line
+  aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[13px] text-foreground/85">
-        {label}
-        {required && <span className="ml-0.5 text-accent"> *</span>}
-      </span>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[13px] text-foreground/85">
+          {label}
+          {required && <span className="ml-0.5 text-accent"> *</span>}
+        </span>
+        {aside}
+      </div>
       {children}
       {error ? <span className="fade-in text-xs text-red-300">{error}</span> : hint && <span className="text-xs text-muted/70">{hint}</span>}
     </div>
