@@ -56,9 +56,10 @@ function canSeeSummary(role: Role): string {
 // a department or role, on or off: the app's choice chip (.chip), lit when on
 const chip = (_on: boolean, editable: boolean) => `chip rounded-full px-3 py-1 text-xs ${editable ? "" : "pointer-events-none"}`;
 
-// Level, then departments, then the roles inside those departments: each a
-// chip, saved the moment it's switched. Taking a department away takes its
-// roles with it. Those the viewer may not change are shown only if on.
+// Level, then departments, then the roles inside those departments: what
+// they hold, as chips; Edit shows every one the viewer may switch, each
+// saved the moment it's switched. Taking a department away takes its roles
+// with it.
 function DepartmentsAndRoles({
   person,
   teams,
@@ -77,7 +78,9 @@ function DepartmentsAndRoles({
   const [departmentIds, setDepartmentIds] = useState(person.departmentIds);
   const [roleIds, setRoleIds] = useState(person.roleIds);
   const [error, setError] = useState<string | null>(null);
-  const editable = (teamId: string | null) => person.canSetAccess && !!teamId && editableTeamIds.includes(teamId);
+  const [editing, setEditing] = useState(false);
+  const editable = (teamId: string | null) => editing && person.canSetAccess && !!teamId && editableTeamIds.includes(teamId);
+  const canEditAny = person.canSetAccess && teams.some((t) => editableTeamIds.includes(t.id));
   const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
   async function save(next: { departmentIds: string[]; roleIds: string[] }) {
@@ -106,11 +109,18 @@ function DepartmentsAndRoles({
     <Section
       title="Departments and roles"
       aside={
-        canManage && (
-          <Organisation departments={teams} positions={roles} workTags={workTags} className="text-xs text-muted transition-colors hover:text-foreground">
-            Manage departments
-          </Organisation>
-        )
+        <span className="flex items-center gap-3">
+          {canEditAny && person.role !== "admin" && (
+            <button type="button" onClick={() => setEditing((e) => !e)} className="text-xs text-muted transition-colors hover:text-foreground">
+              {editing ? "Done" : "Edit"}
+            </button>
+          )}
+          {canManage && (
+            <Organisation departments={teams} positions={roles} workTags={workTags} className="text-xs text-muted transition-colors hover:text-foreground">
+              Manage departments
+            </Organisation>
+          )}
+        </span>
       }
     >
       {levelOne ? (

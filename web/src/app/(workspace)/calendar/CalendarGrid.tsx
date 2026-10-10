@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ListChecks, Megaphone } from "lucide-react";
 import type { TaskStatus, Role } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
+import { dayOf } from "@/lib/editorKpi";
 import { Avatar, type TaskCardData } from "../TaskCard";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import type { TaskTagOption } from "../TaskTagPicker";
@@ -54,7 +55,9 @@ export function CalendarGrid({
 
   const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const todayKey = new Date().toISOString().slice(0, 10);
+  // today in India, as the rest of the app counts days (UTC's date lags it
+  // until 5:30 in the morning)
+  const todayKey = dayOf(new Date());
 
   const cells: (number | null)[] = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);

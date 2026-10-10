@@ -121,9 +121,6 @@ export default async function CalendarPage({
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{monthLabel}</h1>
-          <p className="mt-1 text-sm text-muted">
-            The open tasks the team carried each day. A task counts until the day it&apos;s delivered to the client.
-          </p>
         </div>
         <div className="flex items-center gap-1">
           {!onThisMonth && (
