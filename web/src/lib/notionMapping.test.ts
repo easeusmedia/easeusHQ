@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clearsEditor, editorPeople, exportedLinkFor, matchClient, pushesToNotion, sameNotionId, workTaskHome } from "./notionMapping.ts";
+import { clearsEditor, editorPeople, exportedLinkFor, matchClient, notionWins, pushesToNotion, sameNotionId, workTaskHome } from "./notionMapping.ts";
 
 const FRAME = "https://f.io/abc";
 const DRIVE = "https://drive.google.com/file/d/xyz/view";
@@ -88,4 +88,19 @@ test("database ids match with or without dashes", () => {
   assert.ok(sameNotionId("c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b", "c8fe3e3fbc0b47bf8681e13b1e1eb62b"));
   assert.ok(!sameNotionId("c8fe3e3f-bc0b-47bf-8681-e13b1e1eb62b", "d8fe3e3fbc0b47bf8681e13b1e1eb62b"));
   assert.ok(!sameNotionId(null, "c8fe3e3fbc0b47bf8681e13b1e1eb62b"));
+});
+
+test("Sync: whichever side was edited last wins", () => {
+  const at = (t: string) => new Date(`2026-10-10T${t}:00.000Z`);
+  // untouched here since the last sync: Notion's version comes down
+  assert.equal(notionWins({ updatedAt: at("09:00"), notionSyncedAt: at("09:00") }, "2026-10-10T08:00:00.000Z"), true);
+  // changed here, then edited in Notion later: Notion's edit comes down
+  assert.equal(notionWins({ updatedAt: at("10:00"), notionSyncedAt: at("09:00") }, "2026-10-10T11:00:00.000Z"), true);
+  // edited in Notion, then changed here later: this side stays, for Push
+  assert.equal(notionWins({ updatedAt: at("12:00"), notionSyncedAt: at("09:00") }, "2026-10-10T11:00:00.000Z"), false);
+  // never synced (brought in before 9 Oct): the later edit still decides
+  assert.equal(notionWins({ updatedAt: at("10:00"), notionSyncedAt: null }, "2026-10-10T11:00:00.000Z"), true);
+  assert.equal(notionWins({ updatedAt: at("12:00"), notionSyncedAt: null }, "2026-10-10T11:00:00.000Z"), false);
+  // Notion's time is to the minute: an edit there in the same minute counts
+  assert.equal(notionWins({ updatedAt: new Date("2026-10-10T11:00:40.000Z"), notionSyncedAt: at("09:00") }, "2026-10-10T11:00:00.000Z"), true);
 });

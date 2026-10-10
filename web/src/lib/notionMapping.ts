@@ -164,3 +164,15 @@ export function databaseIdFrom(input: string): string | null {
   const h = hex.toLowerCase();
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
+
+// Sync's rule for a task that's in both places: whichever side was edited
+// last wins. Notion's version comes down when its row changed after the
+// task here last did; a task changed here since (and not yet pushed) keeps
+// its version, which Push sends up. Notion gives its edit time to the
+// minute, so an edit here within that same minute counts as the older one.
+export function notionWins(t: { updatedAt: Date; notionSyncedAt: Date | null }, notionEditedAt: string | undefined): boolean {
+  const changedHere = !t.notionSyncedAt || t.updatedAt.getTime() > t.notionSyncedAt.getTime() + 1000;
+  if (!changedHere) return true;
+  if (!notionEditedAt) return false;
+  return new Date(notionEditedAt).getTime() >= Math.floor(t.updatedAt.getTime() / 60_000) * 60_000;
+}

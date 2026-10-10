@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getDate, getTitleText, notionGet, notionPatch, notionPost, taskDatabaseId, type NotionRow } from "./notion";
 import { deleteForGood } from "./taskTrack";
-import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, clearsEditor, editorPeople, exportedLinkFor, sameNotionId, workTaskHome } from "./notionMapping";
+import { NOTION_STATUS, WORK_TASK_NOTION_STATUS, clearsEditor, editorPeople, exportedLinkFor, notionWins, sameNotionId, workTaskHome } from "./notionMapping";
 import type { TaskStatus } from "./workflow";
 
 // Pushing work *up* to Notion, the other direction from lib/notion.ts.
@@ -290,8 +290,9 @@ export async function pullWorkbook(userId: string): Promise<{ added: number; upd
       });
       continue;
     }
-    // changed here since the last sync: this side wins, and Push sends it
-    if (!t.notionSyncedAt || t.updatedAt.getTime() > t.notionSyncedAt.getTime() + 1000) continue;
+    // whichever side was edited last wins (lib/notionMapping); a newer edit
+    // here stays, and Push sends it
+    if (!notionWins(t, row.last_edited_time)) continue;
     const data: Prisma.WorkTaskUpdateInput = {};
     if (t.title !== title) data.title = title;
     if (done && t.status !== "done") Object.assign(data, { status: "done", completedAt: t.completedAt ?? finished });
