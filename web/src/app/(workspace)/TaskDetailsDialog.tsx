@@ -209,7 +209,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           </button>
         </div>
 
-        <div className="flex min-h-0 flex-1">
+        {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
+            Dock app) gives a 0-based flex item no height at all */}
+        <div className="flex min-h-0 flex-auto">
           {/* Two columns, so the form stops being one tall stack you have
               to scroll end to end. Short fields pair up; anything that
               needs the width (title, tags, notes) spans both. */}

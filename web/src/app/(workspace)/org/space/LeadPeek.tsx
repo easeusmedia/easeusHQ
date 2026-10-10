@@ -265,7 +265,9 @@ function LeadPage({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
+          Dock app) gives a 0-based flex item no height at all */}
+      <div className="flex min-h-0 flex-auto">
         <div className="flex w-[39rem] min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1">
           {/* its stage and who has it, as chips */}
           <div className="flex flex-col gap-1.5">
