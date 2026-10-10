@@ -16,9 +16,6 @@ import { GradePicker } from "./GradePicker";
 // Replaces the old "→ Editing" arrow-buttons with one dropdown per card —
 // picking a status calls the exact same moveTask() that dragging the card
 // calls, so selecting and dragging really do "work the same".
-// on a mouse, faint until its card is hovered or focused; always on touch
-export const QUIET_UNTIL_HOVER = "transition-opacity duration-200 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100";
-
 export function StatusSelect({
   taskId,
   currentStatus,
@@ -28,7 +25,6 @@ export function StatusSelect({
   needsGradeOn,
   onGrade,
   workflow,
-  quiet = false,
 }: {
   taskId: string;
   currentStatus: TaskStatus;
@@ -46,9 +42,6 @@ export function StatusSelect({
   onGrade?: (grade: string | null) => void;
   // video, design or todo: which stage names and prompts it gets
   workflow?: string | null;
-  // on a board card: the stage control fades in on hover (the column
-  // already says the stage), while Mark delivered stays in view
-  quiet?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -264,7 +257,7 @@ export function StatusSelect({
                       <span className="font-medium">{f.name}</span>
                       <span className="text-muted">{f.size ? ` · ${(f.size / 1048576).toFixed(0)}MB` : ""}</span>
                     </p>
-                    <p className="mt-0.5 text-[12px] leading-snug text-muted">
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted">
                       {f.ready ? `Creative Exports / ${f.destination}` : "Frame.io is still processing this one."}
                     </p>
                   </div>
@@ -281,10 +274,10 @@ export function StatusSelect({
                         ? "Delivering…"
                         : "Copy to Drive and deliver"}
                   </button>
-                  {fio.why && <p className="text-[12px] text-red-300">{fio.why}</p>}
+                  {fio.why && <p className="text-[11px] text-red-300">{fio.why}</p>}
                 </div>
               ))}
-            {hasOffer && <p className="text-[12px] text-muted">Or, if you re-rendered it yourself:</p>}
+            {hasOffer && <p className="text-[11px] text-muted">Or, if you re-rendered it yourself:</p>}
             <input
               autoFocus={!hasOffer && !grading}
               value={inputValue}
@@ -409,7 +402,7 @@ export function StatusSelect({
         type="button"
         onClick={toggle}
         title={stageMeaning(optimisticStatus, workflow)}
-        className={`btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1 ${quiet && !open ? QUIET_UNTIL_HOVER : ""}`}
+        className="btn btn-sm btn-glow flex w-full min-w-0 items-center justify-between gap-1"
       >
         <span className="truncate">{stageLabel(optimisticStatus, workflow)}</span>
         <ChevronDown size={13} className="shrink-0" />

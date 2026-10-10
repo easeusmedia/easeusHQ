@@ -59,7 +59,7 @@ export function LegalPage({ title, updated, intro, sections }: { title: string; 
       <div className="mt-12 grid gap-10 lg:grid-cols-[13rem_1fr]">
         <nav aria-label="On this page" className="hidden lg:block">
           <div className="sticky top-8">
-            <p className="mb-3 text-[12px] font-medium uppercase tracking-wider text-muted/70">On this page</p>
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted/70">On this page</p>
             <ul className="flex flex-col gap-1 border-l border-white/[0.08]">
               {sections.map((s) => (
                 <li key={s.id}>

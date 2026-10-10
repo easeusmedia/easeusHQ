@@ -145,7 +145,7 @@ export function Messages({
     const folded = p.when === "done" && !openDays.has(p.key);
     // its emails' opens (the mail tracker), on Day 1 once it's done
     const opened = p.when === "done" && p.day === 1 && lead.email.opens > 0 && (
-      <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-muted">
+      <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">
         <MailOpen size={11} /> Opened {lead.email.opens}×
       </span>
     );
@@ -201,7 +201,7 @@ export function Messages({
             <span className={`absolute top-7 bottom-1 left-[11px] w-px ${p.when === "done" ? "bg-white/15" : "bg-white/10"}`} />
           ))}
         <span
-          className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums ${
+          className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
             p.when === "now" ? "step-now" : replied ? "bg-emerald-400/15 text-emerald-300" : p.when === "next" ? "step-next bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
           }`}
         >
@@ -214,7 +214,7 @@ export function Messages({
               <span className="font-medium text-foreground/80 transition-colors group-hover/day:text-foreground">{p.title}</span>
               {opened}
               {replied && (
-                <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
+                <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-300">
                   <Reply size={11} /> Replied
                 </span>
               )}
@@ -224,7 +224,7 @@ export function Messages({
             <p className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
               <span className="font-medium text-foreground/90">{p.title}</span>
               {p.when && (
-                <span className={`rounded-full px-2 py-0.5 text-[12px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
               )}
             </p>
           )}
@@ -269,7 +269,7 @@ export function Messages({
             <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
               {used.map((name) => (
                 <label key={name} className="flex min-w-0 flex-col gap-1">
-                  <span className="px-1 text-[12px] font-medium text-muted">{name}</span>
+                  <span className="px-1 text-[11px] font-medium text-muted">{name}</span>
                   <input
                     value={typed[name] ?? lead.vars[name] ?? ""}
                     onChange={(e) => setTyped((t) => ({ ...t, [name]: e.target.value }))}
@@ -386,7 +386,7 @@ export function MessageLibrary({
           <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             {groups.map((g) => (
               <div key={g.key} className="pt-2">
-                <p className="px-2 pb-1 text-[12px] font-medium text-muted">{g.title}</p>
+                <p className="px-2 pb-1 text-[11px] font-medium text-muted">{g.title}</p>
                 {g.items.map((m) => {
                   const on = !creating && shown?.id === m.id;
                   return (
@@ -448,7 +448,7 @@ function Limit({ channel, text, className = "" }: { channel: string; text: strin
   if (channel !== "linkedin") return null;
   const over = text.length > LINKEDIN_LIMIT;
   return (
-    <span className={`text-[12px] tabular-nums ${over ? "text-rose-300" : "text-muted"} ${className}`}>
+    <span className={`text-[11px] tabular-nums ${over ? "text-rose-300" : "text-muted"} ${className}`}>
       {text.length}/{LINKEDIN_LIMIT}
       {over && " · LinkedIn allows 300 characters"}
     </span>
@@ -512,12 +512,12 @@ function MessageCard({
           <span className="min-w-0 truncate text-sm font-medium">{message.name}</span>
         )}
         {own && !sent && (
-          <span title="Edited for this lead only" className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[12px] text-muted">
+          <span title="Edited for this lead only" className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted">
             This lead&apos;s copy
           </span>
         )}
         {sent && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[12px] font-medium text-emerald-300">
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
             <Check size={11} /> Sent
           </span>
         )}
@@ -651,7 +651,7 @@ function OwnEditor({
       <div className="flex items-center gap-2">
         <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{message.name}</span>
-        <span className="shrink-0 text-[12px] text-muted">Editing for this lead only</span>
+        <span className="shrink-0 text-[11px] text-muted">Editing for this lead only</span>
       </div>
       {message.channel === "email" && startSubject && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={INPUT} />}
       <textarea autoFocus value={body} onChange={(e) => setBody(e.target.value)} aria-label="Message" className={`${INPUT} field-sizing-content min-h-40 resize-none leading-relaxed`} />
@@ -667,7 +667,7 @@ function OwnEditor({
             <RotateCcw size={12} /> Go back to the template
           </button>
         ) : (
-          <p className="text-[12px] text-muted">The template and other leads stay as they are.</p>
+          <p className="text-[11px] text-muted">The template and other leads stay as they are.</p>
         )}
         <div className="ml-auto flex shrink-0 gap-1.5">
           <button type="button" onClick={onDone} className="btn btn-sm btn-ghost">
@@ -775,7 +775,7 @@ function TemplateEditor({
       <div className="flex items-center gap-2">
         <LayoutTemplate size={13} className="shrink-0 text-accent" />
         <span className="text-sm font-medium">{message ? "Edit template" : "New message"}</span>
-        <span className="ml-auto text-[12px] text-muted">{message ? "For every lead that hasn\u2019t sent it" : "For every lead in the stage you pick"}</span>
+        <span className="ml-auto text-[11px] text-muted">{message ? "For every lead that hasn\u2019t sent it" : "For every lead in the stage you pick"}</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -833,9 +833,9 @@ function TemplateEditor({
         >
           <Braces size={12} /> Make a variable
         </button>
-        {used.length > 0 && <span className="ml-1 text-[12px] text-muted">Insert:</span>}
+        {used.length > 0 && <span className="ml-1 text-[11px] text-muted">Insert:</span>}
         {used.map((n) => (
-          <button key={n} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insert(n)} className="rounded bg-accent/15 px-1.5 py-0.5 text-[12px] text-accent transition-colors hover:bg-accent/25">
+          <button key={n} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insert(n)} className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] text-accent transition-colors hover:bg-accent/25">
             {n}
           </button>
         ))}
@@ -890,7 +890,7 @@ function TemplateEditor({
             <Trash2 size={12} /> Delete template
           </button>
         ) : (
-          <p className="text-[12px] text-muted">Every lead in that stage gets it, with its own variables.</p>
+          <p className="text-[11px] text-muted">Every lead in that stage gets it, with its own variables.</p>
         )}
         <div className="ml-auto flex shrink-0 gap-1.5">
           <button type="button" onClick={() => onDone()} className="btn btn-sm btn-ghost">
@@ -901,7 +901,7 @@ function TemplateEditor({
           </button>
         </div>
       </div>
-      {message && <p className="text-[12px] text-muted">Leads that already sent it keep what went out, and a lead with its own copy keeps that copy.</p>}
+      {message && <p className="text-[11px] text-muted">Leads that already sent it keep what went out, and a lead with its own copy keeps that copy.</p>}
 
       {message && (
         <ReasonDialog

@@ -30,7 +30,7 @@ function Inline({ text }: { text: string }) {
       parts.push(
         <span key={key++} className="inline-flex items-center gap-1.5 align-middle">
           <span className="h-3 w-3 rounded-sm border border-border" style={{ backgroundColor: token }} />
-          <code className="text-[13px] tracking-tight">{token}</code>
+          <code className="text-[12px] tracking-tight">{token}</code>
         </span>
       );
     } else {
@@ -62,7 +62,7 @@ export function Markdown({ text }: { text: string }) {
       out.push(<hr key={i} className="my-4 border-border/60" />);
       i++;
     } else if (trimmed.startsWith("### ")) {
-      out.push(<h4 key={i} className="mt-5 mb-1.5 text-[14px] font-semibold uppercase tracking-wide text-muted">{trimmed.slice(4)}</h4>);
+      out.push(<h4 key={i} className="mt-5 mb-1.5 text-[13px] font-semibold uppercase tracking-wide text-muted">{trimmed.slice(4)}</h4>);
       i++;
     } else if (trimmed.startsWith("## ")) {
       out.push(<h3 key={i} className="mt-6 mb-2 text-[15px] font-semibold first:mt-0"><Inline text={trimmed.slice(3)} /></h3>);

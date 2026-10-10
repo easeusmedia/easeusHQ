@@ -102,7 +102,7 @@ export function ConfirmButton({
                     type="button"
                     onClick={() => setWhy(r)}
                     aria-pressed={why === r}
-                    className="chip rounded-full px-2.5 py-0.5 text-[12px]"
+                    className="chip rounded-full px-2.5 py-0.5 text-[11px]"
                   >
                     {r}
                   </button>

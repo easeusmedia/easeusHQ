@@ -14,7 +14,7 @@ export function Change({ now, before, against = "against the period before" }: {
   const d = before ? Math.round(((now - before) / before) * 100) : 0;
   const tone = d > 0 ? "bg-emerald-400/15 text-emerald-300" : d < 0 ? "bg-rose-400/15 text-rose-300" : "bg-white/[0.06] text-muted";
   return (
-    <span title={`${d > 0 ? "+" : ""}${d}% ${against} (${before} then)`} className={`rounded-full px-2 py-0.5 text-[12px] font-medium tabular-nums ${tone}`}>
+    <span title={`${d > 0 ? "+" : ""}${d}% ${against} (${before} then)`} className={`rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${tone}`}>
       {d > 0 ? `↗ +${d}` : d < 0 ? `↘ ${d}` : "= 0"}%
     </span>
   );
@@ -60,9 +60,9 @@ export function Bars({ labels, values, unit = "emails", empty = "No data for thi
     <div className="flex h-40 items-end gap-1.5">
       {values.map((v, i) => (
         <div key={labels[i]} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5" title={`${labels[i]}: ${v} ${unit}`}>
-          <span className="text-[11px] text-muted tabular-nums">{v ? format(v) : ""}</span>
+          <span className="text-[10px] text-muted tabular-nums">{v ? format(v) : ""}</span>
           <div className="w-full max-w-9 rounded-t-[4px] bg-accent/70" style={{ height: `${(v / max) * 100}%`, minHeight: v ? 3 : 0 }} />
-          <span className="truncate text-[11px] text-muted">{labels[i]}</span>
+          <span className="truncate text-[10px] text-muted">{labels[i]}</span>
         </div>
       ))}
     </div>
@@ -85,7 +85,7 @@ export function Trend({ points, tone = "accent", unit = "emails" }: { points: { 
   if (points.length === 1) return <Bars labels={[points[0].label]} values={[points[0].value]} unit={unit} />;
   return (
     <div>
-      <div className="mb-1 text-right text-[11px] text-muted tabular-nums">{max}</div>
+      <div className="mb-1 text-right text-[10px] text-muted tabular-nums">{max}</div>
       <svg viewBox={`0 0 ${w} ${h}`} className="h-28 w-full overflow-visible" preserveAspectRatio="none">
         <defs>
           <linearGradient id={id} x1="0" x2="0" y1="0" y2="1">
@@ -103,7 +103,7 @@ export function Trend({ points, tone = "accent", unit = "emails" }: { points: { 
         ))}
       </svg>
       {/* each label under its own point (the last always shown, one too close to it left out) */}
-      <div className="relative mt-1 h-4 text-[11px] text-muted">
+      <div className="relative mt-1 h-4 text-[10px] text-muted">
         {points.map((p, i) => {
           const last = points.length - 1;
           if (i !== last && (i % every !== 0 || last - i < every)) return null;
@@ -127,7 +127,7 @@ const shade = (tone: keyof typeof HEAT, share: number) => (share ? `rgba(${HEAT[
 // Less to more, for a heatmap's corner
 export function HeatLegend({ tone = "emerald" }: { tone?: keyof typeof HEAT }) {
   return (
-    <span className="flex items-center gap-1 text-[11px] text-muted">
+    <span className="flex items-center gap-1 text-[10px] text-muted">
       Less
       {[0, 0.25, 0.5, 0.75, 1].map((s) => (
         <span key={s} className="h-2.5 w-4 rounded-[2px]" style={{ background: shade(tone, s) }} />
@@ -146,13 +146,13 @@ export function Heatmap({ cells, tone = "emerald", noun = "email" }: { cells: { 
       <div className="grid min-w-[40rem] gap-[3px]" style={{ gridTemplateColumns: "2.5rem repeat(24, minmax(0, 1fr))" }}>
         <span />
         {Array.from({ length: 24 }, (_, h) => (
-          <span key={h} className="text-center text-[10px] text-muted tabular-nums">
+          <span key={h} className="text-center text-[9px] text-muted tabular-nums">
             {h % 3 === 0 ? `${h}:00` : ""}
           </span>
         ))}
         {DAYS.map((d, dow) => (
           <div key={d} className="contents">
-            <span className="text-[11px] leading-5 text-muted">{d}</span>
+            <span className="text-[10px] leading-5 text-muted">{d}</span>
             {Array.from({ length: 24 }, (_, h) => {
               const n = at.get(`${dow}-${h}`) ?? 0;
               return (
@@ -179,13 +179,13 @@ export function Compare({ periods, tone = "accent" }: { periods: { label: string
     <div className="flex h-28 items-end justify-center gap-6">
       {periods.map((p, i) => (
         <div key={p.label} className="flex h-full w-20 flex-col items-center justify-end gap-1.5" title={`${p.label}: ${p.part} of ${p.of}`}>
-          <span className="text-[11px] text-muted tabular-nums">
+          <span className="text-[10px] text-muted tabular-nums">
             {p.part}/{p.of}
           </span>
           <div className="relative w-10 rounded-t-[4px] bg-white/[0.08]" style={{ height: `${(p.of / max) * 100}%`, minHeight: 2 }}>
             <div className={`absolute inset-x-0 bottom-0 rounded-t-[4px] ${tone === "emerald" ? "bg-emerald-400/80" : "bg-accent/80"}`} style={{ height: p.of ? `${(p.part / p.of) * 100}%` : 0 }} />
           </div>
-          <span className={`max-w-full truncate rounded-full px-2 py-0.5 text-[11px] ${i === periods.length - 1 ? "bg-white/[0.08] text-foreground" : "text-muted"}`}>{p.label}</span>
+          <span className={`max-w-full truncate rounded-full px-2 py-0.5 text-[10px] ${i === periods.length - 1 ? "bg-white/[0.08] text-foreground" : "text-muted"}`}>{p.label}</span>
         </div>
       ))}
     </div>

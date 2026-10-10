@@ -553,7 +553,7 @@ function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: str
           </div>
         </div>
         <div className="flex flex-col gap-0.5 px-3 py-2.5">
-          <p className="text-[14px] font-medium text-muted">+{count} more</p>
+          <p className="text-[13px] font-medium text-muted">+{count} more</p>
         </div>
       </div>
       </span>

@@ -46,7 +46,7 @@ export function ClientMessages({ clientId, items }: { clientId: string; items: I
         <MessageSquare size={13} />
         Messages
         {unread > 0 && (
-          <span className="rounded-full bg-blue-400/20 px-1.5 text-[12px] font-medium leading-4 text-blue-200">{unread}</span>
+          <span className="rounded-full bg-blue-400/20 px-1.5 text-[11px] font-medium leading-4 text-blue-200">{unread}</span>
         )}
       </button>
       {open && (

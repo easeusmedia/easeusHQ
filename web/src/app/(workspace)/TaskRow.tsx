@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { AssigneeLabel, DueDate, StageColumn, TierMark, tierClass, useTierGuess, type TaskCardData } from "./TaskCard";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
 import { Checkbox } from "./Checkbox";
-import { QUIET_UNTIL_HOVER, StatusSelect } from "./StatusSelect";
+import { StatusSelect } from "./StatusSelect";
 import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { STAGE } from "@/lib/stages";
 import { availableStatuses, type Role } from "@/lib/workflow";
@@ -140,8 +140,7 @@ export function TaskRow({
             rel="noreferrer"
             // the row itself opens the task; this opens the file instead
             onClick={(e) => e.stopPropagation()}
-            // there on hover (or focus), as on a board card; always on touch
-            className={`flex shrink-0 items-center gap-1 text-xs text-blue-400 hover:underline ${QUIET_UNTIL_HOVER}`}
+            className="flex shrink-0 items-center gap-1 text-xs text-blue-400 hover:underline"
           >
             {spec.label} <ExternalLink size={11} />
           </a>

@@ -87,7 +87,7 @@ export function EditableName({
           )}
         </button>
         {error && (
-          <span role="alert" className="fade-in text-[12px] font-normal text-red-300">
+          <span role="alert" className="fade-in text-[11px] font-normal text-red-300">
             {error}
           </span>
         )}
@@ -139,7 +139,7 @@ export function AddInline({ label, onAdd, small }: { label: string; onAdd: (name
     }
   }
 
-  const size = small ? "px-2 py-0.5 text-[12px]" : "px-2.5 py-1 text-xs";
+  const size = small ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs";
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={`flex items-center gap-1 rounded-full border border-dashed border-border text-muted transition-colors hover:border-hover hover:text-foreground ${size}`}>

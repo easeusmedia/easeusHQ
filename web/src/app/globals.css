@@ -11,8 +11,7 @@
   --border: rgba(255, 255, 255, 0.075);
   --hover-surface: #363c45; /* clearly lighter than surface/surface-2 — an obvious hover pop */
   --foreground: #eef0f2;
-  /* a touch lighter than it was (#8b939c), so secondary text reads at a glance */
-  --muted: #9aa3ac;
+  --muted: #8b939c;
   /* the app's own accent: a soft, muted blue, for highlights and
      notification counts instead of alarm red or plain blue */
   --accent: #4b95e6;
@@ -51,7 +50,7 @@
    because that's where the problem actually was — this root value alone
    would have scaled the spacing up with it. */
 html {
-  font-size: 93.75%; /* 15px */
+  font-size: 87.5%; /* ~14px */
 }
 
 /* Readability without losing the density: the *type* scale moves, the
@@ -59,9 +58,8 @@ html {
    (--text-* vs --spacing), so raising these lifts every text size in the
    app while every padding, gap and margin stays exactly where it was —
    the negative space is untouched, the words in it are just legible.
-   Rendered at the 15px root above: xs 12.2px, sm 14.1px, base 15px,
-   lg 16.9px, xl 18.8px, 2xl 22.5px. (Raised from 14px on 11 Oct 2026:
-   everything read too small to take in at a glance on a Mac.) */
+   Rendered at the 87.5% root above: xs 11.4px, sm 13.1px, base 14px,
+   lg 15.8px, xl 17.5px, 2xl 21px. */
 @theme {
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.25rem;
@@ -1396,10 +1394,10 @@ dialog[open]::backdrop {
 
 /* /start's card on a desktop: scaled as a whole to the window's height, so
    it's the same composition on every screen (CSS zoom keeps text sharp).
-   831px is its own height; tan(atan2()) divides one length by another.
+   788px is its own height; tan(atan2()) divides one length by another.
    start/fit.ts sets --card-zoom exactly once the page runs. */
 @media (min-width: 1024px) {
   #start-card {
-    zoom: var(--card-zoom, clamp(0.6, tan(atan2(100dvh - 80px, 831px)), 1.6));
+    zoom: var(--card-zoom, clamp(0.6, tan(atan2(100dvh - 80px, 788px)), 1.6));
   }
 }

@@ -152,7 +152,7 @@ export function Organisation({
                 </div>
                 {/* the words in a task's title that file it here */}
                 <label className="mb-3 flex flex-col gap-1">
-                  <span className="text-[12px] text-muted/70">Tasks with these words in their title are filed here</span>
+                  <span className="text-[11px] text-muted/70">Tasks with these words in their title are filed here</span>
                   <input
                     defaultValue={t.keywords ?? ""}
                     placeholder="edit, reel, thumbnail"
@@ -187,7 +187,7 @@ export function Organisation({
                           {tags
                             .filter((k) => k.roleId === r.id)
                             .map((k) => (
-                              <span key={k.id} className="group/k flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-foreground/80">
+                              <span key={k.id} className="group/k flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-foreground/80">
                                 {k.name}
                                 <ConfirmButton
                                   confirm="Remove"

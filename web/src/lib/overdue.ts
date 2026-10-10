@@ -15,19 +15,18 @@ export function overdueAudience(strike: number, level: string): { leads: boolean
 // "1st", "2nd", "3rd", "4th"
 export const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
-// The overdue notice, in the app's voice: short, clear about what's late
-// and what to do next, firmer as it repeats, and always courteous. To
-// whoever's responsible, an ask; to everyone else, what happened and how to
-// help. (Shortened 11 Oct 2026: Home read as a wall of text.)
+// The overdue notice, in the app's voice: clear about what's late and what
+// to do next, firm as it repeats, and always courteous. To whoever's
+// responsible, an ask; to everyone else, what happened and how to help.
 export function overdueText({ title, due, strike, owner, toOwner }: { title: string; due: string | null; strike: number; owner: string | null; toOwner: boolean }) {
-  const late = `is overdue${due ? ` (due ${due})` : ""}.`;
+  const was = `was due${due ? ` on ${due}` : ""} and isn't finished yet.`;
   if (toOwner) {
-    const push = strike === 1 ? "" : strike === 2 ? " Second slip, please make it a priority." : ` Slipped ${strike} times, please treat it as urgent.`;
-    return `"${title}" ${late} Please set a new date and a short reason.${push}`;
+    const push = strike === 1 ? "" : strike === 2 ? " This is the second time it has slipped, so please make it a priority." : ` It has now slipped ${strike} times, so please treat it as urgent.`;
+    return `"${title}" ${was} Please set a new due date and add a short reason.${push}`;
   }
   const name = owner?.split(" ")[0];
-  const slipped = strike === 1 ? "" : ` Slipped ${strike === 2 ? "twice" : `${strike} times`}.`;
-  return `${name ? `${name}'s ` : ""}"${title}" ${late}${slipped} Please check in${name ? ` with ${name}` : ""}.`;
+  const slipped = strike === 1 ? "" : ` It has slipped ${strike === 2 ? "twice" : `${strike} times`}.`;
+  return `${name ? `${name}'s task` : "A task"} "${title}" ${was}${slipped} Please check in${name ? ` with ${name}` : ""} and help get it back on track.`;
 }
 
 // A Level 2 or 3 has a day to answer an overdue notice (a new date and a

@@ -281,7 +281,7 @@ function Status({ m }: { m: EmailRow }) {
         ) : (
           <span className="text-muted">Not opened yet</span>
         )}
-        {m.repliedAt && <span className="rounded-full bg-violet-400/15 px-2 py-0.5 text-[12px] font-medium text-violet-300">Replied</span>}
+        {m.repliedAt && <span className="rounded-full bg-violet-400/15 px-2 py-0.5 text-[11px] font-medium text-violet-300">Replied</span>}
       </p>
       <p className="truncate text-xs text-muted">{m.bouncedAt ? `On ${when(m.bouncedAt)}` : m.lastOpenAt ? `Last open on ${when(m.lastOpenAt)}` : ""}</p>
     </div>
@@ -417,7 +417,7 @@ export function MailView({ m, gmail, back, now }: { m: MailDetail; gmail: string
             <div key={d}>
               <div className="mb-2 flex items-center gap-3">
                 <span className="h-px flex-1 bg-white/[0.06]" />
-                <span className="rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[12px] text-muted">{dayName(d)}</span>
+                <span className="rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[11px] text-muted">{dayName(d)}</span>
                 <span className="h-px flex-1 bg-white/[0.06]" />
               </div>
               {m.steps

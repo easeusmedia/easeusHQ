@@ -18,7 +18,7 @@ export type MapDepartment = { id: string; slug: string; name: string; open: numb
 // A count as a small pill: blue for work in hand, rose for late, grey else
 const PILL = { open: "bg-accent/10 text-accent", late: "bg-rose-500/10 text-rose-300", plain: "bg-white/[0.05] text-muted" };
 function Pill({ n, label, tone }: { n: number; label: string; tone: keyof typeof PILL }) {
-  return <span className={`rounded-full px-2 py-0.5 text-[12px] whitespace-nowrap tabular-nums ${PILL[tone]}`}>{`${n} ${label}`}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] whitespace-nowrap tabular-nums ${PILL[tone]}`}>{`${n} ${label}`}</span>;
 }
 
 // The company at a glance: a panel a department, its people up front with
@@ -83,9 +83,9 @@ function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
             <li key={p.name} className="flex min-w-0 items-center gap-3 border-t border-white/[0.05] py-2.5">
               <Avatar name={p.name} size={32} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14.5px] font-medium">{p.name}</span>
+                <span className="block truncate text-[13.5px] font-medium">{p.name}</span>
                 <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                  {p.status && <span className={`shrink-0 rounded-full border px-1.5 text-[11.5px] leading-4 ${STAGE[p.status].pill}`}>{STAGE[p.status].label}</span>}
+                  {p.status && <span className={`shrink-0 rounded-full border px-1.5 text-[10.5px] leading-4 ${STAGE[p.status].pill}`}>{STAGE[p.status].label}</span>}
                   <span className="truncate">{p.on ?? "Nothing assigned"}</span>
                 </span>
               </span>

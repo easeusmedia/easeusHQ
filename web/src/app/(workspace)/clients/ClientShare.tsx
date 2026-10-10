@@ -43,15 +43,15 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
         <Globe size={13} />
         {enabled ? "Shared with client" : "Share with client"}
       </button>
-      {/* copy the link, and the client's view as they'll see it: two quiet
-          icons beside the switch rather than two more labelled buttons */}
       {enabled && (
-        <span className="fade-in flex items-center gap-1">
-          <button type="button" onClick={copy} title={copied ? "Copied" : "Copy link"} aria-label={copied ? "Copied" : "Copy link"} className="btn btn-sm btn-ghost size-8 px-0">
-            {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
+        <span className="fade-in flex flex-wrap items-center gap-2">
+          <button type="button" onClick={copy} className="btn btn-sm btn-glow">
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? "Copied" : "Copy link"}
           </button>
-          <a href={`/share/${slug}`} target="_blank" rel="noopener" title="Client view" aria-label="Client view" className="btn btn-sm btn-ghost size-8 px-0">
-            <ExternalLink size={14} />
+          {/* the client's view, as they'll see it */}
+          <a href={`/share/${slug}`} target="_blank" rel="noopener" className="btn btn-sm btn-glow">
+            <ExternalLink size={13} /> Client view
           </a>
         </span>
       )}

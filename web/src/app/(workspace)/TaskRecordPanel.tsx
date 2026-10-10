@@ -205,7 +205,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
                 <div className="min-w-0 flex-1 text-xs">
                   <p className="flex items-baseline justify-between gap-3">
                     <span className={e.tone === "miss" ? "text-rose-300" : "text-foreground/90"}>{e.text}</span>
-                    <span className="shrink-0 text-[12px] text-muted tabular-nums">{day(e.at)}</span>
+                    <span className="shrink-0 text-[11px] text-muted tabular-nums">{day(e.at)}</span>
                   </p>
                   {e.note && <p className="mt-0.5 leading-relaxed text-muted">&ldquo;{e.note}&rdquo;</p>}
                   {e.told && e.told.length > 0 && (

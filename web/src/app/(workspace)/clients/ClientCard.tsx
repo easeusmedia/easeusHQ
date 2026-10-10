@@ -6,7 +6,6 @@ import { clientHref } from "@/lib/slug";
 import { Avatar } from "../TaskCard";
 import { TagPill } from "./TagPill";
 import { StatusDropdown } from "./StatusDropdown";
-import { QUIET_UNTIL_HOVER } from "../StatusSelect";
 
 export type ClientCardData = {
   id: string;
@@ -74,18 +73,13 @@ export function ClientCard({ client, onStatusChange }: { client: ClientCardData;
         </div>
       </div>
 
-      {/* the plan, and their status after it: the tab already says the
-          status, so it shows on hover, to change (only for whoever can; the
-          board leaves it out for an editor) */}
-      <div className="relative flex min-h-7 flex-wrap items-center gap-1.5">
+      {/* where they stand: the status, and the plan beside it */}
+      <div className="relative -ml-2 flex min-h-7 flex-wrap items-center gap-1.5">
+        {/* only for whoever can change it; the board leaves it out for an editor */}
+        {onStatusChange && <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />}
         {client.tags.slice(0, 2).map((t) => (
           <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
         ))}
-        {onStatusChange && (
-          <span className={QUIET_UNTIL_HOVER}>
-            <StatusDropdown clientId={client.id} status={client.status} onChange={onStatusChange} quiet />
-          </span>
-        )}
       </div>
 
       <div className="relative mt-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-white/[0.05] pt-3.5">

@@ -107,12 +107,12 @@ const Empty = () => <span className="text-sm text-muted/50">Empty</span>;
 // its heading on a bar, and a line between the heading and what's in it
 export const SECTION = "rounded-xl border border-white/[0.07] bg-foreground/[0.025]";
 export const SECTION_HEAD = "flex min-h-11 items-center gap-2 px-3.5 py-2 text-xs";
-export const SECTION_TITLE = "text-[14px] font-medium text-foreground/90";
+export const SECTION_TITLE = "text-[13px] font-medium text-foreground/90";
 export const SECTION_BODY = "border-t border-white/[0.06] p-3";
 
 function AddChip({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="chip flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12.5px]">
+    <button type="button" onClick={onClick} className="chip flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px]">
       <Plus size={11} /> {label}
     </button>
   );
@@ -250,7 +250,7 @@ function Meta({ icon, children, title }: { icon?: React.ReactNode; children: Rea
   return (
     <span
       title={title}
-      className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-1.5 text-[12.5px] leading-5 text-muted"
+      className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-1.5 text-[11.5px] leading-5 text-muted"
     >
       {icon && <span className="flex shrink-0">{icon}</span>}
       <span className="truncate">{children}</span>
@@ -525,7 +525,7 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
                 className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground outline-none! placeholder:text-muted"
               />
             </div>
-            <p className="px-2.5 pt-0.5 pb-1 text-[12px] text-muted/80">{multi ? "Pick any number, or create one" : "Pick one, or create one"}</p>
+            <p className="px-2.5 pt-0.5 pb-1 text-[11px] text-muted/80">{multi ? "Pick any number, or create one" : "Pick one, or create one"}</p>
             <div className="max-h-64 overflow-y-auto">
               {shown.map((o) => (
                 <div key={o.id}>
@@ -926,7 +926,7 @@ function PersonCard({
               type="button"
               onClick={() => onAdd(kind)}
               title={`Add ${labelOf(kind)}`}
-              className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px]"
+              className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px]"
             >
               <Mark size={12} className="shrink-0" />
               {labelOf(kind)}

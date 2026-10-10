@@ -266,6 +266,9 @@ export default async function ClientDetailPage({
 
                 <section>
                   <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
+                  <p className="-mt-3 mb-3 text-xs text-muted">
+                    Work for the client. Once delivered, it appears in their projects.
+                  </p>
                   <ClientOngoing
                     tasks={deliverableTasks}
                     workTasks={clientWorkTasks.map((t) => ({
@@ -322,7 +325,7 @@ export default async function ClientDetailPage({
                   canMoveInvoices
                   plan={plan}
                   // what a new project's tasks are, and when — beside Projects
-                  blueprint={<BlueprintButton key="blueprint" clientId={client.id} plan={plan} />}
+                  blueprint={<BlueprintButton clientId={client.id} plan={plan} />}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                 />

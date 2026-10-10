@@ -122,7 +122,7 @@ export function ProjectCard({
         </div>
 
         <div className="flex flex-col gap-0.5 px-3 py-2.5">
-          <p className="truncate text-[14px] font-medium">{project.name}</p>
+          <p className="truncate text-[13px] font-medium">{project.name}</p>
           <p className="text-xs text-muted">{projectLine(project)}</p>
         </div>
       </PrefetchLink>

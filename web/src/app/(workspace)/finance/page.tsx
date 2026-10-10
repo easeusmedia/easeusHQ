@@ -1,5 +1,5 @@
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
-import { ArrowUpRight, CalendarClock, Check, CircleAlert, CircleCheck, Hourglass, Receipt, Wallet } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Check, CircleAlert, CircleCheck, Hourglass, Receipt, Sheet, Wallet } from "lucide-react";
 import { clientLogoSrc } from "@/lib/photos";
 import { clientHref } from "@/lib/slug";
 import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
@@ -148,6 +148,27 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         )}
       </Group>
 
+      {/* where each book will fill itself in from, once connected */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-surface-2/30 p-5">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Wallet size={14} className="text-muted" /> Skydo
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            Once the Skydo workflow is connected, invoices raised there arrive here with their number, amount and currency, and a payment marks its invoice paid
+            on its own. Until then, raise invoices on a client&apos;s Billing tab and mark them paid there.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-border bg-surface-2/30 p-5">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Sheet size={14} className="text-muted" /> Payroll sheet
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted">
+            Once the payroll sheet is connected, each month&apos;s payments come from it: who was paid, how much and when. Until then, record a payment on a
+            person&apos;s pay page under Team pay.
+          </p>
+        </div>
+      </div>
     </div>
   );
 
@@ -291,6 +312,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Finance</h1>
+        <p className="mt-1.5 text-sm text-muted">Two separate books: clients pay through Skydo, and the team is paid from the payroll sheet.</p>
       </div>
       <ClientTabs
         width=""
