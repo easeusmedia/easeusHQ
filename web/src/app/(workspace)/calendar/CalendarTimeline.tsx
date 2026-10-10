@@ -58,7 +58,7 @@ export function CalendarTimeline({
           <div className="grid grid-cols-7 border-b border-white/[0.06]">
             {days.map((day, i) => (
               <div key={day} className="flex items-baseline gap-1.5 px-4 py-3.5">
-                <span className="text-[11px] text-muted">{WEEKDAYS[i]}</span>
+                <span className="text-[12px] text-muted">{WEEKDAYS[i]}</span>
                 <span className={`text-lg tabular-nums ${day === today ? "font-semibold text-accent" : "text-foreground/85"}`}>{Number(day.slice(8))}</span>
               </div>
             ))}
@@ -107,8 +107,8 @@ export function CalendarTimeline({
                     >
                       <span className={`w-[3px] shrink-0 self-stretch rounded-full ${STAGE[t.status].dot}`} />
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-[13px] font-medium leading-snug ${narrow ? "line-clamp-2" : "truncate"}`}>{t.title}</span>
-                        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
+                        <span className={`block text-[14px] font-medium leading-snug ${narrow ? "line-clamp-2" : "truncate"}`}>{t.title}</span>
+                        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
                           {!narrow && <span className="truncate">{t.tag ? `${t.client} · ${t.tag}` : t.client}</span>}
                           <span className={`shrink-0 ${t.overdue ? DUE_TONE.overdue : "text-muted/70"}`}>
                             {t.overdue ? "Overdue" : `${n} day${n === 1 ? "" : "s"}`}

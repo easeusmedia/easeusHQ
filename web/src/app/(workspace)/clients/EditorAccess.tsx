@@ -73,7 +73,7 @@ export function EditorAccess({ clientId, people: editors, given }: { clientId: s
               </span>
             ))}
             {people.length > FACES && (
-              <span className="flex size-[22px] items-center justify-center rounded-full bg-hover text-[10px] font-medium text-foreground ring-2 ring-surface-2">
+              <span className="flex size-[22px] items-center justify-center rounded-full bg-hover text-[11px] font-medium text-foreground ring-2 ring-surface-2">
                 +{people.length - FACES}
               </span>
             )}
@@ -86,13 +86,13 @@ export function EditorAccess({ clientId, people: editors, given }: { clientId: s
           style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
           className="pop-in fixed z-50 max-h-[420px] overflow-y-auto rounded-xl popover p-1 shadow-lg"
         >
-          <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-muted/70">Can see this client</p>
+          <p className="px-2.5 pt-1.5 pb-1 text-[12px] font-medium text-muted/70">Can see this client</p>
           {editors.map((e) => (
             <button key={e.id} type="button" onClick={() => toggle(e.id)} className="menu-item px-2.5 py-1.5 text-sm">
               <Avatar name={e.name} size={24} presence={false} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{e.name}</span>
-                {e.position && <span className="block truncate text-[11px] text-muted">{e.position}</span>}
+                {e.position && <span className="block truncate text-[12px] text-muted">{e.position}</span>}
               </span>
               {picked.includes(e.id) && <Check size={13} className="shrink-0 text-accent" />}
             </button>

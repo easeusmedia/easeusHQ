@@ -64,7 +64,7 @@ export function FileChips({ names, onRemove }: { names: string[]; onRemove?: (i:
   return (
     <span className="flex flex-wrap gap-1">
       {names.map((n, i) => (
-        <span key={`${n}-${i}`} className="fade-in flex max-w-52 items-center gap-1 rounded-md border border-accent/20 bg-accent/[0.08] py-0.5 pl-1.5 pr-1 text-[11.5px] text-foreground/85">
+        <span key={`${n}-${i}`} className="fade-in flex max-w-52 items-center gap-1 rounded-md border border-accent/20 bg-accent/[0.08] py-0.5 pl-1.5 pr-1 text-[12.5px] text-foreground/85">
           {/\.(png|jpe?g|gif|webp)$/i.test(n) ? <ImageIcon size={11} className="shrink-0 text-accent" /> : <FileText size={11} className="shrink-0 text-accent" />}
           <span className="truncate">{n}</span>
           {onRemove && (

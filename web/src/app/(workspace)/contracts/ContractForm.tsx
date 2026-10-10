@@ -106,7 +106,7 @@ function Other({ placeholder = "Other…", busy, disabled, onSubmit }: { placeho
       {(att.files.length > 0 || att.problem) && (
         <div className="flex flex-wrap items-center gap-1 pl-2">
           <FileChips names={att.files.map((f) => f.name)} onRemove={att.remove} />
-          {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
+          {att.problem && <span className="text-[12px] text-accent">{att.problem}</span>}
         </div>
       )}
     </div>

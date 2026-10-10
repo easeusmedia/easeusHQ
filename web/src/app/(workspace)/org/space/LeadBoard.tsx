@@ -148,7 +148,7 @@ function InlineInput({
         }}
         className="w-full bg-transparent text-sm text-foreground outline-none! placeholder:text-muted/60 disabled:opacity-60"
       />
-      {busy && <p className="fade-in mt-1 text-[11px] text-muted">Adding…</p>}
+      {busy && <p className="fade-in mt-1 text-[12px] text-muted">Adding…</p>}
       {error && (
         <p role="alert" className="fade-in mt-1.5 text-xs text-red-300">
           {error}

@@ -10,7 +10,7 @@ const initialState: LoginState = {};
 
 // a field as a line: a small label above, the line brightening in use
 const LINE = "border-b border-white/20 transition-colors duration-300 focus-within:border-white/70 hover:border-white/35";
-const LABEL = "text-[10px] font-medium tracking-[0.18em] text-white/50 uppercase";
+const LABEL = "text-[11px] font-medium tracking-[0.18em] text-white/50 uppercase";
 
 const THEMES = [
   { id: "mist", label: "Mist", Icon: CloudFog },
@@ -98,9 +98,9 @@ export function LoginForm({ theme: initial }: { theme: "dark" | "mist" }) {
         </button>
 
         {/* no reset by email: Level 1 sets a new one from Employees */}
-        <p className="mt-5 text-center text-[11px] text-white/55">Forgot your password? Ask your admin to reset it.</p>
+        <p className="mt-5 text-center text-[12px] text-white/55">Forgot your password? Ask your admin to reset it.</p>
 
-        <p className="mt-12 text-center text-[11px] text-white/45">A private workspace for the Easeus Media team.</p>
+        <p className="mt-12 text-center text-[12px] text-white/45">A private workspace for the Easeus Media team.</p>
       </form>
     </div>
   );

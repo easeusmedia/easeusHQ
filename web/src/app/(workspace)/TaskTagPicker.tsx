@@ -15,7 +15,7 @@ export type TaskTagOption = { id: string; name: string; clientFacing: boolean; g
 // one thing on a card that genuinely needs to catch the eye.
 export function TaskTagChip({ name }: { name: string }) {
   return (
-    <span className="whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted">{name}</span>
+    <span className="whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[11.5px] leading-4 text-muted">{name}</span>
   );
 }
 
@@ -176,7 +176,7 @@ export function TaskTagPicker({
 
       {groups.map((g, i) => (
         <div key={g ?? "every"} className="flex flex-col gap-1.5">
-          {groups.length > 1 && <p className="text-[11px] font-medium text-muted/70">{g ?? "Every department"}</p>}
+          {groups.length > 1 && <p className="text-[12px] font-medium text-muted/70">{g ?? "Every department"}</p>}
           <div className="flex flex-wrap gap-1.5">
             {all.filter((t) => (t.group ?? null) === g).map(chip)}
             {/* adding goes at the end of the list */}
@@ -189,7 +189,7 @@ export function TaskTagPicker({
         <button
           type="button"
           onClick={() => setManaging((m) => !m)}
-          className="self-start text-[11px] text-muted underline-offset-2 hover:text-foreground hover:underline"
+          className="self-start text-[12px] text-muted underline-offset-2 hover:text-foreground hover:underline"
         >
           {managing ? "Done editing" : "Edit tags"}
         </button>

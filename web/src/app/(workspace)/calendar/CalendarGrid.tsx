@@ -124,13 +124,13 @@ export function CalendarGrid({
                 </span>
                 {/* one line per kind of thing on the day */}
                 {entries.length > 0 && (
-                  <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-foreground/85">
+                  <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[12px] text-foreground/85">
                     <ListChecks size={12} className="text-sky-400" />
                     {entries.length} task{entries.length === 1 ? "" : "s"}
                   </span>
                 )}
                 {posts.length > 0 && (
-                  <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-foreground/85">
+                  <span className="flex w-fit items-center gap-1.5 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[12px] text-foreground/85">
                     <Megaphone size={12} className="text-pink-400" />
                     {posts.length} posting{posts.length === 1 ? "" : "s"}
                   </span>
@@ -162,7 +162,7 @@ export function CalendarGrid({
             .filter(([, , , list]) => list.length > 0)
             .map(([label, Icon, tone, list]) => (
               <section key={label} className="pt-3">
-                <p className="flex items-center gap-1.5 px-5 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted/70">
+                <p className="flex items-center gap-1.5 px-5 pb-2 text-[12px] font-medium uppercase tracking-wider text-muted/70">
                   <Icon size={12} className={tone} />
                   {label} · {list.length}
                 </p>

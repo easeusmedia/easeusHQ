@@ -284,7 +284,7 @@ export function Assistant({ name }: { name: string }) {
         >
           <Sparkles size={15} className="shrink-0 text-accent transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
           <span className="hidden sm:inline">Ask Nyra</span>
-          <kbd className="hidden rounded bg-surface px-1 text-[10px] text-muted sm:inline">⌘J</kbd>
+          <kbd className="hidden rounded bg-surface px-1 text-[11px] text-muted sm:inline">⌘J</kbd>
         </button>
       </span>
 
@@ -304,7 +304,7 @@ export function Assistant({ name }: { name: string }) {
           <Mark />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Nyra</p>
-            <p className="truncate text-[11px] text-muted">
+            <p className="truncate text-[12px] text-muted">
               {/* while testing: this chat's running total (see SHOW_USAGE) */}
               {SHOW_USAGE && chat.cost > 0 ? `This chat: ${tokens(chat.tokens)} tokens · $${chat.cost.toFixed(4)}` : "Here to help"}
             </p>
@@ -355,7 +355,7 @@ export function Assistant({ name }: { name: string }) {
                     const outcome = m.outcome?.[pi];
                     return (
                       <div key={pi} className="rounded-xl border border-border bg-surface-2/40 p-3">
-                        <p className="text-[11px] text-muted">Change to confirm</p>
+                        <p className="text-[12px] text-muted">Change to confirm</p>
                         <p className="font-medium">{p.title}</p>
                         <dl className="mt-2 flex flex-col gap-1 text-xs">
                           {p.lines.map((l) => (
@@ -392,7 +392,7 @@ export function Assistant({ name }: { name: string }) {
                     );
                   })}
                   {SHOW_USAGE && m.usage && (
-                    <p className="text-[10px] tabular-nums text-muted/70">
+                    <p className="text-[11px] tabular-nums text-muted/70">
                       {m.usage.model} · {m.usage.calls} call{m.usage.calls === 1 ? "" : "s"} · {tokens(m.usage.input)} tokens in, {tokens(m.usage.output)} out · $
                       {m.usage.cost.toFixed(4)} · {(m.usage.ms / 1000).toFixed(1)}s
                     </p>

@@ -44,6 +44,7 @@ import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, scheduleMeeting } from "./actions";
 import { useFrozen } from "../FrozenTasks";
+import { namesClient } from "@/lib/titles";
 
 export type HomeItem = {
   key: string;
@@ -164,7 +165,7 @@ function Section({
         <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
         <h2 className="mr-auto flex min-w-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
           <span className="truncate">{title}</span>
-          {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium text-accent tabular-nums">{count}</span>}
+          {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[12px] font-medium text-accent tabular-nums">{count}</span>}
         </h2>
         {!collapsed && aside}
         <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
@@ -223,7 +224,7 @@ function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem;
         <p className="truncate text-sm font-medium">{item.title}</p>
         {sub && <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>}
       </div>
-      {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
+      {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
       {!avatar ? null : item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
     </button>
   );
@@ -473,7 +474,9 @@ export function HomeView({
 
   // what's under each card's title: whatever the grouping doesn't already say
   // (nothing for a Member: it's all their own work, by client)
-  const subOf = (i: HomeItem) => (!showMine ? "" : view === "client" ? (i.person?.name ?? "Not assigned") : [i.client ?? ADMIN_TASKS, view === "department" && i.person?.name].filter(Boolean).join(" · "));
+  // (and not the client when the task's name already says it)
+  const subOf = (i: HomeItem) =>
+    !showMine ? "" : view === "client" ? (i.person?.name ?? "Not assigned") : [!namesClient(i.title, i.client) && (i.client ?? ADMIN_TASKS), view === "department" && i.person?.name].filter(Boolean).join(" · ");
   // the work, as the section shows it and (wide) as the full-screen view does
   const workBody = (wide: boolean) => (
     <>
@@ -618,9 +621,9 @@ export function HomeView({
                   )}
                   <button type="button" onClick={() => open(i.key)} className="min-w-0 flex-1 text-left">
                     <span className="block truncate text-sm font-medium">{i.title}</span>
-                    <span className="mt-0.5 block truncate text-xs text-muted">{i.client ?? ADMIN_TASKS}</span>
+                    {!namesClient(i.title, i.client) && <span className="mt-0.5 block truncate text-xs text-muted">{i.client ?? ADMIN_TASKS}</span>}
                   </button>
-                  {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
+                  {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
                 </div>
               );
             })}
@@ -791,7 +794,7 @@ function CalendarSection({
               aria-pressed={on}
               className={`seg flex flex-col items-center gap-1 rounded-2xl py-2 ${on ? "" : "hover:bg-white/[0.05]"}`}
             >
-              <span className={`text-[10px] font-medium tracking-wide uppercase ${on ? "text-accent" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
+              <span className={`text-[11px] font-medium tracking-wide uppercase ${on ? "text-accent" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
               <span className={`text-base leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
               <span className={`size-1 rounded-full ${has ? "bg-accent" : "bg-transparent"}`} />
             </button>
@@ -957,7 +960,7 @@ function NoticesSection({
               <>
                 <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${TONE[n.tone]}`}>{NOTICE_ICON[n.kind]}</span>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className="text-sm leading-snug">
+                  <p className="line-clamp-2 text-sm leading-snug" title={n.text}>
                     {n.fresh && <span className="mr-1.5 mb-0.5 inline-block size-1.5 rounded-full bg-accent align-middle" aria-label="New" />}
                     {n.text}
                   </p>

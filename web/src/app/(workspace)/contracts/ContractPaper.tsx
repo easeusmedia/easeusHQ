@@ -50,13 +50,13 @@ function Rich({ text, missing }: { text: string; missing: boolean }) {
 }
 
 const cell = "px-3 py-2 align-top";
-const th = "bg-[#f5f5f5] px-3 py-2 text-left text-[10.5px] font-semibold tracking-wide text-black";
+const th = "bg-[#f5f5f5] px-3 py-2 text-left text-[11.5px] font-semibold tracking-wide text-black";
 
 function Table({ name, v, d }: { name: string; v: Record<string, string>; d: ContractDetails }) {
   const or = (x: string, key: string) => x || `{{${key}}}`;
   if (name === "parties") {
     return (
-      <table className="my-3 w-full border border-[#ccc] text-[12px] leading-[1.55]">
+      <table className="my-3 w-full border border-[#ccc] text-[13px] leading-[1.55]">
         <thead>
           <tr>
             <th className={th}>SERVICE PROVIDER</th>
@@ -108,7 +108,7 @@ function Table({ name, v, d }: { name: string; v: Record<string, string>; d: Con
         <p className="text-[18px] font-bold text-black">
           <Rich text={or(v.MONTHLY_FEE, "MONTHLY_FEE")} missing /> / Month
         </p>
-        <p className="mt-0.5 text-[11.5px] text-[#888]">
+        <p className="mt-0.5 text-[12.5px] text-[#888]">
           <Rich text={or(v.TERM_LENGTH.charAt(0).toUpperCase() + v.TERM_LENGTH.slice(1), "TERM_LENGTH")} missing /> Contract · Total
           Value: <Rich text={or(v.TOTAL_VALUE, "MONTHLY_FEE")} missing />
         </p>
@@ -118,7 +118,7 @@ function Table({ name, v, d }: { name: string; v: Record<string, string>; d: Con
   if (name === "scope") {
     const rows = d.deliverables.filter((x) => x.name.trim() && x.detail.trim());
     return (
-      <table className="my-3 w-full border border-[#ccc] text-[12px] leading-[1.55]">
+      <table className="my-3 w-full border border-[#ccc] text-[13px] leading-[1.55]">
         <thead>
           <tr>
             <th className={`${th} w-[40%]`}>DELIVERABLE</th>
@@ -145,8 +145,8 @@ function Table({ name, v, d }: { name: string; v: Record<string, string>; d: Con
   }
   const clients = d.signatories.filter((s) => s.name.trim());
   const box = (label: string, org: string, person: string) => (
-    <div className="w-[87.5%] border border-[#ccc] p-3 text-[12px]">
-      <p className="text-[10.5px] font-semibold text-[#888]">{label}</p>
+    <div className="w-[87.5%] border border-[#ccc] p-3 text-[13px]">
+      <p className="text-[11.5px] font-semibold text-[#888]">{label}</p>
       <p className="mt-1 font-semibold text-black">
         <Rich text={org} missing />
       </p>
@@ -293,7 +293,7 @@ function AddHere({ onAdd }: { onAdd: () => void }) {
       <button
         type="button"
         onClick={onAdd}
-        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#aaa] opacity-0 transition-opacity hover:text-[#1f5595] group-hover/add:opacity-100 focus:opacity-100"
+        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] text-[#aaa] opacity-0 transition-opacity hover:text-[#1f5595] group-hover/add:opacity-100 focus:opacity-100"
       >
         <Plus size={11} /> Add clause
       </button>
@@ -358,13 +358,13 @@ export function ContractPaper({
     );
 
   return (
-    <article className="mx-auto w-full max-w-[760px] rounded-sm bg-white px-8 py-10 font-[Helvetica,Arial,sans-serif] text-[12.5px] leading-[1.6] text-[#222] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] sm:px-14 sm:py-14">
+    <article className="mx-auto w-full max-w-[760px] rounded-sm bg-white px-8 py-10 font-[Helvetica,Arial,sans-serif] text-[13px] leading-[1.6] text-[#222] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] sm:px-14 sm:py-14">
       <header>
         <h2 className="text-[26px] font-bold tracking-tight text-black">SERVICE AGREEMENT</h2>
-        <p className="mt-0.5 text-[12.5px] text-[#888]">
+        <p className="mt-0.5 text-[13px] text-[#888]">
           Easeus Media · {contract ? <Rich text={contract.values.CLIENT_ENTITY || "{{CLIENT_ENTITY}}"} missing /> : "Client"}
         </p>
-        <p className="text-[11.5px] text-[#888]">{contract ? contract.values.SIGNING_DATE : "Signing date"}</p>
+        <p className="text-[12.5px] text-[#888]">{contract ? contract.values.SIGNING_DATE : "Signing date"}</p>
         <div className="mt-3 border-b-2 border-black" />
         <div className="mt-0.5 border-b-[0.5px] border-black" />
       </header>
@@ -402,7 +402,7 @@ export function ContractPaper({
                   <span className="w-8 shrink-0">{item.number}.</span>
                   {item.title || "Untitled clause"}
                   {item.when && (
-                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-px text-[10.5px] font-medium text-slate-500">
+                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-px text-[11.5px] font-medium text-slate-500">
                       {CONDITIONS.find((c) => c.value === item.when)?.label ?? item.when}
                     </span>
                   )}
@@ -432,12 +432,12 @@ export function ContractPaper({
                       return (
                         <div key={k} className="mb-2 whitespace-pre-line">
                           {cond && (
-                            <span className="mr-1.5 rounded bg-[#eef4fd] px-1.5 py-px text-[10.5px] font-medium text-[#1f5595] ring-1 ring-[#c8dbf5]">
+                            <span className="mr-1.5 rounded bg-[#eef4fd] px-1.5 py-px text-[11.5px] font-medium text-[#1f5595] ring-1 ring-[#c8dbf5]">
                               {CONDITIONS.find((c) => c.value === cond[1].trim())?.label ?? cond[1]}
                             </span>
                           )}
                           {table ? (
-                            <span className="block rounded border border-dashed border-[#ccc] bg-[#f7f7f7] px-3 py-2 text-center text-[11.5px] text-[#888]">
+                            <span className="block rounded border border-dashed border-[#ccc] bg-[#f7f7f7] px-3 py-2 text-center text-[12.5px] text-[#888]">
                               {{ parties: "The parties table", fee: "The fee box", scope: "The deliverables table", signatures: "The signature blocks" }[table[1]] ?? table[0]}
                             </span>
                           ) : (
@@ -457,13 +457,13 @@ export function ContractPaper({
       <footer className="mt-10">
         <div className="border-b-2 border-black" />
         <div className="mt-0.5 border-b-[0.5px] border-black" />
-        <p className="mt-2 text-center text-[11.5px] text-[#888]">End of Agreement</p>
+        <p className="mt-2 text-center text-[12.5px] text-[#888]">End of Agreement</p>
       </footer>
 
       {/* the clauses this contract has but that don't apply to its terms —
           there to see, and to edit into shape if one should apply */}
       {contract && contract.hidden.length > 0 && !readOnly && (
-        <div className="mt-8 rounded-lg bg-[#f6f6f6] px-4 py-3 font-sans text-[12px] text-[#777]">
+        <div className="mt-8 rounded-lg bg-[#f6f6f6] px-4 py-3 font-sans text-[13px] text-[#777]">
           Not included under the current terms:{" "}
           {contract.hidden.map((h, k) => (
             <span key={h.id}>

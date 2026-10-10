@@ -266,9 +266,6 @@ export default async function ClientDetailPage({
 
                 <section>
                   <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
-                  <p className="-mt-3 mb-3 text-xs text-muted">
-                    Work for the client. Once delivered, it appears in their projects.
-                  </p>
                   <ClientOngoing
                     tasks={deliverableTasks}
                     workTasks={clientWorkTasks.map((t) => ({

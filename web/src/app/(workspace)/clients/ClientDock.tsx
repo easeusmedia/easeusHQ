@@ -56,7 +56,7 @@ export function ClientDock({ clients }: { clients: SidebarClient[] }) {
                   where a max-width would race through the first part and
                   sit still for the rest */}
               <span className={`grid transition-[grid-template-columns,opacity,margin] ${EASE} ${on ? "ml-2 mr-1 grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0"}`}>
-                <span className="overflow-hidden whitespace-nowrap text-[13px] font-medium">{c.name}</span>
+                <span className="overflow-hidden whitespace-nowrap text-[14px] font-medium">{c.name}</span>
               </span>
               {!on && (
                 <span

@@ -286,7 +286,7 @@ function LeadPage({
               >
                 {(closeMenu) => (
                   <>
-                    <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-muted/80">One stage forward moves at once. Anything else asks why.</p>
+                    <p className="px-2.5 pt-1.5 pb-1 text-[12px] text-muted/80">One stage forward moves at once. Anything else asks why.</p>
                     <div className="max-h-72 overflow-y-auto">
                       {board.stages.map((s, i) => (
                         <button
@@ -299,7 +299,7 @@ function LeadPage({
                           className="menu-item px-2 py-1.5 text-xs"
                         >
                           <StagePill name={s.name} color={s.color} />
-                          {s.id === stageId ? <Check size={13} className="ml-auto shrink-0 text-accent" /> : i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[11px] text-muted">Next</span>}
+                          {s.id === stageId ? <Check size={13} className="ml-auto shrink-0 text-accent" /> : i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[12px] text-muted">Next</span>}
                         </button>
                       ))}
                     </div>

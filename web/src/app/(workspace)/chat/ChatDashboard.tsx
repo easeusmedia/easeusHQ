@@ -166,14 +166,14 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
                     <span className={`truncate text-sm ${p.unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90"}`}>{p.name}</span>
-                    {p.lastAt && <span className="shrink-0 text-[11px] text-muted">{ago(p.lastAt)}</span>}
+                    {p.lastAt && <span className="shrink-0 text-[12px] text-muted">{ago(p.lastAt)}</span>}
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span className={`truncate text-xs ${p.unread > 0 ? "text-foreground/85" : "text-muted"}`}>
                       {p.lastBody ? `${p.lastFromMe ? "You: " : ""}${p.lastBody}` : isActive(p) ? "Active now" : "No messages yet"}
                     </span>
                     {p.unread > 0 && (
-                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 px-1 text-[11px] font-medium text-accent">
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 px-1 text-[12px] font-medium text-accent">
                         {p.unread > 9 ? "9+" : p.unread}
                       </span>
                     )}
@@ -228,7 +228,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                     <div key={m.id} className={startsRun && !showDay ? "mt-4" : undefined}>
                       {showDay && (
                         <div className="my-5 flex justify-center">
-                          <span className="rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1 text-[11px] text-muted">{dayLabel(m.createdAt)}</span>
+                          <span className="rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1 text-[12px] text-muted">{dayLabel(m.createdAt)}</span>
                         </div>
                       )}
                       <div className={`flex gap-2.5 ${mine ? "justify-end" : "justify-start"} ${startsRun ? "" : "mt-1"}`}>
@@ -242,7 +242,7 @@ export function ChatDashboard({ people, meId }: { people: ChatPerson[]; meId: st
                           >
                             {m.body}
                           </div>
-                          {endsRun && <span className="mt-1.5 px-1 text-[11px] text-muted">{timeLabel(m.createdAt)}</span>}
+                          {endsRun && <span className="mt-1.5 px-1 text-[12px] text-muted">{timeLabel(m.createdAt)}</span>}
                         </div>
                       </div>
                     </div>

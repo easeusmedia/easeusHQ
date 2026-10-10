@@ -23,7 +23,7 @@ const at = (iso: string) => `${dateOf(iso)}, ${formatDateTime(iso).split(", ")[1
 
 // Stage colours aren't kept on the record, so these are plain
 function Stage({ name }: { name: string }) {
-  return <span className="inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] leading-5 text-muted">{name}</span>;
+  return <span className="inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.04] px-2 text-[12px] leading-5 text-muted">{name}</span>;
 }
 
 // A lead's record, like a task's: the gist in one line, and what happened
@@ -86,7 +86,7 @@ export function LeadHistory({ events, flat = false }: { events: LeadEventData[];
                   {e.reason && (
                     <p className="mt-1.5 border-l-2 border-white/15 pl-2 leading-relaxed break-words text-foreground/80">&ldquo;{e.reason}&rdquo;</p>
                   )}
-                  <p className="mt-1 text-[11px] text-muted">
+                  <p className="mt-1 text-[12px] text-muted">
                     By {e.byName} · {at(e.createdAt)}
                   </p>
                 </div>

@@ -18,15 +18,15 @@ test("ordinals", () => {
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd"]);
 });
 
-test("overdue notices: clear, firmer as they repeat, always courteous", () => {
+test("overdue notices: short, clear, firmer as they repeat, always courteous", () => {
   const owner = (strike: number) => overdueText({ title: "Golden Pill", due: "29 Sep", strike, owner: "Narendra Mehta", toOwner: true });
   const lead = (strike: number) => overdueText({ title: "Golden Pill", due: "29 Sep", strike, owner: "Narendra Mehta", toOwner: false });
-  assert.equal(owner(1), '"Golden Pill" was due on 29 Sep and isn\'t finished yet. Please set a new due date and add a short reason.');
-  assert.match(owner(2), /second time it has slipped, so please make it a priority\.$/);
-  assert.match(owner(3), /slipped 3 times, so please treat it as urgent\.$/);
-  assert.equal(lead(1), 'Narendra\'s task "Golden Pill" was due on 29 Sep and isn\'t finished yet. Please check in with Narendra and help get it back on track.');
-  assert.match(lead(2), /It has slipped twice\. Please check in/);
-  assert.equal(overdueText({ title: "X", due: null, strike: 1, owner: null, toOwner: false }), 'A task "X" was due and isn\'t finished yet. Please check in and help get it back on track.');
+  assert.equal(owner(1), '"Golden Pill" is overdue (due 29 Sep). Please set a new date and a short reason.');
+  assert.match(owner(2), /Second slip, please make it a priority\.$/);
+  assert.match(owner(3), /Slipped 3 times, please treat it as urgent\.$/);
+  assert.equal(lead(1), 'Narendra\'s "Golden Pill" is overdue (due 29 Sep). Please check in with Narendra.');
+  assert.match(lead(2), /Slipped twice\. Please check in/);
+  assert.equal(overdueText({ title: "X", due: null, strike: 1, owner: null, toOwner: false }), '"X" is overdue. Please check in.');
 });
 
 test("an overdue notice locks the app once it's a day old and still about the same date", () => {

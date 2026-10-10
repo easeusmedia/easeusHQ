@@ -7,7 +7,7 @@ import { deleteTasks } from "./actions";
 import { NotesButton } from "./NotesButton";
 import { useOnline, usePhoto } from "./photos";
 import { TaskDetailsDialog } from "./TaskDetailsDialog";
-import { StatusSelect } from "./StatusSelect";
+import { QUIET_UNTIL_HOVER, StatusSelect } from "./StatusSelect";
 import { availableStatuses, workflowOf, type Role, type TaskStatus } from "@/lib/workflow";
 import { STAGE } from "@/lib/stages";
 import { colorFor, initials } from "@/lib/avatar";
@@ -16,6 +16,7 @@ import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { dueState } from "@/lib/due";
 import { needsGrade } from "@/lib/videoScore";
 import { useFrozen } from "./FrozenTasks";
+import { namesClient } from "@/lib/titles";
 
 // kept as re-exports so the existing call sites don't all have to change —
 // STAGE in @/lib/stages is the single definition
@@ -210,7 +211,7 @@ export function TierMark({ tier }: { tier: string | null | undefined }) {
   return (
     <span
       title={tier === "S" ? "S: portfolio-worthy" : "A+: excellent"}
-      className={`shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold ${tier === "S" ? "bg-amber-300/15 text-amber-200" : "bg-emerald-400/15 text-emerald-300"}`}
+      className={`shrink-0 rounded-md px-1.5 py-px text-[12px] font-semibold ${tier === "S" ? "bg-amber-300/15 text-amber-200" : "bg-emerald-400/15 text-emerald-300"}`}
     >
       {tier}
     </span>
@@ -340,10 +341,11 @@ export function TaskCard({
           }}
         />
       )}
-      {/* room on the right for the corner delete */}
-      <p className="min-w-0 truncate pr-7 text-xs text-muted">{clientName}</p>
+      {/* the client, unless the task's name already says it; room on the
+          right for the corner delete */}
+      {!namesClient(task.title, clientName) && <p className="min-w-0 truncate pr-7 text-xs text-muted">{clientName}</p>}
 
-      <div className="flex items-start justify-between gap-2">
+      <div className={`flex items-start justify-between gap-2 ${namesClient(task.title, clientName) ? "pr-6" : ""}`}>
         <p className="flex min-w-0 items-start gap-1.5 font-medium leading-snug">
           <TierMark tier={tier} />
           <span className="min-w-0">{task.title}</span>
@@ -373,7 +375,7 @@ export function TaskCard({
           {task.internal && (
             <span
               title="Internal work, not delivered to the client"
-              className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted"
+              className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[11.5px] leading-4 text-muted"
             >
               <EyeOff size={9} /> Internal
             </span>
@@ -420,8 +422,12 @@ export function TaskCard({
         </p>
       )}
 
+      {/* the stage and the stage's link show on hover (the column already
+          says the stage, and a card drags between columns); always on touch.
+          Mark delivered, the next step, stays in view. */}
       <div onClick={(e) => e.stopPropagation()}>
         <StatusSelect
+          quiet
           taskId={task.id}
           currentStatus={task.status}
           options={options}
@@ -433,7 +439,7 @@ export function TaskCard({
       </div>
 
       {cardLinkHref && (
-        <div onClick={(e) => e.stopPropagation()} className="flex flex-wrap gap-2">
+        <div onClick={(e) => e.stopPropagation()} className={`flex flex-wrap gap-2 ${QUIET_UNTIL_HOVER}`}>
           <Link href={cardLinkHref} label={cardLinkSpec!.label} />
         </div>
       )}
