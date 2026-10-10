@@ -322,7 +322,7 @@ export default async function ClientDetailPage({
                   canMoveInvoices
                   plan={plan}
                   // what a new project's tasks are, and when — beside Projects
-                  blueprint={<BlueprintButton clientId={client.id} plan={plan} />}
+                  blueprint={<BlueprintButton key="blueprint" clientId={client.id} plan={plan} />}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                 />

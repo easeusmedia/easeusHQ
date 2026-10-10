@@ -61,7 +61,8 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
         <Icon size={16} className="shrink-0 text-muted" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">{doc.label}</span>
-          <span className="block truncate text-xs text-muted">{content ? doc.hint : "Not written yet"}</span>
+          {/* the title says what it is; only an empty one says so */}
+          {!content && <span className="block truncate text-xs text-muted">Not written yet</span>}
         </span>
         <ChevronDown size={15} className={`shrink-0 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
       </button>
@@ -260,10 +261,13 @@ export function ClientInfo({
                 ["Email", email],
                 ["WhatsApp", whatsapp],
                 ["Address", address],
-              ].map(([label, value]) => (
+              ]
+                // only what's filled in; Edit has every field
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 last:border-0">
                   <dt className="shrink-0 text-muted">{label}</dt>
-                  <dd className="min-w-0 truncate text-right">{value || "Not set"}</dd>
+                  <dd className="min-w-0 truncate text-right">{value}</dd>
                 </div>
               ))}
             </dl>
