@@ -192,13 +192,16 @@ body {
 }
 
 /* Replace the browser's default focus ring (too thick, doubles up with our
-   own borders) with one thin, subtle one. */
+   own borders) with one thin, subtle one, drawn on the element's own edge.
+   Outside it, a focused button looked bigger and rounder than the one next
+   to it: a dialog focuses its first button as it opens (Cancel), and Safari
+   (the Dock app) shows the ring for that. */
 * {
   outline: none;
 }
 :focus-visible {
   outline: 1px solid color-mix(in srgb, var(--foreground) 25%, var(--border));
-  outline-offset: 1px;
+  outline-offset: -1px;
 }
 /* A text field shows it's in use by its own edge and the caret, not a
    second line drawn round it (which anything clipping the field's box cut
