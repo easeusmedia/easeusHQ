@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
+import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, List, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
@@ -78,13 +78,46 @@ function dayLabel(day: string, today: string) {
   return `${WEEKDAY[weekday(day)]} ${shortDay(day)}`;
 }
 
-// a row's date, said the useful way: late by how much, or which day
+// a row's date, said the useful way: late by how much, or which day, as a
+// small pill: late in rose, today in the accent, later days quiet
 function dueLabel(due: string, today: string): { text: string; tone: string } {
   if (due < today) {
     const n = daysBetween(due, today);
-    return { text: `${n} ${n === 1 ? "day" : "days"} late`, tone: "text-rose-300" };
+    return { text: `${n} ${n === 1 ? "day" : "days"} late`, tone: "bg-rose-400/10 text-rose-300" };
   }
-  return { text: dayLabel(due, today), tone: due === today ? "text-accent" : "text-muted" };
+  return { text: dayLabel(due, today), tone: due === today ? "bg-accent/15 text-accent" : "text-muted" };
+}
+const PILL = "inline-flex w-fit shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12.5px] font-medium tabular-nums";
+
+// The round tick on every row: an open ring (rose when late) that shows its
+// check on hover; ticked, it fills with the accent and the check springs in.
+// A video or design isn't ticked (it moves by its stages): a dashed ring.
+function Tick({ state, late = false, label, onClick }: { state: "open" | "ticking" | "done" | "stages"; late?: boolean; label?: string; onClick?: () => void }) {
+  if (state === "stages") return <span title="Moves through its stages" className="size-[22px] shrink-0 rounded-full border-2 border-dashed border-white/20" />;
+  const filled = state !== "open";
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={!onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className={`group/tick flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300 ${
+        filled
+          ? `border-accent bg-accent text-white ${state === "ticking" ? "ring-4 ring-accent/20" : "enabled:hover:opacity-70"}`
+          : `${late ? "border-rose-300/50" : "border-white/25"} text-accent hover:border-accent hover:bg-accent/10`
+      }`}
+    >
+      <Check
+        size={13}
+        strokeWidth={3}
+        className={`transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${filled ? "scale-100 opacity-100" : "scale-50 opacity-0 group-hover/tick:scale-90 group-hover/tick:opacity-70"}`}
+      />
+    </button>
+  );
 }
 
 type Env = {
@@ -105,7 +138,14 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "overdue", label: "Overdue" },
   { key: "none", label: "No date" },
 ];
-const WIDE_KEY = "mytasks.wide";
+// narrow and grouped, across the page with its columns, or one flat list
+type View = "compact" | "wide" | "list";
+const VIEWS: { key: View; label: string; Icon: typeof List }[] = [
+  { key: "compact", label: "Compact", Icon: Rows3 },
+  { key: "wide", label: "Full width", Icon: Columns3 },
+  { key: "list", label: "List", Icon: List },
+];
+const VIEW_KEY = "mytasks.view";
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 // what's been finished, over which stretch
@@ -124,13 +164,23 @@ const monthBefore = (day: string) => {
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
 };
 
-// each section's icon, as Notion marks its pages
+// each section's icon, on a small tinted badge
 function SectionIcon({ id, today }: { id: string; today: string }) {
-  if (id === "overdue") return <CircleAlert size={15} className="text-rose-300" />;
-  if (id === "none") return <Inbox size={15} className="text-muted" />;
-  if (id === today) return <Sun size={15} className="text-accent" />;
-  if (id === addDays(today, 1)) return <Sunrise size={15} className="text-sky-300" />;
-  return <CalendarDays size={15} className="text-muted" />;
+  const [Icon, tone] =
+    id === "overdue"
+      ? [CircleAlert, "bg-rose-400/12 text-rose-300"]
+      : id === "none"
+        ? [Inbox, "bg-white/[0.06] text-muted"]
+        : id === today
+          ? [Sun, "bg-accent/15 text-accent"]
+          : id === addDays(today, 1)
+            ? [Sunrise, "bg-sky-400/12 text-sky-300"]
+            : [CalendarDays, "bg-white/[0.06] text-muted"];
+  return (
+    <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${tone}`}>
+      <Icon size={15} />
+    </span>
+  );
 }
 
 // Your work as a to-do list, the way a to-do app lays it out: what's late,
@@ -163,21 +213,23 @@ export function TodoList({
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [folded, setFolded] = useState<Set<string>>(new Set());
-  const [wide, setWide] = useState(false);
+  const [view, setViewState] = useState<View>("compact");
+  const wide = view !== "compact";
   // N opens a fresh composer: a new key mounts it open
   const [composing, setComposing] = useState(0);
   const search = useRef<HTMLInputElement>(null);
 
-  // the saved width, once in the browser
+  // the saved view, once in the browser (full width was once saved on its own)
   useEffect(() => {
     try {
-      setWide(localStorage.getItem(WIDE_KEY) === "1"); // eslint-disable-line react-hooks/set-state-in-effect
+      const kept = localStorage.getItem(VIEW_KEY) ?? (localStorage.getItem("mytasks.wide") === "1" ? "wide" : "compact");
+      if (VIEWS.some((v) => v.key === kept)) setViewState(kept as View); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {}
   }, []);
-  function setWidth(next: boolean) {
-    setWide(next);
+  function setView(next: View) {
+    setViewState(next);
     try {
-      localStorage.setItem(WIDE_KEY, next ? "1" : "0");
+      localStorage.setItem(VIEW_KEY, next);
     } catch {}
   }
 
@@ -219,6 +271,9 @@ export function TodoList({
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps -- inFilter reads only filter and today
   }, [items, filter, env.today]);
+
+  // the List view: the same tasks in one run, by when they're due
+  const flat = useMemo(() => sections.flatMap((s) => s.items), [sections]);
 
   async function tick(item: Item) {
     setError(null);
@@ -299,25 +354,61 @@ export function TodoList({
     client: all.some((i) => i.client),
     stage: all.some((i) => (i.task && workflowOf(i.task.workflow) !== "todo") || i.tag),
   };
-  const grid = { "--cols": ["18px", "minmax(0,1fr)", cols.client && "14rem", "8rem", cols.stage && "10rem", "1.5rem"].filter(Boolean).join(" ") } as React.CSSProperties;
+  const grid = { "--cols": ["22px", "minmax(0,1fr)", cols.client && "14rem", "9rem", cols.stage && "10rem", "1.75rem"].filter(Boolean).join(" ") } as React.CSSProperties;
 
   const doneWeek = done.filter((d) => dayOf(new Date(d.at)) >= mondayOf(env.today)).length;
   const progress = doneWeek + all.length ? Math.round((doneWeek / (doneWeek + all.length)) * 100) : 0;
 
+  // the columns, named as a Notion table names them (full width and List)
+  const columnsHead = (
+    <div style={grid} className="hidden grid-cols-(--cols) items-center gap-3.5 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
+      <span />
+      <span className="flex items-center gap-1.5">
+        <Type size={12} /> Task
+      </span>
+      {cols.client && (
+        <span className="flex items-center gap-1.5">
+          <Building2 size={12} /> Client
+        </span>
+      )}
+      <span className="flex items-center gap-1.5">
+        <CalendarDays size={12} /> Due
+      </span>
+      {cols.stage && (
+        <span className="flex items-center gap-1.5">
+          <CircleDashed size={12} /> Stage
+        </span>
+      )}
+    </div>
+  );
+  const row = (i: Item, showDue: boolean) => (
+    <Row
+      key={i.key}
+      item={i}
+      wide={wide}
+      cols={cols}
+      grid={grid}
+      ticked={ticking.has(i.key)}
+      showDue={showDue}
+      onTick={() => tick(i)}
+      // client work is deleted by Level 1 and 2; your own to-dos by you
+      onDelete={i.todo || env.actingRole !== "employee" ? () => remove(i) : undefined}
+      {...env}
+    />
+  );
+
   return (
-    <div className={`mx-auto flex w-full flex-col gap-6 transition-[max-width] duration-500 ease-out ${wide ? "max-w-[120rem]" : "max-w-3xl"}`}>
+    <div className={`mx-auto flex w-full flex-col gap-6 transition-[max-width] duration-500 ease-out ${wide ? "max-w-[120rem]" : "max-w-4xl"}`}>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
-            <p className="mt-1.5 text-sm text-muted">
-              <span className="text-foreground/85 tabular-nums">{all.length}</span> to do · <span className="text-foreground/85 tabular-nums">{doneWeek}</span> done this week
-            </p>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tight">My tasks</h1>
+          <p className="mt-2 text-[15px] text-muted">
+            <span className="font-medium text-foreground/90 tabular-nums">{all.length}</span> to do · <span className="font-medium text-foreground/90 tabular-nums">{doneWeek}</span> done this week
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex h-9 w-52 items-center gap-2 rounded-full bg-white/[0.04] px-3 ring-1 ring-white/[0.07] transition-shadow focus-within:ring-accent/40">
-            <Search size={14} className="shrink-0 text-muted" />
+          <label className="flex h-10 w-60 items-center gap-2.5 rounded-full bg-white/[0.04] px-3.5 ring-1 ring-white/[0.07] transition-shadow focus-within:ring-accent/40">
+            <Search size={15} className="shrink-0 text-muted" />
             <input
               ref={search}
               value={query}
@@ -326,23 +417,19 @@ export function TodoList({
               placeholder="Search"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none! placeholder:text-muted/60"
             />
-            <kbd className="rounded border border-white/10 px-1 text-[10px] text-muted/70">/</kbd>
+            <kbd className="rounded border border-white/10 px-1.5 text-[11px] text-muted/70">/</kbd>
           </label>
-          {/* narrow and dense, or across the page with its columns */}
           <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
-            {[
-              { on: false, label: "Compact", Icon: Rows3 },
-              { on: true, label: "Full width", Icon: Columns3 },
-            ].map((v) => (
+            {VIEWS.map((v) => (
               <button
-                key={v.label}
+                key={v.key}
                 type="button"
-                aria-pressed={wide === v.on}
-                onClick={() => setWidth(v.on)}
+                aria-pressed={view === v.key}
+                onClick={() => setView(v.key)}
                 title={v.label}
-                className="seg flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                className="seg flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium"
               >
-                <v.Icon size={13} />
+                <v.Icon size={14} />
                 <span className="hidden sm:inline">{v.label}</span>
               </button>
             ))}
@@ -351,94 +438,59 @@ export function TodoList({
       </header>
 
       {/* this week: done against what's left */}
-      <div className="-mt-2 h-1 overflow-hidden rounded-full bg-white/[0.05]">
-        <div className="h-full rounded-full bg-accent transition-[width] duration-700 ease-out" style={{ width: `${progress}%` }} />
+      <div className="-mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+        <div className="h-full rounded-full bg-linear-to-r from-accent/60 to-accent transition-[width] duration-700 ease-out" style={{ width: `${progress}%` }} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5">
-          {FILTERS.map((f) => {
-            const n = items.filter((i) => inFilter(i, f.key)).length;
-            const on = filter === f.key;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setFilter(f.key)}
-                className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
-              >
-                {f.label}
-                <span className={`tabular-nums ${on ? "text-accent" : "opacity-70"}`}>{n}</span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => {
+          const n = items.filter((i) => inFilter(i, f.key)).length;
+          const on = filter === f.key;
+          return (
+            <button key={f.key} type="button" aria-pressed={on} onClick={() => setFilter(f.key)} className="chip flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px]">
+              {f.label}
+              <span className={`tabular-nums ${on ? "text-accent" : "opacity-60"}`}>{n}</span>
+            </button>
+          );
+        })}
       </div>
       <Composer key={composing} startOpen={composing > 0} kinds={kinds} {...env} />
       {error && <p className="fade-in -mt-3 text-sm text-red-300">{error}</p>}
 
       {sections.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border px-4 py-12 text-center">
-          <CircleCheck size={22} className="text-accent" />
-          <p className="text-sm text-muted">{query ? "Nothing matches that." : filter === "all" ? "Nothing on your list. Press N to add something." : "Nothing here."}</p>
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/[0.1] px-4 py-14 text-center">
+          <span className="flex size-11 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+            <CircleCheck size={22} />
+          </span>
+          <p className="text-[15px] text-muted">{query ? "Nothing matches that." : filter === "all" ? "Nothing on your list. Press N to add something." : "Nothing here."}</p>
         </div>
+      ) : view === "list" ? (
+        // every task in one run, by date: late first, undated last
+        <section key="list" className="fade-in panel rounded-2xl p-2 pt-3">
+          {columnsHead}
+          <div className="flex flex-col gap-0.5">{flat.map((i) => row(i, true))}</div>
+        </section>
       ) : (
-        <div className="flex flex-col gap-5">
-          {wide && (
-            // the columns, named as a Notion table names them
-            <div style={grid} className="hidden grid-cols-(--cols) items-center gap-3 border-b border-border/60 px-3 pb-2 text-[11px] font-medium tracking-wide text-muted uppercase md:grid">
-              <span />
-              <span className="flex items-center gap-1.5">
-                <Type size={12} /> Task
-              </span>
-              {cols.client && (
-                <span className="flex items-center gap-1.5">
-                  <Building2 size={12} /> Client
-                </span>
-              )}
-              <span className="flex items-center gap-1.5">
-                <CalendarDays size={12} /> Due
-              </span>
-              {cols.stage && (
-                <span className="flex items-center gap-1.5">
-                  <CircleDashed size={12} /> Stage
-                </span>
-              )}
-            </div>
-          )}
+        <div className="flex flex-col gap-4">
+          {wide && <div className="-mb-2 px-2">{columnsHead}</div>}
           {sections.map((s) => {
             const open = !folded.has(s.key);
             return (
-              <section key={s.key} className="fade-in flex flex-col">
+              <section key={s.key} className="fade-in panel flex flex-col rounded-2xl p-2">
                 <button
                   type="button"
                   aria-expanded={open}
                   onClick={() => setFolded((f) => (f.has(s.key) ? new Set([...f].filter((k) => k !== s.key)) : new Set(f).add(s.key)))}
-                  className="group/head flex items-center gap-2 rounded-lg px-1 py-1.5 text-sm font-semibold"
+                  className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-white/[0.03]"
                 >
-                  <ChevronDown size={14} className={`text-muted transition-transform duration-300 ${open ? "" : "-rotate-90"}`} />
                   <SectionIcon id={s.key} today={env.today} />
-                  <span className={s.key === "overdue" ? "text-rose-300" : undefined}>{s.title}</span>
-                  <span className="rounded-full bg-white/[0.06] px-1.5 text-xs font-normal text-muted tabular-nums">{s.items.length}</span>
+                  <span className={`text-[15px] font-semibold tracking-tight ${s.key === "overdue" ? "text-rose-300" : ""}`}>{s.title}</span>
+                  <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-muted tabular-nums">{s.items.length}</span>
+                  <ChevronDown size={16} className={`ml-auto text-muted transition-transform duration-300 ${open ? "" : "-rotate-90"}`} />
                 </button>
                 <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                   <div className="flex min-h-0 flex-col gap-0.5 overflow-hidden pt-1" inert={!open}>
-                    {s.items.map((i) => (
-                      <Row
-                        key={i.key}
-                        item={i}
-                        wide={wide}
-                        cols={cols}
-                        grid={grid}
-                        ticked={ticking.has(i.key)}
-                        showDue={wide || s.key === "overdue"}
-                        onTick={() => tick(i)}
-                        // client work is deleted by Level 1 and 2; your own to-dos by you
-                        onDelete={i.todo || env.actingRole !== "employee" ? () => remove(i) : undefined}
-                        {...env}
-                      />
-                    ))}
+                    {s.items.map((i) => row(i, wide || s.key === "overdue"))}
                   </div>
                 </div>
               </section>
@@ -448,30 +500,24 @@ export function TodoList({
       )}
 
       {done.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-2 self-start rounded-lg px-1 py-1.5 text-sm text-muted transition-colors hover:text-foreground">
-            <ChevronDown size={14} className={`transition-transform duration-300 ${showDone ? "" : "-rotate-90"}`} />
-            <CircleCheck size={15} className="text-emerald-400" />
-            Completed <span className="tabular-nums">{finished.count}</span>
-            <span className="text-muted/60">· {PERIODS.find((p) => p.key === period)!.label.toLowerCase()}</span>
+        <section className="panel flex flex-col rounded-2xl p-2">
+          <button type="button" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-white/[0.03]">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emerald-400/12 text-emerald-300">
+              <CircleCheck size={15} />
+            </span>
+            <span className="text-[15px] font-semibold tracking-tight">Completed</span>
+            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-muted tabular-nums">{finished.count}</span>
+            <span className="text-[13px] text-muted/70">{PERIODS.find((p) => p.key === period)!.label}</span>
+            <ChevronDown size={16} className={`ml-auto text-muted transition-transform duration-300 ${showDone ? "" : "-rotate-90"}`} />
           </button>
           {showDone && (
-            <div className="fade-in flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-1.5 px-1">
-                {PERIODS.map((p) => {
-                  const on = period === p.key;
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => setPeriod(p.key)}
-                      className="chip rounded-full px-3 py-1 text-xs"
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
+            <div className="fade-in flex flex-col gap-3 px-1 pt-2 pb-1">
+              <div className="flex flex-wrap items-center gap-2 px-1.5">
+                {PERIODS.map((p) => (
+                  <button key={p.key} type="button" aria-pressed={period === p.key} onClick={() => setPeriod(p.key)} className="chip rounded-full px-3.5 py-1.5 text-[13px]">
+                    {p.label}
+                  </button>
+                ))}
                 {period === "range" && (
                   <span className="fade-in flex items-center gap-1.5 text-xs text-muted">
                     <DatePicker value={range.from} onChange={(v) => setRange((r) => ({ ...r, from: v }))} placeholder="Start date" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
@@ -481,30 +527,21 @@ export function TodoList({
                 )}
               </div>
               {finished.count === 0 ? (
-                <p className="px-3 py-2 text-sm text-muted">Nothing finished in this stretch.</p>
+                <p className="px-3 py-2 text-[15px] text-muted">Nothing finished in this stretch.</p>
               ) : (
                 finished.months.map(([m, list]) => (
                   <div key={m} className="flex flex-col gap-0.5">
-                    <p className="px-3 pt-1 pb-0.5 text-xs font-medium text-muted">
+                    <p className="px-3 pt-1 pb-1 text-xs font-medium tracking-wide text-muted uppercase">
                       {MONTHS[Number(m.slice(5, 7)) - 1]} {m.slice(0, 4)} <span className="text-muted/60 tabular-nums">· {list.length}</span>
                     </p>
                     {list.map((d) => {
                       const reopenable = d.kind === "todo" || workflowOf(d.workflow) === "todo";
                       return (
-                        <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.03]">
-                          <button
-                            type="button"
-                            disabled={!reopenable}
-                            onClick={() => reopen(d)}
-                            aria-label="Mark not done"
-                            title={reopenable ? "Mark not done" : "Finished"}
-                            className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-accent/80 text-background transition-opacity enabled:hover:opacity-70"
-                          >
-                            <Check size={11} strokeWidth={3} />
-                          </button>
-                          <span className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-muted/50">{d.title}</span>
-                          {d.client && <span className="hidden shrink-0 text-xs text-muted/70 sm:block">{d.client}</span>}
-                          <span className="w-14 shrink-0 text-right text-xs text-muted/70 tabular-nums">{shortDay(dayOf(new Date(d.at)))}</span>
+                        <div key={`${d.kind}${d.id}`} className="flex items-center gap-3.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.03]">
+                          <Tick state="done" label={reopenable ? "Mark not done" : "Finished"} onClick={reopenable ? () => reopen(d) : undefined} />
+                          <span className="min-w-0 flex-1 truncate text-[15px] text-muted line-through decoration-white/20">{d.title}</span>
+                          {d.client && <span className="hidden shrink-0 text-[13px] text-muted/70 sm:block">{d.client}</span>}
+                          <span className="w-16 shrink-0 text-right text-[13px] text-muted/70 tabular-nums">{shortDay(dayOf(new Date(d.at)))}</span>
                         </div>
                       );
                     })}
@@ -561,7 +598,7 @@ function Row({
   showDue: boolean;
   onTick: () => void;
   onDelete?: () => void;
-  // which of full width's columns the list has, and their sizes
+  // which of the columns the list has, and their sizes
   cols: { client: boolean; stage: boolean };
   grid: React.CSSProperties;
 }) {
@@ -585,23 +622,23 @@ function Row({
         />
       </div>
     ) : item.tag ? (
-      <span className="flex items-center gap-0.5 text-xs text-muted">
-        <Hash size={11} />
+      <span className="flex items-center gap-0.5 text-[13px] text-muted">
+        <Hash size={12} />
         {item.tag}
       </span>
     ) : null;
   const del = onDelete ? (
     <span onClick={(e) => e.stopPropagation()} className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
-      <ConfirmButton message={`Delete "${item.title}"? This can't be undone.`} onConfirm={onDelete} className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
-        <Trash2 size={13} aria-label="Delete task" />
+      <ConfirmButton message={`Delete "${item.title}"? This can't be undone.`} onConfirm={onDelete} className="flex size-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
+        <Trash2 size={14} aria-label="Delete task" />
       </ConfirmButton>
     </span>
   ) : (
     <span />
   );
   const client = item.client && (
-    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
-      <Building2 size={12} className="shrink-0 text-sky-400/80" />
+    <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted">
+      <Building2 size={13} className="shrink-0 text-sky-400/80" />
       <span className="truncate">
         {item.client}
         {item.project && item.project !== item.client && <span className="text-muted/60"> / {item.project}</span>}
@@ -614,45 +651,29 @@ function Row({
       {...frozen(item.id)}
       onClick={() => ref.current?.open()}
       style={wide ? grid : undefined}
-      className={`group grid cursor-pointer items-center gap-3 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.04] ${ticked ? "opacity-50" : ""} ${
-        wide ? "grid-cols-[18px_minmax(0,1fr)_1.5rem] py-2.5 md:grid-cols-(--cols)" : "grid-cols-[18px_minmax(0,1fr)_auto] py-2"
+      className={`group grid cursor-pointer items-center gap-3.5 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.045] ${ticked ? "opacity-60" : ""} ${
+        wide ? "grid-cols-[22px_minmax(0,1fr)_1.75rem] py-3 md:grid-cols-(--cols)" : "grid-cols-[22px_minmax(0,1fr)_auto] py-3"
       }`}
     >
-      {tickable ? (
-        <button
-          type="button"
-          aria-label="Mark done"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!ticked) onTick();
-          }}
-          className={`flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-300 ${
-            ticked ? "scale-110 border-accent bg-accent text-background" : "border-muted/50 text-transparent hover:border-accent hover:text-accent"
-          }`}
-        >
-          <Check size={11} strokeWidth={3} />
-        </button>
-      ) : (
-        <span title="Moves through its stages" className="size-[18px] shrink-0 rounded-full border-[1.5px] border-dashed border-muted/40" />
-      )}
+      {tickable ? <Tick state={ticked ? "ticking" : "open"} late={!!item.due && item.due < today} label="Mark done" onClick={ticked ? undefined : onTick} /> : <Tick state="stages" />}
       <div className="min-w-0">
-        <p className={`flex items-center gap-1.5 text-sm leading-snug transition-colors duration-300 ${ticked ? "text-muted line-through" : ""}`}>
+        <p className={`flex items-center gap-1.5 text-[15px] leading-snug transition-colors duration-300 ${ticked ? "text-muted line-through decoration-white/25" : ""}`}>
           <span className="truncate">{item.title}</span>
-          {!wide && item.notes && <FileText size={12} className="shrink-0 text-muted/60" aria-label="Has notes" />}
+          {!wide && item.notes && <FileText size={13} className="shrink-0 text-muted/60" aria-label="Has notes" />}
         </p>
-        {wide && item.notes && <p className="mt-0.5 truncate text-xs text-muted">{item.notes}</p>}
+        {wide ? item.notes && <p className="mt-0.5 truncate text-[13px] text-muted">{item.notes}</p> : client && <div className="mt-1 sm:hidden">{client}</div>}
       </div>
       {wide ? (
         <>
           {cols.client && <span className="hidden min-w-0 md:block">{client}</span>}
-          <span className={`hidden text-xs tabular-nums md:block ${due?.tone ?? "text-muted/50"}`}>{due?.text ?? "No date"}</span>
+          <span className="hidden md:block">{due ? <span className={`${PILL} ${due.tone}`}>{due.text}</span> : <span className="text-[13px] text-muted/50">No date</span>}</span>
           {cols.stage && <span className="hidden md:block">{stage}</span>}
           {del}
         </>
       ) : (
         <span className="flex items-center gap-3">
-          <span className="hidden max-w-40 sm:block">{client}</span>
-          {showDue && due && <span className={`text-xs tabular-nums ${due.tone}`}>{due.text}</span>}
+          <span className="hidden max-w-48 sm:block">{client}</span>
+          {showDue && due && <span className={`${PILL} ${due.tone}`}>{due.text}</span>}
           {stage}
           {del}
         </span>
@@ -783,19 +804,19 @@ export function Composer({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group flex items-center gap-2.5 self-start text-sm text-muted transition-colors hover:text-foreground"
+        className="group flex w-full items-center gap-3.5 rounded-2xl border border-dashed border-white/[0.1] px-5 py-3.5 text-[15px] text-muted transition-colors hover:border-accent/40 hover:bg-accent/[0.04] hover:text-foreground"
       >
-        <span className="flex size-[18px] items-center justify-center rounded-full text-accent transition-colors group-hover:bg-accent group-hover:text-background">
-          <Plus size={15} />
+        <span className="flex size-[22px] items-center justify-center rounded-full bg-accent/15 text-accent transition-colors group-hover:bg-accent group-hover:text-white">
+          <Plus size={14} strokeWidth={2.5} />
         </span>
         Add task
-        <kbd className="rounded border border-white/10 px-1 text-[10px] text-muted/60">N</kbd>
+        <kbd className="ml-auto rounded border border-white/10 px-1.5 text-[11px] text-muted/60">N</kbd>
       </button>
     );
   }
 
   return (
-    <div ref={boxRef} className="fade-in rounded-2xl border border-border bg-surface-2/40 p-4">
+    <div ref={boxRef} className="fade-in panel rounded-2xl p-5">
       <input
         autoFocus
         value={f.title}
@@ -807,14 +828,14 @@ export function Composer({
           } else if (e.key === "Escape") setOpen(false);
         }}
         placeholder="Task name"
-        className="w-full bg-transparent text-sm font-medium outline-none! placeholder:text-muted/60"
+        className="w-full bg-transparent text-[15px] font-medium outline-none! placeholder:text-muted/60"
       />
       <input
         value={f.notes}
         onChange={(e) => set({ notes: e.target.value })}
         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
         placeholder="Description"
-        className="mt-1 w-full bg-transparent text-xs text-muted outline-none! placeholder:text-muted/50"
+        className="mt-1.5 w-full bg-transparent text-[13px] text-muted outline-none! placeholder:text-muted/50"
       />
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <DatePicker value={f.due} onChange={(v) => set({ due: v })} placeholder="Date" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
