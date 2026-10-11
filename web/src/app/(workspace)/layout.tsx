@@ -64,11 +64,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     getViewer()
       .then((v) => (v ? prisma.notice.count({ where: { forId: v.id, readAt: null } }) : 0))
       .catch(() => 0),
-    // a Level 2 or 3's work with an overdue notice unanswered for over a
-    // day is frozen until it has a new date and a reason (never Level 1's;
-    // a Level 1 looking as them sees theirs, below)
+    // everyone's overdue work is frozen until it has a new date and a
+    // reason (a Level 1 looking as someone sees theirs, below)
     Promise.all([getRealViewer(), getSessionUserId()])
-      .then(([me, as]) => (me && me.id === as && !isFounder(me) ? overdueToAnswer(me.id, new Date(), answersFor(me)) : []))
+      .then(([me, as]) => (me && me.id === as ? overdueToAnswer(me.id, new Date(), answersFor(me)) : []))
       .catch(() => []),
     // each logo's version, for its address: not the logos themselves
     logoVersions().catch(() => new Map<string, string>()),
@@ -83,8 +82,8 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   const viewAsPeople =
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
-  // looking as a Level 2 or 3: their frozen work, as they'd see it (a Level 1 can set the dates for them)
-  const frozen = viewingAs ? (!isFounder(viewer) ? await overdueToAnswer(viewer.id, new Date(), answersFor(viewer)).catch(() => []) : []) : toAnswer;
+  // looking as someone: their frozen work, as they'd see it (a Level 1 can set the dates for them)
+  const frozen = viewingAs ? await overdueToAnswer(viewer.id, new Date(), answersFor(viewer)).catch(() => []) : toAnswer;
 
   // Founders and Leads run things; Members do their own work
   const isOps = !isMember(viewer);

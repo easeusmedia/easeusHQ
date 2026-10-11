@@ -42,7 +42,7 @@ import { addDays, daysBetween, shortDay, weekday } from "@/lib/editorKpi";
 import { calendarConsentUrl } from "@/lib/driveClient";
 import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
-import { addNotice, clearNotice, scheduleMeeting } from "./actions";
+import { addNotice, clearNotice, hideNotice, scheduleMeeting } from "./actions";
 import { useFrozen } from "../FrozenTasks";
 
 export type HomeItem = {
@@ -457,6 +457,8 @@ export function HomeView({
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const shownDay = days.includes(day) ? day : days.includes(today) ? today : monday;
 
+  // an overdue task asks for a new date first (FrozenTasks)
+  const frozen = useFrozen();
   async function tick(item: HomeItem) {
     setGone((g) => new Set(g).add(item.key));
     // failed outright (offline) as well as refused: it comes back
@@ -603,7 +605,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
+                <div key={i.key} {...frozen(i.id)} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"
@@ -884,16 +886,19 @@ function NoticesSection({
   // cleared: fading out, then gone at once, while the server catches up
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const [gone, setGone] = useState<Set<string>>(new Set());
-  const shown = notices.filter((n) => !n.id || !gone.has(n.id));
+  const shown = notices.filter((n) => !gone.has(n.key));
 
-  async function clear(id: string) {
-    setLeaving((s) => new Set(s).add(id));
-    setTimeout(() => setGone((s) => new Set(s).add(id)), 300);
-    const res = await clearNotice(id).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+  // a saved notice goes for good; one the app works out (contracts waiting,
+  // an invoice due) is hidden until what it says changes
+  async function clear(n: Notice) {
+    const k = n.key;
+    setLeaving((s) => new Set(s).add(k));
+    setTimeout(() => setGone((s) => new Set(s).add(k)), 300);
+    const res = await (n.id ? clearNotice(n.id) : hideNotice(n.key, n.text)).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     if (res.error) {
       setError(res.error);
-      setGone((s) => new Set([...s].filter((x) => x !== id)));
-      setLeaving((s) => new Set([...s].filter((x) => x !== id)));
+      setGone((s) => new Set([...s].filter((x) => x !== k)));
+      setLeaving((s) => new Set([...s].filter((x) => x !== k)));
     }
     router.refresh();
   }
@@ -964,21 +969,20 @@ function NoticesSection({
                   {n.sub && <p className="mt-0.5 text-xs text-muted">{n.sub}</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}
-                {n.id && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Clear"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      clear(n.id!);
-                    }}
-                    className="shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
-                  >
-                    <X size={13} />
-                  </span>
-                )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Clear"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    clear(n);
+                  }}
+                  // on hover; always on a touchscreen, which has none
+                  className="shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 pointer-coarse:opacity-100"
+                >
+                  <X size={13} />
+                </span>
               </>
             );
             const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3";
@@ -995,7 +999,7 @@ function NoticesSection({
             );
             // cleared: it folds away and the ones below move up
             return (
-              <Fold key={n.key} open={!(n.id && leaving.has(n.id))}>
+              <Fold key={n.key} open={!leaving.has(n.key)}>
                 <div className="pb-1.5">{card}</div>
               </Fold>
             );

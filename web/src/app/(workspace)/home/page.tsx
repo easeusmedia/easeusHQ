@@ -74,7 +74,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     prisma.appSetting.findUnique({ where: { key: DRIVE_SETTINGS.clientId } }),
     // notices for this person
     prisma.notice.findMany({ where: { OR: [{ forId: viewer.id }, ...(full ? [{ forId: null }] : [])] }, orderBy: { createdAt: "desc" }, take: 40 }),
-    full ? levelOneNotices(today) : [],
+    full ? levelOneNotices(today, viewer.id) : [],
     // the night's overdue check, if it hasn't run today. Any notices it
     // makes arrive with the live refresh its own writes set off.
     sweepIfDue(),
@@ -179,8 +179,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
 // What the app knows needs Level 1: invoices, clients due a bill,
 // contracts waiting, client messages
-async function levelOneNotices(today: string): Promise<Notice[]> {
-  const [invoices, billing, contracts, messages] = await Promise.all([
+async function levelOneNotices(today: string, viewerId: string): Promise<Notice[]> {
+  const [invoices, billing, contracts, messages, hiddenRow] = await Promise.all([
     prisma.invoice.findMany({ where: { status: { in: ["ready", "sent", "overdue"] } }, select: { id: true, number: true, amount: true, currency: true, status: true, dueDate: true, client: { select: { name: true } } } }),
     prisma.client.findMany({
       where: { status: "current", billingCadence: { not: null } },
@@ -188,13 +188,16 @@ async function levelOneNotices(today: string): Promise<Notice[]> {
     }),
     prisma.contract.count({ where: { status: "draft" } }),
     prisma.clientFeedback.count({ where: { readAt: null } }),
+    // the ones this person has cleared (home/actions.ts hideNotice)
+    prisma.appSetting.findUnique({ where: { key: `home.hiddenNotices:${viewerId}` } }),
   ]);
+  const hidden = new Set<string>(hiddenRow ? JSON.parse(hiddenRow.value) : []);
   const milestone = await Promise.all(
     billing
       .filter((c) => c.billingCadence === "milestone" && c.billingMilestoneCount)
       .map(async (c) => ({ c, delivered: await prisma.task.count({ where: { status: "delivered_and_uploaded", project: { clientId: c.id }, updatedAt: { gt: c.lastInvoicedAt ?? new Date(0) } } }) }))
   );
-  return [
+  const all: Notice[] = [
     ...invoices
       .filter((i) => i.status === "ready" || (i.dueDate && dayOf(i.dueDate) <= addDays(today, 3)))
       .map((i) => {
@@ -218,4 +221,5 @@ async function levelOneNotices(today: string): Promise<Notice[]> {
     ...(contracts ? [{ key: "contracts", kind: "contract" as const, tone: "accent" as const, text: `${plural(contracts, "contract")} waiting for terms`, href: "/contracts" }] : []),
     ...(messages ? [{ key: "messages", kind: "message" as const, tone: "accent" as const, text: `${plural(messages, "new message")} from clients`, href: "/clients" }] : []),
   ];
+  return all.filter((n) => !hidden.has(`${n.key}|${n.text}`));
 }

@@ -19,8 +19,8 @@ export function useFrozen() {
   return (id: string) => (ids.has(id) ? { "data-frozen-task": id, title: "Set a new due date to continue" } : {});
 }
 
-// Work a Level 2 or 3 left overdue, its notice more than a day old and
-// unanswered (lib/taskTrack overdueToAnswer), is frozen wherever it shows:
+// Work left overdue, by anyone at any level (lib/taskTrack
+// overdueToAnswer), is frozen wherever it shows:
 // dimmed, and any click, drag or Enter on it opens a prompt for a new due
 // date and a reason instead. Everything else in the app works as usual, and
 // the task thaws once its date is in. The server refuses to move a frozen
@@ -84,7 +84,7 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
               </span>
               <h2 className="text-base font-semibold">Set a new due date</h2>
             </div>
-            <p className="text-sm text-muted">This task passed its due date and the notice is more than a day old. Give it a new date and a short reason to work on it again.</p>
+            <p className="text-sm text-muted">This task passed its due date. Give it a new date and a short reason to work on it again.</p>
             <Answer key={asking.id} t={asking} onDone={() => setAsking(null)} />
           </div>
         )}
