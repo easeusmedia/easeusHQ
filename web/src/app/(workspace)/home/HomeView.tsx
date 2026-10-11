@@ -43,7 +43,6 @@ import { calendarConsentUrl } from "@/lib/driveClient";
 import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, hideNotice, scheduleMeeting } from "./actions";
-import { useFrozen } from "../FrozenTasks";
 
 export type HomeItem = {
   key: string;
@@ -211,11 +210,9 @@ function dueText(due: string | null, today: string): { text: string; pill: strin
 // late, and who's on it
 function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem; today: string; sub: string; onOpen: () => void; avatar?: boolean }) {
   const due = dueText(item.due, today);
-  const frozen = useFrozen();
   return (
     <button
       type="button"
-      {...frozen(item.id)}
       onClick={onOpen}
       className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
     >
@@ -457,8 +454,6 @@ export function HomeView({
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const shownDay = days.includes(day) ? day : days.includes(today) ? today : monday;
 
-  // an overdue task asks for a new date first (FrozenTasks)
-  const frozen = useFrozen();
   async function tick(item: HomeItem) {
     setGone((g) => new Set(g).add(item.key));
     // failed outright (offline) as well as refused: it comes back
@@ -605,7 +600,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} {...frozen(i.id)} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
+                <div key={i.key} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"

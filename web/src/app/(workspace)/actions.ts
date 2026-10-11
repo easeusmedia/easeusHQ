@@ -7,7 +7,7 @@ import { destroySession, getRealViewer, getSessionUserId, requireOps } from "@/l
 import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
-import { deleteForGood, departmentFromWords, FROZEN, frozenFor, recordDateChange } from "@/lib/taskTrack";
+import { deleteForGood, departmentFromWords, frozenFor, recordDateChange } from "@/lib/taskTrack";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
@@ -253,9 +253,6 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
 // called directly (not via a form) — both the StatusSelect dropdown and
 // dragging a card call this exact same function, so they behave identically
 export async function moveTask(taskId: string, to: TaskStatus, extras: StatusChangeExtras = {}): Promise<TaskFormState> {
-  // frozen till it has a new date (FrozenTasks)
-  const me = await getRealViewer();
-  if (me && (await frozenFor(me, taskId))) return { error: FROZEN };
   return changeStatus(taskId, to, extras);
 }
 

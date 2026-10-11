@@ -20,12 +20,11 @@ export function useFrozen() {
 }
 
 // Work left overdue, by anyone at any level (lib/taskTrack
-// overdueToAnswer), is frozen wherever it shows:
-// dimmed, and any click, drag or Enter on it opens a prompt for a new due
-// date and a reason instead. Everything else in the app works as usual, and
-// the task thaws once its date is in. The server refuses to move a frozen
-// task too. A Level 1 looking as them sees their frozen work and can set
-// the dates for them.
+// overdueToAnswer), is locked on the Production board and lists and in My
+// tasks: it looks as usual, but any click, drag or Enter on it opens a
+// prompt for a new due date and a reason instead. Home isn't locked (11 Oct
+// 2026). The task unlocks once its date is in. A Level 1 looking as them
+// sees their locked work and can set the dates for them.
 export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: React.ReactNode }) {
   const ids = useMemo(() => new Set(items.map((t) => t.id)), [items]);
   const [asking, setAsking] = useState<ToAnswer | null>(null);

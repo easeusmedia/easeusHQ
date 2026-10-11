@@ -159,8 +159,7 @@ export const answersFor = (user: { role: string; email?: string | null; departme
   isLead(user) && !isFounder(user) ? (user.departments ?? []).map((d) => d.id) : [];
 
 // A task frozen for this person (theirs, or for a Lead their departments'),
-// until it has a new date and a reason: nothing moves it till then
-export const FROZEN = "Set a new due date for this task first.";
+// until it has a new date and a reason
 export async function frozenFor(user: { id: string; role: string; email?: string | null; departments?: { id: string }[] }, taskId: string): Promise<boolean> {
   return (await overdueToAnswer(user.id, new Date(), answersFor(user))).some((t) => t.id === taskId);
 }
