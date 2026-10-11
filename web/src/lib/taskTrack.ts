@@ -120,10 +120,11 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
 }
 
 // Overdue tasks still on the date they went past (lib/overdue.ts
-// needsAnswer): frozen until each has a new date and a reason
-// (FrozenTasks). Someone's own, whatever their level; for a Lead, also their
-// departments' Members' (`teamIds`), since late work is theirs to answer for
-// too.
+// needsAnswer): locked until each has a new date and a reason
+// (FrozenTasks). Client work, as it shows on Production: Level 1 every
+// overdue task, a Lead theirs and their departments', everyone else their
+// own (11 Oct 2026: any task past its date is locked there, whoever's it
+// is). To-dos: their own; a Lead's, their departments' Members' too.
 export type ToAnswer = {
   kind: "task" | "work";
   id: string;
@@ -134,34 +135,30 @@ export type ToAnswer = {
   // whose it is, when it isn't the viewer's own
   owner: string | null;
 };
-export async function overdueToAnswer(userId: string, now = new Date(), teamIds: string[] = []): Promise<ToAnswer[]> {
+type Answerer = { id: string; role: string; email?: string | null; departments?: { id: string }[] };
+export async function overdueToAnswer(user: Answerer, now = new Date()): Promise<ToAnswer[]> {
+  const userId = user.id;
   const before = new Date(`${dayOf(now)}T00:00:00+05:30`);
-  // a Lead's departments' work, given to a Member (Level 3): a fellow Lead's answers for itself
-  const below = { teamId: { in: teamIds }, assignedTo: { role: "employee" as const } };
-  const team = teamIds.length ? [below] : [];
+  const leads = isLead(user) && !isFounder(user) ? (user.departments ?? []).map((d) => d.id) : [];
   // a client task is whoever it's assigned to (else whoever made it); a to-do always has someone
-  const theirs = { OR: [{ assignedToId: userId }, { assignedToId: null, createdById: userId }, ...(teamIds.length ? [{ ...below, assignedToId: { not: null } }] : [])] };
+  const own = [{ assignedToId: userId }, { assignedToId: null, createdById: userId }];
+  const tasksOf = isFounder(user) ? {} : { OR: [...own, ...(leads.length ? [{ teamId: { in: leads } }] : [])] };
+  const todosOf = { OR: [{ assignedToId: userId }, ...(leads.length ? [{ teamId: { in: leads }, assignedTo: { role: "employee" as const } }] : [])] };
   const select = { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } as const;
   // this runs on every page: one round to the database
   const [tasks, todos] = await Promise.all([
-    prisma.task.findMany({ where: { ...theirs, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } }, select }),
-    prisma.workTask.findMany({ where: { OR: [{ assignedToId: userId }, ...team], status: { not: "done" }, dueDate: { lt: before } }, select }),
+    prisma.task.findMany({ where: { ...tasksOf, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } }, select }),
+    prisma.workTask.findMany({ where: { ...todosOf, status: { not: "done" }, dueDate: { lt: before } }, select }),
   ]);
   return [...tasks.map((t) => ({ ...t, kind: "task" as const })), ...todos.map((t) => ({ ...t, kind: "work" as const }))]
-    .map((t) => ({ t, owner: t.assignedToId ?? t.createdById }))
-    .filter(({ t }) => needsAnswer(t))
-    .map(({ t, owner }) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: owner === userId ? null : (t.assignedTo?.name ?? null) }));
+    .filter((t) => needsAnswer(t))
+    .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: (t.assignedToId ?? t.createdById) === userId ? null : (t.assignedTo?.name ?? null) }));
 }
 
-// The departments a Lead answers for (overdueToAnswer); none for anyone
-// else. Level 1 (the developer is a Lead too) answers only for their own.
-export const answersFor = (user: { role: string; email?: string | null; departments?: { id: string }[] }) =>
-  isLead(user) && !isFounder(user) ? (user.departments ?? []).map((d) => d.id) : [];
-
-// A task frozen for this person (theirs, or for a Lead their departments'),
-// until it has a new date and a reason
-export async function frozenFor(user: { id: string; role: string; email?: string | null; departments?: { id: string }[] }, taskId: string): Promise<boolean> {
-  return (await overdueToAnswer(user.id, new Date(), answersFor(user))).some((t) => t.id === taskId);
+// A task locked for this person (overdueToAnswer), until it has a new date
+// and a reason
+export async function frozenFor(user: Answerer, taskId: string): Promise<boolean> {
+  return (await overdueToAnswer(user)).some((t) => t.id === taskId);
 }
 
 const SWEPT = "overdue.sweptOn";

@@ -24,7 +24,7 @@ import { ACTIVE_WINDOW_MS } from "./presence/constants";
 import { logoSrcAt } from "@/lib/photos";
 import { logoVersions } from "@/lib/pictureVersions";
 import { liveLine } from "@/lib/live";
-import { answersFor, overdueToAnswer } from "@/lib/taskTrack";
+import { overdueToAnswer } from "@/lib/taskTrack";
 import { FrozenTasks } from "./FrozenTasks";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
@@ -67,7 +67,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     // everyone's overdue work is frozen until it has a new date and a
     // reason (a Level 1 looking as someone sees theirs, below)
     Promise.all([getRealViewer(), getSessionUserId()])
-      .then(([me, as]) => (me && me.id === as ? overdueToAnswer(me.id, new Date(), answersFor(me)) : []))
+      .then(([me, as]) => (me && me.id === as ? overdueToAnswer(me) : []))
       .catch(() => []),
     // each logo's version, for its address: not the logos themselves
     logoVersions().catch(() => new Map<string, string>()),
@@ -83,7 +83,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     realUser && isFounder(realUser) ? users.filter((u) => onStaff(u) && u.id !== realUser.id).map((u) => ({ id: u.id, name: u.name, level: LEVEL_LABEL[u.role] })) : null;
 
   // looking as someone: their frozen work, as they'd see it (a Level 1 can set the dates for them)
-  const frozen = viewingAs ? await overdueToAnswer(viewer.id, new Date(), answersFor(viewer)).catch(() => []) : toAnswer;
+  const frozen = viewingAs ? await overdueToAnswer(viewer).catch(() => []) : toAnswer;
 
   // Founders and Leads run things; Members do their own work
   const isOps = !isMember(viewer);
