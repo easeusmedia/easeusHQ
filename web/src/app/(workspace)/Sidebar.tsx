@@ -480,7 +480,7 @@ export function Sidebar({
           {/* the group's name, folding away with the rail rather than
               leaving an empty line where it was */}
           <p
-            className={`overflow-hidden whitespace-nowrap px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted/60 transition-[max-height,opacity,padding] duration-200 ease-in-out ${
+            className={`overflow-hidden whitespace-nowrap px-3 text-[11px] font-medium uppercase tracking-[0.14em] text-muted/60 transition-[max-height,opacity,padding] duration-200 ease-in-out ${
               open ? "max-h-8 pb-1 pt-3 opacity-100" : "max-h-0 py-0 opacity-0"
             }`}
           >
@@ -513,7 +513,7 @@ export function Sidebar({
               {/* unread count rides the Chat icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && !open && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-white tabular-nums ring-2 ring-surface">
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[11px] leading-none font-semibold text-white tabular-nums ring-2 ring-surface">
                   {count > 9 ? "9+" : count}
                 </span>
               )}

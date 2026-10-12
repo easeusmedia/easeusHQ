@@ -459,7 +459,7 @@ export function ContractEditor({
 
             {/* after the last question: what to do now */}
             <div className="relative shrink-0 overflow-hidden panel rounded-3xl p-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
+              <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-accent">Next step</p>
               <p className="mt-1.5 text-base font-medium">{next.title}</p>
               <div className="mt-1 text-sm leading-relaxed text-foreground/70">{next.body}</div>
               {next.action && <div className="mt-4 flex">{next.action}</div>}

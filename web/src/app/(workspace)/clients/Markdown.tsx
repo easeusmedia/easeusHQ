@@ -30,7 +30,7 @@ function Inline({ text }: { text: string }) {
       parts.push(
         <span key={key++} className="inline-flex items-center gap-1.5 align-middle">
           <span className="h-3 w-3 rounded-sm border border-border" style={{ backgroundColor: token }} />
-          <code className="text-[12px] tracking-tight">{token}</code>
+          <code className="text-[13px] tracking-tight">{token}</code>
         </span>
       );
     } else {

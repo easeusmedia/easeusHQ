@@ -186,7 +186,7 @@ export function Dropdown({
           {shown.map((o, i) => (
             <Fragment key={o.value || "_empty"}>
               {o.group && o.group !== shown[i - 1]?.group && (
-                <p className="px-2.5 pt-2.5 pb-1 text-[11px] font-medium text-muted/70">{o.group}</p>
+                <p className="px-2.5 pt-2.5 pb-1 text-[12px] font-medium text-muted/70">{o.group}</p>
               )}
               <button type="button" onClick={() => pick(o.value)} className={`menu-item ${s.option}`}>
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>

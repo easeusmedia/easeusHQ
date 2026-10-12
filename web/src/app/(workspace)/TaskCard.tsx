@@ -210,7 +210,7 @@ export function TierMark({ tier }: { tier: string | null | undefined }) {
   return (
     <span
       title={tier === "S" ? "S: portfolio-worthy" : "A+: excellent"}
-      className={`shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold ${tier === "S" ? "bg-amber-300/15 text-amber-200" : "bg-emerald-400/15 text-emerald-300"}`}
+      className={`shrink-0 rounded-md px-1.5 py-px text-[12px] font-semibold ${tier === "S" ? "bg-amber-300/15 text-amber-200" : "bg-emerald-400/15 text-emerald-300"}`}
     >
       {tier}
     </span>
@@ -373,7 +373,7 @@ export function TaskCard({
           {task.internal && (
             <span
               title="Internal work, not delivered to the client"
-              className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[10.5px] leading-4 text-muted"
+              className="flex items-center gap-1 whitespace-nowrap rounded border border-border/60 bg-surface-2/60 px-1.5 text-[11.5px] leading-4 text-muted"
             >
               <EyeOff size={9} /> Internal
             </span>

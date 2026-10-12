@@ -56,7 +56,7 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
             onClick={() => onAnswer(o)}
             className="group flex items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[13.5px] text-foreground/85 transition-colors hover:bg-accent/10 hover:text-foreground"
           >
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-accent/25 text-[11px] tabular-nums text-accent transition-colors group-hover:border-accent group-hover:bg-accent group-hover:text-[#0b1220]">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-accent/25 text-[12px] tabular-nums text-accent transition-colors group-hover:border-accent group-hover:bg-accent group-hover:text-[#0b1220]">
               {i + 1}
             </span>
             <span className="min-w-0 flex-1">{o}</span>
@@ -80,7 +80,7 @@ function QuestionCard({ question, options, live, onAnswer }: { question: string;
         {(att.files.length > 0 || att.problem) && (
           <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
             <FileChips names={att.files.map((f) => f.name)} onRemove={att.remove} />
-            {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
+            {att.problem && <span className="text-[12px] text-accent">{att.problem}</span>}
           </div>
         )}
       </div>
@@ -159,7 +159,7 @@ export function ContractChat({
             return (
               <div key={i} className="fade-in flex justify-end">
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/[0.1] px-3.5 py-2 text-foreground">
-                  {field && <span className="mb-0.5 block text-[11px] text-accent">{field[1]}</span>}
+                  {field && <span className="mb-0.5 block text-[12px] text-accent">{field[1]}</span>}
                   {field ? m.text.slice(field[0].length) : m.text}
                   {m.files?.length ? (
                     <span className="mt-1.5 block">
@@ -207,7 +207,7 @@ export function ContractChat({
           {(att.files.length > 0 || att.problem) && (
             <div className="flex flex-wrap items-center gap-1 px-1">
               <FileChips names={att.files.map((f) => f.name)} onRemove={att.remove} />
-              {att.problem && <span className="text-[11px] text-accent">{att.problem}</span>}
+              {att.problem && <span className="text-[12px] text-accent">{att.problem}</span>}
             </div>
           )}
           <div className="flex items-end gap-1 rounded-2xl border border-white/[0.08] bg-surface-2/80 p-1.5 pl-2 transition-[border-color,box-shadow] focus-within:border-accent/40 focus-within:shadow-[0_0_0_4px_rgba(75,149,230,0.1)]">

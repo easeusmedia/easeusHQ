@@ -163,7 +163,7 @@ function Section({
         <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
         <h2 className="mr-auto flex min-w-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
           <span className="truncate">{title}</span>
-          {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[11px] font-medium text-accent tabular-nums">{count}</span>}
+          {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[12px] font-medium text-accent tabular-nums">{count}</span>}
         </h2>
         {!collapsed && aside}
         <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
@@ -220,7 +220,7 @@ function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem;
         <p className="truncate text-sm font-medium">{item.title}</p>
         {sub && <p className="mt-0.5 truncate text-xs text-muted">{sub}</p>}
       </div>
-      {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
+      {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
       {!avatar ? null : item.person ? <Avatar name={item.person.name} size={28} /> : <span className="size-7 shrink-0 rounded-full border border-dashed border-white/15" title="Not assigned" />}
     </button>
   );
@@ -617,7 +617,7 @@ export function HomeView({
                     <span className="block truncate text-sm font-medium">{i.title}</span>
                     <span className="mt-0.5 block truncate text-xs text-muted">{i.client ?? ADMIN_TASKS}</span>
                   </button>
-                  {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
+                  {due && <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-medium tabular-nums ${due.pill}`}>{due.text}</span>}
                 </div>
               );
             })}
@@ -788,7 +788,7 @@ function CalendarSection({
               aria-pressed={on}
               className={`seg flex flex-col items-center gap-1 rounded-2xl py-2 ${on ? "" : "hover:bg-white/[0.05]"}`}
             >
-              <span className={`text-[10px] font-medium tracking-wide uppercase ${on ? "text-accent" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
+              <span className={`text-[11px] font-medium tracking-wide uppercase ${on ? "text-accent" : "text-muted"}`}>{WEEKDAY[weekday(d)]}</span>
               <span className={`text-base leading-none font-semibold tabular-nums ${!on && d === today ? "text-accent" : ""}`}>{Number(d.slice(8, 10))}</span>
               <span className={`size-1 rounded-full ${has ? "bg-accent" : "bg-transparent"}`} />
             </button>

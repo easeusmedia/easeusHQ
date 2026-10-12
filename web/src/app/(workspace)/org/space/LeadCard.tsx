@@ -54,7 +54,7 @@ export function LeadCard({
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-1.5 rounded-xl px-3 py-2.5 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
     >
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
-      <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted">
+      <div className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-muted">
         <Avatar name={lead.createdBy.name} size={16} />
         <span className="min-w-0 truncate" title={`Added by ${lead.createdBy.name}`}>
           {first(lead.createdBy.name)}
@@ -75,7 +75,7 @@ export function LeadCard({
           {mail && <EmailStatus email={lead.email} />}
           {marked && onTrack && (
             <>
-              <button type="button" aria-pressed={!!m.replied} onClick={() => toggle("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]">
+              <button type="button" aria-pressed={!!m.replied} onClick={() => toggle("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px]">
                 {ICON[marked]} <Reply size={11} /> {m.replied ? "Replied" : "Reply"}
               </button>
             </>
@@ -93,7 +93,7 @@ export function LeadCard({
               disabled={!onTrack}
               onClick={() => onTrack?.(lead.id, { platform: p, kind: "replied", day: null })}
               title={`Replied on ${PLATFORM_NAME[p]}. Tap to undo.`}
-              className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+              className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px]"
             >
               {ICON[p]} <Reply size={11} /> Replied
             </button>
@@ -111,7 +111,7 @@ export function EmailStatus({ email, size = "sm", repliedOnly = false }: { email
   const quiet = "bg-white/[0.05] text-muted";
   // opened and replied light up as the pressed Seen and Replied do
   const lit = "chip-lit border";
-  const box = size === "sm" ? "gap-1 px-2 py-0.5 text-[11px]" : "gap-1.5 px-3 py-1 text-xs";
+  const box = size === "sm" ? "gap-1 px-2 py-0.5 text-[12px]" : "gap-1.5 px-3 py-1 text-xs";
   const chip = (tone: string, title: string, text: string) => (
     <span title={title} className={`flex w-fit max-w-full min-w-0 items-center rounded-full ${box} ${tone}`}>
       {/* the email icon in its own blue when lit, as Seen and Replied carry their platform's */}

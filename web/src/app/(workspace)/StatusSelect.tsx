@@ -257,7 +257,7 @@ export function StatusSelect({
                       <span className="font-medium">{f.name}</span>
                       <span className="text-muted">{f.size ? ` · ${(f.size / 1048576).toFixed(0)}MB` : ""}</span>
                     </p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-muted">
+                    <p className="mt-0.5 text-[12px] leading-snug text-muted">
                       {f.ready ? `Creative Exports / ${f.destination}` : "Frame.io is still processing this one."}
                     </p>
                   </div>
@@ -274,10 +274,10 @@ export function StatusSelect({
                         ? "Delivering…"
                         : "Copy to Drive and deliver"}
                   </button>
-                  {fio.why && <p className="text-[11px] text-red-300">{fio.why}</p>}
+                  {fio.why && <p className="text-[12px] text-red-300">{fio.why}</p>}
                 </div>
               ))}
-            {hasOffer && <p className="text-[11px] text-muted">Or, if you re-rendered it yourself:</p>}
+            {hasOffer && <p className="text-[12px] text-muted">Or, if you re-rendered it yourself:</p>}
             <input
               autoFocus={!hasOffer && !grading}
               value={inputValue}

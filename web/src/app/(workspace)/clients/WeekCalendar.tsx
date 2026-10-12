@@ -55,16 +55,16 @@ export function WeekCalendar({ entries, today }: { entries: WeekEntry[]; today: 
             const on = entries.filter((e) => e.day === day);
             return (
               <div key={day} className={`flex min-h-20 min-w-0 flex-col gap-1 p-2 ${i ? "border-l border-border" : ""} ${day === today ? "bg-accent/[0.06]" : ""}`}>
-                <p className={`text-[11px] ${day === today ? "font-medium text-accent" : "text-muted"}`}>
+                <p className={`text-[12px] ${day === today ? "font-medium text-accent" : "text-muted"}`}>
                   {WEEKDAYS[i]} {Number(day.slice(8))}
                 </p>
                 {on.slice(0, SHOWN).map((e, j) => (
-                  <p key={j} title={`${e.kind === "delivery" ? "Delivery" : "Posting"}: ${e.title}`} className="flex min-w-0 items-center gap-1 text-[11px] leading-4">
+                  <p key={j} title={`${e.kind === "delivery" ? "Delivery" : "Posting"}: ${e.title}`} className="flex min-w-0 items-center gap-1 text-[12px] leading-4">
                     {e.kind === "delivery" ? <Send size={10} className="shrink-0 text-violet-400" /> : <Megaphone size={10} className="shrink-0 text-pink-400" />}
                     <span className="truncate">{e.title}</span>
                   </p>
                 ))}
-                {on.length > SHOWN && <p className="text-[11px] text-muted">+{on.length - SHOWN} more</p>}
+                {on.length > SHOWN && <p className="text-[12px] text-muted">+{on.length - SHOWN} more</p>}
               </div>
             );
           })}

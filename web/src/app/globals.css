@@ -8,10 +8,11 @@
   --surface-2: #1c2025;
   /* one soft, translucent line everywhere — the Contracts cards' border —
      so it reads the same over the page, a panel or a card */
-  --border: rgba(255, 255, 255, 0.075);
+  --border: rgba(255, 255, 255, 0.1);
   --hover-surface: #363c45; /* clearly lighter than surface/surface-2 — an obvious hover pop */
   --foreground: #eef0f2;
-  --muted: #8b939c;
+  /* lightened 12 Oct 2026 (was #8b939c), so secondary text reads at a glance */
+  --muted: #9aa3ac;
   /* the app's own accent: a soft, muted blue, for highlights and
      notification counts instead of alarm red or plain blue */
   --accent: #4b95e6;
@@ -58,12 +59,14 @@ html {
    (--text-* vs --spacing), so raising these lifts every text size in the
    app while every padding, gap and margin stays exactly where it was —
    the negative space is untouched, the words in it are just legible.
-   Rendered at the 87.5% root above: xs 11.4px, sm 13.1px, base 14px,
-   lg 15.8px, xl 17.5px, 2xl 21px. */
+   Rendered at the 87.5% root above: xs 12px, sm 13.8px, base 14px,
+   lg 15.8px, xl 17.5px, 2xl 21px. (Raised from xs 11.4px and sm 13.1px
+   on 12 Oct 2026: too small to read at a glance. The text only: the
+   spacing, and so the layout, stays as it was.) */
 @theme {
-  --text-xs: 0.8125rem;
+  --text-xs: 0.859375rem;
   --text-xs--line-height: 1.25rem;
-  --text-sm: 0.9375rem;
+  --text-sm: 0.984375rem;
   --text-sm--line-height: 1.375rem;
 }
 
@@ -115,7 +118,7 @@ body {
     var(--spot-face),
     linear-gradient(180deg, #171a1f 0%, #121418 100%) padding-box,
     var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.03) 100%) border-box;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.07) 32%, rgba(255, 255, 255, 0.05) 100%) border-box;
   box-shadow: 0 24px 48px -32px rgba(0, 0, 0, 0.85);
 }
 /* a lighter touch, for rows and small tiles inside a page */
@@ -125,7 +128,7 @@ body {
     var(--spot-face),
     linear-gradient(180deg, #15181c 0%, #111316 100%) padding-box,
     var(--spot-edge),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.035) 40%, rgba(255, 255, 255, 0.025) 100%) border-box;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.055) 40%, rgba(255, 255, 255, 0.045) 100%) border-box;
 }
 /* panels you can click: the edge brightens under the pointer */
 .panel-hover {
@@ -1384,6 +1387,12 @@ dialog[open]::backdrop {
    it's the same composition on every screen (CSS zoom keeps text sharp).
    788px is its own height; tan(atan2()) divides one length by another.
    start/fit.ts sets --card-zoom exactly once the page runs. */
+/* the client's form keeps the type it was approved at; the app's own text
+   went up a notch on 12 Oct 2026 */
+#start-card {
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+}
 @media (min-width: 1024px) {
   #start-card {
     zoom: var(--card-zoom, clamp(0.6, tan(atan2(100dvh - 80px, 788px)), 1.6));

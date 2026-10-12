@@ -109,7 +109,7 @@ export function ReasonDialog({
           />
           <div className="flex flex-wrap gap-1.5 px-3 pb-3">
             {quick.map((r) => (
-              <button key={r} type="button" onClick={() => setWhy(r)} aria-pressed={why === r} className="chip rounded-full px-2.5 py-0.5 text-[11px]">
+              <button key={r} type="button" onClick={() => setWhy(r)} aria-pressed={why === r} className="chip rounded-full px-2.5 py-0.5 text-[12px]">
                 {r}
               </button>
             ))}

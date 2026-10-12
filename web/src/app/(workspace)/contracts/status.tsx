@@ -28,7 +28,7 @@ export function Stepper({ at }: { at: number }) {
         return (
           <li key={label} className="flex min-w-fit flex-1 items-center gap-2 last:flex-none">
             <span
-              className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] transition-colors ${
+              className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] transition-colors ${
                 done
                   ? "bg-accent text-[#0b1220]"
                   : current

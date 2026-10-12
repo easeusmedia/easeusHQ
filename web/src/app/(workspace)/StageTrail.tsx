@@ -42,7 +42,7 @@ export function StageTrail({ logs }: { logs: TrailEntry[] | null }) {
         return (
           <li key={i}>
             {newDay && (
-              <p className={`pb-2 text-[11px] font-medium uppercase tracking-wider text-muted/70 ${i > 0 ? "pt-3" : ""}`}>{day}</p>
+              <p className={`pb-2 text-[12px] font-medium uppercase tracking-wider text-muted/70 ${i > 0 ? "pt-3" : ""}`}>{day}</p>
             )}
             <div className="relative flex gap-3 pb-4">
               {/* the line on to the next move */}
@@ -65,7 +65,7 @@ export function StageTrail({ logs }: { logs: TrailEntry[] | null }) {
                       log.action
                     )}
                   </p>
-                  <span className="shrink-0 pt-0.5 text-[11px] tabular-nums text-muted" title={`${day}, ${timeOf(at)} IST`}>
+                  <span className="shrink-0 pt-0.5 text-[12px] tabular-nums text-muted" title={`${day}, ${timeOf(at)} IST`}>
                     {timeOf(at)}
                   </span>
                 </div>
