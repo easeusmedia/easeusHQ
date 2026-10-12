@@ -48,7 +48,8 @@ const MAIN = [
 // Every row carries the same transparent 1px border the pill has, so the
 // icon doesn't shift a pixel when its row becomes the selected one.
 const ROW = "border border-transparent";
-const IDLE = "text-muted hover:bg-white/[0.04] hover:text-foreground";
+// near-white at rest, full white on hover (12 Oct 2026: grey read as faded)
+const IDLE = "text-foreground/90 hover:bg-white/[0.04] hover:text-foreground";
 
 const COOKIE_NAME = "tasks-sidebar-open";
 
