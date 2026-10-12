@@ -1,4 +1,4 @@
-import { SkeletonCards, SkeletonChips, SkeletonPage } from "../Skeleton";
+import { SkeletonCards, SkeletonChips, SkeletonPage } from "../../Skeleton";
 
 // The Clients list while it loads: its tabs and a card a client
 export default function Loading() {

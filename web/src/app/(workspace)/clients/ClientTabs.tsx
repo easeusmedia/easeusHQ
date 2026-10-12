@@ -30,8 +30,12 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
     const want = paramOrProp("tab", initialTab);
     return tabs.find((t) => t.key === want)?.key ?? tabs[0].key;
   });
+  // a pane eases in when you switch to it, not when the page arrives:
+  // moving from one client to the next keeps everything still
+  const [switched, setSwitched] = useState(false);
 
   function select(key: string) {
+    setSwitched(true);
     setActive(key);
     setParam("tab", key === tabs[0].key ? null : key);
   }
@@ -53,7 +57,9 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
           >
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-xs tabular-nums text-muted">{t.count}</span>
+              // -my: it doesn't make the tab taller, so the tabs sit at
+              // the same height whether a client has tasks or not
+              <span className="-my-0.5 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs tabular-nums text-muted">{t.count}</span>
             )}
           </button>
         ))}
@@ -64,7 +70,7 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
           hidden={active !== t.key}
           // A bleed tab (the task board) takes the page's full width rather
           // than the reading column the other tabs sit in.
-          className={`fade-in ${t.bleed ? (active === t.key ? "flex min-h-0 flex-1 flex-col" : "") : width}`}
+          className={`${switched ? "fade-in " : ""}${t.bleed ? (active === t.key ? "flex min-h-0 flex-1 flex-col" : "") : width}`}
         >
           {t.content}
         </div>

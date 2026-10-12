@@ -13,8 +13,11 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // the links ease in when sharing is switched on, not on every page load
+  const [toggled, setToggled] = useState(false);
 
   function toggle() {
+    setToggled(true);
     start(async () => {
       const res = await setClientSharing(clientId, !enabled);
       if (res.error) setError(res.error);
@@ -44,7 +47,7 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
         {enabled ? "Shared with client" : "Share with client"}
       </button>
       {enabled && (
-        <span className="fade-in flex flex-wrap items-center gap-2">
+        <span className={`${toggled ? "fade-in " : ""}flex flex-wrap items-center gap-2`}>
           <button type="button" onClick={copy} className="btn btn-sm btn-glow">
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Copied" : "Copy link"}

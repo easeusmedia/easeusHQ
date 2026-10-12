@@ -79,6 +79,10 @@ export function ProjectsSection({
   const [batchKey, setBatchKey] = useState<string | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // the list eases in when you change the view, not when the page arrives
+  // (moving from one client to the next keeps everything still)
+  const view = `${list}-${preset}-${batchKey}-${from}-${to}`;
+  const [firstView] = useState(view);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -361,7 +365,7 @@ export function ProjectsSection({
         </div>
       </div>
 
-      <div key={`${list}-${preset}-${batchKey}-${from}-${to}`} className="fade-in">
+      <div key={view} className={view !== firstView ? "fade-in" : undefined}>
       {grouped ? (
         <div className="flex flex-col gap-2">
           {canMove && batches.length > 0 && (

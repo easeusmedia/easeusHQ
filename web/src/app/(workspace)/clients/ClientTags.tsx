@@ -66,7 +66,8 @@ export function ClientTags({ clientId, clientTags, allTags }: { clientId: string
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="btn-ghost flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+        // a pill's height, border and all, so the header is the same with tags or without
+        className="btn-ghost flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-xs"
       >
         <Plus size={11} /> Tag
       </button>

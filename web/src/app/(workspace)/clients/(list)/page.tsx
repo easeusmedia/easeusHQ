@@ -4,9 +4,9 @@ import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { visibleClientWhere } from "@/lib/scope";
-import { ClientsSyncButton } from "./ClientsSyncButton";
-import { ClientsBoard } from "./ClientsBoard";
-import type { ClientCardData } from "./ClientCard";
+import { ClientsSyncButton } from "../ClientsSyncButton";
+import { ClientsBoard } from "../ClientsBoard";
+import type { ClientCardData } from "../ClientCard";
 import { logoSrcAt } from "@/lib/photos";
 import { logoVersions } from "@/lib/pictureVersions";
 

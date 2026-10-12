@@ -193,22 +193,17 @@ export async function departmentFromWords(title: string, prefer: string[] = []):
 // ---------- the record a task window shows ----------
 
 export async function taskRecord(ref: TaskRef) {
-  const [shares, changes, task, people] = await Promise.all([
+  const [shares, changes, task] = await Promise.all([
     prisma.taskShare.findMany({ where: key(ref), orderBy: { createdAt: "asc" } }),
     prisma.taskDateChange.findMany({ where: key(ref), orderBy: { createdAt: "asc" } }),
     load(ref),
-    prisma.user.findMany({ where: { employment: { not: "former" } }, select: PERSON }),
   ]);
-  // each miss, and who was told (by the same rules the check sends by)
-  const owner = task && people.find((p) => p.id === (task.assignedToId ?? task.createdById));
-  const misses = Array.from({ length: task?.strikes ?? 0 }, (_, n) => ({ told: toldAbout(n + 1, owner ?? undefined, task?.teamId ?? null, people).map((p) => p.name) }));
   const ids = [...new Set([...shares.flatMap((s) => [s.userId, s.byId]), ...changes.map((c) => c.byId), ...(task?.createdById ? [task.createdById] : [])])];
   const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   return {
     createdBy: task?.createdById ? (names.get(task.createdById) ?? null) : null,
     strikes: task?.strikes ?? 0,
     due: task?.dueDate?.toISOString() ?? null,
-    misses,
     people: shares.map((s) => ({ id: s.userId, name: names.get(s.userId) ?? "Someone", by: names.get(s.byId) ?? "Someone", reason: s.reason, at: s.createdAt.toISOString() })),
     dates: changes.map((c) => ({ from: c.from?.toISOString() ?? null, to: c.to?.toISOString() ?? null, reason: c.reason, by: names.get(c.byId) ?? "Someone", strike: c.strike, at: c.createdAt.toISOString() })),
   };

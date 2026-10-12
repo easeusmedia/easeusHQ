@@ -81,15 +81,15 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
     return after > before ? after : 0;
   };
   const first = (name: string) => name.split(" ")[0];
-  // what happened, in order: the first due date, each miss (and who was
-  // told), each change of date and each person added, with their reasons
-  type Event = { at: string; tone: "plain" | "miss" | "change" | "add"; text: string; note?: string; told?: string[] };
+  // what happened, in order: the first due date, each miss, each change of
+  // date and each person added, with their reasons
+  type Event = { at: string; tone: "plain" | "miss" | "change" | "add"; text: string; note?: string };
   const events: Event[] = [
     ...(hasDates && dates[0] ? [{ at: new Date(createdAt).toISOString(), tone: "plain" as const, text: `Due date set to ${day(dates[0])}${record.createdBy ? ` by ${first(record.createdBy)}` : ""}` }] : []),
     ...dates.flatMap((d, i) => {
       const n = missOf(i);
       // counted the morning after
-      return n && d ? [{ at: new Date(new Date(d).getTime() + 27 * 3_600_000).toISOString(), tone: "miss" as const, text: `Not finished by the ${day(d)} due date`, told: record.misses[n - 1]?.told ?? [] }] : [];
+      return n && d ? [{ at: new Date(new Date(d).getTime() + 27 * 3_600_000).toISOString(), tone: "miss" as const, text: `Not finished by the ${day(d)} due date` }] : [];
     }),
     ...record.dates.map((d) => ({ at: d.at, tone: "change" as const, text: `${first(d.by)} changed the due date to ${day(d.to)}`, note: d.reason })),
     ...record.people.map((p) => ({ at: p.at, tone: "add" as const, text: `${first(p.by)} added ${first(p.name)}`, note: p.reason })),
@@ -208,12 +208,6 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
                     <span className="shrink-0 text-[11px] text-muted tabular-nums">{day(e.at)}</span>
                   </p>
                   {e.note && <p className="mt-0.5 leading-relaxed text-muted">&ldquo;{e.note}&rdquo;</p>}
-                  {e.told && e.told.length > 0 && (
-                    <p className="mt-1 flex items-center gap-1.5 text-muted" title={names(e.told)}>
-                      <Faces people={e.told} size={16} />
-                      {names(e.told.map(first))} {e.told.length === 1 ? "was" : "were"} notified
-                    </p>
-                  )}
                 </div>
               </li>
             ))}
