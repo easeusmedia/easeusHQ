@@ -42,7 +42,7 @@ type Who = { id: string; name: string; canBuild: boolean };
 
 const SESSION_ENDED = "Your session has ended. Please sign in again.";
 const NO_ACCESS = "You don't have access to this department.";
-const BUILDERS_ONLY = "Only Level 1 and the department's Level 2 can change its structure.";
+const BUILDERS_ONLY = "Only Level 1 and Admin & Technical's Level 2 can rename, add or delete these.";
 
 // The asker, if they may work in (or, with build, change) this department
 async function whoFor(teamId: string, build = false): Promise<Who | { error: string }> {
@@ -212,7 +212,7 @@ export async function renameTeam(id: string, name: string): Promise<Done> {
 export async function renameSpace(id: string, name: string): Promise<Done> {
   const space = await spaceOf(id);
   if (!space) return { error: "That page no longer exists." };
-  const who = await whoFor(space.teamId);
+  const who = await whoFor(space.teamId, true);
   if ("error" in who) return who;
   const n = cleanName(name);
   if (typeof n !== "string") return n;
@@ -298,7 +298,7 @@ export async function createStage(boardId: string, name: string, color?: string,
 export async function renameStage(id: string, name: string): Promise<Done> {
   const stage = await boardOfStage(id);
   if (!stage) return { error: "That stage no longer exists." };
-  const who = await whoFor(stage.board.teamId);
+  const who = await whoFor(stage.board.teamId, true);
   if ("error" in who) return who;
   const n = cleanName(name);
   if (typeof n !== "string") return n;
@@ -372,7 +372,7 @@ export async function createField(boardId: string, name: string, kind: string): 
 export async function renameField(id: string, name: string): Promise<Done> {
   const field = await boardOfField(id);
   if (!field) return { error: "That property no longer exists." };
-  const who = await whoFor(field.board.teamId);
+  const who = await whoFor(field.board.teamId, true);
   if ("error" in who) return who;
   const n = cleanName(name);
   if (typeof n !== "string") return n;
@@ -472,7 +472,7 @@ async function optionWithBoard(id: string) {
 export async function renameOption(id: string, name: string): Promise<Done> {
   const option = await optionWithBoard(id);
   if (!option) return { error: "That tag no longer exists." };
-  const who = await whoFor(option.field.board.teamId);
+  const who = await whoFor(option.field.board.teamId, true);
   if ("error" in who) return who;
   const n = cleanName(name, "a tag");
   if (typeof n !== "string") return n;
@@ -489,7 +489,7 @@ export async function renameOption(id: string, name: string): Promise<Done> {
 export async function deleteOption(id: string, reason: string): Promise<Done> {
   const option = await optionWithBoard(id);
   if (!option) return { error: "That tag no longer exists." };
-  const who = await whoFor(option.field.board.teamId);
+  const who = await whoFor(option.field.board.teamId, true);
   if ("error" in who) return who;
   const r = cleanReason(reason);
   if (typeof r !== "string") return r;
@@ -756,7 +756,7 @@ async function messageWithBoard(id: string) {
 export async function createMessage(stageId: string, name: string, channel: string, subject = "", body = "", note = ""): Promise<Done & { message?: MessageData }> {
   const stage = await boardOfStage(stageId);
   if (!stage) return { error: "That stage no longer exists." };
-  const who = await whoFor(stage.board.teamId);
+  const who = await whoFor(stage.board.teamId, true);
   if ("error" in who) return who;
   if (!isChannel(channel)) return { error: "Pick where it's sent." };
   if (!String(body ?? "").trim()) return { error: "Write the message first." };
@@ -781,7 +781,7 @@ export async function createMessage(stageId: string, name: string, channel: stri
 export async function updateMessage(id: string, patch: { name?: string; channel?: string; subject?: string; body?: string; note?: string }): Promise<Done> {
   const m = await messageWithBoard(id);
   if (!m) return { error: "That message no longer exists." };
-  const who = await whoFor(m.stage.board.teamId);
+  const who = await whoFor(m.stage.board.teamId, true);
   if ("error" in who) return who;
   const data: { name?: string; channel?: string; subject?: string; body?: string; note?: string } = {};
   if (patch.name != null) {
@@ -807,7 +807,7 @@ export async function updateMessage(id: string, patch: { name?: string; channel?
 export async function deleteMessage(id: string, reason: string): Promise<Done> {
   const m = await messageWithBoard(id);
   if (!m) return { error: "That message no longer exists." };
-  const who = await whoFor(m.stage.board.teamId);
+  const who = await whoFor(m.stage.board.teamId, true);
   if ("error" in who) return who;
   const r = cleanReason(reason);
   if (typeof r !== "string") return r;

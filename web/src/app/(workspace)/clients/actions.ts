@@ -1,7 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { isFounder } from "@/lib/scope";
+import { isFounder, setsUp } from "@/lib/scope";
+import { getViewer } from "@/lib/viewer";
 import { getSessionUserId, requireFeedbackViewer, requireOps } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { firstFree, slugify } from "@/lib/slug";
@@ -247,7 +248,8 @@ export async function setPostDate(taskId: string, day: string): Promise<{ error?
 // always does. Ops only. Nothing to revalidate: the picker keeps its own
 // ticks, so the menu stays open; their pages pick it up on the next load.
 export async function setClientAccess(clientId: string, userId: string, on: boolean): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only the operations team can choose who sees a client." };
+  const me = await getViewer();
+  if (!me || !setsUp(me)) return { error: "Only Level 1 and Admin & Technical's Level 2 can choose who sees a client." };
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, email: true } });
   if (!user || isFounder(user)) return { error: "They always see every client." };
   const link = { [on ? "connect" : "disconnect"]: { id: user.id } };

@@ -54,7 +54,7 @@ export default async function SpacePage({
     return (
       <>
         <DepartmentHead parents={parents} aside={cards.length > 0 && `${plural(cards.length, "portal")} holding ${plural(leads, "lead")}`}>
-          <SpaceTitle id={node.id} name={node.name} />
+          <SpaceTitle id={node.id} name={node.name} canRename={canBuild} />
         </DepartmentHead>
         <SpaceGrid teamId={team.id} parentId={node.id} kind="portal" base={here} cards={cards} canBuild={canBuild} templates={templates} />
       </>
@@ -69,7 +69,7 @@ export default async function SpacePage({
   return (
     <>
       <DepartmentHead parents={parents}>
-        <SpaceTitle id={node.id} name={node.name} />
+        <SpaceTitle id={node.id} name={node.name} canRename={canBuild} />
       </DepartmentHead>
       <PortalView
         teamId={team.id}

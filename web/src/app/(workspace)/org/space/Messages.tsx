@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { dayOf, defaultMessage, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, PLATFORM_NAME, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
-import { SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE } from "./values";
+import { CanBuild, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE } from "./values";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -336,6 +336,7 @@ export function MessageLibrary({
   sentIds?: Set<string>;
   highlight?: string[];
 }) {
+  const canBuild = useContext(CanBuild);
   const ref = useRef<HTMLDialogElement>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -369,9 +370,11 @@ export function MessageLibrary({
             <Library size={14} className="text-muted" />
             <p className="text-sm font-medium">All messages</p>
             <span className="text-xs text-muted tabular-nums">{board.messages.length}</span>
-            <button type="button" onClick={() => setCreating(true)} aria-pressed={creating} className="btn btn-xs btn-glow ml-auto flex items-center gap-1 px-2">
-              <Plus size={12} /> New
-            </button>
+            {canBuild && (
+              <button type="button" onClick={() => setCreating(true)} aria-pressed={creating} className="btn btn-xs btn-glow ml-auto flex items-center gap-1 px-2">
+                <Plus size={12} /> New
+              </button>
+            )}
           </div>
           <label className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 focus-within:border-hover">
             <Search size={13} className="shrink-0 text-muted" />
@@ -477,6 +480,7 @@ function MessageCard({
   folded?: boolean;
 }) {
   const [mode, setMode] = useState<"view" | "mine" | "template">("view");
+  const canBuild = useContext(CanBuild);
   const [open, setOpen] = useState(!folded);
   const [copied, setCopied] = useState(false);
   const source = own ?? message;
@@ -530,9 +534,11 @@ function MessageCard({
               <button type="button" onClick={() => setMode("mine")} title="Edit this message for this lead only" className={ACTION}>
                 <Pencil size={13} /> Edit
               </button>
-              <button type="button" onClick={() => setMode("template")} title="Edit this message's template, for every lead" className={ACTION}>
-                <LayoutTemplate size={13} /> Template
-              </button>
+              {canBuild && (
+                <button type="button" onClick={() => setMode("template")} title="Edit this message's template, for every lead" className={ACTION}>
+                  <LayoutTemplate size={13} /> Template
+                </button>
+              )}
             </>
           )}
         </span>

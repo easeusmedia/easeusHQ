@@ -6,7 +6,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
 import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer, seesClient, isFounder } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer, seesClient, isFounder, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { logoSrcAt } from "@/lib/photos";
@@ -219,12 +219,15 @@ export default async function ClientDetailPage({
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start">
           {/* the client's own page at this address, for the team to switch on */}
-          {/* which members (everyone outside the core team) can see it */}
-          <EditorAccess
-            clientId={client.id}
-            people={users.filter((u) => (u.role === "employee" || (u.role === "core" && !isFounder(u))) && u.employment !== "former").map((u) => ({ id: u.id, name: u.name, position: u.position ?? null }))}
-            given={users.filter((u) => seesClient(u, client) && !isFounder(u)).map((u) => u.id)}
-          />
+          {/* which members (everyone outside the core team) can see it: chosen
+              only by Level 1 and Admin & Technical's Level 2 (lib/scope setsUp) */}
+          {setsUp(viewer) && (
+            <EditorAccess
+              clientId={client.id}
+              people={users.filter((u) => (u.role === "employee" || (u.role === "core" && !isFounder(u))) && u.employment !== "former").map((u) => ({ id: u.id, name: u.name, position: u.position ?? null }))}
+              given={users.filter((u) => seesClient(u, client) && !isFounder(u)).map((u) => u.id)}
+            />
+          )}
           <ClientShare clientId={client.id} slug={client.slug} enabled={client.shareEnabled} />
           {canSeeFeedback && (client.shareEnabled || feedback.length > 0) && (
             <ClientMessages

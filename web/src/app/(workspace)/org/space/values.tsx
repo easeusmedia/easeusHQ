@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BriefcaseBusiness,
@@ -422,11 +422,17 @@ export function ContactsView({ value }: { value: unknown }) {
 
 // ---------- editors ----------
 
+// Whether the person can rename and delete the board's own pieces (tags, message
+// templates): lib/scope setsUp. Set by PortalView.
+export const CanBuild = createContext(false);
+
 // Tags (one, or any number): the chosen ones, and a Notion-style list to
-// search, pick, create, rename, recolour and delete them.
+// search, pick and create them; whoever sets the app up also renames and
+// deletes them.
 export function TagEditor({ field, value, save }: { field: FieldData; value: unknown; save: (ids: string[] | null) => void }) {
   const router = useRouter();
   const multi = field.kind === "multi";
+  const canBuild = useContext(CanBuild);
   const chosen = Array.isArray(value) ? (value as string[]) : [];
   // the property's tags, changed here at once and settled by the refresh
   const [options, setOptions] = useState(field.options);
@@ -557,7 +563,7 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
                       </button>
                     )}
                     {/* on a phone there's no hover, so they always show there */}
-                    <span className="flex shrink-0 items-center pr-1 transition-opacity group-hover/opt:opacity-100 focus-within:opacity-100 sm:opacity-0">
+                    {canBuild && <span className="flex shrink-0 items-center pr-1 transition-opacity group-hover/opt:opacity-100 focus-within:opacity-100 sm:opacity-0">
                       <button
                         type="button"
                         title="Rename"
@@ -580,7 +586,7 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
                       >
                         <X size={12} />
                       </button>
-                    </span>
+                    </span>}
                   </div>
                 </div>
               ))}

@@ -33,8 +33,9 @@ function useRename(id: string) {
 }
 
 // A section's or portal's own title, with the pencil beside it
-export function SpaceTitle({ id, name }: { id: string; name: string }) {
+export function SpaceTitle({ id, name, canRename }: { id: string; name: string; canRename: boolean }) {
   const rename = useRename(id);
+  if (!canRename) return <h1 className="min-w-0 text-2xl font-semibold tracking-tight">{name}</h1>;
   return (
     <h1 className="min-w-0 text-2xl font-semibold tracking-tight">
       <EditableName name={name} onSave={rename} />
@@ -60,9 +61,8 @@ export function DepartmentTitle({ id, name, canRename }: { id: string; name: str
   );
 }
 
-// A department's sections, or a section's portals, as cards. Anyone in the
-// department can rename them; Level 1 and Level 2 can also add, copy and
-// delete them.
+// A department's sections, or a section's portals, as cards. Only whoever
+// sets the app up (lib/scope setsUp) renames, adds, copies and deletes them.
 export function SpaceGrid({
   teamId,
   parentId,
@@ -170,7 +170,7 @@ function Card({ card, kind, teamId, parentId, canBuild, taken }: { card: SpaceCa
 
       <div className="mt-auto min-w-0">
         <div className="relative z-10 flex w-fit max-w-full text-[15px] font-medium tracking-tight">
-          <EditableName name={card.name} onSave={rename} />
+          {canBuild ? <EditableName name={card.name} onSave={rename} /> : card.name}
         </div>
         <p className="mt-1 truncate text-xs text-muted">
           {card.children ? plural(card.children, inside) : `No ${inside}s yet`}

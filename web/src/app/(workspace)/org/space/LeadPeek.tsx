@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
@@ -8,7 +8,7 @@ import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
-import { CheckboxEditor, ContactsEditor, ContactsView, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, ValueRead, dateOf } from "./values";
+import { CanBuild, CheckboxEditor, ContactsEditor, ContactsView, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, ValueRead, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
@@ -220,7 +220,9 @@ function LeadPage({
   }
 
   // "day-2" is Day 2; a stage's own key is its name
-  const fieldName = (f: FieldData) => (
+  // only whoever sets the app up renames a property (lib/scope setsUp)
+  const canBuild = useContext(CanBuild);
+  const fieldName = (f: FieldData) => !canBuild ? f.name : (
     <EditableName
       name={f.name}
       pencil="hover"

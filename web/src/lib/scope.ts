@@ -32,7 +32,7 @@ export const LEVEL_NOTE: Record<Role, string> = {
 // The departments the app's own features are built on: the editing queue
 // is Production's; clients, their feedback and posting dates are Client
 // Services' and Distribution's.
-export const DEPT = { production: "production", clientServices: "client-services", distribution: "distribution", sales: "sales" } as const;
+export const DEPT = { production: "production", clientServices: "client-services", distribution: "distribution", sales: "sales", adminTechnical: "admin-technical" } as const;
 
 // Abhishek, the developer, shows as Level 2 but keeps everything Level 1
 // has, wherever access is decided. (Level 2 can still see his work: what's
@@ -73,14 +73,23 @@ export function runsProduction(user: Pick<Viewer, "role" | "departments">): bool
   return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.production));
 }
 
+// Setting the app up: naming, adding and deleting a department's sections,
+// portals, boards, stages, properties, tags and message templates, and
+// choosing who sees a client. Level 1, and Level 2 in Admin & Technical,
+// nobody else (12 Oct 2026, Abhishek).
+export function setsUp(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
+  return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.adminTechnical));
+}
+
 // A department's own pages (lib/space.ts): everyone in the department works
-// them (adds, moves, renames, deletes with a reason); its Leads and Level 1
-// also build them (sections, portals, boards, stages, properties).
+// them (adds, moves and deletes leads, with a reason); only whoever sets the
+// app up (setsUp) builds them: names and adds or deletes their sections,
+// portals, boards, stages, properties, tags and messages.
 export function worksDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return isFounder(user) || user.departments.some((d) => d.id === teamId);
 }
 export function buildsDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
-  return worksDepartment(user, teamId) && (isFounder(user) || isLead(user));
+  return worksDepartment(user, teamId) && setsUp(user);
 }
 
 // A Member in Production (an editor, a designer): they work from the

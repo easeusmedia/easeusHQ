@@ -5,7 +5,7 @@ import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflow
 import { revalidatePath } from "next/cache";
 import { destroySession, getRealViewer, getSessionUserId, requireOps } from "@/lib/auth";
 import { dayOf } from "@/lib/editorKpi";
-import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder } from "@/lib/scope";
+import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deleteForGood, departmentFromWords, frozenFor, recordDateChange } from "@/lib/taskTrack";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
@@ -467,8 +467,8 @@ export async function createTaskTag(name: string): Promise<{ error?: string; tag
 // the delete — the tasks themselves are the record, the label is just how
 // they're grouped.
 export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> {
-  const user = await requireOps();
-  if (!user) return { error: "Only the operations team can remove a tag." };
+  const user = await getViewer();
+  if (!user || !setsUp(user)) return { error: "Only Level 1 and Admin & Technical's Level 2 can delete a kind of work." };
 
   const tag = await prisma.taskTag.findUnique({ where: { id: tagId }, select: { teamId: true } });
   if (!tag) return { error: "That tag is already gone." };

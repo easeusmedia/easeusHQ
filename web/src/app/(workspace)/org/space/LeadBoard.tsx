@@ -172,7 +172,7 @@ const fresh = (board: BoardData): Local => ({ for: board, moved: {}, order: null
 // The board, Notion-style: a column per stage in a row that scrolls
 // sideways. Cards drag between and within columns (one step forward is
 // free; anything else asks why), each column adds a lead at its foot, and
-// stages are renamed, recoloured and (for builders) added, moved and
+// stages are (for builders: lib/scope setsUp) renamed, recoloured, added, moved and
 // deleted from their headers. A board with a day sequence is a row per
 // section (In process, Replied), each folded by its name. A column shows 10 cards, the rest on Show more.
 export function LeadBoard({
@@ -450,7 +450,7 @@ export function LeadBoard({
       >
         <span className={`size-1.5 shrink-0 rounded-full ${tone.dot}`} />
         <span className="flex min-w-0 flex-1" title={stage.name}>
-          <EditableName name={stage.name} pencil="hover" onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} />
+          {canBuild ? <EditableName name={stage.name} pencil="hover" onSave={(name) => patchStage(stage.id, { name }, () => renameStage(stage.id, name))} /> : <span className="truncate">{stage.name}</span>}
         </span>
         <span className="shrink-0 px-1 text-muted tabular-nums">{count}</span>
         {canBuild && (

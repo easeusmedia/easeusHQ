@@ -8,6 +8,7 @@ import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { NewSpaceDialog } from "./NewSpaceDialog";
+import { CanBuild } from "./values";
 import { deleteSpace, renameSpace, setLeadMark } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { StatTile } from "../../StatTile";
@@ -184,6 +185,9 @@ export function PortalView({
   ];
 
   return (
+    // who may rename and delete the board's tags and message templates, for
+    // the views deep inside (values.tsx, Messages.tsx)
+    <CanBuild.Provider value={canBuild}>
     <div className="flex min-w-0 flex-col gap-4">
       {/* the boards: pick which; the open one is renamed or deleted where
           it sits, and a new one starts from the + */}
@@ -197,7 +201,7 @@ export function PortalView({
             return (
               <div key={b.id} role="tab" aria-selected={on} className="seg group/tab flex max-w-[18rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium">
                 {on && !going ? (
-                  <EditableName name={b.name} onSave={rename(b.id)} pencil="none" editing={renaming} onEditingChange={setRenaming} />
+                  canBuild ? <EditableName name={b.name} onSave={rename(b.id)} pencil="none" editing={renaming} onEditingChange={setRenaming} /> : <span className="truncate">{b.name}</span>
                 ) : (
                   <button type="button" onClick={() => switchTo(b.slug)} className="-mx-3.5 -my-1.5 truncate px-3.5 py-1.5">
                     {b.name}
@@ -353,5 +357,6 @@ export function PortalView({
         }}
       />
     </div>
+    </CanBuild.Provider>
   );
 }
