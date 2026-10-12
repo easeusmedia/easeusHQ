@@ -15,6 +15,8 @@ type Loaded = NonNullable<Awaited<ReturnType<typeof getTaskRecord>>>;
 const names = (all: string[]) => (all.length < 2 ? (all[0] ?? "") : `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`);
 const day = (iso: string | Date | null) => (iso ? shortDay(dayOf(new Date(iso))) : "No date");
 
+const BOX = "col-span-2 flex flex-col gap-3 rounded-xl border border-border/70 bg-white/[0.02] p-4";
+
 // faces, overlapping
 function Faces({ people, size = 18 }: { people: string[]; size?: number }) {
   return (
@@ -67,7 +69,19 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
     router.refresh();
   }
 
-  if (!record) return null;
+  // Until it loads: the same box and first line, so the window opens at its
+  // full size instead of growing (and jumping up) a moment later
+  if (!record)
+    return (
+      <div className={BOX}>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+          <span>Created {day(createdAt)}</span>
+          <span aria-hidden className="invisible">
+            <Dropdown size="sm" pill={{ icon: <Layers size={12} /> }} value="" placeholder="Department" options={[]} />
+          </span>
+        </div>
+      </div>
+    );
   const hasPeople = record.people.length > 0;
   const hasDates = record.dates.length > 0 || record.strikes > 0;
 
@@ -97,7 +111,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
   const DOT = { plain: "bg-white/40", miss: "bg-rose-400", change: "bg-amber-300", add: "bg-emerald-400" };
 
   return (
-    <div className="col-span-2 flex flex-col gap-3 rounded-xl border border-border/70 bg-white/[0.02] p-4">
+    <div className={BOX}>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
         <span>
           Created {day(createdAt)}
@@ -162,9 +176,11 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
         </div>
       )}
 
-      {/* the gist in one line; the why opens from it */}
+      {/* the gist in one line; the why opens from it. It eases open as the
+          record arrives rather than popping in */}
       {(hasPeople || hasDates) && (
-        <div>
+        <div className="open-down">
+        <div className="min-h-0 overflow-hidden">
         <button
           type="button"
           onClick={() => setDetails((d) => !d)}
@@ -214,6 +230,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
           </ol>
         </div>
       </div>
+        </div>
         </div>
       )}
       {error && <p className="text-xs text-red-300">{error}</p>}

@@ -311,6 +311,24 @@ dialog[open]::backdrop {
   }
 }
 
+/* Something that arrives after its box is on screen (a task's record, once
+   loaded) eases open downward instead of popping in. Its one child needs
+   min-height: 0 and overflow: hidden. */
+.open-down {
+  display: grid;
+  animation: open-down 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes open-down {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
 /* Same easing-in for the popovers that aren't dialogs — dropdown menus,
    the projects filter, the date picker. They mount on open rather than
    toggling an attribute, so @starting-style is doing all the work. */
