@@ -59,15 +59,15 @@ html {
    (--text-* vs --spacing), so raising these lifts every text size in the
    app while every padding, gap and margin stays exactly where it was —
    the negative space is untouched, the words in it are just legible.
-   Rendered at the 87.5% root above: xs 12px, sm 13.8px, base 14px,
-   lg 15.8px, xl 17.5px, 2xl 21px. (Raised from xs 11.4px and sm 13.1px
-   on 12 Oct 2026: too small to read at a glance. The text only: the
-   spacing, and so the layout, stays as it was.) */
+   Rendered at the 87.5% root above: xs 12.6px, sm 14.4px, base 14px,
+   lg 15.8px, xl 17.5px, 2xl 21px. (Raised about 10% from xs 11.4px and
+   sm 13.1px on 12 Oct 2026: too small to read at a glance. The text
+   only: the spacing, and so the layout, stays as it was.) */
 @theme {
-  --text-xs: 0.859375rem;
+  --text-xs: 0.9rem;
   --text-xs--line-height: 1.25rem;
-  --text-sm: 0.984375rem;
-  --text-sm--line-height: 1.375rem;
+  --text-sm: 1.03125rem;
+  --text-sm--line-height: 1.4375rem;
 }
 
 /* Icons across the whole app were drawn at lucide's default 2px stroke,
