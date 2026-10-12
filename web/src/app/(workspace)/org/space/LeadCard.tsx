@@ -1,7 +1,7 @@
 "use client";
 
 import { Mail, Reply } from "lucide-react";
-import { dayOf, MARKED, missingDetails, PLATFORM_NAME, type FieldData, type LeadData, type Marked, type MarkChange } from "@/lib/space";
+import { dayOf, MARKED, PLATFORM_NAME, type LeadData, type Marked, type MarkChange } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
@@ -20,20 +20,17 @@ const ICON: Record<Marked, React.ReactNode> = {
 // or LinkedIn's Replied takes it back to its day.
 export function LeadCard({
   lead,
-  fields,
   onOpen,
   tracks = false,
   day,
   onTrack,
 }: {
   lead: LeadData;
-  fields: FieldData[];
   onOpen: (id: string) => void;
   tracks?: boolean;
   day?: { key: string; name: string; platform: string | null };
   onTrack?: (id: string, change: MarkChange) => void;
 }) {
-  const missing = missingDetails(fields, lead.values);
   // the platform its day goes out on: email shows by itself, the others are tapped
   const mail = day?.platform === "email";
   const marked = MARKED.find((p) => p === day?.platform);
@@ -57,11 +54,6 @@ export function LeadCard({
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-1.5 rounded-xl px-3 py-2.5 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
     >
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
-      {missing.length > 0 && (
-        <p title={`Not added yet: ${missing.join(", ")}`} className="truncate text-[11.5px] text-muted/80">
-          To add: {missing.join(", ")}
-        </p>
-      )}
       <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted">
         <Avatar name={lead.createdBy.name} size={16} />
         <span className="min-w-0 truncate" title={`Added by ${lead.createdBy.name}`}>

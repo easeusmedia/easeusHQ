@@ -174,8 +174,7 @@ const fresh = (board: BoardData): Local => ({ for: board, moved: {}, order: null
 // free; anything else asks why), each column adds a lead at its foot, and
 // stages are renamed, recoloured and (for builders) added, moved and
 // deleted from their headers. A board with a day sequence is a row per
-// section (In process, Replied, Closed), each folded by its name; Closed
-// starts folded. A column shows 10 cards, the rest on Show more.
+// section (In process, Replied), each folded by its name. A column shows 10 cards, the rest on Show more.
 export function LeadBoard({
   board,
   leads,
@@ -218,7 +217,7 @@ export function LeadBoard({
   const [removing, setRemoving] = useState<{ open: boolean; stage: StageData } | null>(null);
   // the columns showing all their cards, and the sections folded away
   const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
-  const [folded, setFolded] = useState<Set<Section>>(() => new Set(["closed"]));
+  const [folded, setFolded] = useState<Set<Section>>(() => new Set());
   const flip = <T,>(set: Set<T>, key: T) => {
     const next = new Set(set);
     if (!next.delete(key)) next.add(key);
@@ -509,7 +508,7 @@ export function LeadBoard({
               onDragEnd={endDrag}
               className={drag === lead.id ? "opacity-35" : n >= PER_COLUMN ? "fade-in" : ""}
             >
-              <LeadCard lead={lead} fields={board.fields} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfLead(lead)} onTrack={onTrack} />
+              <LeadCard lead={lead} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfLead(lead)} onTrack={onTrack} />
             </div>
           </Fragment>
         ))}

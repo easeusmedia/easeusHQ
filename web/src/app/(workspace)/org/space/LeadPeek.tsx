@@ -14,7 +14,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { isFilled, missingDetails, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type SentData } from "@/lib/space";
+import { isFilled, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -219,7 +219,6 @@ function LeadPage({
     }
   }
 
-  const missing = missingDetails(board.fields, values);
   // "day-2" is Day 2; a stage's own key is its name
   const fieldName = (f: FieldData) => (
     <EditableName
@@ -325,7 +324,6 @@ function LeadPage({
                 {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
               </p>
             )}
-            {missing.length > 0 && <p className="fade-in px-1 text-xs text-muted">To add: {missing.join(", ")}</p>}
           </div>
 
           {/* everything known about it first */}

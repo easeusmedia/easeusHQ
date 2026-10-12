@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, missingDetails, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, stageSections, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, stageSections, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -64,15 +64,7 @@ test("checkbox, date and text", () => {
   assert.deepEqual(cleanValue("text", "  "), { value: null });
 });
 
-test("missing details lists required fields left empty", () => {
-  const fields = [
-    { id: "t", name: "Trailer", kind: "select" as const, required: true },
-    { id: "s", name: "Short-form quantity", kind: "count" as const, required: true },
-    { id: "c", name: "Contacts", kind: "contacts" as const, required: true },
-    { id: "n", name: "Newsletter", kind: "select" as const, required: false },
-  ];
-  assert.deepEqual(missingDetails(fields, {}), ["Trailer", "Short-form quantity", "Contacts"]);
-  assert.deepEqual(missingDetails(fields, { t: ["yes"], s: { n: 0, remark: "" }, c: [{ id: "1", name: "Ann", role: "", channels: [] }] }), []);
+test("a count or contact with nothing in it isn't filled", () => {
   assert.equal(isFilled("count", { n: null, remark: "x" }), false);
   assert.equal(isFilled("contacts", [{ id: "1", name: "", role: "", channels: [] }]), false);
 });
@@ -251,8 +243,8 @@ test("unique reach outs count each lead once, total every reach out", () => {
   assert.deepEqual(reachOutCounts(days, leads, "linkedin"), { unique: 0, total: 0 });
 });
 
-test("a board with a day sequence is in sections: in process to the last day, then replied, then closed", () => {
+test("a board with a day sequence is in sections: in process to the last day and Dead, the rest replied", () => {
   const names = ["Dream List", "Ready to reach out", "Day 1", "Day 8 · Email 4", "Audit sent", "Replied", "No reply after the audit", "Parked for later", "Dead"];
-  assert.deepEqual(stageSections(names.map((name) => ({ name }))), ["process", "process", "process", "process", "replied", "replied", "replied", "closed", "closed"]);
+  assert.deepEqual(stageSections(names.map((name) => ({ name }))), ["process", "process", "process", "process", "replied", "replied", "replied", "replied", "process"]);
   assert.equal(stageSections([{ name: "To do" }, { name: "Done" }]), null);
 });

@@ -240,11 +240,6 @@ export function isFilled(kind: FieldKind, v: unknown): boolean {
   return true;
 }
 
-// The basic details a lead still lacks: its required properties not filled
-export function missingDetails(fields: Pick<FieldData, "id" | "kind" | "required" | "name">[], values: Record<string, unknown>): string[] {
-  return fields.filter((f) => f.required && !isFilled(f.kind, values[f.id])).map((f) => f.name);
-}
-
 // ---- Messages ----
 // A stage's message is fixed text with {{Variables}} each lead fills in:
 // "Hey {{Name}}, watched your {{Guest}} episode".
@@ -294,16 +289,16 @@ export function outreachStart(stages: Pick<StageData, "name">[]): number {
 export const isDead = (stageName: string) => /^dead\b/i.test(stageName.trim());
 export const isReplied = (stageName: string) => /^replied\b/i.test(stageName.trim());
 
-// The board in sections, a row of stages each (9 Oct 2026, Abhishek): In
-// process, from the first stage to the sequence's last day; Replied, the
-// stages after it (Replied, Audit sent, No reply after the audit); Closed,
-// Parked for later and Dead. null on a board without a day sequence.
-export const SECTIONS = { process: "In process", replied: "Replied", closed: "Closed" } as const;
+// The board in sections, a row of stages each (Abhishek, 9 and 12 Oct
+// 2026): In process, from the first stage to the sequence's last day, and
+// Dead; Replied, the rest (Audit sent, Replied, No reply after the audit,
+// Parked for later). null on a board without a day sequence.
+export const SECTIONS = { process: "In process", replied: "Replied" } as const;
 export type Section = keyof typeof SECTIONS;
 export function stageSections(stages: Pick<StageData, "name">[]): Section[] | null {
   const last = stages.map((s) => dayOf(s.name) != null).lastIndexOf(true);
   if (last < 0) return null;
-  return stages.map((s, i) => (i <= last ? "process" : isDead(s.name) || /^parked\b/i.test(s.name.trim()) ? "closed" : "replied"));
+  return stages.map((s, i) => (i <= last || isDead(s.name) ? "process" : "replied"));
 }
 
 // From Day 1 on, a lead's opens and replies show (its card and timeline)
