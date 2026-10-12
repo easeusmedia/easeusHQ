@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Check } from "lucide-react";
 import { updateClientStatus } from "./actions";
+import { topLayer, usePopover, useCloseOnScroll } from "../popover";
 
 const STATUS_LABEL: Record<string, string> = {
   current: "Current",
@@ -51,6 +52,12 @@ export function StatusDropdown({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // drawn over the page (popover.ts), so the client card it sits in can't
+  // cut it off
+  const { position, place } = usePopover(OPTIONS.length * 32 + 8);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -87,8 +94,14 @@ export function StatusDropdown({
       }}
     >
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) place(triggerRef.current, { width: 144 });
+          setOpen((v) => !v);
+        }}
         disabled={pending}
         className={
           quiet
@@ -103,8 +116,12 @@ export function StatusDropdown({
           className={quiet ? "opacity-0 transition-opacity duration-200 group-hover/status:opacity-100" : undefined}
         />
       </button>
-      {open && (
-        <div className={`pop-in absolute top-full z-20 mt-1 w-36 rounded-xl popover p-1 ${quiet ? "right-0" : "left-0"}`}>
+      {open && position && (
+        <div
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
+          className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg"
+        >
           {OPTIONS.map((o) => (
             <button
               key={o}
