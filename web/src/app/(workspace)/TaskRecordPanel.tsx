@@ -111,6 +111,8 @@ export function TaskRecordPanel({
       </div>
     );
   const hasPeople = record.people.length > 0;
+  // the due date it had before the last change, if it was ever moved
+  const previous = record.dates.at(-1)?.from?.slice(0, 10) ?? null;
   const hasDates = record.dates.length > 0 || record.strikes > 0;
 
   // every date it has had: the first, then each it was changed to
@@ -223,7 +225,15 @@ export function TaskRecordPanel({
           )}
           {hasDates && (
             <span className="text-muted">
-              Due <span className="text-foreground/85">{day(record.due)}</span>
+              Due{" "}
+              {/* moved: the date it had just before, struck through, then the
+                  new one (only the last change; Details has them all) */}
+              {previous && previous !== record.due?.slice(0, 10) && (
+                <>
+                  <s className="text-muted/70 decoration-muted/70">{day(previous)}</s>{" "}
+                </>
+              )}
+              <span className="text-foreground/85">{day(record.due)}</span>
               {record.strikes > 0 && (
                 <span className="text-rose-300">
                   {" "}
