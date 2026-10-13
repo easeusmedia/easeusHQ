@@ -17,6 +17,7 @@ import type { TaskCardData } from "../TaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import { useFrozen } from "../FrozenTasks";
+import { warmTask } from "../taskWarm";
 
 export type TodoKind = { id: string; name: string; workflow: string; clientFacing: boolean; department: string | null };
 type Done = { id: string; title: string; kind: "todo" | "task"; workflow?: string; at: string; client: string | null };
@@ -649,6 +650,7 @@ function Row({
   return (
     <div
       {...frozen(item.id)}
+      onPointerEnter={() => warmTask({ kind: item.todo ? "work" : "task", id: item.id })}
       onClick={() => ref.current?.open()}
       style={wide ? grid : undefined}
       className={`group grid cursor-pointer items-center gap-3 rounded-xl px-3 transition-[background-color,opacity] duration-300 hover:bg-white/[0.045] ${ticked ? "opacity-60" : ""} ${

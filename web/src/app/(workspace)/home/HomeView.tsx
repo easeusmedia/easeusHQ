@@ -43,6 +43,7 @@ import { calendarConsentUrl } from "@/lib/driveClient";
 import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, hideNotice, scheduleMeeting } from "./actions";
+import { warmTask } from "../taskWarm";
 
 export type HomeItem = {
   key: string;
@@ -122,6 +123,7 @@ function Section({
   collapsed,
   onCollapse,
   grow = true,
+  roomy = false,
   drag,
   children,
 }: {
@@ -135,6 +137,9 @@ function Section({
   onCollapse: () => void;
   // fills its share of the column (lists) or keeps to its size (the calendar)
   grow?: boolean;
+  // a bigger share for now (a form open in it), so the form and the list
+  // under it both fit rather than being cut off; the rest give way
+  roomy?: boolean;
   drag: Drag;
   children: React.ReactNode;
 }) {
@@ -147,7 +152,7 @@ function Section({
       // taller, then shrink (and drop to nothing before opening). It never goes
       // below its header.
       className={`panel relative flex min-h-[51px] flex-col rounded-2xl transition-[flex-grow,box-shadow] duration-300 ease-out ${
-        !grow ? "flex-none" : collapsed ? "lg:flex-[0_1_0]" : "lg:flex-[1_1_0]"
+        !grow ? "flex-none" : collapsed ? "lg:flex-[0_1_0]" : roomy ? "lg:flex-[4_1_0]" : "lg:flex-[1_1_0]"
       } ${drag.dragging === id ? "z-20 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : ""}`}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
@@ -213,6 +218,7 @@ function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem;
   return (
     <button
       type="button"
+      onPointerEnter={() => warmTask({ kind: item.source, id: item.id })}
       onClick={onOpen}
       className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
     >
@@ -585,6 +591,7 @@ export function HomeView({
         }
         collapsed={layout.collapsed.includes("mine")}
         onCollapse={() => collapse("mine")}
+        roomy={adding}
         drag={drag}
       >
         {adding && (
@@ -600,7 +607,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
+                <div key={i.key} onPointerEnter={() => warmTask({ kind: i.source, id: i.id })} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"

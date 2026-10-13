@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Building2, CalendarClock, ChevronRight, Clapperboard, ExternalLink, FolderCheck, Link2, MoreHorizontal, Package, Pencil, Send, Trash2, User } from "lucide-react";
-import { updateTask, deleteTask, getTaskActivity, type TaskFormState } from "./actions";
+import { updateTask, deleteTask, type TaskFormState } from "./actions";
 import { ConfirmButton } from "./ConfirmButton";
 import { NotesGlyph, linkify } from "./NotesButton";
 import { Dropdown } from "./Dropdown";
@@ -20,6 +20,7 @@ import type { TaskCardData } from "./TaskCard";
 import { Checkbox } from "./Checkbox";
 import { closeOnBackdrop } from "./dialog";
 import { TaskRecordPanel } from "./TaskRecordPanel";
+import { keptHistory, loadHistory } from "./taskWarm";
 
 const initialState: TaskFormState = {};
 
@@ -141,8 +142,10 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
     // fetching once meant a reopen could show a stale trail — someone
     // moving a task "now" would still see whatever the log looked like the
     // first time this dialog was ever opened.
-    setLogs(null);
-    getTaskActivity(task.id).then(setLogs);
+    // what the pointer on the task already loaded (taskWarm.ts), so the
+    // window opens with it in place; refreshed either way
+    setLogs(keptHistory(task.id));
+    loadHistory(task.id).then(setLogs);
     setDateReason("");
     setOpenedAt((n) => n + 1);
   }

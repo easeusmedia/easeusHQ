@@ -15,6 +15,7 @@ import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskLink, WorkTaskAttachment } from "./actions";
 import { dueState } from "@/lib/due";
 import { useFrozen } from "../FrozenTasks";
+import { warmTask } from "../taskWarm";
 
 export type WorkTaskCardData = {
   id: string;
@@ -104,6 +105,7 @@ export function WorkTaskCard({
         {...frozen(task.id)}
         role="button"
         tabIndex={0}
+        onPointerEnter={() => warmTask({ kind: "work", id: task.id })}
         onClick={() => dialogRef.current?.open()}
         onKeyDown={(e) => e.key === "Enter" && dialogRef.current?.open()}
         className="card-surface card-interactive group relative flex w-full cursor-pointer flex-col gap-2 rounded-xl p-3 text-left shadow-sm"

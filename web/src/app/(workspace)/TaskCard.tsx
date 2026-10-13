@@ -16,6 +16,7 @@ import { TaskTagChip, type TaskTagOption } from "./TaskTagPicker";
 import { dueState } from "@/lib/due";
 import { needsGrade } from "@/lib/videoScore";
 import { useFrozen } from "./FrozenTasks";
+import { warmTask } from "./taskWarm";
 
 // kept as re-exports so the existing call sites don't all have to change —
 // STAGE in @/lib/stages is the single definition
@@ -325,6 +326,7 @@ export function TaskCard({
   return (
     <div
       {...frozen(task.id)}
+      onPointerEnter={() => warmTask({ kind: "task", id: task.id })}
       onClick={() => detailsRef.current?.open()}
       className={`card-surface card-interactive group relative flex cursor-pointer flex-col gap-2 rounded-xl p-3 shadow-sm ${tierClass(tier)}`}
     >

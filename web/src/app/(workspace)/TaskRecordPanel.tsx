@@ -6,6 +6,7 @@ import { ChevronDown, Layers, Plus, UserPlus } from "lucide-react";
 import { Dropdown } from "./Dropdown";
 import { Avatar } from "./TaskCard";
 import { addPeopleToTask, getTaskRecord, setTaskDepartment } from "./taskRecord";
+import { keptRecord, loadRecord } from "./taskWarm";
 import type { TaskRef } from "@/lib/taskTrack";
 import { dayOf, shortDay } from "@/lib/editorKpi";
 
@@ -36,7 +37,9 @@ function Faces({ people, size = 18 }: { people: string[]; size?: number }) {
 // that line, as a plain list in order. Loaded when the window opens.
 export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; createdAt: string | Date; open: boolean }) {
   const router = useRouter();
-  const [record, setRecord] = useState<Loaded | null>(null);
+  // what the pointer on the task already loaded (taskWarm.ts), so the window
+  // opens with it in place; refreshed below either way
+  const [record, setRecord] = useState<Loaded | null>(() => keptRecord(task));
   const [details, setDetails] = useState(false);
   const [adding, setAdding] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -46,11 +49,11 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
 
   // by its kind and id: the ref itself is a fresh object every render
   const { kind, id } = task;
-  const load = useCallback(() => getTaskRecord({ kind, id }).then(setRecord), [kind, id]);
+  const load = useCallback(() => loadRecord({ kind, id }).then(setRecord), [kind, id]);
   useEffect(() => {
     if (!open) return;
     let live = true;
-    getTaskRecord({ kind, id }).then((r) => live && setRecord(r));
+    loadRecord({ kind, id }).then((r) => live && setRecord(r));
     return () => {
       live = false;
     };

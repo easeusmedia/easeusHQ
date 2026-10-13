@@ -11,6 +11,7 @@ import { STAGE } from "@/lib/stages";
 import { availableStatuses, type Role } from "@/lib/workflow";
 import { needsGrade } from "@/lib/videoScore";
 import { useFrozen } from "./FrozenTasks";
+import { warmTask } from "./taskWarm";
 
 // One task as a list row — the same click-to-open-details behaviour the
 // board cards have, so a task is editable everywhere it's shown rather
@@ -67,6 +68,7 @@ export function TaskRow({
     <>
       <div
         {...frozen(task.id)}
+        onPointerEnter={() => warmTask({ kind: "task", id: task.id })}
         onClick={() => detailsRef.current?.open()}
         className={
           (flat
