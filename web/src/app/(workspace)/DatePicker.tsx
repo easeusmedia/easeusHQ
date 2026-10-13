@@ -109,10 +109,6 @@ export function DatePicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const selected = useMemo(() => parse(value), [value]);
-  // the day highlighted inside the open calendar, which only becomes the
-  // real value on "Choose date" — so browsing months (or clicking around)
-  // can't change what's saved until it's confirmed
-  const [draft, setDraft] = useState<Ymd | null>(selected);
   const [view, setView] = useState<{ y: number; m: number }>(() => {
     const base = selected ?? todayYmd();
     return { y: base.y, m: base.m };
@@ -129,16 +125,15 @@ export function DatePicker({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  // the rendered calendar is 24rem tall; used to flip it above the field
+  // the rendered calendar is about 21rem tall (no footer since 13 Oct); used to flip it above the field
   // when there's no room below, sitting right against it
   const rem = typeof window === "undefined" ? 16 : parseFloat(getComputedStyle(document.documentElement).fontSize);
-  const { position, place } = usePopover(24 * rem);
+  const { position, place } = usePopover(21 * rem);
   const close = useCallback(() => setOpen(false), []);
   useCloseOnScroll(open, close);
 
   function openPanel() {
     const base = selected ?? todayYmd();
-    setDraft(selected);
     setView({ y: base.y, m: base.m });
     setMode("days");
     const trigger = triggerRef.current;
@@ -274,13 +269,17 @@ export function DatePicker({
 
           <div className="grid grid-cols-7 gap-1">
             {cells.map(({ ymd, current }) => {
-              const isSelected = sameDay(draft, ymd);
+              const isSelected = sameDay(selected, ymd);
               const isToday = sameDay(today, ymd);
               return (
                 <button
                   key={`${ymd.y}-${ymd.m}-${ymd.d}`}
                   type="button"
-                  onClick={() => setDraft(ymd)}
+                  // a click picks the day and closes, no confirming step (13 Oct 2026)
+                  onClick={() => {
+                    onChange(format(ymd));
+                    setOpen(false);
+                  }}
                   className={`flex h-9 items-center justify-center rounded-md text-sm ${
                     isSelected
                       ? "bg-foreground font-medium text-background"
@@ -306,7 +305,7 @@ export function DatePicker({
                         setView({ y: view.y, m: i + 1 });
                         setMode("days");
                       }}
-                      className={cellCls(draft?.y === view.y && draft.m === i + 1, today.y === view.y && today.m === i + 1)}
+                      className={cellCls(selected?.y === view.y && selected.m === i + 1, today.y === view.y && today.m === i + 1)}
                     >
                       {name.slice(0, 3)}
                     </button>
@@ -319,7 +318,7 @@ export function DatePicker({
                         setView((v) => ({ ...v, y }));
                         setMode("months");
                       }}
-                      className={cellCls(draft?.y === y, today.y === y)}
+                      className={cellCls(selected?.y === y, today.y === y)}
                     >
                       {y}
                     </button>
@@ -328,8 +327,8 @@ export function DatePicker({
           )}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
-            {clearable && value && (
+          {clearable && value && (
+            <div className="mt-3 flex items-center">
               <button
                 type="button"
                 onClick={() => {
@@ -340,27 +339,8 @@ export function DatePicker({
               >
                 Clear
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="btn btn-sm ml-auto border border-border bg-surface-2 text-muted hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={!draft}
-              onClick={() => {
-                if (!draft) return;
-                onChange(format(draft));
-                setOpen(false);
-              }}
-              className="btn btn-sm btn-glow disabled:opacity-50"
-            >
-              Choose date
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
