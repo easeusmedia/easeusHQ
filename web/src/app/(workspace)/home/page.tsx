@@ -136,7 +136,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       kind: n.kind === "overdue" ? ("overdue" as const) : n.kind === "shared" ? ("shared" as const) : ("note" as const),
       tone: n.kind === "overdue" ? ("rose" as const) : n.kind === "shared" ? ("accent" as const) : ("neutral" as const),
       text: n.body,
-      sub: [n.kind === "note" ? n.by : null, shortDay(dayOf(n.createdAt))].filter(Boolean).join(" · "),
+      sub: [n.forwardedBy ? `Forwarded by ${n.forwardedBy}` : n.kind === "note" ? n.by : null, shortDay(dayOf(n.createdAt))].filter(Boolean).join(" · "),
+      remark: n.remark,
+      forwardedBy: n.forwardedBy,
+      forwardRemark: n.forwardRemark,
       // the task it's about, to open
       open: n.taskId ? `t${n.taskId}` : n.workTaskId ? `w${n.workTaskId}` : undefined,
       fresh: fresh.has(n.id),
@@ -158,6 +161,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       // Level 1 and 2 schedule meetings
       canMeet={full || isLead(viewer)}
       canNote={full}
+      // Level 1 and 2 remark on and forward their notices
+      canForward={full || isLead(viewer)}
       items={items}
       notices={notices}
       meetings={calendar.meetings}

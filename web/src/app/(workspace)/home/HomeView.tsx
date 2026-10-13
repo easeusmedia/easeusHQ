@@ -13,11 +13,13 @@ import {
   ChevronRight,
   Clock,
   FileSignature,
+  Forward,
   GripVertical,
   Layers,
   ListChecks,
   Maximize2,
   MessageSquare,
+  PenLine,
   Plus,
   Receipt,
   StickyNote,
@@ -42,7 +44,7 @@ import { addDays, daysBetween, shortDay, weekday } from "@/lib/editorKpi";
 import { calendarConsentUrl } from "@/lib/driveClient";
 import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
-import { addNotice, clearNotice, hideNotice, scheduleMeeting } from "./actions";
+import { addNotice, clearNotice, forwardNotice, hideNotice, scheduleMeeting, setNoticeRemark } from "./actions";
 import { warmTask } from "../taskWarm";
 
 export type HomeItem = {
@@ -77,6 +79,11 @@ export type Notice = {
   open?: string;
   // not seen before this visit
   fresh?: boolean;
+  // Level 1 and 2: their own remark on it; and, passed on to them, who did
+  // and the remark it came with
+  remark?: string | null;
+  forwardedBy?: string | null;
+  forwardRemark?: string | null;
 };
 
 type Env = { editors: { id: string; name: string }[]; projects: Project[]; taskTags: TaskTagOption[]; actingRole: Role; actingUserId: string };
@@ -291,6 +298,7 @@ export function HomeView({
   showMine,
   canMeet,
   canNote,
+  canForward,
   items,
   notices,
   meetings,
@@ -306,6 +314,8 @@ export function HomeView({
   showMine: boolean;
   canMeet: boolean;
   canNote: boolean;
+  // Level 1 and 2: remark on and forward their notices
+  canForward: boolean;
   items: HomeItem[];
   notices: Notice[];
   meetings: Meeting[];
@@ -651,6 +661,8 @@ export function HomeView({
         key="notices"
         notices={notices}
         canNote={canNote}
+        canForward={canForward}
+        people={people.filter((p) => p.id !== meId)}
         onOpen={(key) => items.some((i) => i.key === key) && open(key)}
         collapsed={layout.collapsed.includes("notices")}
         onCollapse={() => collapse("notices")}
@@ -863,11 +875,22 @@ const NOTICE_ICON: Record<Notice["kind"], React.ReactNode> = {
   shared: <UserPlus size={14} />,
 };
 
+// a notice's own small buttons, quiet until the pointer is on it (always shown
+// on a touchscreen); a click on one doesn't open what the notice links to
+const QUIET_ACT = "shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 pointer-coarse:opacity-100";
+const act = (run: () => void) => (e: React.MouseEvent) => {
+  e.stopPropagation();
+  e.preventDefault();
+  run();
+};
+
 // What needs this person: their overdue tasks, tasks they've been added to,
 // and (Level 1) invoices, contracts, client messages and their own notes
 function NoticesSection({
   notices,
   canNote,
+  canForward,
+  people,
   onOpen,
   collapsed,
   onCollapse,
@@ -875,6 +898,8 @@ function NoticesSection({
 }: {
   notices: Notice[];
   canNote: boolean;
+  canForward: boolean;
+  people: { id: string; name: string }[];
   onOpen: (key: string) => void;
   collapsed: boolean;
   onCollapse: () => void;
@@ -889,6 +914,33 @@ function NoticesSection({
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const [gone, setGone] = useState<Set<string>>(new Set());
   const shown = notices.filter((n) => !gone.has(n.key));
+  // the notice whose remark is being written, or that's being forwarded
+  const [remarking, setRemarking] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [forwarding, setForwarding] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sent, setSent] = useState<string | null>(null);
+
+  async function saveRemark(n: Notice) {
+    if (!n.id) return;
+    setBusy(true);
+    const res = await setNoticeRemark(n.id, draft).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+    setBusy(false);
+    if (res.error) return setError(res.error);
+    setRemarking(null);
+    router.refresh();
+  }
+
+  async function forward(n: Notice) {
+    setBusy(true);
+    const res = await forwardNotice(n.id ? { id: n.id } : { text: n.text }, picked).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+    setBusy(false);
+    if (res.error) return setError(res.error);
+    setForwarding(null);
+    setPicked([]);
+    setSent(n.key);
+    setTimeout(() => setSent((k) => (k === n.key ? null : k)), 2500);
+  }
 
   // a saved notice goes for good; one the app works out (contracts waiting,
   // an invoice due) is hidden until what it says changes
@@ -969,8 +1021,28 @@ function NoticesSection({
                     {n.text}
                   </p>
                   {n.sub && <p className="mt-0.5 text-xs text-muted">{n.sub}</p>}
+                  {/* passed on with a remark: the forwarder's words */}
+                  {n.forwardRemark && <p className="mt-1 text-xs text-foreground/75">&ldquo;{n.forwardRemark}&rdquo;</p>}
+                  {/* their own remark on it */}
+                  {n.remark && remarking !== n.key && (
+                    <p className="mt-1 flex items-start gap-1.5 text-xs text-foreground/75">
+                      <PenLine size={11} className="mt-[3px] shrink-0 text-muted" />
+                      {n.remark}
+                    </p>
+                  )}
+                  {sent === n.key && <p className="fade-in mt-1 text-xs text-emerald-300">Forwarded</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}
+                {canForward && n.id && (
+                  <span role="button" tabIndex={0} aria-label="Add a remark" title="Add a remark" onClick={act(() => { setForwarding(null); setDraft(n.remark ?? ""); setRemarking(n.key); })} className={QUIET_ACT}>
+                    <PenLine size={13} />
+                  </span>
+                )}
+                {canForward && (
+                  <span role="button" tabIndex={0} aria-label="Forward" title="Forward" onClick={act(() => { setRemarking(null); setPicked([]); setForwarding(n.key); })} className={QUIET_ACT}>
+                    <Forward size={13} />
+                  </span>
+                )}
                 <span
                   role="button"
                   tabIndex={0}
@@ -1002,7 +1074,61 @@ function NoticesSection({
             // cleared: it folds away and the ones below move up
             return (
               <Fold key={n.key} open={!leaving.has(n.key)}>
-                <div className="pb-1.5">{card}</div>
+                <div className="pb-1.5">
+                  {card}
+                  {/* a remark of their own, written under it */}
+                  <Fold open={remarking === n.key}>
+                    <div className="mt-1.5 flex items-center gap-2 rounded-2xl bg-white/[0.04] px-4 py-2.5 ring-1 ring-white/[0.08]">
+                      {remarking === n.key && (
+                        <input
+                          autoFocus
+                          value={draft}
+                          disabled={busy}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveRemark(n);
+                            else if (e.key === "Escape") setRemarking(null);
+                          }}
+                          placeholder="Your remark, then Enter"
+                          className="min-w-0 flex-1 bg-transparent text-sm outline-none! placeholder:text-muted/60"
+                        />
+                      )}
+                      <button type="button" onClick={() => setRemarking(null)} aria-label="Cancel" className="text-muted hover:text-foreground">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </Fold>
+                  {/* passed on to whoever's picked */}
+                  <Fold open={forwarding === n.key}>
+                    <div className="mt-1.5 flex flex-col gap-2.5 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.08]">
+                      <div className="flex flex-wrap gap-1.5">
+                        {people.map((p) => {
+                          const on = picked.includes(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() => setPicked((all) => (on ? all.filter((x) => x !== p.id) : [...all, p.id]))}
+                              className="chip flex items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-0.5 text-xs"
+                            >
+                              <Avatar name={p.name} size={18} presence={false} />
+                              {p.name.split(" ")[0]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => setForwarding(null)} className="btn btn-sm btn-ghost">
+                          Cancel
+                        </button>
+                        <button type="button" onClick={() => forward(n)} disabled={busy || !picked.length} className="btn btn-sm btn-glow disabled:opacity-50">
+                          <Forward size={13} /> {busy ? "Forwarding…" : "Forward"}
+                        </button>
+                      </div>
+                    </div>
+                  </Fold>
+                </div>
               </Fold>
             );
           })}

@@ -1067,6 +1067,12 @@ model Notice {
   taskId     String?
   workTaskId String?
   readAt     DateTime?
+  // Level 1 and 2 (12 Oct 2026): a remark of their own on a notice they
+  // got, and a notice they passed on to someone (who, by name, and the
+  // remark it came with)
+  remark        String? @db.Text
+  forwardedBy   String?
+  forwardRemark String? @db.Text
 
   @@index([forId])
 }

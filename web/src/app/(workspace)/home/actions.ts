@@ -69,3 +69,47 @@ export async function hideNotice(key: string, text: string): Promise<{ error?: s
   revalidatePath("/home");
   return {};
 }
+
+// Level 1 and 2 annotate and pass on the notices they get (12 Oct 2026)
+const upper = (u: { role: string; email?: string | null }) => isFounder(u) || isLead(u);
+// theirs, or (Level 1) one of Level 1's own notes
+const theirs = (me: { id: string; role: string; email?: string | null }, n: { forId: string | null }) => n.forId === me.id || (n.forId === null && isFounder(me));
+
+// A remark of their own on a notice they got; empty clears it
+export async function setNoticeRemark(id: string, text: string): Promise<{ error?: string }> {
+  const me = await getViewer();
+  if (!me || !upper(me)) return { error: "Only Level 1 and Level 2 can add a remark." };
+  const notice = await prisma.notice.findUnique({ where: { id }, select: { forId: true } });
+  if (!notice || !theirs(me, notice)) return { error: "That notice isn't yours." };
+  await prisma.notice.update({ where: { id }, data: { remark: text.trim().slice(0, 1000) || null } });
+  revalidatePath("/home");
+  return {};
+}
+
+// Passing a notice on: each person picked gets it in their Notices, saying
+// who forwarded it and with the forwarder's remark, if they wrote one. A
+// notice the app works out (contracts waiting, an invoice due) goes as its
+// words.
+export async function forwardNotice(from: { id?: string; text?: string }, userIds: string[]): Promise<{ error?: string }> {
+  const me = await getViewer();
+  if (!me || !upper(me)) return { error: "Only Level 1 and Level 2 can forward a notice." };
+  const to = await prisma.user.findMany({ where: { id: { in: userIds, not: me.id }, employment: { not: "former" } }, select: { id: true } });
+  if (!to.length) return { error: "Pick who to forward it to." };
+  const original = from.id ? await prisma.notice.findUnique({ where: { id: from.id } }) : null;
+  if (from.id && (!original || !theirs(me, original))) return { error: "That notice isn't yours." };
+  const body = original?.body ?? from.text?.trim().slice(0, 500);
+  if (!body) return { error: "There's nothing to forward." };
+  await prisma.notice.createMany({
+    data: to.map((p) => ({
+      forId: p.id,
+      body,
+      kind: original?.kind ?? "note",
+      taskId: original?.taskId ?? null,
+      workTaskId: original?.workTaskId ?? null,
+      forwardedBy: me.name,
+      forwardRemark: original?.remark ?? null,
+    })),
+  });
+  revalidatePath("/home");
+  return {};
+}
