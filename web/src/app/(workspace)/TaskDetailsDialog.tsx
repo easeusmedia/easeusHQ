@@ -21,6 +21,7 @@ import { Checkbox } from "./Checkbox";
 import { closeOnBackdrop } from "./dialog";
 import { TaskRecordPanel } from "./TaskRecordPanel";
 import { keptHistory, loadHistory } from "./taskWarm";
+import { useNameOf } from "./photos";
 
 const initialState: TaskFormState = {};
 
@@ -164,6 +165,9 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
   }, [state]);
 
   const created = logs?.[0];
+  // who made it, from the task itself so it shows the moment the window
+  // opens; older tasks without it wait for their history
+  const createdBy = useNameOf(task.createdById) ?? created?.actorName;
   const formId = `task-details-form-${task.id}`;
 
   // max-h: nothing capped the dialog's height before, so a task with a
@@ -484,7 +488,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               </div>
             )}
 
-            <TaskRecordPanel key={openedAt} task={{ kind: "task", id: task.id }} createdAt={task.createdAt} open={openedAt > 0} />
+            <TaskRecordPanel key={openedAt} task={{ kind: "task", id: task.id }} createdAt={task.createdAt} createdById={task.createdById} teamId={task.teamId} open={openedAt > 0} />
             {state.error && <p className="col-span-2 text-sm text-red-300">{state.error}</p>}
           </form>
 
@@ -530,7 +534,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           )}
           <p className="min-w-0 flex-1 truncate text-xs text-muted">
             Created {formatDateTime(task.createdAt)}
-            {created && <> by {created.actorName}</>}
+            {createdBy && <> by {createdBy}</>}
           </p>
           <div className="flex shrink-0 gap-2">
             <button type="button" onClick={() => dialogRef.current?.close()} className="btn btn-ghost">

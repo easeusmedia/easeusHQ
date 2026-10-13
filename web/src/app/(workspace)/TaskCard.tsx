@@ -178,6 +178,10 @@ export type TaskCardData = {
   handedOffAt: Date | null;
   scheduledFor: Date | null;
   createdAt: Date;
+  // who added it (older tasks: unknown) and its department, where the query
+  // brought them (the task window shows them at once)
+  createdById?: string | null;
+  teamId?: string | null;
   sortOrder: number;
   tags: { id: string; name: string }[];
   internal: boolean;

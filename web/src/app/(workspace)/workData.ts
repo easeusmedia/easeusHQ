@@ -84,6 +84,8 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
       createdBy: { id: t.createdBy.id, name: t.createdBy.name },
       // its department, which the Board's department views split by
       teamSlug: t.team?.slug ?? t.assignedTo.team?.slug ?? null,
+      // the one it's filed under, for its window's department pill
+      teamId: t.teamId,
       createdAt: t.createdAt.toISOString(),
       strikes: t.strikes,
     })),

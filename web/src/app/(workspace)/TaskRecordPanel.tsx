@@ -7,6 +7,7 @@ import { Dropdown } from "./Dropdown";
 import { Avatar } from "./TaskCard";
 import { addPeopleToTask, getTaskRecord, setTaskDepartment } from "./taskRecord";
 import { keptRecord, loadRecord } from "./taskWarm";
+import { useDepartmentName, useNameOf } from "./photos";
 import type { TaskRef } from "@/lib/taskTrack";
 import { dayOf, shortDay } from "@/lib/editorKpi";
 
@@ -35,7 +36,23 @@ function Faces({ people, size = 18 }: { people: string[]; size?: number }) {
 // department it's filed under; then, in one line, who else is on it, when
 // it's due and how many due dates it has missed. What happened opens from
 // that line, as a plain list in order. Loaded when the window opens.
-export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; createdAt: string | Date; open: boolean }) {
+export function TaskRecordPanel({
+  task,
+  createdAt,
+  createdById,
+  teamId,
+  open,
+}: {
+  task: TaskRef;
+  createdAt: string | Date;
+  // who made it and its department, from the task itself: shown the moment
+  // the window opens, before the record arrives
+  createdById?: string | null;
+  teamId?: string | null;
+  open: boolean;
+}) {
+  const creator = useNameOf(createdById);
+  const teamName = useDepartmentName(teamId);
   const router = useRouter();
   // what the pointer on the task already loaded (taskWarm.ts), so the window
   // opens with it in place; refreshed below either way
@@ -78,10 +95,18 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
     return (
       <div className={BOX}>
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
-          <span>Created {day(createdAt)}</span>
-          <span aria-hidden className="invisible">
-            <Dropdown size="sm" pill={{ icon: <Layers size={12} /> }} value="" placeholder="Department" options={[]} />
+          <span>
+            Created {day(createdAt)}
+            {creator && <> by {creator}</>}
           </span>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted">
+              <UserPlus size={13} /> Add people
+            </span>
+            <span aria-hidden={!teamName} className={teamName ? undefined : "invisible"}>
+              <Dropdown size="sm" pill={{ icon: <Layers size={12} className="text-sky-400" /> }} value={teamId ?? ""} placeholder="Department" options={teamId && teamName ? [{ value: teamId, label: teamName }] : []} />
+            </span>
+          </div>
         </div>
       </div>
     );
@@ -118,7 +143,7 @@ export function TaskRecordPanel({ task, createdAt, open }: { task: TaskRef; crea
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
         <span>
           Created {day(createdAt)}
-          {record.createdBy && <> by {record.createdBy}</>}
+          {(record.createdBy ?? creator) && <> by {record.createdBy ?? creator}</>}
         </span>
         <div className="flex items-center gap-2">
           {!adding && record.canAdd.length > 0 && (

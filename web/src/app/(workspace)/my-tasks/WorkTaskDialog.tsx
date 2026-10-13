@@ -324,7 +324,7 @@ export const WorkTaskDialog = forwardRef<
           </Reveal>
           {mode === "edit" && task && (
             <div className="grid grid-cols-2 px-5 pb-4">
-              <TaskRecordPanel key={openedAt} task={{ kind: "work", id: task.id }} createdAt={task.createdAt ?? new Date()} open={openedAt > 0} />
+              <TaskRecordPanel key={openedAt} task={{ kind: "work", id: task.id }} createdAt={task.createdAt ?? new Date()} createdById={task.createdBy?.id} teamId={task.teamId} open={openedAt > 0} />
             </div>
           )}
 

@@ -121,7 +121,13 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     .map((u) => u.name);
 
   return (
-    <PeopleProvider photos={photos} online={online} self={sessionUser.name}>
+    <PeopleProvider
+      photos={photos}
+      online={online}
+      self={sessionUser.name}
+      names={Object.fromEntries(users.map((u) => [u.id, u.name]))}
+      departments={Object.fromEntries(teams.map((t) => [t.id, t.name]))}
+    >
     <FrozenTasks items={frozen}>
     {/* their own look (the profile menu's Theme): dark, or mist (globals.css) */}
     <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>

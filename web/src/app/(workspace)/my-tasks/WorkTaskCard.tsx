@@ -36,6 +36,7 @@ export type WorkTaskCardData = {
   createdBy: { id: string; name: string };
   // its department's slug, for the Board's department views
   teamSlug?: string | null;
+  teamId?: string | null;
   // when it was added (ISO)
   createdAt?: string;
   // times it has gone past its completion date
