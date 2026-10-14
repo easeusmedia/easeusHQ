@@ -19,8 +19,9 @@ export const dynamic = "force-dynamic";
 // task ends at "done".
 const COMPLETED_STATUSES: TaskStatus[] = ["delivered_and_uploaded"];
 
-// The record of everything this company has finished — both task systems in
-// one list, so "how much did we get done, by whom, how fast" can be asked of
+// The record of everything this company has finished in the app — both
+// task systems in one list (to-dos that came down from Notion workbooks
+// aren't: 14 Oct 2026), so "how much did we get done, by whom, how fast" can be asked of
 // the company rather than of one board. Who sees whose work is the same
 // three rings the rest of the app uses (lib/scope): your own work, your
 // team's, or everyone's.
@@ -51,7 +52,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       },
     }),
     prisma.workTask.findMany({
-      where: { ...scope, status: "done" },
+      where: { ...scope, status: "done", fromNotion: false },
       orderBy: { completedAt: "desc" },
       include: {
         assignedTo: { select: { ...PUBLIC_USER_SELECT, role: true, team: { select: { slug: true, name: true } } } },

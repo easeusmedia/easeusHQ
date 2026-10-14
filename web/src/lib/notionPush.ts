@@ -285,6 +285,7 @@ export async function pullWorkbook(userId: string): Promise<{ added: number; upd
         teamId: person.teamId,
         notionPageId: row.id,
         notionDatabaseId: databaseId,
+        fromNotion: true,
         sortOrder: now.getTime(),
         ...synced,
       });

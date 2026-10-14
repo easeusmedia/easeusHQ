@@ -742,6 +742,9 @@ model WorkTask {
   // since (updatedAt later) means Push has something to send, and Sync
   // leaves it alone until then
   notionSyncedAt   DateTime?
+  // came down from a Notion workbook (Sync), rather than made here: History
+  // lists only work done in the app (14 Oct 2026, Abhishek)
+  fromNotion       Boolean          @default(false)
 
   // Stamped when it first reaches `done`, and left alone afterwards — this
   // is what an employee's work history is built from, so it has to record

@@ -58,7 +58,7 @@ export async function GET(request: Request) {
       include: { assignedTo: person, tags: { select: { name: true } }, project },
     }),
     prisma.workTask.findMany({
-      where: { ...scope, status: "done" },
+      where: { ...scope, status: "done", fromNotion: false },
       orderBy: { completedAt: "desc" },
       include: { assignedTo: person, tags: { select: { name: true } }, project },
     }),
