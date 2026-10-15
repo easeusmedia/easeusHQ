@@ -274,12 +274,15 @@ export async function pullWorkbook(userId: string): Promise<{ added: number; upd
     const finished = due ?? start ?? new Date(row.last_edited_time ?? now);
     const t = byPage.get(key(row.id));
     if (!t) {
+      // only work still to do comes down: what's finished in Notion stays
+      // there (its finished rows were deleted here, 15 Oct 2026, Abhishek)
+      if (done) continue;
       fresh.push({
         title,
-        status: done ? "done" : "todo",
+        status: "todo",
         dueDate: due,
         createdAt: start ?? new Date((row as { created_time?: string }).created_time ?? now),
-        completedAt: done ? finished : null,
+        completedAt: null,
         assignedToId: userId,
         createdById: userId,
         teamId: person.teamId,
