@@ -115,30 +115,19 @@ export function TaskRecordPanel({
   const previous = record.dates.at(-1)?.from?.slice(0, 10) ?? null;
   const hasDates = record.dates.length > 0 || record.strikes > 0;
 
-  // every date it has had: the first, then each it was changed to
-  const dates = [record.dates[0]?.from ?? record.due, ...record.dates.map((d) => d.to)];
-  // whether it went past date i, and which miss that was: the strikes rose
-  // between being given that date and being changed off it (or now)
-  const missOf = (i: number) => {
-    const after = i < record.dates.length ? record.dates[i].strike : record.strikes;
-    const before = i === 0 ? 0 : record.dates[i - 1].strike;
-    return after > before ? after : 0;
-  };
+  // the date it was first given
+  const firstDue = record.dates[0]?.from ?? record.due;
   const first = (name: string) => name.split(" ")[0];
-  // what happened, in order: the first due date, each miss, each change of
-  // date and each person added, with their reasons
-  type Event = { at: string; tone: "plain" | "miss" | "change" | "add"; text: string; note?: string };
+  // what happened, in order: the first due date, each change of date and
+  // each person added, with their reasons. No line for a missed date: the
+  // change after it says as much (15 Oct 2026)
+  type Event = { at: string; tone: "plain" | "change" | "add"; text: string; note?: string };
   const events: Event[] = [
-    ...(hasDates && dates[0] ? [{ at: new Date(createdAt).toISOString(), tone: "plain" as const, text: `Due date set to ${day(dates[0])}${record.createdBy ? ` by ${first(record.createdBy)}` : ""}` }] : []),
-    ...dates.flatMap((d, i) => {
-      const n = missOf(i);
-      // counted the morning after
-      return n && d ? [{ at: new Date(new Date(d).getTime() + 27 * 3_600_000).toISOString(), tone: "miss" as const, text: `Not finished by the ${day(d)} due date` }] : [];
-    }),
+    ...(hasDates && firstDue ? [{ at: new Date(createdAt).toISOString(), tone: "plain" as const, text: `Due date set to ${day(firstDue)}${record.createdBy ? ` by ${first(record.createdBy)}` : ""}` }] : []),
     ...record.dates.map((d) => ({ at: d.at, tone: "change" as const, text: `${first(d.by)} changed the due date to ${day(d.to)}`, note: d.reason })),
     ...record.people.map((p) => ({ at: p.at, tone: "add" as const, text: `${first(p.by)} added ${first(p.name)}`, note: p.reason })),
   ].sort((a, b) => a.at.localeCompare(b.at));
-  const DOT = { plain: "bg-white/40", miss: "bg-rose-400", change: "bg-amber-300", add: "bg-emerald-400" };
+  const DOT = { plain: "bg-white/40", change: "bg-amber-300", add: "bg-emerald-400" };
 
   return (
     <div className={BOX}>
@@ -258,7 +247,7 @@ export function TaskRecordPanel({
                 <span className={`relative mt-[5px] size-2.5 shrink-0 rounded-full ${DOT[e.tone]}`} />
                 <div className="min-w-0 flex-1 text-xs">
                   <p className="flex items-baseline justify-between gap-3">
-                    <span className={e.tone === "miss" ? "text-rose-300" : "text-foreground/90"}>{e.text}</span>
+                    <span className="text-foreground/90">{e.text}</span>
                     <span className="shrink-0 text-[12px] text-muted tabular-nums">{day(e.at)}</span>
                   </p>
                   {e.note && <p className="mt-0.5 leading-relaxed text-muted">&ldquo;{e.note}&rdquo;</p>}
