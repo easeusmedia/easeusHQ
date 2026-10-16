@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, MoreHorizontal, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { dayOf, dayPlatform, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
@@ -10,15 +10,14 @@ import { ReasonDialog } from "./ReasonDialog";
 import { LeadCard } from "./LeadCard";
 import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
+import { MENU_ITEM, MoreMenu } from "../../MoreMenu";
 import { Reveal } from "../../Reveal";
 import { scrollPageNearEdge } from "../../StickyColumns";
-import { topLayer, useCloseOnScroll, usePopover } from "../../popover";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 const COLUMN = "w-[15rem] shrink-0";
 // a column shows this many cards, the rest on Show more
 const PER_COLUMN = 10;
-export const MENU_ITEM = "menu-item px-2.5 py-1.5 text-xs disabled:pointer-events-none disabled:opacity-40";
 const QUIET_ROW = "flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-foreground/[0.05] hover:text-foreground";
 
 const without = <T,>(map: Record<string, T>, id: string) => Object.fromEntries(Object.entries(map).filter(([k]) => k !== id));
@@ -32,73 +31,6 @@ function indexAt(column: HTMLElement, y: number, dragId: string) {
     return y < r.top + r.height / 2;
   });
   return i < 0 ? cards.length : i;
-}
-
-// A "⋯" button and its menu, drawn in the top layer so no column or
-// scroller can crop it. The menu gets `close` to call after a pick.
-export function MoreMenu({
-  label,
-  width = 224,
-  height = 240,
-  children,
-}: {
-  label: string;
-  width?: number;
-  height?: number;
-  children: (close: () => void) => React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const wrap = useRef<HTMLSpanElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const { position, place } = usePopover(height);
-  const close = useCallback(() => setOpen(false), []);
-  useCloseOnScroll(open, close);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-
-  return (
-    <span ref={wrap} className="relative inline-flex shrink-0">
-      <button
-        ref={trigger}
-        type="button"
-        aria-label={label}
-        title={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (open) return setOpen(false);
-          place(trigger.current, { width, align: "end" });
-          setOpen(true);
-        }}
-        className={`grid size-7 place-items-center rounded-lg transition-colors hover:bg-foreground/[0.06] hover:text-foreground ${open ? "bg-foreground/[0.06] text-foreground" : "text-muted"}`}
-      >
-        <MoreHorizontal size={15} />
-      </button>
-      {open && position && (
-        <div
-          {...topLayer}
-          role="menu"
-          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
-          className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg"
-        >
-          {children(close)}
-        </div>
-      )}
-    </span>
-  );
 }
 
 // A field that adds something on Enter and goes away on Escape (or when

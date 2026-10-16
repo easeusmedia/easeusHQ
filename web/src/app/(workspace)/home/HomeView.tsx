@@ -46,6 +46,7 @@ import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, forwardNotice, hideNotice, scheduleMeeting, setNoticeRemark } from "./actions";
 import { warmTask } from "../taskWarm";
+import { MENU_ITEM, MoreMenu } from "../MoreMenu";
 
 export type HomeItem = {
   key: string;
@@ -875,27 +876,6 @@ const NOTICE_ICON: Record<Notice["kind"], React.ReactNode> = {
   shared: <UserPlus size={14} />,
 };
 
-// a notice's own small buttons, quiet until the pointer is on it (always shown
-// on a touchscreen); a click on one doesn't open what the notice links to
-// A notice's actions: a small bordered group that fades in on hover (always
-// there on a touchscreen), each button's name beside it on hover. The name
-// sits within the card's own height and moves with no transform, so the
-// Dock app never shows it past the card's rounded corners.
-const NOTICE_ACTIONS = "relative flex shrink-0 items-center gap-0.5 rounded-full border border-white/[0.1] bg-white/[0.04] p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100";
-const NOTICE_ACT = "group/act grid size-7 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground focus-visible:bg-white/[0.08] focus-visible:text-foreground";
-function ActName({ children }: { children: string }) {
-  return (
-    <span aria-hidden className="popover pointer-events-none absolute inset-y-0 right-full my-auto mr-2 h-fit rounded-lg px-2 py-1 text-xs whitespace-nowrap text-foreground opacity-0 transition-opacity duration-150 group-hover/act:opacity-100 group-focus-visible/act:opacity-100">
-      {children}
-    </span>
-  );
-}
-const act = (run: () => void) => (e: React.MouseEvent) => {
-  e.stopPropagation();
-  e.preventDefault();
-  run();
-};
-
 // What needs this person: their overdue tasks, tasks they've been added to,
 // and (Level 1) invoices, contracts, client messages and their own notes
 function NoticesSection({
@@ -1045,27 +1025,10 @@ function NoticesSection({
                   {sent === n.key && <p className="fade-in mt-1 text-xs text-emerald-300">Forwarded</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}
-                <span className={NOTICE_ACTIONS}>
-                  {canForward && n.id && (
-                    <span role="button" tabIndex={0} aria-label="Add a remark" onClick={act(() => { setForwarding(null); setDraft(n.remark ?? ""); setRemarking(n.key); })} className={NOTICE_ACT}>
-                      <PenLine size={14} />
-                      <ActName>{n.remark ? "Edit remark" : "Add a remark"}</ActName>
-                    </span>
-                  )}
-                  {canForward && (
-                    <span role="button" tabIndex={0} aria-label="Forward" onClick={act(() => { setRemarking(null); setPicked([]); setForwarding(n.key); })} className={NOTICE_ACT}>
-                      <Forward size={14} />
-                      <ActName>Forward</ActName>
-                    </span>
-                  )}
-                  <span role="button" tabIndex={0} aria-label="Clear" onClick={act(() => clear(n))} className={NOTICE_ACT}>
-                    <X size={14} />
-                    <ActName>Clear</ActName>
-                  </span>
-                </span>
               </>
             );
-            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-3.5 py-3";
+            // room on the right for its ⋯ menu
+            const cls = "group panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl py-3 pr-12 pl-3.5";
             const card = n.href ? (
               <Link href={n.href} className={cls}>
                 {body}
@@ -1081,10 +1044,34 @@ function NoticesSection({
             return (
               <Fold key={n.key} open={!leaving.has(n.key)}>
                 <div className="pb-1.5">
-                  {card}
+                  <div className="relative">
+                    {card}
+                    {/* what can be done with it, in a menu at its corner (beside the card's link, not in it) */}
+                    <div className="absolute top-2 right-2">
+                      <MoreMenu label="Notice options" width={180} height={130}>
+                        {(close) => (
+                          <>
+                            {canForward && n.id && (
+                              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { close(); setForwarding(null); setDraft(n.remark ?? ""); setRemarking(n.key); }}>
+                                <PenLine size={14} className="text-muted" /> {n.remark ? "Edit remark" : "Add a remark"}
+                              </button>
+                            )}
+                            {canForward && (
+                              <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { close(); setRemarking(null); setPicked([]); setForwarding(n.key); }}>
+                                <Forward size={14} className="text-muted" /> Forward
+                              </button>
+                            )}
+                            <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { close(); clear(n); }}>
+                              <X size={14} className="text-muted" /> Clear
+                            </button>
+                          </>
+                        )}
+                      </MoreMenu>
+                    </div>
+                  </div>
                   {/* a remark of their own, written under it */}
                   <Fold open={remarking === n.key}>
-                    <div className="mt-1.5 flex items-center gap-2 rounded-2xl bg-white/[0.04] px-4 py-2.5 ring-1 ring-white/[0.08]">
+                    <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5">
                       {remarking === n.key && (
                         <input
                           autoFocus
@@ -1106,7 +1093,7 @@ function NoticesSection({
                   </Fold>
                   {/* passed on to whoever's picked */}
                   <Fold open={forwarding === n.key}>
-                    <div className="mt-1.5 flex flex-col gap-2.5 rounded-2xl bg-white/[0.04] p-3 ring-1 ring-white/[0.08]">
+                    <div className="mt-1.5 flex flex-col gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
                       <div className="flex flex-wrap gap-1.5">
                         {people.map((p) => {
                           const on = picked.includes(p.id);
