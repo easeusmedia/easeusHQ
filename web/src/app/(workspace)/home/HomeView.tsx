@@ -877,7 +877,19 @@ const NOTICE_ICON: Record<Notice["kind"], React.ReactNode> = {
 
 // a notice's own small buttons, quiet until the pointer is on it (always shown
 // on a touchscreen); a click on one doesn't open what the notice links to
-const QUIET_ACT = "shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 pointer-coarse:opacity-100";
+// A notice's actions: a small bordered group that fades in on hover (always
+// there on a touchscreen), each button's name beside it on hover. The name
+// sits within the card's own height and moves with no transform, so the
+// Dock app never shows it past the card's rounded corners.
+const NOTICE_ACTIONS = "relative flex shrink-0 items-center gap-0.5 rounded-full border border-white/[0.1] bg-white/[0.04] p-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100";
+const NOTICE_ACT = "group/act grid size-7 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground focus-visible:bg-white/[0.08] focus-visible:text-foreground";
+function ActName({ children }: { children: string }) {
+  return (
+    <span aria-hidden className="popover pointer-events-none absolute inset-y-0 right-full my-auto mr-2 h-fit rounded-lg px-2 py-1 text-xs whitespace-nowrap text-foreground opacity-0 transition-opacity duration-150 group-hover/act:opacity-100 group-focus-visible/act:opacity-100">
+      {children}
+    </span>
+  );
+}
 const act = (run: () => void) => (e: React.MouseEvent) => {
   e.stopPropagation();
   e.preventDefault();
@@ -1033,29 +1045,23 @@ function NoticesSection({
                   {sent === n.key && <p className="fade-in mt-1 text-xs text-emerald-300">Forwarded</p>}
                 </div>
                 {n.href && <ArrowUpRight size={14} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />}
-                {canForward && n.id && (
-                  <span role="button" tabIndex={0} aria-label="Add a remark" title="Add a remark" onClick={act(() => { setForwarding(null); setDraft(n.remark ?? ""); setRemarking(n.key); })} className={QUIET_ACT}>
-                    <PenLine size={13} />
+                <span className={NOTICE_ACTIONS}>
+                  {canForward && n.id && (
+                    <span role="button" tabIndex={0} aria-label="Add a remark" onClick={act(() => { setForwarding(null); setDraft(n.remark ?? ""); setRemarking(n.key); })} className={NOTICE_ACT}>
+                      <PenLine size={14} />
+                      <ActName>{n.remark ? "Edit remark" : "Add a remark"}</ActName>
+                    </span>
+                  )}
+                  {canForward && (
+                    <span role="button" tabIndex={0} aria-label="Forward" onClick={act(() => { setRemarking(null); setPicked([]); setForwarding(n.key); })} className={NOTICE_ACT}>
+                      <Forward size={14} />
+                      <ActName>Forward</ActName>
+                    </span>
+                  )}
+                  <span role="button" tabIndex={0} aria-label="Clear" onClick={act(() => clear(n))} className={NOTICE_ACT}>
+                    <X size={14} />
+                    <ActName>Clear</ActName>
                   </span>
-                )}
-                {canForward && (
-                  <span role="button" tabIndex={0} aria-label="Forward" title="Forward" onClick={act(() => { setRemarking(null); setPicked([]); setForwarding(n.key); })} className={QUIET_ACT}>
-                    <Forward size={13} />
-                  </span>
-                )}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Clear"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    clear(n);
-                  }}
-                  // on hover; always on a touchscreen, which has none
-                  className="shrink-0 rounded-full p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 pointer-coarse:opacity-100"
-                >
-                  <X size={13} />
                 </span>
               </>
             );

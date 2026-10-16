@@ -80,8 +80,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     sweepIfDue(),
   ]);
 
-  // the notices are on screen now: seen (the number on Home clears), but
-  // marked new this once. Not while Level 1 is looking as someone else.
+  // the notices are on screen now: seen, but marked new this once (the
+  // number on Home stays until each is cleared). Not while Level 1 is looking as someone else.
   const fresh = new Set(mine.filter((n) => !n.readAt).map((n) => n.id));
   // Marked once the page has been sent, so it doesn't hold the page up.
   if (fresh.size && (await getRealUserId()) === viewer.id) {

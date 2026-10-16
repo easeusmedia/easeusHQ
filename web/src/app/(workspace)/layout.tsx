@@ -60,9 +60,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     allDepartments()
       .then((all) => spaceTree(all.map((d) => d.id)))
       .catch(() => []),
-    // notices they haven't seen yet: a number on Home, like unread chat
+    // their notices: a number on Home until each is cleared, the same ones
+    // Home lists (16 Oct 2026: it used to clear once Home was opened)
     getViewer()
-      .then((v) => (v ? prisma.notice.count({ where: { forId: v.id, readAt: null } }) : 0))
+      .then((v) => (v ? prisma.notice.count({ where: { OR: [{ forId: v.id }, ...(isFounder(v) ? [{ forId: null }] : [])] } }) : 0))
       .catch(() => 0),
     // everyone's overdue work is frozen until it has a new date and a
     // reason (a Level 1 looking as someone sees theirs, below)
