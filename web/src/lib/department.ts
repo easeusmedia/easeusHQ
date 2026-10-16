@@ -54,3 +54,16 @@ export const STARTING_WORDS: Record<string, string> = {
   finance:
     "invoice, invoices, payment, payments, payroll, salary, gst, tax, filing, accounts, bill, billing, hiring, hire, interview, interviews, recruit, recruitment, candidate, candidates, job post, video editor, video editors, graphic designer, hr, leave, contract, expense, expenses",
 };
+
+// The kind of work a title names when none was picked ("Elle Sera Thumbnail
+// Design" names Thumbnail, so it goes to the Graphic design queue, not
+// Video editing: 16 Oct 2026): whole words, a plural too, the longest name
+// winning ("Reel curation" over "Reel")
+export function kindInTitle<T extends { name: string }>(title: string, kinds: T[]): T | null {
+  const text = ` ${plain(title)} `;
+  const named = kinds.filter((k) => {
+    const n = plain(k.name);
+    return !!n && (text.includes(` ${n} `) || text.includes(` ${n}s `));
+  });
+  return named.sort((a, b) => plain(b.name).length - plain(a.name).length)[0] ?? null;
+}

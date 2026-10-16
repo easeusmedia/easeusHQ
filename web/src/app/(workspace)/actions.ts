@@ -8,6 +8,7 @@ import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deleteForGood, departmentFromWords, frozenFor, recordDateChange } from "@/lib/taskTrack";
+import { kindInTitle } from "@/lib/department";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
 import { STAGE, movedByHand, stageChangeAction } from "@/lib/stages";
@@ -167,16 +168,18 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 // that has them, else the assignee's department (or Production, where the
 // editing queue lives). Exported for My tasks, which adds client work too.
 export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string, roleId?: string, title = ""): Promise<{ workflow: Workflow; teamId: string | null }> {
-  const [tags, assignee, production, role] = await Promise.all([
+  const [tags, assignee, production, role, kinds] = await Promise.all([
     tagIds.length ? prisma.taskTag.findMany({ where: { id: { in: tagIds } }, select: { workflow: true, teamId: true, sortOrder: true }, orderBy: { sortOrder: "asc" } }) : [],
     assignedToId ? prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true, departments: { select: { id: true } } } }) : null,
     prisma.team.findUnique({ where: { slug: "production" }, select: { id: true } }),
     // a role picked with no kind of work of its own
     roleId ? prisma.jobTitle.findUnique({ where: { id: roleId }, select: { workflow: true, teamId: true } }) : null,
+    // neither picked: the kinds of work, for one its title names
+    !tagIds.length && !roleId && title ? prisma.taskTag.findMany({ select: { name: true, workflow: true, teamId: true } }) : [],
   ]);
   // no kind of work: the words in its title say where it belongs (a draw, the person's own)
   const fromWords = title ? await departmentFromWords(title, [assignee?.teamId, ...(assignee?.departments ?? []).map((d) => d.id)].filter((x): x is string => !!x)) : null;
-  const kind = tags[0] ?? role;
+  const kind = tags[0] ?? role ?? kindInTitle(title, kinds);
   return { workflow: workflowOf(kind?.workflow ?? fallback), teamId: kind?.teamId ?? fromWords ?? assignee?.teamId ?? production?.id ?? null };
 }
 

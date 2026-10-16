@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { departmentFromTitle, STARTING_WORDS } from "./department.ts";
+import { departmentFromTitle, STARTING_WORDS, kindInTitle } from "./department.ts";
 
 const depts = Object.entries(STARTING_WORDS).map(([id, keywords]) => ({ id, keywords }));
 
@@ -126,4 +126,13 @@ test("whole words only, any case and punctuation, and nothing matched is nothing
   assert.equal(departmentFromTitle("Glow Derma - Acne Myths Busted", depts), null);
   assert.equal(departmentFromTitle("Demo", depts), null);
   assert.equal(departmentFromTitle("", depts), null);
+});
+
+test("a title names its kind of work when none was picked", () => {
+  const kinds = [{ name: "Reel" }, { name: "Thumbnail" }, { name: "Graphic design" }, { name: "Reel curation" }];
+  assert.equal(kindInTitle("Elle Sra Thumbnail Design", kinds)?.name, "Thumbnail");
+  assert.equal(kindInTitle("Three thumbnails for Robyn", kinds)?.name, "Thumbnail");
+  assert.equal(kindInTitle("Reel curation for Elle Sera", kinds)?.name, "Reel curation");
+  assert.equal(kindInTitle("Elle Sera reels", kinds)?.name, "Reel");
+  assert.equal(kindInTitle("Website fixes", kinds), null);
 });
