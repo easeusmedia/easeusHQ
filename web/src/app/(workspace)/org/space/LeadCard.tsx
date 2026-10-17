@@ -99,10 +99,13 @@ export function LeadCard({
                       {m.accepted ? "Accepted" : "Accept"}
                     </button>
                   )}
-                  <button type="button" aria-pressed={!!m.replied} disabled={needs} onClick={() => toggle(c, p, "replied")} title={needs ? "Mark the connection request accepted first" : m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[p]}`} className={CHIP}>
-                    {ICON[p]} <Reply size={11} /> {who(c)}
-                    {m.replied ? "Replied" : "Reply"}
-                  </button>
+                  {/* LinkedIn's Reply only once the request is accepted, not greyed out before */}
+                  {!needs && (
+                    <button type="button" aria-pressed={!!m.replied} onClick={() => toggle(c, p, "replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[p]}`} className={CHIP}>
+                      {ICON[p]} <Reply size={11} /> {who(c)}
+                      {m.replied ? "Replied" : "Reply"}
+                    </button>
+                  )}
                 </span>
               );
             })}
@@ -134,7 +137,6 @@ export function LeadCard({
 // emailed yet, sent, not opened yet, opened (how often), replied, bounced.
 // The card's size, or the lead window's (md).
 export function EmailStatus({ email, size = "sm", repliedOnly = false }: { email: LeadData["email"]; size?: "sm" | "md"; repliedOnly?: boolean }) {
-  const quiet = "bg-white/[0.05] text-muted";
   // opened and replied light up as the pressed Seen and Replied do
   const lit = "chip-lit border";
   const box = size === "sm" ? "gap-1 px-2 py-0.5 text-[12px]" : "gap-1.5 px-3 py-1 text-xs";
@@ -148,19 +150,18 @@ export function EmailStatus({ email, size = "sm", repliedOnly = false }: { email
   const replied = email.replied && chip(lit, `${email.replied.address} replied by email`, `Replied · ${email.replied.by}`);
   if (repliedOnly) return replied || null;
   if (email.bounced) return chip("bg-rose-400/10 text-rose-300", "The email didn't reach them", "Bounced");
-  if (!email.sent) return chip(quiet, "No email has gone to them from the sales inbox yet", "Not emailed yet");
+  // email goes out by itself, so only what happened shows: no grey "Not
+  // emailed yet", "Not opened yet" or "Sent" (17 Oct 2026)
+  if (!email.sent) return null;
   return (
     <>
-      {email.opens > 0
-        ? chip(
-            lit,
-            email.openedBy.map((o) => `${o.address} opened it ${o.opens}×`).join("\n") || "Opened, by the mail tracker",
-            // who opened it: one person "Opened 2× · Akash Raj", more "Opened · Akash Raj 2×, Rohan Mehra 1×"
-            email.openedBy.length > 1 ? `Opened · ${email.openedBy.map((o) => `${o.by} ${o.opens}×`).join(", ")}` : `Opened ${email.opens}×${email.openedBy[0] ? ` · ${email.openedBy[0].by}` : ""}`
-          )
-        : email.tracked
-          ? chip(quiet, "Sent with the mail tracker, not opened yet", "Not opened yet")
-          : !email.replied && chip(quiet, "Sent without the mail tracker, so opens aren't known", "Sent")}
+      {email.opens > 0 &&
+        chip(
+          lit,
+          email.openedBy.map((o) => `${o.address} opened it ${o.opens}×`).join("\n") || "Opened, by the mail tracker",
+          // who opened it: one person "Opened 2× · Akash Raj", more "Opened · Akash Raj 2×, Rohan Mehra 1×"
+          email.openedBy.length > 1 ? `Opened · ${email.openedBy.map((o) => `${o.by} ${o.opens}×`).join(", ")}` : `Opened ${email.opens}×${email.openedBy[0] ? ` · ${email.openedBy[0].by}` : ""}`
+        )}
       {replied}
     </>
   );

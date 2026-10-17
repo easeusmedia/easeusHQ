@@ -67,13 +67,17 @@ export function Messages({
   const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState(false);
-  // the rows (a day, a person) opened to read the message
+  // the rows (a day, a person) folded or opened from how they start: today's
+  // and the next day's open, the days done folded
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const toggleRow = (key: string) => setOpenRows((o) => (o.delete(key) ? new Set(o) : new Set(o).add(key)));
-  // the people on the lead: a row each under every day; none, the lead itself
+  // the people on the lead (none: the lead itself); one at a time, picked
+  // from a toggle above the days, and each day shows that person's message
   const contacts = leadContacts(lead.values, board.fields);
   const people: (Contact | null)[] = contacts.length ? contacts : [null];
   const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
+  const [who, setWho] = useState<string>(() => idOf(people[0]));
+  const person = people.find((c) => idOf(c) === who) ?? people[0];
   const firstName = (name: string) => name.trim().split(/\s+/)[0];
   const request = requestDay(board);
   // a day's message picked here, ahead of the save
@@ -150,19 +154,21 @@ export function Messages({
     const reached = p.day != null && today != null && p.day <= today;
     const platform = chosen && MARKED.includes(chosen.channel as Marked) ? (chosen.channel as Marked) : null;
     const m = platform ? (lead.marks[idOf(c)]?.[platform] ?? {}) : {};
-    const open = openRows.has(key);
+    const open = openRows.has(key) !== (p.when === "now" || p.when === "next");
     const rowVars = c?.name.trim() ? { ...vars, Name: firstName(c.name) } : vars;
     const mark = (kind: "accepted" | "replied") => platform && onMark({ contact: idOf(c), platform, kind, day: m[kind] ? null : p.key });
     const needs = platform === "linkedin" && !m.accepted;
     const lit = "flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300";
     const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
-    const label = c ? c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact" : chosen ? (PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.name) : p.title;
+    // the person is named by the toggle above when there's more than one
+    const channelName = chosen ? (PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.name) : p.title;
+    const label = c && people.length === 1 ? c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact" : channelName;
     return (
       <div key={key} className={`${BLOCK} ${can ? "" : "opacity-50"}`} title={can || !chosen ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
         <button type="button" onClick={() => toggleRow(key)} aria-expanded={open} className="group/row flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left text-xs">
           <span className="flex shrink-0">{CHANNEL_ICON[chosen?.channel ?? "other"] ?? CHANNEL_ICON.other}</span>
           <span className="font-medium text-foreground/85 transition-colors group-hover/row:text-foreground">{label}</span>
-          {c?.role && <span className="text-muted">{c.role}</span>}
+          {c?.role && people.length === 1 && <span className="text-muted">{c.role}</span>}
           {/* at a glance, once the day is reached and they can be reached */}
           {can && reached && chosen?.channel === "email" && <EmailStatus email={lead.email} />}
           {can && reached && m.accepted && (
@@ -200,9 +206,12 @@ export function Messages({
                     {CHANNEL_ICON[platform]} <UserCheck size={12} /> {m.accepted ? "Accepted" : "Accept"}
                   </button>
                 )}
-                <button type="button" aria-pressed={!!m.replied} disabled={needs} onClick={() => mark("replied")} title={needs ? "Mark the connection request accepted first" : m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[platform]}`} className={chip}>
-                  {CHANNEL_ICON[platform]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
-                </button>
+                {/* LinkedIn's Reply only once the request is accepted, not greyed out before */}
+                {!needs && (
+                  <button type="button" aria-pressed={!!m.replied} onClick={() => mark("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[platform]}`} className={chip}>
+                    {CHANNEL_ICON[platform]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -246,7 +255,7 @@ export function Messages({
               </span>
             )}
           </p>
-          <div className="flex flex-col gap-1.5 pt-2">{people.map((c) => row(p, c))}</div>
+          <div className="flex flex-col gap-1.5 pt-2">{row(p, person)}</div>
         </div>
       </div>
     );
@@ -294,10 +303,29 @@ export function Messages({
         )}
 
         {/* day by day, as the history reads: the days done, today and the
-            next, each with a folded row per person that opens to their copy.
+            next, each with the picked person's row, open to their copy on
+            today and the next day.
             A day with more than one message offers them first, and the one
             picked is kept for that person; a day they have reached takes
             their Accepted and Reply */}
+        {/* whose messages: one person at a time */}
+        {phases.length > 0 && people.length > 1 && (
+          <div role="tablist" aria-label="Contacts" className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+            {people.map((c) => (
+              <button
+                key={idOf(c)}
+                type="button"
+                role="tab"
+                aria-selected={idOf(c) === idOf(person)}
+                onClick={() => setWho(idOf(c))}
+                className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+              >
+                {c?.name.trim() || c?.channels.find((ch) => ch.value.trim())?.value || "Contact"}
+                {c?.role && <span className="font-normal text-muted">{c.role}</span>}
+              </button>
+            ))}
+          </div>
+        )}
         {phases.length > 0 && (
           // inset a little, so the nodes' glow has room inside the window's scroll box
           <ol className="flex flex-col pl-1.5">
