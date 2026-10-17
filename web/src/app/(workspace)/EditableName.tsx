@@ -20,6 +20,7 @@ export function EditableName({
   className = "",
   pencil = "always",
   readOnly = false,
+  wrap = false,
   editing: editingProp,
   onEditingChange,
 }: {
@@ -28,6 +29,8 @@ export function EditableName({
   className?: string;
   pencil?: "always" | "hover" | "none";
   readOnly?: boolean;
+  // long names over two lines rather than cut short
+  wrap?: boolean;
   editing?: boolean;
   onEditingChange?: (editing: boolean) => void;
 }) {
@@ -81,7 +84,7 @@ export function EditableName({
           aria-label={`Rename ${shown}`}
           className={`group/name inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md text-left transition-colors hover:text-foreground ${className}`}
         >
-          <span className="truncate">{shown}</span>
+          <span className={wrap ? "line-clamp-2 break-words" : "truncate"}>{shown}</span>
           {pencil !== "none" && (
             <Pencil size={11} className={`shrink-0 text-muted transition-opacity ${pencil === "always" ? "opacity-45 group-hover/name:opacity-100" : "opacity-0 group-hover/name:opacity-100"}`} />
           )}

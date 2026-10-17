@@ -295,10 +295,11 @@ test("a board with a day sequence is in sections: in process to the last day and
   assert.equal(stageSections([{ name: "To do" }, { name: "Done" }]), null);
 });
 
-test("a lead's window shows every day as a tab from Ready to reach out on, done, today and next", () => {
+test("a lead's window shows every day as a tab, done, today and next", () => {
   // Dream list, then the fixture: Ready to reach out (d0), Day 1 to 3, Replied (d4)
   const ready = { stages: [{ id: "r", name: "Dream list", color: "default" }, ...days.stages], messages: [...days.messages, { id: "x", stageId: "d4", channel: "email", name: "Thanks", subject: "", body: "", note: "" }] };
-  assert.deepEqual(sequenceTabs(ready, "r"), []);
+  // before Ready to reach out: every day, none marked
+  assert.deepEqual(sequenceTabs(ready, "r").map((t) => [t.title, t.when]), [["Day 1", null], ["Day 2", null], ["Day 3", null]]);
   const fromReady = sequenceTabs(ready, "d0");
   assert.deepEqual(fromReady.map((t) => [t.title, t.when]), [["Day 1", "next"], ["Day 2", null], ["Day 3", null]]);
   assert.equal(fromReady[0].sub, "Day 1 · Email + LinkedIn");

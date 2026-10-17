@@ -17,7 +17,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { leadContacts, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -148,6 +148,7 @@ function LeadPage({
   // details and contacts read as plain text until Edit
   const [editDetails, setEditDetails] = useState(false);
   const [editContacts, setEditContacts] = useState(false);
+  const [who, setWho] = useState<string | null>(null);
 
   // the record, and what's been sent, each time it opens
   useEffect(() => {
@@ -209,10 +210,13 @@ function LeadPage({
     return res;
   }
 
-  function saveTitle() {
-    const next = title.trim().replace(/\s+/g, " ");
-    if (!next) return setTitle(lead.title);
-    if (next !== lead.title) run(renameLead(id, next), () => setTitle(lead.title));
+  async function rename(name: string) {
+    const next = name.trim().replace(/\s+/g, " ");
+    if (!next) return "Give it a name.";
+    if (next === lead.title) return;
+    setTitle(next);
+    const res = await run(renameLead(id, next), () => setTitle(lead.title));
+    return res.error;
   }
 
   const values: Record<string, unknown> = { ...lead.values };
@@ -279,44 +283,14 @@ function LeadPage({
   // its properties to edit, and its people
   const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
   const contactField = board.fields.find((f) => f.kind === "contacts");
+  // the people on it, one picked at a time for the whole window
+  const contactList = leadContacts(values, board.fields).filter((c) => c.name.trim() || c.channels.some((ch) => ch.value.trim()));
+  const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
 
   return (
     <>
-      {/* the name, as plain text like a task's title, and the History switch */}
-      <div className="mb-3 flex shrink-0 items-start gap-3 px-1">
-        <textarea
-          rows={1}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={saveTitle}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-          placeholder="Podcast name"
-          aria-label="Lead name"
-          className="field-sizing-content block min-w-0 flex-1 resize-none bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60"
-        />
-        <button type="button" onClick={onHistory} className="mt-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
-          <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
-          History
-        </button>
-        <button
-          type="button"
-          onClick={onFull}
-          aria-label={full ? "Exit full screen" : "Full screen"}
-          title={full ? "Exit full screen" : "Full screen"}
-          className="mt-0.5 shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
-        >
-          {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        </button>
-      </div>
-
-      {/* its stage and who has it, as chips, under the name */}
-      <div className="mb-3 flex shrink-0 flex-col gap-1.5 px-1">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* along the top: its stage, who has it, History and the window's size */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1">
           <Menu
             height={340}
             width={280}
@@ -369,8 +343,36 @@ function LeadPage({
               {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
             </span>
           )}
-        </div>
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
+            <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
+            History
+          </button>
+          <button
+            type="button"
+            onClick={onFull}
+            aria-label={full ? "Exit full screen" : "Full screen"}
+            title={full ? "Exit full screen" : "Full screen"}
+            className="shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
+          >
+            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+        </span>
       </div>
+
+      {/* on top of all, whose lead it is when it has more than one person:
+          the profile and the messages both follow the one picked */}
+      {contactList.length > 1 && (
+        <div role="tablist" aria-label="Contacts" className="mb-3 flex w-fit max-w-full shrink-0 flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+          {contactList.map((c) => (
+            <button key={c.id} type="button" role="tab" aria-selected={c.id === person?.id} onClick={() => setWho(c.id)} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+              <Users size={12} className="shrink-0 text-muted" />
+              {c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact"}
+              {c.role && <span className="font-normal text-muted">{c.role}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
           Dock app) gives a 0-based flex item no height at all */}
@@ -385,45 +387,30 @@ function LeadPage({
             prepared={prepared}
             onMark={(c) => onTrack(id, c)}
             onSaved={saved}
+            person={person}
             aside={
-              editDetails || editContacts ? (
-                // changing it: the properties, or the people, then Done
-                <div key={editDetails ? "details" : "contacts"} className="fade-in flex flex-col gap-3 pb-2">
-                  <div className="flex items-center gap-2 px-1">
-                    <p className="text-[13px] font-medium text-foreground/90">{editDetails ? "Edit details" : "Edit contacts"}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditDetails(false);
-                        setEditContacts(false);
-                      }}
-                      className="btn btn-sm btn-glow ml-auto flex items-center gap-1.5"
-                    >
-                      <Check size={13} /> Done
-                    </button>
+              <LeadProfile
+                title={title || lead.title}
+                onRename={rename}
+                fields={board.fields}
+                values={values}
+                person={person}
+                channel={channel}
+                editingDetails={editDetails}
+                editingContacts={editContacts}
+                onEditDetails={() => setEditDetails((e) => !e)}
+                onEditContacts={() => setEditContacts((e) => !e)}
+                detailsEditor={
+                  <div className="flex flex-col">
+                    {fieldsShown.map((f) => (
+                      <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
+                        <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
+                      </Row>
+                    ))}
                   </div>
-                  {editDetails ? (
-                    <div className="flex flex-col">
-                      {fieldsShown.map((f) => (
-                        <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
-                          <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
-                        </Row>
-                      ))}
-                    </div>
-                  ) : (
-                    contactField && <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
-                  )}
-                </div>
-              ) : (
-                <LeadProfile
-                  title={title || lead.title}
-                  fields={board.fields}
-                  values={values}
-                  channel={channel}
-                  onEditDetails={() => setEditDetails(true)}
-                  onEditContacts={() => setEditContacts(true)}
-                />
-              )
+                }
+                contactsEditor={contactField && <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />}
+              />
             }
           />
         </div>

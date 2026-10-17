@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, UserRound, X } from "lucide-react";
+import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
 import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
@@ -25,6 +25,8 @@ const CHANNEL_ICON: Record<string, React.ReactNode> = {
 const SMALL_BTN = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground disabled:opacity-50";
 const INPUT = "w-full rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover";
 const BLOCK = "rounded-xl bg-foreground/[0.03]";
+// the two sides of the lead window: its profile, and its messages
+const PANEL = "rounded-2xl border border-white/[0.07] bg-foreground/[0.025]";
 
 const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
 
@@ -46,6 +48,7 @@ export function Messages({
   sent,
   prepared,
   aside,
+  person: picked_person,
   onMark,
   onSaved,
 }: {
@@ -56,6 +59,8 @@ export function Messages({
   // its own wording, once the lead's details have loaded
   prepared: Prepared | null;
   aside: React.ReactNode;
+  // the person picked at the top of the window, when the lead has more than one
+  person: Contact | null;
   onMark: (change: MarkChange) => void;
   onSaved: () => void;
 }) {
@@ -71,8 +76,8 @@ export function Messages({
   const contacts = leadContacts(lead.values, board.fields);
   const people: (Contact | null)[] = contacts.length ? contacts : [null];
   const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
-  const [who, setWho] = useState<string>(() => idOf(people[0]));
-  const person = people.find((c) => idOf(c) === who) ?? people[0];
+  // whose messages: picked at the top of the window, for both its sides
+  const person = people.find((c) => idOf(c) === idOf(picked_person)) ?? people[0];
   const firstName = (name: string) => name.trim().split(/\s+/)[0];
   const request = requestDay(board);
   // a day's message (or the opener) picked here, ahead of the save
@@ -162,7 +167,7 @@ export function Messages({
   const opener = Math.min(Number(pickOf("opener") ?? 0) || 0, Math.max(0, openers.length - 1));
 
   // before Ready to reach out: what's known about it, nothing to send
-  if (!tabs.length) return <div className="@container flex min-h-0 flex-1 flex-col overflow-y-auto px-1 pb-1">{aside}</div>;
+  if (!tabs.length) return <div className={`${PANEL} @container min-h-0 w-full max-w-xl flex-1 overflow-y-auto`}>{aside}</div>;
 
   // one platform's message on the day for the person: picked between when
   // there are two, then the message, then how it went (from the day on)
@@ -179,7 +184,7 @@ export function Messages({
     const needs = platform === "linkedin" && !m.accepted;
     const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
     return (
-      <div key={chosen.channel} className={`flex flex-col gap-2.5 py-5 first:pt-3 ${can ? "" : "opacity-50"}`} title={can ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
+      <div key={chosen.channel} className={`flex flex-col gap-2.5 ${can ? "" : "opacity-50"}`} title={can ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
         {options.length > 1 &&
           (options.length <= 4 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -235,79 +240,66 @@ export function Messages({
   const byPlatform = [...new Set(t.messages.map((m) => m.channel))].map((ch) => t.messages.filter((m) => m.channel === ch));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* along the top: whose messages, which opener, which day */}
-      <div className="flex shrink-0 flex-col gap-2 px-1">
-        {(people.length > 1 || openers.length > 1) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {people.length > 1 && (
-              <div role="tablist" aria-label="Contacts" className={bar}>
-                {people.map((c) => (
-                  <button key={idOf(c)} type="button" role="tab" aria-selected={idOf(c) === idOf(person)} onClick={() => setWho(idOf(c))} className={seg}>
-                    <UserRound size={12} className="shrink-0 text-muted" />
-                    {c?.name.trim() || c?.channels.find((ch) => ch.value.trim())?.value || "Contact"}
-                    {c?.role && <span className="font-normal text-muted">{c.role}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
+    <div className="@container min-h-0 flex-1">
+      {/* the lead's profile on the left; on the right its messages, the days along their top */}
+      <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+        <aside className={`${PANEL} @container min-h-0 overflow-y-auto`}>{aside}</aside>
+        <section className={`${PANEL} flex min-h-0 flex-col overflow-hidden`}>
+          <div className="shrink-0 border-b border-white/[0.07] px-5 pt-3.5">
             {openers.length > 1 && (
-              <div role="tablist" aria-label="Opener" className={bar}>
-                {openers.map((o, i) => (
-                  <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener; the rest stay the same" className={seg}>
-                    {o.label || `Opener ${i + 1}`}
-                  </button>
-                ))}
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted">Opener</span>
+                <div role="tablist" aria-label="Opener" className={bar}>
+                  {openers.map((o, i) => (
+                    <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener; the rest stay the same" className={seg}>
+                      {o.label || `Opener ${i + 1}`}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
+            <div className="flex items-end gap-2">
+              <div role="tablist" aria-label="Days" className="-mb-px flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+                {tabs.map((x) => {
+                  const replied = repliedOn(x.key);
+                  const on = x.key === t.key;
+                  const ready = dayApproved(x);
+                  return (
+                    <button
+                      key={x.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      onClick={() => setTab(x.key)}
+                      title={x.sub}
+                      className={`relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 pt-1 pb-2.5 text-[13px] font-medium whitespace-nowrap transition-colors ${
+                        on ? "border-accent text-foreground" : `border-transparent hover:text-foreground ${x.when === "done" ? "text-muted/70" : "text-muted"}`
+                      }`}
+                    >
+                      {/* approved, replied, or where the lead is: today green, next blue */}
+                      {replied ? (
+                        <Reply size={12} className="text-emerald-300" />
+                      ) : ready ? (
+                        <Check size={13} className="text-emerald-300" aria-label="Approved" />
+                      ) : x.when === "now" ? (
+                        <span className="size-1.5 rounded-full bg-emerald-400" aria-label="Today" />
+                      ) : x.when === "next" ? (
+                        <span className="size-1.5 rounded-full bg-accent" aria-label="Next" />
+                      ) : null}
+                      {x.title}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} mb-1.5 shrink-0`}>
+                <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
+              </button>
+            </div>
           </div>
-        )}
-        <div className="flex items-end gap-2 border-b border-white/[0.07]">
-          <div role="tablist" aria-label="Days" className="-mb-px flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
-            {tabs.map((x) => {
-              const replied = repliedOn(x.key);
-              const on = x.key === t.key;
-              const ready = dayApproved(x);
-              return (
-                <button
-                  key={x.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={on}
-                  onClick={() => setTab(x.key)}
-                  title={x.sub}
-                  className={`relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 pt-1.5 pb-2.5 text-[13px] font-medium whitespace-nowrap transition-colors ${
-                    on ? "border-accent text-foreground" : `border-transparent hover:text-foreground ${x.when === "done" ? "text-muted/70" : "text-muted"}`
-                  }`}
-                >
-                  {/* approved, replied, or where the lead is: today green, next blue */}
-                  {replied ? (
-                    <Reply size={12} className="text-emerald-300" />
-                  ) : ready ? (
-                    <Check size={13} className="text-emerald-300" aria-label="Approved" />
-                  ) : x.when === "now" ? (
-                    <span className="size-1.5 rounded-full bg-emerald-400" aria-label="Today" />
-                  ) : x.when === "next" ? (
-                    <span className="size-1.5 rounded-full bg-accent" aria-label="Next" />
-                  ) : null}
-                  {x.title}
-                </button>
-              );
-            })}
-          </div>
-          <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} mb-1.5 shrink-0`}>
-            <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
-          </button>
-        </div>
-      </div>
 
-      {/* what's known on the left; the day's messages on the right */}
-      <div className="@container min-h-0 flex-1">
-      <div className="grid h-full min-h-0 gap-8 @3xl:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
-        <div className="@container min-h-0 overflow-y-auto px-1 pt-2 pb-1">{aside}</div>
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-1 pb-1">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
           {error && (
-            <p role="alert" className="fade-in px-1 text-xs text-red-300">
+            <p role="alert" className="fade-in text-xs text-red-300">
               {error}
             </p>
           )}
@@ -339,8 +331,8 @@ export function Messages({
           )}
 
           {/* the picked day */}
-          <div key={`${t.key}:${idOf(person)}`} className="fade-in flex max-w-3xl flex-col">
-            <p className="flex flex-wrap items-center gap-2 px-1 pb-1 text-xs">
+          <div key={`${t.key}:${idOf(person)}`} className="fade-in flex flex-col gap-3">
+            <p className="flex flex-wrap items-center gap-2 text-xs">
               <span className="flex min-w-0 text-[15px] font-semibold text-foreground">
                 {canBuild ? (
                   <EditableName
@@ -366,7 +358,7 @@ export function Messages({
               )}
             </p>
             {prepared ? (
-              <div className="flex flex-col divide-y divide-white/[0.06]">{byPlatform.map((options) => platformRow(t, options, person))}</div>
+              <div className="flex flex-col gap-4">{byPlatform.map((options) => platformRow(t, options, person))}</div>
             ) : (
               <p className="px-1 pt-3 text-xs text-muted">Loading its messages…</p>
             )}
@@ -382,9 +374,8 @@ export function Messages({
               </ul>
             </div>
           )}
-        </div>
-      </div>
-
+          </div>
+        </section>
       </div>
       <MessageLibrary
         open={library}
@@ -619,12 +610,13 @@ function MessageForm({
   if (template) return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setTemplate(false)} />;
 
   const missing = variablesIn([subject, body]);
-  const ICON = "grid size-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const ICON = "grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
   const FIELD = "w-full bg-transparent text-foreground outline-none! placeholder:text-muted/50";
 
   return (
-    <article className="fade-in flex flex-col gap-2.5">
-      <div className="flex items-center gap-2">
+    <article className="fade-in overflow-hidden rounded-xl border border-white/[0.08] bg-background/40">
+      {/* its name, and copy and the template beside it */}
+      <header className="flex items-center gap-2 border-b border-white/[0.06] bg-white/[0.02] px-4 py-2">
         <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
         <h4 className="min-w-0 truncate text-sm font-medium text-foreground">{message.name}</h4>
         {rewritten && !sent && <span className="shrink-0 text-xs text-muted">· Edited</span>}
@@ -643,16 +635,16 @@ function MessageForm({
             </button>
           )}
         </span>
-      </div>
+      </header>
       {(message.note || extra) && (
-        <p className="-mt-1 text-xs leading-relaxed text-muted">
+        <p className="border-b border-white/[0.06] px-4 py-2 text-xs leading-relaxed text-muted">
           {message.note}
           {extra && <span className="text-foreground/80">{message.note ? " " : ""}{extra}</span>}
         </p>
       )}
 
       {sent ? (
-        <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
           {isEmail && sent.subject && (
             <p className="mb-2">
               <span className="text-muted">Subject: </span>
@@ -662,9 +654,9 @@ function MessageForm({
           {sent.body}
         </div>
       ) : (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] transition-colors focus-within:border-accent/40 focus-within:bg-white/[0.03]">
+        <div className="transition-colors focus-within:bg-white/[0.015]">
           {isEmail && (
-            <label className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2.5 text-sm">
+            <label className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-2.5 text-sm">
               <span className="shrink-0 text-muted">Subject</span>
               <input
                 value={subject}
@@ -687,13 +679,13 @@ function MessageForm({
             }}
             onBlur={save}
             aria-label={message.name}
-            className={`${FIELD} field-sizing-content block min-h-28 resize-none px-4 py-3 text-sm leading-relaxed`}
+            className={`${FIELD} field-sizing-content block min-h-28 resize-none px-4 py-3.5 text-sm leading-relaxed`}
           />
         </div>
       )}
 
       {!sent && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+        <footer className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/[0.06] px-4 py-2.5 text-xs">
           {status === "saving" ? (
             <span className="text-muted">Saving…</span>
           ) : status === "saved" ? (
@@ -725,7 +717,7 @@ function MessageForm({
             <Check size={13} className={approval.at ? "" : "text-emerald-300"} />
             {approval.at ? `Approved${approval.at.by && approval.at.by !== "You" ? ` by ${approval.at.by.split(" ")[0]}` : ""}` : "Approve"}
           </button>
-        </div>
+        </footer>
       )}
     </article>
   );

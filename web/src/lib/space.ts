@@ -547,8 +547,9 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
 // sequence pages show them (17 Oct 2026): every day of the sequence from
 // Ready to reach out on, each done, today or next by the stage it's on, and
 // a stage past the sequence with messages of its own (Replied…) as its own
-// tab. Before Ready to reach out there are none. A board with no days: its
-// stage's own messages, if any.
+// tab. Before Ready to reach out every day shows too, nothing marked yet, so
+// a lead's messages can be read from the start (Abhishek, 17 Oct 2026). A
+// board with no days: its stage's own messages, if any.
 export type SequenceTab = { key: string; title: string; sub: string; stage: StageData; day: number | null; when: "done" | "now" | "next" | null; messages: MessageData[] };
 const CHANNEL_WORD: Record<string, string> = { email: "Email", linkedin: "LinkedIn", instagram: "Instagram", other: "Other" };
 export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stageId: string): SequenceTab[] {
@@ -561,11 +562,11 @@ export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stag
   };
   const first = stages.findIndex((s) => dayOf(s.name) != null);
   if (first < 0) return own(stages[i]);
-  if (i < first - 1) return [];
+  const before = i < first - 1;
   const here = dayOf(stages[i].name);
   const past = here == null && i > first;
   const days = [...new Set(stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
-  const next = past ? null : here == null ? days[0] : days.find((d) => d > here);
+  const next = past || before ? null : here == null ? days[0] : days.find((d) => d > here);
   const tabs: SequenceTab[] = days.map((d) => {
     const on = stages.filter((s) => dayOf(s.name) === d);
     const messages = board.messages.filter((m) => on.some((s) => s.id === m.stageId));

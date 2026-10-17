@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ArrowUpRight, Check, Copy, Globe, Mail, Phone } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Check, Copy, Globe, Mail, Pencil, Phone } from "lucide-react";
 import { isFilled, type ChannelKind, type Contact, type FieldData, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { hrefOf } from "./values";
+import { EditableName } from "../../EditableName";
 
 // What's known about a lead, read at a glance (Abhishek, 17 Oct 2026: minimal,
 // balanced, no boxes): who it is (their picture, name, where, and their
@@ -77,24 +78,64 @@ const tagNames = (f: FieldData, v: unknown) => (Array.isArray(v) ? (v as string[
 // a link to a person's or a channel's page, not to one video or post
 const isPage = (l: LinkValue) => !/video|reel|post|episode|opener/i.test(l.label);
 
+// a section's small heading, with Edit (Done while editing) at its right
+function Head({ title, editing, onEdit }: { title: string; editing?: boolean; onEdit?: () => void }) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <p className={LABEL}>{title}</p>
+      {onEdit && (
+        <button type="button" onClick={onEdit} aria-pressed={!!editing} className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+          {editing ? <Check size={12} /> : <Pencil size={11} />}
+          {editing ? "Done" : "Edit"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const PLATFORM_BADGE: Record<string, { Icon: React.ComponentType<{ size?: number; className?: string }>; tone: string }> = {
+  youtube: { Icon: YoutubeIcon, tone: "bg-red-500" },
+  instagram: { Icon: InstagramIcon, tone: "bg-pink-500" },
+  linkedin: { Icon: LinkedinIcon, tone: "bg-sky-600" },
+};
+
+// The lead's profile, in sections divided by a line (Abhishek, 17 Oct 2026):
+// who it is (its pictures from each of its pages, its name, renamed in
+// place, where and its angle, its pages as icons); its numbers; anything to
+// check; the person picked at the top of the window, with their email
+// addresses; what the opener is about; its latest uploads; and its other
+// details. Contacts and details are edited where they are.
 export function LeadProfile({
   title,
+  onRename,
   fields,
   values,
+  person,
   channel,
+  editingDetails,
+  editingContacts,
   onEditDetails,
   onEditContacts,
+  detailsEditor,
+  contactsEditor,
 }: {
   title: string;
+  onRename: (name: string) => Promise<string | undefined>;
   fields: FieldData[];
   values: Record<string, unknown>;
+  person: Contact | null;
   channel: { stats: ChannelStats | null; at: string | null; reading: boolean } | null;
+  editingDetails: boolean;
+  editingContacts: boolean;
   onEditDetails: () => void;
   onEditContacts: () => void;
+  detailsEditor: React.ReactNode;
+  contactsEditor: React.ReactNode;
 }) {
   const filled = fields.filter((f) => isFilled(f.kind, values[f.id]));
   const contactsField = fields.find((f) => f.kind === "contacts");
   const people = (contactsField && Array.isArray(values[contactsField.id]) ? (values[contactsField.id] as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
+  const who = (person && people.find((p) => p.id === person.id)) ?? people[0] ?? null;
   // the tag the board is grouped by (Opener, Version) reads as a plain line under the name
   const group = filled.find((f) => f.kind === "select" && f.onCard);
   const country = filled.find((f) => named(f, /^country$/i));
@@ -106,141 +147,175 @@ export function LeadProfile({
   const check = filled.find((f) => named(f, /^to check$/i));
   const checks = check ? (check.kind === "text" ? String(values[check.id]).split("\n").filter((x) => x.trim()) : tagNames(check, values[check.id])) : [];
   const links = filled.filter((f) => f.kind === "links").flatMap((f) => (values[f.id] as LinkValue[]).filter((l) => l.url.trim()));
-  // every page: the board's links, then each person's handles (once each)
+  // every page: the board's links, then the person's handles (once each)
   const seen = new Set<string>();
+  const key = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "").toLowerCase();
   const pages = [
     ...links.filter(isPage).map((l) => ({ label: l.label || "Link", url: l.url })),
-    ...people.flatMap((p) => p.channels.filter((c) => c.kind !== "email" && c.value.trim()).map((c) => ({ label: HANDLE[c.kind]?.name ?? "Link", url: hrefOf(c.kind, c.value) ?? "" }))),
-  ].filter((l) => l.url && !seen.has(l.url.replace(/\/+$/, "").toLowerCase()) && seen.add(l.url.replace(/\/+$/, "").toLowerCase()));
+    ...(who ? who.channels : []).filter((c) => c.kind !== "email" && c.value.trim()).map((c) => ({ label: HANDLE[c.kind]?.name ?? "Link", url: hrefOf(c.kind, c.value) ?? "" })),
+  ].filter((l) => l.url && !seen.has(key(l.url)) && seen.add(key(l.url)));
   const others = links.filter((l) => !isPage(l));
   const bio = filled.find((f) => f.kind === "text" && named(f, /^bio$/i));
   // what's left, as quiet rows (the meme board shows on its own day's email)
   const rows = filled.filter((f) => f !== group && f !== country && f !== check && f !== bio && f.kind !== "contacts" && f.kind !== "links" && !numberOf(f, values[f.id]) && !named(f, /^meme board$/i));
   const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
+  const emails = (who?.channels ?? []).filter((c) => c.kind === "email" && c.value.trim());
+  // a picture from each of its pages, else one, else its initials
+  const stats = channel?.stats as (ChannelStats & { avatars?: Partial<Record<string, string>> }) | null | undefined;
+  const faces = Object.entries(stats?.avatars ?? {}).filter((e): e is [string, string] => !!e[1]);
+  if (!faces.length && stats?.avatar) faces.push([stats.platform, stats.avatar]);
+  const pageOf = (platform: string) => pages.find((l) => l.url.includes(platform === "youtube" ? "youtube.com" : `${platform}.com`))?.url;
+  const SECTION = "px-5 py-5";
 
   return (
-    <div className="flex flex-col gap-7 pt-1 pb-2">
+    <div className="flex flex-col divide-y divide-white/[0.06]">
       {/* who */}
-      <div className="flex items-center gap-4">
-        <Face src={channel?.stats?.avatar ?? null} name={title} size={60} />
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="line-clamp-2 text-[15px] leading-snug font-semibold text-foreground">{title}</p>
-          {sub && <p className="truncate text-xs text-muted">{sub}</p>}
+      <section className={`${SECTION} flex flex-col gap-4`}>
+        <div className="flex items-center gap-4">
+          {faces.length ? (
+            <div className="flex shrink-0 -space-x-3">
+              {faces.slice(0, 3).map(([platform, src]) => {
+                const badge = PLATFORM_BADGE[platform];
+                const img = (
+                  <span className="relative block">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
+                    <img src={src} alt={`${platform} picture`} className="size-14 rounded-full object-cover ring-2 ring-[#16191e]" />
+                    {badge && (
+                      <span className={`absolute -right-0.5 -bottom-0.5 grid size-5 place-items-center rounded-full text-white ring-2 ring-[#16191e] ${badge.tone}`}>
+                        <badge.Icon size={10} />
+                      </span>
+                    )}
+                  </span>
+                );
+                const href = pageOf(platform);
+                return href ? (
+                  <a key={platform} href={href} target="_blank" rel="noopener noreferrer" title={`Open ${platform}`} className="transition-transform hover:z-10 hover:-translate-y-0.5">
+                    {img}
+                  </a>
+                ) : (
+                  <span key={platform}>{img}</span>
+                );
+              })}
+            </div>
+          ) : (
+            <Face src={null} name={title} size={56} />
+          )}
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex min-w-0 text-[15px] leading-snug font-semibold text-foreground">
+              <EditableName name={title} pencil="hover" wrap onSave={onRename} />
+            </div>
+            {sub && <p className="truncate text-xs text-muted">{sub}</p>}
+          </div>
         </div>
-      </div>
-      {pages.length > 0 && (
-        <div className="-mt-3 flex flex-wrap gap-1.5">
-          {pages.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" title={l.label} aria-label={l.label} className={ICON_BTN}>
-              {/notion\.(site|so)/.test(l.url) ? (
-                <span className="grid size-3.5 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span>
-              ) : l.url.startsWith("tel:") ? (
-                <Phone size={14} />
-              ) : (
-                <PlatformMark url={l.url} size={14} />
-              )}
-            </a>
-          ))}
-        </div>
-      )}
+        {pages.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {pages.map((l, i) => (
+              <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" title={l.label} aria-label={l.label} className={ICON_BTN}>
+                {/notion\.(site|so)/.test(l.url) ? (
+                  <span className="grid size-3.5 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span>
+                ) : l.url.startsWith("tel:") ? (
+                  <Phone size={14} className="text-emerald-300" />
+                ) : (
+                  <PlatformMark url={l.url} size={14} className={/youtube|youtu\.be/.test(l.url) ? "text-red-400" : /instagram/.test(l.url) ? "text-pink-400" : /linkedin/.test(l.url) ? "text-sky-400" : "text-muted"} />
+                )}
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* its numbers */}
       {numbers.length > 0 && (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+        <section className={`${SECTION} grid grid-cols-2 gap-x-6 gap-y-4`}>
           {numbers.map(({ f, n }) => (
             <div key={f.id} className="min-w-0">
               <p className="text-2xl leading-none font-semibold tracking-tight text-foreground tabular-nums">{n}</p>
               <p className="mt-1.5 truncate text-xs text-muted">{f.name}</p>
             </div>
           ))}
-        </div>
+        </section>
       )}
 
       {checks.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-l-2 border-amber-400/60 pl-3">
+        <section className={`${SECTION} flex flex-col gap-1.5 bg-amber-400/[0.04]`}>
           {checks.map((c, i) => (
             <p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-amber-200/90">
               <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-300" />
               {c}
             </p>
           ))}
-        </div>
+        </section>
       )}
 
-      {/* who to write to */}
-      {people.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <p className={LABEL}>{people.length > 1 ? "People" : "Email"}</p>
-          {people.map((p) => {
-            const emails = p.channels.filter((c) => c.kind === "email" && c.value.trim());
-            return (
-              <div key={p.id} className="flex flex-col gap-0.5">
-                {(people.length > 1 || (p.name.trim() && p.name.trim() !== title)) && (
-                  <p className="pb-1 text-[13px] font-medium text-foreground/90">
-                    {p.name.trim() || "No name"}
-                    {p.role && <span className="font-normal text-muted"> · {p.role}</span>}
-                  </p>
-                )}
-                {emails.map((c, i) => (
-                  <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-white/[0.04]">
-                    <Mail size={13} className="shrink-0 text-sky-400" />
-                    <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
-                      {c.value.trim()}
-                    </a>
-                    <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
-                  </div>
-                ))}
-                {!emails.length && <p className="text-xs text-muted">No email address</p>}
+      {/* the person to write to */}
+      <section className={SECTION}>
+        <Head title="Contact" editing={editingContacts} onEdit={onEditContacts} />
+        {editingContacts ? (
+          <div className="fade-in">{contactsEditor}</div>
+        ) : who ? (
+          <div className="flex flex-col gap-1">
+            {who.name.trim() && who.name.trim() !== title && (
+              <p className="pb-1 text-[13px] font-medium text-foreground/90">
+                {who.name.trim()}
+                {who.role && <span className="font-normal text-muted"> · {who.role}</span>}
+              </p>
+            )}
+            {emails.map((c, i) => (
+              <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/[0.04]">
+                <Mail size={13} className="shrink-0 text-sky-400" />
+                <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
+                  {c.value.trim()}
+                </a>
+                <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
               </div>
-            );
-          })}
-        </div>
-      )}
+            ))}
+            {!emails.length && <p className="text-xs text-muted">No email address</p>}
+          </div>
+        ) : (
+          <p className="text-xs text-muted">No contact yet</p>
+        )}
+      </section>
 
-      {/* what the opener is about, and anything else to open */}
-      {others.length > 0 && (
-        <div className="flex flex-col gap-1">
+      {/* what the opener is about, and the bio */}
+      {(others.length > 0 || bio) && (
+        <section className={`${SECTION} flex flex-col gap-2`}>
           {others.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="group/link flex items-center gap-2 py-0.5 text-[13px] text-foreground/85 hover:text-foreground">
+            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="group/link flex items-center gap-2 text-[13px] text-foreground/85 hover:text-foreground">
               <PlatformMark url={l.url} size={13} className="text-muted" />
               <span className="min-w-0 truncate">{l.label || l.url}</span>
               <ArrowUpRight size={12} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
             </a>
           ))}
-        </div>
+          {bio && <p className="text-[13px] leading-relaxed text-foreground/75 italic">“{String(values[bio.id])}”</p>}
+        </section>
       )}
-
-      {bio && <p className="border-l-2 border-white/10 pl-3 text-[13px] leading-relaxed text-foreground/75 italic">{String(values[bio.id])}</p>}
 
       {/* the channel's latest uploads */}
       {(channel?.reading || recent.length > 0) && (
-        <div className="flex flex-col gap-3">
-          <p className={LABEL}>Latest {channel?.stats?.platform === "instagram" ? "reels" : "videos"}</p>
+        <section className={SECTION}>
+          <Head title={`Latest ${channel?.stats?.platform === "instagram" ? "reels" : "videos"}`} />
           <ChannelView channel={channel!.stats} at={channel!.at} reading={channel!.reading} />
-        </div>
+        </section>
       )}
 
-      {rows.length > 0 && (
-        <dl className="flex flex-col">
-          {rows.map((f) => (
-            <div key={f.id} className="flex items-baseline justify-between gap-4 border-b border-white/[0.05] py-2 text-[13px] last:border-b-0">
-              <dt className="shrink-0 text-muted">{f.name}</dt>
-              <dd className="min-w-0 text-right text-foreground/85">
-                {f.kind === "select" || f.kind === "multi" ? tagNames(f, values[f.id]).join(", ") : f.kind === "checkbox" ? "Yes" : f.kind === "count" ? String((values[f.id] as { n: number | null }).n ?? "") : String(values[f.id])}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-
-      <div className="flex gap-4 text-xs">
-        <button type="button" onClick={onEditDetails} className="text-muted transition-colors hover:text-foreground">
-          Edit details
-        </button>
-        <button type="button" onClick={onEditContacts} className="text-muted transition-colors hover:text-foreground">
-          Edit contacts
-        </button>
-      </div>
+      {/* the rest */}
+      <section className={SECTION}>
+        <Head title="Details" editing={editingDetails} onEdit={onEditDetails} />
+        {editingDetails ? (
+          <div className="fade-in">{detailsEditor}</div>
+        ) : rows.length ? (
+          <dl className="flex flex-col">
+            {rows.map((f) => (
+              <div key={f.id} className="flex items-baseline justify-between gap-4 border-b border-white/[0.05] py-2 text-[13px] last:border-b-0">
+                <dt className="shrink-0 text-muted">{f.name}</dt>
+                <dd className="min-w-0 text-right text-foreground/85">
+                  {f.kind === "select" || f.kind === "multi" ? tagNames(f, values[f.id]).join(", ") : f.kind === "checkbox" ? "Yes" : f.kind === "count" ? String((values[f.id] as { n: number | null }).n ?? "") : String(values[f.id])}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+      </section>
     </div>
   );
 }
