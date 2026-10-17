@@ -71,6 +71,8 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
     await prisma.lead.update({ where: { id: leadId }, data: { channelAt: new Date() } });
     return;
   }
+  // the picture itself, fetched once per read and kept small (its link expires)
+  stats.avatar = stats.avatar ? await dataUrlOf(stats.avatar) : null;
   const values = { ...(lead.values as Record<string, unknown>) };
   const field = (name: string) => lead.board.fields.find((f) => f.name.toLowerCase() === name.toLowerCase());
   const names = FIELDS[platform];
@@ -79,4 +81,19 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
   if (followers && stats.followers !== null) values[followers.id] = stats.followers.toLocaleString("en-GB");
   if (views && stats.typicalViews !== null) values[views.id] = stats.typicalViews.toLocaleString("en-GB");
   await prisma.lead.update({ where: { id: leadId }, data: { channel: stats, channelAt: new Date(), values: values as Prisma.InputJsonObject } });
+}
+
+// A picture as a data URL, or null: an image only, at most 200 KB, given 10
+// seconds
+async function dataUrlOf(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const type = res.headers.get("content-type") ?? "";
+    if (!res.ok || !type.startsWith("image/")) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (bytes.length > 200_000) return null;
+    return `data:${type.split(";")[0]};base64,${bytes.toString("base64")}`;
+  } catch {
+    return null;
+  }
 }

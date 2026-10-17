@@ -9,6 +9,9 @@ export type ChannelStats = {
   typicalViews: number | null;
   recent: { title: string; views: number | null; at: string | null; url: string | null }[];
   lastUploadAt: string | null;
+  // its profile picture: from a read, the scraper's link; saved on the lead,
+  // that picture itself, small, as a data URL (the links expire)
+  avatar: string | null;
 };
 
 // the lead's channel, from its Links: the "YouTube channel" link, or the
@@ -31,9 +34,12 @@ export function median(ns: number[]): number | null {
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
 
-type YtItem = { title?: string; url?: string; viewCount?: number; date?: string; numberOfSubscribers?: number };
+type YtItem = { title?: string; url?: string; viewCount?: number; date?: string; numberOfSubscribers?: number; channelAvatarUrl?: string };
 type IgPost = { caption?: string; url?: string; timestamp?: string; type?: string; videoPlayCount?: number; videoViewCount?: number };
-type IgDetails = { followersCount?: number; latestPosts?: IgPost[] };
+type IgDetails = { followersCount?: number; latestPosts?: IgPost[]; profilePicUrl?: string; profilePicUrlHD?: string };
+
+// a YouTube avatar at 128px: its address carries the size ("=s900-c-k…")
+export const smallAvatar = (url: string) => url.replace(/=s\d+(-|$)/, "=s128$1");
 
 // what a finished read says, in the one shape the window draws
 export function statsOf(platform: ChannelStats["platform"], items: unknown[]): ChannelStats | null {
@@ -49,6 +55,7 @@ export function statsOf(platform: ChannelStats["platform"], items: unknown[]): C
       typicalViews: median(recent.flatMap((v) => (typeof v.views === "number" ? [v.views] : []))),
       recent: recent.slice(0, 10),
       lastUploadAt: recent[0]?.at ?? null,
+      avatar: ((a) => (a ? smallAvatar(a) : null))(videos.find((v) => v.channelAvatarUrl)?.channelAvatarUrl),
     };
   }
   const d = (items as IgDetails[])[0];
@@ -63,5 +70,7 @@ export function statsOf(platform: ChannelStats["platform"], items: unknown[]): C
     typicalViews: median(posts.flatMap((p) => (typeof p.views === "number" ? [p.views] : []))),
     recent: posts.slice(0, 10),
     lastUploadAt: posts[0]?.at ?? null,
+    // the standard one is already small (about 150px); the HD one only if it's missing
+    avatar: d.profilePicUrl ?? d.profilePicUrlHD ?? null,
   };
 }
