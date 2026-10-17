@@ -468,12 +468,16 @@ dialog[open]::backdrop {
    length as the panel (TaskDetailsDialog.tsx), on top of the open/close
    fade every dialog has. */
 .dialog-grow {
+  /* min- and max-height too: a full-screen switch (the lead window) grows
+     the box between two lengths, never from "auto" */
   transition:
     opacity 0.18s ease,
     scale 0.18s ease,
     overlay 0.18s ease allow-discrete,
     display 0.18s ease allow-discrete,
-    width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    min-height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 /* The direction is set whether open or not: while the dialog fades out it
    keeps display:flex (held by allow-discrete) but loses [open] — with the

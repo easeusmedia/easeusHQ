@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -48,6 +48,9 @@ export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: Lead
   const [opens, setOpens] = useState(0);
   const [wasOpen, setWasOpen] = useState(open);
   const [history, setHistory] = useState(false);
+  // the whole window, for writing and copying messages; stays so from one
+  // lead to the next until switched back
+  const [full, setFull] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
@@ -69,11 +72,14 @@ export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: Lead
       {...closeOnBackdrop}
       // only its own closing: a reason prompt inside it closing reaches here too
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
-      // the width eases open with the History panel, as a task's does
-      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${history ? "w-[63rem]" : "w-[41rem]"}`}
+      // the width eases open with the History panel, as a task's does, and
+      // out to the whole window in full screen
+      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
+        full ? "max-h-[calc(100dvh-2rem)] min-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none" : `max-h-[88vh] min-h-0 max-w-[94vw] ${history ? "w-[63rem]" : "w-[41rem]"}`
+      }`}
     >
       {shown && (
-        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} history={history} onHistory={() => setHistory((h) => !h)} close={() => ref.current?.close()} onDeleted={onClose} onTrack={onTrack} />
+        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} history={history} onHistory={() => setHistory((h) => !h)} full={full} onFull={() => setFull((f) => !f)} close={() => ref.current?.close()} onDeleted={onClose} onTrack={onTrack} />
       )}
     </dialog>
   );
@@ -86,6 +92,8 @@ function LeadPage({
   people,
   history,
   onHistory,
+  full,
+  onFull,
   close,
   onDeleted,
   onTrack,
@@ -96,6 +104,8 @@ function LeadPage({
   people: Person[];
   history: boolean;
   onHistory: () => void;
+  full: boolean;
+  onFull: () => void;
   close: () => void;
   onDeleted: () => void;
   onTrack: (id: string, change: MarkChange) => void;
@@ -264,12 +274,21 @@ function LeadPage({
           <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
           History
         </button>
+        <button
+          type="button"
+          onClick={onFull}
+          aria-label={full ? "Exit full screen" : "Full screen"}
+          title={full ? "Exit full screen" : "Full screen"}
+          className="mt-0.5 shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
+        >
+          {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
       </div>
 
       {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
           Dock app) gives a 0-based flex item no height at all */}
       <div className="flex min-h-0 flex-auto">
-        <div className="flex w-[39rem] min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1">
+        <div className={`flex min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1 ${full ? "flex-1" : "w-[39rem]"}`}>
           {/* its stage and who has it, as chips */}
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
