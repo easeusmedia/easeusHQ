@@ -46,6 +46,7 @@ import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, forwardNotice, hideNotice, scheduleMeeting, setNoticeRemark } from "./actions";
 import { warmTask } from "../taskWarm";
+import { useFrozen } from "../FrozenTasks";
 import { MENU_ITEM, MoreMenu } from "../MoreMenu";
 
 export type HomeItem = {
@@ -471,6 +472,9 @@ export function HomeView({
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const shownDay = days.includes(day) ? day : days.includes(today) ? today : monday;
 
+  // their own overdue work asks for a new date before it's ticked off or
+  // opened, as in My tasks (FrozenTasks); Work in progress isn't locked
+  const frozen = useFrozen();
   async function tick(item: HomeItem) {
     setGone((g) => new Set(g).add(item.key));
     // failed outright (offline) as well as refused: it comes back
@@ -618,7 +622,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} onPointerEnter={() => warmTask({ kind: i.source, id: i.id })} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
+                <div key={i.key} {...frozen(i.id)} onPointerEnter={() => warmTask({ kind: i.source, id: i.id })} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"
