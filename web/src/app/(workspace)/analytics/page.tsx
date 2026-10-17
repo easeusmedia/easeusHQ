@@ -154,7 +154,8 @@ export default async function AnalyticsPage({
         publishedAt: { gte: new Date(`${prev.from}T00:00:00+05:30`), lt: new Date(`${shiftDay(to, 1)}T00:00:00+05:30`) },
       },
     }),
-    prisma.scrapeRun.count({ where: { status: { in: ["RUNNING", "SAVING"] } } }),
+    // a Sales lead's channel read isn't Analytics refreshing
+    prisma.scrapeRun.count({ where: { status: { in: ["RUNNING", "SAVING"] }, kind: { not: "lead" } } }),
   ]);
 
   // accounts not read back this far yet: read once, now, all in one go

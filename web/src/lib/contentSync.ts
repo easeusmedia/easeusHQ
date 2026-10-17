@@ -67,7 +67,7 @@ export async function targets(clientIds?: string[]): Promise<Target[]> {
 }
 
 // the secret in the call-back address, so only Apify's call-backs are taken
-async function callbackKey(): Promise<string> {
+export async function callbackKey(): Promise<string> {
   const key = "analytics.callbackKey";
   const found = await prisma.appSetting.findUnique({ where: { key } });
   if (found) return found.value;
@@ -385,6 +385,13 @@ export async function collect(): Promise<{ pending: number }> {
     // claim it, so a call-back and a page load can't both save it
     const claimed = await prisma.scrapeRun.updateMany({ where: { id: run.id, status: "RUNNING" }, data: { status: "SAVING" } });
     if (!claimed.count) continue;
+    // a Sales lead's own channel (lib/leadChannel.ts), not a client's
+    if (run.kind === "lead") {
+      const { saveLeadRun } = await import("./leadChannel.ts");
+      await saveLeadRun(run, res.items ?? []);
+      await prisma.scrapeRun.update({ where: { id: run.id }, data: { status: "SUCCEEDED", doneAt: new Date(), checkedAt: new Date() } });
+      continue;
+    }
     const map = run.targets as Record<string, string>;
     const at = new Date();
     if (run.platform === "instagram" && run.kind === "posts") {
@@ -441,6 +448,6 @@ export async function collect(): Promise<{ pending: number }> {
 
 // Whether a run covering this account is under way
 export async function syncing(clientId: string, platform: Platform): Promise<boolean> {
-  const runs = await prisma.scrapeRun.findMany({ where: { status: { in: ["RUNNING", "SAVING"] }, platform } });
+  const runs = await prisma.scrapeRun.findMany({ where: { status: { in: ["RUNNING", "SAVING"] }, platform, kind: { not: "lead" } } });
   return runs.some((r) => Object.values(r.targets as Record<string, string>).includes(clientId));
 }
