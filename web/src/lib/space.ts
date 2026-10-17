@@ -283,6 +283,16 @@ export function leadVars(lead: { title: string; values: Record<string, unknown>;
   return { ...auto, ...typed };
 }
 
+// A day's stage renamed: it keeps its "Day N" whatever it's now called, or it
+// would leave the sequence and its messages with it (Abhishek renamed Day 1
+// to "Anime" and it vanished, 17 Oct 2026). Any other stage takes the name.
+export function keepDay(current: string, next: string): string {
+  const day = dayOf(current);
+  if (day == null || dayOf(next) === day) return next;
+  const words = next.replace(/^\s*day\s*\d+\s*·?\s*/i, "").trim();
+  return words ? `Day ${day} · ${words}` : `Day ${day}`;
+}
+
 // "Day 3 · Email 2" is day 3; a stage outside the sequence has no day
 export function dayOf(stageName: string): number | null {
   const m = /^Day (\d+)\b/.exec(stageName);

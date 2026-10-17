@@ -26,7 +26,7 @@ const SMALL_BTN = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-m
 const INPUT = "w-full rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover";
 const BLOCK = "rounded-xl bg-foreground/[0.03]";
 // the two sides of the lead window: its profile, and its messages
-const PANEL = "rounded-2xl border border-white/[0.07] bg-foreground/[0.025]";
+const PANEL = "rounded-2xl border border-white/[0.07] bg-[#15171b]";
 
 const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
 
@@ -243,11 +243,39 @@ export function Messages({
     <div className="@container min-h-0 flex-1">
       {/* the lead's profile on the left; on the right its messages, the days along their top */}
       <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-        <aside className={`${PANEL} @container min-h-0 overflow-y-auto`}>{aside}</aside>
+        {/* as tall as what's in it (scrolling past the window's height), not a tall empty box */}
+        <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto`}>
+          {/* the form: the words that change per lead, typed once, filling every email that uses them */}
+          {used.length > 0 && (
+            <section className="border-b border-white/[0.06] px-5 py-5">
+              <div className="mb-3 flex items-center gap-2">
+                <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Fill in</p>
+                <span className={`ml-auto text-xs ${blanks.length ? "text-red-300" : "text-emerald-300"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {used.map((name) => (
+                  <label key={name} className="flex min-w-0 flex-col gap-1">
+                    <span className="text-xs text-muted">{name}</span>
+                    <input
+                      value={typed[name] ?? lead.vars[name] ?? ""}
+                      onChange={(e) => setTyped((x) => ({ ...x, [name]: e.target.value }))}
+                      onBlur={(e) => saveVar(name, e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                      placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
+                      className={`${INPUT} ${!(typed[name] ?? lead.vars[name] ?? auto[name]) ? "border-red-400/30" : ""}`}
+                    />
+                  </label>
+                ))}
+              </div>
+            </section>
+          )}
+          {aside}
+        </aside>
         <section className={`${PANEL} flex min-h-0 flex-col overflow-hidden`}>
-          <div className="shrink-0 border-b border-white/[0.07] px-5 pt-3.5">
+          {/* the tab strip, a shade darker: the open day's tab joins the page below it, as in Chrome */}
+          <div className="shrink-0 border-b border-white/[0.09] bg-black/45 px-3 pt-3">
             {openers.length > 1 && (
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2 px-2">
                 <span className="text-xs text-muted">Opener</span>
                 <div role="tablist" aria-label="Opener" className={bar}>
                   {openers.map((o, i) => (
@@ -259,7 +287,7 @@ export function Messages({
               </div>
             )}
             <div className="flex items-end gap-2">
-              <div role="tablist" aria-label="Days" className="-mb-px flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+              <div role="tablist" aria-label="Days" className="-mb-px flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
                 {tabs.map((x) => {
                   const replied = repliedOn(x.key);
                   const on = x.key === t.key;
@@ -272,10 +300,14 @@ export function Messages({
                       aria-selected={on}
                       onClick={() => setTab(x.key)}
                       title={x.sub}
-                      className={`relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 pt-1 pb-2.5 text-[13px] font-medium whitespace-nowrap transition-colors ${
-                        on ? "border-accent text-foreground" : `border-transparent hover:text-foreground ${x.when === "done" ? "text-muted/70" : "text-muted"}`
+                      className={`relative flex shrink-0 items-center gap-1.5 rounded-t-lg border px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors ${
+                        on
+                          ? "z-10 border-white/[0.08] border-b-[#15171b] bg-[#15171b] text-foreground"
+                          : `border-transparent hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" ? "text-muted/70" : "text-muted"}`
                       }`}
                     >
+                      {/* the open tab's mark along its top edge */}
+                      {on && <span className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent" />}
                       {/* approved, replied, or where the lead is: today green, next blue */}
                       {replied ? (
                         <Reply size={12} className="text-emerald-300" />
@@ -304,32 +336,6 @@ export function Messages({
             </p>
           )}
 
-          {/* the words that change per lead: typed once, in every message that uses them */}
-          {used.length > 0 && (
-            <div className={`${BLOCK} p-3`}>
-              <div className="mb-2 flex items-center gap-2 px-1 text-xs">
-                <Braces size={13} className="shrink-0 text-muted" />
-                <span className="font-medium text-foreground/90">Fill in once</span>
-                <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
-              </div>
-              <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
-                {used.map((name) => (
-                  <label key={name} className="flex min-w-0 flex-col gap-1">
-                    <span className="px-1 text-[12px] font-medium text-muted">{name}</span>
-                    <input
-                      value={typed[name] ?? lead.vars[name] ?? ""}
-                      onChange={(e) => setTyped((x) => ({ ...x, [name]: e.target.value }))}
-                      onBlur={(e) => saveVar(name, e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                      placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                      className={INPUT}
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* the picked day */}
           <div key={`${t.key}:${idOf(person)}`} className="fade-in flex flex-col gap-3">
             <p className="flex flex-wrap items-center gap-2 text-xs">
@@ -339,7 +345,11 @@ export function Messages({
                     name={t.stage.name}
                     pencil="always"
                     onSave={async (name) => {
-                      const res = await renameStage(t.stage.id, name).catch(() => ({ error: OFFLINE }));
+                      // a day keeps its number whatever it's called: without it, it would leave the sequence
+                      const words = t.day != null ? name.replace(/^\s*day\s*\d+\s*·?\s*/i, "").trim() : name.trim();
+                      const next = t.day != null ? (words ? `Day ${t.day} · ${words}` : `Day ${t.day}`) : words;
+                      if (!next) return "Give it a name.";
+                      const res = await renameStage(t.stage.id, next).catch(() => ({ error: OFFLINE }));
                       if (res.error) return res.error;
                       router.refresh();
                     }}
@@ -529,13 +539,11 @@ function Limit({ channel, text, className = "" }: { channel: string; text: strin
   );
 }
 
-// One of the day's messages as a form (Abhishek, 17 Oct 2026: "the form
-// option which we can fill to edit the emails of that day"): its subject and
-// words, typed into straight away, saved for this lead alone when left (the
-// template and other leads stay as they are), with Undo back to what was
-// written for it (or the template). Its rule for when to send it under the
-// name, copy and the template beside it, and Approve at its foot. A message
-// sent already reads as it went.
+// One of the day's emails as a card (Abhishek, 17 Oct 2026): its name, rule
+// and actions on top; its subject and words, the filled-in variables lit;
+// Approve at its foot. The pencil opens it to change for this lead alone (the
+// template and other leads stay as they are), with Back to what was written
+// for it (or the template). A message sent already reads as it went.
 function MessageForm({
   message,
   stages,
@@ -566,156 +574,134 @@ function MessageForm({
   const canBuild = useContext(CanBuild);
   const source = own ?? message;
   const isEmail = message.channel === "email";
-  const savedSubject = fillText(source.subject, vars);
-  const savedBody = fillText(source.body, vars);
-  const [subject, setSubject] = useState(savedSubject);
-  const [body, setBody] = useState(savedBody);
-  const [dirty, setDirty] = useState(false);
-  // while it isn't being changed, it follows what's saved (and Fill in once)
-  const [base, setBase] = useState({ subject: savedSubject, body: savedBody });
-  if (!dirty && (base.subject !== savedSubject || base.body !== savedBody)) {
-    setBase({ subject: savedSubject, body: savedBody });
-    setSubject(savedSubject);
-    setBody(savedBody);
-  }
-  const [status, setStatus] = useState<"saving" | "saved" | { error: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState(false);
   const [copied, setCopied] = useState(false);
+  const shownSubject = sent ? sent.subject : fillText(source.subject, vars);
+  const shownBody = sent ? sent.body : fillText(source.body, vars);
 
-  async function save() {
-    if (!dirty) return;
-    if (subject === savedSubject && body === savedBody) return setDirty(false);
-    if (!body.trim()) return setStatus({ error: "A message needs some words." });
-    setStatus("saving");
-    const err = await onMine({ subject, body });
-    if (err) return setStatus({ error: err });
-    setDirty(false);
-    setStatus("saved");
-    setTimeout(() => setStatus((x) => (x === "saved" ? null : x)), 1600);
+  function edit() {
+    setSubject(shownSubject);
+    setBody(shownBody);
+    setError(null);
+    setEditing(true);
   }
-  async function undo() {
-    setStatus("saving");
-    const err = await onMine(null);
-    if (err) return setStatus({ error: err });
-    setDirty(false);
-    setStatus(null);
+  async function save(draft: Draft | null) {
+    if (draft && !draft.body.trim()) return setError("A message needs some words.");
+    setBusy(true);
+    setError(null);
+    const err = await onMine(draft);
+    setBusy(false);
+    if (err) return setError(err);
+    setEditing(false);
   }
   async function copy() {
-    const text = sent ? sent.body : body;
-    const subj = sent ? sent.subject : subject;
-    await navigator.clipboard.writeText(isEmail && subj ? `Subject: ${subj}\n\n${text}` : text);
+    await navigator.clipboard.writeText(isEmail && shownSubject ? `Subject: ${shownSubject}\n\n${shownBody}` : shownBody);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
   if (template) return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setTemplate(false)} />;
 
-  const missing = variablesIn([subject, body]);
   const ICON = "grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
-  const FIELD = "w-full bg-transparent text-foreground outline-none! placeholder:text-muted/50";
+  const FIELD = "w-full rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-foreground outline-none! transition-colors placeholder:text-muted/50 focus:border-accent/40";
 
   return (
-    <article className="fade-in overflow-hidden rounded-xl border border-white/[0.08] bg-background/40">
-      {/* its name, and copy and the template beside it */}
-      <header className="flex items-center gap-2 border-b border-white/[0.06] bg-white/[0.02] px-4 py-2">
-        <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
-        <h4 className="min-w-0 truncate text-sm font-medium text-foreground">{message.name}</h4>
-        {rewritten && !sent && <span className="shrink-0 text-xs text-muted">· Edited</span>}
-        {sent && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[12px] font-medium text-emerald-300">
-            <Check size={11} /> Sent
-          </span>
-        )}
-        <span className="ml-auto flex shrink-0 items-center">
-          <button type="button" onClick={copy} title={copied ? "Copied" : "Copy the message"} aria-label="Copy the message" className={ICON}>
-            {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
-          </button>
-          {canBuild && !sent && (
-            <button type="button" onClick={() => setTemplate(true)} title="Edit the template, for every lead" aria-label="Edit the template" className={ICON}>
-              <LayoutTemplate size={14} />
-            </button>
-          )}
-        </span>
-      </header>
-      {(message.note || extra) && (
-        <p className="border-b border-white/[0.06] px-4 py-2 text-xs leading-relaxed text-muted">
-          {message.note}
-          {extra && <span className="text-foreground/80">{message.note ? " " : ""}{extra}</span>}
-        </p>
-      )}
-
-      {sent ? (
-        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {isEmail && sent.subject && (
-            <p className="mb-2">
-              <span className="text-muted">Subject: </span>
-              {sent.subject}
+    <article className="fade-in overflow-hidden rounded-xl border border-white/[0.08]">
+      {/* its name and rule, and what can be done with it */}
+      <header className="flex items-start gap-2 border-b border-white/[0.06] px-4 py-3">
+        <span className="mt-0.5 flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
+        <div className="min-w-0 flex-1">
+          <h4 className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <span className="min-w-0 truncate">{message.name}</span>
+            {rewritten && !sent && <span className="shrink-0 text-xs font-normal text-muted">· Edited</span>}
+            {sent && (
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[12px] font-medium text-emerald-300">
+                <Check size={11} /> Sent
+              </span>
+            )}
+          </h4>
+          {(message.note || extra) && (
+            <p className="mt-0.5 text-xs leading-relaxed text-muted">
+              {message.note}
+              {extra && <span className="text-foreground/80">{message.note ? " " : ""}{extra}</span>}
             </p>
           )}
-          {sent.body}
+        </div>
+        {!editing && (
+          <span className="-mt-0.5 flex shrink-0 items-center">
+            <button type="button" onClick={copy} title={copied ? "Copied" : "Copy the message"} aria-label="Copy the message" className={ICON}>
+              {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
+            </button>
+            {!sent && (
+              <button type="button" onClick={edit} title="Edit for this lead" aria-label="Edit this message" className={ICON}>
+                <Pencil size={14} className="text-sky-400" />
+              </button>
+            )}
+            {canBuild && !sent && (
+              <button type="button" onClick={() => setTemplate(true)} title="Edit the template, for every lead" aria-label="Edit the template" className={ICON}>
+                <LayoutTemplate size={14} />
+              </button>
+            )}
+          </span>
+        )}
+      </header>
+
+      {editing ? (
+        <div className="fade-in flex flex-col gap-2.5 px-4 py-4">
+          {isEmail && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={`${FIELD} text-sm font-medium`} />}
+          <textarea autoFocus value={body} onChange={(e) => setBody(e.target.value)} aria-label={message.name} className={`${FIELD} field-sizing-content min-h-40 resize-none text-sm leading-relaxed`} />
+          {error && (
+            <p role="alert" className="text-xs text-red-300">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {message.channel === "linkedin" && <Limit channel={message.channel} text={body} />}
+            {rewritten && (
+              <button type="button" onClick={() => save(null)} disabled={busy} className="flex items-center gap-1 text-muted transition-colors hover:text-foreground">
+                <RotateCcw size={11} /> {written ? "Back to the written message" : "Back to the template"}
+              </button>
+            )}
+            <span className="ml-auto flex gap-1.5">
+              <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
+                Cancel
+              </button>
+              <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
+                {busy ? "Saving…" : "Save for this lead"}
+              </button>
+            </span>
+          </div>
         </div>
       ) : (
-        <div className="transition-colors focus-within:bg-white/[0.015]">
-          {isEmail && (
-            <label className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-2.5 text-sm">
-              <span className="shrink-0 text-muted">Subject</span>
-              <input
-                value={subject}
-                onChange={(e) => {
-                  setSubject(e.target.value);
-                  setDirty(true);
-                }}
-                onBlur={save}
-                placeholder="Subject"
-                aria-label="Subject"
-                className={`${FIELD} font-medium`}
-              />
-            </label>
+        <div className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          {isEmail && shownSubject && (
+            <p className="mb-3 text-foreground">
+              <span className="text-muted">Subject: </span>
+              <span className="font-medium">{sent ? shownSubject : <Filled text={source.subject} vars={vars} />}</span>
+            </p>
           )}
-          <textarea
-            value={body}
-            onChange={(e) => {
-              setBody(e.target.value);
-              setDirty(true);
-            }}
-            onBlur={save}
-            aria-label={message.name}
-            className={`${FIELD} field-sizing-content block min-h-28 resize-none px-4 py-3.5 text-sm leading-relaxed`}
-          />
+          {sent ? shownBody : <Filled text={source.body} vars={vars} />}
         </div>
       )}
 
-      {!sent && (
-        <footer className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/[0.06] px-4 py-2.5 text-xs">
-          {status === "saving" ? (
-            <span className="text-muted">Saving…</span>
-          ) : status === "saved" ? (
-            <span className="fade-in flex items-center gap-1 text-emerald-300">
-              <Check size={12} /> Saved for this lead
-            </span>
-          ) : status && typeof status === "object" ? (
-            <span role="alert" className="text-red-300">
-              {status.error}
-            </span>
-          ) : missing.length ? (
-            <span className="text-red-300">Fill in {missing.join(", ")} above</span>
-          ) : null}
-          {message.channel === "linkedin" && <Limit channel={message.channel} text={body} />}
-          {rewritten && (
-            <button type="button" onClick={undo} className="flex items-center gap-1 text-muted transition-colors hover:text-foreground">
-              <RotateCcw size={11} /> {written ? "Back to the written message" : "Back to the template"}
-            </button>
-          )}
+      {!sent && !editing && (
+        <footer className="flex flex-wrap items-center gap-3 border-t border-white/[0.06] px-4 py-2.5 text-xs">
+          {message.channel === "linkedin" && <Limit channel={message.channel} text={shownBody} />}
           <button
             type="button"
             aria-pressed={!!approval.at}
             onClick={() => approval.set(!approval.at)}
-            title={approval.at ? `Approved by ${approval.at.by}. Tap to undo.` : "Approve this message as ready to send"}
+            title={approval.at ? "Approved. Tap to undo." : "Approve this message as ready to send"}
             className={`ml-auto flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-colors ${
               approval.at ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20" : "border-white/[0.12] bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
             }`}
           >
             <Check size={13} className={approval.at ? "" : "text-emerald-300"} />
-            {approval.at ? `Approved${approval.at.by && approval.at.by !== "You" ? ` by ${approval.at.by.split(" ")[0]}` : ""}` : "Approve"}
+            {approval.at ? "Approved" : "Approve"}
           </button>
         </footer>
       )}

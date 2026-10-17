@@ -289,7 +289,29 @@ function LeadPage({
 
   return (
     <>
-      {/* along the top: its stage, who has it, History and the window's size */}
+      {/* its name at the very top, renamed in place; History and the window's size beside it */}
+      <div className="mb-2 flex shrink-0 items-start gap-3 px-1">
+        <div className="flex min-w-0 flex-1 text-lg font-semibold tracking-tight text-foreground">
+          <EditableName name={title || lead.title} pencil="hover" wrap onSave={rename} />
+        </div>
+        <span className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
+            <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
+            History
+          </button>
+          <button
+            type="button"
+            onClick={onFull}
+            aria-label={full ? "Exit full screen" : "Full screen"}
+            title={full ? "Exit full screen" : "Full screen"}
+            className="shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
+          >
+            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+        </span>
+      </div>
+
+      {/* its stage and who has it */}
       <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1">
           <Menu
             height={340}
@@ -343,21 +365,6 @@ function LeadPage({
               {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
             </span>
           )}
-        <span className="ml-auto flex shrink-0 items-center gap-1">
-          <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
-            <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
-            History
-          </button>
-          <button
-            type="button"
-            onClick={onFull}
-            aria-label={full ? "Exit full screen" : "Full screen"}
-            title={full ? "Exit full screen" : "Full screen"}
-            className="shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
-          >
-            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-        </span>
       </div>
 
       {/* on top of all, whose lead it is when it has more than one person:
@@ -391,7 +398,6 @@ function LeadPage({
             aside={
               <LeadProfile
                 title={title || lead.title}
-                onRename={rename}
                 fields={board.fields}
                 values={values}
                 person={person}

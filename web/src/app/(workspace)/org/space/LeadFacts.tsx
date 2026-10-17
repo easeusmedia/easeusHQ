@@ -6,7 +6,6 @@ import { isFilled, type ChannelKind, type Contact, type FieldData, type LinkValu
 import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { hrefOf } from "./values";
-import { EditableName } from "../../EditableName";
 
 // What's known about a lead, read at a glance (Abhishek, 17 Oct 2026: minimal,
 // balanced, no boxes): who it is (their picture, name, where, and their
@@ -75,8 +74,6 @@ function numberOf(f: FieldData, v: unknown): string | null {
 }
 const named = (f: FieldData, re: RegExp) => re.test(f.name.trim());
 const tagNames = (f: FieldData, v: unknown) => (Array.isArray(v) ? (v as string[]).flatMap((id) => f.options.filter((o) => o.id === id).map((o) => o.name)) : []);
-// a link to a person's or a channel's page, not to one video or post
-const isPage = (l: LinkValue) => !/video|reel|post|episode|opener/i.test(l.label);
 
 // a section's small heading, with Edit (Done while editing) at its right
 function Head({ title, editing, onEdit }: { title: string; editing?: boolean; onEdit?: () => void }) {
@@ -99,15 +96,13 @@ const PLATFORM_BADGE: Record<string, { Icon: React.ComponentType<{ size?: number
   linkedin: { Icon: LinkedinIcon, tone: "bg-sky-600" },
 };
 
-// The lead's profile, in sections divided by a line (Abhishek, 17 Oct 2026):
-// who it is (its pictures from each of its pages, its name, renamed in
-// place, where and its angle, its pages as icons); its numbers; anything to
-// check; the person picked at the top of the window, with their email
-// addresses; what the opener is about; its latest uploads; and its other
-// details. Contacts and details are edited where they are.
+// The lead's profile, everything stacked down the panel (Abhishek, 17 Oct
+// 2026): its people, one block each, repeated for every person on it (their
+// picture, name and role, email addresses to copy, and their pages as icons);
+// then every detail, its name above its value; then the channel's latest
+// uploads. People and details are each edited where they are.
 export function LeadProfile({
   title,
-  onRename,
   fields,
   values,
   person,
@@ -120,7 +115,6 @@ export function LeadProfile({
   contactsEditor,
 }: {
   title: string;
-  onRename: (name: string) => Promise<string | undefined>;
   fields: FieldData[];
   values: Record<string, unknown>;
   person: Contact | null;
@@ -132,163 +126,53 @@ export function LeadProfile({
   detailsEditor: React.ReactNode;
   contactsEditor: React.ReactNode;
 }) {
-  const filled = fields.filter((f) => isFilled(f.kind, values[f.id]));
   const contactsField = fields.find((f) => f.kind === "contacts");
   const people = (contactsField && Array.isArray(values[contactsField.id]) ? (values[contactsField.id] as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
-  const who = (person && people.find((p) => p.id === person.id)) ?? people[0] ?? null;
-  // the tag the board is grouped by (Opener, Version) reads as a plain line under the name
-  const group = filled.find((f) => f.kind === "select" && f.onCard);
-  const country = filled.find((f) => named(f, /^country$/i));
-  const sub = [country && tagNames(country, values[country.id])[0], group && tagNames(group, values[group.id])[0]?.replace(/^\w\d?\s*·\s*/, "")].filter(Boolean).join(" · ");
-  const numbers = filled.flatMap((f) => {
-    const n = numberOf(f, values[f.id]);
-    return n ? [{ f, n }] : [];
-  });
-  const check = filled.find((f) => named(f, /^to check$/i));
-  const checks = check ? (check.kind === "text" ? String(values[check.id]).split("\n").filter((x) => x.trim()) : tagNames(check, values[check.id])) : [];
-  const links = filled.filter((f) => f.kind === "links").flatMap((f) => (values[f.id] as LinkValue[]).filter((l) => l.url.trim()));
-  // every page: the board's links, then the person's handles (once each)
-  const seen = new Set<string>();
-  const key = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "").toLowerCase();
-  const pages = [
-    ...links.filter(isPage).map((l) => ({ label: l.label || "Link", url: l.url })),
-    ...(who ? who.channels : []).filter((c) => c.kind !== "email" && c.value.trim()).map((c) => ({ label: HANDLE[c.kind]?.name ?? "Link", url: hrefOf(c.kind, c.value) ?? "" })),
-  ].filter((l) => l.url && !seen.has(key(l.url)) && seen.add(key(l.url)));
-  const others = links.filter((l) => !isPage(l));
-  const bio = filled.find((f) => f.kind === "text" && named(f, /^bio$/i));
-  // what's left, as quiet rows (the meme board shows on its own day's email)
-  const rows = filled.filter((f) => f !== group && f !== country && f !== check && f !== bio && f.kind !== "contacts" && f.kind !== "links" && !numberOf(f, values[f.id]) && !named(f, /^meme board$/i));
+  // every detail but the people (and the meme board, shown on its own day's email)
+  const details = fields.filter((f) => f.kind !== "contacts" && !named(f, /^meme board$/i) && isFilled(f.kind, values[f.id]));
   const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
-  const emails = (who?.channels ?? []).filter((c) => c.kind === "email" && c.value.trim());
-  // a picture from each of its pages, else one, else its initials
-  const stats = channel?.stats as (ChannelStats & { avatars?: Partial<Record<string, string>> }) | null | undefined;
+  // the channel's pictures, one per page, go with the first person
+  const stats = channel?.stats;
   const faces = Object.entries(stats?.avatars ?? {}).filter((e): e is [string, string] => !!e[1]);
   if (!faces.length && stats?.avatar) faces.push([stats.platform, stats.avatar]);
-  const pageOf = (platform: string) => pages.find((l) => l.url.includes(platform === "youtube" ? "youtube.com" : `${platform}.com`))?.url;
   const SECTION = "px-5 py-5";
 
   return (
     <div className="flex flex-col divide-y divide-white/[0.06]">
-      {/* who */}
-      <section className={`${SECTION} flex flex-col gap-4`}>
-        <div className="flex items-center gap-4">
-          {faces.length ? (
-            <div className="flex shrink-0 -space-x-3">
-              {faces.slice(0, 3).map(([platform, src]) => {
-                const badge = PLATFORM_BADGE[platform];
-                const img = (
-                  <span className="relative block">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
-                    <img src={src} alt={`${platform} picture`} className="size-14 rounded-full object-cover ring-2 ring-[#16191e]" />
-                    {badge && (
-                      <span className={`absolute -right-0.5 -bottom-0.5 grid size-5 place-items-center rounded-full text-white ring-2 ring-[#16191e] ${badge.tone}`}>
-                        <badge.Icon size={10} />
-                      </span>
-                    )}
-                  </span>
-                );
-                const href = pageOf(platform);
-                return href ? (
-                  <a key={platform} href={href} target="_blank" rel="noopener noreferrer" title={`Open ${platform}`} className="transition-transform hover:z-10 hover:-translate-y-0.5">
-                    {img}
-                  </a>
-                ) : (
-                  <span key={platform}>{img}</span>
-                );
-              })}
-            </div>
-          ) : (
-            <Face src={null} name={title} size={56} />
-          )}
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex min-w-0 text-[15px] leading-snug font-semibold text-foreground">
-              <EditableName name={title} pencil="hover" wrap onSave={onRename} />
-            </div>
-            {sub && <p className="truncate text-xs text-muted">{sub}</p>}
-          </div>
-        </div>
-        {pages.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {pages.map((l, i) => (
-              <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" title={l.label} aria-label={l.label} className={ICON_BTN}>
-                {/notion\.(site|so)/.test(l.url) ? (
-                  <span className="grid size-3.5 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span>
-                ) : l.url.startsWith("tel:") ? (
-                  <Phone size={14} className="text-emerald-300" />
-                ) : (
-                  <PlatformMark url={l.url} size={14} className={/youtube|youtu\.be/.test(l.url) ? "text-red-400" : /instagram/.test(l.url) ? "text-pink-400" : /linkedin/.test(l.url) ? "text-sky-400" : "text-muted"} />
-                )}
-              </a>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* its numbers */}
-      {numbers.length > 0 && (
-        <section className={`${SECTION} grid grid-cols-2 gap-x-6 gap-y-4`}>
-          {numbers.map(({ f, n }) => (
-            <div key={f.id} className="min-w-0">
-              <p className="text-2xl leading-none font-semibold tracking-tight text-foreground tabular-nums">{n}</p>
-              <p className="mt-1.5 truncate text-xs text-muted">{f.name}</p>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {checks.length > 0 && (
-        <section className={`${SECTION} flex flex-col gap-1.5 bg-amber-400/[0.04]`}>
-          {checks.map((c, i) => (
-            <p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-amber-200/90">
-              <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-300" />
-              {c}
-            </p>
-          ))}
-        </section>
-      )}
-
-      {/* the person to write to */}
+      {/* its people, one block each */}
       <section className={SECTION}>
-        <Head title="Contact" editing={editingContacts} onEdit={onEditContacts} />
+        <Head title={people.length > 1 ? `People · ${people.length}` : "Contact"} editing={editingContacts} onEdit={onEditContacts} />
         {editingContacts ? (
           <div className="fade-in">{contactsEditor}</div>
-        ) : who ? (
-          <div className="flex flex-col gap-1">
-            {who.name.trim() && who.name.trim() !== title && (
-              <p className="pb-1 text-[13px] font-medium text-foreground/90">
-                {who.name.trim()}
-                {who.role && <span className="font-normal text-muted"> · {who.role}</span>}
-              </p>
-            )}
-            {emails.map((c, i) => (
-              <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/[0.04]">
-                <Mail size={13} className="shrink-0 text-sky-400" />
-                <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
-                  {c.value.trim()}
-                </a>
-                <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
-              </div>
+        ) : people.length ? (
+          <div className="flex flex-col divide-y divide-white/[0.06]">
+            {people.map((p, i) => (
+              <PersonBlock key={p.id} person={p} faces={i === 0 ? faces : []} lead={title} picked={people.length > 1 && p.id === person?.id} />
             ))}
-            {!emails.length && <p className="text-xs text-muted">No email address</p>}
           </div>
         ) : (
           <p className="text-xs text-muted">No contact yet</p>
         )}
       </section>
 
-      {/* what the opener is about, and the bio */}
-      {(others.length > 0 || bio) && (
-        <section className={`${SECTION} flex flex-col gap-2`}>
-          {others.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="group/link flex items-center gap-2 text-[13px] text-foreground/85 hover:text-foreground">
-              <PlatformMark url={l.url} size={13} className="text-muted" />
-              <span className="min-w-0 truncate">{l.label || l.url}</span>
-              <ArrowUpRight size={12} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
-            </a>
-          ))}
-          {bio && <p className="text-[13px] leading-relaxed text-foreground/75 italic">“{String(values[bio.id])}”</p>}
-        </section>
-      )}
+      {/* every detail, its name above its value */}
+      <section className={SECTION}>
+        <Head title="Details" editing={editingDetails} onEdit={onEditDetails} />
+        {editingDetails ? (
+          <div className="fade-in">{detailsEditor}</div>
+        ) : (
+          <dl className="flex flex-col gap-4">
+            {details.map((f) => (
+              <div key={f.id} className="flex min-w-0 flex-col gap-1">
+                <dt className="text-xs text-muted">{f.name}</dt>
+                <dd className="min-w-0 text-[13px] text-foreground/90">
+                  <DetailValue field={f} value={values[f.id]} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
 
       {/* the channel's latest uploads */}
       {(channel?.reading || recent.length > 0) && (
@@ -297,27 +181,112 @@ export function LeadProfile({
           <ChannelView channel={channel!.stats} at={channel!.at} reading={channel!.reading} />
         </section>
       )}
-
-      {/* the rest */}
-      <section className={SECTION}>
-        <Head title="Details" editing={editingDetails} onEdit={onEditDetails} />
-        {editingDetails ? (
-          <div className="fade-in">{detailsEditor}</div>
-        ) : rows.length ? (
-          <dl className="flex flex-col">
-            {rows.map((f) => (
-              <div key={f.id} className="flex items-baseline justify-between gap-4 border-b border-white/[0.05] py-2 text-[13px] last:border-b-0">
-                <dt className="shrink-0 text-muted">{f.name}</dt>
-                <dd className="min-w-0 text-right text-foreground/85">
-                  {f.kind === "select" || f.kind === "multi" ? tagNames(f, values[f.id]).join(", ") : f.kind === "checkbox" ? "Yes" : f.kind === "count" ? String((values[f.id] as { n: number | null }).n ?? "") : String(values[f.id])}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-      </section>
     </div>
   );
+}
+
+// One person on the lead: their picture (the channel's, one per page, for the
+// first person), name and role, email addresses to copy, and pages as icons
+function PersonBlock({ person, faces, lead, picked }: { person: Contact; faces: [string, string][]; lead: string; picked: boolean }) {
+  const emails = person.channels.filter((c) => c.kind === "email" && c.value.trim());
+  const pages = person.channels.filter((c) => c.kind !== "email" && c.value.trim()).flatMap((c) => {
+    const href = hrefOf(c.kind, c.value);
+    return href ? [{ kind: c.kind, href }] : [];
+  });
+  const name = person.name.trim() || lead;
+  return (
+    <div className="flex gap-3.5 py-4 first:pt-0 last:pb-0">
+      {faces.length ? (
+        <div className="flex shrink-0 -space-x-3 self-start">
+          {faces.slice(0, 3).map(([platform, src]) => {
+            const badge = PLATFORM_BADGE[platform];
+            return (
+              <span key={platform} className="relative block" title={`${platform} picture`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
+                <img src={src} alt="" className="size-11 rounded-full object-cover ring-2 ring-[#16191e]" />
+                {badge && (
+                  <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-[#16191e] ${badge.tone}`}>
+                    <badge.Icon size={9} />
+                  </span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      ) : (
+        <span className="self-start">
+          <Face src={null} name={name} size={44} />
+        </span>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <p className="text-sm leading-snug font-medium break-words text-foreground">
+          {name}
+          {person.role && <span className="font-normal text-muted"> · {person.role}</span>}
+          {picked && <span className="ml-1.5 rounded-full bg-accent/15 px-1.5 py-px align-middle text-[11px] font-normal text-accent">Messages</span>}
+        </p>
+        {emails.map((c, i) => (
+          <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-white/[0.04]">
+            <Mail size={13} className="shrink-0 text-sky-400" />
+            <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
+              {c.value.trim()}
+            </a>
+            <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
+          </div>
+        ))}
+        {!emails.length && <p className="text-xs text-muted">No email address</p>}
+        {pages.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {pages.map((l, i) => (
+              <a key={i} href={l.href} target={l.href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" title={HANDLE[l.kind]?.name ?? "Link"} aria-label={HANDLE[l.kind]?.name ?? "Link"} className={ICON_BTN}>
+                {l.kind === "phone" ? <Phone size={14} className="text-emerald-300" /> : <PlatformMark url={l.href} size={14} className={l.kind === "youtube" ? "text-red-400" : l.kind === "instagram" ? "text-pink-400" : l.kind === "linkedin" ? "text-sky-400" : "text-muted"} />}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// A detail's value in words: links as links, a list to check as warning lines
+function DetailValue({ field, value }: { field: FieldData; value: unknown }) {
+  if (field.kind === "links")
+    return (
+      <span className="flex flex-col gap-1">
+        {(value as LinkValue[])
+          .filter((l) => l.url.trim())
+          .map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="group/link flex min-w-0 items-center gap-2 hover:text-foreground">
+              {/notion\.(site|so)/.test(l.url) ? (
+                <span className="grid size-3.5 shrink-0 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span>
+              ) : (
+                <PlatformMark url={l.url} size={13} className="shrink-0 text-muted" />
+              )}
+              <span className="min-w-0 truncate">{l.label || l.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+              <ArrowUpRight size={12} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
+            </a>
+          ))}
+      </span>
+    );
+  if (named(field, /^to check$/i)) {
+    const lines = field.kind === "text" ? String(value).split("\n").filter((x) => x.trim()) : tagNames(field, value);
+    return (
+      <span className="flex flex-col gap-1">
+        {lines.map((l, i) => (
+          <span key={i} className="flex items-start gap-1.5 text-amber-200/90">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-300" />
+            {l}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  const n = numberOf(field, value);
+  if (n) return <span className="text-base font-semibold tracking-tight text-foreground tabular-nums">{n}</span>;
+  if (field.kind === "select" || field.kind === "multi") return <>{tagNames(field, value).map((t) => t.replace(/^\w\d?\s*·\s*/, "")).join(", ")}</>;
+  if (field.kind === "checkbox") return <>Yes</>;
+  if (field.kind === "count") return <>{String((value as { n: number | null }).n ?? "")}</>;
+  return <span className="whitespace-pre-wrap">{String(value)}</span>;
 }
 
 const ago = (iso: string) => {

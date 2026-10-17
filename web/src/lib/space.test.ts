@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -307,4 +307,12 @@ test("a lead's window shows every day as a tab, done, today and next", () => {
   assert.deepEqual(sequenceTabs(ready, "d2").map((t) => t.when), ["done", "now", "next"]);
   // past the sequence: every day done, and the stage's own messages as a tab
   assert.deepEqual(sequenceTabs(ready, "d4").map((t) => [t.title, t.when]), [["Day 1", "done"], ["Day 2", "done"], ["Day 3", "done"], ["Replied", "now"]]);
+});
+
+test("a day's stage keeps its day number whatever it's renamed to", () => {
+  assert.equal(keepDay("Day 1", "Anime"), "Day 1 · Anime");
+  assert.equal(keepDay("Day 4 · LinkedIn 1", "LinkedIn first"), "Day 4 · LinkedIn first");
+  assert.equal(keepDay("Day 4 · LinkedIn 1", "Day 4 · LinkedIn DM"), "Day 4 · LinkedIn DM");
+  assert.equal(keepDay("Day 4 · LinkedIn 1", "Day 9 · Oops"), "Day 4 · Oops");
+  assert.equal(keepDay("Replied", "Interested"), "Interested");
 });

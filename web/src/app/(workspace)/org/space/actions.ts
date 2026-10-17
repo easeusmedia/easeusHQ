@@ -19,6 +19,7 @@ import {
   MESSAGE_CHANNELS,
   overLimit,
   moveNeedsReason,
+  keepDay,
   PLATFORM_NAME,
   uniqueSlug,
   type FieldData,
@@ -307,7 +308,7 @@ export async function renameStage(id: string, name: string): Promise<Done> {
   const n = cleanName(name);
   if (typeof n !== "string") return n;
   try {
-    await prisma.boardStage.update({ where: { id }, data: { name: n } });
+    await prisma.boardStage.update({ where: { id }, data: { name: keepDay(stage.name, n) } });
     return {};
   } catch (err) {
     return failed(err, "That name couldn't be saved.");
