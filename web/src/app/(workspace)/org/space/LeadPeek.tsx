@@ -2,22 +2,22 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
-import { ChannelView, FactsView, PeopleCards } from "./LeadFacts";
+import { LeadProfile } from "./LeadFacts";
 import { openLeadChannel } from "./leadChannel";
 import type { ChannelStats } from "@/lib/channelStats";
-import { CanBuild, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, dateOf } from "./values";
+import { CanBuild, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { isFilled, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -276,12 +276,9 @@ function LeadPage({
     />
   );
 
-  // what each block says in its heading; read, it shows only what's filled
+  // its properties to edit, and its people
   const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
-  const filledFields = fieldsShown.filter((f) => isFilled(f.kind, values[f.id]));
-  const filled = filledFields.length;
   const contactField = board.fields.find((f) => f.kind === "contacts");
-  const contacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as unknown[]).length : 0;
 
   return (
     <>
@@ -389,39 +386,24 @@ function LeadPage({
             onMark={(c) => onTrack(id, c)}
             onSaved={saved}
             aside={
-              // the people first (their email addresses to copy), then the rest, at a glance
-              <div className="flex flex-col gap-3">
-                {contactField && (
-                  <Section icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} editing={editContacts} onEdit={() => setEditContacts((e) => !e)}>
-                    {editContacts ? (
-                      <div key="edit" className="fade-in">
-                        <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
-                      </div>
-                    ) : (
-                      contacts > 0 && (
-                        <div key="view" className="fade-in">
-                          <PeopleCards value={values[contactField.id]} />
-                        </div>
-                      )
-                    )}
-                  </Section>
-                )}
-
-                {channel && (channel.reading || (channel.stats?.recent.length ?? 0) > 0) && (
-                  <section className={SECTION}>
-                    <div className={SECTION_HEAD}>
-                      <BarChart3 size={14} className="shrink-0 text-muted" />
-                      <h3 className={SECTION_TITLE}>Latest {channel.stats?.platform === "instagram" ? "reels" : "videos"}</h3>
-                    </div>
-                    <div className={SECTION_BODY}>
-                      <ChannelView channel={channel.stats} at={channel.at} reading={channel.reading} />
-                    </div>
-                  </section>
-                )}
-
-                <Section icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} editing={editDetails} onEdit={() => setEditDetails((e) => !e)}>
+              editDetails || editContacts ? (
+                // changing it: the properties, or the people, then Done
+                <div key={editDetails ? "details" : "contacts"} className="fade-in flex flex-col gap-3 pb-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <p className="text-[13px] font-medium text-foreground/90">{editDetails ? "Edit details" : "Edit contacts"}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditDetails(false);
+                        setEditContacts(false);
+                      }}
+                      className="btn btn-sm btn-glow ml-auto flex items-center gap-1.5"
+                    >
+                      <Check size={13} /> Done
+                    </button>
+                  </div>
                   {editDetails ? (
-                    <div key="edit" className="fade-in flex flex-col">
+                    <div className="flex flex-col">
                       {fieldsShown.map((f) => (
                         <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
                           <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
@@ -429,14 +411,19 @@ function LeadPage({
                       ))}
                     </div>
                   ) : (
-                    filled > 0 && (
-                      <div key="view" className="fade-in">
-                        <FactsView fields={fieldsShown} values={values} />
-                      </div>
-                    )
+                    contactField && <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
                   )}
-                </Section>
-              </div>
+                </div>
+              ) : (
+                <LeadProfile
+                  title={title || lead.title}
+                  fields={board.fields}
+                  values={values}
+                  channel={channel}
+                  onEditDetails={() => setEditDetails(true)}
+                  onEditContacts={() => setEditContacts(true)}
+                />
+              )
             }
           />
         </div>
@@ -528,39 +515,6 @@ function Row({ icon: Icon, label, children }: { icon: LucideIcon; label: React.R
       </div>
       <div className="flex min-h-8 min-w-0 items-center">{children}</div>
     </div>
-  );
-}
-
-// A block of the lead: its name, a one-line summary, and Edit (Done while
-// editing), on a bar above what's in it
-function Section({
-  icon: Icon,
-  title,
-  summary,
-  editing,
-  onEdit,
-  children,
-}: {
-  icon: LucideIcon;
-  title: React.ReactNode;
-  summary: string;
-  editing: boolean;
-  onEdit: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={SECTION}>
-      <div className={SECTION_HEAD}>
-        <Icon size={14} className="shrink-0 text-muted" />
-        <h3 className={SECTION_TITLE}>{title}</h3>
-        <span className="ml-auto min-w-0 truncate text-muted">{summary}</span>
-        <button type="button" onClick={onEdit} aria-pressed={editing} className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-muted transition-colors hover:bg-hover hover:text-foreground">
-          {editing ? <Check size={12} /> : <Pencil size={12} />}
-          {editing ? "Done" : "Edit"}
-        </button>
-      </div>
-      {children && <div className={SECTION_BODY}>{children}</div>}
-    </section>
   );
 }
 

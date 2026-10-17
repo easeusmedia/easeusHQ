@@ -1,30 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Copy, Globe, Mail, Phone } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Check, Copy, Globe, Mail, Phone } from "lucide-react";
 import { isFilled, type ChannelKind, type Contact, type FieldData, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { hrefOf } from "./values";
-import { TagPill } from "./pills";
 
-// What's known about a lead, read at a glance rather than as rows of text
-// (Abhishek, 17 Oct 2026): each person with their email addresses first,
-// to copy, and their other handles as buttons; then its numbers as tiles,
-// its tags as chips under their names, its links as buttons named for what
-// they are, and anything still to check as a callout.
+// What's known about a lead, read at a glance (Abhishek, 17 Oct 2026: minimal,
+// balanced, no boxes): who it is (their picture, name, where, and their
+// pages as icons), its numbers, anything still to check, the people to write
+// to with their email addresses, the channel's latest uploads, and the rest
+// as quiet rows. Only what's filled shows. Editing is under the two links at
+// the foot (LeadPeek).
 
-const SOCIAL: Partial<Record<ChannelKind, { Icon: React.ComponentType<{ size?: number; className?: string }>; tone: string; name: string }>> = {
-  linkedin: { Icon: LinkedinIcon, tone: "text-blue-400", name: "LinkedIn" },
-  instagram: { Icon: InstagramIcon, tone: "text-pink-400", name: "Instagram" },
-  youtube: { Icon: YoutubeIcon, tone: "text-red-400", name: "YouTube" },
-  x: { Icon: XIcon, tone: "text-foreground", name: "X" },
-  phone: { Icon: Phone, tone: "text-emerald-300", name: "Phone" },
-  other: { Icon: Globe, tone: "text-muted", name: "Link" },
+const HANDLE: Partial<Record<ChannelKind, { Icon: React.ComponentType<{ size?: number; className?: string }>; name: string }>> = {
+  youtube: { Icon: YoutubeIcon, name: "YouTube" },
+  instagram: { Icon: InstagramIcon, name: "Instagram" },
+  linkedin: { Icon: LinkedinIcon, name: "LinkedIn" },
+  x: { Icon: XIcon, name: "X" },
+  phone: { Icon: Phone, name: "Phone" },
+  other: { Icon: Globe, name: "Link" },
 };
-const LABEL = "px-0.5 text-[11px] font-medium tracking-wide text-muted uppercase";
+const LABEL = "text-[11px] font-medium tracking-wide text-muted uppercase";
+const ICON_BTN = "grid size-8 shrink-0 place-items-center rounded-full bg-white/[0.05] text-foreground/75 transition-colors hover:bg-white/[0.1] hover:text-foreground";
 
-function CopyButton({ text, label }: { text: string; label: string }) {
+function CopyButton({ text, className = "" }: { text: string; className?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
@@ -34,71 +35,31 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         setDone(true);
         setTimeout(() => setDone(false), 1400);
       }}
-      aria-label={label}
-      title={label}
-      className="grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground"
+      aria-label={`Copy ${text}`}
+      title="Copy"
+      className={`grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-[color,background-color,opacity] hover:bg-white/[0.08] hover:text-foreground ${className}`}
     >
       {done ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />}
     </button>
   );
 }
 
-// The people on a lead: name and role, every email address with a copy
-// button, and their other handles as buttons along the bottom
-export function PeopleCards({ value }: { value: unknown }) {
-  const people = (Array.isArray(value) ? (value as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
-  if (!people.length) return null;
-  return (
-    <div className="flex flex-col gap-2">
-      {people.map((p) => {
-        const emails = p.channels.filter((c) => c.kind === "email" && c.value.trim());
-        const others = p.channels.filter((c) => c.kind !== "email" && c.value.trim());
-        return (
-          <div key={p.id} className="panel-soft flex min-w-0 flex-col gap-2 rounded-xl px-3.5 py-3">
-            <p className="truncate text-sm font-medium text-foreground">
-              {p.name.trim() || "No name"}
-              {p.role && <span className="font-normal text-muted"> · {p.role}</span>}
-            </p>
-            {emails.length > 0 && (
-              <div className="flex flex-col gap-0.5">
-                {emails.map((c, i) => (
-                  <div key={i} className="flex min-w-0 items-center gap-2 rounded-lg bg-white/[0.03] py-0.5 pr-0.5 pl-2.5">
-                    <Mail size={13} className="shrink-0 text-sky-400" />
-                    <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/90 hover:text-accent">
-                      {c.value.trim()}
-                    </a>
-                    <CopyButton text={c.value.trim()} label={`Copy ${c.value.trim()}`} />
-                  </div>
-                ))}
-              </div>
-            )}
-            {others.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {others.map((c, i) => {
-                  const s = SOCIAL[c.kind] ?? SOCIAL.other!;
-                  const href = hrefOf(c.kind, c.value);
-                  const inner = (
-                    <>
-                      <s.Icon size={13} className={`shrink-0 ${s.tone}`} /> {s.name}
-                    </>
-                  );
-                  const cls = "flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-xs text-foreground/85 transition-colors hover:bg-white/[0.08] hover:text-foreground";
-                  return href ? (
-                    <a key={i} href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" title={c.value.trim()} className={cls}>
-                      {inner}
-                    </a>
-                  ) : (
-                    <span key={i} title={c.value.trim()} className={cls}>
-                      {inner}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+// a picture, else the name's initials on a soft circle
+function Face({ src, name, size = 56 }: { src: string | null; name: string; size?: number }) {
+  const letters = name
+    .replace(/^(dr\.?|mr\.?|ms\.?)\s+/i, "")
+    .split(/[\s|/,-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read
+    <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover ring-1 ring-white/10" style={{ width: size, height: size }} />
+  ) : (
+    <span className="grid shrink-0 place-items-center rounded-full bg-linear-to-br from-sky-400/25 to-violet-400/20 font-semibold text-foreground/85 ring-1 ring-white/10" style={{ width: size, height: size, fontSize: size * 0.34 }}>
+      {letters || "?"}
+    </span>
   );
 }
 
@@ -111,92 +72,175 @@ function numberOf(f: FieldData, v: unknown): string | null {
   }
   return f.kind === "text" && typeof v === "string" && NUMERIC.test(v.trim()) ? v.trim() : null;
 }
-const isCheck = (f: FieldData) => /^to check$/i.test(f.name.trim());
+const named = (f: FieldData, re: RegExp) => re.test(f.name.trim());
+const tagNames = (f: FieldData, v: unknown) => (Array.isArray(v) ? (v as string[]).flatMap((id) => f.options.filter((o) => o.id === id).map((o) => o.name)) : []);
+// a link to a person's or a channel's page, not to one video or post
+const isPage = (l: LinkValue) => !/video|reel|post|episode|opener/i.test(l.label);
 
-// A lead's properties, read visually: numbers as tiles, tags as chips under
-// their names, links as buttons, text as text, and what's left to check as
-// a callout. Only what's filled shows.
-export function FactsView({ fields, values }: { fields: FieldData[]; values: Record<string, unknown> }) {
-  const filled = fields.filter((f) => f.kind !== "contacts" && isFilled(f.kind, values[f.id]));
-  if (!filled.length) return null;
+export function LeadProfile({
+  title,
+  fields,
+  values,
+  channel,
+  onEditDetails,
+  onEditContacts,
+}: {
+  title: string;
+  fields: FieldData[];
+  values: Record<string, unknown>;
+  channel: { stats: ChannelStats | null; at: string | null; reading: boolean } | null;
+  onEditDetails: () => void;
+  onEditContacts: () => void;
+}) {
+  const filled = fields.filter((f) => isFilled(f.kind, values[f.id]));
+  const contactsField = fields.find((f) => f.kind === "contacts");
+  const people = (contactsField && Array.isArray(values[contactsField.id]) ? (values[contactsField.id] as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
+  // the tag the board is grouped by (Opener, Version) reads as a plain line under the name
+  const group = filled.find((f) => f.kind === "select" && f.onCard);
+  const country = filled.find((f) => named(f, /^country$/i));
+  const sub = [country && tagNames(country, values[country.id])[0], group && tagNames(group, values[group.id])[0]?.replace(/^\w\d?\s*·\s*/, "")].filter(Boolean).join(" · ");
   const numbers = filled.flatMap((f) => {
     const n = numberOf(f, values[f.id]);
     return n ? [{ f, n }] : [];
   });
-  const tags = filled.filter((f) => (f.kind === "select" || f.kind === "multi") && !isCheck(f));
+  const check = filled.find((f) => named(f, /^to check$/i));
+  const checks = check ? (check.kind === "text" ? String(values[check.id]).split("\n").filter((x) => x.trim()) : tagNames(check, values[check.id])) : [];
   const links = filled.filter((f) => f.kind === "links").flatMap((f) => (values[f.id] as LinkValue[]).filter((l) => l.url.trim()));
-  const checks = filled.filter(isCheck).flatMap((f) => {
-    const v = values[f.id];
-    return Array.isArray(v) ? (v as string[]).flatMap((id) => f.options.filter((o) => o.id === id).map((o) => o.name)) : String(v).split("\n").filter((x) => x.trim());
-  });
-  const texts = filled.filter((f) => f.kind === "text" && !isCheck(f) && !numberOf(f, values[f.id]));
-  const rest = filled.filter((f) => f.kind === "date" || f.kind === "checkbox");
+  // every page: the board's links, then each person's handles (once each)
+  const seen = new Set<string>();
+  const pages = [
+    ...links.filter(isPage).map((l) => ({ label: l.label || "Link", url: l.url })),
+    ...people.flatMap((p) => p.channels.filter((c) => c.kind !== "email" && c.value.trim()).map((c) => ({ label: HANDLE[c.kind]?.name ?? "Link", url: hrefOf(c.kind, c.value) ?? "" }))),
+  ].filter((l) => l.url && !seen.has(l.url.replace(/\/+$/, "").toLowerCase()) && seen.add(l.url.replace(/\/+$/, "").toLowerCase()));
+  const others = links.filter((l) => !isPage(l));
+  const bio = filled.find((f) => f.kind === "text" && named(f, /^bio$/i));
+  // what's left, as quiet rows (the meme board shows on its own day's email)
+  const rows = filled.filter((f) => f !== group && f !== country && f !== check && f !== bio && f.kind !== "contacts" && f.kind !== "links" && !numberOf(f, values[f.id]) && !named(f, /^meme board$/i));
+  const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-7 pt-1 pb-2">
+      {/* who */}
+      <div className="flex items-center gap-4">
+        <Face src={channel?.stats?.avatar ?? null} name={title} size={60} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="line-clamp-2 text-[15px] leading-snug font-semibold text-foreground">{title}</p>
+          {sub && <p className="truncate text-xs text-muted">{sub}</p>}
+        </div>
+      </div>
+      {pages.length > 0 && (
+        <div className="-mt-3 flex flex-wrap gap-1.5">
+          {pages.map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" title={l.label} aria-label={l.label} className={ICON_BTN}>
+              {/notion\.(site|so)/.test(l.url) ? (
+                <span className="grid size-3.5 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span>
+              ) : l.url.startsWith("tel:") ? (
+                <Phone size={14} />
+              ) : (
+                <PlatformMark url={l.url} size={14} />
+              )}
+            </a>
+          ))}
+        </div>
+      )}
+
+      {/* its numbers */}
+      {numbers.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          {numbers.map(({ f, n }) => (
+            <div key={f.id} className="min-w-0">
+              <p className="text-2xl leading-none font-semibold tracking-tight text-foreground tabular-nums">{n}</p>
+              <p className="mt-1.5 truncate text-xs text-muted">{f.name}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {checks.length > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5">
+        <div className="flex flex-col gap-1.5 border-l-2 border-amber-400/60 pl-3">
           {checks.map((c, i) => (
             <p key={i} className="flex items-start gap-2 text-xs leading-relaxed text-amber-200/90">
-              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-300" />
+              <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-300" />
               {c}
             </p>
           ))}
         </div>
       )}
-      {numbers.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          {numbers.map(({ f, n }) => (
-            <div key={f.id} className="panel-soft flex min-w-0 flex-col gap-0.5 rounded-xl px-3 py-2.5">
-              <span className="truncate text-[11px] text-muted">{f.name}</span>
-              <span className="text-lg font-semibold tracking-tight text-foreground tabular-nums">{n}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {tags.length > 0 && (
-        <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
-          {tags.map((f) => (
-            <div key={f.id} className="flex min-w-0 flex-col gap-1">
-              <span className={LABEL}>{f.name}</span>
-              <span className="flex min-w-0 flex-wrap gap-1">
-                {(values[f.id] as string[]).flatMap((id) => f.options.filter((o) => o.id === id)).map((o) => (
-                  <TagPill key={o.id} name={o.name} color={o.color} wrap />
+
+      {/* who to write to */}
+      {people.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <p className={LABEL}>{people.length > 1 ? "People" : "Email"}</p>
+          {people.map((p) => {
+            const emails = p.channels.filter((c) => c.kind === "email" && c.value.trim());
+            return (
+              <div key={p.id} className="flex flex-col gap-0.5">
+                {(people.length > 1 || (p.name.trim() && p.name.trim() !== title)) && (
+                  <p className="pb-1 text-[13px] font-medium text-foreground/90">
+                    {p.name.trim() || "No name"}
+                    {p.role && <span className="font-normal text-muted"> · {p.role}</span>}
+                  </p>
+                )}
+                {emails.map((c, i) => (
+                  <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-white/[0.04]">
+                    <Mail size={13} className="shrink-0 text-sky-400" />
+                    <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
+                      {c.value.trim()}
+                    </a>
+                    <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
+                  </div>
                 ))}
-              </span>
-            </div>
-          ))}
+                {!emails.length && <p className="text-xs text-muted">No email address</p>}
+              </div>
+            );
+          })}
         </div>
       )}
-      {links.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {links.map((l, i) => (
-            <a
-              key={i}
-              href={l.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={l.url}
-              className="flex max-w-full items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-xs text-foreground/85 transition-colors hover:bg-white/[0.08] hover:text-foreground"
-            >
-              {/notion\.(site|so)/.test(l.url) ? <span className="grid size-3.5 shrink-0 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span> : <PlatformMark url={l.url} size={13} className="text-muted" />}
-              <span className="truncate">{l.label || l.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+
+      {/* what the opener is about, and anything else to open */}
+      {others.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {others.map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="group/link flex items-center gap-2 py-0.5 text-[13px] text-foreground/85 hover:text-foreground">
+              <PlatformMark url={l.url} size={13} className="text-muted" />
+              <span className="min-w-0 truncate">{l.label || l.url}</span>
+              <ArrowUpRight size={12} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
             </a>
           ))}
         </div>
       )}
-      {texts.map((f) => (
-        <div key={f.id} className="flex min-w-0 flex-col gap-1">
-          <span className={LABEL}>{f.name}</span>
-          <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground/85">{String(values[f.id])}</p>
+
+      {bio && <p className="border-l-2 border-white/10 pl-3 text-[13px] leading-relaxed text-foreground/75 italic">{String(values[bio.id])}</p>}
+
+      {/* the channel's latest uploads */}
+      {(channel?.reading || recent.length > 0) && (
+        <div className="flex flex-col gap-3">
+          <p className={LABEL}>Latest {channel?.stats?.platform === "instagram" ? "reels" : "videos"}</p>
+          <ChannelView channel={channel!.stats} at={channel!.at} reading={channel!.reading} />
         </div>
-      ))}
-      {rest.map((f) => (
-        <div key={f.id} className="flex min-w-0 items-center justify-between gap-2 text-xs">
-          <span className="text-muted">{f.name}</span>
-          <span className="text-foreground/85">{f.kind === "checkbox" ? "Yes" : String(values[f.id])}</span>
-        </div>
-      ))}
+      )}
+
+      {rows.length > 0 && (
+        <dl className="flex flex-col">
+          {rows.map((f) => (
+            <div key={f.id} className="flex items-baseline justify-between gap-4 border-b border-white/[0.05] py-2 text-[13px] last:border-b-0">
+              <dt className="shrink-0 text-muted">{f.name}</dt>
+              <dd className="min-w-0 text-right text-foreground/85">
+                {f.kind === "select" || f.kind === "multi" ? tagNames(f, values[f.id]).join(", ") : f.kind === "checkbox" ? "Yes" : f.kind === "count" ? String((values[f.id] as { n: number | null }).n ?? "") : String(values[f.id])}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      <div className="flex gap-4 text-xs">
+        <button type="button" onClick={onEditDetails} className="text-muted transition-colors hover:text-foreground">
+          Edit details
+        </button>
+        <button type="button" onClick={onEditContacts} className="text-muted transition-colors hover:text-foreground">
+          Edit contacts
+        </button>
+      </div>
     </div>
   );
 }

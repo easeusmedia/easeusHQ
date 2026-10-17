@@ -154,6 +154,9 @@ export function Messages({
   const used = variablesIn(allMessages.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
   const blanks = used.filter((n) => !vars[n]);
   const openers = prepared?.openers ?? [];
+  // which meme board image goes with Day 6's email, from the lead's property
+  const memeField = board.fields.find((f) => /^meme board$/i.test(f.name.trim()));
+  const memeBoard = memeField ? memeField.options.find((o) => (lead.values[memeField.id] as string[] | undefined)?.includes(o.id))?.name : undefined;
   const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
   const dayApproved = (x: SequenceTab) => chosenOn(x, person).every((m) => !!approvalOf(forContact(m.id, person)));
   const opener = Math.min(Number(pickOf("opener") ?? 0) || 0, Math.max(0, openers.length - 1));
@@ -161,29 +164,14 @@ export function Messages({
   // before Ready to reach out: what's known about it, nothing to send
   if (!tabs.length) return <div className="@container flex min-h-0 flex-1 flex-col overflow-y-auto px-1 pb-1">{aside}</div>;
 
-  const card = (m: MessageData, v: Record<string, string>, approval?: { at: Approval | null; set: (on: boolean) => void }) => (
-    <MessageCard
-      key={`${m.id}:${opener}`}
-      approval={approval}
-      message={m}
-      stages={board.stages}
-      leadId={lead.id}
-      vars={v}
-      names={names}
-      own={own(m.id)}
-      rewritten={rewritten(m.id)}
-      sent={sent?.find((x) => x.messageId === m.id) ?? null}
-      onMine={(d) => saveMine(m.id, d)}
-    />
-  );
-
   // one platform's message on the day for the person: picked between when
   // there are two, then the message, then how it went (from the day on)
   const platformRow = (t: SequenceTab, options: MessageData[], c: Contact | null) => {
     const key = forContact(t.key, c);
     const chosen = chosenFor(options, picks, t.key, c, lead.email.opens > 0) ?? options[0];
     const can = hasChannel(c, chosen.channel);
-    const reached = t.day != null && today != null && t.day <= today;
+    // the day has come, or gone (a lead past the days, in Replied, can still untap)
+    const reached = t.when === "done" || (t.day != null && today != null && t.day <= today);
     const platform = MARKED.includes(chosen.channel as Marked) ? (chosen.channel as Marked) : null;
     const m = platform ? (lead.marks[idOf(c)]?.[platform] ?? {}) : {};
     const rowVars = c?.name.trim() ? { ...vars, Name: firstName(c.name) } : vars;
@@ -191,7 +179,7 @@ export function Messages({
     const needs = platform === "linkedin" && !m.accepted;
     const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
     return (
-      <div key={chosen.channel} className={`flex flex-col gap-2 ${can ? "" : "opacity-50"}`} title={can ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
+      <div key={chosen.channel} className={`flex flex-col gap-2.5 py-5 first:pt-3 ${can ? "" : "opacity-50"}`} title={can ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
         {options.length > 1 &&
           (options.length <= 4 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -205,7 +193,21 @@ export function Messages({
           ) : (
             <Dropdown size="sm" value={chosen.id} placeholder="Pick a message" options={options.map((o) => ({ value: o.id, label: o.name }))} onChange={(v) => v && pick(key, v)} />
           ))}
-        {card(chosen, rowVars, { at: approvalOf(forContact(chosen.id, c)), set: (on) => approve(forContact(chosen.id, c), on) })}
+        <MessageForm
+          key={`${chosen.id}:${opener}:${idOf(c)}`}
+          message={chosen}
+          stages={board.stages}
+          leadId={lead.id}
+          vars={rowVars}
+          names={names}
+          own={own(chosen.id)}
+          rewritten={rewritten(chosen.id)}
+          written={!!(prepared && openerOf(prepared, picks)?.drafts[chosen.id])}
+          approval={{ at: approvalOf(forContact(chosen.id, c)), set: (on) => approve(forContact(chosen.id, c), on) }}
+          sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
+          extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
+          onMine={(d) => saveMine(chosen.id, d)}
+        />
         {can && reached && (chosen.channel === "email" || platform) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {chosen.channel === "email" && <EmailStatus email={lead.email} />}
@@ -260,8 +262,8 @@ export function Messages({
             )}
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+        <div className="flex items-end gap-2 border-b border-white/[0.07]">
+          <div role="tablist" aria-label="Days" className="-mb-px flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
             {tabs.map((x) => {
               const replied = repliedOn(x.key);
               const on = x.key === t.key;
@@ -274,25 +276,26 @@ export function Messages({
                   aria-selected={on}
                   onClick={() => setTab(x.key)}
                   title={x.sub}
-                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    on
-                      ? "border-white/25 bg-white/[0.12] text-foreground"
-                      : x.when === "now"
-                        ? "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"
-                        : x.when === "next"
-                          ? "border-accent/40 text-accent hover:bg-accent/10"
-                          : x.when === "done"
-                            ? "border-white/[0.06] text-muted hover:bg-white/[0.04] hover:text-foreground"
-                            : "border-white/[0.08] text-foreground/75 hover:bg-white/[0.04] hover:text-foreground"
+                  className={`relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 pt-1.5 pb-2.5 text-[13px] font-medium whitespace-nowrap transition-colors ${
+                    on ? "border-accent text-foreground" : `border-transparent hover:text-foreground ${x.when === "done" ? "text-muted/70" : "text-muted"}`
                   }`}
                 >
-                  {replied ? <Reply size={11} /> : ready ? <Check size={12} className="text-emerald-300" aria-label="Approved" /> : null}
+                  {/* approved, replied, or where the lead is: today green, next blue */}
+                  {replied ? (
+                    <Reply size={12} className="text-emerald-300" />
+                  ) : ready ? (
+                    <Check size={13} className="text-emerald-300" aria-label="Approved" />
+                  ) : x.when === "now" ? (
+                    <span className="size-1.5 rounded-full bg-emerald-400" aria-label="Today" />
+                  ) : x.when === "next" ? (
+                    <span className="size-1.5 rounded-full bg-accent" aria-label="Next" />
+                  ) : null}
                   {x.title}
                 </button>
               );
             })}
           </div>
-          <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} shrink-0`}>
+          <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} mb-1.5 shrink-0`}>
             <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
           </button>
         </div>
@@ -300,8 +303,8 @@ export function Messages({
 
       {/* what's known on the left; the day's messages on the right */}
       <div className="@container min-h-0 flex-1">
-      <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(17rem,23rem)_minmax(0,1fr)]">
-        <div className="@container min-h-0 overflow-y-auto px-1 pb-1">{aside}</div>
+      <div className="grid h-full min-h-0 gap-8 @3xl:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+        <div className="@container min-h-0 overflow-y-auto px-1 pt-2 pb-1">{aside}</div>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-1 pb-1">
           {error && (
             <p role="alert" className="fade-in px-1 text-xs text-red-300">
@@ -336,9 +339,9 @@ export function Messages({
           )}
 
           {/* the picked day */}
-          <div key={`${t.key}:${idOf(person)}`} className="fade-in flex flex-col gap-3">
-            <p className="flex flex-wrap items-center gap-2 px-1 text-xs">
-              <span className="flex min-w-0 font-medium text-foreground/90">
+          <div key={`${t.key}:${idOf(person)}`} className="fade-in flex max-w-3xl flex-col">
+            <p className="flex flex-wrap items-center gap-2 px-1 pb-1 text-xs">
+              <span className="flex min-w-0 text-[15px] font-semibold text-foreground">
                 {canBuild ? (
                   <EditableName
                     name={t.stage.name}
@@ -362,7 +365,11 @@ export function Messages({
                 </span>
               )}
             </p>
-            {prepared ? byPlatform.map((options) => platformRow(t, options, person)) : <p className="px-1 text-xs text-muted">Loading its messages…</p>}
+            {prepared ? (
+              <div className="flex flex-col divide-y divide-white/[0.06]">{byPlatform.map((options) => platformRow(t, options, person))}</div>
+            ) : (
+              <p className="px-1 pt-3 text-xs text-muted">Loading its messages…</p>
+            )}
           </div>
 
           {orphans.length > 0 && (
@@ -379,7 +386,14 @@ export function Messages({
       </div>
 
       </div>
-      <MessageLibrary open={library} onClose={() => setLibrary(false)} board={board} sentIds={sentIds} highlight={t.messages.map((m) => m.id)} render={(m) => card(m, vars)} />
+      <MessageLibrary
+        open={library}
+        onClose={() => setLibrary(false)}
+        board={board}
+        sentIds={sentIds}
+        highlight={t.messages.map((m) => m.id)}
+        render={(m) => <TemplateView key={m.id} message={m} group={messageGroups(board).find((g) => g.items.some((x) => x.id === m.id))?.title ?? ""} stages={board.stages} names={names} />}
+      />
     </div>
   );
 }
@@ -524,18 +538,26 @@ function Limit({ channel, text, className = "" }: { channel: string; text: strin
   );
 }
 
-function MessageCard({
+// One of the day's messages as a form (Abhishek, 17 Oct 2026: "the form
+// option which we can fill to edit the emails of that day"): its subject and
+// words, typed into straight away, saved for this lead alone when left (the
+// template and other leads stay as they are), with Undo back to what was
+// written for it (or the template). Its rule for when to send it under the
+// name, copy and the template beside it, and Approve at its foot. A message
+// sent already reads as it went.
+function MessageForm({
   message,
   stages,
   leadId,
   vars,
   names,
   own,
-  rewritten = !!own,
+  rewritten,
+  written,
   approval,
   sent,
+  extra,
   onMine,
-  folded = false,
 }: {
   message: MessageData;
   stages: StageData[];
@@ -543,116 +565,224 @@ function MessageCard({
   vars: Record<string, string>;
   names: string[];
   own: Draft | undefined;
-  // rewritten for the lead here, not just written for it ahead
-  rewritten?: boolean;
-  // approved as ready to send (a lead's own message, not the library's)
-  approval?: { at: Approval | null; set: (on: boolean) => void };
+  rewritten: boolean;
+  written: boolean;
+  approval: { at: Approval | null; set: (on: boolean) => void };
   sent: SentData | null;
+  extra?: string | null;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
-  folded?: boolean;
 }) {
-  const [mode, setMode] = useState<"view" | "mine" | "template">("view");
   const canBuild = useContext(CanBuild);
-  const [open, setOpen] = useState(!folded);
-  const [copied, setCopied] = useState(false);
   const source = own ?? message;
-  const subject = sent ? sent.subject : fillText(source.subject, vars);
-  const body = sent ? sent.body : fillText(source.body, vars);
   const isEmail = message.channel === "email";
-
-  async function copy() {
-    await navigator.clipboard.writeText(isEmail && subject ? `Subject: ${subject}\n\n${body}` : body);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+  const savedSubject = fillText(source.subject, vars);
+  const savedBody = fillText(source.body, vars);
+  const [subject, setSubject] = useState(savedSubject);
+  const [body, setBody] = useState(savedBody);
+  const [dirty, setDirty] = useState(false);
+  // while it isn't being changed, it follows what's saved (and Fill in once)
+  const [base, setBase] = useState({ subject: savedSubject, body: savedBody });
+  if (!dirty && (base.subject !== savedSubject || base.body !== savedBody)) {
+    setBase({ subject: savedSubject, body: savedBody });
+    setSubject(savedSubject);
+    setBody(savedBody);
   }
-  if (mode === "template") return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setMode("view")} />;
-  if (mode === "mine") return <OwnEditor message={message} subject={fillText(source.subject, vars)} body={fillText(source.body, vars)} hasOwn={rewritten} onDone={() => setMode("view")} onSave={onMine} />;
+  const [status, setStatus] = useState<"saving" | "saved" | { error: string } | null>(null);
+  const [template, setTemplate] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const ACTION = "btn btn-sm btn-glow flex items-center gap-1.5 px-2.5 text-xs";
+  async function save() {
+    if (!dirty) return;
+    if (subject === savedSubject && body === savedBody) return setDirty(false);
+    if (!body.trim()) return setStatus({ error: "A message needs some words." });
+    setStatus("saving");
+    const err = await onMine({ subject, body });
+    if (err) return setStatus({ error: err });
+    setDirty(false);
+    setStatus("saved");
+    setTimeout(() => setStatus((x) => (x === "saved" ? null : x)), 1600);
+  }
+  async function undo() {
+    setStatus("saving");
+    const err = await onMine(null);
+    if (err) return setStatus({ error: err });
+    setDirty(false);
+    setStatus(null);
+  }
+  async function copy() {
+    const text = sent ? sent.body : body;
+    const subj = sent ? sent.subject : subject;
+    await navigator.clipboard.writeText(isEmail && subj ? `Subject: ${subj}\n\n${text}` : text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  if (template) return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setTemplate(false)} />;
+
+  const missing = variablesIn([subject, body]);
+  const ICON = "grid size-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const FIELD = "w-full bg-transparent text-foreground outline-none! placeholder:text-muted/50";
 
   return (
-    <div className={`fade-in rounded-xl p-4 ${sent ? "bg-emerald-400/[0.04] ring-1 ring-emerald-400/20" : BLOCK}`}>
-      {/* the message's name; copy and edit right beside it */}
+    <article className="fade-in flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
-        {folded && (
-          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? `Fold ${message.name}` : `Open ${message.name}`} className="-ml-1 flex shrink-0 text-muted hover:text-foreground">
-            <ChevronRight size={14} className={`transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-          </button>
-        )}
         <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
-        {folded ? (
-          <button type="button" onClick={() => setOpen(!open)} className="min-w-0 truncate text-left text-sm font-medium hover:text-foreground">
-            {message.name}
-          </button>
-        ) : (
-          <span className="min-w-0 truncate text-sm font-medium">{message.name}</span>
-        )}
-        {rewritten && !sent && (
-          <span title="Edited for this lead only" className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[12px] text-muted">
-            This lead&apos;s copy
-          </span>
-        )}
+        <h4 className="min-w-0 truncate text-sm font-medium text-foreground">{message.name}</h4>
+        {rewritten && !sent && <span className="shrink-0 text-xs text-muted">· Edited</span>}
         {sent && (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[12px] font-medium text-emerald-300">
             <Check size={11} /> Sent
           </span>
         )}
-        <span className="ml-auto flex shrink-0 items-center gap-0.5">
-          <button type="button" onClick={copy} title="Copy the message" className={ACTION}>
-            {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+        <span className="ml-auto flex shrink-0 items-center">
+          <button type="button" onClick={copy} title={copied ? "Copied" : "Copy the message"} aria-label="Copy the message" className={ICON}>
+            {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
           </button>
-          {!sent && (
-            <>
-              <button type="button" onClick={() => setMode("mine")} title="Edit this message for this lead only" aria-label="Edit this message" className={ACTION}>
-                <Pencil size={13} className="text-sky-400" /> Edit
-              </button>
-              {canBuild && (
-                <button type="button" onClick={() => setMode("template")} title="Edit this message's template, for every lead" className={ACTION}>
-                  <LayoutTemplate size={13} /> Template
-                </button>
-              )}
-            </>
+          {canBuild && !sent && (
+            <button type="button" onClick={() => setTemplate(true)} title="Edit the template, for every lead" aria-label="Edit the template" className={ICON}>
+              <LayoutTemplate size={14} />
+            </button>
           )}
         </span>
       </div>
-      {/* the board's rule for when to send it */}
-      {message.note && <p className={`mt-1.5 text-xs leading-relaxed text-muted ${folded ? "pl-[1.625rem]" : ""}`}>{message.note}</p>}
-
-      {open && (
-        <>
-          <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-            {isEmail && (sent ? subject : source.subject) && (
-              <p className="mb-2 text-foreground">
-                <span className="text-muted">Subject: </span>
-                {sent ? subject : <Filled text={source.subject} vars={vars} />}
-              </p>
-            )}
-            {sent ? body : <Filled text={source.body} vars={vars} />}
-          </div>
-
-          {/* LinkedIn's limit, counted as it reads; and Approved, once it's
-              read and ready to send (the day's tab ticks when all are) */}
-          {((message.channel === "linkedin" && !sent) || (approval && !sent)) && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
-              {message.channel === "linkedin" && !sent && <Limit channel={message.channel} text={body} />}
-              {approval && !sent && (
-                <button
-                  type="button"
-                  aria-pressed={!!approval.at}
-                  onClick={() => approval.set(!approval.at)}
-                  title={approval.at ? `Approved by ${approval.at.by}. Tap to undo.` : "Approve this message as ready to send"}
-                  className={`ml-auto flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    approval.at ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20" : "border-white/[0.12] bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
-                  }`}
-                >
-                  <Check size={13} className={approval.at ? "" : "text-emerald-300"} />
-                  {approval.at ? `Approved${approval.at.by && approval.at.by !== "You" ? ` by ${approval.at.by.split(" ")[0]}` : ""}` : "Approve"}
-                </button>
-              )}
-            </div>
-          )}
-        </>
+      {(message.note || extra) && (
+        <p className="-mt-1 text-xs leading-relaxed text-muted">
+          {message.note}
+          {extra && <span className="text-foreground/80">{message.note ? " " : ""}{extra}</span>}
+        </p>
       )}
+
+      {sent ? (
+        <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          {isEmail && sent.subject && (
+            <p className="mb-2">
+              <span className="text-muted">Subject: </span>
+              {sent.subject}
+            </p>
+          )}
+          {sent.body}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] transition-colors focus-within:border-accent/40 focus-within:bg-white/[0.03]">
+          {isEmail && (
+            <label className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2.5 text-sm">
+              <span className="shrink-0 text-muted">Subject</span>
+              <input
+                value={subject}
+                onChange={(e) => {
+                  setSubject(e.target.value);
+                  setDirty(true);
+                }}
+                onBlur={save}
+                placeholder="Subject"
+                aria-label="Subject"
+                className={`${FIELD} font-medium`}
+              />
+            </label>
+          )}
+          <textarea
+            value={body}
+            onChange={(e) => {
+              setBody(e.target.value);
+              setDirty(true);
+            }}
+            onBlur={save}
+            aria-label={message.name}
+            className={`${FIELD} field-sizing-content block min-h-28 resize-none px-4 py-3 text-sm leading-relaxed`}
+          />
+        </div>
+      )}
+
+      {!sent && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+          {status === "saving" ? (
+            <span className="text-muted">Saving…</span>
+          ) : status === "saved" ? (
+            <span className="fade-in flex items-center gap-1 text-emerald-300">
+              <Check size={12} /> Saved for this lead
+            </span>
+          ) : status && typeof status === "object" ? (
+            <span role="alert" className="text-red-300">
+              {status.error}
+            </span>
+          ) : missing.length ? (
+            <span className="text-red-300">Fill in {missing.join(", ")} above</span>
+          ) : null}
+          {message.channel === "linkedin" && <Limit channel={message.channel} text={body} />}
+          {rewritten && (
+            <button type="button" onClick={undo} className="flex items-center gap-1 text-muted transition-colors hover:text-foreground">
+              <RotateCcw size={11} /> {written ? "Back to the written message" : "Back to the template"}
+            </button>
+          )}
+          <button
+            type="button"
+            aria-pressed={!!approval.at}
+            onClick={() => approval.set(!approval.at)}
+            title={approval.at ? `Approved by ${approval.at.by}. Tap to undo.` : "Approve this message as ready to send"}
+            className={`ml-auto flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-colors ${
+              approval.at ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20" : "border-white/[0.12] bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+            }`}
+          >
+            <Check size={13} className={approval.at ? "" : "text-emerald-300"} />
+            {approval.at ? `Approved${approval.at.by && approval.at.by !== "You" ? ` by ${approval.at.by.split(" ")[0]}` : ""}` : "Approve"}
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+// A template as the library shows it: its day and platform, its rule, and
+// its words with the variables lit; copy it, or (setting up) change it
+function TemplateView({ message, group, stages, names }: { message: MessageData; group: string; stages: StageData[]; names: string[] }) {
+  const canBuild = useContext(CanBuild);
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  if (editing) return <TemplateEditor message={message} stages={stages} names={names} onDone={() => setEditing(false)} />;
+  const label = message.name.replace(/^day \d+\s*·\s*/i, "");
+  return (
+    <div className="fade-in flex flex-col gap-4">
+      <div className="flex items-start gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-xs text-muted">{group}</p>
+          <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
+            <span className="min-w-0 truncate">{label || message.name}</span>
+          </h3>
+        </div>
+        <span className="ml-auto flex shrink-0 gap-1.5">
+          <button
+            type="button"
+            onClick={async () => {
+              await navigator.clipboard.writeText(message.channel === "email" && message.subject ? `Subject: ${message.subject}\n\n${message.body}` : message.body);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+            className="btn btn-sm btn-glow flex items-center gap-1.5"
+          >
+            {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+          </button>
+          {canBuild && (
+            <button type="button" onClick={() => setEditing(true)} className="btn btn-sm btn-glow flex items-center gap-1.5">
+              <Pencil size={13} className="text-sky-400" /> Edit template
+            </button>
+          )}
+        </span>
+      </div>
+      {message.note && <p className="border-l-2 border-white/10 pl-3 text-xs leading-relaxed text-muted">{message.note}</p>}
+      <div className="rounded-xl border border-white/[0.08] bg-white/[0.02]">
+        {message.channel === "email" && message.subject && (
+          <p className="border-b border-white/[0.06] px-4 py-2.5 text-sm">
+            <span className="text-muted">Subject </span>
+            <span className="font-medium">
+              <Filled text={message.subject} vars={{}} template />
+            </span>
+          </p>
+        )}
+        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          <Filled text={message.body} vars={{}} template />
+        </div>
+      </div>
+      <p className="text-xs text-muted">Words in blue change for each lead. A lead whose message was written for it, or edited, keeps its own.</p>
     </div>
   );
 }
@@ -705,73 +835,6 @@ function SentRow({ sent }: { sent: SentData }) {
         </div>
       </Reveal>
     </li>
-  );
-}
-
-// Changing the message for this lead alone: the text as it would go out,
-// edited freely. The template and every other lead stay as they are.
-function OwnEditor({
-  message,
-  subject: startSubject,
-  body: startBody,
-  hasOwn,
-  onDone,
-  onSave,
-}: {
-  message: MessageData;
-  subject: string;
-  body: string;
-  hasOwn: boolean;
-  onDone: () => void;
-  onSave: (draft: Draft | null) => Promise<string | undefined>;
-}) {
-  const [subject, setSubject] = useState(startSubject);
-  const [body, setBody] = useState(startBody);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save(draft: Draft | null) {
-    setBusy(true);
-    setError(null);
-    const err = await onSave(draft);
-    setBusy(false);
-    if (err) return setError(err);
-    onDone();
-  }
-
-  return (
-    <div className={`fade-in flex flex-col gap-2.5 p-4 ring-1 ring-accent/30 ${BLOCK}`}>
-      <div className="flex items-center gap-2">
-        <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{message.name}</span>
-        <span className="shrink-0 text-[12px] text-muted">Editing for this lead only</span>
-      </div>
-      {message.channel === "email" && startSubject && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={INPUT} />}
-      <textarea autoFocus value={body} onChange={(e) => setBody(e.target.value)} aria-label="Message" className={`${INPUT} field-sizing-content min-h-40 resize-none leading-relaxed`} />
-      <Limit channel={message.channel} text={body} className="self-end" />
-      {error && (
-        <p role="alert" className="fade-in text-xs text-red-300">
-          {error}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2.5">
-        {hasOwn ? (
-          <button type="button" onClick={() => save(null)} disabled={busy} className={SMALL_BTN}>
-            <RotateCcw size={12} /> Go back to the template
-          </button>
-        ) : (
-          <p className="text-[12px] text-muted">The template and other leads stay as they are.</p>
-        )}
-        <div className="ml-auto flex shrink-0 gap-1.5">
-          <button type="button" onClick={onDone} className="btn btn-sm btn-ghost">
-            Cancel
-          </button>
-          <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
-            {busy ? "Saving…" : "Save for this lead"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
