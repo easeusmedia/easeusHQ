@@ -124,10 +124,10 @@ export type LeadData = {
   reachOuts: ReachOuts;
   // the message picked for a day (or stage) with more than one, by phase key
   picks: Record<string, string>;
+  // messages approved as ready to send, by message and person ("msgId@c2")
+  approvals: Record<string, Approval>;
   // it has been in Ready to reach out or later, by its record, or emailed
   reached: boolean;
-  // messages rewritten for this lead alone, by message id
-  drafts: Record<string, Draft>;
   stageSince: string;
   createdAt: string;
   // who last changed its details, and when
@@ -135,6 +135,17 @@ export type LeadData = {
   editedAt: string | null;
 };
 export type Draft = { subject: string; body: string };
+export type Approval = { by: string; at: string };
+export type Opener = { label: string; drafts: Record<string, Draft> };
+// A lead's own wording, loaded when it's opened (a board of 300 doesn't
+// carry every lead's messages): messages rewritten for it alone, by message
+// id, and the messages written for it ahead, by opener (main, then backups)
+export type Prepared = { drafts: Record<string, Draft>; openers: Opener[] };
+// The opener a lead's messages use: the one picked, else its main one
+export const openerOf = (p: Prepared, picks: Record<string, string>): Opener | undefined => p.openers[Number(picks.opener)] ?? p.openers[0];
+// A message as this lead has it: rewritten for it, else written for it
+// ahead (by the opener in use), else the template
+export const preparedFor = (p: Prepared, picks: Record<string, string>, messageId: string): Draft | undefined => p.drafts[messageId] ?? openerOf(p, picks)?.drafts[messageId];
 export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string; note: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
 export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };
@@ -496,7 +507,7 @@ export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {
 };
 
 // A lead's messages, a phase per day, for its timeline. Before Ready to
-// reach out (Dream List, Shortlisted) it has none. In Ready to reach out
+// reach out (Dream List) it has none. In Ready to reach out
 // every day shows, Day 1 next, so all of it is ready.
 // On a day, the days before it (done), that day (now) and the next one
 // show. Outside the sequence
@@ -530,6 +541,40 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
     p.messages.push(...board.messages.filter((m) => m.stageId === s.id));
   }
   return phases.filter((p) => p.messages.length);
+}
+
+// A lead's messages as tabs along the top of its window, as the Dream 300
+// sequence pages show them (17 Oct 2026): every day of the sequence from
+// Ready to reach out on, each done, today or next by the stage it's on, and
+// a stage past the sequence with messages of its own (Replied…) as its own
+// tab. Before Ready to reach out there are none. A board with no days: its
+// stage's own messages, if any.
+export type SequenceTab = { key: string; title: string; sub: string; stage: StageData; day: number | null; when: "done" | "now" | "next" | null; messages: MessageData[] };
+const CHANNEL_WORD: Record<string, string> = { email: "Email", linkedin: "LinkedIn", instagram: "Instagram", other: "Other" };
+export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stageId: string): SequenceTab[] {
+  const { stages } = board;
+  const i = stages.findIndex((s) => s.id === stageId);
+  if (i < 0) return [];
+  const own = (st: StageData): SequenceTab[] => {
+    const messages = board.messages.filter((m) => m.stageId === st.id);
+    return messages.length ? [{ key: st.id, title: st.name, sub: st.name, stage: st, day: null, when: "now", messages }] : [];
+  };
+  const first = stages.findIndex((s) => dayOf(s.name) != null);
+  if (first < 0) return own(stages[i]);
+  if (i < first - 1) return [];
+  const here = dayOf(stages[i].name);
+  const past = here == null && i > first;
+  const days = [...new Set(stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const next = past ? null : here == null ? days[0] : days.find((d) => d > here);
+  const tabs: SequenceTab[] = days.map((d) => {
+    const on = stages.filter((s) => dayOf(s.name) === d);
+    const messages = board.messages.filter((m) => on.some((s) => s.id === m.stageId));
+    const named = on.find((s) => s.name.includes("·"));
+    const sub = named?.name ?? `Day ${d} · ${[...new Set(messages.map((m) => CHANNEL_WORD[m.channel] ?? m.channel))].join(" + ")}`;
+    const when = past || (here != null && d < here) ? "done" : d === here ? "now" : d === next ? "next" : null;
+    return { key: `day-${d}`, title: `Day ${d}`, sub, stage: named ?? on[0], day: d, when, messages };
+  });
+  return [...tabs.filter((t) => t.messages.length), ...(past ? own(stages[i]) : [])];
 }
 
 // What to call each of a day's messages when picking one: its platform when
@@ -618,7 +663,6 @@ export const DREAM_156: BoardTemplate = {
   name: "Dream 156 Podcasts (Core Offer)",
   stages: [
     { name: "Dream 156 list", color: "default" },
-    { name: "Shortlisted", color: "gray" },
     { name: "Write-up done", color: "purple" },
     { name: "Ready to reach out", color: "cyan" },
     ...DAYS,

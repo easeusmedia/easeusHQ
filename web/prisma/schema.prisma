@@ -1234,6 +1234,14 @@ model Lead {
   // a message rewritten for this lead alone, by message id: { subject, body }.
   // It keeps its own wording when the stage's template changes.
   drafts         Json          @default("{}")
+  // its messages written for it ahead (Dream 300 and Dream 150, 17 Oct
+  // 2026): [{ label, drafts: { messageId: { subject, body } } }], the main
+  // opener first, then any backups; picks.opener is the one in use. A
+  // message rewritten here (drafts) wins over these.
+  openers        Json          @default("[]")
+  // messages approved as ready to send (Abhishek, 17 Oct 2026), by message
+  // and person on the lead ("msgId@c2", as picks): { by, at }
+  approvals      Json          @default("{}")
   createdById    String
   createdBy      User          @relation("LeadsCreated", fields: [createdById], references: [id])
   // when it reached its stage ("3 days in Day 2")

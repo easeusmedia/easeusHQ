@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users, UserCheck } from "lucide-react";
+import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Rows3, Search, Send, Table2, Trash2, Users, UserCheck } from "lucide-react";
 import { outreachStart, outreachStats, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
+import { LeadList } from "./LeadList";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { NewSpaceDialog } from "./NewSpaceDialog";
@@ -18,7 +19,7 @@ import { setParam } from "../../urlState";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 import { TrackerChip } from "../../TrackerChip";
 
-type View = "board" | "table";
+type View = "board" | "list" | "table";
 type Prefs = { view: View; hideEmpty: boolean; platform: Platform | "all" };
 const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false, platform: "all" };
 // per board, in this browser: board or table, and whether empty stages show
@@ -112,7 +113,7 @@ export function PortalView({
     try {
       const saved = JSON.parse(localStorage.getItem(prefsKey(boardId)) ?? "null") as Partial<Prefs> | null;
       const platform = PLATFORMS.find((p) => p === saved?.platform) ?? "all";
-      setPrefs({ view: saved?.view === "table" ? "table" : "board", hideEmpty: saved?.hideEmpty === true, platform }); // eslint-disable-line react-hooks/set-state-in-effect
+      setPrefs({ view: saved?.view === "table" || saved?.view === "list" ? saved.view : "board", hideEmpty: saved?.hideEmpty === true, platform }); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {
       setPrefs(DEFAULT_PREFS);
     }
@@ -295,6 +296,7 @@ export function PortalView({
           {(
             [
               ["board", Kanban, "Board"],
+              ["list", Rows3, "List"],
               ["table", Table2, "Table"],
             ] as const
           ).map(([key, Icon, label]) => (
@@ -342,6 +344,8 @@ export function PortalView({
       <div key={prefs.view} className={`fade-in min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {prefs.view === "board" ? (
           <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} onTrack={track} />
+        ) : prefs.view === "list" ? (
+          <LeadList board={board} leads={shown} filtered={filtered} onOpen={open} />
         ) : (
           <LeadTable board={board} leads={shown} filtered={filtered} onOpen={open} />
         )}

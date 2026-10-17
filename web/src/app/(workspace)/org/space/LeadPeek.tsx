@@ -14,7 +14,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { isFilled, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type SentData } from "@/lib/space";
+import { isFilled, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -48,9 +48,10 @@ export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: Lead
   const [opens, setOpens] = useState(0);
   const [wasOpen, setWasOpen] = useState(open);
   const [history, setHistory] = useState(false);
-  // the whole window, for writing and copying messages; stays so from one
-  // lead to the next until switched back
-  const [full, setFull] = useState(false);
+  // the whole window (Abhishek, 17 Oct 2026: a lead opens completely), for
+  // reading and copying messages; stays so from one lead to the next until
+  // switched back
+  const [full, setFull] = useState(true);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
@@ -133,6 +134,7 @@ function LeadPage({
 
   const [events, setEvents] = useState<LeadEventData[] | null>(null);
   const [sent, setSent] = useState<SentData[] | null>(null);
+  const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [status, setStatus] = useState<Status>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // a move that needs a reason (kept while its prompt fades out)
@@ -151,6 +153,7 @@ function LeadPage({
       if (r.error) return setStatus({ error: r.error });
       setEvents(r.events ?? []);
       setSent(r.sent ?? []);
+      setPrepared(r.prepared ?? { drafts: {}, openers: [] });
     });
     return () => {
       live = false;
@@ -285,109 +288,119 @@ function LeadPage({
         </button>
       </div>
 
+      {/* its stage and who has it, as chips, under the name */}
+      <div className="mb-3 flex shrink-0 flex-col gap-1.5 px-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Menu
+            height={340}
+            width={280}
+            label="Stage"
+            buttonClassName={chip(true)}
+            button={
+              <>
+                <span className={`size-2 shrink-0 rounded-full ${stage ? toneOf(stage.color).dot : "bg-neutral-400"}`} />
+                <span className="max-w-56 truncate">{stage?.name ?? "No stage"}</span>
+              </>
+            }
+          >
+            {(closeMenu) => (
+              <>
+                <p className="px-2.5 pt-1.5 pb-1 text-[12px] text-muted/80">One stage forward moves at once. Anything else asks why.</p>
+                <div className="max-h-72 overflow-y-auto">
+                  {board.stages.map((s, i) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        closeMenu();
+                        pickStage(s.id);
+                      }}
+                      className="menu-item px-2 py-1.5 text-xs"
+                    >
+                      <StagePill name={s.name} color={s.color} />
+                      {s.id === stageId ? <Check size={13} className="ml-auto shrink-0 text-accent" /> : i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[12px] text-muted">Next</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </Menu>
+          <Dropdown
+            pill={{ icon: <User size={12} className="text-emerald-400" /> }}
+            value={assignee}
+            placeholder="Assignee"
+            onChange={assign}
+            options={[
+              { value: "", label: "Unassigned" },
+              ...people.map((p) => ({ value: p.id, label: p.name })),
+              ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : []),
+            ]}
+          />
+          {/* who handed it to whom; every earlier hand-off is in History */}
+          {assignee && assignee === lead.assignedTo?.id && lead.assignedByName && (
+            <span className="fade-in px-1 text-xs text-muted">
+              Assigned by {lead.assignedByName}
+              {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
           Dock app) gives a 0-based flex item no height at all */}
       <div className="flex min-h-0 flex-auto">
-        <div className={`flex min-w-0 shrink flex-col gap-4 overflow-y-auto px-1 pb-1 ${full ? "flex-1" : "w-[39rem]"}`}>
-          {/* its stage and who has it, as chips */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Menu
-                height={340}
-                width={280}
-                label="Stage"
-                buttonClassName={chip(true)}
-                button={
-                  <>
-                    <span className={`size-2 shrink-0 rounded-full ${stage ? toneOf(stage.color).dot : "bg-neutral-400"}`} />
-                    <span className="max-w-56 truncate">{stage?.name ?? "No stage"}</span>
-                  </>
-                }
-              >
-                {(closeMenu) => (
-                  <>
-                    <p className="px-2.5 pt-1.5 pb-1 text-[12px] text-muted/80">One stage forward moves at once. Anything else asks why.</p>
-                    <div className="max-h-72 overflow-y-auto">
-                      {board.stages.map((s, i) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            closeMenu();
-                            pickStage(s.id);
-                          }}
-                          className="menu-item px-2 py-1.5 text-xs"
-                        >
-                          <StagePill name={s.name} color={s.color} />
-                          {s.id === stageId ? <Check size={13} className="ml-auto shrink-0 text-accent" /> : i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[12px] text-muted">Next</span>}
-                        </button>
+        <div className={`flex min-w-0 shrink flex-col ${full ? "flex-1" : "w-[39rem]"}`}>
+          {/* the messages, with everything known about it beside them */}
+          <Messages
+            lead={{ ...lead, values }}
+            board={board}
+            stageId={stageId}
+            sent={sent}
+            prepared={prepared}
+            onMark={(c) => onTrack(id, c)}
+            onSaved={saved}
+            aside={
+              <div className="flex flex-col gap-3">
+                <Section icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} editing={editDetails} onEdit={() => setEditDetails((e) => !e)}>
+                  {editDetails ? (
+                    <div key="edit" className="fade-in flex flex-col">
+                      {fieldsShown.map((f) => (
+                        <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
+                          <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
+                        </Row>
                       ))}
                     </div>
-                  </>
+                  ) : (
+                    filled > 0 && (
+                      <div key="view" className="fade-in flex flex-col">
+                        {filledFields.map((f) => (
+                          <Row key={f.id} icon={KIND_ICON[f.kind]} label={f.name}>
+                            <ValueRead field={f} value={values[f.id]} />
+                          </Row>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </Section>
+
+                {contactField && (
+                  <Section icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} editing={editContacts} onEdit={() => setEditContacts((e) => !e)}>
+                    {editContacts ? (
+                      <div key="edit" className="fade-in">
+                        <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
+                      </div>
+                    ) : (
+                      contacts > 0 && (
+                        <div key="view" className="fade-in">
+                          <ContactsView value={values[contactField.id]} />
+                        </div>
+                      )
+                    )}
+                  </Section>
                 )}
-              </Menu>
-              <Dropdown
-                pill={{ icon: <User size={12} className="text-emerald-400" /> }}
-                value={assignee}
-                placeholder="Assignee"
-                onChange={assign}
-                options={[
-                  { value: "", label: "Unassigned" },
-                  ...people.map((p) => ({ value: p.id, label: p.name })),
-                  ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : []),
-                ]}
-              />
-            </div>
-            {/* who handed it to whom; every earlier hand-off is in History */}
-            {assignee && assignee === lead.assignedTo?.id && lead.assignedByName && (
-              <p className="fade-in px-1 text-xs text-muted">
-                Assigned to {lead.assignedTo.name} by {lead.assignedByName}
-                {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
-              </p>
-            )}
-          </div>
-
-          {/* everything known about it first */}
-          <Section icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} editing={editDetails} onEdit={() => setEditDetails((e) => !e)}>
-            {editDetails ? (
-              <div key="edit" className="fade-in flex flex-col">
-                {fieldsShown.map((f) => (
-                  <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
-                    <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
-                  </Row>
-                ))}
               </div>
-            ) : (
-              filled > 0 && (
-                <div key="view" className="fade-in flex flex-col">
-                  {filledFields.map((f) => (
-                    <Row key={f.id} icon={KIND_ICON[f.kind]} label={f.name}>
-                      <ValueRead field={f} value={values[f.id]} />
-                    </Row>
-                  ))}
-                </div>
-              )
-            )}
-          </Section>
-
-          {contactField && (
-            <Section icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} editing={editContacts} onEdit={() => setEditContacts((e) => !e)}>
-              {editContacts ? (
-                <div key="edit" className="fade-in">
-                  <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
-                </div>
-              ) : (
-                contacts > 0 && (
-                  <div key="view" className="fade-in">
-                    <ContactsView value={values[contactField.id]} />
-                  </div>
-                )
-              )}
-            </Section>
-          )}
-
-          {/* then the messages to send */}
-          <Messages lead={{ ...lead, values }} board={board} stageId={stageId} sent={sent} onMark={(c) => onTrack(id, c)} onSaved={saved} />
+            }
+          />
         </div>
 
         {/* beside it, the same height: every stage it has been through */}
@@ -466,10 +479,11 @@ function LeadPage({
   );
 }
 
-// One property: its name, then its value. Stacked on a phone.
+// One property: its name, then its value. Stacked where it's narrow (the
+// lead window's left column, a phone).
 function Row({ icon: Icon, label, children }: { icon: LucideIcon; label: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="grid items-start gap-x-3 py-0.5 sm:grid-cols-[11rem_minmax(0,1fr)]">
+    <div className="grid items-start gap-x-3 py-0.5 @md:grid-cols-[10rem_minmax(0,1fr)]">
       <div className="flex min-h-8 min-w-0 items-center gap-2 px-1 text-xs text-muted">
         <Icon size={14} className="shrink-0" />
         <span className="flex min-w-0">{label}</span>

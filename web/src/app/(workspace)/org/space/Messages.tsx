@@ -2,12 +2,13 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, NO_CONTACT, optionLabel, PLATFORM_NAME, requestDay, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
-import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
+import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, UserRound, X } from "lucide-react";
+import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
+import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
+import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
-import { CanBuild, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE } from "./values";
+import { CanBuild } from "./values";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -27,27 +28,24 @@ const BLOCK = "rounded-xl bg-foreground/[0.03]";
 
 const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
 
-// A lead's messages as a timeline, day by day, the way its history reads.
-// Reaching out starts at Ready to reach out: there every day of the
-// sequence shows, so the whole run can be read ahead. On a day, the days
-// before it, that day and the next show. Outside the sequence (the replies,
-// the audit) a stage shows its own. Before Ready to reach out there is
-// nothing to send. Under each day, one row per person on the lead (Abhishek,
-// 17 Oct 2026), folded until tapped: their copy of the message, with their
-// name in it, and their own Accepted and Reply. A person with no handle for
-// the day's platform is greyed, with nothing to tap.
-// The words that change per lead are filled once, in one place above, and
-// appear in every message that uses them. On a message: copy it, mark it
-// sent, or change it:
-// - Edit (the pencil): this lead's copy only; the template stays as it is.
-// - Template: that message's template, for every lead that hasn't sent it
-//   (a lead with its own copy keeps it). Variables are made here.
-// Every other message is in All messages, grouped and searchable.
+// A lead's messages, laid out as the Dream 300 sequence pages are (Abhishek,
+// 17 Oct 2026): along the top, whose messages (one person at a time), the
+// opener in use when it has more than one written for it, and the days of
+// the sequence as tabs (done, today, next); below, beside what's known about
+// the lead (`aside`, on the left), the picked day's messages on the right.
+// Before Ready to reach out there's nothing to send, so only `aside` shows.
+// Each message is the lead's own wording when it has one (rewritten for it,
+// or written for it ahead: lib/space preparedFor), else the template. The
+// words that change per lead are filled once, above the day, and appear in
+// every message that uses them. A day's messages show one per platform; two
+// on the same platform (Day 2: opened Email 1 or not) are picked between.
 export function Messages({
   lead,
   board,
   stageId,
   sent,
+  prepared,
+  aside,
   onMark,
   onSaved,
 }: {
@@ -55,6 +53,9 @@ export function Messages({
   board: BoardData;
   stageId: string;
   sent: SentData[] | null;
+  // its own wording, once the lead's details have loaded
+  prepared: Prepared | null;
+  aside: React.ReactNode;
   onMark: (change: MarkChange) => void;
   onSaved: () => void;
 }) {
@@ -64,15 +65,9 @@ export function Messages({
   const vars = leadVars({ ...lead, vars: { ...lead.vars, ...typed } }, board.fields);
   const auto = leadVars({ ...lead, vars: {} }, board.fields);
   const names = variablesIn(board.messages.flatMap((m) => [m.subject, m.body]));
-  const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState(false);
-  // the rows (a day, a person) folded or opened from how they start: today's
-  // and the next day's open, the days done folded
-  const [openRows, setOpenRows] = useState<Set<string>>(new Set());
-  const toggleRow = (key: string) => setOpenRows((o) => (o.delete(key) ? new Set(o) : new Set(o).add(key)));
-  // the people on the lead (none: the lead itself); one at a time, picked
-  // from a toggle above the days, and each day shows that person's message
+  // the people on the lead (none: the lead itself), one at a time
   const contacts = leadContacts(lead.values, board.fields);
   const people: (Contact | null)[] = contacts.length ? contacts : [null];
   const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
@@ -80,9 +75,29 @@ export function Messages({
   const person = people.find((c) => idOf(c) === who) ?? people[0];
   const firstName = (name: string) => name.trim().split(/\s+/)[0];
   const request = requestDay(board);
-  // a day's message picked here, ahead of the save
+  // a day's message (or the opener) picked here, ahead of the save
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const pickOf = (key: string) => (key in picked ? picked[key] : (lead.picks?.[key] ?? null));
+  const picks = { ...(lead.picks ?? {}), ...Object.fromEntries(Object.entries(picked).filter((e): e is [string, string] => !!e[1])) };
+  const own = (id: string): Draft | undefined => (id in mine ? (mine[id] ?? (prepared ? openerOf(prepared, picks)?.drafts[id] : undefined)) : prepared ? preparedFor(prepared, picks, id) : undefined);
+  // approved as ready to send, by message and person, ahead of the save
+  const [approved, setApproved] = useState<Record<string, Approval | null>>({});
+  const approvalOf = (key: string) => (key in approved ? approved[key] : (lead.approvals?.[key] ?? null));
+  async function approve(key: string, on: boolean) {
+    const before = approvalOf(key);
+    setError(null);
+    setApproved((a) => ({ ...a, [key]: on ? { by: "You", at: new Date().toISOString() } : null }));
+    const res = await approveMessage(lead.id, key, on).catch(() => ({ error: OFFLINE }));
+    if (res.error) {
+      setApproved((a) => ({ ...a, [key]: before }));
+      return setError(res.error);
+    }
+    onSaved();
+  }
+  const canBuild = useContext(CanBuild);
+  const router = useRouter();
+  // rewritten here (not just written ahead): "This lead's copy"
+  const rewritten = (id: string) => (id in mine ? !!mine[id] : !!prepared?.drafts[id]);
   async function pick(key: string, messageId: string) {
     const before = pickOf(key);
     setError(null);
@@ -94,12 +109,22 @@ export function Messages({
     }
     onSaved();
   }
+  async function pickOpenerAt(i: number) {
+    const before = pickOf("opener");
+    setError(null);
+    setPicked((p) => ({ ...p, opener: String(i) }));
+    const res = await pickOpener(lead.id, i).catch(() => ({ error: OFFLINE }));
+    if (res.error) {
+      setPicked((p) => ({ ...p, opener: before }));
+      return setError(res.error);
+    }
+    onSaved();
+  }
   // a reply that came on a day: by email (the sales inbox) or, marked, on
   // Instagram or LinkedIn by anyone on the lead
   const repliedOn = (key: string) => lead.email.replied?.day === key || people.some((c) => MARKED.some((p) => lead.marks[idOf(c)]?.[p]?.replied?.day === key));
-  // picks as they stand, with any made here ahead of the save
-  const picks = { ...(lead.picks ?? {}), ...Object.fromEntries(Object.entries(picked).filter((e): e is [string, string] => !!e[1])) };
-  const today = dayOf(board.stages.find((s) => s.id === stageId)?.name ?? "");
+  const stage = board.stages.find((s) => s.id === stageId);
+  const today = dayOf(stage?.name ?? "");
 
   async function saveVar(name: string, value: string) {
     if ((lead.vars[name] ?? "") === value.trim()) return;
@@ -116,242 +141,246 @@ export function Messages({
     onSaved();
   }
 
-  const phases = messagePhases(board, stageId);
-  // the days already done, folded until opened; the rest (today, next) open
-  const done = phases.filter((p) => p.when === "done");
-  const ahead = phases.filter((p) => p.when !== "done");
-  const shown = ahead.flatMap((p) => p.messages);
+  // the tabs: every day of the sequence (from Ready to reach out on), and a
+  // stage past it with messages of its own (Replied, Audit sent…)
+  const tabs = sequenceTabs(board, stageId);
+  const [tab, setTab] = useState<string | null>(() => tabs.find((t) => t.when === "now")?.key ?? tabs.find((t) => t.when === "next")?.key ?? tabs[0]?.key ?? null);
+  const shownTab = tabs.find((t) => t.key === tab) ?? tabs.find((t) => t.when === "now") ?? tabs[0];
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
-  // the variables the shown messages use, and which are still blank
-  const used = variablesIn(shown.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
-  const blanks = used.filter((n) => !vars[n]);
   const sentIds = new Set((sent ?? []).map((x) => x.messageId ?? ""));
+  // the variables the person's messages use (every day, so it's filled once), and which are still blank
+  const allMessages = tabs.flatMap((t) => t.messages);
+  const used = variablesIn(allMessages.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
+  const blanks = used.filter((n) => !vars[n]);
+  const openers = prepared?.openers ?? [];
+  const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
+  const dayApproved = (x: SequenceTab) => chosenOn(x, person).every((m) => !!approvalOf(forContact(m.id, person)));
+  const opener = Math.min(Number(pickOf("opener") ?? 0) || 0, Math.max(0, openers.length - 1));
 
-  const card = (m: MessageData, folded = false, v: Record<string, string> = vars) => (
+  // before Ready to reach out: what's known about it, nothing to send
+  if (!tabs.length) return <div className="@container flex min-h-0 flex-1 flex-col overflow-y-auto px-1 pb-1">{aside}</div>;
+
+  const card = (m: MessageData, v: Record<string, string>, approval?: { at: Approval | null; set: (on: boolean) => void }) => (
     <MessageCard
-      key={m.id}
-      folded={folded}
+      key={`${m.id}:${opener}`}
+      approval={approval}
       message={m}
       stages={board.stages}
       leadId={lead.id}
       vars={v}
       names={names}
       own={own(m.id)}
+      rewritten={rewritten(m.id)}
       sent={sent?.find((x) => x.messageId === m.id) ?? null}
       onMine={(d) => saveMine(m.id, d)}
     />
   );
 
-  // one person's row under a day: folded to a line (their name, where it
-  // goes, and at a glance how it went), open to their copy of the message
-  // and what's tapped for them. Greyed where they have no handle for it.
-  const row = (p: Phase, c: Contact | null) => {
-    const options = p.messages;
-    const key = forContact(p.key, c);
-    const chosen = chosenFor(options, picks, p.key, c, lead.email.opens > 0) ?? null;
-    const can = !!chosen && hasChannel(c, chosen.channel);
-    const reached = p.day != null && today != null && p.day <= today;
-    const platform = chosen && MARKED.includes(chosen.channel as Marked) ? (chosen.channel as Marked) : null;
+  // one platform's message on the day for the person: picked between when
+  // there are two, then the message, then how it went (from the day on)
+  const platformRow = (t: SequenceTab, options: MessageData[], c: Contact | null) => {
+    const key = forContact(t.key, c);
+    const chosen = chosenFor(options, picks, t.key, c, lead.email.opens > 0) ?? options[0];
+    const can = hasChannel(c, chosen.channel);
+    const reached = t.day != null && today != null && t.day <= today;
+    const platform = MARKED.includes(chosen.channel as Marked) ? (chosen.channel as Marked) : null;
     const m = platform ? (lead.marks[idOf(c)]?.[platform] ?? {}) : {};
-    const open = openRows.has(key) !== (p.when === "now" || p.when === "next");
     const rowVars = c?.name.trim() ? { ...vars, Name: firstName(c.name) } : vars;
-    const mark = (kind: "accepted" | "replied") => platform && onMark({ contact: idOf(c), platform, kind, day: m[kind] ? null : p.key });
+    const mark = (kind: "accepted" | "replied") => platform && onMark({ contact: idOf(c), platform, kind, day: m[kind] ? null : t.key });
     const needs = platform === "linkedin" && !m.accepted;
-    const lit = "flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300";
     const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
-    // the person is named by the toggle above when there's more than one
-    const channelName = chosen ? (PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.name) : p.title;
-    const label = c && people.length === 1 ? c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact" : channelName;
     return (
-      <div key={key} className={`${BLOCK} ${can ? "" : "opacity-50"}`} title={can || !chosen ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
-        <button type="button" onClick={() => toggleRow(key)} aria-expanded={open} className="group/row flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left text-xs">
-          <span className="flex shrink-0">{CHANNEL_ICON[chosen?.channel ?? "other"] ?? CHANNEL_ICON.other}</span>
-          <span className="font-medium text-foreground/85 transition-colors group-hover/row:text-foreground">{label}</span>
-          {c?.role && people.length === 1 && <span className="text-muted">{c.role}</span>}
-          {/* at a glance, once the day is reached and they can be reached */}
-          {can && reached && chosen?.channel === "email" && <EmailStatus email={lead.email} />}
-          {can && reached && m.accepted && (
-            <span className={lit}>
-              <UserCheck size={11} /> Accepted
-            </span>
-          )}
-          {can && reached && m.replied && (
-            <span className={lit}>
-              <Reply size={11} /> Replied
-            </span>
-          )}
-          <ChevronDown size={13} className={`ml-auto shrink-0 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-        </button>
-        <Reveal open={open}>
-          <div className="flex flex-col gap-2 px-3 pb-3">
-            {options.length > 1 &&
-              (options.length <= 4 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {options.map((o) => (
-                    <button key={o.id} type="button" aria-pressed={chosen?.id === o.id} disabled={!hasChannel(c, o.channel)} onClick={() => chosen?.id !== o.id && pick(key, o.id)} className={chip}>
-                      <span className="flex shrink-0">{CHANNEL_ICON[o.channel] ?? CHANNEL_ICON.other}</span>
-                      {optionLabel(options, o)}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((o) => ({ value: o.id, label: o.name }))} onChange={(v) => v && pick(key, v)} />
+      <div key={chosen.channel} className={`flex flex-col gap-2 ${can ? "" : "opacity-50"}`} title={can ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
+        {options.length > 1 &&
+          (options.length <= 4 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((o) => (
+                <button key={o.id} type="button" aria-pressed={chosen.id === o.id} onClick={() => chosen.id !== o.id && pick(key, o.id)} className={chip}>
+                  <span className="flex shrink-0">{CHANNEL_ICON[o.channel] ?? CHANNEL_ICON.other}</span>
+                  {optionLabel(options, o)}
+                </button>
               ))}
-            {chosen && card(chosen, false, rowVars)}
-            {can && reached && platform && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {platform === "linkedin" && (request === p.day || needs) && (
-                  <button type="button" aria-pressed={!!m.accepted} onClick={() => mark("accepted")} title={m.accepted ? "They accepted the connection request. Tap to undo." : "They accepted our connection request"} className={chip}>
-                    {CHANNEL_ICON[platform]} <UserCheck size={12} /> {m.accepted ? "Accepted" : "Accept"}
+            </div>
+          ) : (
+            <Dropdown size="sm" value={chosen.id} placeholder="Pick a message" options={options.map((o) => ({ value: o.id, label: o.name }))} onChange={(v) => v && pick(key, v)} />
+          ))}
+        {card(chosen, rowVars, { at: approvalOf(forContact(chosen.id, c)), set: (on) => approve(forContact(chosen.id, c), on) })}
+        {can && reached && (chosen.channel === "email" || platform) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chosen.channel === "email" && <EmailStatus email={lead.email} />}
+            {platform === "linkedin" && (request === t.day || needs) && (
+              <button type="button" aria-pressed={!!m.accepted} onClick={() => mark("accepted")} title={m.accepted ? "They accepted the connection request. Tap to undo." : "They accepted our connection request"} className={chip}>
+                {CHANNEL_ICON[platform]} <UserCheck size={12} /> {m.accepted ? "Accepted" : "Accept"}
+              </button>
+            )}
+            {/* LinkedIn's Reply only once the request is accepted */}
+            {platform && !needs && (
+              <button type="button" aria-pressed={!!m.replied} onClick={() => mark("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[platform]}`} className={chip}>
+                {CHANNEL_ICON[platform]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const seg = "seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium";
+  const bar = "flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
+  const t = shownTab;
+  // its messages, one platform at a time, in the day's own order
+  const byPlatform = [...new Set(t.messages.map((m) => m.channel))].map((ch) => t.messages.filter((m) => m.channel === ch));
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {/* along the top: whose messages, which opener, which day */}
+      <div className="flex shrink-0 flex-col gap-2 px-1">
+        {(people.length > 1 || openers.length > 1) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {people.length > 1 && (
+              <div role="tablist" aria-label="Contacts" className={bar}>
+                {people.map((c) => (
+                  <button key={idOf(c)} type="button" role="tab" aria-selected={idOf(c) === idOf(person)} onClick={() => setWho(idOf(c))} className={seg}>
+                    <UserRound size={12} className="shrink-0 text-muted" />
+                    {c?.name.trim() || c?.channels.find((ch) => ch.value.trim())?.value || "Contact"}
+                    {c?.role && <span className="font-normal text-muted">{c.role}</span>}
                   </button>
-                )}
-                {/* LinkedIn's Reply only once the request is accepted, not greyed out before */}
-                {!needs && (
-                  <button type="button" aria-pressed={!!m.replied} onClick={() => mark("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[platform]}`} className={chip}>
-                    {CHANNEL_ICON[platform]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
+                ))}
+              </div>
+            )}
+            {openers.length > 1 && (
+              <div role="tablist" aria-label="Opener" className={bar}>
+                {openers.map((o, i) => (
+                  <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener; the rest stay the same" className={seg}>
+                    {o.label || `Opener ${i + 1}`}
                   </button>
-                )}
+                ))}
               </div>
             )}
           </div>
-        </Reveal>
-      </div>
-    );
-  };
-
-  // one day on the timeline: its node, the line down to the next shown day,
-  // its title, and a row per person
-  const step = (p: Phase, below: Phase | undefined, last: boolean) => {
-    const replied = repliedOn(p.key);
-    return (
-      <div className={`relative flex gap-3 ${last ? "" : "pb-5"}`}>
-        {/* the line down: quiet through the days done, easing into today
-            (green), then glowing from today to the next (blue) */}
-        {below &&
-          (p.when === "now" && below.when === "next" ? (
-            <span className="progress-line absolute top-7 bottom-1 left-[11px] w-0.5 rounded-full" />
-          ) : p.when === "done" && below.when === "now" ? (
-            <span className="absolute top-7 bottom-1 left-[11px] w-px bg-linear-to-b from-white/15 to-emerald-400/50" />
-          ) : (
-            <span className={`absolute top-7 bottom-1 left-[11px] w-px ${p.when === "done" ? "bg-white/15" : "bg-white/10"}`} />
-          ))}
-        <span
-          className={`relative flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums ${
-            p.when === "now" ? "step-now" : replied ? "bg-emerald-400/15 text-emerald-300" : p.when === "next" ? "step-next bg-accent/15 text-accent" : "bg-white/[0.06] text-muted"
-          }`}
-        >
-          {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <p className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
-            <span className="font-medium text-foreground/90">{p.title}</span>
-            {p.when && p.when !== "done" && (
-              <span className={`rounded-full px-2 py-0.5 text-[12px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
-            )}
-            {replied && (
-              <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
-                <Reply size={11} /> Replied
-              </span>
-            )}
-          </p>
-          <div className="flex flex-col gap-1.5 pt-2">{row(p, person)}</div>
+        )}
+        <div className="flex items-center gap-2">
+          <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+            {tabs.map((x) => {
+              const replied = repliedOn(x.key);
+              const on = x.key === t.key;
+              const ready = dayApproved(x);
+              return (
+                <button
+                  key={x.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setTab(x.key)}
+                  title={x.sub}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    on
+                      ? "border-white/25 bg-white/[0.12] text-foreground"
+                      : x.when === "now"
+                        ? "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"
+                        : x.when === "next"
+                          ? "border-accent/40 text-accent hover:bg-accent/10"
+                          : x.when === "done"
+                            ? "border-white/[0.06] text-muted hover:bg-white/[0.04] hover:text-foreground"
+                            : "border-white/[0.08] text-foreground/75 hover:bg-white/[0.04] hover:text-foreground"
+                  }`}
+                >
+                  {replied ? <Reply size={11} /> : ready ? <Check size={12} className="text-emerald-300" aria-label="Approved" /> : null}
+                  {x.title}
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} shrink-0`}>
+            <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
+          </button>
         </div>
       </div>
-    );
-  };
-  return (
-    <section className={SECTION}>
-      <div className={SECTION_HEAD}>
-        <MessagesSquare size={14} className="shrink-0 text-muted" />
-        <h3 className={SECTION_TITLE}>Messages</h3>
-        <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} ml-auto shrink-0`}>
-          <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
-        </button>
-      </div>
-      <div className={`${SECTION_BODY} flex flex-col gap-3`}>
-        {error && (
-          <p role="alert" className="fade-in px-1 text-xs text-red-300">
-            {error}
-          </p>
-        )}
 
-        {/* the words that change per lead: typed once, in every message that uses them */}
-        {used.length > 0 && (
-          <div className={`${BLOCK} p-3`}>
-            <div className="mb-2 flex items-center gap-2 px-1 text-xs">
-              <Braces size={13} className="shrink-0 text-muted" />
-              <span className="font-medium text-foreground/90">Fill in once</span>
-              <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+      {/* what's known on the left; the day's messages on the right */}
+      <div className="@container min-h-0 flex-1">
+      <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(17rem,23rem)_minmax(0,1fr)]">
+        <div className="@container min-h-0 overflow-y-auto px-1 pb-1">{aside}</div>
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-1 pb-1">
+          {error && (
+            <p role="alert" className="fade-in px-1 text-xs text-red-300">
+              {error}
+            </p>
+          )}
+
+          {/* the words that change per lead: typed once, in every message that uses them */}
+          {used.length > 0 && (
+            <div className={`${BLOCK} p-3`}>
+              <div className="mb-2 flex items-center gap-2 px-1 text-xs">
+                <Braces size={13} className="shrink-0 text-muted" />
+                <span className="font-medium text-foreground/90">Fill in once</span>
+                <span className={`ml-auto ${blanks.length ? "text-red-300" : "text-muted"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
+              </div>
+              <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+                {used.map((name) => (
+                  <label key={name} className="flex min-w-0 flex-col gap-1">
+                    <span className="px-1 text-[12px] font-medium text-muted">{name}</span>
+                    <input
+                      value={typed[name] ?? lead.vars[name] ?? ""}
+                      onChange={(e) => setTyped((x) => ({ ...x, [name]: e.target.value }))}
+                      onBlur={(e) => saveVar(name, e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                      placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
+                      className={INPUT}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
-            <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2">
-              {used.map((name) => (
-                <label key={name} className="flex min-w-0 flex-col gap-1">
-                  <span className="px-1 text-[12px] font-medium text-muted">{name}</span>
-                  <input
-                    value={typed[name] ?? lead.vars[name] ?? ""}
-                    onChange={(e) => setTyped((t) => ({ ...t, [name]: e.target.value }))}
-                    onBlur={(e) => saveVar(name, e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                    placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                    className={INPUT}
+          )}
+
+          {/* the picked day */}
+          <div key={`${t.key}:${idOf(person)}`} className="fade-in flex flex-col gap-3">
+            <p className="flex flex-wrap items-center gap-2 px-1 text-xs">
+              <span className="flex min-w-0 font-medium text-foreground/90">
+                {canBuild ? (
+                  <EditableName
+                    name={t.stage.name}
+                    pencil="always"
+                    onSave={async (name) => {
+                      const res = await renameStage(t.stage.id, name).catch(() => ({ error: OFFLINE }));
+                      if (res.error) return res.error;
+                      router.refresh();
+                    }}
                   />
-                </label>
-              ))}
+                ) : (
+                  t.stage.name
+                )}
+              </span>
+              {t.when && t.when !== "done" && (
+                <span className={`rounded-full px-2 py-0.5 text-[12px] ${t.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{t.when === "now" ? "Today" : "Next"}</span>
+              )}
+              {repliedOn(t.key) && (
+                <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
+                  <Reply size={11} /> Replied
+                </span>
+              )}
+            </p>
+            {prepared ? byPlatform.map((options) => platformRow(t, options, person)) : <p className="px-1 text-xs text-muted">Loading its messages…</p>}
+          </div>
+
+          {orphans.length > 0 && (
+            <div className={BLOCK}>
+              <p className="px-3 pt-2.5 pb-1 text-xs font-medium text-foreground/90">Sent from templates since deleted</p>
+              <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
+                {orphans.map((x) => (
+                  <SentRow key={x.id} sent={x} />
+                ))}
+              </ul>
             </div>
-          </div>
-        )}
-
-        {/* day by day, as the history reads: the days done, today and the
-            next, each with the picked person's row, open to their copy on
-            today and the next day.
-            A day with more than one message offers them first, and the one
-            picked is kept for that person; a day they have reached takes
-            their Accepted and Reply */}
-        {/* whose messages: one person at a time */}
-        {phases.length > 0 && people.length > 1 && (
-          <div role="tablist" aria-label="Contacts" className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
-            {people.map((c) => (
-              <button
-                key={idOf(c)}
-                type="button"
-                role="tab"
-                aria-selected={idOf(c) === idOf(person)}
-                onClick={() => setWho(idOf(c))}
-                className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
-              >
-                {c?.name.trim() || c?.channels.find((ch) => ch.value.trim())?.value || "Contact"}
-                {c?.role && <span className="font-normal text-muted">{c.role}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-        {phases.length > 0 && (
-          // inset a little, so the nodes' glow has room inside the window's scroll box
-          <ol className="flex flex-col pl-1.5">
-            {done.map((p, i) => (
-              <li key={p.key}>{step(p, done[i + 1] ?? ahead[0], false)}</li>
-            ))}
-            {ahead.map((p, i) => (
-              <li key={p.key}>{step(p, ahead[i + 1], i === ahead.length - 1)}</li>
-            ))}
-          </ol>
-        )}
-
-        {orphans.length > 0 && (
-          <div className={BLOCK}>
-            <p className="px-3 pt-2.5 pb-1 text-xs font-medium text-foreground/90">Sent from templates since deleted</p>
-            <ul className="flex flex-col divide-y divide-border/40 px-2 pb-2">
-              {orphans.map((x) => (
-                <SentRow key={x.id} sent={x} />
-              ))}
-            </ul>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <MessageLibrary open={library} onClose={() => setLibrary(false)} board={board} sentIds={sentIds} highlight={shown.map((m) => m.id)} render={(m) => card(m)} />
-    </section>
+      </div>
+      <MessageLibrary open={library} onClose={() => setLibrary(false)} board={board} sentIds={sentIds} highlight={t.messages.map((m) => m.id)} render={(m) => card(m, vars)} />
+    </div>
   );
 }
 
@@ -502,6 +531,8 @@ function MessageCard({
   vars,
   names,
   own,
+  rewritten = !!own,
+  approval,
   sent,
   onMine,
   folded = false,
@@ -512,6 +543,10 @@ function MessageCard({
   vars: Record<string, string>;
   names: string[];
   own: Draft | undefined;
+  // rewritten for the lead here, not just written for it ahead
+  rewritten?: boolean;
+  // approved as ready to send (a lead's own message, not the library's)
+  approval?: { at: Approval | null; set: (on: boolean) => void };
   sent: SentData | null;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
   folded?: boolean;
@@ -531,9 +566,9 @@ function MessageCard({
     setTimeout(() => setCopied(false), 1600);
   }
   if (mode === "template") return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setMode("view")} />;
-  if (mode === "mine") return <OwnEditor message={message} subject={fillText(source.subject, vars)} body={fillText(source.body, vars)} hasOwn={!!own} onDone={() => setMode("view")} onSave={onMine} />;
+  if (mode === "mine") return <OwnEditor message={message} subject={fillText(source.subject, vars)} body={fillText(source.body, vars)} hasOwn={rewritten} onDone={() => setMode("view")} onSave={onMine} />;
 
-  const ACTION = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const ACTION = "btn btn-sm btn-glow flex items-center gap-1.5 px-2.5 text-xs";
 
   return (
     <div className={`fade-in rounded-xl p-4 ${sent ? "bg-emerald-400/[0.04] ring-1 ring-emerald-400/20" : BLOCK}`}>
@@ -552,7 +587,7 @@ function MessageCard({
         ) : (
           <span className="min-w-0 truncate text-sm font-medium">{message.name}</span>
         )}
-        {own && !sent && (
+        {rewritten && !sent && (
           <span title="Edited for this lead only" className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[12px] text-muted">
             This lead&apos;s copy
           </span>
@@ -568,8 +603,8 @@ function MessageCard({
           </button>
           {!sent && (
             <>
-              <button type="button" onClick={() => setMode("mine")} title="Edit this message for this lead only" className={ACTION}>
-                <Pencil size={13} /> Edit
+              <button type="button" onClick={() => setMode("mine")} title="Edit this message for this lead only" aria-label="Edit this message" className={ACTION}>
+                <Pencil size={13} className="text-sky-400" /> Edit
               </button>
               {canBuild && (
                 <button type="button" onClick={() => setMode("template")} title="Edit this message's template, for every lead" className={ACTION}>
@@ -595,10 +630,25 @@ function MessageCard({
             {sent ? body : <Filled text={source.body} vars={vars} />}
           </div>
 
-          {/* LinkedIn's limit, counted as it reads */}
-          {message.channel === "linkedin" && !sent && (
-            <div className="mt-3 flex border-t border-border/40 pt-3">
-              <Limit channel={message.channel} text={body} />
+          {/* LinkedIn's limit, counted as it reads; and Approved, once it's
+              read and ready to send (the day's tab ticks when all are) */}
+          {((message.channel === "linkedin" && !sent) || (approval && !sent)) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+              {message.channel === "linkedin" && !sent && <Limit channel={message.channel} text={body} />}
+              {approval && !sent && (
+                <button
+                  type="button"
+                  aria-pressed={!!approval.at}
+                  onClick={() => approval.set(!approval.at)}
+                  title={approval.at ? `Approved by ${approval.at.by}. Tap to undo.` : "Approve this message as ready to send"}
+                  className={`ml-auto flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    approval.at ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20" : "border-white/[0.12] bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                  }`}
+                >
+                  <Check size={13} className={approval.at ? "" : "text-emerald-300"} />
+                  {approval.at ? `Approved${approval.at.by && approval.at.by !== "You" ? ` by ${approval.at.by.split(" ")[0]}` : ""}` : "Approve"}
+                </button>
+              )}
             </div>
           )}
         </>

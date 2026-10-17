@@ -27,6 +27,7 @@ import {
   type MessageData,
   type SentData,
   type OptionData,
+  type Prepared,
   type SpaceKind,
   type StageData,
   MARK_KINDS,
@@ -659,6 +660,43 @@ export async function pickMessage(id: string, key: string, messageId: string | n
   }
 }
 
+// A message approved as ready to send, for one person on the lead ("msgId@c2"),
+// or no longer (on: false). Written alone, so approvals by others stay.
+export async function approveMessage(id: string, key: string, on: boolean): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  if (typeof key !== "string" || !key || key.length > 120) return { error: "That message couldn't be found." };
+  const messageId = key.split("@")[0];
+  if (!(await prisma.stageMessage.count({ where: { id: messageId, stage: { boardId: lead.boardId } } }))) return { error: "That message no longer exists. Refresh and try again." };
+  try {
+    if (!on) await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = "approvals" - ${key}::text WHERE id = ${id}`;
+    else {
+      const mark = JSON.stringify({ by: who.name, at: new Date().toISOString() });
+      await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = jsonb_set(coalesce("approvals", '{}'::jsonb), ARRAY[${key}::text], ${mark}::jsonb, true) WHERE id = ${id}`;
+    }
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
+// Which of a lead's openers its messages use (lead.openers: main, backups)
+export async function pickOpener(id: string, index: number): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  if (!Number.isInteger(index) || index < 0 || index > 20) return { error: "That opener couldn't be found." };
+  try {
+    await prisma.$executeRaw`UPDATE "Lead" SET "picks" = jsonb_set(coalesce("picks", '{}'::jsonb), ARRAY['opener'], ${JSON.stringify(String(index))}::jsonb, true) WHERE id = ${id}`;
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
 export async function setLeadNotes(id: string, notes: string): Promise<Done> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
@@ -936,18 +974,19 @@ export async function unmarkSent(sentId: string): Promise<Done> {
 // ================= Reading =================
 
 // A lead's write-up and its record, newest first, for its page
-export async function getLeadDetails(id: string): Promise<Done & { notes?: string; events?: LeadEventData[]; sent?: SentData[] }> {
+export async function getLeadDetails(id: string): Promise<Done & { notes?: string; events?: LeadEventData[]; sent?: SentData[]; prepared?: Prepared }> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
   const [full, events, sent] = await Promise.all([
-    prisma.lead.findUnique({ where: { id }, select: { notes: true } }),
+    prisma.lead.findUnique({ where: { id }, select: { notes: true, drafts: true, openers: true } }),
     prisma.leadEvent.findMany({ where: { leadId: id, kind: { in: ["created", "moved", "restored", "assigned"] } }, orderBy: { createdAt: "desc" }, take: 500 }),
     prisma.sentMessage.findMany({ where: { leadId: id }, orderBy: { sentAt: "desc" } }),
   ]);
   return {
     notes: full?.notes ?? "",
+    prepared: { drafts: (full?.drafts ?? {}) as Prepared["drafts"], openers: (Array.isArray(full?.openers) ? full.openers : []) as Prepared["openers"] },
     events: events.map((e) => ({ id: e.id, kind: e.kind, summary: e.summary, fromStage: e.fromStage, toStage: e.toStage, reason: e.reason, byName: e.byName, createdAt: e.createdAt.toISOString() })),
     sent: sent.map((m) => ({ id: m.id, messageId: m.messageId, stageName: m.stageName, name: m.name, channel: m.channel, subject: m.subject, body: m.body, byName: m.byName, sentAt: m.sentAt.toISOString() })),
   };

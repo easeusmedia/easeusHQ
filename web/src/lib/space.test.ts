@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -77,8 +77,8 @@ test("slugs never clash with a sibling", () => {
 });
 
 test("the Dream 156 template has 17 distinct stages", () => {
-  assert.equal(DREAM_156.stages.length, 17);
-  assert.equal(new Set(DREAM_156.stages.map((s) => s.name)).size, 17);
+  assert.equal(DREAM_156.stages.length, 16);
+  assert.equal(new Set(DREAM_156.stages.map((s) => s.name)).size, 16);
   for (const f of DREAM_156.fields) if (f.kind === "select") assert.ok(f.options?.length);
 });
 
@@ -293,4 +293,17 @@ test("a board with a day sequence is in sections: in process to the last day and
   const names = ["Dream List", "Ready to reach out", "Day 1", "Day 8 · Email 4", "Audit sent", "Replied", "No reply after the audit", "Parked for later", "Dead"];
   assert.deepEqual(stageSections(names.map((name) => ({ name }))), ["process", "process", "process", "process", "replied", "replied", "replied", "replied", "process"]);
   assert.equal(stageSections([{ name: "To do" }, { name: "Done" }]), null);
+});
+
+test("a lead's window shows every day as a tab from Ready to reach out on, done, today and next", () => {
+  // Dream list, then the fixture: Ready to reach out (d0), Day 1 to 3, Replied (d4)
+  const ready = { stages: [{ id: "r", name: "Dream list", color: "default" }, ...days.stages], messages: [...days.messages, { id: "x", stageId: "d4", channel: "email", name: "Thanks", subject: "", body: "", note: "" }] };
+  assert.deepEqual(sequenceTabs(ready, "r"), []);
+  const fromReady = sequenceTabs(ready, "d0");
+  assert.deepEqual(fromReady.map((t) => [t.title, t.when]), [["Day 1", "next"], ["Day 2", null], ["Day 3", null]]);
+  assert.equal(fromReady[0].sub, "Day 1 · Email + LinkedIn");
+  assert.equal(fromReady[1].sub, "Day 2 · Instagram 1");
+  assert.deepEqual(sequenceTabs(ready, "d2").map((t) => t.when), ["done", "now", "next"]);
+  // past the sequence: every day done, and the stage's own messages as a tab
+  assert.deepEqual(sequenceTabs(ready, "d4").map((t) => [t.title, t.when]), [["Day 1", "done"], ["Day 2", "done"], ["Day 3", "done"], ["Replied", "now"]]);
 });
