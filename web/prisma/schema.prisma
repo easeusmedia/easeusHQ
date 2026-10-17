@@ -231,6 +231,7 @@ model User {
   leadsAssigned     Lead[]             @relation("LeadsAssigned")
   leadsCreated      Lead[]             @relation("LeadsCreated")
   trackedMails      TrackedMail[]
+  connections       Connection[]
 }
 
 // Plain 1:1 direct messages between team members — no group threads, no
@@ -1435,4 +1436,20 @@ model DocView {
   @@index([docId])
   @@index([mailId])
   @@index([startedAt])
+}
+
+// A key that connects someone's Claude to the app (the MCP endpoint,
+// /api/mcp/<key>, lib/mcp): whose it is, and when it was last used or taken
+// back. The key itself is never kept, only its hash; it's shown once, when made.
+model Connection {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String    @default("Claude")
+  keyHash    String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
 }

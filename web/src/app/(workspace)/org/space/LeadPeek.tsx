@@ -303,7 +303,10 @@ function LeadPage({
     <>
       {/* along the top: its name (renamed in place), then its stage, who has
           it, History and the window's size */}
-      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-1">
+      <div className="mb-3 flex shrink-0 items-start gap-2 px-1">
+        {/* the name, then its stage and who has it, wrapping under the name
+            when the window is narrow; History and the window's size stay top right */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-[1_1_14rem] text-lg font-semibold tracking-tight text-foreground">
           <EditableName name={title || lead.title} pencil="hover" wrap onSave={rename} />
         </div>
@@ -360,6 +363,9 @@ function LeadPage({
               {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
             </span>
           )}
+        </span>
+        </div>
+        <span className="flex shrink-0 items-center gap-1">
           <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
             <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
             History

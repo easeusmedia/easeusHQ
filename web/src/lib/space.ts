@@ -643,23 +643,6 @@ export function handleOf(url: string): string | null {
   return host;
 }
 
-// What each of a lead's openers (its first emails, written ahead) is called
-// where they're picked between: Main, then Backup (numbered when there are
-// two or more), or the letter of an Instagram version. The angle it takes
-// ("Old hit still on top", without its code) is the hover text.
-export function openerNames(labels: string[]): { name: string; hint: string }[] {
-  const backups = labels.filter((l) => /^backup\b/i.test(l.trim())).length;
-  let b = 0;
-  return labels.map((l, i) => {
-    const [head, ...rest] = l.split("·").map((x) => x.trim());
-    const hint = rest.join(" · ").replace(/^[A-Z]\d+\s+/, "");
-    if (/^main$/i.test(head)) return { name: "Main", hint };
-    if (/^backup$/i.test(head)) return { name: backups > 1 ? `Backup ${++b}` : "Backup", hint };
-    if (/^[A-Z]$/.test(head)) return { name: `Version ${head}`, hint };
-    return { name: `Option ${i + 1}`, hint: l.trim() };
-  });
-}
-
 // What to call each of a day's messages when picking one: its platform when
 // they differ (Day 1: Email, LinkedIn), else the last part of its name
 // (Day 2: "Didn't open Email 1", "Already opened Email 1")

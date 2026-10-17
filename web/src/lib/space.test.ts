@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, handleOf, linkName, openerNames, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, handleOf, linkName, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -356,16 +356,3 @@ test("a page's handle shows beside its name", () => {
   assert.equal(handleOf(""), null);
 });
 
-test("openers are called Main and Backup, their angle kept for the hover", () => {
-  assert.deepEqual(openerNames(["Main · D1 Old hit still on top", "Backup · D2 View swing", "Backup · F1 Fresh: latest video"]), [
-    { name: "Main", hint: "Old hit still on top" },
-    { name: "Backup 1", hint: "View swing" },
-    { name: "Backup 2", hint: "Fresh: latest video" },
-  ]);
-  assert.deepEqual(openerNames(["Main · D3 Real hit", "Backup · D6 Steady poster"]).map((o) => o.name), ["Main", "Backup"]);
-  assert.deepEqual(openerNames(["A · A reel took off", "B · Capture in place"]), [
-    { name: "Version A", hint: "A reel took off" },
-    { name: "Version B", hint: "Capture in place" },
-  ]);
-  assert.deepEqual(openerNames(["", ""]).map((o) => o.name), ["Option 1", "Option 2"]);
-});

@@ -154,8 +154,9 @@ export function LeadProfile({
   const shared = people.length > 1 ? pagesOf(people[0]).filter((p) => people.every((q) => pagesOf(q).some((x) => sameUrl(x.href) === sameUrl(p.href)))) : [];
   const seenUrl = new Set<string>();
   const seenName = new Map<string, number>();
+  // (a link whose address isn't a web address still shows, as words)
   const pages = [
-    ...linkFields.flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => { const href = hrefOf("other", l.url); return href ? [{ href, base: linkName(l.label, l.url) }] : []; })),
+    ...linkFields.flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => (l.url.trim() || l.label.trim() ? [{ href: hrefOf("other", l.url) ?? l.url.trim(), base: linkName(l.label, l.url) || l.url.trim() }] : []))),
     ...shared.map((p) => ({ href: p.href, base: p.name })),
   ]
     .filter((l) => !seenUrl.has(sameUrl(l.href)) && seenUrl.add(sameUrl(l.href)))
@@ -357,15 +358,22 @@ function PlatformIcon({ platform, size = 14 }: { platform: Platform; size?: numb
 }
 
 // a page as a row: its icon on the left, its plain name, the handle it's
-// known by in grey, an arrow on hover
+// known by in grey, an arrow on hover (words alone when the address isn't one)
+const ROW = "group/link -mx-1.5 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 text-[13px] text-foreground/85";
 function LinkRow({ href, name, sub, platform }: { href: string; name: string; sub?: string | null; platform: Platform }) {
-  return (
-    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="group/link -mx-1.5 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 text-[13px] text-foreground/85 transition-colors hover:bg-white/[0.04] hover:text-foreground">
+  const inner = (
+    <>
       <PlatformIcon platform={platform} />
       <span className="min-w-0 flex-1 truncate">
         {name}
         {sub && sub !== name && <span className="ml-2 text-xs text-muted">{sub}</span>}
       </span>
+    </>
+  );
+  if (!/^(https?:|mailto:|tel:)/i.test(href)) return <span className={ROW}>{inner}</span>;
+  return (
+    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className={`${ROW} transition-colors hover:bg-white/[0.04] hover:text-foreground`}>
+      {inner}
       <ArrowUpRight size={13} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
     </a>
   );

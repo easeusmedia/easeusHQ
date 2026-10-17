@@ -1,9 +1,9 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerNames, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -165,8 +165,6 @@ export function Messages({
   const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
   const dayApproved = (x: SequenceTab) => chosenOn(x, person).every((m) => !!approvalOf(forContact(m.id, person)));
   const opener = Math.min(Number(pickOf("opener") ?? 0) || 0, Math.max(0, openers.length - 1));
-  // a day whose wording differs from one opener to the next (Days 1 and 2)
-  const changesWithOpener = (x: SequenceTab) => x.messages.some((m) => openers.some((o) => JSON.stringify(o.drafts[m.id] ?? null) !== JSON.stringify(openers[0].drafts[m.id] ?? null)));
 
   // before Ready to reach out: what's known about it, nothing to send
   if (!tabs.length) return <div className={`${PANEL} @container min-h-0 w-full max-w-xl flex-1 overflow-y-auto`}>{aside}</div>;
@@ -271,38 +269,72 @@ export function Messages({
           )}
           {aside}
         </aside>
-        <section className={`${PANEL} flex min-h-0 flex-col overflow-hidden`}>
-          {/* the days along the top, as on the Dream 300 pages: plain buttons
-              of one width that wrap; the open one lit as the app's chips are,
-              a green tick once a day is approved (or replied), today a green dot */}
-          <div className="flex shrink-0 items-start gap-2 border-b border-white/[0.07] px-4 py-3">
-            <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-              {tabs.map((x) => {
-                const replied = repliedOn(x.key);
-                const on = x.key === t.key;
-                const done = replied || dayApproved(x);
-                return (
-                  <button
-                    key={x.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={on}
-                    onClick={() => setTab(x.key)}
-                    title={x.sub}
-                    className={`chip inline-flex min-w-[5.25rem] items-center justify-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap ${done && !on ? "border-emerald-400/40 text-emerald-300" : ""}`}
-                  >
-                    {/* the same slot on every button, so the words line up */}
-                    <span className="grid size-3 shrink-0 place-items-center">
-                      {replied ? <Reply size={11} aria-label="Replied" /> : done ? <Check size={12} aria-label="Approved" /> : x.when === "now" ? <span className="size-1.5 rounded-full bg-emerald-400" aria-label="Today" /> : null}
-                    </span>
-                    {x.title}
-                  </button>
-                );
-              })}
+        <section className={`${PANEL} @container flex min-h-0 flex-col overflow-hidden`}>
+          {/* the days as steps along the top: done (approved or replied) with a
+              tick, today green, next blue, the open one lit, joined by lines.
+              In a narrow window the other days shrink to numbered circles, so
+              nothing is ever cut off. */}
+          <div className="flex shrink-0 flex-col gap-2.5 border-b border-white/[0.07] px-4 py-3">
+            {/* the opener, as on the Dream 300 pages: the first email written
+                for this lead, main or a backup; Days 1 and 2 change with it */}
+            {openers.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted">Opener</span>
+                <div role="tablist" aria-label="Opener" className="flex flex-wrap items-center gap-1.5">
+                  {openers.map((o, i) => (
+                    <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener picked; Days 3 to 8 stay the same" className="chip rounded-full px-3 py-1 text-xs">
+                      {o.label || `Opener ${i + 1}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              {/* a little room around the strip, so the lit day's ring is never clipped by the scroll box */}
+              <div role="tablist" aria-label="Days" className="-m-1 flex min-w-0 flex-1 items-center overflow-x-auto p-1 [scrollbar-width:none]">
+                {tabs.map((x, i) => {
+                  const replied = repliedOn(x.key);
+                  const on = x.key === t.key;
+                  const ready = dayApproved(x);
+                  const tone = x.when === "now" ? "emerald" : x.when === "next" ? "accent" : null;
+                  return (
+                    <Fragment key={x.key}>
+                      {i > 0 && <span aria-hidden className={`h-px w-2 shrink-0 @4xl:w-5 ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={on}
+                        onClick={() => setTab(x.key)}
+                        title={x.sub}
+                        className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1.5 text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow,padding] duration-200 ${on || x.day == null ? "pr-3.5" : "pr-1.5 @4xl:pr-3.5"} ${
+                          on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
+                        }`}
+                      >
+                        {replied ? (
+                          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label="Replied">
+                            <Reply size={11} />
+                          </span>
+                        ) : ready ? (
+                          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label="Approved">
+                            <Check size={12} />
+                          </span>
+                        ) : (
+                          <span className={`grid size-5 shrink-0 place-items-center rounded-full ring-1 text-[10px] tabular-nums ${tone === "emerald" ? "ring-emerald-400/50 text-emerald-300" : tone === "accent" ? "ring-accent/50 text-accent" : "ring-white/15"}`} aria-label={x.when === "now" ? "Today" : x.when === "next" ? "Next" : undefined}>
+                            {/* wide: a dot for today or next; narrow: the day's number instead of its name */}
+                            {tone && <span className={`hidden size-1.5 rounded-full @4xl:block ${tone === "emerald" ? "bg-emerald-400" : "bg-accent"}`} />}
+                            {x.day != null && !on && <span className="@4xl:hidden">{x.day}</span>}
+                          </span>
+                        )}
+                        <span className={on || x.day == null ? "" : "hidden @4xl:inline"}>{x.title}</span>
+                      </button>
+                    </Fragment>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={() => setLibrary(true)} aria-label="All messages" title="All messages" className="grid size-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                <Library size={15} />
+              </button>
             </div>
-            <button type="button" onClick={() => setLibrary(true)} aria-label="All messages" title="All messages" className="grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
-              <Library size={14} />
-            </button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
@@ -340,16 +372,6 @@ export function Messages({
               {repliedOn(t.key) && (
                 <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
                   <Reply size={11} /> Replied
-                </span>
-              )}
-              {/* the lead's first emails, written ahead: Main and its backups, on the days they change */}
-              {openers.length > 1 && changesWithOpener(t) && (
-                <span className="ml-auto flex flex-wrap items-center gap-1">
-                  {openerNames(openers.map((o) => o.label)).map((o, i) => (
-                    <button key={i} type="button" aria-pressed={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title={o.hint || undefined} className="chip rounded-full px-2.5 py-0.5 text-xs">
-                      {o.name}
-                    </button>
-                  ))}
                 </span>
               )}
             </p>
@@ -624,7 +646,7 @@ function MessageForm({
             </button>
             {!sent && (
               <button type="button" onClick={edit} title="Edit for this lead" aria-label="Edit this message" className={ICON}>
-                <Pencil size={14} className="text-sky-400" />
+                <Pencil size={14} />
               </button>
             )}
             {canBuild && !sent && (
