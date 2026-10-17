@@ -192,21 +192,22 @@ async function personOf(teamId: string, key: string) {
 
 // ---- what comes in, in plain shapes ----
 
+// one value, or several (a person with two phones, two Instagram pages)
+const oneOrMore = (max: number) => z.union([z.string().max(max), z.array(z.string().max(max)).max(20)]);
+const many = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? [v] : []);
 const contactIn = z
   .object({
     id: z.string().max(64).optional().describe("Keep a person's id when changing them, so their marks stay theirs"),
     name: z.string().max(120).optional(),
     role: z.string().max(60).optional().describe("Host, Producer, Founder, Assistant…"),
-    email: z
-      .union([z.string().max(300), z.array(z.string().max(300)).max(20)])
-      .optional()
-      .describe("One address, or several"),
-    phone: z.string().max(60).optional(),
-    linkedin: z.string().max(300).optional().describe("Their LinkedIn page"),
-    instagram: z.string().max(300).optional().describe("Their Instagram page or @handle"),
-    youtube: z.string().max(300).optional().describe("Their YouTube channel"),
-    x: z.string().max(300).optional(),
-    website: z.string().max(300).optional().describe("Any other page of theirs"),
+    email: oneOrMore(300).optional().describe("One address, or several"),
+    emails: z.array(z.string().max(300)).max(20).optional().describe("The same as email, as a list"),
+    phone: oneOrMore(60).optional(),
+    linkedin: oneOrMore(300).optional().describe("Their LinkedIn page"),
+    instagram: oneOrMore(300).optional().describe("Their Instagram page or @handle"),
+    youtube: oneOrMore(300).optional().describe("Their YouTube channel"),
+    x: oneOrMore(300).optional(),
+    website: oneOrMore(300).optional().describe("Any other page of theirs"),
   })
   .describe("A person on the lead");
 type ContactIn = z.infer<typeof contactIn>;
@@ -226,8 +227,8 @@ function toContact(raw: unknown, i: number): Contact {
   if (!p.success) throw new ToolError(`Person ${i + 1}: ${z.prettifyError(p.error)}`);
   const d = p.data;
   const channels: Contact["channels"] = [];
-  for (const e of Array.isArray(d.email) ? d.email : d.email ? [d.email] : []) channels.push({ kind: "email", value: e });
-  const pages: [keyof ContactIn, Contact["channels"][number]["kind"]][] = [
+  for (const e of [...new Set([...many(d.email), ...(d.emails ?? [])])]) if (e.trim()) channels.push({ kind: "email", value: e });
+  const pages: [Exclude<keyof ContactIn, "id" | "name" | "role" | "email" | "emails">, Contact["channels"][number]["kind"]][] = [
     ["phone", "phone"],
     ["linkedin", "linkedin"],
     ["instagram", "instagram"],
@@ -235,10 +236,7 @@ function toContact(raw: unknown, i: number): Contact {
     ["x", "x"],
     ["website", "other"],
   ];
-  for (const [key, kind] of pages) {
-    const v = d[key];
-    if (typeof v === "string" && v.trim()) channels.push({ kind, value: v });
-  }
+  for (const [key, kind] of pages) for (const v of many(d[key])) if (v.trim()) channels.push({ kind, value: v });
   return {
     id: d.id ?? crypto.randomUUID(),
     name: d.name ?? "",
@@ -273,7 +271,9 @@ async function storedValue(acting: Acting, board: Board, f: Field, raw: unknown,
     case "select":
     case "multi": {
       if (raw == null || raw === "") return null;
-      const names = (Array.isArray(raw) ? raw : [raw]).map(String);
+      // a multi field takes a list; a comma list in one string is split, so no tag is made of the whole line
+      const names = (Array.isArray(raw) ? raw.map(String) : f.kind === "multi" && !f.options.some((o) => same(o.name, String(raw))) ? String(raw).split(",") : [String(raw)]).map((n) => n.trim()).filter(Boolean);
+      if (f.kind === "select" && names.length > 1) throw new ToolError(`${f.name} takes one tag, not ${names.length}: ${names.join(", ")}.`);
       const ids: string[] = [];
       for (const n of names) {
         let o = f.options.find((x) => x.id === n) ?? f.options.find((x) => same(x.name, n));
@@ -338,13 +338,12 @@ function readable(f: Field, v: unknown): unknown {
     case "multi":
       return (v as string[]).map((id) => f.options.find((o) => o.id === id)?.name ?? id);
     case "contacts":
-      return (v as Contact[]).map((c) => ({
-        id: c.id,
-        name: c.name,
-        role: c.role || undefined,
-        emails: c.channels.filter((ch) => ch.kind === "email").map((ch) => ch.value),
-        ...Object.fromEntries(c.channels.filter((ch) => ch.kind !== "email").map((ch) => [ch.kind === "other" ? "website" : ch.kind, ch.value])),
-      }));
+      // the same shape add_leads and update_lead take, so a person read can be sent back whole
+      return (v as Contact[]).map((c) => {
+        const by: Record<string, string[]> = {};
+        for (const ch of c.channels) (by[ch.kind === "other" ? "website" : ch.kind] ??= []).push(ch.value);
+        return { id: c.id, name: c.name, role: c.role || undefined, ...Object.fromEntries(Object.entries(by).map(([k, vs]) => [k, vs.length === 1 ? vs[0] : vs])) };
+      });
     case "links":
       return (v as LinkValue[]).map((l) => ({ label: l.label, url: l.url }));
     case "count": {
@@ -369,7 +368,6 @@ const brief = (board: Board, l: LeadRow) => {
     assigned_to: l.assignedTo?.name ?? null,
     fields,
     vars: (l.vars ?? {}) as Record<string, string>,
-    notes: l.notes || undefined,
     url: `${board.url}&lead=${l.id}`,
     updated_at: l.updatedAt.toISOString(),
   };
@@ -584,6 +582,7 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
       return {
         ...brief(board, row),
         board: board.name,
+        notes: row.notes || undefined,
         added: `${row.createdAt.toISOString()} by ${full.createdBy.name}`,
         assigned_by: full.assignedByName ? `${full.assignedByName}, ${full.assignedAt?.toISOString() ?? ""}` : undefined,
         edited: full.editedByName ? `${full.editedByName}, ${full.editedAt?.toISOString() ?? ""}` : undefined,
@@ -731,47 +730,54 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
         const changed: string[] = [];
         const added: string[] = [];
         const check = (r: { error?: string }, what: string) => {
-          if (r.error) throw new ToolError(`${what}: ${r.error}${changed.length ? ` (already changed: ${changed.join(", ")})` : ""}`);
+          if (r.error) throw new ToolError(`${what}: ${r.error}`);
           changed.push(what);
         };
-        if (a.title !== undefined) check(await renameLead(row.id, a.title), "name");
-        const values = (row.values ?? {}) as Record<string, unknown>;
-        const input: Record<string, unknown> = { ...(a.values ?? {}) };
-        if (a.contacts) input[board.fields.find((f) => f.kind === "contacts")?.name ?? "Contacts"] = a.contacts;
-        if (a.links) input[board.fields.find((f) => f.kind === "links")?.name ?? "Links"] = a.links;
-        for (const [key, raw] of Object.entries(input)) {
-          const f = fieldOf(board, key);
-          const before = f.kind === "contacts" && Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : [];
-          const v = await storedValue(acting, board, f, raw, before, added);
-          check(await setLeadValue(row.id, f.id, v), f.name);
-        }
-        for (const [k, v] of Object.entries(a.vars ?? {})) check(await setLeadVar(row.id, k, v), `{{${k}}}`);
-        if (a.notes !== undefined) check(await setLeadNotes(row.id, a.notes), "write-up");
-        if (a.assigned_to !== undefined) {
-          const to = a.assigned_to ? await personOf(board.teamId, a.assigned_to) : null;
-          check(await assignLead(row.id, to?.id ?? null), to ? `given to ${to.name}` : "unassigned");
-        }
-        if (a.openers) {
-          const openers = toOpeners(board, a.openers);
-          await prisma.lead.update({
-            where: { id: row.id },
-            data: {
-              openers: openers as unknown as Prisma.InputJsonValue,
-              editedByName: acting.name,
-              editedAt: new Date(),
-            },
-          });
-          changed.push("openers");
-        }
-        for (const [k, d] of Object.entries(a.drafts ?? {})) {
-          const m = messageOf(board, k);
-          check(await setLeadDraft(row.id, m.id, d), d ? `${m.name} rewritten` : `${m.name} back to the template`);
-        }
-        if (a.stage) {
-          const to = stageOf(board, a.stage);
-          const r = await moveLead(row.id, to.id, Date.now(), a.reason);
-          if (r.needsReason) throw new ToolError(`Moving to ${to.name} goes back or skips ahead, so it needs a reason: pass one.${changed.length ? ` (Already changed: ${changed.join(", ")}.)` : ""}`);
-          check(r, `moved to ${to.name}`);
+        try {
+          if (a.title !== undefined) check(await renameLead(row.id, a.title), "name");
+          const values = (row.values ?? {}) as Record<string, unknown>;
+          const input: Record<string, unknown> = { ...(a.values ?? {}) };
+          if (a.contacts) input[board.fields.find((f) => f.kind === "contacts")?.name ?? "Contacts"] = a.contacts;
+          if (a.links) input[board.fields.find((f) => f.kind === "links")?.name ?? "Links"] = a.links;
+          for (const [key, raw] of Object.entries(input)) {
+            const f = fieldOf(board, key);
+            const before = f.kind === "contacts" && Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : [];
+            const v = await storedValue(acting, board, f, raw, before, added);
+            check(await setLeadValue(row.id, f.id, v), f.name);
+          }
+          for (const [k, v] of Object.entries(a.vars ?? {})) check(await setLeadVar(row.id, k, v), `{{${k}}}`);
+          if (a.notes !== undefined) check(await setLeadNotes(row.id, a.notes), "write-up");
+          if (a.assigned_to !== undefined) {
+            const to = a.assigned_to ? await personOf(board.teamId, a.assigned_to) : null;
+            check(await assignLead(row.id, to?.id ?? null), to ? `given to ${to.name}` : "unassigned");
+          }
+          if (a.openers) {
+            const openers = toOpeners(board, a.openers);
+            await prisma.lead.update({
+              where: { id: row.id },
+              data: {
+                openers: openers as unknown as Prisma.InputJsonValue,
+                editedByName: acting.name,
+                editedAt: new Date(),
+              },
+            });
+            changed.push("openers");
+          }
+          for (const [k, d] of Object.entries(a.drafts ?? {})) {
+            const m = messageOf(board, k);
+            check(await setLeadDraft(row.id, m.id, d), d ? `${m.name} rewritten` : `${m.name} back to the template`);
+          }
+          if (a.stage) {
+            const to = stageOf(board, a.stage);
+            const r = await moveLead(row.id, to.id, Date.now(), a.reason);
+            if (r.needsReason) throw new ToolError(`Moving to ${to.name} goes back or skips ahead, so it needs a reason: pass one.`);
+            check(r, `moved to ${to.name}`);
+          }
+        } catch (err) {
+          // whatever stopped it, what had landed by then is said too
+          const why = err instanceof ToolError ? err.message : "It couldn't be saved.";
+          if (!(err instanceof ToolError)) console.error(err);
+          throw new ToolError(`${why}${changed.length ? ` (Already changed: ${changed.join(", ")}.)` : " Nothing was changed."}`);
         }
         return {
           lead: row.title,

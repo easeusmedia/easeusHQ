@@ -103,6 +103,7 @@ test("unknown methods, bad input and batches", async () => {
   };
   assert.equal(bad.error.code, -32600);
   assert.equal(bad.id, null);
+  // a batch is refused, whatever is in it
   const batch = (await handleRpc(
     [
       { jsonrpc: "2.0", id: 9, method: "ping" },
@@ -110,10 +111,6 @@ test("unknown methods, bad input and batches", async () => {
     ],
     tools,
     info,
-  )) as { id: number }[];
-  assert.deepEqual(
-    batch.map((r) => r.id),
-    [9],
-  );
-  assert.equal(await handleRpc([{ jsonrpc: "2.0", method: "notifications/initialized" }], tools, info), null);
+  )) as { error: { code: number } };
+  assert.equal(batch.error.code, -32600);
 });

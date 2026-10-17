@@ -47,13 +47,10 @@ const fail = (id: RpcId, code: number, message: string, data?: unknown): RpcResp
 });
 
 // One request in, one response out; null for a notification (nothing to say
-// back) or for a batch with only notifications in it.
-export async function handleRpc(msg: unknown, tools: Tool[], info: ServerInfo): Promise<RpcResponse | RpcResponse[] | null> {
-  if (Array.isArray(msg)) {
-    if (!msg.length) return fail(null, -32600, "Empty batch.");
-    const out = (await Promise.all(msg.map((m) => handleOne(m, tools, info)))).filter((r): r is RpcResponse => r !== null);
-    return out.length ? out : null;
-  }
+// back). A batch (an array) is refused: one message at a time, so one POST
+// never fans out into hundreds of queries.
+export async function handleRpc(msg: unknown, tools: Tool[], info: ServerInfo): Promise<RpcResponse | null> {
+  if (Array.isArray(msg)) return fail(null, -32600, "One request at a time, not a batch.");
   return handleOne(msg, tools, info);
 }
 

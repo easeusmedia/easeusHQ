@@ -20,7 +20,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       {
         error: "This connection key doesn't work any more. Ask for a new one.",
       },
-      { status: 401 },
+      // 403, not 401: a 401 sends MCP clients looking for OAuth instead of showing this
+      { status: 403 },
     );
   if (Number(request.headers.get("content-length") ?? 0) > 4_000_000) return NextResponse.json({ error: "That's too much at once. Send fewer leads a call." }, { status: 413 });
   const body = await request.json().catch(() => null);
