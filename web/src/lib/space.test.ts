@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, stageSections, tracksOutreach, withMark, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -149,6 +149,24 @@ test("a card's buttons follow the platform its day's message goes out on", () =>
   assert.equal(dayPlatform(days, {}, 9), null);
 });
 
+const person = (id: string, ...kinds: Contact["channels"][number]["kind"][]): Contact => ({ id, name: id, role: "", channels: kinds.map((kind) => ({ kind, value: `${id}@${kind}` })) });
+
+test("a contact's day goes out where they can be reached, and their own pick wins", () => {
+  // no email: Day 1 is the LinkedIn note for them
+  assert.equal(dayPlatform(days, {}, 1, false, person("c1", "linkedin")), "linkedin");
+  assert.equal(dayPlatform(days, {}, 1, false, person("c1", "email", "linkedin")), "email");
+  // their own pick, then the lead's
+  assert.equal(dayPlatform(days, { "day-1@c1": "l1" }, 1, false, person("c1", "email", "linkedin")), "linkedin");
+  assert.equal(dayPlatform(days, { "day-1": "l1" }, 1, false, person("c1", "email", "linkedin")), "linkedin");
+  // nothing to reach them with: the day's own default still shows (greyed)
+  assert.equal(dayPlatform(days, {}, 2, false, person("c1", "email")), "instagram");
+});
+
+test("the LinkedIn connection request goes out on the sequence's first LinkedIn day", () => {
+  assert.equal(requestDay(days), 1);
+  assert.equal(requestDay({ stages: days.stages, messages: days.messages.filter((m) => m.channel !== "linkedin") }), null);
+});
+
 test("a day's message before one is picked follows whether the email was opened", () => {
   const day2 = [{ name: "DAY 2 · INSTAGRAM 1 · DIDN'T OPEN EMAIL 1" }, { name: "DAY 2 · INSTAGRAM 1 · ALREADY OPENED EMAIL 1" }];
   assert.equal(defaultMessage(day2, false)?.name, day2[0].name);
@@ -156,10 +174,27 @@ test("a day's message before one is picked follows whether the email was opened"
   assert.equal(defaultMessage([{ name: "Email" }, { name: "LinkedIn" }], true)?.name, "Email");
 });
 
-test("a mark is set on a day, and cleared", () => {
-  const set = withMark({}, { platform: "instagram", kind: "seen", day: "day-2" }, "t");
-  assert.deepEqual(set, { instagram: { seen: { day: "day-2", at: "t" } } });
-  assert.deepEqual(withMark(set, { platform: "instagram", kind: "seen", day: null }), { instagram: {} });
+test("a mark is set on a day for one contact, and cleared", () => {
+  const set = withMark({}, { contact: "c1", platform: "instagram", kind: "seen", day: "day-2" }, "t");
+  assert.deepEqual(set, { c1: { instagram: { seen: { day: "day-2", at: "t" } } } });
+  assert.deepEqual(withMark(set, { contact: "c1", platform: "instagram", kind: "seen", day: null }), { c1: { instagram: {} } });
+  // another contact's marks stay
+  const two = withMark(set, { contact: "c2", platform: "instagram", kind: "replied", day: "day-2" }, "t");
+  assert.deepEqual(Object.keys(two), ["c1", "c2"]);
+});
+
+test("clearing Accepted on LinkedIn clears that contact's reply too", () => {
+  let m = withMark({}, { contact: "c1", platform: "linkedin", kind: "accepted", day: "day-1" }, "t");
+  m = withMark(m, { contact: "c1", platform: "linkedin", kind: "replied", day: "day-1" }, "t");
+  assert.ok(m.c1?.linkedin?.replied);
+  assert.deepEqual(withMark(m, { contact: "c1", platform: "linkedin", kind: "accepted", day: null }), { c1: { linkedin: {} } });
+});
+
+test("marks kept by platform alone belong to the first contact", () => {
+  const legacy = { instagram: { replied: { day: "day-2", at: "t" } }, c2: { linkedin: { accepted: { day: "day-1", at: "t" } } } };
+  assert.deepEqual(readMarks(legacy, "c1"), { c2: legacy.c2, c1: { instagram: legacy.instagram } });
+  assert.deepEqual(readMarks({ c1: { instagram: {} } }, "c1"), { c1: { instagram: {} } });
+  assert.deepEqual(readMarks(null, "_"), {});
 });
 
 type T = { email?: { tracked?: boolean; opens?: number; replied?: boolean }; marks?: Marks; on?: Platform[] };
@@ -175,7 +210,7 @@ test("the board's numbers, by lead, on each platform and on all", () => {
     // emailed and tracked, opened twice
     row({ on: ["email", "linkedin"], email: { tracked: true, opens: 2 } }),
     // emailed and tracked, not opened; seen and replied on Instagram
-    row({ on: ["email", "linkedin", "instagram"], email: { tracked: true }, marks: { instagram: { seen, replied: seen } } }),
+    row({ on: ["email", "linkedin", "instagram"], email: { tracked: true }, marks: { c1: { instagram: { seen, replied: seen } } } }),
     // emailed from a computer without the tracker: no opens known, but it replied
     row({ on: ["email"], email: { replied: true } }),
     // emailed without the tracker, nothing back: reached, opens unknown
@@ -184,17 +219,28 @@ test("the board's numbers, by lead, on each platform and on all", () => {
     row({}),
   ];
   // email: 4 reached, opens known for 3 (2 tracked, 1 replied), 2 opened, 1 replied
-  assert.deepEqual(outreachStats(leads, "email"), { reached: 4, opened: 2, replied: 1, openRate: 67, replyRate: 25 });
-  assert.deepEqual(outreachStats(leads, "instagram"), { reached: 1, opened: 1, replied: 1, openRate: 100, replyRate: 100 });
+  assert.deepEqual(outreachStats(leads, "email"), { reached: 4, opened: 2, replied: 1, accepted: 0, openRate: 67, replyRate: 25, acceptRate: 0 });
+  assert.deepEqual(outreachStats(leads, "instagram"), { reached: 1, opened: 1, replied: 1, accepted: 0, openRate: 100, replyRate: 100, acceptRate: 0 });
   // LinkedIn: reached by the day, nothing marked
-  assert.deepEqual(outreachStats(leads, "linkedin"), { reached: 2, opened: 0, replied: 0, openRate: 0, replyRate: 0 });
+  assert.deepEqual(outreachStats(leads, "linkedin"), { reached: 2, opened: 0, replied: 0, accepted: 0, openRate: 0, replyRate: 0, acceptRate: 0 });
   // all: each lead once
-  assert.deepEqual(outreachStats(leads, null), { reached: 4, opened: 3, replied: 2, openRate: 100, replyRate: 50 });
+  assert.deepEqual(outreachStats(leads, null), { reached: 4, opened: 3, replied: 2, accepted: 0, openRate: 100, replyRate: 50, acceptRate: 0 });
 });
 
 test("a mark counts as reached even before its day", () => {
-  assert.equal(outreachStats([row({ marks: { linkedin: { seen } } })], "linkedin").reached, 1);
-  assert.deepEqual(outreachStats([], null), { reached: 0, opened: 0, replied: 0, openRate: 0, replyRate: 0 });
+  assert.equal(outreachStats([row({ marks: { c1: { linkedin: { seen } } } })], "linkedin").reached, 1);
+  assert.deepEqual(outreachStats([], null), { reached: 0, opened: 0, replied: 0, accepted: 0, openRate: 0, replyRate: 0, acceptRate: 0 });
+});
+
+test("a lead counts once however many of its people took the request or replied", () => {
+  const accepted = { day: "day-1", at: "t" };
+  const leads = [
+    // two people on one lead: one accepted, the other accepted and replied
+    row({ on: ["linkedin"], marks: { c1: { linkedin: { accepted } }, c2: { linkedin: { accepted, replied: accepted } } } }),
+    // reached, nobody took it
+    row({ on: ["linkedin"] }),
+  ];
+  assert.deepEqual(outreachStats(leads, "linkedin"), { reached: 2, opened: 1, replied: 1, accepted: 1, openRate: 100, replyRate: 50, acceptRate: 50 });
 });
 
 // Dream List, Shortlisted, Ready, Day 1 (email and LinkedIn on one stage), Day 2, Day 7 on two stages, then the replies

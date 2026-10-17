@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users } from "lucide-react";
+import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Search, Send, Table2, Trash2, Users, UserCheck } from "lucide-react";
 import { outreachStart, outreachStats, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadTable } from "./LeadTable";
@@ -92,7 +92,7 @@ export function PortalView({
     const before = tracked[id];
     setTrackError(null);
     setTracked((t) => ({ ...t, [id]: withMark(t[id] ?? board?.leads.find((l) => l.id === id)?.marks ?? {}, change) }));
-    const res = await setLeadMark(id, change.platform, change.kind, change.day).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    const res = await setLeadMark(id, change).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
     if (res.error) {
       setTracked((t) => {
         const next = { ...t };
@@ -251,10 +251,21 @@ export function PortalView({
               <TrackerChip />
             </div>
           </div>
-          {/* Instagram and LinkedIn are marked Replied only: no open rate to show */}
-          <div className={`grid grid-cols-1 divide-y divide-white/[0.06] sm:divide-x sm:divide-y-0 ${manualOnly ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
+          {/* Instagram and LinkedIn are tapped, Replied only: no open rate to
+              show. LinkedIn shows how many took the connection request. */}
+          <div className={`grid grid-cols-1 divide-y divide-white/[0.06] sm:divide-x sm:divide-y-0 ${prefs.platform === "instagram" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
             <StatTile bare label="Unique reach outs" value={reach?.unique ?? 0} Icon={Users} />
             <StatTile bare label="Total reach outs" value={reach?.total ?? 0} Icon={Send} />
+            {prefs.platform === "linkedin" && (
+              <StatTile
+                bare
+                label="Accepted"
+                value={`${stats.acceptRate}%`}
+                lit={stats.accepted > 0}
+                Icon={UserCheck}
+                note={stats.reached > 0 && <p className="text-xs text-muted">{stats.accepted} {stats.accepted === 1 ? "request taken" : "requests taken"}</p>}
+              />
+            )}
             {!manualOnly && (
               <StatTile
                 bare

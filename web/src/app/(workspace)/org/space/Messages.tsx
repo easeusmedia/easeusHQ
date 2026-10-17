@@ -2,8 +2,8 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MailOpen, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, X } from "lucide-react";
-import { dayOf, defaultMessage, fillParts, fillText, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, optionLabel, PLATFORM_NAME, toneOf, variablesIn, type BoardData, type Draft, type LeadData, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
+import { Braces, Check, ChevronDown, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, MessagesSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
+import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, messagePhases, NO_CONTACT, optionLabel, PLATFORM_NAME, requestDay, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type MessageData, type Phase, type SentData, type StageData } from "@/lib/space";
 import { createMessage, deleteMessage, pickMessage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
@@ -29,10 +29,13 @@ const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 
 
 // A lead's messages as a timeline, day by day, the way its history reads.
 // Reaching out starts at Ready to reach out: there every day of the
-// sequence shows (Day 1 open, the rest folded), so the whole run can be read
-// ahead. On a day, only that day and the next show, both open: what to send
-// now, and what comes after. Outside the sequence (the replies, the audit)
-// a stage shows its own. Before Ready to reach out there is nothing to send.
+// sequence shows, so the whole run can be read ahead. On a day, the days
+// before it, that day and the next show. Outside the sequence (the replies,
+// the audit) a stage shows its own. Before Ready to reach out there is
+// nothing to send. Under each day, one row per person on the lead (Abhishek,
+// 17 Oct 2026), folded until tapped: their copy of the message, with their
+// name in it, and their own Accepted and Reply. A person with no handle for
+// the day's platform is greyed, with nothing to tap.
 // The words that change per lead are filled once, in one place above, and
 // appear in every message that uses them. On a message: copy it, mark it
 // sent, or change it:
@@ -64,9 +67,15 @@ export function Messages({
   const own = (id: string) => (id in mine ? (mine[id] ?? undefined) : lead.drafts?.[id]);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState(false);
-  // the days done that are opened, to read back
-  const [openDays, setOpenDays] = useState<Set<string>>(new Set());
-  const toggleDay = (key: string) => setOpenDays((o) => (o.delete(key) ? new Set(o) : new Set(o).add(key)));
+  // the rows (a day, a person) opened to read the message
+  const [openRows, setOpenRows] = useState<Set<string>>(new Set());
+  const toggleRow = (key: string) => setOpenRows((o) => (o.delete(key) ? new Set(o) : new Set(o).add(key)));
+  // the people on the lead: a row each under every day; none, the lead itself
+  const contacts = leadContacts(lead.values, board.fields);
+  const people: (Contact | null)[] = contacts.length ? contacts : [null];
+  const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
+  const firstName = (name: string) => name.trim().split(/\s+/)[0];
+  const request = requestDay(board);
   // a day's message picked here, ahead of the save
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const pickOf = (key: string) => (key in picked ? picked[key] : (lead.picks?.[key] ?? null));
@@ -82,8 +91,10 @@ export function Messages({
     onSaved();
   }
   // a reply that came on a day: by email (the sales inbox) or, marked, on
-  // Instagram or LinkedIn
-  const repliedOn = (key: string) => lead.email.replied?.day === key || MARKED.some((c) => lead.marks[c]?.replied?.day === key);
+  // Instagram or LinkedIn by anyone on the lead
+  const repliedOn = (key: string) => lead.email.replied?.day === key || people.some((c) => MARKED.some((p) => lead.marks[idOf(c)]?.[p]?.replied?.day === key));
+  // picks as they stand, with any made here ahead of the save
+  const picks = { ...(lead.picks ?? {}), ...Object.fromEntries(Object.entries(picked).filter((e): e is [string, string] => !!e[1])) };
   const today = dayOf(board.stages.find((s) => s.id === stageId)?.name ?? "");
 
   async function saveVar(name: string, value: string) {
@@ -113,14 +124,14 @@ export function Messages({
   const blanks = used.filter((n) => !vars[n]);
   const sentIds = new Set((sent ?? []).map((x) => x.messageId ?? ""));
 
-  const card = (m: MessageData, folded = false) => (
+  const card = (m: MessageData, folded = false, v: Record<string, string> = vars) => (
     <MessageCard
       key={m.id}
       folded={folded}
       message={m}
       stages={board.stages}
       leadId={lead.id}
-      vars={vars}
+      vars={v}
       names={names}
       own={own(m.id)}
       sent={sent?.find((x) => x.messageId === m.id) ?? null}
@@ -128,68 +139,84 @@ export function Messages({
     />
   );
 
-  // one day on the timeline: its node, the line down to the next shown day,
-  // its message (or the options to pick from) and its reply
-  const step = (p: Phase, below: Phase | undefined, last: boolean) => {
+  // one person's row under a day: folded to a line (their name, where it
+  // goes, and at a glance how it went), open to their copy of the message
+  // and what's tapped for them. Greyed where they have no handle for it.
+  const row = (p: Phase, c: Contact | null) => {
     const options = p.messages;
-    // a day with more than one message: the one picked, else its default
-    // (Email on Day 1; on Day 2 the one for whether Email 1 was opened), as
-    // the card has it
-    const chosenId = options.length > 1 ? (pickOf(p.key) ?? defaultMessage(options, lead.email.opens > 0)?.id) : options[0].id;
-    const chosen = options.find((m) => m.id === chosenId) ?? null;
-    const replied = repliedOn(p.key);
-    // a day reached shows its message's platform only: Reply for Instagram
-    // or LinkedIn (once per platform, whichever day), email's by itself
+    const key = forContact(p.key, c);
+    const chosen = chosenFor(options, picks, p.key, c, lead.email.opens > 0) ?? null;
+    const can = !!chosen && hasChannel(c, chosen.channel);
     const reached = p.day != null && today != null && p.day <= today;
-    const marked = reached ? MARKED.filter((c) => chosen?.channel === c) : [];
-    const folded = p.when === "done" && !openDays.has(p.key);
-    // its emails' opens (the mail tracker), on Day 1 once it's done
-    const opened = p.when === "done" && p.day === 1 && lead.email.opens > 0 && (
-      <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-muted">
-        <MailOpen size={11} /> Opened {lead.email.opens}×
-      </span>
-    );
-    // an email day not yet done: its email, by itself (as on the card)
-    const mailNote = p.when !== "done" && reached && chosen?.channel === "email" && (
-      <span className="flex flex-wrap items-center gap-1.5">
-        <EmailStatus email={lead.email} size="md" />
-      </span>
-    );
-    const content = (
-      <>
-        {options.length > 1 &&
-          (options.length <= 4 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {options.map((m) => (
-                <button key={m.id} type="button" aria-pressed={chosen?.id === m.id} onClick={() => chosen?.id !== m.id && pick(p.key, m.id)} className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                  <span className="flex shrink-0">{CHANNEL_ICON[m.channel] ?? CHANNEL_ICON.other}</span>
-                  {optionLabel(options, m)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((m) => ({ value: m.id, label: m.name }))} onChange={(v) => v && pick(p.key, v)} />
-          ))}
-        {chosen && card(chosen, p.when === "done" || (options.length === 1 && !p.when))}
-        {(marked.length > 0 || mailNote) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {mailNote}
-            {marked.map((c) => {
-              const m = lead.marks[c] ?? {};
-              return (
-                <span key={c} className="flex flex-wrap items-center gap-1.5">
-                  <button type="button" aria-pressed={!!m.replied} onClick={() => onMark({ platform: c, kind: "replied", day: m.replied ? null : p.key })} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[c]}`} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                    {CHANNEL_ICON[c]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
-                  </button>
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </>
-    );
+    const platform = chosen && MARKED.includes(chosen.channel as Marked) ? (chosen.channel as Marked) : null;
+    const m = platform ? (lead.marks[idOf(c)]?.[platform] ?? {}) : {};
+    const open = openRows.has(key);
+    const rowVars = c?.name.trim() ? { ...vars, Name: firstName(c.name) } : vars;
+    const mark = (kind: "accepted" | "replied") => platform && onMark({ contact: idOf(c), platform, kind, day: m[kind] ? null : p.key });
+    const needs = platform === "linkedin" && !m.accepted;
+    const lit = "flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300";
+    const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
+    const label = c ? c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact" : chosen ? (PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.name) : p.title;
     return (
-      <div className={`relative flex gap-3 ${last ? "" : p.when === "done" ? "pb-2" : "pb-5"}`}>
+      <div key={key} className={`${BLOCK} ${can ? "" : "opacity-50"}`} title={can || !chosen ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
+        <button type="button" onClick={() => toggleRow(key)} aria-expanded={open} className="group/row flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left text-xs">
+          <span className="flex shrink-0">{CHANNEL_ICON[chosen?.channel ?? "other"] ?? CHANNEL_ICON.other}</span>
+          <span className="font-medium text-foreground/85 transition-colors group-hover/row:text-foreground">{label}</span>
+          {c?.role && <span className="text-muted">{c.role}</span>}
+          {/* at a glance, once the day is reached and they can be reached */}
+          {can && reached && chosen?.channel === "email" && <EmailStatus email={lead.email} />}
+          {can && reached && m.accepted && (
+            <span className={lit}>
+              <UserCheck size={11} /> Accepted
+            </span>
+          )}
+          {can && reached && m.replied && (
+            <span className={lit}>
+              <Reply size={11} /> Replied
+            </span>
+          )}
+          <ChevronDown size={13} className={`ml-auto shrink-0 text-muted transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+        </button>
+        <Reveal open={open}>
+          <div className="flex flex-col gap-2 px-3 pb-3">
+            {options.length > 1 &&
+              (options.length <= 4 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {options.map((o) => (
+                    <button key={o.id} type="button" aria-pressed={chosen?.id === o.id} disabled={!hasChannel(c, o.channel)} onClick={() => chosen?.id !== o.id && pick(key, o.id)} className={chip}>
+                      <span className="flex shrink-0">{CHANNEL_ICON[o.channel] ?? CHANNEL_ICON.other}</span>
+                      {optionLabel(options, o)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Dropdown size="sm" value={chosen?.id ?? ""} placeholder="Pick a message" options={options.map((o) => ({ value: o.id, label: o.name }))} onChange={(v) => v && pick(key, v)} />
+              ))}
+            {chosen && card(chosen, false, rowVars)}
+            {can && reached && platform && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {platform === "linkedin" && (request === p.day || needs) && (
+                  <button type="button" aria-pressed={!!m.accepted} onClick={() => mark("accepted")} title={m.accepted ? "They accepted the connection request. Tap to undo." : "They accepted our connection request"} className={chip}>
+                    {CHANNEL_ICON[platform]} <UserCheck size={12} /> {m.accepted ? "Accepted" : "Accept"}
+                  </button>
+                )}
+                <button type="button" aria-pressed={!!m.replied} disabled={needs} onClick={() => mark("replied")} title={needs ? "Mark the connection request accepted first" : m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[platform]}`} className={chip}>
+                  {CHANNEL_ICON[platform]} <Reply size={12} /> {m.replied ? "Replied" : "Reply"}
+                </button>
+              </div>
+            )}
+          </div>
+        </Reveal>
+      </div>
+    );
+  };
+
+  // one day on the timeline: its node, the line down to the next shown day,
+  // its title, and a row per person
+  const step = (p: Phase, below: Phase | undefined, last: boolean) => {
+    const replied = repliedOn(p.key);
+    return (
+      <div className={`relative flex gap-3 ${last ? "" : "pb-5"}`}>
         {/* the line down: quiet through the days done, easing into today
             (green), then glowing from today to the next (blue) */}
         {below &&
@@ -208,36 +235,18 @@ export function Messages({
           {replied ? <Reply size={12} /> : (p.day ?? <MessagesSquare size={12} />)}
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
-          {p.when === "done" ? (
-            // a day done: one line (opens, reply) that opens to what was sent
-            <button type="button" onClick={() => toggleDay(p.key)} aria-expanded={!folded} className="group/day flex flex-wrap items-center gap-2 pt-0.5 text-left text-xs">
-              <span className="font-medium text-foreground/80 transition-colors group-hover/day:text-foreground">{p.title}</span>
-              {opened}
-              {replied && (
-                <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
-                  <Reply size={11} /> Replied
-                </span>
-              )}
-              <ChevronDown size={13} className={`ml-auto shrink-0 text-muted transition-transform duration-300 ${folded ? "" : "rotate-180"}`} />
-            </button>
-          ) : (
-            <p className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
-              <span className="font-medium text-foreground/90">{p.title}</span>
-              {p.when && (
-                <span className={`rounded-full px-2 py-0.5 text-[12px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
-              )}
-            </p>
-          )}
-          {p.when === "done" ? (
-            // room around the chips, so their glow isn't clipped by the fold
-            <div className="-mx-2">
-              <Reveal open={!folded}>
-                <div className="flex flex-col gap-2 px-2 pt-2 pb-3">{content}</div>
-              </Reveal>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 pt-2">{content}</div>
-          )}
+          <p className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+            <span className="font-medium text-foreground/90">{p.title}</span>
+            {p.when && p.when !== "done" && (
+              <span className={`rounded-full px-2 py-0.5 text-[12px] ${p.when === "now" ? "bg-emerald-400/10 text-emerald-300" : "bg-accent/10 text-accent"}`}>{p.when === "now" ? "Today" : "Next"}</span>
+            )}
+            {replied && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
+                <Reply size={11} /> Replied
+              </span>
+            )}
+          </p>
+          <div className="flex flex-col gap-1.5 pt-2">{people.map((c) => row(p, c))}</div>
         </div>
       </div>
     );
@@ -284,11 +293,11 @@ export function Messages({
           </div>
         )}
 
-        {/* day by day, as the history reads: each day already done folded
-            to one line (opens and replies at a glance) that opens to what
-            was sent, then today and the next. A day with more than one message offers them first, and the
-            one picked opens (kept for the lead); a day it has reached takes
-            its reply */}
+        {/* day by day, as the history reads: the days done, today and the
+            next, each with a folded row per person that opens to their copy.
+            A day with more than one message offers them first, and the one
+            picked is kept for that person; a day they have reached takes
+            their Accepted and Reply */}
         {phases.length > 0 && (
           // inset a little, so the nodes' glow has room inside the window's scroll box
           <ol className="flex flex-col pl-1.5">

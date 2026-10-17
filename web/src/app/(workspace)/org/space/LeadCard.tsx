@@ -1,7 +1,7 @@
 "use client";
 
-import { Mail, Reply } from "lucide-react";
-import { dayOf, MARKED, PLATFORM_NAME, type LeadData, type Marked, type MarkChange } from "@/lib/space";
+import { Mail, Reply, UserCheck } from "lucide-react";
+import { chosenFor, hasChannel, leadContacts, MARKED, messagesOnDay, NO_CONTACT, PLATFORM_NAME, requestDay, type BoardData, type Contact, type LeadData, type Marked, type MarkChange } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
@@ -9,36 +9,50 @@ const ICON: Record<Marked, React.ReactNode> = {
   instagram: <InstagramIcon size={11} className="text-pink-400" />,
   linkedin: <LinkedinIcon size={11} className="text-blue-400" />,
 };
+const CHIP = "chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-50";
 
-// One lead on the board: its name, the details not added yet (quietly, as
-// information, not a warning), who added it, with whoever it's given to,
-// and from Day 1 how it's going on the platform its day's message goes out
-// on (`day`: its key, name and platform), only that one. Email shows by
-// itself (opened and replied, how often and by whom: from the sales inbox and
-// the mail tracker); Instagram and LinkedIn are tapped, Reply only. Past the
-// days (Replied, Audit sent…) it shows how it replied; untapping Instagram's
-// or LinkedIn's Replied takes it back to its day.
+// One lead on the board: its name, who added it, with whoever it's given to,
+// and from Day 1 how it's going, per person on the lead, on the platform
+// their day's message goes out on (`day`: its key, name and number), only
+// that one. A person with no handle for it shows nothing. Email shows by
+// itself, once (opened and replied, how often and by whom: from the sales
+// inbox and the mail tracker); Instagram and LinkedIn are tapped: on LinkedIn
+// Accepted (the request taken), then Reply. Past the days (Replied, Audit
+// sent…) it shows who replied where; untapping a Replied takes it back to
+// its day.
 export function LeadCard({
   lead,
+  board,
   onOpen,
   tracks = false,
   day,
   onTrack,
 }: {
   lead: LeadData;
+  board: Pick<BoardData, "stages" | "messages" | "fields">;
   onOpen: (id: string) => void;
   tracks?: boolean;
-  day?: { key: string; name: string; platform: string | null };
+  day?: { key: string; name: string; day: number | null };
   onTrack?: (id: string, change: MarkChange) => void;
 }) {
-  // the platform its day goes out on: email shows by itself, the others are tapped
-  const mail = day?.platform === "email";
-  const marked = MARKED.find((p) => p === day?.platform);
-  const m = (marked && lead.marks[marked]) || {};
-  const toggle = (kind: "seen" | "replied") => marked && day && onTrack?.(lead.id, { platform: marked, kind, day: m[kind] ? null : day.key });
-  const first = (name: string) => name.split(" ")[0];
-  const past = tracks && !!day && dayOf(day.name) == null;
-  const repliedOn = past ? MARKED.filter((p) => lead.marks[p]?.replied) : [];
+  const contacts = leadContacts(lead.values, board.fields);
+  const people: (Contact | null)[] = contacts.length ? contacts : [null];
+  const many = people.length > 1;
+  const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
+  const first = (name: string) => name.trim().split(/\s+/)[0];
+  const who = (c: Contact | null) => (many && c?.name.trim() ? `${first(c.name)} · ` : "");
+  const markOf = (c: Contact | null, p: Marked) => lead.marks[idOf(c)]?.[p] ?? {};
+  const toggle = (c: Contact | null, p: Marked, kind: "accepted" | "replied") => day && onTrack?.(lead.id, { contact: idOf(c), platform: p, kind, day: markOf(c, p)[kind] ? null : day.key });
+  // each person's platform on this day, where they can be reached on it
+  const options = day?.day != null ? messagesOnDay(board, day.day) : [];
+  const rows = options.length
+    ? people.map((c) => ({ c, platform: chosenFor(options, lead.picks, day!.key, c, lead.email.opens > 0)?.channel ?? null })).filter((r) => r.platform && hasChannel(r.c, r.platform))
+    : [];
+  const mail = rows.some((r) => r.platform === "email");
+  const tapped = rows.filter((r): r is { c: Contact | null; platform: Marked } => MARKED.includes(r.platform as Marked));
+  const request = requestDay(board);
+  const past = tracks && !!day && day.day == null;
+  const repliedBy = past ? people.flatMap((c) => MARKED.filter((p) => markOf(c, p).replied).map((p) => ({ c, p }))) : [];
 
   return (
     <div
@@ -69,33 +83,45 @@ export function LeadCard({
           </>
         )}
       </div>
-      {tracks && (mail || (marked && onTrack)) && (
+      {tracks && (mail || (tapped.length > 0 && onTrack)) && (
         // its own taps, not the card's: they don't open the lead
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
           {mail && <EmailStatus email={lead.email} />}
-          {marked && onTrack && (
-            <>
-              <button type="button" aria-pressed={!!m.replied} onClick={() => toggle("replied")} title={m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[marked]}`} className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px]">
-                {ICON[marked]} <Reply size={11} /> {m.replied ? "Replied" : "Reply"}
-              </button>
-            </>
-          )}
+          {onTrack &&
+            tapped.map(({ c, platform: p }) => {
+              const m = markOf(c, p);
+              const needs = p === "linkedin" && !m.accepted;
+              return (
+                <span key={`${idOf(c)}-${p}`} className="flex flex-wrap items-center gap-1">
+                  {p === "linkedin" && (request === day?.day || needs) && (
+                    <button type="button" aria-pressed={!!m.accepted} onClick={() => toggle(c, p, "accepted")} title={m.accepted ? "They accepted the connection request. Tap to undo." : "They accepted our connection request"} className={CHIP}>
+                      {ICON[p]} <UserCheck size={11} /> {who(c)}
+                      {m.accepted ? "Accepted" : "Accept"}
+                    </button>
+                  )}
+                  <button type="button" aria-pressed={!!m.replied} disabled={needs} onClick={() => toggle(c, p, "replied")} title={needs ? "Mark the connection request accepted first" : m.replied ? "Replied. Tap to undo." : `They replied on ${PLATFORM_NAME[p]}`} className={CHIP}>
+                    {ICON[p]} <Reply size={11} /> {who(c)}
+                    {m.replied ? "Replied" : "Reply"}
+                  </button>
+                </span>
+              );
+            })}
         </div>
       )}
-      {past && (lead.email.replied || repliedOn.length > 0) && (
+      {past && (lead.email.replied || repliedBy.length > 0) && (
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
           <EmailStatus email={lead.email} repliedOnly />
-          {repliedOn.map((p) => (
+          {repliedBy.map(({ c, p }) => (
             <button
-              key={p}
+              key={`${idOf(c)}-${p}`}
               type="button"
               aria-pressed
               disabled={!onTrack}
-              onClick={() => onTrack?.(lead.id, { platform: p, kind: "replied", day: null })}
-              title={`Replied on ${PLATFORM_NAME[p]}. Tap to undo.`}
-              className="chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px]"
+              onClick={() => onTrack?.(lead.id, { contact: idOf(c), platform: p, kind: "replied", day: null })}
+              title={`${c?.name.trim() || "They"} replied on ${PLATFORM_NAME[p]}. Tap to undo.`}
+              className={CHIP}
             >
-              {ICON[p]} <Reply size={11} /> Replied
+              {ICON[p]} <Reply size={11} /> {who(c)}Replied
             </button>
           ))}
         </div>

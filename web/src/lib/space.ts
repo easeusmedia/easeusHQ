@@ -265,8 +265,7 @@ export function variablesIn(texts: string[]): string[] {
 // What a lead's messages know without asking: Name is its first contact's
 // first name, Podcast its own name. Anything typed on the lead wins.
 export function leadVars(lead: { title: string; values: Record<string, unknown>; vars: Record<string, string> }, fields: Pick<FieldData, "id" | "kind">[]): Record<string, string> {
-  const contacts = fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(lead.values[f.id]) ? (lead.values[f.id] as Contact[]) : []));
-  const first = contacts.find((c) => c.name.trim())?.name.trim().split(/\s+/)[0];
+  const first = leadContacts(lead.values, fields).find((c) => c.name.trim())?.name.trim().split(/\s+/)[0];
   const auto: Record<string, string> = { Podcast: lead.title };
   if (first) auto.Name = first;
   const typed = Object.fromEntries(Object.entries(lead.vars ?? {}).filter(([, v]) => typeof v === "string" && v.trim()));
@@ -316,19 +315,61 @@ export type Platform = (typeof PLATFORMS)[number];
 export const MARKED = ["instagram", "linkedin"] as const;
 export type Marked = (typeof MARKED)[number];
 export type Mark = { day: string; at: string };
-export type Marks = Partial<Record<Marked, { seen?: Mark; replied?: Mark }>>;
-export type MarkChange = { platform: Marked; kind: "seen" | "replied"; day: string | null };
+// What's tapped on Instagram and LinkedIn: on LinkedIn, Accepted (they took
+// the connection request) comes first, and Reply only counts after it
+// (Abhishek, 17 Oct 2026). Seen is kept for older marks.
+export const MARK_KINDS = ["accepted", "seen", "replied"] as const;
+export type MarkKind = (typeof MARK_KINDS)[number];
+export type PlatformMarks = Partial<Record<MarkKind, Mark>>;
+// Per contact (17 Oct 2026): each person on the lead has their own marks on
+// each platform, by the contact's id. A lead with no contacts marks as itself.
+export type Marks = Record<string, Partial<Record<Marked, PlatformMarks>>>;
+export type MarkChange = { contact: string; platform: Marked; kind: MarkKind; day: string | null };
+export const NO_CONTACT = "_";
 export const PLATFORM_NAME: Record<Platform, string> = { email: "Email", instagram: "Instagram", linkedin: "LinkedIn" };
 
-// a mark set on a day, or cleared (day null)
+// a mark set on a day, or cleared (day null). Clearing Accepted clears that
+// contact's LinkedIn reply with it: a reply needs the request taken.
 export function withMark(marks: Marks, c: MarkChange, at = new Date().toISOString()): Marks {
-  const one = { ...marks[c.platform] };
+  const mine = { ...(marks[c.contact] ?? {}) };
+  const one = { ...(mine[c.platform] ?? {}) };
   if (c.day) one[c.kind] = { day: c.day, at };
-  else delete one[c.kind];
-  return { ...marks, [c.platform]: one };
+  else {
+    delete one[c.kind];
+    if (c.kind === "accepted") delete one.replied;
+  }
+  return { ...marks, [c.contact]: { ...mine, [c.platform]: one } };
 }
 
-const messagesOnDay = (board: Pick<BoardData, "stages" | "messages">, day: number) =>
+// Marks as stored before 17 Oct 2026 were by platform alone
+// ({ instagram: { replied } }); read, they belong to the lead's first contact.
+export function readMarks(raw: unknown, firstContact: string): Marks {
+  const m = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const legacy = MARKED.filter((p) => p in m);
+  if (!legacy.length) return m as Marks;
+  const rest = Object.fromEntries(Object.entries(m).filter(([k]) => !legacy.includes(k as Marked))) as Marks;
+  return { ...rest, [firstContact]: { ...(rest[firstContact] ?? {}), ...Object.fromEntries(legacy.map((p) => [p, m[p]])) } };
+}
+
+// a platform's mark on any contact (the first found)
+export function markAny(marks: Marks, p: Marked, kind: MarkKind): Mark | undefined {
+  return Object.values(marks).map((c) => c?.[p]?.[kind]).find((x): x is Mark => !!x);
+}
+
+// A lead's people, from its contacts fields
+export function leadContacts(values: Record<string, unknown>, fields: Pick<FieldData, "id" | "kind">[]): Contact[] {
+  return fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : []));
+}
+
+// Whether a contact can be reached on a platform: a handle (or address) for
+// it. A day's message on a platform the contact has no handle for shows
+// greyed, with nothing to tap (Abhishek, 17 Oct 2026). No contact: open.
+export const hasChannel = (c: Contact | null, platform: string) => !c || c.channels.some((ch) => ch.kind === platform && !!ch.value.trim());
+
+// A pick (or anything kept per day) belongs to one contact: "day-1@c2"
+export const forContact = (key: string, contact: Contact | null) => (contact ? `${key}@${contact.id}` : key);
+
+export const messagesOnDay = (board: Pick<BoardData, "stages" | "messages">, day: number) =>
   board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") === day);
 
 // the platforms marked by hand that a day's messages go out on
@@ -343,12 +384,30 @@ export function defaultMessage<T extends Pick<MessageData, "name">>(options: T[]
   return options.find((m) => (opened ? /already opened/i : /didn.?t open/i).test(m.name)) ?? options[0];
 }
 
-// The platform a lead's day goes out on, so its card shows only that
-// platform's buttons: the message picked for the day (a day with more than
-// one), else its default
-export function dayPlatform(board: Pick<BoardData, "stages" | "messages">, picks: Record<string, string>, day: number, opened = false): string | null {
-  const on = messagesOnDay(board, day);
-  return (on.find((m) => m.id === picks[`day-${day}`]) ?? defaultMessage(on, opened))?.channel ?? null;
+// A day's default for one contact: among the messages they can be reached
+// with (Day 1 is LinkedIn for someone with no email), else the day's own
+export function defaultFor<T extends Pick<MessageData, "name" | "channel">>(options: T[], contact: Contact | null, opened: boolean): T | undefined {
+  const can = options.filter((m) => hasChannel(contact, m.channel));
+  return defaultMessage(can.length ? can : options, opened);
+}
+
+// The message a contact's day goes out with: the one picked for them, else
+// the lead's, else their default
+export function chosenFor<T extends Pick<MessageData, "id" | "name" | "channel">>(options: T[], picks: Record<string, string>, key: string, contact: Contact | null, opened: boolean): T | undefined {
+  return options.find((m) => m.id === picks[forContact(key, contact)]) ?? (contact ? options.find((m) => m.id === picks[key]) : undefined) ?? defaultFor(options, contact, opened);
+}
+
+// The platform a contact's day goes out on, so the card shows only that
+// platform's buttons
+export function dayPlatform(board: Pick<BoardData, "stages" | "messages">, picks: Record<string, string>, day: number, opened = false, contact: Contact | null = null): string | null {
+  return chosenFor(messagesOnDay(board, day), picks, `day-${day}`, contact, opened)?.channel ?? null;
+}
+
+// The day the LinkedIn connection request goes out: the sequence's first
+// LinkedIn message. Its marks are Accepted, then Reply.
+export function requestDay(board: Pick<BoardData, "stages" | "messages">): number | null {
+  const days = board.messages.filter((m) => m.channel === "linkedin").map((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "")).filter((d): d is number => d != null);
+  return days.length ? Math.min(...days) : null;
 }
 
 // Instagram and LinkedIn reached by a lead's record: from their first day
@@ -406,21 +465,23 @@ function onPlatform(l: Tracked, p: Platform) {
     const replied = !!l.email.replied;
     return { reached: l.reachedOn.includes("email"), known: l.email.tracked || replied, opened: l.email.opens > 0 || replied, replied };
   }
-  // Instagram and LinkedIn are marked Replied only (no Seen since 9 Oct
-  // 2026): whether they read it is known only from a reply
-  const m = l.marks[p] ?? {};
-  const reached = l.reachedOn.includes(p) || !!m.seen || !!m.replied;
-  return { reached, known: !!m.seen || !!m.replied, opened: !!m.seen || !!m.replied, replied: !!m.replied };
+  // Instagram and LinkedIn are tapped, per contact: Accepted (LinkedIn's
+  // request taken) and Replied. Whether they read it is known from a reply.
+  const any = (k: MarkKind) => !!markAny(l.marks, p, k);
+  const [accepted, seen, replied] = [any("accepted"), any("seen"), any("replied")];
+  const reached = l.reachedOn.includes(p) || accepted || seen || replied;
+  return { reached, known: seen || replied, opened: seen || replied, replied, accepted };
 }
 
 // The board's numbers, by lead, on one platform or on all (null): reached
-// there, opened there, replied there. On all, a lead counts once.
+// there, opened there, replied there; on LinkedIn, how many took the
+// request. On all, a lead counts once.
 export function outreachStats(leads: Tracked[], platform: Platform | null) {
   const per = leads.map((l) => (platform ? [platform] : PLATFORMS).map((p) => onPlatform(l, p)).filter((s) => s.reached)).filter((s) => s.length);
-  const count = (key: "known" | "opened" | "replied") => per.filter((s) => s.some((x) => x[key])).length;
+  const count = (key: "known" | "opened" | "replied" | "accepted") => per.filter((s) => s.some((x) => x[key])).length;
   const rate = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
-  const [known, opened, replied] = [count("known"), count("opened"), count("replied")];
-  return { reached: per.length, opened, replied, openRate: rate(opened, known), replyRate: rate(replied, per.length) };
+  const [known, opened, replied, accepted] = [count("known"), count("opened"), count("replied"), count("accepted")];
+  return { reached: per.length, opened, replied, accepted, openRate: rate(opened, known), replyRate: rate(replied, per.length), acceptRate: rate(accepted, per.length) };
 }
 
 // every email address in a lead's details (its contacts' emails), for

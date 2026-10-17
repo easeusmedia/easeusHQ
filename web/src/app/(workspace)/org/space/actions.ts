@@ -24,12 +24,15 @@ import {
   type FieldData,
   type FieldKind,
   type LeadEventData,
-  type Marked,
   type MessageData,
   type SentData,
   type OptionData,
   type SpaceKind,
   type StageData,
+  MARK_KINDS,
+  readMarks,
+  NO_CONTACT,
+  type MarkChange,
 } from "@/lib/space";
 
 // A department's pages: sections, portals, boards, and the leads on them.
@@ -582,33 +585,57 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
   }
 }
 
-// Instagram or LinkedIn, marked by hand: seen or replied (once each, kept
-// with the day it was marked on); no day clears it. Email's opens and
-// replies come from the sales inbox, never from here. Each mark is written
-// alone, so two people marking the same lead keep both. Replied moves a lead
-// on a day to Replied; untapped, it goes back (lib/leadMoves.ts).
-export async function setLeadMark(id: string, platform: Marked, kind: "seen" | "replied", day: string | null): Promise<Done> {
-  if (!MARKED.includes(platform) || (kind !== "seen" && kind !== "replied")) return { error: "That couldn't be read." };
+// Instagram and LinkedIn, tapped: Accepted (LinkedIn's request taken) and
+// Replied, per contact, with the day marked on. Each mark is written alone,
+// so two people marking the same lead keep both. On LinkedIn a reply needs
+// the request accepted first (Abhishek, 17 Oct 2026); clearing Accepted
+// clears the reply with it. Replied moves a lead on a day to Replied;
+// untapped, it goes back (lib/leadMoves.ts).
+export async function setLeadMark(id: string, change: MarkChange): Promise<Done> {
+  const { contact, platform, kind, day } = change ?? ({} as MarkChange);
+  if (!MARKED.includes(platform) || !MARK_KINDS.includes(kind)) return { error: "That couldn't be read." };
+  if (typeof contact !== "string" || !contact || contact.length > 64) return { error: "That person couldn't be found." };
   if (day !== null && (typeof day !== "string" || !day || day.length > 80)) return { error: "That day couldn't be found." };
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
+  const name = contactName(lead.values, contact);
+  const why = `${name ? `${name} replied` : "Replied"} on ${PLATFORM_NAME[platform]}`;
   try {
-    if (day === null)
-      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = "marks" #- ARRAY[${platform}::text, ${kind}::text], "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
-    else {
+    const row = await prisma.lead.findUnique({ where: { id }, select: { marks: true } });
+    const raw = (row?.marks ?? {}) as Record<string, unknown>;
+    // marks kept by platform alone (before 17 Oct 2026) move under the first contact once
+    if (MARKED.some((p) => p in raw)) {
+      const first = Object.values(lead.values as Record<string, unknown>).flatMap((v) => (Array.isArray(v) ? v : [])).find((c) => c && typeof c === "object" && "channels" in c) as { id?: string } | undefined;
+      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = ${JSON.stringify(readMarks(raw, first?.id ?? NO_CONTACT))}::jsonb WHERE id = ${id}`;
+    }
+    const marks = readMarks(raw, contact);
+    if (day !== null && platform === "linkedin" && kind === "replied" && !marks[contact]?.linkedin?.accepted) return { error: "Mark the connection request accepted first." };
+    if (day === null) {
+      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = "marks" #- ARRAY[${contact}::text, ${platform}::text, ${kind}::text], "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+      if (kind === "accepted") await prisma.$executeRaw`UPDATE "Lead" SET "marks" = "marks" #- ARRAY[${contact}::text, ${platform}::text, 'replied'] WHERE id = ${id}`;
+    } else {
       const mark = JSON.stringify({ day, at: new Date().toISOString() });
-      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = jsonb_set(coalesce("marks", '{}'::jsonb), ARRAY[${platform}::text], coalesce("marks" -> ${platform}::text, '{}'::jsonb) || jsonb_build_object(${kind}::text, ${mark}::jsonb), true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+      await prisma.$executeRaw`UPDATE "Lead" SET "marks" = coalesce("marks", '{}'::jsonb) || jsonb_build_object(${contact}::text, coalesce("marks" -> ${contact}::text, '{}'::jsonb) || jsonb_build_object(${platform}::text, coalesce("marks" -> ${contact}::text -> ${platform}::text, '{}'::jsonb) || jsonb_build_object(${kind}::text, ${mark}::jsonb))), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     }
-    if (kind === "replied") {
-      const why = `Replied on ${PLATFORM_NAME[platform]}`;
-      await (day === null ? undoReplied(id, who, why) : moveToReplied(id, who, why));
-    }
+    const undoesReply = day === null && (kind === "replied" || (kind === "accepted" && !!marks[contact]?.[platform]?.replied));
+    if (kind === "replied" && day !== null) await moveToReplied(id, who, why);
+    else if (undoesReply) await undoReplied(id, who, why);
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");
   }
+}
+
+// A contact's name on a lead, by its id, from whichever field holds the people
+function contactName(values: unknown, id: string): string | null {
+  for (const v of Object.values((values ?? {}) as Record<string, unknown>)) {
+    if (!Array.isArray(v)) continue;
+    const c = v.find((x) => x && typeof x === "object" && (x as { id?: string }).id === id) as { name?: string } | undefined;
+    if (c) return c.name?.trim() || null;
+  }
+  return null;
 }
 
 // The message picked for a day (or stage) with more than one, kept per

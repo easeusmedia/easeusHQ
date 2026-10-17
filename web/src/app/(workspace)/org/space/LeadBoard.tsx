@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, Plus, ShieldAlert, Trash2 } from "lucide-react";
-import { dayOf, dayPlatform, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
+import { dayOf, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
@@ -163,12 +163,12 @@ export function LeadBoard({
   });
   const order = stages.map((s) => s.id);
   const shown = leads.map((l) => (live.moved[l.id] ? { ...l, ...live.moved[l.id] } : l));
-  // the day (or stage) a lead is on, and the platform its message goes out on there
+  // the day (or stage) a lead is on; the card works out each contact's platform there
   const dayOfLead = (lead: LeadData) => {
     const st = board.stages.find((s) => s.id === lead.stageId);
     if (!st) return undefined;
     const d = dayOf(st.name);
-    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}`, platform: d == null ? null : dayPlatform(board, lead.picks, d, lead.email.opens > 0) };
+    return { key: phaseKey(st), name: d == null ? st.name : `Day ${d}`, day: d };
   };
   const columnOf = (stageId: string) => shown.filter((l) => l.stageId === stageId).sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -440,7 +440,7 @@ export function LeadBoard({
               onDragEnd={endDrag}
               className={drag === lead.id ? "opacity-35" : n >= PER_COLUMN ? "fade-in" : ""}
             >
-              <LeadCard lead={lead} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfLead(lead)} onTrack={onTrack} />
+              <LeadCard lead={lead} board={board} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfLead(lead)} onTrack={onTrack} />
             </div>
           </Fragment>
         ))}
