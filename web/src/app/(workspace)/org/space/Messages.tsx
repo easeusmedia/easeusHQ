@@ -273,8 +273,8 @@ export function Messages({
         </aside>
         <section className={`${PANEL} flex min-h-0 flex-col overflow-hidden`}>
           {/* the days along the top, as on the Dream 300 pages: plain buttons
-              that wrap, a tick once a day is approved (or replied), the open
-              one inverted; today has a green dot */}
+              of one width that wrap; the open one lit as the app's chips are,
+              a green tick once a day is approved (or replied), today a green dot */}
           <div className="flex shrink-0 items-start gap-2 border-b border-white/[0.07] px-4 py-3">
             <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
               {tabs.map((x) => {
@@ -289,11 +289,12 @@ export function Messages({
                     aria-selected={on}
                     onClick={() => setTab(x.key)}
                     title={x.sub}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-[color,background-color,border-color] duration-200 ${
-                      on ? "border-foreground bg-foreground text-background" : done ? "border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10" : "border-white/[0.12] text-foreground/80 hover:border-white/[0.2] hover:bg-white/[0.04] hover:text-foreground"
-                    }`}
+                    className={`chip inline-flex min-w-[5.25rem] items-center justify-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap ${done && !on ? "border-emerald-400/40 text-emerald-300" : ""}`}
                   >
-                    {replied ? <Reply size={11} aria-label="Replied" /> : done ? <Check size={12} aria-label="Approved" /> : x.when === "now" ? <span className={`size-1.5 rounded-full ${on ? "bg-emerald-600" : "bg-emerald-400"}`} aria-label="Today" /> : null}
+                    {/* the same slot on every button, so the words line up */}
+                    <span className="grid size-3 shrink-0 place-items-center">
+                      {replied ? <Reply size={11} aria-label="Replied" /> : done ? <Check size={12} aria-label="Approved" /> : x.when === "now" ? <span className="size-1.5 rounded-full bg-emerald-400" aria-label="Today" /> : null}
+                    </span>
                     {x.title}
                   </button>
                 );
