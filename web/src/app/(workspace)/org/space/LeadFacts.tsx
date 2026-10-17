@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Check, Copy, Globe, Mail, Phone } from "lucide-react";
 import { isFilled, type ChannelKind, type Contact, type FieldData, type LinkValue } from "@/lib/space";
+import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { hrefOf } from "./values";
 import { TagPill } from "./pills";
@@ -196,6 +197,65 @@ export function FactsView({ fields, values }: { fields: FieldData[]; values: Rec
           <span className="text-foreground/85">{f.kind === "checkbox" ? "Yes" : String(values[f.id])}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+const ago = (iso: string) => {
+  const days = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
+  if (days < 1) return "today";
+  if (days < 2) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return months < 12 ? `${months} ${months === 1 ? "month" : "months"} ago` : `${Math.floor(months / 12)} ${months < 24 ? "year" : "years"} ago`;
+};
+const short = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M` : n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}K` : String(n));
+
+// The channel's latest uploads, read by Apify (lib/leadChannel.ts): when it
+// last posted, and each recent video or reel as a bar of its views, so a hit
+// or a dip stands out. "Reading…" while a read is under way.
+export function ChannelView({ channel, at, reading }: { channel: ChannelStats | null; at: string | null; reading: boolean }) {
+  const recent = (channel?.recent ?? []).filter((r) => r.views != null).slice(0, 10);
+  if (!recent.length && !reading) return null;
+  const max = Math.max(1, ...recent.map((r) => r.views ?? 0));
+  const typical = channel?.typicalViews ?? null;
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2 text-xs text-muted">
+        {channel?.platform === "instagram" ? <InstagramIcon size={13} className="text-pink-400" /> : <YoutubeIcon size={13} className="text-red-400" />}
+        {channel?.lastUploadAt && <span>Last {channel.platform === "instagram" ? "post" : "upload"} {ago(channel.lastUploadAt)}</span>}
+        <span className="ml-auto">{reading ? <span className="animate-pulse">Reading…</span> : at ? `Read ${ago(at)}` : null}</span>
+      </div>
+      {recent.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {recent.map((r, i) => {
+            const v = r.views ?? 0;
+            const hit = typical != null && v >= typical * 3;
+            const row = (
+              <>
+                <span className="flex items-baseline justify-between gap-2 text-[12px]">
+                  <span className="min-w-0 truncate text-foreground/85">{r.title || "Untitled"}</span>
+                  <span className={`shrink-0 tabular-nums ${hit ? "text-emerald-300" : "text-muted"}`}>{short(v)}</span>
+                </span>
+                <span className="h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+                  <span className={`block h-full rounded-full ${hit ? "bg-emerald-400/80" : "bg-accent/70"}`} style={{ width: `${Math.max(2, (v / max) * 100)}%` }} />
+                </span>
+              </>
+            );
+            return (
+              <li key={i}>
+                {r.url ? (
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" title={`${r.title}: ${v.toLocaleString("en-GB")} views${r.at ? `, ${ago(r.at)}` : ""}`} className="flex flex-col gap-1 rounded-lg px-1 py-0.5 transition-colors hover:bg-white/[0.04]">
+                    {row}
+                  </a>
+                ) : (
+                  <span className="flex flex-col gap-1 px-1 py-0.5">{row}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

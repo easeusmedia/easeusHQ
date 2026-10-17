@@ -2,13 +2,15 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, Pencil, SlidersHorizontal, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
-import { FactsView, PeopleCards } from "./LeadFacts";
+import { ChannelView, FactsView, PeopleCards } from "./LeadFacts";
+import { openLeadChannel } from "./leadChannel";
+import type { ChannelStats } from "@/lib/channelStats";
 import { CanBuild, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
@@ -136,6 +138,8 @@ function LeadPage({
   const [events, setEvents] = useState<LeadEventData[] | null>(null);
   const [sent, setSent] = useState<SentData[] | null>(null);
   const [prepared, setPrepared] = useState<Prepared | null>(null);
+  // the channel's numbers, read again (Apify, live only) when over a day old
+  const [channel, setChannel] = useState<{ stats: ChannelStats | null; at: string | null; reading: boolean } | null>(null);
   const [status, setStatus] = useState<Status>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // a move that needs a reason (kept while its prompt fades out)
@@ -160,6 +164,30 @@ function LeadPage({
       live = false;
     };
   }, [id, open]);
+
+  // its channel when it opens: as it stands, and while a read is under way,
+  // asked again every 20 seconds; a read that lands has written Subscribers
+  // and the rest onto the lead, so the board refreshes then
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let wasReading = false;
+    const read = async () => {
+      const r = await openLeadChannel(id).catch(() => null);
+      if (!live || !r || "error" in r) return;
+      setChannel({ stats: r.channel, at: r.channelAt, reading: r.reading });
+      if (r.reading) {
+        wasReading = true;
+        timer = setTimeout(read, 20_000);
+      } else if (wasReading) router.refresh();
+    };
+    read();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [id, open, router]);
 
   // after any save: say so, show the new line on the record, refresh the board
   function saved() {
@@ -377,6 +405,18 @@ function LeadPage({
                       )
                     )}
                   </Section>
+                )}
+
+                {channel && (channel.reading || (channel.stats?.recent.length ?? 0) > 0) && (
+                  <section className={SECTION}>
+                    <div className={SECTION_HEAD}>
+                      <BarChart3 size={14} className="shrink-0 text-muted" />
+                      <h3 className={SECTION_TITLE}>Latest {channel.stats?.platform === "instagram" ? "reels" : "videos"}</h3>
+                    </div>
+                    <div className={SECTION_BODY}>
+                      <ChannelView channel={channel.stats} at={channel.at} reading={channel.reading} />
+                    </div>
+                  </section>
                 )}
 
                 <Section icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} editing={editDetails} onEdit={() => setEditDetails((e) => !e)}>
