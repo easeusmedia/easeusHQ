@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { needsAnswer, ordinal, overdueAudience, overdueText } from "./overdue.ts";
+import { ordinal, overdueAudience, overdueText } from "./overdue.ts";
 
 test("Level 3: their Level 2 hears every time; Level 1 from the third", () => {
   assert.deepEqual(overdueAudience(1, "employee"), { leads: true, levelOne: false });
@@ -29,10 +29,3 @@ test("overdue notices: clear, firmer as they repeat, always courteous", () => {
   assert.equal(overdueText({ title: "X", due: null, strike: 1, owner: null, toOwner: false }), 'A task "X" was due and isn\'t finished yet. Please check in and help get it back on track.');
 });
 
-test("an overdue task is frozen at once, until its date moves", () => {
-  const due = new Date("2026-10-01");
-  assert.equal(needsAnswer({ dueDate: due, overdueFor: due }), true); // counted for this date
-  assert.equal(needsAnswer({ dueDate: new Date("2026-10-05"), overdueFor: due }), false); // moved since
-  assert.equal(needsAnswer({ dueDate: due, overdueFor: null }), false); // not counted yet
-  assert.equal(needsAnswer({ dueDate: null, overdueFor: due }), false); // no date
-});

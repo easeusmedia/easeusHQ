@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { dayOf, shortDay } from "./editorKpi";
 import { isFounder, isLead, type Viewer } from "./scope";
 import { ACTIVE_STATUSES } from "./workflow";
-import { needsAnswer, overdueAudience, overdueText } from "./overdue.ts";
+import { overdueAudience, overdueText } from "./overdue.ts";
 import { departmentFromTitle } from "./department.ts";
 
 // The record every task keeps, whichever kind it is (a client Task or a
@@ -119,9 +119,10 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
   return counted;
 }
 
-// Overdue tasks still on the date they went past (lib/overdue.ts
-// needsAnswer): locked until each has a new date and a reason
-// (FrozenTasks). Client work, as it shows on Production: Level 1 every
+// Unfinished tasks whose due date is before today (IST): locked until each
+// has a new date and a reason (FrozenTasks). From the day after the date,
+// whether or not the night's check has counted it yet (17 Oct 2026: a task
+// that came down from Notion after the check could be ticked off late). Client work, as it shows on Production: Level 1 every
 // overdue task, a Lead theirs and their departments', everyone else their
 // own (11 Oct 2026: any task past its date is locked there, whoever's it
 // is). To-dos: their own; a Lead's, their departments' Members' too.
@@ -144,14 +145,13 @@ export async function overdueToAnswer(user: Answerer, now = new Date()): Promise
   const own = [{ assignedToId: userId }, { assignedToId: null, createdById: userId }];
   const tasksOf = isFounder(user) ? {} : { OR: [...own, ...(leads.length ? [{ teamId: { in: leads } }] : [])] };
   const todosOf = { OR: [{ assignedToId: userId }, ...(leads.length ? [{ teamId: { in: leads }, assignedTo: { role: "employee" as const } }] : [])] };
-  const select = { id: true, title: true, dueDate: true, overdueFor: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } as const;
+  const select = { id: true, title: true, dueDate: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } as const;
   // this runs on every page: one round to the database
   const [tasks, todos] = await Promise.all([
     prisma.task.findMany({ where: { ...tasksOf, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } }, select }),
     prisma.workTask.findMany({ where: { ...todosOf, status: { not: "done" }, dueDate: { lt: before } }, select }),
   ]);
   return [...tasks.map((t) => ({ ...t, kind: "task" as const })), ...todos.map((t) => ({ ...t, kind: "work" as const }))]
-    .filter((t) => needsAnswer(t))
     .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: (t.assignedToId ?? t.createdById) === userId ? null : (t.assignedTo?.name ?? null) }));
 }
 

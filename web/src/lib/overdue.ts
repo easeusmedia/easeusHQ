@@ -28,12 +28,3 @@ export function overdueText({ title, due, strike, owner, toOwner }: { title: str
   const slipped = strike === 1 ? "" : ` It has slipped ${strike === 2 ? "twice" : `${strike} times`}.`;
   return `${name ? `${name}'s task` : "A task"} "${title}" ${was}${slipped} Please check in${name ? ` with ${name}` : ""} and help get it back on track.`;
 }
-
-// A task past its date, once the nightly check has counted it (overdueFor is
-// its current date), is frozen for whoever it's on until it has a new date
-// and a reason. The rule for everybody, Level 1 included, from the moment
-// it's overdue (11 Oct 2026; it used to give Level 2 and 3 a day's grace
-// and leave Level 1 out). A date moved since is a new date, not that one.
-export function needsAnswer(t: { dueDate: Date | null; overdueFor: Date | null }): boolean {
-  return !!t.dueDate && !!t.overdueFor && t.overdueFor.getTime() === t.dueDate.getTime();
-}
