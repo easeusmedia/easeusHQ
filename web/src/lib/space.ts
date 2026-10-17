@@ -617,6 +617,32 @@ function siteName(url: string): string {
   return host || "Link";
 }
 
+// The handle a page is known by, shown small beside its name ("@drtimpearce",
+// "in/drtimpearce", a website's host); nothing for a single video, reel or
+// post, a Notion page, or a channel id.
+export function handleOf(url: string): string | null {
+  const u = url.trim();
+  if (!u) return null;
+  if (/^mailto:/i.test(u)) return u.replace(/^mailto:/i, "");
+  if (/^tel:/i.test(u)) return u.replace(/^tel:/i, "");
+  const m = /^(?:https?:\/\/)?(?:www\.|m\.)?([^/?#]+)(?:\/([^?#]*))?/i.exec(u);
+  if (!m) return null;
+  const host = m[1].toLowerCase();
+  const parts = (m[2] ?? "").split("/").filter(Boolean);
+  const at = (h: string | undefined) => (h && /^[\w.-]+$/.test(h.replace(/^@/, "")) ? `@${h.replace(/^@/, "")}` : null);
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) {
+    if (host === "youtu.be" || ["watch", "shorts", "playlist", "embed"].includes(parts[0] ?? "")) return null;
+    if (parts[0]?.startsWith("@")) return at(parts[0]);
+    if (["c", "user"].includes(parts[0] ?? "")) return at(parts[1]);
+    return null;
+  }
+  if (/(^|\.)instagram\.com$/.test(host)) return ["p", "reel", "reels", "stories", "explore"].includes(parts[0] ?? "") ? null : at(parts[0]);
+  if (/(^|\.)(tiktok\.com|x\.com|twitter\.com|threads\.net)$/.test(host)) return at(parts[0]);
+  if (/(^|\.)linkedin\.com$/.test(host)) return ["in", "company", "school"].includes(parts[0] ?? "") && parts[1] ? `${parts[0]}/${parts[1]}` : null;
+  if (/(^|\.)(notion\.(so|site)|linktr\.ee)$/.test(host)) return null;
+  return host;
+}
+
 // What each of a lead's openers (its first emails, written ahead) is called
 // where they're picked between: Main, then Backup (numbered when there are
 // two or more), or the letter of an Instagram version. The angle it takes

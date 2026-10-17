@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, linkName, openerNames, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, handleOf, linkName, openerNames, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -337,6 +337,23 @@ test("a link is called something short", () => {
   assert.equal(linkName("Post-op care guide", "https://clinic.com/p"), "Post-op care guide");
   assert.equal(linkName("Notion page 2", "https://a.notion.site/y"), "Notion 2");
   assert.equal(linkName("", "mailto:a@b.com"), "a@b.com");
+});
+
+test("a page's handle shows beside its name", () => {
+  assert.equal(handleOf("https://www.instagram.com/drtimpearce/"), "@drtimpearce");
+  assert.equal(handleOf("https://www.youtube.com/@DrTimPearce"), "@DrTimPearce");
+  assert.equal(handleOf("https://www.youtube.com/c/DrTimPearce"), "@DrTimPearce");
+  assert.equal(handleOf("https://www.linkedin.com/in/drtimpearce/"), "in/drtimpearce");
+  assert.equal(handleOf("https://x.com/drtim"), "@drtim");
+  assert.equal(handleOf("https://drtimpearce.com/"), "drtimpearce.com");
+  assert.equal(handleOf("mailto:a@b.com"), "a@b.com");
+  // a single video or post, a Notion page, a channel id: nothing to show
+  assert.equal(handleOf("https://www.youtube.com/watch?v=gwdP1E1uEew"), null);
+  assert.equal(handleOf("https://youtu.be/abc"), null);
+  assert.equal(handleOf("https://www.youtube.com/channel/UCabc123"), null);
+  assert.equal(handleOf("https://www.instagram.com/reel/Cx1/"), null);
+  assert.equal(handleOf("https://adorable-tower-3f9.notion.site/3b9b6a2080448080"), null);
+  assert.equal(handleOf(""), null);
 });
 
 test("openers are called Main and Backup, their angle kept for the hover", () => {

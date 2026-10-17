@@ -276,6 +276,14 @@ function LeadPage({
   // the people on it, one picked at a time for the whole window
   const contactList = leadContacts(values, board.fields).filter((c) => c.name.trim() || c.channels.some((ch) => ch.value.trim()));
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
+  // what each tab says: the name (else the first address), and a number when two share one
+  const seenNames = new Map<string, number>();
+  const tabNames = contactList.map((c) => {
+    const base = c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact";
+    const n = (seenNames.get(base.toLowerCase()) ?? 0) + 1;
+    seenNames.set(base.toLowerCase(), n);
+    return n > 1 ? `${base} · ${n}` : base;
+  });
   const allContacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as Contact[]) : [];
   function savePerson(c: Contact) {
     if (!contactField) return;
@@ -299,7 +307,7 @@ function LeadPage({
         <div className="flex min-w-0 flex-[1_1_14rem] text-lg font-semibold tracking-tight text-foreground">
           <EditableName name={title || lead.title} pencil="hover" wrap onSave={rename} />
         </div>
-        <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Menu
             height={340}
             width={280}
@@ -374,7 +382,7 @@ function LeadPage({
         <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1">
           {(contactList.length > 0 || adding) && (
             <div role="tablist" aria-label="Contacts" className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
-              {contactList.map((c) => (
+              {contactList.map((c, i) => (
                 <button
                   key={c.id}
                   type="button"
@@ -388,7 +396,7 @@ function LeadPage({
                   className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
                 >
                   <User size={12} className="shrink-0 text-muted" />
-                  {c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact"}
+                  {tabNames[i]}
                   {c.role && <span className="font-normal text-muted">{c.role}</span>}
                 </button>
               ))}

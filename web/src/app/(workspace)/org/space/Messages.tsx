@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
 import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerNames, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
@@ -272,48 +272,35 @@ export function Messages({
           {aside}
         </aside>
         <section className={`${PANEL} flex min-h-0 flex-col overflow-hidden`}>
-          {/* the days as steps along the top: done (approved or replied), today
-              green, next blue; the open one lit */}
-          <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-4 py-3">
-            <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none]">
-              {tabs.map((x, i) => {
+          {/* the days along the top, as on the Dream 300 pages: plain buttons
+              that wrap, a tick once a day is approved (or replied), the open
+              one inverted; today has a green dot */}
+          <div className="flex shrink-0 items-start gap-2 border-b border-white/[0.07] px-4 py-3">
+            <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+              {tabs.map((x) => {
                 const replied = repliedOn(x.key);
                 const on = x.key === t.key;
-                const ready = dayApproved(x);
+                const done = replied || dayApproved(x);
                 return (
-                  <Fragment key={x.key}>
-                    {i > 0 && <span aria-hidden className={`h-px w-3 shrink-0 @2xl:w-5 ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={on}
-                      onClick={() => setTab(x.key)}
-                      title={x.sub}
-                      className={`flex shrink-0 items-center gap-2 rounded-full py-1 pr-3.5 pl-1.5 text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-200 ${
-                        on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
-                      }`}
-                    >
-                      {replied ? (
-                        <span className="grid size-5 place-items-center rounded-full bg-emerald-400/15 text-emerald-300">
-                          <Reply size={11} />
-                        </span>
-                      ) : ready ? (
-                        <span className="grid size-5 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label="Approved">
-                          <Check size={12} />
-                        </span>
-                      ) : (
-                        <span className={`grid size-5 place-items-center rounded-full ring-1 ${x.when === "now" ? "ring-emerald-400/50" : x.when === "next" ? "ring-accent/50" : "ring-white/15"}`} aria-label={x.when === "now" ? "Today" : x.when === "next" ? "Next" : undefined}>
-                          {(x.when === "now" || x.when === "next") && <span className={`size-1.5 rounded-full ${x.when === "now" ? "bg-emerald-400" : "bg-accent"}`} />}
-                        </span>
-                      )}
-                      {x.title}
-                    </button>
-                  </Fragment>
+                  <button
+                    key={x.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setTab(x.key)}
+                    title={x.sub}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-[color,background-color,border-color] duration-200 ${
+                      on ? "border-foreground bg-foreground text-background" : done ? "border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10" : "border-white/[0.12] text-foreground/80 hover:border-white/[0.2] hover:bg-white/[0.04] hover:text-foreground"
+                    }`}
+                  >
+                    {replied ? <Reply size={11} aria-label="Replied" /> : done ? <Check size={12} aria-label="Approved" /> : x.when === "now" ? <span className={`size-1.5 rounded-full ${on ? "bg-emerald-600" : "bg-emerald-400"}`} aria-label="Today" /> : null}
+                    {x.title}
+                  </button>
                 );
               })}
             </div>
-            <button type="button" onClick={() => setLibrary(true)} aria-label="All messages" title="All messages" className="grid size-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
-              <Library size={15} />
+            <button type="button" onClick={() => setLibrary(true)} aria-label="All messages" title="All messages" className="grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+              <Library size={14} />
             </button>
           </div>
 
@@ -331,7 +318,7 @@ export function Messages({
                 {canBuild ? (
                   <EditableName
                     name={t.stage.name}
-                    pencil="always"
+                    pencil="hover"
                     onSave={async (name) => {
                       // a day keeps its number whatever it's called: without it, it would leave the sequence
                       const words = t.day != null ? name.replace(/^\s*day\s*\d+\s*·?\s*/i, "").trim() : name.trim();
