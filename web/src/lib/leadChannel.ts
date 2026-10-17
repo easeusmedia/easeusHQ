@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.ts";
 import { startRun } from "./apify.ts";
 import { callbackKey, IG_ACTOR, YT_ACTOR } from "./contentSync.ts";
-import { channelOf, statsOf, type ChannelStats } from "./channelStats.ts";
+import { channelOf, instagramOf, statsOf, type ChannelStats } from "./channelStats.ts";
 
 // A Sales lead's own channel, read by Apify (Abhishek, 17 Oct 2026): its
 // followers, the views it usually gets and its latest uploads, for the lead
@@ -35,7 +35,9 @@ export async function freshenLeadChannel(leadId: string, origin?: string): Promi
   if (!lead) return { channel: null, channelAt: null, reading: false };
   const now = { channel: (lead.channel as ChannelStats | null) ?? null, channelAt: lead.channelAt };
   if (lead.channelAt && Date.now() - lead.channelAt.getTime() < DAY) return { ...now, reading: false };
-  const target = channelOf(lead.values as Record<string, unknown>, lead.board.fields);
+  const values = lead.values as Record<string, unknown>;
+  const instagram = instagramOf(values, lead.board.fields);
+  const target = channelOf(values, lead.board.fields) ?? (instagram ? { platform: "instagram" as const, url: instagram } : null);
   if (!target) return { ...now, reading: false };
   // one read a day, whatever came of it
   const today = await prisma.scrapeRun.findFirst({
@@ -50,6 +52,12 @@ export async function freshenLeadChannel(leadId: string, origin?: string): Promi
         ? await startRun(YT_ACTOR, { startUrls: [{ url: target.url }], maxResults: 10, maxResultsShorts: 0, maxResultStreams: 0, sortVideosBy: "NEWEST" }, callback)
         : await startRun(IG_ACTOR, { directUrls: [target.url], resultsType: "details", resultsLimit: 1 }, callback);
     await prisma.scrapeRun.create({ data: { id: run.id, platform: target.platform, kind: "lead", account: run.account, targets: { lead: leadId, url: target.url }, since: new Date() } });
+    // a YouTube lead's Instagram too, for its picture alone: the lightest
+    // read there is (the profile, one result), on the same once-a-day rule
+    if (target.platform === "youtube" && instagram) {
+      const pic = await startRun(IG_ACTOR, { directUrls: [instagram], resultsType: "details", resultsLimit: 1 }, callback).catch(() => null);
+      if (pic) await prisma.scrapeRun.create({ data: { id: pic.id, platform: "instagram", kind: "lead", account: pic.account, targets: { lead: leadId, url: instagram, role: "avatar" }, since: new Date() } });
+    }
     return { ...now, reading: true };
   } catch {
     // not the live site, no token, no credit: the numbers stay as they are
@@ -61,18 +69,32 @@ export async function freshenLeadChannel(leadId: string, origin?: string): Promi
 // lead, and into the board's Subscribers and Typical views (Followers and
 // Usual views) as text, the way the board writes numbers
 export async function saveLeadRun(run: { platform: string; targets: unknown }, items: unknown[]): Promise<void> {
-  const leadId = (run.targets as { lead?: string }).lead;
+  const { lead: leadId, role } = run.targets as { lead?: string; role?: string };
   const platform = run.platform === "instagram" ? "instagram" : "youtube";
   if (!leadId) return;
   const stats = statsOf(platform, items);
-  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { values: true, board: { select: { fields: { select: { id: true, name: true } } } } } });
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { values: true, channel: true, board: { select: { fields: { select: { id: true, name: true } } } } } });
   if (!lead) return;
+  const old = (lead.channel as ChannelStats | null) ?? null;
+  // the picture itself, fetched once per read and kept small (its link
+  // expires), beside the other platforms' pictures already saved
+  const picture = stats?.avatar ? await dataUrlOf(stats.avatar) : null;
+  const avatars = { ...(old?.avatars ?? {}), ...(picture ? { [platform]: picture } : {}) };
+  // ponytail: two reads of one lead can land together and the later save wins
+  // the other's picture; the next day's read brings it back
+  if (role === "avatar") {
+    if (!picture) return;
+    const channel: ChannelStats = old
+      ? { ...old, avatars, avatar: old.avatar ?? picture }
+      : { platform, followers: null, typicalViews: null, recent: [], lastUploadAt: null, avatar: picture, avatars };
+    await prisma.lead.update({ where: { id: leadId }, data: { channel } });
+    return;
+  }
   if (!stats) {
     await prisma.lead.update({ where: { id: leadId }, data: { channelAt: new Date() } });
     return;
   }
-  // the picture itself, fetched once per read and kept small (its link expires)
-  stats.avatar = stats.avatar ? await dataUrlOf(stats.avatar) : null;
+  const channel: ChannelStats = { ...stats, avatars, avatar: avatars[platform] ?? Object.values(avatars)[0] ?? null };
   const values = { ...(lead.values as Record<string, unknown>) };
   const field = (name: string) => lead.board.fields.find((f) => f.name.toLowerCase() === name.toLowerCase());
   const names = FIELDS[platform];
@@ -80,7 +102,7 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
   const views = field(names.views);
   if (followers && stats.followers !== null) values[followers.id] = stats.followers.toLocaleString("en-GB");
   if (views && stats.typicalViews !== null) values[views.id] = stats.typicalViews.toLocaleString("en-GB");
-  await prisma.lead.update({ where: { id: leadId }, data: { channel: stats, channelAt: new Date(), values: values as Prisma.InputJsonObject } });
+  await prisma.lead.update({ where: { id: leadId }, data: { channel, channelAt: new Date(), values: values as Prisma.InputJsonObject } });
 }
 
 // A picture as a data URL, or null: an image only, at most 200 KB, given 10

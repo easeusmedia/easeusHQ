@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelOf, median, statsOf } from "./channelStats.ts";
+import { channelOf, instagramOf, median, statsOf } from "./channelStats.ts";
 
 test("a typical upload's views: the middle, not thrown by one hit", () => {
   assert.equal(median([]), null);
@@ -35,4 +35,12 @@ test("an Instagram read: followers and the reels' usual plays", () => {
   assert.equal(s?.recent[0].title, "Photo");
   assert.equal(s?.recent[1].title, "Reel one");
   assert.equal(s?.avatar, "https://cdn/pic.jpg");
+});
+
+test("the lead's Instagram, from a link or a contact", () => {
+  const fields = [{ id: "l", kind: "links" }, { id: "c", kind: "contacts" }];
+  assert.equal(instagramOf({ l: [{ label: "Instagram", url: "https://www.instagram.com/dr.y/" }] }, fields), "https://www.instagram.com/dr.y/");
+  assert.equal(instagramOf({ l: [{ label: "Reel named in the opener", url: "https://www.instagram.com/reel/abc/" }] }, fields), null);
+  assert.equal(instagramOf({ c: [{ id: "1", name: "Dr Y", role: "", channels: [{ kind: "instagram", value: "@dr_y" }] }] }, fields), "https://www.instagram.com/dr_y/");
+  assert.equal(instagramOf({}, fields), null);
 });

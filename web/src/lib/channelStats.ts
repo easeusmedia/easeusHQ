@@ -1,4 +1,4 @@
-import type { LinkValue } from "./space.ts";
+import type { Contact, LinkValue } from "./space.ts";
 
 // The numbers a Sales lead's channel shows (lib/leadChannel.ts reads them
 // with Apify): kept apart so they can be checked without a database.
@@ -12,6 +12,9 @@ export type ChannelStats = {
   // its profile picture: from a read, the scraper's link; saved on the lead,
   // that picture itself, small, as a data URL (the links expire)
   avatar: string | null;
+  // every platform's picture the lead has, saved the same way (avatar is the
+  // first of them): its YouTube channel's, its Instagram account's
+  avatars?: Partial<Record<"youtube" | "instagram" | "linkedin", string>>;
 };
 
 // the lead's channel, from its Links: the "YouTube channel" link, or the
@@ -23,6 +26,19 @@ export function channelOf(values: Record<string, unknown>, fields: { id: string;
   const ig = links.find((l) => /^instagram$/i.test(l.label.trim())) ?? links.find((l) => /instagram\.com\/[^/]+\/?$/i.test(l.url));
   if (ig?.url) return { platform: "instagram", url: ig.url.trim() };
   return null;
+}
+
+// the lead's Instagram account, wherever it's written: the "Instagram" link,
+// a link to a profile, or a contact's Instagram (a handle or an address)
+export function instagramOf(values: Record<string, unknown>, fields: { id: string; kind: string }[]): string | null {
+  const links = fields.filter((f) => f.kind === "links").flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as LinkValue[]) : []));
+  const contacts = fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : []));
+  const raw =
+    links.find((l) => /^instagram$/i.test(l.label.trim()))?.url ??
+    links.find((l) => /instagram\.com\/[^/]+\/?$/i.test(l.url) && !/instagram\.com\/(p|reel|reels|stories)\//i.test(l.url))?.url ??
+    contacts.flatMap((c) => c.channels ?? []).find((ch) => ch.kind === "instagram" && ch.value.trim())?.value;
+  const handle = raw?.trim().replace(/^@/, "").match(/^(?:https?:\/\/)?(?:www\.)?(?:instagram\.com\/)?([A-Za-z0-9._]+)\/?$/)?.[1];
+  return handle ? `https://www.instagram.com/${handle}/` : null;
 }
 
 // the middle of a list of view counts: what a typical upload gets, not
