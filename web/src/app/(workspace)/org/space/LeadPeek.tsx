@@ -8,7 +8,8 @@ import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
-import { CanBuild, CheckboxEditor, ContactsEditor, ContactsView, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, ValueRead, dateOf } from "./values";
+import { FactsView, PeopleCards } from "./LeadFacts";
+import { CanBuild, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, TextEditor, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
@@ -360,7 +361,24 @@ function LeadPage({
             onMark={(c) => onTrack(id, c)}
             onSaved={saved}
             aside={
+              // the people first (their email addresses to copy), then the rest, at a glance
               <div className="flex flex-col gap-3">
+                {contactField && (
+                  <Section icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} editing={editContacts} onEdit={() => setEditContacts((e) => !e)}>
+                    {editContacts ? (
+                      <div key="edit" className="fade-in">
+                        <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
+                      </div>
+                    ) : (
+                      contacts > 0 && (
+                        <div key="view" className="fade-in">
+                          <PeopleCards value={values[contactField.id]} />
+                        </div>
+                      )
+                    )}
+                  </Section>
+                )}
+
                 <Section icon={SlidersHorizontal} title="Details" summary={`${filled} of ${fieldsShown.length} filled`} editing={editDetails} onEdit={() => setEditDetails((e) => !e)}>
                   {editDetails ? (
                     <div key="edit" className="fade-in flex flex-col">
@@ -372,32 +390,12 @@ function LeadPage({
                     </div>
                   ) : (
                     filled > 0 && (
-                      <div key="view" className="fade-in flex flex-col">
-                        {filledFields.map((f) => (
-                          <Row key={f.id} icon={KIND_ICON[f.kind]} label={f.name}>
-                            <ValueRead field={f} value={values[f.id]} />
-                          </Row>
-                        ))}
+                      <div key="view" className="fade-in">
+                        <FactsView fields={fieldsShown} values={values} />
                       </div>
                     )
                   )}
                 </Section>
-
-                {contactField && (
-                  <Section icon={Users} title={contactField.name} summary={contacts ? `${contacts} ${contacts === 1 ? "person" : "people"}` : "None yet"} editing={editContacts} onEdit={() => setEditContacts((e) => !e)}>
-                    {editContacts ? (
-                      <div key="edit" className="fade-in">
-                        <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />
-                      </div>
-                    ) : (
-                      contacts > 0 && (
-                        <div key="view" className="fade-in">
-                          <ContactsView value={values[contactField.id]} />
-                        </div>
-                      )
-                    )}
-                  </Section>
-                )}
               </div>
             }
           />

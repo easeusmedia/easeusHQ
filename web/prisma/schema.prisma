@@ -1242,6 +1242,12 @@ model Lead {
   // messages approved as ready to send (Abhishek, 17 Oct 2026), by message
   // and person on the lead ("msgId@c2", as picks): { by, at }
   approvals      Json          @default("{}")
+  // the channel's own numbers, read by Apify when the lead is opened and
+  // they're more than a day old (lib/leadChannel.ts, 17 Oct 2026):
+  // { platform, followers, typicalViews, recent: [{ title, views, at, url }],
+  // lastUploadAt }. channelAt: when they were read.
+  channel        Json?
+  channelAt      DateTime?
   createdById    String
   createdBy      User          @relation("LeadsCreated", fields: [createdById], references: [id])
   // when it reached its stage ("3 days in Day 2")
