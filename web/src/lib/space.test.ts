@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, linkName, openerNames, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -315,4 +315,40 @@ test("a day's stage keeps its day number whatever it's renamed to", () => {
   assert.equal(keepDay("Day 4 · LinkedIn 1", "Day 4 · LinkedIn DM"), "Day 4 · LinkedIn DM");
   assert.equal(keepDay("Day 4 · LinkedIn 1", "Day 9 · Oops"), "Day 4 · Oops");
   assert.equal(keepDay("Replied", "Interested"), "Interested");
+});
+
+test("a link is called something short", () => {
+  assert.equal(linkName("YouTube channel", "https://youtube.com/@x"), "YouTube");
+  assert.equal(linkName("Video named in the opener", "https://youtube.com/watch?v=1"), "Video");
+  assert.equal(linkName("Reel named in the opener", "https://instagram.com/reel/1"), "Reel");
+  assert.equal(linkName("Notion page", "https://a.notion.site/x"), "Notion");
+  assert.equal(linkName("Notion page (YT 2)", "https://a.notion.site/x"), "Notion · YT 2");
+  assert.equal(linkName("Post with the keyword", "https://instagram.com/p/1"), "Post");
+  assert.equal(linkName("Clinic Instagram", "https://instagram.com/c"), "Clinic Instagram");
+  assert.equal(linkName("Website", "https://clinic.com"), "Website");
+  assert.equal(linkName("", "https://www.youtube.com/@doc"), "YouTube");
+  assert.equal(linkName("", "https://youtu.be/abc"), "Video");
+  assert.equal(linkName("", "https://www.linkedin.com/in/doc"), "LinkedIn");
+  assert.equal(linkName("", "https://clinic.com/about"), "clinic.com");
+  // only a platform loses its trailing word, and only whole words count
+  assert.equal(linkName("Instagram profile", "https://instagram.com/c"), "Instagram");
+  assert.equal(linkName("Landing page", "https://clinic.com/l"), "Landing page");
+  assert.equal(linkName("Second channel", "https://youtube.com/@b"), "Second channel");
+  assert.equal(linkName("Post-op care guide", "https://clinic.com/p"), "Post-op care guide");
+  assert.equal(linkName("Notion page 2", "https://a.notion.site/y"), "Notion 2");
+  assert.equal(linkName("", "mailto:a@b.com"), "a@b.com");
+});
+
+test("openers are called Main and Backup, their angle kept for the hover", () => {
+  assert.deepEqual(openerNames(["Main · D1 Old hit still on top", "Backup · D2 View swing", "Backup · F1 Fresh: latest video"]), [
+    { name: "Main", hint: "Old hit still on top" },
+    { name: "Backup 1", hint: "View swing" },
+    { name: "Backup 2", hint: "Fresh: latest video" },
+  ]);
+  assert.deepEqual(openerNames(["Main · D3 Real hit", "Backup · D6 Steady poster"]).map((o) => o.name), ["Main", "Backup"]);
+  assert.deepEqual(openerNames(["A · A reel took off", "B · Capture in place"]), [
+    { name: "Version A", hint: "A reel took off" },
+    { name: "Version B", hint: "Capture in place" },
+  ]);
+  assert.deepEqual(openerNames(["", ""]).map((o) => o.name), ["Option 1", "Option 2"]);
 });

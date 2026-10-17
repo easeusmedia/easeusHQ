@@ -428,8 +428,9 @@ export const CanBuild = createContext(false);
 
 // Tags (one, or any number): the chosen ones, and a Notion-style list to
 // search, pick and create them; whoever sets the app up also renames and
-// deletes them.
-export function TagEditor({ field, value, save }: { field: FieldData; value: unknown; save: (ids: string[] | null) => void }) {
+// deletes them. `trigger` swaps the chosen tags for a button of its own (the
+// lead window's +, beside its pills).
+export function TagEditor({ field, value, save, trigger }: { field: FieldData; value: unknown; save: (ids: string[] | null) => void; trigger?: { button: React.ReactNode; label: string; className: string } }) {
   const router = useRouter();
   const multi = field.kind === "multi";
   const canBuild = useContext(CanBuild);
@@ -502,14 +503,15 @@ export function TagEditor({ field, value, save }: { field: FieldData; value: unk
   }
 
   return (
-    <div className="w-full min-w-0">
+    <div className={trigger ? "" : "w-full min-w-0"}>
       <Menu
         height={340}
         width={288}
-        className="w-full min-w-0"
-        buttonClassName={CELL}
+        label={trigger?.label}
+        className={trigger ? "" : "w-full min-w-0"}
+        buttonClassName={trigger?.className ?? CELL}
         onOpen={reset}
-        button={picked.length ? picked.map((o) => <TagPill key={o.id} name={o.name} color={o.color} />) : <Empty />}
+        button={trigger?.button ?? (picked.length ? picked.map((o) => <TagPill key={o.id} name={o.name} color={o.color} />) : <Empty />)}
       >
         {(close) => (
           <>

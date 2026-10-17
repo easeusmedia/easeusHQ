@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ArrowUpRight, Check, Copy, Globe, Mail, Pencil, Phone } from "lucide-react";
-import { isFilled, type ChannelKind, type Contact, type FieldData, type LinkValue } from "@/lib/space";
+import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Type, Users, X, type LucideIcon } from "lucide-react";
+import { isFilled, linkName, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
-import { InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
-import { hrefOf } from "./values";
+import { InstagramIcon, LinkedinIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
+import { CheckboxEditor, CountEditor, DateEditor, dayLabel, hrefOf, TagEditor } from "./values";
 
 // What's known about a lead, read at a glance (Abhishek, 17 Oct 2026: minimal,
 // balanced, no boxes): who it is (their picture, name, where, and their
@@ -23,7 +23,6 @@ const HANDLE: Partial<Record<ChannelKind, { Icon: React.ComponentType<{ size?: n
   other: { Icon: Globe, name: "Link" },
 };
 const LABEL = "text-[11px] font-medium tracking-wide text-muted uppercase";
-const ICON_BTN = "grid size-8 shrink-0 place-items-center rounded-full bg-white/[0.05] text-foreground/75 transition-colors hover:bg-white/[0.1] hover:text-foreground";
 
 function CopyButton({ text, className = "" }: { text: string; className?: string }) {
   const [done, setDone] = useState(false);
@@ -98,9 +97,11 @@ const PLATFORM_BADGE: Record<string, { Icon: React.ComponentType<{ size?: number
 
 // The lead's profile, everything stacked down the panel (Abhishek, 17 Oct
 // 2026): the person picked at the top of the window (their picture, name and
-// role, email addresses to copy, and their pages as icons; the pencil opens
-// them as a form), then every detail, its name above its value, then the
-// channel's latest uploads. People are added with the + at the top.
+// role, then their email addresses and pages, one a row with its icon on the
+// left; the pencil opens them as a form), then the details: the numbers with
+// their icons, the lead's own links, and the rest; then the channel's latest
+// uploads. Its working tags (the opener, version and meme board) stay off it.
+// People are added with the + at the top.
 export function LeadProfile({
   title,
   fields,
@@ -111,7 +112,8 @@ export function LeadProfile({
   editingContacts,
   onEditDetails,
   onEditContacts,
-  detailsEditor,
+  fieldLabel,
+  onSaveValue,
   adding,
   onCancelAdd,
   onSavePerson,
@@ -126,7 +128,8 @@ export function LeadProfile({
   editingContacts: boolean;
   onEditDetails: () => void;
   onEditContacts: () => void;
-  detailsEditor: React.ReactNode;
+  fieldLabel: (f: FieldData) => React.ReactNode;
+  onSaveValue: (fieldId: string, v: unknown) => void;
   adding: boolean;
   onCancelAdd: () => void;
   onSavePerson: (c: Contact) => void;
@@ -135,8 +138,22 @@ export function LeadProfile({
   const contactsField = fields.find((f) => f.kind === "contacts");
   const people = (contactsField && Array.isArray(values[contactsField.id]) ? (values[contactsField.id] as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
   const who = (person && people.find((p) => p.id === person.id)) ?? people[0] ?? null;
-  // every detail but the people (and the meme board, shown on its own day's email)
-  const details = fields.filter((f) => f.kind !== "contacts" && !named(f, /^meme board$/i) && isFilled(f.kind, values[f.id]));
+  const shown = fields.filter((f) => f.kind !== "contacts" && !named(f, WORKING));
+  // the form has them too, last, so they can still be set
+  const editable = [...shown, ...fields.filter((f) => f.kind !== "contacts" && named(f, WORKING))];
+  const details = shown.filter((f) => isFilled(f.kind, values[f.id]));
+  // the numbers (and where they are) side by side; links as rows; the rest after
+  const tiles = details.filter((f) => numberOf(f, values[f.id]) != null || (f.kind === "select" && named(f, /^country$/i)));
+  const linkFields = details.filter((f) => f.kind === "links");
+  const rest = details.filter((f) => !tiles.includes(f) && !linkFields.includes(f));
+  // a lead's link to the page the person's row already has shows once, there
+  const theirs = new Set((who?.channels ?? []).map((c) => hrefOf(c.kind, c.value)).filter((h): h is string => !!h).map(sameUrl));
+  const links = linkFields.flatMap((f) =>
+    (values[f.id] as LinkValue[]).flatMap((l) => {
+      const href = hrefOf("other", l.url);
+      return href && !theirs.has(sameUrl(href)) ? [{ ...l, href }] : [];
+    }),
+  );
   const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
   // the channel's pictures, one per page, go with the first person
   const stats = channel?.stats;
@@ -175,24 +192,61 @@ export function LeadProfile({
         </section>
       )}
 
-      {/* every detail, its name above its value */}
-      <section className={SECTION}>
-        <Head title="Details" editing={editingDetails} onEdit={onEditDetails} />
-        {editingDetails ? (
-          <div className="fade-in">{detailsEditor}</div>
-        ) : (
-          <dl className="flex flex-col gap-4">
-            {details.map((f) => (
-              <div key={f.id} className="flex min-w-0 flex-col gap-1">
-                <dt className="text-xs text-muted">{f.name}</dt>
-                <dd className="min-w-0 text-[13px] text-foreground/90">
-                  <DetailValue field={f} value={values[f.id]} />
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </section>
+      {/* the details: numbers with their icons, then links, then the rest */}
+      {editable.length > 0 && (
+        <section className={SECTION}>
+          <Head title="Details" editing={editingDetails} onEdit={onEditDetails} />
+          {editingDetails ? (
+            <DetailsForm fields={editable} values={values} label={fieldLabel} onSave={onSaveValue} />
+          ) : (
+            details.length > 0 && (
+            <div className="flex flex-col gap-5">
+              {tiles.length > 0 && (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+                  {tiles.map((f) => {
+                    const { Icon, tone } = iconOf(f);
+                    return (
+                      <div key={f.id} className="flex min-w-0 items-center gap-2.5">
+                        <span className={`${CIRCLE} ${tone}`}>
+                          <Icon size={15} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[15px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">{numberOf(f, values[f.id]) ?? tagNames(f, values[f.id]).join(", ")}</span>
+                          <span className="block truncate text-xs text-muted">{f.name}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {links.length > 0 && (
+                <div className="-my-1 flex flex-col">
+                  {links.map((l, i) => (
+                    <LinkRow key={i} href={l.href} name={linkName(l.label, l.url)} platform={platformOf(l.href)} />
+                  ))}
+                </div>
+              )}
+              {rest.map((f) => {
+                const { Icon, tone } = iconOf(f);
+                return (
+                  <div key={f.id} className="flex min-w-0 gap-2.5">
+                    <span className={`${CIRCLE} ${tone}`}>
+                      <Icon size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1 pt-px">
+                      <p className="text-xs text-muted">{f.name}</p>
+                      <div className="mt-0.5 min-w-0 text-[13px] text-foreground/90">
+                        <DetailValue field={f} value={values[f.id]} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            )
+          )}
+        </section>
+      )}
 
       {/* the channel's latest uploads */}
       {(channel?.reading || recent.length > 0) && (
@@ -205,107 +259,302 @@ export function LeadProfile({
   );
 }
 
+// the working tags that drive the sequence, not anything to read when writing
+const WORKING = /^(opener|version|meme board)$/i;
+const CIRCLE = "grid size-8 shrink-0 place-items-center rounded-full";
+// a detail's icon by what it is, else by its kind
+const FIELD_ICON: [RegExp, LucideIcon, string][] = [
+  [/subscriber|follower|fans|audience/i, Users, "bg-sky-400/10 text-sky-300"],
+  [/view|plays|reach/i, Eye, "bg-violet-400/10 text-violet-300"],
+  [/country|city|location|region/i, MapPin, "bg-emerald-400/10 text-emerald-300"],
+  [/^bio$|about/i, Quote, "bg-white/[0.06] text-foreground/70"],
+  [/to check/i, AlertTriangle, "bg-amber-400/10 text-amber-300"],
+];
+const KIND_ICON: Record<FieldKind, LucideIcon> = { select: CircleChevronDown, multi: Tags, count: Hash, contacts: Users, links: Link2, checkbox: SquareCheck, date: CalendarDays, text: Type };
+function iconOf(f: FieldData): { Icon: LucideIcon; tone: string } {
+  const hit = FIELD_ICON.find(([re]) => re.test(f.name));
+  return hit ? { Icon: hit[1], tone: hit[2] } : { Icon: KIND_ICON[f.kind], tone: "bg-white/[0.06] text-foreground/70" };
+}
+
+// a page's platform, from its address
+type Platform = "youtube" | "instagram" | "linkedin" | "x" | "notion" | "phone" | "email" | "other";
+function platformOf(url: string): Platform {
+  if (/^mailto:/i.test(url)) return "email";
+  if (/^tel:/i.test(url)) return "phone";
+  const host = /^(?:https?:\/\/)?(?:www\.)?([^/?#]+)/i.exec(url.trim())?.[1]?.toLowerCase() ?? "";
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return "youtube";
+  if (/(^|\.)instagram\.com$/.test(host)) return "instagram";
+  if (/(^|\.)linkedin\.com$/.test(host)) return "linkedin";
+  if (/(^|\.)(x\.com|twitter\.com)$/.test(host)) return "x";
+  if (/(^|\.)notion\.(so|site)$/.test(host)) return "notion";
+  return "other";
+}
+const sameUrl = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\/(www\.|m\.)?/, "").replace(/\/+$/, "");
+const PLATFORM_TONE: Record<Platform, string> = {
+  youtube: "bg-red-500/10 text-red-400",
+  instagram: "bg-pink-500/10 text-pink-400",
+  linkedin: "bg-sky-500/10 text-sky-400",
+  x: "bg-white/[0.06] text-foreground/80",
+  notion: "bg-white/[0.06]",
+  phone: "bg-emerald-400/10 text-emerald-300",
+  email: "bg-sky-400/10 text-sky-300",
+  other: "bg-white/[0.06] text-foreground/70",
+};
+function PlatformIcon({ platform, size = 14 }: { platform: Platform; size?: number }) {
+  const Icon = { youtube: YoutubeIcon, instagram: InstagramIcon, linkedin: LinkedinIcon, x: XIcon, phone: Phone, email: Mail, other: Globe }[platform as Exclude<Platform, "notion">];
+  return (
+    <span className={`${CIRCLE} ${PLATFORM_TONE[platform]}`}>
+      {platform === "notion" ? <span className="grid size-4 place-items-center rounded-[4px] bg-white text-[10px] font-bold text-black">N</span> : <Icon size={size} />}
+    </span>
+  );
+}
+
+// a page as a row: its icon on the left, its plain name, an arrow on hover
+function LinkRow({ href, name, platform }: { href: string; name: string; platform: Platform }) {
+  return (
+    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="group/link -mx-1.5 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 text-[13px] text-foreground/85 transition-colors hover:bg-white/[0.04] hover:text-foreground">
+      <PlatformIcon platform={platform} />
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <ArrowUpRight size={13} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
+    </a>
+  );
+}
+
 // One person on the lead: their picture (the channel's, one per page, for the
-// first person), name and role, email addresses to copy, and pages as icons
+// first person), name and role; then their email addresses (to copy) and
+// their pages, each a row with its icon on the left
+const PAGE_ORDER: ChannelKind[] = ["youtube", "instagram", "linkedin", "x", "other", "phone"];
 function PersonBlock({ person, faces, lead }: { person: Contact; faces: [string, string][]; lead: string }) {
   const emails = person.channels.filter((c) => c.kind === "email" && c.value.trim());
-  const pages = person.channels.filter((c) => c.kind !== "email" && c.value.trim()).flatMap((c) => {
-    const href = hrefOf(c.kind, c.value);
-    return href ? [{ kind: c.kind, href }] : [];
-  });
+  const pages = person.channels
+    .filter((c) => c.kind !== "email" && c.value.trim())
+    .sort((a, b) => PAGE_ORDER.indexOf(a.kind) - PAGE_ORDER.indexOf(b.kind))
+    .flatMap((c) => {
+      const href = hrefOf(c.kind, c.value);
+      if (!href) return [];
+      const platform: Platform = c.kind === "phone" ? "phone" : c.kind === "other" ? platformOf(href) : (c.kind as Platform);
+      return [{ href, platform, name: c.kind === "phone" ? c.value.trim() : c.kind === "other" ? linkName("", href) : (HANDLE[c.kind]?.name ?? "Link") }];
+    });
   const name = person.name.trim() || lead;
   return (
-    <div className="flex gap-3.5 py-4 first:pt-0 last:pb-0">
-      {faces.length ? (
-        <div className="flex shrink-0 -space-x-3 self-start">
-          {faces.slice(0, 3).map(([platform, src]) => {
-            const badge = PLATFORM_BADGE[platform];
-            return (
-              <span key={platform} className="relative block" title={`${platform} picture`}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
-                <img src={src} alt="" className="size-11 rounded-full object-cover ring-2 ring-[#16191e]" />
-                {badge && (
-                  <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-[#16191e] ${badge.tone}`}>
-                    <badge.Icon size={9} />
-                  </span>
-                )}
-              </span>
-            );
-          })}
-        </div>
-      ) : (
-        <span className="self-start">
+    <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 items-center gap-3.5">
+        {faces.length ? (
+          <div className="flex shrink-0 -space-x-3">
+            {faces.slice(0, 3).map(([platform, src]) => {
+              const badge = PLATFORM_BADGE[platform];
+              return (
+                <span key={platform} className="relative block" title={`${platform} picture`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
+                  <img src={src} alt="" className="size-11 rounded-full object-cover ring-2 ring-[#16191e]" />
+                  {badge && (
+                    <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-[#16191e] ${badge.tone}`}>
+                      <badge.Icon size={9} />
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        ) : (
           <Face src={null} name={name} size={44} />
-        </span>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <p className="text-sm leading-snug font-medium break-words text-foreground">
-          {name}
-          {person.role && <span className="font-normal text-muted"> · {person.role}</span>}
-        </p>
-        {emails.map((c, i) => (
-          <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-white/[0.04]">
-            <Mail size={13} className="shrink-0 text-sky-400" />
-            <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
-              {c.value.trim()}
-            </a>
-            <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
-          </div>
-        ))}
-        {!emails.length && <p className="text-xs text-muted">No email address</p>}
-        {pages.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {pages.map((l, i) => (
-              <a key={i} href={l.href} target={l.href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" title={HANDLE[l.kind]?.name ?? "Link"} aria-label={HANDLE[l.kind]?.name ?? "Link"} className={ICON_BTN}>
-                {l.kind === "phone" ? <Phone size={14} className="text-emerald-300" /> : <PlatformMark url={l.href} size={14} className={l.kind === "youtube" ? "text-red-400" : l.kind === "instagram" ? "text-pink-400" : l.kind === "linkedin" ? "text-sky-400" : "text-muted"} />}
-              </a>
-            ))}
-          </div>
         )}
+        <p className="min-w-0 text-sm leading-snug font-medium break-words text-foreground">
+          {name}
+          {person.role && <span className="block text-xs font-normal text-muted">{person.role}</span>}
+        </p>
       </div>
+      {(emails.length > 0 || pages.length > 0) && (
+        <div className="-my-1 flex flex-col">
+          {emails.map((c, i) => (
+            <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 transition-colors hover:bg-white/[0.04]">
+              <PlatformIcon platform="email" />
+              <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
+                {c.value.trim()}
+              </a>
+              <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
+            </div>
+          ))}
+          {pages.map((p, i) => (
+            <LinkRow key={i} href={p.href} name={p.name} platform={p.platform} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// A detail's value in words: links as links, a list to check as warning lines
+// A detail's value in words: a list to check as warning lines, choices by name
 function DetailValue({ field, value }: { field: FieldData; value: unknown }) {
-  if (field.kind === "links")
-    return (
-      <span className="flex flex-col gap-1">
-        {(value as LinkValue[])
-          .filter((l) => l.url.trim())
-          .map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="group/link flex min-w-0 items-center gap-2 hover:text-foreground">
-              {/notion\.(site|so)/.test(l.url) ? (
-                <span className="grid size-3.5 shrink-0 place-items-center rounded-[3px] bg-white text-[9px] font-bold text-black">N</span>
-              ) : (
-                <PlatformMark url={l.url} size={13} className="shrink-0 text-muted" />
-              )}
-              <span className="min-w-0 truncate">{l.label || l.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
-              <ArrowUpRight size={12} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
-            </a>
-          ))}
-      </span>
-    );
   if (named(field, /^to check$/i)) {
     const lines = field.kind === "text" ? String(value).split("\n").filter((x) => x.trim()) : tagNames(field, value);
     return (
-      <span className="flex flex-col gap-1">
+      <span className="flex flex-col gap-0.5 text-amber-200/90">
         {lines.map((l, i) => (
-          <span key={i} className="flex items-start gap-1.5 text-amber-200/90">
-            <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-300" />
-            {l}
-          </span>
+          <span key={i}>{l}</span>
         ))}
       </span>
     );
   }
-  const n = numberOf(field, value);
-  if (n) return <span className="text-base font-semibold tracking-tight text-foreground tabular-nums">{n}</span>;
-  if (field.kind === "select" || field.kind === "multi") return <>{tagNames(field, value).map((t) => t.replace(/^\w\d?\s*·\s*/, "")).join(", ")}</>;
+  if (field.kind === "select" || field.kind === "multi") return <>{tagNames(field, value).map(plainOption).join(", ")}</>;
   if (field.kind === "checkbox") return <>Yes</>;
   if (field.kind === "count") return <>{String((value as { n: number | null }).n ?? "")}</>;
+  if (field.kind === "date" && typeof value === "string") return <>{dayLabel(value)}</>;
   return <span className="whitespace-pre-wrap">{String(value)}</span>;
+}
+// a choice without its code ("D1 · Old hit still on top": "Old hit still on top")
+const plainOption = (name: string) => name.replace(/^\w\d?\s*·\s*/, "");
+
+// The details as a form (Edit on Details): each with its icon and name above
+// a plain box. Words save on leaving the box (Enter leaves it), choices save
+// on a tap, and each link is its name over its address.
+function DetailsForm({ fields, values, label, onSave }: { fields: FieldData[]; values: Record<string, unknown>; label: (f: FieldData) => React.ReactNode; onSave: (fieldId: string, v: unknown) => void }) {
+  return (
+    <div className="fade-in flex flex-col gap-5">
+      {fields.map((f) => {
+        const { Icon, tone } = iconOf(f);
+        return (
+          <div key={f.id} className="flex min-w-0 flex-col gap-2">
+            <span className="flex min-w-0 items-center gap-2 text-xs text-muted">
+              <span className={`grid size-5 shrink-0 place-items-center rounded-full ${tone}`}>
+                <Icon size={11} />
+              </span>
+              <span className="flex min-w-0">{label(f)}</span>
+            </span>
+            <FieldInput field={f} value={values[f.id]} save={(v) => onSave(f.id, v)} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FieldInput({ field, value, save }: { field: FieldData; value: unknown; save: (v: unknown) => void }) {
+  switch (field.kind) {
+    case "text":
+      return <WordsInput value={value} save={save} />;
+    case "select":
+    case "multi":
+      return <ChoiceInput field={field} value={value} save={save} />;
+    case "links":
+      return <LinksInput value={value} save={save} />;
+    case "count":
+      return <CountEditor value={value} save={save} />;
+    case "checkbox":
+      return <CheckboxEditor field={field} value={value} save={save} />;
+    case "date":
+      return <DateEditor value={value} save={save} />;
+    default:
+      return null;
+  }
+}
+
+function WordsInput({ value, save }: { value: unknown; save: (v: string | null) => void }) {
+  const saved = typeof value === "string" ? value : "";
+  const [text, setText] = useState(saved);
+  return (
+    <textarea
+      rows={1}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => text.trim() !== saved.trim() && save(text.trim() || null)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+      placeholder="Empty"
+      className={`${FORM_INPUT} field-sizing-content resize-none`}
+    />
+  );
+}
+
+// one choice (or several) as pills, saved on a tap; a tap on the one picked
+// clears it. The + opens the tag list, to find or create one (and, for whoever
+// sets the app up, rename or delete them).
+function ChoiceInput({ field, value, save }: { field: FieldData; value: unknown; save: (v: string[] | null) => void }) {
+  const on = Array.isArray(value) ? (value as string[]) : [];
+  function toggle(id: string) {
+    const next = on.includes(id) ? on.filter((x) => x !== id) : field.kind === "select" ? [id] : [...on, id];
+    save(next.length ? next : null);
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {field.options.map((o) => (
+        <button key={o.id} type="button" aria-pressed={on.includes(o.id)} onClick={() => toggle(o.id)} className="chip rounded-full px-3 py-1 text-xs">
+          {plainOption(o.name)}
+        </button>
+      ))}
+      <TagEditor field={field} value={value} save={save} trigger={{ button: <Plus size={13} />, label: `Add to ${field.name}`, className: "chip grid size-7 place-items-center rounded-full" }} />
+    </div>
+  );
+}
+
+// each link: its icon, then its name over its address in one box, and a
+// remove. The name shows short ("YouTube"), but what's stored stays as it is
+// until it's typed over (the channel read finds "YouTube channel" by name).
+type LinkRowState = LinkValue & { typed: string | null };
+const rowsOf = (v: unknown): LinkRowState[] => (Array.isArray(v) ? (v as LinkValue[]) : []).map((l) => ({ label: l.label, url: l.url, typed: null }));
+const keptLinks = (ls: LinkRowState[]) => ls.map((l) => ({ label: (l.typed ?? l.label).trim(), url: l.url.trim() })).filter((l) => l.url || l.label);
+function LinksInput({ value, save }: { value: unknown; save: (v: LinkValue[] | null) => void }) {
+  const [links, setLinks] = useState(() => rowsOf(value));
+  const [focus, setFocus] = useState<number | null>(null);
+  const [last, setLast] = useState(() => JSON.stringify(keptLinks(rowsOf(value))));
+  // a save that failed (or a change from elsewhere) puts back what's stored
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    const now = JSON.stringify(keptLinks(rowsOf(value)));
+    if (now !== last) {
+      setLinks(rowsOf(value));
+      setLast(now);
+    }
+  }
+  function commit(next: LinkRowState[]) {
+    const k = keptLinks(next);
+    const s = JSON.stringify(k);
+    if (s === last) return;
+    setLast(s);
+    save(k.length ? k : null);
+  }
+  const set = (i: number, patch: Partial<LinkRowState>) => setLinks((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  return (
+    <div className="flex flex-col gap-2">
+      {links.map((l, i) => (
+        <div key={i} className="flex min-w-0 items-center gap-2.5">
+          <PlatformIcon platform={platformOf(l.url)} />
+          <div className="flex min-w-0 flex-1 flex-col rounded-lg border border-white/[0.08] bg-white/[0.02] transition-colors focus-within:border-accent/40">
+            <input value={l.typed ?? (l.label.trim() ? linkName(l.label, l.url) : "")} onChange={(e) => set(i, { typed: e.target.value })} onBlur={() => commit(links)} placeholder={l.url.trim() ? linkName("", l.url) : "Name"} aria-label="Name" className="bg-transparent px-3 pt-1.5 text-[13px] text-foreground outline-none! placeholder:text-muted/60" />
+            <input autoFocus={focus === i} value={l.url} onChange={(e) => set(i, { url: e.target.value })} onBlur={() => commit(links)} placeholder="https://…" aria-label="Address" className="bg-transparent px-3 pb-1.5 text-xs text-muted outline-none! placeholder:text-muted/45 focus:text-foreground/80" />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = links.filter((_, j) => j !== i);
+              setLinks(next);
+              commit(next);
+            }}
+            aria-label="Remove this link"
+            title="Remove"
+            className="grid size-7 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-rose-300"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => {
+          setFocus(links.length);
+          setLinks([...links, { label: "", url: "", typed: null }]);
+        }}
+        className="flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground"
+      >
+        <Plus size={13} /> Add link
+      </button>
+    </div>
+  );
 }
 
 // A person's details as a form: their name and role, their email addresses

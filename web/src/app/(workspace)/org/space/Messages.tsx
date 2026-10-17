@@ -1,9 +1,9 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerNames, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -31,10 +31,10 @@ const PANEL = "rounded-2xl border border-white/[0.07] bg-[#15171b]";
 const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
 
 // A lead's messages, laid out as the Dream 300 sequence pages are (Abhishek,
-// 17 Oct 2026): along the top, whose messages (one person at a time), the
-// opener in use when it has more than one written for it, and the days of
-// the sequence as tabs (done, today, next); below, beside what's known about
-// the lead (`aside`, on the left), the picked day's messages on the right.
+// 17 Oct 2026): beside what's known about the lead (`aside`, on the left),
+// the days of the sequence as steps along the top (done, today, next), and
+// the picked day's messages below; on the days that change with the opener
+// (the first emails written ahead), Main and its backups beside the day.
 // Before Ready to reach out there's nothing to send, so only `aside` shows.
 // Each message is the lead's own wording when it has one (rewritten for it,
 // or written for it ahead: lib/space preparedFor), else the template. The
@@ -165,6 +165,8 @@ export function Messages({
   const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
   const dayApproved = (x: SequenceTab) => chosenOn(x, person).every((m) => !!approvalOf(forContact(m.id, person)));
   const opener = Math.min(Number(pickOf("opener") ?? 0) || 0, Math.max(0, openers.length - 1));
+  // a day whose wording differs from one opener to the next (Days 1 and 2)
+  const changesWithOpener = (x: SequenceTab) => x.messages.some((m) => openers.some((o) => JSON.stringify(o.drafts[m.id] ?? null) !== JSON.stringify(openers[0].drafts[m.id] ?? null)));
 
   // before Ready to reach out: what's known about it, nothing to send
   if (!tabs.length) return <div className={`${PANEL} @container min-h-0 w-full max-w-xl flex-1 overflow-y-auto`}>{aside}</div>;
@@ -233,8 +235,6 @@ export function Messages({
     );
   };
 
-  const seg = "seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium";
-  const bar = "flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
   const t = shownTab;
   // its messages, one platform at a time, in the day's own order
   const byPlatform = [...new Set(t.messages.map((m) => m.channel))].map((ch) => t.messages.filter((m) => m.channel === ch));
@@ -272,61 +272,49 @@ export function Messages({
           {aside}
         </aside>
         <section className={`${PANEL} flex min-h-0 flex-col overflow-hidden`}>
-          {/* the tab strip, a shade darker: the open day's tab joins the page below it, as in Chrome */}
-          <div className="shrink-0 border-b border-white/[0.09] bg-black/45 px-3 pt-3">
-            {openers.length > 1 && (
-              <div className="mb-3 flex flex-wrap items-center gap-2 px-2">
-                <span className="text-xs text-muted">Opener</span>
-                <div role="tablist" aria-label="Opener" className={bar}>
-                  {openers.map((o, i) => (
-                    <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener; the rest stay the same" className={seg}>
-                      {o.label || `Opener ${i + 1}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex items-end gap-2">
-              <div role="tablist" aria-label="Days" className="-mb-px flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
-                {tabs.map((x) => {
-                  const replied = repliedOn(x.key);
-                  const on = x.key === t.key;
-                  const ready = dayApproved(x);
-                  return (
+          {/* the days as steps along the top: done (approved or replied), today
+              green, next blue; the open one lit */}
+          <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-4 py-3">
+            <div role="tablist" aria-label="Days" className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none]">
+              {tabs.map((x, i) => {
+                const replied = repliedOn(x.key);
+                const on = x.key === t.key;
+                const ready = dayApproved(x);
+                return (
+                  <Fragment key={x.key}>
+                    {i > 0 && <span aria-hidden className={`h-px w-3 shrink-0 @2xl:w-5 ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
                     <button
-                      key={x.key}
                       type="button"
                       role="tab"
                       aria-selected={on}
                       onClick={() => setTab(x.key)}
                       title={x.sub}
-                      className={`relative flex shrink-0 items-center gap-1.5 rounded-t-lg border px-4 py-2 text-[13px] font-medium whitespace-nowrap transition-colors ${
-                        on
-                          ? "z-10 border-white/[0.08] border-b-[#15171b] bg-[#15171b] text-foreground"
-                          : `border-transparent hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" ? "text-muted/70" : "text-muted"}`
+                      className={`flex shrink-0 items-center gap-2 rounded-full py-1 pr-3.5 pl-1.5 text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-200 ${
+                        on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                       }`}
                     >
-                      {/* the open tab's mark along its top edge */}
-                      {on && <span className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent" />}
-                      {/* approved, replied, or where the lead is: today green, next blue */}
                       {replied ? (
-                        <Reply size={12} className="text-emerald-300" />
+                        <span className="grid size-5 place-items-center rounded-full bg-emerald-400/15 text-emerald-300">
+                          <Reply size={11} />
+                        </span>
                       ) : ready ? (
-                        <Check size={13} className="text-emerald-300" aria-label="Approved" />
-                      ) : x.when === "now" ? (
-                        <span className="size-1.5 rounded-full bg-emerald-400" aria-label="Today" />
-                      ) : x.when === "next" ? (
-                        <span className="size-1.5 rounded-full bg-accent" aria-label="Next" />
-                      ) : null}
+                        <span className="grid size-5 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label="Approved">
+                          <Check size={12} />
+                        </span>
+                      ) : (
+                        <span className={`grid size-5 place-items-center rounded-full ring-1 ${x.when === "now" ? "ring-emerald-400/50" : x.when === "next" ? "ring-accent/50" : "ring-white/15"}`} aria-label={x.when === "now" ? "Today" : x.when === "next" ? "Next" : undefined}>
+                          {(x.when === "now" || x.when === "next") && <span className={`size-1.5 rounded-full ${x.when === "now" ? "bg-emerald-400" : "bg-accent"}`} />}
+                        </span>
+                      )}
                       {x.title}
                     </button>
-                  );
-                })}
-              </div>
-              <button type="button" onClick={() => setLibrary(true)} className={`${SMALL_BTN} mb-1.5 shrink-0`}>
-                <Library size={13} /> All messages <span className="tabular-nums text-muted/70">{board.messages.length}</span>
-              </button>
+                  </Fragment>
+                );
+              })}
             </div>
+            <button type="button" onClick={() => setLibrary(true)} aria-label="All messages" title="All messages" className="grid size-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+              <Library size={15} />
+            </button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
@@ -364,6 +352,16 @@ export function Messages({
               {repliedOn(t.key) && (
                 <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] text-emerald-300">
                   <Reply size={11} /> Replied
+                </span>
+              )}
+              {/* the lead's first emails, written ahead: Main and its backups, on the days they change */}
+              {openers.length > 1 && changesWithOpener(t) && (
+                <span className="ml-auto flex flex-wrap items-center gap-1">
+                  {openerNames(openers.map((o) => o.label)).map((o, i) => (
+                    <button key={i} type="button" aria-pressed={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title={o.hint || undefined} className="chip rounded-full px-2.5 py-0.5 text-xs">
+                      {o.name}
+                    </button>
+                  ))}
                 </span>
               )}
             </p>

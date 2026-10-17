@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, Plus, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { Check, ChevronRight, Maximize2, Minimize2, Plus, Trash2, User } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -11,24 +11,13 @@ import { Messages } from "./Messages";
 import { LeadProfile } from "./LeadFacts";
 import { openLeadChannel } from "./leadChannel";
 import type { ChannelStats } from "@/lib/channelStats";
-import { CanBuild, CheckboxEditor, ContactsEditor, CountEditor, DateEditor, LinksEditor, Menu, TagEditor, TextEditor, dateOf } from "./values";
+import { CanBuild, Menu, dateOf } from "./values";
 import { EditableName } from "../../EditableName";
 import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { leadContacts, moveNeedsReason, toneOf, type BoardData, type Contact, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
-
-const KIND_ICON: Record<FieldKind, LucideIcon> = {
-  select: CircleChevronDown,
-  multi: List,
-  count: Hash,
-  contacts: Users,
-  links: Link2,
-  checkbox: SquareCheck,
-  date: CalendarDays,
-  text: Type,
-};
+import { leadContacts, moveNeedsReason, toneOf, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -283,7 +272,6 @@ function LeadPage({
   );
 
   // its properties to edit, and its people
-  const fieldsShown = board.fields.filter((f) => f.kind !== "contacts");
   const contactField = board.fields.find((f) => f.kind === "contacts");
   // the people on it, one picked at a time for the whole window
   const contactList = leadContacts(values, board.fields).filter((c) => c.name.trim() || c.channels.some((ch) => ch.value.trim()));
@@ -454,15 +442,8 @@ function LeadPage({
                 editingContacts={editContacts}
                 onEditDetails={() => setEditDetails((e) => !e)}
                 onEditContacts={() => setEditContacts((e) => !e)}
-                detailsEditor={
-                  <div className="flex flex-col">
-                    {fieldsShown.map((f) => (
-                      <Row key={f.id} icon={KIND_ICON[f.kind]} label={fieldName(f)}>
-                        <Editor field={f} value={values[f.id]} save={(v) => saveValue(f.id, v)} />
-                      </Row>
-                    ))}
-                  </div>
-                }
+                fieldLabel={fieldName}
+                onSaveValue={saveValue}
                 adding={adding}
                 onCancelAdd={() => setAdding(false)}
                 onSavePerson={savePerson}
@@ -546,38 +527,4 @@ function LeadPage({
       />
     </>
   );
-}
-
-// One property: its name, then its value. Stacked where it's narrow (the
-// lead window's left column, a phone).
-function Row({ icon: Icon, label, children }: { icon: LucideIcon; label: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="grid items-start gap-x-3 py-0.5 @md:grid-cols-[10rem_minmax(0,1fr)]">
-      <div className="flex min-h-8 min-w-0 items-center gap-2 px-1 text-xs text-muted">
-        <Icon size={14} className="shrink-0" />
-        <span className="flex min-w-0">{label}</span>
-      </div>
-      <div className="flex min-h-8 min-w-0 items-center">{children}</div>
-    </div>
-  );
-}
-
-function Editor({ field, value, save }: { field: FieldData; value: unknown; save: (v: unknown) => void }) {
-  switch (field.kind) {
-    case "select":
-    case "multi":
-      return <TagEditor field={field} value={value} save={save} />;
-    case "count":
-      return <CountEditor value={value} save={save} />;
-    case "contacts":
-      return <ContactsEditor value={value} save={save} />;
-    case "links":
-      return <LinksEditor value={value} save={save} />;
-    case "checkbox":
-      return <CheckboxEditor field={field} value={value} save={save} />;
-    case "date":
-      return <DateEditor value={value} save={save} />;
-    case "text":
-      return <TextEditor value={value} save={save} />;
-  }
 }

@@ -588,6 +588,52 @@ export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stag
   return [...tabs.filter((t) => t.messages.length), ...(past ? own(stages[i]) : [])];
 }
 
+// What a link is called on a lead: short and plain (Abhishek, 17 Oct 2026:
+// "YouTube", not "YouTube channel"). The words after a platform go
+// ("channel", "page", "profile"), a video or reel is just that, and a link
+// with no name is called after its site.
+export function linkName(label: string, url: string): string {
+  const l = label.trim().replace(/\s+/g, " ");
+  if (!l) return siteName(url);
+  const notion = /^notion page\b\s*(.*)$/i.exec(l);
+  if (notion) {
+    const rest = notion[1].trim();
+    const inner = /^\((.+)\)$/.exec(rest)?.[1];
+    return inner ? `Notion · ${inner}` : rest ? `Notion ${rest}` : "Notion";
+  }
+  const kind = /^(video|reel|post)(\s|$)/i.exec(l);
+  if (kind) return kind[1].charAt(0).toUpperCase() + kind[1].slice(1).toLowerCase();
+  return l.replace(/^(youtube|instagram|linkedin|facebook|tiktok|x|twitter|spotify)\s+(channel|page|profile|account)$/i, "$1");
+}
+function siteName(url: string): string {
+  const u = url.trim();
+  if (/^(mailto|tel):/i.test(u)) return u.replace(/^(mailto|tel):/i, "");
+  const host = /^(?:https?:\/\/)?(?:www\.)?([^/?#]+)/i.exec(u)?.[1]?.toLowerCase() ?? "";
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return /youtu\.be|\/(watch|shorts)\b/i.test(u) ? "Video" : "YouTube";
+  if (/(^|\.)instagram\.com$/.test(host)) return /\/(reel|p)\//i.test(u) ? "Post" : "Instagram";
+  if (/(^|\.)linkedin\.com$/.test(host)) return "LinkedIn";
+  if (/(^|\.)notion\.(so|site)$/.test(host)) return "Notion";
+  if (/(^|\.)(x\.com|twitter\.com)$/.test(host)) return "X";
+  return host || "Link";
+}
+
+// What each of a lead's openers (its first emails, written ahead) is called
+// where they're picked between: Main, then Backup (numbered when there are
+// two or more), or the letter of an Instagram version. The angle it takes
+// ("Old hit still on top", without its code) is the hover text.
+export function openerNames(labels: string[]): { name: string; hint: string }[] {
+  const backups = labels.filter((l) => /^backup\b/i.test(l.trim())).length;
+  let b = 0;
+  return labels.map((l, i) => {
+    const [head, ...rest] = l.split("·").map((x) => x.trim());
+    const hint = rest.join(" · ").replace(/^[A-Z]\d+\s+/, "");
+    if (/^main$/i.test(head)) return { name: "Main", hint };
+    if (/^backup$/i.test(head)) return { name: backups > 1 ? `Backup ${++b}` : "Backup", hint };
+    if (/^[A-Z]$/.test(head)) return { name: `Version ${head}`, hint };
+    return { name: `Option ${i + 1}`, hint: l.trim() };
+  });
+}
+
 // What to call each of a day's messages when picking one: its platform when
 // they differ (Day 1: Email, LinkedIn), else the last part of its name
 // (Day 2: "Didn't open Email 1", "Already opened Email 1")
