@@ -97,10 +97,10 @@ const PLATFORM_BADGE: Record<string, { Icon: React.ComponentType<{ size?: number
 };
 
 // The lead's profile, everything stacked down the panel (Abhishek, 17 Oct
-// 2026): its people, one block each, repeated for every person on it (their
-// picture, name and role, email addresses to copy, and their pages as icons);
-// then every detail, its name above its value; then the channel's latest
-// uploads. People and details are each edited where they are.
+// 2026): the person picked at the top of the window (their picture, name and
+// role, email addresses to copy, and their pages as icons; the pencil opens
+// them as a form), then every detail, its name above its value, then the
+// channel's latest uploads. People are added with the + at the top.
 export function LeadProfile({
   title,
   fields,
@@ -112,7 +112,10 @@ export function LeadProfile({
   onEditDetails,
   onEditContacts,
   detailsEditor,
-  contactsEditor,
+  adding,
+  onCancelAdd,
+  onSavePerson,
+  onRemovePerson,
 }: {
   title: string;
   fields: FieldData[];
@@ -124,10 +127,14 @@ export function LeadProfile({
   onEditDetails: () => void;
   onEditContacts: () => void;
   detailsEditor: React.ReactNode;
-  contactsEditor: React.ReactNode;
+  adding: boolean;
+  onCancelAdd: () => void;
+  onSavePerson: (c: Contact) => void;
+  onRemovePerson: (id: string) => void;
 }) {
   const contactsField = fields.find((f) => f.kind === "contacts");
   const people = (contactsField && Array.isArray(values[contactsField.id]) ? (values[contactsField.id] as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
+  const who = (person && people.find((p) => p.id === person.id)) ?? people[0] ?? null;
   // every detail but the people (and the meme board, shown on its own day's email)
   const details = fields.filter((f) => f.kind !== "contacts" && !named(f, /^meme board$/i) && isFilled(f.kind, values[f.id]));
   const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
@@ -139,21 +146,34 @@ export function LeadProfile({
 
   return (
     <div className="flex flex-col divide-y divide-white/[0.06]">
-      {/* its people, one block each */}
-      <section className={SECTION}>
-        <Head title={people.length > 1 ? `People · ${people.length}` : "Contact"} editing={editingContacts} onEdit={onEditContacts} />
-        {editingContacts ? (
-          <div className="fade-in">{contactsEditor}</div>
-        ) : people.length ? (
-          <div className="flex flex-col divide-y divide-white/[0.06]">
-            {people.map((p, i) => (
-              <PersonBlock key={p.id} person={p} faces={i === 0 ? faces : []} lead={title} picked={people.length > 1 && p.id === person?.id} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted">No contact yet</p>
-        )}
-      </section>
+      {/* the person picked at the top, or the one the + is adding */}
+      {adding ? (
+        <section className={SECTION}>
+          <Head title="New contact" />
+          <ContactForm key="new" initial={null} onSave={onSavePerson} onCancel={onCancelAdd} />
+        </section>
+      ) : who && (
+        <section className={SECTION}>
+          <Head title="Contact" editing={editingContacts} onEdit={onEditContacts} />
+          {editingContacts ? (
+            <ContactForm
+              key={who.id}
+              initial={who}
+              onSave={(c) => {
+                onSavePerson(c);
+                onEditContacts();
+              }}
+              onCancel={onEditContacts}
+              onRemove={() => {
+                onRemovePerson(who.id);
+                onEditContacts();
+              }}
+            />
+          ) : (
+            <PersonBlock person={who} faces={who.id === people[0]?.id ? faces : []} lead={title} />
+          )}
+        </section>
+      )}
 
       {/* every detail, its name above its value */}
       <section className={SECTION}>
@@ -187,7 +207,7 @@ export function LeadProfile({
 
 // One person on the lead: their picture (the channel's, one per page, for the
 // first person), name and role, email addresses to copy, and pages as icons
-function PersonBlock({ person, faces, lead, picked }: { person: Contact; faces: [string, string][]; lead: string; picked: boolean }) {
+function PersonBlock({ person, faces, lead }: { person: Contact; faces: [string, string][]; lead: string }) {
   const emails = person.channels.filter((c) => c.kind === "email" && c.value.trim());
   const pages = person.channels.filter((c) => c.kind !== "email" && c.value.trim()).flatMap((c) => {
     const href = hrefOf(c.kind, c.value);
@@ -222,7 +242,6 @@ function PersonBlock({ person, faces, lead, picked }: { person: Contact; faces: 
         <p className="text-sm leading-snug font-medium break-words text-foreground">
           {name}
           {person.role && <span className="font-normal text-muted"> · {person.role}</span>}
-          {picked && <span className="ml-1.5 rounded-full bg-accent/15 px-1.5 py-px align-middle text-[11px] font-normal text-accent">Messages</span>}
         </p>
         {emails.map((c, i) => (
           <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-white/[0.04]">
@@ -287,6 +306,64 @@ function DetailValue({ field, value }: { field: FieldData; value: unknown }) {
   if (field.kind === "checkbox") return <>Yes</>;
   if (field.kind === "count") return <>{String((value as { n: number | null }).n ?? "")}</>;
   return <span className="whitespace-pre-wrap">{String(value)}</span>;
+}
+
+// A person's details as a form: their name and role, their email addresses
+// (one a line) and their pages. For the + at the top of the window (a new
+// person) and for the pencil on the one picked (with Remove).
+const FORM_INPUT = "w-full rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-foreground outline-none! transition-colors placeholder:text-muted/50 focus:border-accent/40";
+const HANDLE_KINDS: { kind: ChannelKind; label: string; hint: string }[] = [
+  { kind: "linkedin", label: "LinkedIn", hint: "linkedin.com/in/…" },
+  { kind: "instagram", label: "Instagram", hint: "instagram.com/… or @handle" },
+  { kind: "youtube", label: "YouTube", hint: "youtube.com/@…" },
+  { kind: "phone", label: "Phone", hint: "+44 …" },
+];
+export function ContactForm({ initial, onSave, onCancel, onRemove }: { initial: Contact | null; onSave: (c: Contact) => void; onCancel: () => void; onRemove?: () => void }) {
+  const first = (kind: ChannelKind) => initial?.channels.find((c) => c.kind === kind)?.value ?? "";
+  const [name, setName] = useState(initial?.name ?? "");
+  const [role, setRole] = useState(initial?.role ?? "");
+  const [emails, setEmails] = useState((initial?.channels ?? []).filter((c) => c.kind === "email").map((c) => c.value).join("\n"));
+  const [handles, setHandles] = useState<Record<string, string>>(() => Object.fromEntries(HANDLE_KINDS.map((h) => [h.kind, first(h.kind)])));
+  function save() {
+    // the ones this form doesn't show (a second LinkedIn, X, other) stay as they were
+    const shown = new Set<ChannelKind>(["email", ...HANDLE_KINDS.map((h) => h.kind)]);
+    const kept = (initial?.channels ?? []).filter((c) => !shown.has(c.kind) || (c.kind !== "email" && c !== initial?.channels.find((x) => x.kind === c.kind)));
+    const channels = [
+      ...emails.split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean).map((value) => ({ kind: "email" as ChannelKind, value })),
+      ...HANDLE_KINDS.filter((h) => handles[h.kind]?.trim()).map((h) => ({ kind: h.kind, value: handles[h.kind].trim() })),
+      ...kept,
+    ];
+    onSave({ id: initial?.id ?? crypto.randomUUID(), name: name.trim(), role: role.trim(), channels });
+  }
+  return (
+    <div className="fade-in flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Name" className={FORM_INPUT} />
+        <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role (optional)" aria-label="Role" className={FORM_INPUT} />
+      </div>
+      <textarea value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="Email addresses, one a line" aria-label="Email addresses" rows={2} className={`${FORM_INPUT} field-sizing-content resize-none`} />
+      <div className="flex flex-col gap-2">
+        {HANDLE_KINDS.map((h) => (
+          <input key={h.kind} value={handles[h.kind] ?? ""} onChange={(e) => setHandles((x) => ({ ...x, [h.kind]: e.target.value }))} placeholder={`${h.label}: ${h.hint}`} aria-label={h.label} className={FORM_INPUT} />
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        {onRemove && (
+          <button type="button" onClick={onRemove} className="text-xs text-red-300/80 transition-colors hover:text-red-300">
+            Remove this person
+          </button>
+        )}
+        <span className="ml-auto flex gap-1.5">
+          <button type="button" onClick={onCancel} className="btn btn-sm btn-ghost">
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={!name.trim() && !emails.trim()} className="btn btn-sm btn-glow">
+            {initial ? "Save" : "Add person"}
+          </button>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 const ago = (iso: string) => {

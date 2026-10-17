@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, CircleChevronDown, Hash, Link2, List, Maximize2, Minimize2, Plus, SquareCheck, Trash2, Type, User, Users, type LucideIcon } from "lucide-react";
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -17,7 +17,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { leadContacts, moveNeedsReason, toneOf, type BoardData, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { leadContacts, moveNeedsReason, toneOf, type BoardData, type Contact, type FieldData, type FieldKind, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 const KIND_ICON: Record<FieldKind, LucideIcon> = {
   select: CircleChevronDown,
@@ -149,6 +149,8 @@ function LeadPage({
   const [editDetails, setEditDetails] = useState(false);
   const [editContacts, setEditContacts] = useState(false);
   const [who, setWho] = useState<string | null>(null);
+  // a new person, being filled in on the left after the + at the top
+  const [adding, setAdding] = useState(false);
 
   // the record, and what's been sent, each time it opens
   useEffect(() => {
@@ -286,33 +288,30 @@ function LeadPage({
   // the people on it, one picked at a time for the whole window
   const contactList = leadContacts(values, board.fields).filter((c) => c.name.trim() || c.channels.some((ch) => ch.value.trim()));
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
+  const allContacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as Contact[]) : [];
+  function savePerson(c: Contact) {
+    if (!contactField) return;
+    const known = allContacts.some((p) => p.id === c.id);
+    saveValue(contactField.id, known ? allContacts.map((p) => (p.id === c.id ? c : p)) : [...allContacts, c]);
+    setAdding(false);
+    setWho(c.id);
+  }
+  function removePerson(pid: string) {
+    if (!contactField) return;
+    const rest = allContacts.filter((p) => p.id !== pid);
+    saveValue(contactField.id, rest.length ? rest : null);
+    setWho(null);
+  }
 
   return (
     <>
-      {/* its name at the very top, renamed in place; History and the window's size beside it */}
-      <div className="mb-2 flex shrink-0 items-start gap-3 px-1">
-        <div className="flex min-w-0 flex-1 text-lg font-semibold tracking-tight text-foreground">
+      {/* along the top: its name (renamed in place), then its stage, who has
+          it, History and the window's size */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-1">
+        <div className="flex min-w-0 flex-[1_1_14rem] text-lg font-semibold tracking-tight text-foreground">
           <EditableName name={title || lead.title} pencil="hover" wrap onSave={rename} />
         </div>
-        <span className="flex shrink-0 items-center gap-1">
-          <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
-            <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
-            History
-          </button>
-          <button
-            type="button"
-            onClick={onFull}
-            aria-label={full ? "Exit full screen" : "Full screen"}
-            title={full ? "Exit full screen" : "Full screen"}
-            className="shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
-          >
-            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-        </span>
-      </div>
-
-      {/* its stage and who has it */}
-      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1">
+        <span className="flex shrink-0 flex-wrap items-center gap-1.5">
           <Menu
             height={340}
             width={280}
@@ -365,19 +364,68 @@ function LeadPage({
               {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
             </span>
           )}
+          <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
+            <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
+            History
+          </button>
+          <button
+            type="button"
+            onClick={onFull}
+            aria-label={full ? "Exit full screen" : "Full screen"}
+            title={full ? "Exit full screen" : "Full screen"}
+            className="shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
+          >
+            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+        </span>
       </div>
 
-      {/* on top of all, whose lead it is when it has more than one person:
-          the profile and the messages both follow the one picked */}
-      {contactList.length > 1 && (
-        <div role="tablist" aria-label="Contacts" className="mb-3 flex w-fit max-w-full shrink-0 flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
-          {contactList.map((c) => (
-            <button key={c.id} type="button" role="tab" aria-selected={c.id === person?.id} onClick={() => setWho(c.id)} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
-              <Users size={12} className="shrink-0 text-muted" />
-              {c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact"}
-              {c.role && <span className="font-normal text-muted">{c.role}</span>}
+      {/* under it, its people, one picked at a time (the profile and the
+          messages both follow the one picked); + adds another */}
+      {contactField && (
+        <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1">
+          {(contactList.length > 0 || adding) && (
+            <div role="tablist" aria-label="Contacts" className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+              {contactList.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={!adding && c.id === person?.id}
+                  onClick={() => {
+                    setAdding(false);
+                    setEditContacts(false);
+                    setWho(c.id);
+                  }}
+                  className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+                >
+                  <User size={12} className="shrink-0 text-muted" />
+                  {c.name.trim() || c.channels.find((ch) => ch.value.trim())?.value || "Contact"}
+                  {c.role && <span className="font-normal text-muted">{c.role}</span>}
+                </button>
+              ))}
+              {adding && (
+                <button type="button" role="tab" aria-selected className="seg fade-in flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+                  <User size={12} className="shrink-0 text-muted" />
+                  New contact
+                </button>
+              )}
+            </div>
+          )}
+          {!adding && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditContacts(false);
+                setAdding(true);
+              }}
+              aria-label="Add a contact"
+              title="Add a contact"
+              className="flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            >
+              <Plus size={14} />
             </button>
-          ))}
+          )}
         </div>
       )}
 
@@ -415,7 +463,10 @@ function LeadPage({
                     ))}
                   </div>
                 }
-                contactsEditor={contactField && <ContactsEditor value={values[contactField.id]} save={(v) => saveValue(contactField.id, v)} />}
+                adding={adding}
+                onCancelAdd={() => setAdding(false)}
+                onSavePerson={savePerson}
+                onRemovePerson={removePerson}
               />
             }
           />
