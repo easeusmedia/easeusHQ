@@ -96,3 +96,25 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     assignable,
   };
 }
+
+// The kinds of work someone's Production roles offer when they add a task.
+// Each role's own; a role with none of its own (Senior Video Editor) offers
+// its department's kinds that move the same way (video: Podcast editing,
+// Reel, Trailer, Colour correction). A role's name never stands in for a
+// kind (19 Oct 2026), and each kind shows once.
+type KindRow = { id: string; name: string; workflow: string; clientFacing: boolean };
+export const ROLE_KINDS_SELECT = {
+  id: true,
+  name: true,
+  workflow: true,
+  team: { select: { name: true, taskTags: { select: { id: true, name: true, workflow: true, clientFacing: true }, orderBy: [{ sortOrder: "asc" as const }, { name: "asc" as const }] } } },
+  kinds: { select: { id: true, name: true, workflow: true, clientFacing: true }, orderBy: [{ sortOrder: "asc" as const }, { name: "asc" as const }] },
+};
+export function roleKinds(roles: { workflow: string; team: { name: string; taskTags: KindRow[] } | null; kinds: KindRow[] }[]) {
+  const seen = new Set<string>();
+  return roles.flatMap((r) =>
+    (r.kinds.length ? r.kinds : (r.team?.taskTags ?? []).filter((k) => k.workflow === r.workflow))
+      .filter((k) => !seen.has(k.id) && !!seen.add(k.id))
+      .map((k) => ({ id: k.id, name: k.name, workflow: k.workflow, clientFacing: k.clientFacing, department: r.team?.name ?? null }))
+  );
+}

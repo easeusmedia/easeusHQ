@@ -14,7 +14,7 @@ import { calendarAccount, listMeetings, type Meeting } from "@/lib/googleCalenda
 import { sweepIfDue } from "@/lib/taskTrack";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { money } from "../finance/data";
-import { loadWork } from "../workData";
+import { loadWork, ROLE_KINDS_SELECT, roleKinds } from "../workData";
 import { HomeView, type HomeItem, type Notice } from "./HomeView";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +68,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     // Add task offers Production's kinds of work to whoever does them
     prisma.jobTitle.findMany({
       where: { holders: { some: { id: viewer.id } }, team: { slug: "production" } },
-      select: { id: true, name: true, workflow: true, team: { select: { name: true } }, kinds: { select: { id: true, name: true, workflow: true, clientFacing: true } } },
+      select: ROLE_KINDS_SELECT,
     }),
     week7(),
     prisma.appSetting.findUnique({ where: { key: DRIVE_SETTINGS.clientId } }),
@@ -171,11 +171,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       composer={{
         projects: work.projects,
         assignees: work.assignable,
-        kinds: kinds.flatMap((r) =>
-          r.kinds.length
-            ? r.kinds.map((k) => ({ id: k.id, name: k.name, workflow: k.workflow, clientFacing: k.clientFacing, department: r.team?.name ?? null }))
-            : [{ id: `role:${r.id}`, name: r.name, workflow: r.workflow, clientFacing: false, department: r.team?.name ?? null }]
-        ),
+        kinds: roleKinds(kinds),
       }}
       env={{ editors: assignOptionsFor(viewer, users).map((u) => ({ id: u.id, name: u.name })), projects: work.projects, taskTags: work.taskTags, actingRole: effectiveRole(viewer), actingUserId: viewer.id }}
     />

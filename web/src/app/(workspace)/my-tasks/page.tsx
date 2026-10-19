@@ -6,7 +6,7 @@ import { effectiveRole, worksTheBoard } from "@/lib/scope";
 import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { dayOf } from "@/lib/editorKpi";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
-import { loadWork } from "../workData";
+import { loadWork, ROLE_KINDS_SELECT, roleKinds } from "../workData";
 import { TodoList } from "./TodoList";
 import { WorkNotionSyncButton } from "./WorkNotionSyncButton";
 
@@ -40,7 +40,7 @@ export default async function MyTasksPage() {
     // (everyone else's work is a plain to-do)
     prisma.jobTitle.findMany({
       where: { holders: { some: { id: viewer.id } }, team: { slug: "production" } },
-      select: { id: true, name: true, workflow: true, team: { select: { name: true } }, kinds: { select: { id: true, name: true, workflow: true, clientFacing: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
+      select: ROLE_KINDS_SELECT,
       orderBy: { sortOrder: "asc" },
     }),
     prisma.user.findUnique({ where: { id: viewer.id }, select: { notionWorkbookDbId: true, team: { select: { slug: true } } } }),
@@ -57,12 +57,8 @@ export default async function MyTasksPage() {
           ...done.map((t) => ({ id: t.id, title: t.title, kind: "todo" as const, at: (t.completedAt ?? t.updatedAt).toISOString(), client: null })),
           ...doneTasks.map((t) => ({ id: t.id, title: t.title, kind: "task" as const, workflow: t.workflow, at: t.updatedAt.toISOString(), client: t.project.client.name })),
         ].sort((a, b) => b.at.localeCompare(a.at))}
-        // each role's kinds of work, or the role itself when it has none
-        kinds={kinds.flatMap((r) =>
-          r.kinds.length
-            ? r.kinds.map((k) => ({ id: k.id, name: k.name, workflow: k.workflow, clientFacing: k.clientFacing, department: r.team?.name ?? null }))
-            : [{ id: `role:${r.id}`, name: r.name, workflow: r.workflow, clientFacing: false, department: r.team?.name ?? null }]
-        )}
+        // each role's kinds of work (workData.ts roleKinds)
+        kinds={roleKinds(kinds)}
         projects={work.projects}
         assignees={work.assignable}
         editors={assignOptionsFor(viewer, users).map((u) => ({ id: u.id, name: u.name }))}
