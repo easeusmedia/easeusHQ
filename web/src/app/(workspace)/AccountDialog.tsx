@@ -11,6 +11,8 @@ import { updateAccount } from "./account";
 import { usePhoto } from "./photos";
 import { Avatar } from "./TaskCard";
 import { updatePersonPhoto } from "./team/actions";
+import { ClaudeConnection } from "./integrations/ClaudeConnection";
+import { myClaudeConnection } from "./integrations/actions";
 
 const INPUT = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-hover disabled:opacity-60";
 
@@ -18,8 +20,9 @@ const INPUT = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 tex
 // picked), your name and the email you sign in with, and a "Change
 // password" button that opens the password fields only when asked for. A new
 // email or password needs the current password, which appears only then.
+// For Level 1 and Sales (`claude`), their own Claude connection link too.
 // Opens on `open`.
-export function AccountDialog({ open, onClose, account }: { open: boolean; onClose: () => void; account: { id: string; name: string; email: string } }) {
+export function AccountDialog({ open, onClose, account }: { open: boolean; onClose: () => void; account: { id: string; name: string; email: string; claude: boolean } }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(account.name);
@@ -34,6 +37,9 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
   const photoInput = useRef<HTMLInputElement>(null);
   const [photoState, setPhotoState] = useState<string | null>(null);
   const hasPhoto = !!usePhoto(account.name);
+  // their Claude link as it stands (undefined until read, and again once
+  // closed, so a link shown once doesn't show again)
+  const [claude, setClaude] = useState<{ createdAt: string; lastUsedAt: string | null } | null | undefined>(undefined);
 
   async function setPhoto(file: File | null) {
     setPhotoState("Saving…");
@@ -60,9 +66,11 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
       setError(null);
       setBusy(false);
       setPhotoState(null);
+      // unread (not "off") if this fails: "Make the link" would end one that works
+      if (account.claude) myClaudeConnection().then(setClaude).catch(() => {});
       d.showModal();
     } else if (!open && d.open) d.close();
-  }, [open, account.name, account.email]);
+  }, [open, account.name, account.email, account.claude]);
 
   const emailChanged = email.trim().toLowerCase() !== account.email;
   const needsPassword = emailChanged || changing;
@@ -96,8 +104,11 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
     <dialog
       ref={ref}
       {...closeOnBackdrop}
-      onClose={() => open && onClose()}
-      className="glass fixed top-1/2 left-1/2 m-0 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
+      onClose={() => {
+        setClaude(undefined);
+        if (open) onClose();
+      }}
+      className="glass fixed top-1/2 left-1/2 m-0 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
     >
       <form
         className="flex flex-col gap-4 p-6"
@@ -211,6 +222,11 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
           </button>
         </div>
       </form>
+      {account.claude && (
+        <Reveal open={claude !== undefined}>
+          {claude !== undefined && <ClaudeConnection active={claude} onChange={setClaude} className="mx-6 mb-6 border-t border-border pt-5" />}
+        </Reveal>
+      )}
     </dialog>
   );
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
+import { getRealUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, brandAssetsName, driveSettings } from "@/lib/drive";
 import { NOTION_SETTINGS, clientDatabaseId, notionSettings, taskDatabaseId } from "@/lib/notion";
@@ -52,8 +53,9 @@ export default async function IntegrationsPage({
     gmailAccount("sales"),
     calendarAccount(),
     gmailCanSend(),
-    // your Claude's link to the app (MCP): whether it's on, never the key
-    prisma.connection.findFirst({ where: { userId: user.id, revokedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true, lastUsedAt: true } }),
+    // your Claude's link to the app (MCP): whether it's on, never the key.
+    // Yours even while looking as someone: its buttons change only yours
+    getRealUserId().then((id) => prisma.connection.findFirst({ where: { userId: id ?? "", revokedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true, lastUsedAt: true } })),
   ]);
 
   return (

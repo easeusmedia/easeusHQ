@@ -236,7 +236,8 @@ export function Sidebar({
   // everyone a Level 1 can view the app as (null for anyone else)
   viewAsPeople?: { id: string; name: string; level: string }[] | null;
   // their own name and sign-in email, to change (null while looking as someone else)
-  account?: { id: string; name: string; email: string } | null;
+  // and whether they may connect Claude (Level 1 and Sales)
+  account?: { id: string; name: string; email: string; claude: boolean } | null;
   // admin only: what clients owe and what the team is paid
   canSeeFinance?: boolean;
   name: string;

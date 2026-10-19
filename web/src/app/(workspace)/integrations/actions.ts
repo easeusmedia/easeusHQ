@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/auth";
+import { getRealViewer, getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, driveSettings, folder, parentFolderId, saveDriveSettings } from "@/lib/drive";
 import { FRAMEIO_SETTINGS, accounts, saveFrameioSettings, shareFiles, shareIdFrom } from "@/lib/frameio";
@@ -16,6 +16,7 @@ import { AI_ADMIN_KEY, AI_BUDGET, readCostReport } from "@/lib/ai";
 import { GMAIL_SETTINGS, SALES_GMAIL_SETTINGS } from "@/lib/gmail";
 import { CALENDAR_SETTINGS } from "@/lib/googleCalendar";
 import { hashKey, makeKey } from "@/lib/mcp/keys";
+import { DEVELOPER, seesSalesMail } from "@/lib/scope";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -271,10 +272,24 @@ export async function saveAiBudget(usd: number): Promise<{ error?: string }> {
 
 // Your Claude, connected to the app (the MCP link, app/api/mcp, lib/mcp): one
 // link per person (Abhishek, 18 Oct 2026), so making one turns off the one
-// before. The link is shown once, here; only its hash is kept.
+// before. The link is shown once, here; only its hash is kept. Anyone the
+// link would let in (Level 1 and Sales) makes their own, from Integrations
+// or Account (19 Oct 2026), always as the person really signed in.
+async function connectsClaude() {
+  const me = await getRealViewer();
+  return me && seesSalesMail(me) ? me : null;
+}
+
+export async function myClaudeConnection(): Promise<{ createdAt: string; lastUsedAt: string | null } | null> {
+  const me = await connectsClaude();
+  if (!me) return null;
+  const c = await prisma.connection.findFirst({ where: { userId: me.id, revokedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true, lastUsedAt: true } });
+  return c ? { createdAt: c.createdAt.toISOString(), lastUsedAt: c.lastUsedAt?.toISOString() ?? null } : null;
+}
+
 export async function makeClaudeConnection(): Promise<{ error?: string; link?: string }> {
-  const me = await requireAdmin();
-  if (!me) return { error: "Only an admin can change this." };
+  const me = await connectsClaude();
+  if (!me) return { error: "Only Level 1 and Sales can connect Claude." };
   const key = makeKey();
   await prisma.$transaction([
     prisma.connection.updateMany({ where: { userId: me.id, revokedAt: null }, data: { revokedAt: new Date() } }),
@@ -286,16 +301,17 @@ export async function makeClaudeConnection(): Promise<{ error?: string; link?: s
   revalidatePath("/integrations");
   const link = `${proto}://${host}/api/mcp/${key}`;
   // on this Mac (not live): the Claude desktop app's bridge reads the link from
-  // here (scripts/mcp-bridge.mjs), so the new link works there at once
-  if (process.env.NODE_ENV !== "production" && /^(localhost|127\.0\.0\.1)/.test(host)) {
+  // here (scripts/mcp-bridge.mjs), so the new link works there at once. Only
+  // the developer's: a test account's link mustn't take over his Claude.
+  if (process.env.NODE_ENV !== "production" && me.email === DEVELOPER && /^(localhost|127\.0\.0\.1)/.test(host)) {
     await writeFile(path.resolve(process.cwd(), "../data/mcp-link.txt"), `${link}\n`).catch(() => {});
   }
   return { link };
 }
 
 export async function turnOffClaudeConnection(): Promise<{ error?: string }> {
-  const me = await requireAdmin();
-  if (!me) return { error: "Only an admin can change this." };
+  const me = await connectsClaude();
+  if (!me) return { error: "Only Level 1 and Sales can connect Claude." };
   await prisma.connection.updateMany({ where: { userId: me.id, revokedAt: null }, data: { revokedAt: new Date() } });
   revalidatePath("/integrations");
   return {};

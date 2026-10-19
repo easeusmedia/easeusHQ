@@ -11,7 +11,11 @@ const input = "min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 
 // Your Claude on the Sales dashboard (MCP): the link to paste into claude.ai,
 // made here and shown once; when it was made and last used; a new one (the
 // old one stops working) or off. Sales only, as you, and it never deletes.
-export function ClaudeConnection({ active }: { active: { createdAt: string; lastUsedAt: string | null } | null }) {
+// On Integrations as a card; in the Account window (anyone in Sales) as a
+// section of it, so `className` swaps the card's look, and `onChange` tells
+// the window (a refresh redraws only the page) what the link is now.
+type Active = { createdAt: string; lastUsedAt: string | null } | null;
+export function ClaudeConnection({ active, onChange, className = "mb-4 break-inside-avoid panel rounded-2xl p-5" }: { active: Active; onChange?: (active: Active) => void; className?: string }) {
   const router = useRouter();
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -27,6 +31,7 @@ export function ClaudeConnection({ active }: { active: { createdAt: string; last
     setAsking(null);
     if (res.error || !res.link) return setError(res.error ?? "That couldn't be made.");
     setLink(res.link);
+    onChange?.({ createdAt: new Date().toISOString(), lastUsedAt: null });
     router.refresh();
   }
   async function turnOff() {
@@ -37,6 +42,7 @@ export function ClaudeConnection({ active }: { active: { createdAt: string; last
     setAsking(null);
     if (res.error) return setError(res.error);
     setLink(null);
+    onChange?.(null);
     router.refresh();
   }
   async function copy() {
@@ -48,7 +54,7 @@ export function ClaudeConnection({ active }: { active: { createdAt: string; last
 
   const on = !!active || !!link;
   return (
-    <section className="mb-4 flex break-inside-avoid flex-col gap-4 panel rounded-2xl p-5">
+    <section className={`flex flex-col gap-4 ${className}`}>
       <div className="flex items-center gap-2.5">
         <Plug size={18} className="text-muted" />
         <h2 className="text-base font-medium">Claude connection (MCP)</h2>
