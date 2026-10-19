@@ -5,7 +5,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
-import { assigneeWhere, buildsDepartment, effectiveRole, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, buildsDepartment, effectiveRole, isFounder, isLead, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
@@ -50,12 +50,14 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
   if (!actingUser) redirect("/login");
 
   // Who Production work can go to: a Member only themselves; a Founder any
-  // Member, or themselves; a Lead the Members in their departments, or
-  // themselves (lib/scope canAssign)
+  // Member, or themselves; a Lead the Members in their departments, never
+  // themselves, since a Level 2's own task stays off this board (20 Oct
+  // 2026) (lib/scope canAssign)
   const deptIds = viewer.departments.map((d) => d.id);
+  const lead = isLead(viewer) && !isFounder(viewer);
   const editors = member
     ? users.filter((u) => u.id === viewer.id)
-    : users.filter((u) => onStaff(u) && (u.id === viewer.id || (u.role === "employee" && (isFounder(viewer) || (!!u.teamId && deptIds.includes(u.teamId))))));
+    : users.filter((u) => onStaff(u) && ((u.id === viewer.id && !lead) || (u.role === "employee" && (isFounder(viewer) || (!!u.teamId && deptIds.includes(u.teamId))))));
 
   // The Board is Production's: its Video and Design queues, for whoever
   // works or runs them. Everyone else's work is to-dos, in My tasks.
