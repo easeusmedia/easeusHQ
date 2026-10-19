@@ -272,8 +272,8 @@ export function Messages({
         <section className={`${PANEL} @container flex min-h-0 flex-col overflow-hidden`}>
           {/* the days as steps along the top: done (approved or replied) with a
               tick, today green, next blue, the open one lit, joined by lines.
-              In a narrow window the other days shrink to numbered circles, so
-              nothing is ever cut off. */}
+              In a narrow window the other days shrink to numbered circles (on a
+              phone, without the lines), so every day shows and nothing is cut off. */}
           <div className="flex shrink-0 flex-col gap-2.5 border-b border-white/[0.07] px-4 py-3">
             {/* the opener, as on the Dream 300 pages: the first email written
                 for this lead, main or a backup; Days 1 and 2 change with it */}
@@ -299,14 +299,14 @@ export function Messages({
                   const tone = x.when === "now" ? "emerald" : x.when === "next" ? "accent" : null;
                   return (
                     <Fragment key={x.key}>
-                      {i > 0 && <span aria-hidden className={`h-px w-2 shrink-0 @4xl:w-5 ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
+                      {i > 0 && <span aria-hidden className={`hidden h-px w-2 shrink-0 @sm:block @4xl:w-5 ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
                       <button
                         type="button"
                         role="tab"
                         aria-selected={on}
                         onClick={() => setTab(x.key)}
                         title={x.sub}
-                        className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1.5 text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow,padding] duration-200 ${on || x.day == null ? "pr-3.5" : "pr-1.5 @4xl:pr-3.5"} ${
+                        className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow,padding] duration-200 ${on || x.day == null ? "py-1 pr-3.5 pl-1.5" : "p-0.5 @md:py-1 @md:pr-1.5 @md:pl-1.5 @4xl:pr-3.5"} ${
                           on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                         }`}
                       >

@@ -48,7 +48,8 @@ function Face({ src, name, size = 56 }: { src: string | null; name: string; size
   const letters = name
     .replace(/^(dr\.?|mr\.?|ms\.?)\s+/i, "")
     .split(/[\s|/,-]+/)
-    .filter(Boolean)
+    // words only: "Test · Two people" is TT, not T·
+    .filter((w) => /^[\p{L}\p{N}]/u.test(w))
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
