@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma.ts";
 import { startRun } from "./apify.ts";
 import { callbackKey, IG_ACTOR, YT_ACTOR } from "./contentSync.ts";
-import { channelOf, instagramOf, statsOf, type ChannelStats } from "./channelStats.ts";
+import { channelOf, instagramOf, smallAvatar, statsOf, type ChannelStats } from "./channelStats.ts";
 
 // A Sales lead's own channel, read by Apify (Abhishek, 17 Oct 2026): its
 // followers, the views it usually gets and its latest uploads, for the lead
@@ -33,11 +33,12 @@ export async function freshenLeadChannel(leadId: string, origin?: string): Promi
     select: { id: true, values: true, channel: true, channelAt: true, board: { select: { fields: { select: { id: true, kind: true } } } } },
   });
   if (!lead) return { channel: null, channelAt: null, reading: false };
-  const now = { channel: (lead.channel as ChannelStats | null) ?? null, channelAt: lead.channelAt };
-  if (lead.channelAt && Date.now() - lead.channelAt.getTime() < DAY) return { ...now, reading: false };
   const values = lead.values as Record<string, unknown>;
   const instagram = instagramOf(values, lead.board.fields);
   const target = channelOf(values, lead.board.fields) ?? (instagram ? { platform: "instagram" as const, url: instagram } : null);
+  const channel = target?.platform === "youtube" ? await withYoutubePicture(leadId, (lead.channel as ChannelStats | null) ?? null, target.url) : ((lead.channel as ChannelStats | null) ?? null);
+  const now = { channel, channelAt: lead.channelAt };
+  if (lead.channelAt && Date.now() - lead.channelAt.getTime() < DAY) return { ...now, reading: false };
   if (!target) return { ...now, reading: false };
   // one read a day, whatever came of it
   const today = await prisma.scrapeRun.findFirst({
@@ -103,6 +104,35 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
   if (followers && stats.followers !== null) values[followers.id] = stats.followers.toLocaleString("en-GB");
   if (views && stats.typicalViews !== null) values[views.id] = stats.typicalViews.toLocaleString("en-GB");
   await prisma.lead.update({ where: { id: leadId }, data: { channel, channelAt: new Date(), values: values as Prisma.InputJsonObject } });
+}
+
+// The channel's picture from its own YouTube page (Abhishek, 19 Oct 2026:
+// "fetch the YouTube profile picture"): free and on any site, not an Apify
+// read, so the lead window shows it on localhost too. Kept as its link
+// (YouTube's picture links last), so no image travels with the lead. Looked
+// for once; a page without one isn't asked again that day.
+async function withYoutubePicture(leadId: string, channel: ChannelStats | null, url: string): Promise<ChannelStats | null> {
+  if (channel?.avatars?.youtube) return channel;
+  if (channel?.pictureTriedAt && Date.now() - Date.parse(channel.pictureTriedAt) < DAY) return channel;
+  const pic = await youtubePicture(url);
+  const base: ChannelStats = channel ?? { platform: "youtube", followers: null, typicalViews: null, recent: [], lastUploadAt: null, avatar: null };
+  const next: ChannelStats = pic ? { ...base, avatars: { ...(base.avatars ?? {}), youtube: pic }, avatar: base.avatar ?? pic, pictureTriedAt: undefined } : { ...base, pictureTriedAt: new Date().toISOString() };
+  await prisma.lead.update({ where: { id: leadId }, data: { channel: next as unknown as Prisma.InputJsonObject } }).catch(() => {});
+  return next;
+}
+
+// The picture a YouTube channel's page shares (its og:image), at 128px; only
+// ever an address on YouTube's own picture host
+export async function youtubePicture(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", "accept-language": "en-GB,en;q=0.9" }, signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const src = (/<meta property="og:image" content="([^"]+)"/.exec(html) ?? /<link rel="image_src" href="([^"]+)"/.exec(html))?.[1];
+    return src && /^https:\/\/yt\d+\.(googleusercontent|ggpht)\.com\/[^\s"'<>]+$/.test(src) ? smallAvatar(src) : null;
+  } catch {
+    return null;
+  }
 }
 
 // A picture as a data URL, or null: an image only, at most 200 KB, given 10

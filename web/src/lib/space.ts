@@ -595,12 +595,8 @@ export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stag
 export function linkName(label: string, url: string): string {
   const l = label.trim().replace(/\s+/g, " ");
   if (!l) return siteName(url);
-  const notion = /^notion page\b\s*(.*)$/i.exec(l);
-  if (notion) {
-    const rest = notion[1].trim();
-    const inner = /^\((.+)\)$/.exec(rest)?.[1];
-    return inner ? `Notion · ${inner}` : rest ? `Notion ${rest}` : "Notion";
-  }
+  // "Notion page", "Notion page (YT 1)", "Notion page 2": all "Notion" (two on one lead are numbered where they show)
+  if (/^notion page\b/i.test(l)) return "Notion";
   const kind = /^(video|reel|post)(\s|$)/i.exec(l);
   if (kind) return kind[1].charAt(0).toUpperCase() + kind[1].slice(1).toLowerCase();
   return l.replace(/^(youtube|instagram|linkedin|facebook|tiktok|x|twitter|spotify)\s+(channel|page|profile|account)$/i, "$1");

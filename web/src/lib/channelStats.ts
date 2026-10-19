@@ -15,6 +15,9 @@ export type ChannelStats = {
   // every platform's picture the lead has, saved the same way (avatar is the
   // first of them): its YouTube channel's, its Instagram account's
   avatars?: Partial<Record<"youtube" | "instagram" | "linkedin", string>>;
+  // when the YouTube picture was last looked for on the channel's own page
+  // (lib/leadChannel youtubePicture), so a page without one isn't asked again that day
+  pictureTriedAt?: string;
 };
 
 // the lead's channel, from its Links: the "YouTube channel" link, or the

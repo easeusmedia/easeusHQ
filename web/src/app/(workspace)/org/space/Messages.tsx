@@ -632,12 +632,9 @@ function MessageForm({
               </span>
             )}
           </h4>
-          {(message.note || extra) && (
-            <p className="mt-0.5 text-xs leading-relaxed text-muted">
-              {message.note}
-              {extra && <span className="text-foreground/80">{message.note ? " " : ""}{extra}</span>}
-            </p>
-          )}
+          {/* the template's sending note stays in All messages; only what's
+              needed to send this one shows here (Day 6's meme board image) */}
+          {extra && <p className="mt-0.5 text-xs leading-relaxed text-foreground/80">{extra}</p>}
         </div>
         {!editing && (
           <span className="-mt-0.5 flex shrink-0 items-center">

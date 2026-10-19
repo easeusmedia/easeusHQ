@@ -322,7 +322,7 @@ test("a link is called something short", () => {
   assert.equal(linkName("Video named in the opener", "https://youtube.com/watch?v=1"), "Video");
   assert.equal(linkName("Reel named in the opener", "https://instagram.com/reel/1"), "Reel");
   assert.equal(linkName("Notion page", "https://a.notion.site/x"), "Notion");
-  assert.equal(linkName("Notion page (YT 2)", "https://a.notion.site/x"), "Notion · YT 2");
+  assert.equal(linkName("Notion page (YT 2)", "https://a.notion.site/x"), "Notion");
   assert.equal(linkName("Post with the keyword", "https://instagram.com/p/1"), "Post");
   assert.equal(linkName("Clinic Instagram", "https://instagram.com/c"), "Clinic Instagram");
   assert.equal(linkName("Website", "https://clinic.com"), "Website");
@@ -335,7 +335,7 @@ test("a link is called something short", () => {
   assert.equal(linkName("Landing page", "https://clinic.com/l"), "Landing page");
   assert.equal(linkName("Second channel", "https://youtube.com/@b"), "Second channel");
   assert.equal(linkName("Post-op care guide", "https://clinic.com/p"), "Post-op care guide");
-  assert.equal(linkName("Notion page 2", "https://a.notion.site/y"), "Notion 2");
+  assert.equal(linkName("Notion page 2", "https://a.notion.site/y"), "Notion");
   assert.equal(linkName("", "mailto:a@b.com"), "a@b.com");
 });
 

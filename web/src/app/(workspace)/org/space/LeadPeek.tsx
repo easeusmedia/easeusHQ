@@ -136,7 +136,6 @@ function LeadPage({
   const [deleting, setDeleting] = useState(false);
   // details and contacts read as plain text until Edit
   const [editDetails, setEditDetails] = useState(false);
-  const [editContacts, setEditContacts] = useState(false);
   const [who, setWho] = useState<string | null>(null);
   // a new person, being filled in on the left after the + at the top
   const [adding, setAdding] = useState(false);
@@ -390,7 +389,6 @@ function LeadPage({
                   aria-selected={!adding && c.id === person?.id}
                   onClick={() => {
                     setAdding(false);
-                    setEditContacts(false);
                     setWho(c.id);
                   }}
                   className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
@@ -412,7 +410,6 @@ function LeadPage({
             <button
               type="button"
               onClick={() => {
-                setEditContacts(false);
                 setAdding(true);
               }}
               aria-label="Add a contact"
@@ -447,9 +444,8 @@ function LeadPage({
                 person={person}
                 channel={channel}
                 editingDetails={editDetails}
-                editingContacts={editContacts}
                 onEditDetails={() => setEditDetails((e) => !e)}
-                onEditContacts={() => setEditContacts((e) => !e)}
+                onPick={(id) => setWho(id)}
                 fieldLabel={fieldName}
                 onSaveValue={saveValue}
                 adding={adding}
