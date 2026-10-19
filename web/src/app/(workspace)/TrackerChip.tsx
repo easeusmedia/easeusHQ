@@ -3,15 +3,20 @@
 import { useEffect, useState } from "react";
 import { Mail } from "lucide-react";
 import { PrefetchLink as Link } from "./PrefetchLink";
+import { myTrackerLastSent } from "./email/actions";
 
 // Whether the mail tracker (/extension, 1.0.7 on) is in this browser and
 // reports to this site, asked the way the Mail tracker page asks it. Opens
 // and clicks only count from emails sent where it's on, so the boards and
 // the Email page show it beside their numbers. Opens that page to set it up.
-type State = "asking" | "here" | "elsewhere" | "idle" | "missing";
+// Not in this browser (Safari, the Dock app, can't hold it) but it logged
+// an email of yours in the last 30 days: it's on where you send from ("away").
+type State = "asking" | "here" | "away" | "elsewhere" | "idle" | "missing";
+const AWAY_DAYS = 30;
 
 const LOOK: Record<Exclude<State, "asking">, { dot: string; text: (base: string) => string; title: string }> = {
   here: { dot: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]", text: () => "Mail tracker on", title: "Emails you send from Gmail in this browser are tracked." },
+  away: { dot: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]", text: () => "Mail tracker on", title: "On in the browser you send from, such as Chrome. This browser doesn't need it." },
   elsewhere: {
     dot: "bg-amber-400",
     text: (base) => `Mail tracker reports to ${base.replace(/^https?:\/\//, "")}`,
@@ -51,8 +56,13 @@ export function TrackerChip() {
     };
     window.addEventListener("message", hear);
     window.postMessage({ type: "easeus-mail-tracker:ping" }, window.location.origin);
-    // no answer in two seconds: not installed (or older than 1.0.7)
-    const timer = setTimeout(() => setState((s) => (s === "asking" ? "missing" : s)), 2000);
+    // no answer in two seconds: not in this browser (or older than 1.0.7),
+    // so whether it's on in the one you send from
+    const timer = setTimeout(async () => {
+      const last = await myTrackerLastSent().catch(() => null);
+      const away = !!last && Date.now() - new Date(last).getTime() < AWAY_DAYS * 86_400_000;
+      setState((s) => (s === "asking" ? (away ? "away" : "missing") : s));
+    }, 2000);
     return () => {
       window.removeEventListener("message", hear);
       clearTimeout(timer);

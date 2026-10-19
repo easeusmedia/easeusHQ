@@ -49,3 +49,13 @@ export async function deletePdf(id: string): Promise<{ error?: string }> {
   revalidatePath("/email");
   return {};
 }
+
+// When your mail tracker last logged an email you sent, from whichever
+// browser it's in: the boards' chip, in a browser without it (Safari, the
+// Dock app), shows it's on where you send from
+export async function myTrackerLastSent(): Promise<string | null> {
+  const me = await getRealViewer();
+  if (!me) return null;
+  const last = await prisma.trackedMail.findFirst({ where: { userId: me.id }, orderBy: { sentAt: "desc" }, select: { sentAt: true } });
+  return last?.sentAt.toISOString() ?? null;
+}
