@@ -467,9 +467,12 @@ function LeadPage({
 
         {/* beside it, the same height: every stage it has been through */}
         <div inert={!history} className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"}`}>
-          <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
-            <p className="shrink-0 text-xs font-medium text-muted">Every stage and hand-off, in order</p>
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-xl panel-soft p-4">{events ? <LeadHistory events={events} flat /> : <p className="text-xs text-muted">Loading the record…</p>}</div>
+          {/* a panel like the two beside it: same top, same corners, its name inside as theirs are */}
+          <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col pl-4">
+            <div className="panel-soft min-h-0 flex-1 overflow-y-auto rounded-2xl px-5 py-5">
+              <p className="mb-3 text-[11px] font-medium tracking-wide text-muted uppercase">History</p>
+              {events ? <LeadHistory events={events} flat /> : <p className="text-xs text-muted">Loading the record…</p>}
+            </div>
           </div>
         </div>
       </div>

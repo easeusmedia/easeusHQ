@@ -276,8 +276,8 @@ export function Messages({
     <div className="@container min-h-0 flex-1">
       {/* the lead's profile on the left; on the right its messages, the days along their top */}
       <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-        {/* as tall as what's in it (scrolling past the window's height), not a tall empty box */}
-        <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto`}>
+        {/* side by side, as tall as the emails beside it (Abhishek: the panels equal); stacked, as tall as what's in it */}
+        <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto @3xl:self-stretch`}>
           {/* the form: the words that change per lead, typed once, filling every email that uses them */}
           {prepared && used.length > 0 && (
             <section className="border-b border-white/[0.06] px-5 py-5">
