@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { viewerForKey } from "@/lib/mcp/keys";
 import { MCP_PATH, originOf } from "@/lib/mcp/oauth";
 import { answerMcp, POST_ONLY } from "@/lib/mcp/serve";
+import { traced } from "@/lib/mcp/trail";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,14 +26,14 @@ async function signedIn(request: Request) {
   );
 }
 
-export async function POST(request: Request) {
+export const POST = traced(async (request: Request) => {
   const viewer = await signedIn(request);
   return viewer instanceof Response ? viewer : answerMcp(request, viewer);
-}
+});
 
-export async function GET(request: Request) {
+export const GET = traced(async (request: Request) => {
   const viewer = await signedIn(request);
   return viewer instanceof Response ? viewer : POST_ONLY();
-}
+});
 
 export const DELETE = POST_ONLY;

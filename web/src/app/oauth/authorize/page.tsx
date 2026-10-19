@@ -5,6 +5,7 @@ import { THEME_COOKIE } from "@/lib/consent";
 import { getRealViewer } from "@/lib/auth";
 import { connectsClaude } from "@/lib/scope";
 import { checkAuthorize } from "@/lib/mcp/oauth";
+import { trail } from "@/lib/mcp/trail";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,10 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   const theme = (await cookies()).get(THEME_COOKIE)?.value === "dark" ? "dark" : "mist";
   const checked = checkAuthorize(p);
   const me = await getRealViewer();
+  if (!me && !("error" in checked)) await trail("PAGE /oauth/authorize | signed out, to /login");
   if (!me && !("error" in checked)) redirect(`/login?next=${encodeURIComponent(`/oauth/authorize?${new URLSearchParams(p)}`)}`);
   const allowed = !!me && connectsClaude(me);
+  await trail(`PAGE /oauth/authorize | ${Object.keys(p).join(" ")} redirect_uri=${p.redirect_uri} resource=${p.resource} scope=${p.scope} | ${"error" in checked ? checked.error : allowed ? "Allow shown" : "refused"}`);
 
   return (
     <div data-theme={theme} className="login-root relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-background p-6 text-white">

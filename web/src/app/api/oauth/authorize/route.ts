@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { traced } from "@/lib/mcp/trail";
 import { getRealViewer } from "@/lib/auth";
 import { connectsClaude } from "@/lib/scope";
 import { checkAuthorize, clientTag, CODE_SECONDS, originOf, seal } from "@/lib/mcp/oauth";
@@ -6,7 +7,7 @@ import { checkAuthorize, clientTag, CODE_SECONDS, originOf, seal } from "@/lib/m
 // The Allow (or Cancel) on /oauth/authorize: back to Claude with a code, or
 // with "access_denied". Only from that page (same origin), as the person
 // really signed in, and checked again from scratch.
-export async function POST(request: Request) {
+export const POST = traced(async (request: Request) => {
   const origin = originOf(request.headers);
   if (request.headers.get("origin") !== origin) return new Response("Open this from Claude's Connect button.", { status: 403 });
   const form = await request.formData();
@@ -21,4 +22,4 @@ export async function POST(request: Request) {
   if (p.decision !== "allow" || !me || !connectsClaude(me)) back.searchParams.set("error", "access_denied");
   else back.searchParams.set("code", seal("code", { u: me.id, c: clientTag(p.client_id), r: checked.redirect, ch: p.code_challenge }, CODE_SECONDS));
   return NextResponse.redirect(back, 303);
-}
+});
