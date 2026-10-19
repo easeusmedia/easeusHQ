@@ -311,6 +311,19 @@ dialog[open]::backdrop {
   }
 }
 
+/* A task locked until it has a new due date (FrozenTasks): a little darker
+   on the Production board and lists and in My tasks (Abhishek, 20 Oct
+   2026), its colours kept so the red date still reads. Home's rows stay as
+   they are (data-frozen-plain): "don't fade" there (11 Oct). */
+[data-frozen-task]:not([data-frozen-plain]) {
+  filter: brightness(0.6);
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+[data-frozen-task]:not([data-frozen-plain]):hover {
+  filter: brightness(0.75);
+}
+
 /* Something that arrives after its box is on screen (a task's record, once
    loaded) eases open downward instead of popping in. Its one child needs
    min-height: 0 and overflow: hidden. */

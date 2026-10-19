@@ -623,7 +623,7 @@ export function HomeView({
               const tickable = i.source === "work" || i.workflow === "todo" || env.actingRole !== "employee";
               const due = dueText(i.due, today);
               return (
-                <div key={i.key} {...frozen(i.id)} onPointerEnter={() => warmTask({ kind: i.source, id: i.id })} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
+                <div key={i.key} {...frozen(i.id)} data-frozen-plain onPointerEnter={() => warmTask({ kind: i.source, id: i.id })} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">
                   {tickable ? (
                     <button
                       type="button"

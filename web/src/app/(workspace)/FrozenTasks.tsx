@@ -20,11 +20,12 @@ export function useFrozen() {
 }
 
 // Work left overdue, by anyone at any level (lib/taskTrack
-// overdueToAnswer), is locked on the Production board and lists and in My
-// tasks: it looks as usual, but any click, drag or Enter on it opens a
-// prompt for a new due date and a reason instead. Home isn't locked (11 Oct
-// 2026). The task unlocks once its date is in. A Level 1 looking as them
-// sees their locked work and can set the dates for them.
+// overdueToAnswer), is locked on the Production board and lists, in My
+// tasks and in Home's own rows: any click, drag or Enter on it opens a
+// prompt for a new due date and a reason instead. It shows a little darker
+// (globals.css), except on Home (data-frozen-plain). The task unlocks once
+// its date is in. A Level 1 looking as them sees their locked work and can
+// set the dates for them.
 export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: React.ReactNode }) {
   const ids = useMemo(() => new Set(items.map((t) => t.id)), [items]);
   const [asking, setAsking] = useState<ToAnswer | null>(null);
