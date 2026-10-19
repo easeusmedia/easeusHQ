@@ -788,7 +788,6 @@ export function Composer({
       data.set("tagsPresent", "1");
       if (kind?.id.startsWith("role:")) data.set("roleId", kind.id.slice(5));
       else if (kind) data.append("tagIds", kind.id);
-      data.set("workflow", kind?.workflow ?? "todo");
       // work done for the client that they never receive as a file
       if ((kind?.workflow ?? "todo") === "todo" && !kind?.clientFacing) data.set("internal", "on");
       res = await createTask({}, data);

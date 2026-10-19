@@ -18,7 +18,6 @@ type Props = {
   switcher?: React.ReactNode;
   // its own stages, for a queue other than the video one
   columns?: Column[];
-  workflow?: string;
 };
 
 // The editing queue, as the kanban board or as a list grouped by stage —

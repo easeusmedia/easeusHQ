@@ -53,7 +53,7 @@ export function BoardViews({
         {scope === "editors" && canSyncNotion && <NotionSyncButton />}
       </div>
       <div hidden={scope !== "design"}>
-        <EditorsView {...design} columns={DESIGN_COLUMNS} workflow="design" switcher={switcher} />
+        <EditorsView {...design} columns={DESIGN_COLUMNS} switcher={switcher} />
       </div>
     </>
   );

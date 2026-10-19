@@ -33,7 +33,6 @@ export function NewTaskRow({
   taskTags = [],
   canCreateProject = true,
   trigger = "button",
-  workflow,
 }: {
   // the board column's button, or a list's first row
   trigger?: "button" | "row";
@@ -45,8 +44,6 @@ export function NewTaskRow({
   // pre-picks the project when this is embedded on that project's own page,
   // so adding a task there doesn't mean hunting it back out of the list
   defaultProjectId?: string;
-  // the queue it's added from: a task with no kind of work picked follows it
-  workflow?: string;
 }) {
   const [state, formAction, pending] = useActionState(createTask, initialState);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -155,7 +152,6 @@ export function NewTaskRow({
     data.set("rawLink", f.rawLink);
     data.set("editingNotes", f.notes);
     data.set("tagsPresent", "1");
-    if (workflow) data.set("workflow", workflow);
     for (const id of f.tagIds) data.append("tagIds", id);
     if (f.internal) data.set("internal", "on");
     startTransition(() => formAction(data));

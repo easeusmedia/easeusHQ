@@ -65,7 +65,6 @@ export function Board({
   columns = BOARD_COLUMNS,
   taskTags = [],
   layout = "board",
-  workflow,
 }: {
   tasks: TaskCardData[];
   projects: Project[];
@@ -78,8 +77,6 @@ export function Board({
   // the same tasks, same drag-and-drop and same rules, as columns of cards
   // or as a list of rows grouped by stage
   layout?: "board" | "list";
-  // the queue this board is (video or design): new tasks follow it
-  workflow?: string;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -316,7 +313,7 @@ export function Board({
         }}
       >
         {addRow && (
-          <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" workflow={workflow} />
+          <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" />
         )}
         {columnTasks.map((task) => (
           <div
@@ -485,7 +482,7 @@ export function Board({
             header: stageHeader(col),
             body: (
               <section className="flex min-w-0 flex-1 flex-col gap-3">
-                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} workflow={workflow} />}
+                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
                 {dropZone(col)}
               </section>
             ),

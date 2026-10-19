@@ -120,7 +120,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
     return { error: TYPE_NEEDED };
   }
   // its kind of work decides how it moves and whose department it's in
-  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("workflow") ?? ""), String(formData.get("roleId") ?? "") || undefined, title.trim());
+  const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("roleId") ?? "") || undefined, title.trim());
 
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
@@ -166,8 +166,10 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 
 // A task's workflow and department, from its kind of work: the first kind
 // that has them, else the assignee's department (or Production, where the
-// editing queue lives). Exported for My tasks, which adds client work too.
-export async function placeTask(tagIds: string[], assignedToId: string | null, fallback?: string, roleId?: string, title = ""): Promise<{ workflow: Workflow; teamId: string | null }> {
+// editing queue lives). With no Type picked it's an admin task, a to-do,
+// whatever queue it was added from (Abhishek, 20 Oct 2026), so it never
+// sits on the Production board. Exported for My tasks, which adds client work too.
+export async function placeTask(tagIds: string[], assignedToId: string | null, roleId?: string, title = ""): Promise<{ workflow: Workflow; teamId: string | null }> {
   const [tags, assignee, production, role, kinds] = await Promise.all([
     tagIds.length ? prisma.taskTag.findMany({ where: { id: { in: tagIds } }, select: { workflow: true, teamId: true, sortOrder: true }, orderBy: { sortOrder: "asc" } }) : [],
     assignedToId ? prisma.user.findUnique({ where: { id: assignedToId }, select: { teamId: true, departments: { select: { id: true } } } }) : null,
@@ -179,8 +181,9 @@ export async function placeTask(tagIds: string[], assignedToId: string | null, f
   ]);
   // no kind of work: the words in its title say where it belongs (a draw, the person's own)
   const fromWords = title ? await departmentFromWords(title, [assignee?.teamId, ...(assignee?.departments ?? []).map((d) => d.id)].filter((x): x is string => !!x)) : null;
-  const kind = tags[0] ?? role ?? kindInTitle(title, kinds);
-  return { workflow: workflowOf(kind?.workflow ?? fallback), teamId: kind?.teamId ?? fromWords ?? assignee?.teamId ?? production?.id ?? null };
+  const typed = tags[0] ?? role;
+  const kind = typed ?? kindInTitle(title, kinds);
+  return { workflow: typed ? workflowOf(typed.workflow) : "todo", teamId: kind?.teamId ?? fromWords ?? assignee?.teamId ?? production?.id ?? null };
 }
 
 type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNotes?: string; sortOrder?: number; grade?: string };
