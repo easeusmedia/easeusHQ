@@ -114,7 +114,8 @@ export function ProjectHeader({
 
   const done = status === "completed";
   const typeOptions = [...new Set([form.type, ...types].filter(Boolean))].map((t) => ({ value: t, label: t }));
-  const fact = "flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-xs";
+  // the same box as the invoice chip beside them (chip.ts): one height in the row
+  const fact = "flex items-center gap-1.5 rounded-full border border-transparent bg-foreground/[0.06] px-3 py-1.5 text-xs";
 
   return (
     // One card: the cover, then everything about the project beside it —
@@ -258,7 +259,7 @@ export function ProjectHeader({
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                className={`rounded-full border border-transparent px-3 py-1.5 text-xs font-medium ${
                   done ? "bg-green-400/15 text-green-300" : "bg-blue-400/15 text-blue-300"
                 }`}
               >

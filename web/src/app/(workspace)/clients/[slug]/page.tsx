@@ -34,8 +34,6 @@ import { PhotoEdit } from "../../PhotoEdit";
 import { ClientTags } from "../ClientTags";
 import { listTags, updateClientAvatar } from "../actions";
 import { ClientDocuments } from "../ClientInfo";
-import { WeekCalendar, type WeekEntry } from "../WeekCalendar";
-import { indiaDay } from "@/lib/due";
 import { EditorAccess } from "../EditorAccess";
 import { Avatar } from "../../TaskCard";
 
@@ -45,27 +43,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const shortDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-
-// A client's dated work for the week calendar: deliveries, and postings for
-// Operations only (lib/scope seesPostings), from two months back to four
-// ahead, whatever stage it's at (a reel goes live after it's delivered).
-// Only one person's, for an editor.
-async function weekEntries(projectIds: string[], { assignedToId, postings }: { assignedToId?: string; postings: boolean }): Promise<WeekEntry[]> {
-  const from = new Date(Date.now() - 60 * 86_400_000);
-  const to = new Date(Date.now() + 120 * 86_400_000);
-  const tasks = await prisma.task.findMany({
-    where: {
-      projectId: { in: projectIds },
-      ...(assignedToId ? { assignedToId } : {}),
-      OR: [{ deliveryDate: { gte: from, lte: to } }, ...(postings ? [{ postDate: { gte: from, lte: to } }] : [])],
-    },
-    select: { title: true, deliveryDate: true, postDate: true },
-  });
-  return tasks.flatMap((t) => [
-    ...(t.deliveryDate ? [{ day: indiaDay(t.deliveryDate), kind: "delivery" as const, title: t.title }] : []),
-    ...(postings && t.postDate ? [{ day: indiaDay(t.postDate), kind: "posting" as const, title: t.title }] : []),
-  ]);
-}
 
 // The client and everything its page shows of it
 function loadClient(slug: string) {
@@ -134,7 +111,7 @@ export default async function ClientDetailPage({
   // a Lead sees the work of their departments here, never a Founder's
   const seen = assigneeWhere(viewer);
 
-  const [feedback, tasks, deliveredSinceInvoice, clientWorkTasks, taskTags, taskCounts, week] = await Promise.all([
+  const [feedback, tasks, deliveredSinceInvoice, clientWorkTasks, taskTags, taskCounts] = await Promise.all([
     canSeeFeedback
       ? prisma.clientFeedback.findMany({ where: { clientId: client.id }, orderBy: { createdAt: "desc" }, take: 50 })
       : Promise.resolve([]),
@@ -166,7 +143,6 @@ export default async function ClientDetailPage({
     // how many tasks each project carries in total (the active count above
     // is filtered) — the delete confirmation says what would go with it
     prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } }),
-    weekEntries(projectIds, { postings: canSeeFeedback }),
   ]);
   // the client's work splits two ways on the Overview: what they'll receive,
   // and what's done for them behind the scenes
@@ -291,8 +267,6 @@ export default async function ClientDetailPage({
                     taskTags={taskTags}
                   />
                 </section>
-
-                <WeekCalendar entries={week} today={indiaDay(new Date())} />
 
                 {/* The other half of the client's work: real work done for
                     them that never leaves the studio — audio engineering,
@@ -444,7 +418,7 @@ async function EditorClientPage({
   viewer: Viewer;
   users: Awaited<ReturnType<typeof getAllUsers>>;
 }) {
-  const [tasks, taskTags, week] = await Promise.all([
+  const [tasks, taskTags] = await Promise.all([
     prisma.task.findMany({
       where: { status: { in: ACTIVE_STATUSES }, projectId: { in: client.projects.map((p) => p.id) }, assignedToId: me.id },
       orderBy: { createdAt: "desc" },
@@ -454,7 +428,6 @@ async function EditorClientPage({
       where: visibleTagWhere(viewer),
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
-    weekEntries(client.projects.map((p) => p.id), { assignedToId: me.id, postings: false }),
   ]);
   const logo = logoSrcAt(client.slug, (await logoVersions()).get(client.id));
 
@@ -503,7 +476,6 @@ async function EditorClientPage({
                   />
                 </div>
               )}
-                <WeekCalendar entries={week} today={indiaDay(new Date())} />
               </div>
             ),
           },
