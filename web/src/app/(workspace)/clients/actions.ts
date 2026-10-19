@@ -774,7 +774,8 @@ export async function createProject(
   clientId: string,
   name: string,
   coverUrl: string | null = null,
-  deliverableTypes: string[] = [],
+  // omitted (a project started from a task form) = the client's usual ones
+  deliverableTypes: string[] | null = null,
   // yyyy-mm-dd: lay the project's tasks out on the content calendar from
   // this day, by the client's blueprint. Omitted = no tasks made.
   planFrom: string | null = null,
@@ -799,12 +800,14 @@ export async function createProject(
   // its deliverables, one placeholder each ("Pip Jamison Reel 1"), due by
   // the client's blueprint from the day it starts (today, unless picked);
   // a picked type the blueprint has none of still gets one, undated
+  const plan = planFor(client.contentPlan);
+  const types = deliverableTypes ?? plan.filter((p) => p.count > 0).map((p) => p.type);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(planFrom ?? "") ? planFrom! : new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const until = planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > day ? planUntil : undefined;
-  const deliverables = planDeliverables(planFor(client.contentPlan), deliverableTypes, trimmed, day, until);
+  const deliverables = planDeliverables(plan, types, trimmed, day, until);
   const placeholders = [
     ...deliverables.map((d) => ({ name: d.name, contentType: d.type, dueDate: new Date(d.due) })),
-    ...deliverableTypes.filter((t) => !deliverables.some((d) => d.type === t)).map((t) => ({ name: t, contentType: t, dueDate: null })),
+    ...types.filter((t) => !deliverables.some((d) => d.type === t)).map((t) => ({ name: t, contentType: t, dueDate: null })),
   ];
 
   const project = await prisma.project.create({
@@ -827,8 +830,8 @@ export async function createProject(
   const planned =
     planFrom && /^\d{4}-\d{2}-\d{2}$/.test(planFrom)
       ? planTasks(
-          planFor(client.contentPlan),
-          deliverableTypes,
+          plan,
+          types,
           trimmed,
           planFrom,
           planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > planFrom ? planUntil : undefined
