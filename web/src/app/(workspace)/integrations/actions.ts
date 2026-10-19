@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -282,7 +284,13 @@ export async function makeClaudeConnection(): Promise<{ error?: string; link?: s
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "app.easeus.media";
   const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)/.test(host) ? "http" : "https");
   revalidatePath("/integrations");
-  return { link: `${proto}://${host}/api/mcp/${key}` };
+  const link = `${proto}://${host}/api/mcp/${key}`;
+  // on this Mac (not live): the Claude desktop app's bridge reads the link from
+  // here (scripts/mcp-bridge.mjs), so the new link works there at once
+  if (process.env.NODE_ENV !== "production" && /^(localhost|127\.0\.0\.1)/.test(host)) {
+    await writeFile(path.resolve(process.cwd(), "../data/mcp-link.txt"), `${link}\n`).catch(() => {});
+  }
+  return { link };
 }
 
 export async function turnOffClaudeConnection(): Promise<{ error?: string }> {
