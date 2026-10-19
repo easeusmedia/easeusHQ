@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Type, Users, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Type, Users, X, type LucideIcon } from "lucide-react";
 import { handleOf, isFilled, linkName, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -99,16 +99,15 @@ const PLATFORM_BADGE: Record<string, { Icon: React.ComponentType<{ size?: number
   linkedin: { Icon: LinkedinIcon, tone: "bg-sky-600" },
 };
 
-// The lead's profile, in two clearly separate parts (Abhishek, 19 Oct 2026:
-// "one is the channel, the other is the points of contact"):
-// - the CHANNEL: its picture and name with its handle, its numbers with
-//   their icons, its pages as small chips (icon on the left), the rest, and
-//   its latest uploads. Edit opens the channel's details as a form. The
-//   working tags (opener, version, meme board) stay off it.
-// - the POINTS OF CONTACT, at the bottom: every person on the lead, each with
-//   their own Edit, email addresses to copy, phone and their own pages. The
-//   one picked on the tabs at the top (whose messages show) is marked, and a
-//   tap on a person picks them. People are added with the + at the top.
+// The lead's profile, in two parts, everything a list (Abhishek, 19 Oct
+// 2026: "bring the previous thing where everything is in the list format"):
+// - the CHANNEL: its picture and name, its numbers with their icons, then
+//   its pages as rows (icon on the left, plain name, handle in grey), the
+//   rest, and its latest uploads. Edit opens the channel's details as a form.
+//   The working tags (opener, version, meme board) stay off it.
+// - the CONTACT: the person picked on the tabs at the top (whose messages
+//   show), as rows too: email addresses to copy, phone, their own pages.
+//   Edit opens them as a form. The + at the top adds one, here.
 export function LeadProfile({
   title,
   fields,
@@ -123,7 +122,6 @@ export function LeadProfile({
   onCancelAdd,
   onSavePerson,
   onRemovePerson,
-  onPick,
 }: {
   title: string;
   fields: FieldData[];
@@ -138,9 +136,8 @@ export function LeadProfile({
   onCancelAdd: () => void;
   onSavePerson: (c: Contact) => Promise<boolean>;
   onRemovePerson: (id: string) => void;
-  onPick: (id: string) => void;
 }) {
-  // the person whose details are open as a form
+  // the person's details open as a form (theirs: switching person closes it)
   const [editing, setEditing] = useState<string | null>(null);
   const contactsField = fields.find((f) => f.kind === "contacts");
   const people = (contactsField && Array.isArray(values[contactsField.id]) ? (values[contactsField.id] as Contact[]) : []).filter((p) => p.name.trim() || p.channels.some((c) => c.value.trim()));
@@ -149,47 +146,40 @@ export function LeadProfile({
   // the form has them too, last, so they can still be set
   const editable = [...shown, ...fields.filter((f) => f.kind !== "contacts" && named(f, WORKING))];
   const details = shown.filter((f) => isFilled(f.kind, values[f.id]));
-  // the numbers (and where it is) side by side; links as chips; the rest after
+  // the numbers (and where it is) side by side; links as rows; the rest after
   const tiles = details.filter((f) => numberOf(f, values[f.id]) != null || (f.kind === "select" && named(f, /^country$/i)));
   const linkFields = details.filter((f) => f.kind === "links");
   const rest = details.filter((f) => !tiles.includes(f) && !linkFields.includes(f));
   // the channel's pages: the lead's own links, each once; two with one name
-  // are told apart. A person's own LinkedIn or Instagram stays with them,
-  // even when everyone on the lead has the same one (often one doctor twice).
+  // are told apart. A person's own LinkedIn or Instagram stays with them.
   // (A link whose address isn't a web address still shows, as words.)
   const seenUrl = new Set<string>();
   const seenName = new Map<string, number>();
-  const pages = [
-    ...linkFields.flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => (l.url.trim() || l.label.trim() ? [{ href: hrefOf("other", l.url) ?? l.url.trim(), base: linkName(l.label, l.url) || l.url.trim() }] : []))),
-  ]
+  const pages = linkFields
+    .flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => (l.url.trim() || l.label.trim() ? [{ href: hrefOf("other", l.url) ?? l.url.trim(), base: linkName(l.label, l.url) || l.url.trim() }] : [])))
     .filter((l) => !seenUrl.has(sameUrl(l.href)) && seenUrl.add(sameUrl(l.href)))
     .map((l) => {
       const n = (seenName.get(l.base) ?? 0) + 1;
       seenName.set(l.base, n);
       return { href: l.href, name: n > 1 ? `${l.base} · ${n}` : l.base, platform: platformOf(l.href) };
     });
-  const brandUrls = new Set(pages.map((l) => sameUrl(l.href)));
-  // each person as the tabs at the top call them: a number when two share a name
-  const seenPerson = new Map<string, number>();
-  const personName = new Map(
-    people.map((p) => {
-      const base = p.name.trim() || title;
-      const n = (seenPerson.get(base.toLowerCase()) ?? 0) + 1;
-      seenPerson.set(base.toLowerCase(), n);
-      return [p.id, n > 1 ? `${base} · ${n}` : base];
-    }),
-  );
-  // the channel itself (its YouTube, else its Instagram) goes under its name, not among the chips
-  const home = pages.find((p) => p.platform === "youtube" && handleOf(p.href)) ?? pages.find((p) => p.platform === "instagram" && handleOf(p.href)) ?? null;
-  const chips = pages.filter((p) => p !== home);
+  const channelUrls = new Set(pages.map((l) => sameUrl(l.href)));
+  // the picked person as the tabs at the top call them (a number when two share a name)
+  const whoName = (() => {
+    if (!who) return "";
+    const base = (p: Contact) => (p.name.trim() || title).toLowerCase();
+    const n = people.slice(0, people.indexOf(who) + 1).filter((p) => base(p) === base(who)).length;
+    return n > 1 ? `${who.name.trim() || title} · ${n}` : who.name.trim() || title;
+  })();
   const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
-  // the channel's pictures, its own platform's first
+  // the channel's pictures, its YouTube one first
   const stats = channel?.stats;
   const faces = Object.entries(stats?.avatars ?? {})
     .filter((e): e is [string, string] => !!e[1])
-    .sort(([a], [b]) => (b === home?.platform ? 1 : 0) - (a === home?.platform ? 1 : 0));
+    .sort(([a], [b]) => (b === "youtube" ? 1 : 0) - (a === "youtube" ? 1 : 0));
   if (!faces.length && stats?.avatar) faces.push([stats.platform, stats.avatar]);
   const SECTION = "px-5 py-5";
+  const editingWho = !!who && editing === who.id;
 
   return (
     <div className="flex flex-col divide-y divide-white/[0.06]">
@@ -198,20 +188,12 @@ export function LeadProfile({
         <Head title="Channel" editing={editingDetails} onEdit={editable.length ? onEditDetails : undefined} />
         <div className="mb-5 flex min-w-0 items-center gap-3">
           <Pictures faces={faces} name={title} />
-          <div className="min-w-0">
-            <p className="text-sm leading-snug font-semibold break-words text-foreground">{title}</p>
-            {home && (
-              <a href={home.href} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-muted transition-colors hover:text-foreground">
-                <ChipIcon platform={home.platform} />
-                <span className="truncate">{handleOf(home.href)}</span>
-              </a>
-            )}
-          </div>
+          <p className="min-w-0 text-sm leading-snug font-semibold break-words text-foreground">{title}</p>
         </div>
         {editingDetails ? (
           <DetailsForm fields={editable} values={values} label={fieldLabel} onSave={onSaveValue} />
         ) : (
-          (tiles.length > 0 || chips.length > 0 || rest.length > 0) && (
+          (tiles.length > 0 || pages.length > 0 || rest.length > 0) && (
             <div className="flex flex-col gap-5">
               {tiles.length > 0 && (
                 <div className="grid grid-cols-2 gap-x-3 gap-y-4">
@@ -232,10 +214,10 @@ export function LeadProfile({
                   })}
                 </div>
               )}
-              {chips.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {chips.map((l, i) => (
-                    <LinkChip key={i} href={l.href} name={l.name} platform={l.platform} />
+              {pages.length > 0 && (
+                <div className="-my-1 flex flex-col">
+                  {pages.map((l, i) => (
+                    <LinkRow key={i} href={l.href} name={l.name} sub={handleOf(l.href)} platform={l.platform} />
                   ))}
                 </div>
               )}
@@ -267,37 +249,37 @@ export function LeadProfile({
         )}
       </section>
 
-      {/* the points of contact, at the bottom */}
-      {(people.length > 0 || adding) && (
+      {/* the contact: the person picked on the tabs, or the one the + is adding */}
+      {adding ? (
         <section className={SECTION}>
-          <Head title={people.length > 1 ? "Points of contact" : "Point of contact"} />
-          <div className="flex flex-col divide-y divide-white/[0.06]">
-            {adding && (
-              <div className="pb-4">
-                <ContactForm key="new" initial={null} onSave={onSavePerson} onCancel={onCancelAdd} />
+          <Head title="New contact" />
+          <ContactForm key="new" initial={null} onSave={onSavePerson} onCancel={onCancelAdd} />
+        </section>
+      ) : (
+        who && (
+          <section className={SECTION}>
+            <Head title="Contact" editing={editingWho} onEdit={() => setEditing(editingWho ? null : who.id)} />
+            {editingWho ? (
+              <ContactForm
+                key={who.id}
+                initial={who}
+                onSave={async (c) => {
+                  if (await onSavePerson(c)) setEditing(null);
+                }}
+                onCancel={() => setEditing(null)}
+                onRemove={() => {
+                  onRemovePerson(who.id);
+                  setEditing(null);
+                }}
+              />
+            ) : (
+              <div key={who.id} className="fade-in">
+                {/* their name when it says more than the channel's does */}
+                <PersonBlock person={who} name={whoName} named={whoName.toLowerCase() !== title.toLowerCase() || !!who.role} channelUrls={channelUrls} />
               </div>
             )}
-            {people.map((p) =>
-              editing === p.id ? (
-                <div key={p.id} className="py-4 first:pt-0 last:pb-0">
-                  <ContactForm
-                    initial={p}
-                    onSave={async (c) => {
-                      if (await onSavePerson(c)) setEditing(null);
-                    }}
-                    onCancel={() => setEditing(null)}
-                    onRemove={() => {
-                      onRemovePerson(p.id);
-                      setEditing(null);
-                    }}
-                  />
-                </div>
-              ) : (
-                <PersonBlock key={p.id} person={p} lead={personName.get(p.id) ?? title} brand={brandUrls} picked={people.length > 1 && p.id === who?.id} onPick={people.length > 1 ? () => onPick(p.id) : undefined} onEdit={() => setEditing(p.id)} />
-              ),
-            )}
-          </div>
-        </section>
+          </section>
+        )
       )}
     </div>
   );
@@ -395,79 +377,65 @@ function ChipIcon({ platform, size = 13 }: { platform: Platform; size?: number }
   return <Icon size={size} className={`shrink-0 ${ICON_TONE[platform]}`} />;
 }
 
-// a page as a small chip: its icon on the left and its plain name (the handle
-// it's known by on hover); words alone when the address isn't a web address
+// a page as a row: its icon on the left in a soft circle, its plain name, the
+// handle it's known by in grey, an arrow on hover (words alone when the
+// address isn't a web address)
 const CHIP = "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-xs text-foreground/85";
-function LinkChip({ href, name, platform }: { href: string; name: string; platform: Platform }) {
-  const handle = handleOf(href);
+const ROW = "group/link -mx-1.5 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 text-[13px] text-foreground/85";
+function LinkRow({ href, name, sub, platform }: { href: string; name: string; sub?: string | null; platform: Platform }) {
   const inner = (
     <>
-      <ChipIcon platform={platform} />
-      <span className="truncate">{name}</span>
+      <PlatformIcon platform={platform} />
+      <span className="min-w-0 flex-1 truncate">
+        {name}
+        {sub && sub !== name && <span className="ml-2 text-xs text-muted">{sub}</span>}
+      </span>
     </>
   );
-  if (!/^(https?:|mailto:|tel:)/i.test(href)) return <span className={CHIP}>{inner}</span>;
+  if (!/^(https?:|mailto:|tel:)/i.test(href)) return <span className={ROW}>{inner}</span>;
   return (
-    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" title={handle && handle !== name ? `${name} · ${handle}` : name} className={`${CHIP} transition-colors hover:border-white/[0.14] hover:bg-white/[0.05] hover:text-foreground`}>
+    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className={`${ROW} transition-colors hover:bg-white/[0.04] hover:text-foreground`}>
       {inner}
+      <ArrowUpRight size={13} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
     </a>
   );
 }
 
-// One point of contact: their initials, name and role, their own Edit; then
-// their email addresses (to copy) and phone, a line each; then their own
-// pages as chips (the channel's are up top). The one picked on the tabs is
-// marked along its left; a tap on their name picks them.
-function PersonBlock({ person, lead, brand, picked, onPick, onEdit }: { person: Contact; lead: string; brand: Set<string>; picked: boolean; onPick?: () => void; onEdit: () => void }) {
+// The person picked on the tabs: their initials, name and role (when it says
+// more than the channel's name), then everything about them as rows: email
+// addresses (to copy), phone, their own pages (the channel's are above)
+function PersonBlock({ person, name, named, channelUrls }: { person: Contact; name: string; named: boolean; channelUrls: Set<string> }) {
   const emails = person.channels.filter((c) => c.kind === "email" && c.value.trim());
   const phones = person.channels.filter((c) => c.kind === "phone" && c.value.trim()).flatMap((c) => { const href = hrefOf("phone", c.value); return href ? [{ href, name: c.value.trim() }] : []; });
-  const pages = pagesOf(person).filter((p) => !brand.has(sameUrl(p.href)));
-  // `lead` is what the tabs call them (the lead's name for a person without one)
-  const name = lead;
-  const who = (
-    <>
-      <Face src={null} name={name} size={32} />
-      <span className="min-w-0 text-left">
-        <span className="block text-[13px] leading-snug font-medium break-words text-foreground">{name}</span>
-        {person.role && <span className="block text-xs text-muted">{person.role}</span>}
-      </span>
-    </>
-  );
+  const pages = pagesOf(person).filter((p) => !channelUrls.has(sameUrl(p.href)));
+  const rows = emails.length + phones.length + pages.length;
   return (
-    <div className={`fade-in flex flex-col gap-3 py-4 first:pt-0 last:pb-0 ${onPick ? `-ml-5 border-l-2 pl-[1.125rem] transition-colors duration-200 ${picked ? "border-accent" : "border-transparent"}` : ""}`}>
-      <div className="flex min-w-0 items-center gap-2">
-        {onPick ? (
-          <button type="button" onClick={onPick} aria-pressed={picked} title={picked ? undefined : "Show their messages"} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg">
-            {who}
-          </button>
-        ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-2.5">{who}</span>
-        )}
-        <EditButton onEdit={onEdit} label={`Edit ${name}`} />
-      </div>
-      {(emails.length > 0 || phones.length > 0) && (
-        <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-4">
+      {named && (
+        <div className="flex min-w-0 items-center gap-3">
+          <Face src={null} name={name} size={36} />
+          <p className="min-w-0 text-sm leading-snug font-medium break-words text-foreground">
+            {name}
+            {person.role && <span className="block text-xs font-normal text-muted">{person.role}</span>}
+          </p>
+        </div>
+      )}
+      {rows > 0 && (
+        <div className="-my-1 flex flex-col">
           {emails.map((c, i) => (
-            <div key={i} className="group/email -mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/[0.04]">
-              <ChipIcon platform="email" />
-              <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate text-[13px] text-foreground/85 hover:text-foreground">
+            <div key={i} className={`${ROW} transition-colors hover:bg-white/[0.04]`}>
+              <PlatformIcon platform="email" />
+              <a href={`mailto:${c.value.trim()}`} className="min-w-0 flex-1 truncate hover:text-foreground">
                 {c.value.trim()}
               </a>
-              <CopyButton text={c.value.trim()} className="opacity-0 group-hover/email:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
+              <CopyButton text={c.value.trim()} className="opacity-0 group-hover/link:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
             </div>
           ))}
           {phones.map((p, i) => (
-            <a key={`tel-${i}`} href={p.href} className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-[13px] text-foreground/85 transition-colors hover:bg-white/[0.04] hover:text-foreground">
-              <ChipIcon platform="phone" />
-              <span className="truncate">{p.name}</span>
-            </a>
+            <LinkRow key={`tel-${i}`} href={p.href} name={p.name} platform="phone" />
           ))}
-        </div>
-      )}
-      {pages.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
           {pages.map((p, i) => (
-            <LinkChip key={i} href={p.href} name={p.name} platform={p.kind === "other" ? platformOf(p.href) : (p.kind as Platform)} />
+            <LinkRow key={i} href={p.href} name={p.name} sub={handleOf(p.href)} platform={p.kind === "other" ? platformOf(p.href) : (p.kind as Platform)} />
           ))}
         </div>
       )}

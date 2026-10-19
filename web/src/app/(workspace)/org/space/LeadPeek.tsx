@@ -454,7 +454,6 @@ function LeadPage({
                 channel={channel}
                 editingDetails={editDetails}
                 onEditDetails={() => setEditDetails((e) => !e)}
-                onPick={(id) => setWho(id)}
                 fieldLabel={fieldName}
                 onSaveValue={saveValue}
                 adding={adding}
