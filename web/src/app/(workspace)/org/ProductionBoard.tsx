@@ -29,9 +29,11 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
       // latest few projects and searches for the rest
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
-    // the Production queues: video and design work this person may see
+    // the Production queues: video and design work this person may see. A
+    // Level 2's own task isn't Production's (Abhishek, 20 Oct 2026): it
+    // stays in their My tasks
     prisma.task.findMany({
-      where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }] },
+      where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }, { OR: [{ assignedToId: null }, { assignedTo: { role: { not: "core" } } }] }] },
       orderBy: { createdAt: "desc" },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
     }),
