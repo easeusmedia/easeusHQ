@@ -48,6 +48,8 @@ const OMIT = {
   client: { avatarUrl: true },
   contract: { signedPdf: true },
   feedbackSnapshot: { image: true },
+  // a Sales lead's channel read, with its pictures (lib/leadChannel)
+  lead: { channel: true },
 } as const;
 
 function create() {

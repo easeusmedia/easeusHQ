@@ -19,6 +19,9 @@ import { channelOf, instagramOf, smallAvatar, statsOf, type ChannelStats } from 
 export type { ChannelStats };
 
 const DAY = 24 * 60 * 60 * 1000;
+// a ceiling on reads a day across all leads, so opening many leads never runs
+// up Apify credit (about $0.05 a YouTube read: at most about $2.50 a day)
+const READS_A_DAY = 50;
 // the board fields a read fills in, by platform (scripts/doctors-setup.ts)
 const FIELDS = {
   youtube: { followers: "Subscribers", views: "Typical views" },
@@ -40,12 +43,15 @@ export async function freshenLeadChannel(leadId: string, origin?: string): Promi
   const now = { channel, channelAt: lead.channelAt };
   if (lead.channelAt && Date.now() - lead.channelAt.getTime() < DAY) return { ...now, reading: false };
   if (!target) return { ...now, reading: false };
-  // one read a day, whatever came of it
-  const today = await prisma.scrapeRun.findFirst({
+  // one read a day, whatever came of it; still reading while any of today's runs is
+  // (a YouTube lead's Instagram picture run usually finishes before its videos)
+  const today = await prisma.scrapeRun.findMany({
     where: { kind: "lead", startedAt: { gt: new Date(Date.now() - DAY) }, targets: { path: ["lead"], equals: leadId } },
     select: { status: true },
   });
-  if (today) return { ...now, reading: today.status === "RUNNING" || today.status === "SAVING" };
+  if (today.length) return { ...now, reading: today.some((r) => r.status === "RUNNING" || r.status === "SAVING") };
+  // and no more than READS_A_DAY reads across every lead, whoever opens what
+  if ((await prisma.scrapeRun.count({ where: { kind: "lead", platform: target.platform, startedAt: { gt: new Date(Date.now() - DAY) } } })) >= READS_A_DAY) return { ...now, reading: false };
   const callback = origin && !/localhost|127\.0\.0\.1/.test(origin) ? `${origin}/api/analytics/collect?key=${await callbackKey()}` : undefined;
   try {
     const run =
@@ -74,12 +80,12 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
   const platform = run.platform === "instagram" ? "instagram" : "youtube";
   if (!leadId) return;
   const stats = statsOf(platform, items);
-  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { values: true, channel: true, board: { select: { fields: { select: { id: true, name: true } } } } } });
+  // the picture itself, fetched once per read and kept small (its link
+  // expires), before the lead is read: nothing waits between reading it and saving
+  const picture = stats?.avatar ? await dataUrlOf(stats.avatar) : null;
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { channel: true, board: { select: { fields: { select: { id: true, name: true } } } } } });
   if (!lead) return;
   const old = (lead.channel as ChannelStats | null) ?? null;
-  // the picture itself, fetched once per read and kept small (its link
-  // expires), beside the other platforms' pictures already saved
-  const picture = stats?.avatar ? await dataUrlOf(stats.avatar) : null;
   const avatars = { ...(old?.avatars ?? {}), ...(picture ? { [platform]: picture } : {}) };
   // ponytail: two reads of one lead can land together and the later save wins
   // the other's picture; the next day's read brings it back
@@ -88,22 +94,23 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
     const channel: ChannelStats = old
       ? { ...old, avatars, avatar: old.avatar ?? picture }
       : { platform, followers: null, typicalViews: null, recent: [], lastUploadAt: null, avatar: picture, avatars };
-    await prisma.lead.update({ where: { id: leadId }, data: { channel } });
+    await prisma.lead.update({ where: { id: leadId }, data: { channel }, select: { id: true } });
     return;
   }
   if (!stats) {
-    await prisma.lead.update({ where: { id: leadId }, data: { channelAt: new Date() } });
+    await prisma.lead.update({ where: { id: leadId }, data: { channelAt: new Date() }, select: { id: true } });
     return;
   }
   const channel: ChannelStats = { ...stats, avatars, avatar: avatars[platform] ?? Object.values(avatars)[0] ?? null };
-  const values = { ...(lead.values as Record<string, unknown>) };
   const field = (name: string) => lead.board.fields.find((f) => f.name.toLowerCase() === name.toLowerCase());
   const names = FIELDS[platform];
   const followers = field(names.followers);
   const views = field(names.views);
-  if (followers && stats.followers !== null) values[followers.id] = stats.followers.toLocaleString("en-GB");
-  if (views && stats.typicalViews !== null) values[views.id] = stats.typicalViews.toLocaleString("en-GB");
-  await prisma.lead.update({ where: { id: leadId }, data: { channel, channelAt: new Date(), values: values as Prisma.InputJsonObject } });
+  await prisma.lead.update({ where: { id: leadId }, data: { channel, channelAt: new Date() }, select: { id: true } });
+  // only the two numbers, each written on its own, so anything edited on the lead meanwhile stays
+  for (const [f, n] of [[followers, stats.followers], [views, stats.typicalViews]] as const) {
+    if (f && n !== null) await prisma.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set(coalesce("values", '{}'::jsonb), ARRAY[${f.id}::text], ${JSON.stringify(n.toLocaleString("en-GB"))}::jsonb, true) WHERE id = ${leadId}`;
+  }
 }
 
 // The channel's picture from its own YouTube page (Abhishek, 19 Oct 2026:
@@ -117,7 +124,7 @@ async function withYoutubePicture(leadId: string, channel: ChannelStats | null, 
   const pic = await youtubePicture(url);
   const base: ChannelStats = channel ?? { platform: "youtube", followers: null, typicalViews: null, recent: [], lastUploadAt: null, avatar: null };
   const next: ChannelStats = pic ? { ...base, avatars: { ...(base.avatars ?? {}), youtube: pic }, avatar: base.avatar ?? pic, pictureTriedAt: undefined } : { ...base, pictureTriedAt: new Date().toISOString() };
-  await prisma.lead.update({ where: { id: leadId }, data: { channel: next as unknown as Prisma.InputJsonObject } }).catch(() => {});
+  await prisma.lead.update({ where: { id: leadId }, data: { channel: next as unknown as Prisma.InputJsonObject }, select: { id: true } }).catch(() => {});
   return next;
 }
 

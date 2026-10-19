@@ -4,14 +4,12 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { worksDepartment } from "@/lib/scope";
-import { collect } from "@/lib/contentSync";
 import { freshenLeadChannel, type ChannelStats } from "@/lib/leadChannel";
 
 // What the lead window calls when it opens a lead: the channel's numbers as
 // they stand, a read started in the background when they're over a day old
 // (lib/leadChannel.ts), and whether one is under way. While `reading`, call
-// it again every 20 seconds or so: that also saves a finished read the
-// call-back hasn't brought in yet. Reads spend Apify credit on the live
+// it again every 20 seconds or so to see when the call-back has saved it. Reads spend Apify credit on the live
 // site only; on localhost the numbers simply stay as they are.
 export async function openLeadChannel(leadId: string): Promise<{ channel: ChannelStats | null; channelAt: string | null; reading: boolean } | { error: string }> {
   const viewer = await getViewer();
@@ -21,11 +19,8 @@ export async function openLeadChannel(leadId: string): Promise<{ channel: Channe
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const origin = host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : undefined;
-  let state = await freshenLeadChannel(leadId, origin);
-  // a read under way: bring it in if it has finished
-  if (state.reading) {
-    await collect().catch(() => null);
-    state = await freshenLeadChannel(leadId, origin);
-  }
+  // a finished read is saved by its call-back (and the nightly collect), not here:
+  // actions run one at a time, so a slow collect held up every tap meanwhile
+  const state = await freshenLeadChannel(leadId, origin);
   return { channel: state.channel, channelAt: state.channelAt?.toISOString() ?? null, reading: state.reading };
 }

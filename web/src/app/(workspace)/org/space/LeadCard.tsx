@@ -1,7 +1,7 @@
 "use client";
 
 import { Mail, Reply, UserCheck } from "lucide-react";
-import { chosenFor, hasChannel, leadContacts, MARKED, messagesOnDay, NO_CONTACT, PLATFORM_NAME, requestDay, type BoardData, type Contact, type LeadData, type Marked, type MarkChange } from "@/lib/space";
+import { hasChannel, leadContacts, MARKED, messagesOnDay, NO_CONTACT, PLATFORM_NAME, requestDay, type BoardData, type Contact, type LeadData, type Marked, type MarkChange } from "@/lib/space";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
@@ -12,9 +12,9 @@ const ICON: Record<Marked, React.ReactNode> = {
 const CHIP = "chip flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] disabled:cursor-not-allowed disabled:opacity-50";
 
 // One lead on the board: its name, who added it, with whoever it's given to,
-// and from Day 1 how it's going, per person on the lead, on the platform
-// their day's message goes out on (`day`: its key, name and number), only
-// that one. A person with no handle for it shows nothing. Email shows by
+// and from Day 1 how it's going, per person on the lead, on every platform
+// their day has a message on (`day`: its key, name and number), as the lead
+// window shows them. A person with no handle for one shows nothing for it. Email shows by
 // itself, once (opened and replied, how often and by whom: from the sales
 // inbox and the mail tracker); Instagram and LinkedIn are tapped: on LinkedIn
 // Accepted (the request taken), then Reply. Past the days (Replied, Audit
@@ -43,11 +43,9 @@ export function LeadCard({
   const who = (c: Contact | null) => (many && c?.name.trim() ? `${first(c.name)} · ` : "");
   const markOf = (c: Contact | null, p: Marked) => lead.marks[idOf(c)]?.[p] ?? {};
   const toggle = (c: Contact | null, p: Marked, kind: "accepted" | "replied") => day && onTrack?.(lead.id, { contact: idOf(c), platform: p, kind, day: markOf(c, p)[kind] ? null : day.key });
-  // each person's platform on this day, where they can be reached on it
-  const options = day?.day != null ? messagesOnDay(board, day.day) : [];
-  const rows = options.length
-    ? people.map((c) => ({ c, platform: chosenFor(options, lead.picks, day!.key, c, lead.email.opens > 0)?.channel ?? null })).filter((r) => r.platform && hasChannel(r.c, r.platform))
-    : [];
+  // each person's platforms on this day, where they can be reached on them
+  const channels = day?.day != null ? [...new Set(messagesOnDay(board, day.day).map((m) => m.channel))] : [];
+  const rows = people.flatMap((c) => channels.filter((platform) => hasChannel(c, platform)).map((platform) => ({ c, platform })));
   const mail = rows.some((r) => r.platform === "email");
   const tapped = rows.filter((r): r is { c: Contact | null; platform: Marked } => MARKED.includes(r.platform as Marked));
   const request = requestDay(board);
@@ -83,7 +81,7 @@ export function LeadCard({
           </>
         )}
       </div>
-      {tracks && (mail || (tapped.length > 0 && onTrack)) && (
+      {tracks && ((mail && (lead.email.sent || lead.email.bounced)) || (tapped.length > 0 && onTrack)) && (
         // its own taps, not the card's: they don't open the lead
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex flex-wrap items-center gap-1 pt-0.5">
           {mail && <EmailStatus email={lead.email} />}

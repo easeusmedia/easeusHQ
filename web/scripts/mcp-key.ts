@@ -4,17 +4,14 @@
 //   node --env-file=.env scripts/run.cjs scripts/mcp-key.ts revoke <id> [--live]
 // --live works on the live database (NEW_DATABASE_URL in .env); without it, the local one.
 
+import "./live";
+
 async function main() {
   const [cmd = "list", ...rest] = process.argv.slice(3);
   const flag = (name: string) => {
     const i = rest.indexOf(name);
     return i >= 0 ? rest[i + 1] : undefined;
   };
-  if (rest.includes("--live")) {
-    if (!process.env.NEW_DATABASE_URL) throw new Error("NEW_DATABASE_URL isn't in .env.");
-    process.env.DATABASE_URL = process.env.NEW_DATABASE_URL;
-    process.env.DIRECT_URL = process.env.NEW_DIRECT_URL ?? process.env.DIRECT_URL;
-  }
   const { prisma } = await import("@/lib/prisma");
   const { makeKey, hashKey } = await import("@/lib/mcp/keys");
   try {

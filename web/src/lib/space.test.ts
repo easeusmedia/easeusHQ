@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, keepDay, handleOf, linkName, sequenceTabs, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -283,10 +283,10 @@ test("unique reach outs count each lead once, total every reach out", () => {
   // 5 leads into Day 1, on to 2 and to 3 (and 1 never reached): 5 unique, 15 total
   const leads = [...Array(5)].map(() => lead(1, [2, 3])).concat(lead(null, []));
   assert.deepEqual(reachOutCounts(days, leads, null), { unique: 5, total: 15 });
-  // by the day's platform: Day 1 and 3 email, Day 2 Instagram
+  // by platform, every platform a day has: Day 1 email and LinkedIn, Day 2 Instagram, Day 3 email
   assert.deepEqual(reachOutCounts(days, leads, "email"), { unique: 5, total: 10 });
   assert.deepEqual(reachOutCounts(days, leads, "instagram"), { unique: 5, total: 5 });
-  assert.deepEqual(reachOutCounts(days, leads, "linkedin"), { unique: 0, total: 0 });
+  assert.deepEqual(reachOutCounts(days, leads, "linkedin"), { unique: 5, total: 5 });
 });
 
 test("a board with a day sequence is in sections: in process to the last day and Dead, the rest replied", () => {
@@ -356,3 +356,25 @@ test("a page's handle shows beside its name", () => {
   assert.equal(handleOf(""), null);
 });
 
+
+test("an edit is kept per opener, so Days 1 and 2 still change with the opener", () => {
+  const p = {
+    drafts: { "m1#0": { subject: "", body: "main, edited" }, m3: { subject: "", body: "day 3, edited" } },
+    openers: [
+      { label: "Main", drafts: { m1: { subject: "", body: "main" }, m3: { subject: "", body: "day 3" } } },
+      { label: "Backup", drafts: { m1: { subject: "", body: "backup" }, m3: { subject: "", body: "day 3" } } },
+    ],
+  };
+  assert.equal(preparedFor(p, { opener: "0" }, "m1")?.body, "main, edited");
+  assert.equal(preparedFor(p, { opener: "1" }, "m1")?.body, "backup");
+  assert.equal(draftKey(p, { opener: "1" }, "m1"), "m1#1");
+  // an edit of a message every opener shares is kept per opener too, but an old one on the message alone still shows
+  assert.equal(preparedFor(p, { opener: "1" }, "m3")?.body, "day 3, edited");
+  assert.equal(shownDraftKey(p, { opener: "1" }, "m3"), "m3");
+  assert.equal(shownDraftKey(p, { opener: "1" }, "m1"), null);
+  // a pick past the end falls back to the main opener, the same one the tab lights
+  assert.equal(openerIndex(p, { opener: "5" }), 0);
+  assert.equal(preparedFor(p, { opener: "5" }, "m1")?.body, "main, edited");
+  // one opener: edits stay under the message alone
+  assert.equal(draftKey({ drafts: {}, openers: [p.openers[0]] }, {}, "m1"), "m1");
+});

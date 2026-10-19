@@ -4,10 +4,12 @@
 // Notion page: contacts, links, details, and the messages written for them
 // (YouTube: a main opener and backups; Instagram: one version, or A, B and C
 // to pick from when Instagram hid the account).
-//   node --env-file=.env scripts/run.cjs scripts/doctors-setup.ts setup <import.json>
-//   node --env-file=.env scripts/run.cjs scripts/doctors-setup.ts leads <import.json>
+//   node --env-file=.env scripts/run.cjs scripts/doctors-setup.ts setup <import.json> [--live]
+//   node --env-file=.env scripts/run.cjs scripts/doctors-setup.ts leads <import.json> [--live]
+// The import file is kept outside git, at ../data/dream/import.json (contact details).
 // setup can run again safely: a board already there is left as it is. leads
 // skips a doctor whose name is already on the board.
+import "./live";
 import { randomUUID } from "crypto";
 import { readFileSync } from "fs";
 import type { Prisma } from "@prisma/client";
@@ -204,7 +206,7 @@ async function leads(path: string | undefined) {
   }
 }
 
-const [cmd, arg] = process.argv.slice(3); // argv[2] is this script, passed by run.cjs
+const [cmd, arg] = process.argv.slice(3).filter((a) => a !== "--live"); // argv[2] is this script, passed by run.cjs
 const run = { setup, leads }[cmd as "setup" | "leads"];
 if (!run) throw new Error("setup <import.json> or leads <import.json>");
 await run(arg);

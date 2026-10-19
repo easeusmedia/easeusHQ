@@ -142,10 +142,20 @@ export type Opener = { label: string; drafts: Record<string, Draft> };
 // id, and the messages written for it ahead, by opener (main, then backups)
 export type Prepared = { drafts: Record<string, Draft>; openers: Opener[] };
 // The opener a lead's messages use: the one picked, else its main one
-export const openerOf = (p: Prepared, picks: Record<string, string>): Opener | undefined => p.openers[Number(picks.opener)] ?? p.openers[0];
-// A message as this lead has it: rewritten for it, else written for it
-// ahead (by the opener in use), else the template
-export const preparedFor = (p: Prepared, picks: Record<string, string>, messageId: string): Draft | undefined => p.drafts[messageId] ?? openerOf(p, picks)?.drafts[messageId];
+export const openerIndex = (p: Prepared, picks: Record<string, string>): number => (p.openers[Number(picks.opener)] ? Number(picks.opener) : 0);
+export const openerOf = (p: Prepared, picks: Record<string, string>): Opener | undefined => p.openers[openerIndex(p, picks)];
+// Where a message rewritten for this lead is kept: under the opener in use
+// when that opener wrote it ("msgId#1"), so each opener keeps its own edit
+// and Days 1 and 2 still change with the opener; else under the message alone
+export const draftKey = (p: Prepared, picks: Record<string, string>, messageId: string): string => (p.openers.length > 1 && openerOf(p, picks)?.drafts[messageId] ? `${messageId}#${openerIndex(p, picks)}` : messageId);
+// A message as this lead has it: rewritten for it (for the opener in use,
+// then on its own), else written for it ahead (by the opener in use), else the template
+export const preparedFor = (p: Prepared, picks: Record<string, string>, messageId: string): Draft | undefined => p.drafts[draftKey(p, picks, messageId)] ?? p.drafts[messageId] ?? openerOf(p, picks)?.drafts[messageId];
+// The key of the rewrite shown for a message (the opener's own, else the message's), if any
+export const shownDraftKey = (p: Prepared, picks: Record<string, string>, messageId: string): string | null => {
+  const k = draftKey(p, picks, messageId);
+  return p.drafts[k] ? k : p.drafts[messageId] ? messageId : null;
+};
 export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string; note: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
 export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };
@@ -460,15 +470,16 @@ export function reachOutDays(events: { kind: string; fromStage: string | null; t
   return out;
 }
 
-// The board's reach outs, on every platform or one (a day counts for the
-// platform its message goes out on): unique, the leads reached, each once;
+// The board's reach outs, on every platform or one (a day counts for every
+// platform it has a message on: Day 1's email and LinkedIn note both go out,
+// as the lead window shows them): unique, the leads reached, each once;
 // total, every reach out, the first (Ready to reach out to Day 1) and each
 // move on from day to day (5 leads into Day 1, then on to 2 and to 3, make 15)
 export function reachOutCounts(board: Pick<BoardData, "stages" | "messages">, leads: Pick<LeadData, "reachOuts" | "picks" | "email">[], platform: Platform | null) {
   let unique = 0;
   let total = 0;
   for (const l of leads) {
-    const on = (d: number) => !platform || dayPlatform(board, l.picks, d, l.email.opens > 0) === platform;
+    const on = (d: number) => !platform || messagesOnDay(board, d).some((m) => m.channel === platform);
     const { first, next } = l.reachOuts;
     const reachedFirst = first != null && on(first);
     const moves = next.filter(on).length;

@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useContext, useEffect, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, openerOf, optionLabel, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -26,7 +26,7 @@ const SMALL_BTN = "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-m
 const INPUT = "w-full rounded-lg border border-border/60 bg-white/[0.02] px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-hover";
 const BLOCK = "rounded-xl bg-foreground/[0.03]";
 // the two sides of the lead window: its profile, and its messages
-const PANEL = "rounded-2xl border border-white/[0.07] bg-[#15171b]";
+const PANEL = "panel-soft rounded-2xl";
 
 const Dot = ({ color }: { color: string }) => <span className={`size-2 shrink-0 rounded-full ${toneOf(color).dot}`} />;
 
@@ -84,7 +84,9 @@ export function Messages({
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const pickOf = (key: string) => (key in picked ? picked[key] : (lead.picks?.[key] ?? null));
   const picks = { ...(lead.picks ?? {}), ...Object.fromEntries(Object.entries(picked).filter((e): e is [string, string] => !!e[1])) };
-  const own = (id: string): Draft | undefined => (id in mine ? (mine[id] ?? (prepared ? openerOf(prepared, picks)?.drafts[id] : undefined)) : prepared ? preparedFor(prepared, picks, id) : undefined);
+  // the lead's own wording with what's been saved here since it loaded (null: put back)
+  const merged: Prepared | null = prepared ? { ...prepared, drafts: Object.fromEntries(Object.entries({ ...prepared.drafts, ...mine }).filter((e): e is [string, Draft] => !!e[1])) } : null;
+  const own = (id: string): Draft | undefined => (merged ? preparedFor(merged, picks, id) : undefined);
   // approved as ready to send, by message and person, ahead of the save
   const [approved, setApproved] = useState<Record<string, Approval | null>>({});
   const approvalOf = (key: string) => (key in approved ? approved[key] : (lead.approvals?.[key] ?? null));
@@ -102,7 +104,7 @@ export function Messages({
   const canBuild = useContext(CanBuild);
   const router = useRouter();
   // rewritten here (not just written ahead): "This lead's copy"
-  const rewritten = (id: string) => (id in mine ? !!mine[id] : !!prepared?.drafts[id]);
+  const rewritten = (id: string) => !!merged && shownDraftKey(merged, picks, id) !== null;
   async function pick(key: string, messageId: string) {
     const before = pickOf(key);
     setError(null);
@@ -140,9 +142,11 @@ export function Messages({
   }
   async function saveMine(messageId: string, draft: Draft | null) {
     setError(null);
-    const res = await setLeadDraft(lead.id, messageId, draft).catch(() => ({ error: OFFLINE }));
+    // a new edit goes under the opener in use (when it wrote this message); putting back takes off the one shown
+    const key = !merged ? messageId : draft ? draftKey(merged, picks, messageId) : (shownDraftKey(merged, picks, messageId) ?? messageId);
+    const res = await setLeadDraft(lead.id, key, draft).catch(() => ({ error: OFFLINE }));
     if (res.error) return res.error;
-    setMine((d) => ({ ...d, [messageId]: draft }));
+    setMine((d) => ({ ...d, [key]: draft }));
     onSaved();
   }
 
@@ -150,6 +154,31 @@ export function Messages({
   // stage past it with messages of its own (Replied, Audit sent…)
   const tabs = sequenceTabs(board, stageId);
   const [tab, setTab] = useState<string | null>(() => tabs.find((t) => t.when === "now")?.key ?? tabs.find((t) => t.when === "next")?.key ?? tabs[0]?.key ?? null);
+  // How much the day strip shows, measured so nothing is ever cut off: 0 every
+  // day's name, 1 the others as numbered circles, 2 also without the lines,
+  // 3 wrapping onto a second row. A new width, another day open or another
+  // stage tab starts again from the fullest that fits.
+  const strip = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(0);
+  const [stripWidth, setStripWidth] = useState(0);
+  const hasTabs = tabs.length > 0;
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setStripWidth(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasTabs]);
+  const fitFor = `${stripWidth}:${tab}:${tabs.map((x) => x.key).join(",")}`;
+  const [fittedFor, setFittedFor] = useState(fitFor);
+  if (fitFor !== fittedFor) {
+    setFittedFor(fitFor);
+    setFit(0);
+  }
+  useLayoutEffect(() => {
+    const el = strip.current;
+    if (el && fit < 3 && el.scrollWidth > el.clientWidth + 1) setFit((f) => f + 1);
+  }, [fit, fitFor]);
   const shownTab = tabs.find((t) => t.key === tab) ?? tabs.find((t) => t.when === "now") ?? tabs[0];
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
@@ -163,8 +192,14 @@ export function Messages({
   const memeField = board.fields.find((f) => /^meme board$/i.test(f.name.trim()));
   const memeBoard = memeField ? memeField.options.find((o) => (lead.values[memeField.id] as string[] | undefined)?.includes(o.id))?.name : undefined;
   const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
-  const dayApproved = (x: SequenceTab) => chosenOn(x, person).every((m) => !!approvalOf(forContact(m.id, person)));
-  const opener = Math.min(Number(pickOf("opener") ?? 0) || 0, Math.max(0, openers.length - 1));
+  // a day is done once every message the person can be reached by is approved
+  // (a greyed one, on a platform they aren't on, doesn't count)
+  const dayApproved = (x: SequenceTab) => {
+    const sendable = chosenOn(x, person).filter((m) => hasChannel(person, m.channel));
+    return sendable.length > 0 && sendable.every((m) => !!approvalOf(forContact(m.id, person)));
+  };
+  // the same opener the wording comes from (openerOf), so the lit one is the one shown
+  const opener = prepared ? openerIndex(prepared, picks) : 0;
 
   // before Ready to reach out: what's known about it, nothing to send
   if (!tabs.length) return <div className={`${PANEL} @container min-h-0 w-full max-w-xl flex-1 overflow-y-auto`}>{aside}</div>;
@@ -213,7 +248,7 @@ export function Messages({
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
           onMine={(d) => saveMine(chosen.id, d)}
         />
-        {can && reached && (chosen.channel === "email" || platform) && (
+        {can && reached && (chosen.channel === "email" ? lead.email.sent || lead.email.bounced : !!platform) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {chosen.channel === "email" && <EmailStatus email={lead.email} />}
             {platform === "linkedin" && (request === t.day || needs) && (
@@ -244,7 +279,7 @@ export function Messages({
         {/* as tall as what's in it (scrolling past the window's height), not a tall empty box */}
         <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto`}>
           {/* the form: the words that change per lead, typed once, filling every email that uses them */}
-          {used.length > 0 && (
+          {prepared && used.length > 0 && (
             <section className="border-b border-white/[0.06] px-5 py-5">
               <div className="mb-3 flex items-center gap-2">
                 <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Fill in</p>
@@ -290,42 +325,38 @@ export function Messages({
               </div>
             )}
             <div className="flex items-center gap-2">
-              {/* a little room around the strip, so the lit day's ring is never clipped by the scroll box */}
-              <div role="tablist" aria-label="Days" className="-m-1 flex min-w-0 flex-1 items-center overflow-x-auto p-1 [scrollbar-width:none]">
+              {/* a little room around the strip, so the lit day's ring is never clipped */}
+              <div ref={strip} role="tablist" aria-label="Days" className={`-m-1 flex min-w-0 flex-1 items-center p-1 ${fit === 3 ? "flex-wrap gap-1" : "overflow-hidden"}`}>
                 {tabs.map((x, i) => {
                   const replied = repliedOn(x.key);
                   const on = x.key === t.key;
                   const ready = dayApproved(x);
                   const tone = x.when === "now" ? "emerald" : x.when === "next" ? "accent" : null;
+                  // the open one always says its name; the others, when it's tight, a number (a stage: its first letter)
+                  const short = fit > 0 && !on;
                   return (
                     <Fragment key={x.key}>
-                      {i > 0 && <span aria-hidden className={`hidden h-px w-2 shrink-0 @sm:block @4xl:w-5 ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
+                      {i > 0 && fit < 2 && <span aria-hidden className={`h-px shrink-0 ${fit === 0 ? "w-5" : "w-2"} ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
                       <button
                         type="button"
                         role="tab"
                         aria-selected={on}
                         onClick={() => setTab(x.key)}
                         title={x.sub}
-                        className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow,padding] duration-200 ${on || x.day == null ? "py-1 pr-3.5 pl-1.5" : "p-0.5 @md:py-1 @md:pr-1.5 @md:pl-1.5 @4xl:pr-3.5"} ${
+                        className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-200 ${short ? (fit >= 2 ? "p-0.5" : "p-1") : "py-1 pr-3.5 pl-1.5"} ${
                           on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                         }`}
                       >
-                        {replied ? (
-                          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label="Replied">
-                            <Reply size={11} />
-                          </span>
-                        ) : ready ? (
-                          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label="Approved">
+                        {replied || ready ? (
+                          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300" aria-label={replied ? "Replied" : "Approved"}>
                             <Check size={12} />
                           </span>
                         ) : (
                           <span className={`grid size-5 shrink-0 place-items-center rounded-full ring-1 text-[10px] tabular-nums ${tone === "emerald" ? "ring-emerald-400/50 text-emerald-300" : tone === "accent" ? "ring-accent/50 text-accent" : "ring-white/15"}`} aria-label={x.when === "now" ? "Today" : x.when === "next" ? "Next" : undefined}>
-                            {/* wide: a dot for today or next; narrow: the day's number instead of its name */}
-                            {tone && <span className={`hidden size-1.5 rounded-full @4xl:block ${tone === "emerald" ? "bg-emerald-400" : "bg-accent"}`} />}
-                            {x.day != null && !on && <span className="@4xl:hidden">{x.day}</span>}
+                            {short ? (x.day ?? x.title.charAt(0)) : tone && <span className={`size-1.5 rounded-full ${tone === "emerald" ? "bg-emerald-400" : "bg-accent"}`} />}
                           </span>
                         )}
-                        <span className={on || x.day == null ? "" : "hidden @4xl:inline"}>{x.title}</span>
+                        {!short && <span>{x.title}</span>}
                       </button>
                     </Fragment>
                   );
@@ -746,7 +777,7 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
           </button>
           {canBuild && (
             <button type="button" onClick={() => setEditing(true)} className="btn btn-sm btn-glow flex items-center gap-1.5">
-              <Pencil size={13} className="text-sky-400" /> Edit template
+              <Pencil size={13} /> Edit template
             </button>
           )}
         </span>
@@ -765,7 +796,6 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
           <Filled text={message.body} vars={{}} template />
         </div>
       </div>
-      <p className="text-xs text-muted">Words in blue change for each lead. A lead whose message was written for it, or edited, keeps its own.</p>
     </div>
   );
 }

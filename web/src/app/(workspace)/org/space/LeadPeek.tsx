@@ -144,13 +144,16 @@ function LeadPage({
   useEffect(() => {
     if (!open) return;
     let live = true;
-    getLeadDetails(id).then((r) => {
-      if (!live) return;
-      if (r.error) return setStatus({ error: r.error });
-      setEvents(r.events ?? []);
-      setSent(r.sent ?? []);
-      setPrepared(r.prepared ?? { drafts: {}, openers: [] });
-    });
+    // a dropped connection (or a deploy since the page loaded) says so, rather than loading for ever
+    getLeadDetails(id)
+      .catch(() => ({ error: "This lead's messages couldn't be loaded. Check your connection and open it again." }) as Awaited<ReturnType<typeof getLeadDetails>>)
+      .then((r) => {
+        if (!live) return;
+        if (r.error) return setStatus({ error: r.error });
+        setEvents(r.events ?? []);
+        setSent(r.sent ?? []);
+        setPrepared(r.prepared ?? { drafts: {}, openers: [] });
+      });
     return () => {
       live = false;
     };
@@ -214,9 +217,10 @@ function LeadPage({
     if (p.v == null) delete values[f];
     else values[f] = p.v;
   }
-  function saveValue(fieldId: string, v: unknown) {
+  // saved, or not (the change is undone and the reason shows along the bottom)
+  function saveValue(fieldId: string, v: unknown): Promise<boolean> {
     setPending((cur) => ({ ...cur, [fieldId]: { v, done: false } }));
-    run(setLeadValue(id, fieldId, v), () =>
+    return run(setLeadValue(id, fieldId, v), () =>
       setPending((cur) => {
         const next = { ...cur };
         delete next[fieldId];
@@ -224,6 +228,7 @@ function LeadPage({
       }),
     ).then((r) => {
       if (!r.error) setPending((cur) => (cur[fieldId]?.v === v ? { ...cur, [fieldId]: { v, done: true } } : cur));
+      return !r.error;
     });
   }
 
@@ -284,12 +289,16 @@ function LeadPage({
     return n > 1 ? `${base} · ${n}` : base;
   });
   const allContacts = contactField && Array.isArray(values[contactField.id]) ? (values[contactField.id] as Contact[]) : [];
-  function savePerson(c: Contact) {
-    if (!contactField) return;
+  // the form closes once it's saved; if it isn't, what was typed is still there to try again
+  async function savePerson(c: Contact): Promise<boolean> {
+    if (!contactField) return false;
     const known = allContacts.some((p) => p.id === c.id);
-    saveValue(contactField.id, known ? allContacts.map((p) => (p.id === c.id ? c : p)) : [...allContacts, c]);
-    setAdding(false);
-    setWho(c.id);
+    const ok = await saveValue(contactField.id, known ? allContacts.map((p) => (p.id === c.id ? c : p)) : [...allContacts, c]);
+    if (ok) {
+      setAdding(false);
+      setWho(c.id);
+    }
+    return ok;
   }
   function removePerson(pid: string) {
     if (!contactField) return;

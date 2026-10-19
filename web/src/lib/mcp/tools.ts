@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { DEPT, DEVELOPER, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
 import { cleanValue, dayOf, isFieldKind, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
 import { addOption, assignLead, moveLead, renameLead, setLeadDraft, setLeadNotes, setLeadValue, setLeadVar } from "@/app/(workspace)/org/space/actions";
+import type { ChannelStats } from "@/lib/channelStats";
 import { ToolError, type ServerInfo, type Tool } from "./protocol";
 
 // What someone's Claude can do on the Sales dashboard through its
@@ -27,6 +28,14 @@ export const INFO: ServerInfo = {
 };
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+// a channel read without its pictures (data URLs Claude can't use, thousands of tokens each)
+const withoutPictures = (c: ChannelStats) => {
+  const rest: Partial<ChannelStats> = { ...c };
+  delete rest.avatar;
+  delete rest.avatars;
+  delete rest.pictureTriedAt;
+  return rest;
+};
 
 // ---- the boards, as a connection sees them ----
 
@@ -573,7 +582,12 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
           },
         }),
       ]);
-      const nameOf = (id: string) => board.messages.find((m) => m.id === id)?.name ?? id;
+      // a rewrite kept per opener ("msgId#1") is named with its opener
+      const nameOf = (key: string) => {
+        const [id, n] = key.split("#");
+        const name = board.messages.find((m) => m.id === id)?.name ?? id;
+        return n ? `${name} (opener ${Number(n) + 1})` : name;
+      };
       const openers = (Array.isArray(full.openers) ? (full.openers as Opener[]) : []).map((o) => ({
         label: o.label,
         drafts: Object.fromEntries(Object.entries(o.drafts).map(([k, d]) => [nameOf(k), d])),
@@ -591,12 +605,7 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
         rewritten: Object.keys(drafts).length ? drafts : undefined,
         approvals: full.approvals,
         marks: full.marks,
-        channel: full.channel
-          ? {
-              ...(full.channel as object),
-              read_at: full.channelAt?.toISOString(),
-            }
-          : undefined,
+        channel: full.channel ? { ...withoutPictures(full.channel as unknown as ChannelStats), read_at: full.channelAt?.toISOString() } : undefined,
         sent: sent.map((s) => ({ ...s, sentAt: s.sentAt.toISOString() })),
         record: events.map((e) => ({
           what: e.summary,

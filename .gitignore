@@ -1,1 +1,3 @@
 .DS_Store
+# Contact details for the doctor import (scripts/doctors-setup.ts): never in git
+data/

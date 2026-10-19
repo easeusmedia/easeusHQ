@@ -136,7 +136,7 @@ export function LeadProfile({
   onSaveValue: (fieldId: string, v: unknown) => void;
   adding: boolean;
   onCancelAdd: () => void;
-  onSavePerson: (c: Contact) => void;
+  onSavePerson: (c: Contact) => Promise<boolean>;
   onRemovePerson: (id: string) => void;
   onPick: (id: string) => void;
 }) {
@@ -153,15 +153,14 @@ export function LeadProfile({
   const tiles = details.filter((f) => numberOf(f, values[f.id]) != null || (f.kind === "select" && named(f, /^country$/i)));
   const linkFields = details.filter((f) => f.kind === "links");
   const rest = details.filter((f) => !tiles.includes(f) && !linkFields.includes(f));
-  // the channel's pages: the lead's links, then any page every person shares
-  // (two or more people), each once; two with one name are told apart.
+  // the channel's pages: the lead's own links, each once; two with one name
+  // are told apart. A person's own LinkedIn or Instagram stays with them,
+  // even when everyone on the lead has the same one (often one doctor twice).
   // (A link whose address isn't a web address still shows, as words.)
-  const shared = people.length > 1 ? pagesOf(people[0]).filter((p) => people.every((q) => pagesOf(q).some((x) => sameUrl(x.href) === sameUrl(p.href)))) : [];
   const seenUrl = new Set<string>();
   const seenName = new Map<string, number>();
   const pages = [
     ...linkFields.flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => (l.url.trim() || l.label.trim() ? [{ href: hrefOf("other", l.url) ?? l.url.trim(), base: linkName(l.label, l.url) || l.url.trim() }] : []))),
-    ...shared.map((p) => ({ href: p.href, base: p.name })),
   ]
     .filter((l) => !seenUrl.has(sameUrl(l.href)) && seenUrl.add(sameUrl(l.href)))
     .map((l) => {
@@ -226,6 +225,7 @@ export function LeadProfile({
                         <span className="min-w-0">
                           <span className="block truncate text-[15px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">{numberOf(f, values[f.id]) ?? tagNames(f, values[f.id]).join(", ")}</span>
                           <span className="block truncate text-xs text-muted">{f.name}</span>
+                          {f.kind === "count" && (values[f.id] as { remark?: string }).remark?.trim() && <span className="mt-0.5 block text-xs text-foreground/75">{(values[f.id] as { remark: string }).remark.trim()}</span>}
                         </span>
                       </div>
                     );
@@ -282,9 +282,8 @@ export function LeadProfile({
                 <div key={p.id} className="py-4 first:pt-0 last:pb-0">
                   <ContactForm
                     initial={p}
-                    onSave={(c) => {
-                      onSavePerson(c);
-                      setEditing(null);
+                    onSave={async (c) => {
+                      if (await onSavePerson(c)) setEditing(null);
                     }}
                     onCancel={() => setEditing(null)}
                     onRemove={() => {
@@ -314,9 +313,9 @@ function Pictures({ faces, name }: { faces: [string, string][]; name: string }) 
         return (
           <span key={platform} className="relative block" title={`${HANDLE[platform as ChannelKind]?.name ?? platform} picture`}>
             {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
-            <img src={src} alt="" referrerPolicy="no-referrer" className="size-11 rounded-full object-cover ring-2 ring-[#16191e]" />
+            <img src={src} alt="" referrerPolicy="no-referrer" className="size-11 rounded-full object-cover ring-2 ring-black/40" />
             {badge && (
-              <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-[#16191e] ${badge.tone}`}>
+              <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-black/40 ${badge.tone}`}>
                 <badge.Icon size={9} />
               </span>
             )}
@@ -472,7 +471,6 @@ function PersonBlock({ person, lead, brand, picked, onPick, onEdit }: { person: 
           ))}
         </div>
       )}
-      {!emails.length && !phones.length && !pages.length && <p className="text-xs text-muted">No email address</p>}
     </div>
   );
 }
@@ -651,31 +649,39 @@ function LinksInput({ value, save }: { value: unknown; save: (v: LinkValue[] | n
 }
 
 // A person's details as a form: their name and role, their email addresses
-// (one a line) and their pages. For the + at the top of the window (a new
-// person) and for the pencil on the one picked (with Remove).
+// (one a line), and their pages and phone, one box each. For the + at the
+// top of the window (a new contact) and for a person's own Edit (with
+// Remove). Anything more they have (a second LinkedIn, a second phone) is
+// listed under the boxes, each with its own remove, so nothing is out of reach.
 const FORM_INPUT = "w-full rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-foreground outline-none! transition-colors placeholder:text-muted/50 focus:border-accent/40";
 const HANDLE_KINDS: { kind: ChannelKind; label: string; hint: string }[] = [
   { kind: "linkedin", label: "LinkedIn", hint: "linkedin.com/in/…" },
   { kind: "instagram", label: "Instagram", hint: "instagram.com/… or @handle" },
   { kind: "youtube", label: "YouTube", hint: "youtube.com/@…" },
+  { kind: "x", label: "X", hint: "x.com/… or @handle" },
+  { kind: "other", label: "Website", hint: "their site" },
   { kind: "phone", label: "Phone", hint: "+44 …" },
 ];
-export function ContactForm({ initial, onSave, onCancel, onRemove }: { initial: Contact | null; onSave: (c: Contact) => void; onCancel: () => void; onRemove?: () => void }) {
-  const first = (kind: ChannelKind) => initial?.channels.find((c) => c.kind === kind)?.value ?? "";
+export function ContactForm({ initial, onSave, onCancel, onRemove }: { initial: Contact | null; onSave: (c: Contact) => unknown; onCancel: () => void; onRemove?: () => void }) {
+  const channels = initial?.channels ?? [];
+  const firstOf = (kind: ChannelKind) => channels.find((c) => c.kind === kind && c.value.trim());
   const [name, setName] = useState(initial?.name ?? "");
   const [role, setRole] = useState(initial?.role ?? "");
-  const [emails, setEmails] = useState((initial?.channels ?? []).filter((c) => c.kind === "email").map((c) => c.value).join("\n"));
-  const [handles, setHandles] = useState<Record<string, string>>(() => Object.fromEntries(HANDLE_KINDS.map((h) => [h.kind, first(h.kind)])));
-  function save() {
-    // the ones this form doesn't show (a second LinkedIn, X, other) stay as they were
-    const shown = new Set<ChannelKind>(["email", ...HANDLE_KINDS.map((h) => h.kind)]);
-    const kept = (initial?.channels ?? []).filter((c) => !shown.has(c.kind) || (c.kind !== "email" && c !== initial?.channels.find((x) => x.kind === c.kind)));
-    const channels = [
+  const [emails, setEmails] = useState(channels.filter((c) => c.kind === "email").map((c) => c.value).join("\n"));
+  const [handles, setHandles] = useState<Record<string, string>>(() => Object.fromEntries(HANDLE_KINDS.map((h) => [h.kind, firstOf(h.kind)?.value ?? ""])));
+  // the rest: every page or phone beyond the first of its kind
+  const [more, setMore] = useState(() => channels.filter((c) => c.kind !== "email" && c.value.trim() && c !== firstOf(c.kind)));
+  const [busy, setBusy] = useState(false);
+  const filled = !!(name.trim() || role.trim() || emails.trim() || Object.values(handles).some((v) => v.trim()) || more.length);
+  async function save() {
+    const next = [
       ...emails.split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean).map((value) => ({ kind: "email" as ChannelKind, value })),
       ...HANDLE_KINDS.filter((h) => handles[h.kind]?.trim()).map((h) => ({ kind: h.kind, value: handles[h.kind].trim() })),
-      ...kept,
+      ...more,
     ];
-    onSave({ id: initial?.id ?? crypto.randomUUID(), name: name.trim(), role: role.trim(), channels });
+    setBusy(true);
+    await onSave({ id: initial?.id ?? crypto.randomUUID(), name: name.trim(), role: role.trim(), channels: next });
+    setBusy(false);
   }
   return (
     <div className="fade-in flex flex-col gap-3">
@@ -689,18 +695,31 @@ export function ContactForm({ initial, onSave, onCancel, onRemove }: { initial: 
           <input key={h.kind} value={handles[h.kind] ?? ""} onChange={(e) => setHandles((x) => ({ ...x, [h.kind]: e.target.value }))} placeholder={`${h.label}: ${h.hint}`} aria-label={h.label} className={FORM_INPUT} />
         ))}
       </div>
+      {more.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {more.map((c, i) => (
+            <span key={i} className={`${CHIP} pr-1`}>
+              <ChipIcon platform={c.kind === "phone" ? "phone" : c.kind === "other" ? platformOf(hrefOf("other", c.value) ?? c.value) : (c.kind as Platform)} />
+              <span className="truncate">{c.value}</span>
+              <button type="button" onClick={() => setMore((m) => m.filter((x) => x !== c))} aria-label={`Remove ${c.value}`} title="Remove" className="grid size-5 shrink-0 place-items-center rounded text-muted transition-colors hover:bg-white/[0.08] hover:text-rose-300">
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         {onRemove && (
           <button type="button" onClick={onRemove} className="text-xs text-red-300/80 transition-colors hover:text-red-300">
-            Remove this person
+            Remove this contact
           </button>
         )}
         <span className="ml-auto flex gap-1.5">
           <button type="button" onClick={onCancel} className="btn btn-sm btn-ghost">
             Cancel
           </button>
-          <button type="button" onClick={save} disabled={!name.trim() && !emails.trim()} className="btn btn-sm btn-glow">
-            {initial ? "Save" : "Add person"}
+          <button type="button" onClick={save} disabled={!filled || busy} className="btn btn-sm btn-glow">
+            {busy ? "Saving…" : initial ? "Save" : "Add contact"}
           </button>
         </span>
       </div>
