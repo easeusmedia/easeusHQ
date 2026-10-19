@@ -1,16 +1,21 @@
 // The Claude desktop app's way in to the app's MCP link on this Mac: it runs
 // local servers as a program it talks to over stdin/stdout, so this passes
 // each message on to the link and prints the answer back. No packages; Node 18+.
-// The link is read from a file on every message (EASEUS_MCP_URL_FILE, which
-// Integrations › Make a new link rewrites on this Mac), so a new link works
-// at once; else from EASEUS_MCP_URL.
-//   claude_desktop_config.json: { "command": "node", "args": ["<this file>"], "env": { "EASEUS_MCP_URL_FILE": "<file>" } }
+// The link is read on every message from Easeus HQ/data/mcp-link.txt (or
+// EASEUS_MCP_URL_FILE), which Integrations › Make a new link rewrites on this
+// Mac, so a new link works at once whatever the app's settings say (the
+// Claude app rewrites its settings file and can put an old link back);
+// EASEUS_MCP_URL only when there's no file.
+//   claude_desktop_config.json: { "command": "node", "args": ["<this file>"] }
 import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
+const linkFile = process.env.EASEUS_MCP_URL_FILE || fileURLToPath(new URL("../../data/mcp-link.txt", import.meta.url));
 const linkNow = () => {
   try {
-    if (process.env.EASEUS_MCP_URL_FILE) return readFileSync(process.env.EASEUS_MCP_URL_FILE, "utf8").trim();
+    const link = readFileSync(linkFile, "utf8").trim();
+    if (link) return link;
   } catch {}
   return process.env.EASEUS_MCP_URL ?? "";
 };
