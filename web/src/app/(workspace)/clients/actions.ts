@@ -13,7 +13,7 @@ import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 import { clientBatches, newBatchKey, pinsAfterMove } from "@/lib/invoiceBatches";
-import { TYPE_TAG, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
+import { TYPE_TAG, planDeliverables, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
 
 // The two On Hold clients ops is still actively tracking, chosen
@@ -796,6 +796,17 @@ export async function createProject(
   });
   if (!client) return { error: "Client not found." };
 
+  // its deliverables, one placeholder each ("Pip Jamison Reel 1"), due by
+  // the client's blueprint from the day it starts (today, unless picked);
+  // a picked type the blueprint has none of still gets one, undated
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(planFrom ?? "") ? planFrom! : new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
+  const until = planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > day ? planUntil : undefined;
+  const deliverables = planDeliverables(planFor(client.contentPlan), deliverableTypes, trimmed, day, until);
+  const placeholders = [
+    ...deliverables.map((d) => ({ name: d.name, contentType: d.type, dueDate: new Date(d.due) })),
+    ...deliverableTypes.filter((t) => !deliverables.some((d) => d.type === t)).map((t) => ({ name: t, contentType: t, dueDate: null })),
+  ];
+
   const project = await prisma.project.create({
     data: {
       clientId,
@@ -805,10 +816,9 @@ export async function createProject(
       type: client.projects[0]?.type ?? "project",
       status: "in_progress",
       coverUrl,
-      // one empty placeholder per selected deliverable type — the same
-      // structure (see lib/deliverableTypes) on every project, filled in
-      // with a real link later from the project page
-      assets: { create: deliverableTypes.map((t, i) => ({ name: t, contentType: t, sortOrder: i })) },
+      // the placeholders above, filled in with a real link later from the
+      // project page (every one editable there, its date too)
+      assets: { create: placeholders.map((p, i) => ({ ...p, sortOrder: i })) },
     },
   });
 
@@ -917,7 +927,9 @@ export async function updateProject(
 // Whatever the Notion import pulled in is a starting point, not gospel:
 // names, types and links all get corrected by hand from the project page.
 
-export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[] };
+// dueDate: yyyy-mm-dd, "" for none; left out, it's kept as it is
+export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[]; dueDate?: string };
+const dueOf = (v: string | undefined) => (v === undefined ? undefined : /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v) : null);
 
 async function revalidateProject(projectId: string) {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { clientId: true } });
@@ -943,6 +955,7 @@ export async function addProjectAsset(projectId: string, input: ProjectAssetInpu
       name: input.name.trim(),
       contentType: input.contentType.trim() || "Misc.",
       link,
+      dueDate: dueOf(input.dueDate) ?? null,
       sortOrder: (last?.sortOrder ?? 0) + 1,
       tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
     },
@@ -968,6 +981,7 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
       name: input.name.trim(),
       contentType: input.contentType.trim() || "Misc.",
       link,
+      ...(input.dueDate !== undefined ? { dueDate: dueOf(input.dueDate) } : {}),
       ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
     },
   });

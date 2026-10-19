@@ -175,7 +175,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <ProjectFiles
         projectId={project.id}
-        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link, tags: a.tags }))}
+        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link, tags: a.tags, dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null }))}
         delivered={deliveredFiles.map((t) => ({
           id: t.id,
           title: t.title,

@@ -124,6 +124,9 @@ model ProjectAsset {
   contentType String // "Reel", "YouTube Long-Form", "Thumbnails", "Misc." …
   link        String?
   sortOrder   Int     @default(0)
+  // when it's due to the client: a deliverable laid out when its project was
+  // made (lib/contentPlan.ts planDeliverables), changed by hand as needed
+  dueDate     DateTime?
 
   notionPageId String? @unique
 

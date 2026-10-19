@@ -39,7 +39,9 @@ export function AddProjectCard({
   const [start, setStart] = useState(today);
   // when the whole project is due — the blueprint's week is fitted to it
   const [deadline, setDeadline] = useState(() => addDays(today(), PLAN_DAYS));
-  const [planOn, setPlanOn] = useState(true);
+  // tasks on the board too: off unless asked for, the project's own
+  // deliverable placeholders (named and dated) being made either way
+  const [planOn, setPlanOn] = useState(false);
   // optional: the invoice it's billed in, if that's already known
   const [invoice, setInvoice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -51,7 +53,7 @@ export function AddProjectCard({
     setTypes(usual);
     setStart(today());
     setDeadline(addDays(today(), PLAN_DAYS));
-    setPlanOn(true);
+    setPlanOn(false);
     setInvoice("");
     setError(null);
     dialogRef.current?.showModal();

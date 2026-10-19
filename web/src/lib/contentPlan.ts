@@ -19,15 +19,16 @@ export type PlanItem = {
   endDay: number; // and the last is due this many days in; the rest are spread evenly before it
 };
 
-// Where every client starts (in DELIVERABLE_TYPES order): the trailer in the
-// first two days, the reels spread over the rest of the week after it, the
-// long-form edit and its thumbnail alongside.
+// Where every client starts (in DELIVERABLE_TYPES order), delivered a week
+// on from the day the project's made (Abhishek, 19 Oct 2026): made on the
+// 1st, the trailer is due the 7th, the long-form edit and its thumbnail the
+// 8th, the reels the 8th and 9th.
 export const DEFAULT_PLAN: PlanItem[] = [
-  { type: "YouTube Long-Form", count: 1, startDay: 0, endDay: 5 },
-  { type: "Reel Trailer", count: 1, startDay: 0, endDay: 2 },
-  { type: "Reel", count: 6, startDay: 2, endDay: 7 },
-  { type: "Bonus Reel", count: 0, startDay: 5, endDay: 7 },
-  { type: "Thumbnails", count: 1, startDay: 3, endDay: 5 },
+  { type: "YouTube Long-Form", count: 1, startDay: 0, endDay: 7 },
+  { type: "Reel Trailer", count: 1, startDay: 0, endDay: 6 },
+  { type: "Reel", count: 6, startDay: 7, endDay: 8 },
+  { type: "Bonus Reel", count: 0, startDay: 7, endDay: 8 },
+  { type: "Thumbnails", count: 1, startDay: 0, endDay: 7 },
 ];
 
 const int = (v: unknown, min: number, max: number, fallback: number) =>
@@ -101,4 +102,33 @@ export function planTasks(
       }));
     })
     .sort((a, b) => a.due.localeCompare(b.due) || a.start.localeCompare(b.start));
+}
+
+// what a deliverable is called inside its project: "Pip Jamison Reel 1",
+// "Pip Jamison Trailer"
+const DELIVERABLE_LABEL: Record<string, string> = {
+  "YouTube Long-Form": "Long-form",
+  "Reel Trailer": "Trailer",
+  Reel: "Reel",
+  "Bonus Reel": "Bonus reel",
+  Thumbnails: "Thumbnail",
+};
+
+// A new project's deliverables, one placeholder each, named after the
+// project and due by the blueprint: what the project page lists (and the
+// client's), each filled in with its link later and every part editable.
+export function planDeliverables(
+  plan: PlanItem[],
+  types: string[],
+  projectName: string,
+  start: string,
+  deadline?: string
+): { name: string; type: string; due: string }[] {
+  const counts = Object.fromEntries(plan.map((p) => [p.type, p.count]));
+  const seen: Record<string, number> = {};
+  return planTasks(plan, types, projectName, start, deadline).map((t) => {
+    const n = (seen[t.type] = (seen[t.type] ?? 0) + 1);
+    const label = DELIVERABLE_LABEL[t.type] ?? t.type;
+    return { name: `${projectName} ${label}${counts[t.type] > 1 ? ` ${n}` : ""}`, type: t.type, due: t.due };
+  });
 }

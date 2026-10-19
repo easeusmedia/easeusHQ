@@ -1,24 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PLAN, planFor, planTasks } from "./contentPlan.ts";
+import { DEFAULT_PLAN, planDeliverables, planFor, planTasks } from "./contentPlan.ts";
 
-test("a week's project: the trailer in two days, the reels through the rest of the week", () => {
-  const tasks = planTasks(DEFAULT_PLAN, ["Reel Trailer", "Reel"], "Podcast 30", "2026-09-22");
-  const trailer = tasks.find((t) => t.type === "Reel Trailer")!;
-  assert.deepEqual([trailer.start, trailer.due], ["2026-09-22", "2026-09-24"]);
+test("delivered a week on: made on the 1st, the trailer the 7th, the long-form the 8th, the reels the 8th and 9th", () => {
+  const tasks = planTasks(DEFAULT_PLAN, ["YouTube Long-Form", "Reel Trailer", "Reel"], "Podcast 30", "2026-10-01");
+  assert.equal(tasks.find((t) => t.type === "Reel Trailer")!.due, "2026-10-07");
+  assert.equal(tasks.find((t) => t.type === "YouTube Long-Form")!.due, "2026-10-08");
   const reels = tasks.filter((t) => t.type === "Reel");
   assert.equal(reels.length, 6);
-  assert.equal(reels[0].start, "2026-09-24"); // after the trailer
-  assert.equal(reels.at(-1)!.due, "2026-09-29"); // the week's end
-  // each one's work picks up where the one before was due
-  for (let i = 1; i < reels.length; i++) assert.equal(reels[i].start, reels[i - 1].due);
+  assert.deepEqual([...new Set(reels.map((r) => r.due))], ["2026-10-08", "2026-10-09"]);
   assert.equal(reels[0].title, "Reel 1 · Podcast 30");
 });
 
 test("a longer deadline stretches the same shape", () => {
-  const tasks = planTasks(DEFAULT_PLAN, ["Reel Trailer", "Reel"], "X", "2026-09-22", "2026-10-06"); // two weeks
-  assert.equal(tasks.find((t) => t.type === "Reel Trailer")!.due, "2026-09-26");
-  assert.equal(tasks.filter((t) => t.type === "Reel").at(-1)!.due, "2026-10-06");
+  const tasks = planTasks(DEFAULT_PLAN, ["Reel Trailer", "Reel"], "X", "2026-10-01", "2026-10-15"); // two weeks
+  assert.equal(tasks.find((t) => t.type === "Reel Trailer")!.due, "2026-10-13");
+  assert.equal(tasks.filter((t) => t.type === "Reel").at(-1)!.due, "2026-10-17");
+});
+
+test("a project's deliverables are named after it, one each", () => {
+  const d = planDeliverables(DEFAULT_PLAN, ["Reel Trailer", "Reel", "YouTube Long-Form"], "Pip Jamison", "2026-10-01");
+  assert.deepEqual(
+    d.map((x) => x.name),
+    ["Pip Jamison Trailer", "Pip Jamison Long-form", "Pip Jamison Reel 1", "Pip Jamison Reel 2", "Pip Jamison Reel 3", "Pip Jamison Reel 4", "Pip Jamison Reel 5", "Pip Jamison Reel 6"]
+  );
+  assert.equal(d[0].due, "2026-10-07");
 });
 
 test("a type the project doesn't have, or the client doesn't get, plans nothing", () => {

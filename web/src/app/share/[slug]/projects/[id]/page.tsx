@@ -115,7 +115,7 @@ export default async function SharedProjectPage({
         </h2>
         <ProjectFiles
           projectId={project.id}
-          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null, tags: a.tags }))}
+          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null, tags: a.tags, dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null }))}
           // what's been delivered to them, as the files it produced — their
           // own finished work, never the team's internal tasks
           delivered={delivered.map((t) => ({

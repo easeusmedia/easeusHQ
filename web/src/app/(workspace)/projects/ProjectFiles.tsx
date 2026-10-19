@@ -12,7 +12,8 @@ import { formatDate } from "../TaskCard";
 import { TaskTagChip } from "../TaskTagPicker";
 
 type Tag = { id: string; name: string };
-export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null; tags?: Tag[] };
+// dueDate: yyyy-mm-dd, when it's due to the client
+export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null; tags?: Tag[]; dueDate?: string | null };
 
 const TYPE_OPTIONS = TYPE_ORDER.map((t) => ({ value: t, label: t === "Misc." ? "Other" : t }));
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
@@ -137,7 +138,16 @@ export function ProjectFiles({
       post: d.post ?? null,
       ...kindsOf(d.tags, "Delivered"),
     })),
-    ...assets.map((a) => ({ id: a.id, name: a.name, type: a.contentType, link: a.link, sub: source(a.link), asset: a, ...kindsOf(a.tags, typeKind(a.contentType)) })),
+    ...assets.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.contentType,
+      link: a.link,
+      // when it's due, then where it lives
+      sub: [a.dueDate ? `Due ${formatDate(`${a.dueDate}T00:00:00Z`)}` : null, source(a.link)].filter(Boolean).join(" · "),
+      asset: a,
+      ...kindsOf(a.tags, typeKind(a.contentType)),
+    })),
   ];
   // tabs: the tags in their own order, then any types without a tag, Other last
   const tagOrder = tagOptions.map((t) => t.name);
@@ -313,19 +323,20 @@ function AssetForm({
   initial?: ProjectAssetData;
   tagOptions: Tag[];
   onCancel: () => void;
-  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[] }) => Promise<string | null>;
+  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string }) => Promise<string | null>;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [contentType, setContentType] = useState(initial?.contentType ?? TYPE_ORDER[0]);
   const [link, setLink] = useState(initial?.link ?? "");
   const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setSaving(true);
     setError(null);
-    const err = await onSubmit({ name, contentType, link, tagIds });
+    const err = await onSubmit({ name, contentType, link, tagIds, dueDate });
     setSaving(false);
     if (err) setError(err);
   }
@@ -344,7 +355,12 @@ function AssetForm({
           <Dropdown defaultValue={contentType} options={TYPE_OPTIONS} onChange={setContentType} />
         </div>
       </div>
-      <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={field} />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={`${field} sm:flex-1`} />
+        <div className="sm:w-52">
+          <DatePicker value={dueDate} onChange={setDueDate} placeholder="Delivery date" />
+        </div>
+      </div>
       {tagOptions.length > 0 && (
         // the same kinds of work a task is tagged with
         <div className="flex flex-wrap items-center gap-1.5">
