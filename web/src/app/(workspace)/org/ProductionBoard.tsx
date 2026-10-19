@@ -29,11 +29,13 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
       // latest few projects and searches for the rest
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
-    // the Production queues: video and design work this person may see.
-    // Production is Level 3's (Abhishek, 20 Oct 2026): a Level 1 or 2's own
-    // task stays in their My tasks
+    // the Production queues: video and design work this person may see,
+    // whoever it's on, so the board shows who's editing what. Only
+    // Production's own work (Abhishek, 20 Oct 2026): another department's
+    // task (Client Services' "Amends to be done") stays off it; one from
+    // before departments were set has none and stays on
     prisma.task.findMany({
-      where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }, { OR: [{ assignedToId: null }, { assignedTo: { role: "employee" } }] }] },
+      where: { AND: [LIVE_TASK, assigneeWhere(viewer), { workflow: { in: ["video", "design"] } }, { OR: [{ teamId: null }, { team: { slug: "production" } }] }] },
       orderBy: { createdAt: "desc" },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
     }),
@@ -49,13 +51,13 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
   const actingUser = users.find((u) => u.id === viewer.id);
   if (!actingUser) redirect("/login");
 
-  // Who Production work can go to, Level 3 only (20 Oct 2026): a Member
-  // themselves; a Founder any Member; a Lead the Members in their
-  // departments (lib/scope canAssign)
+  // Who Production work can go to: a Member only themselves; a Founder any
+  // Member, or themselves; a Lead the Members in their departments, or
+  // themselves (lib/scope canAssign)
   const deptIds = viewer.departments.map((d) => d.id);
   const editors = member
     ? users.filter((u) => u.id === viewer.id)
-    : users.filter((u) => onStaff(u) && u.role === "employee" && (isFounder(viewer) || (!!u.teamId && deptIds.includes(u.teamId))));
+    : users.filter((u) => onStaff(u) && (u.id === viewer.id || (u.role === "employee" && (isFounder(viewer) || (!!u.teamId && deptIds.includes(u.teamId))))));
 
   // The Board is Production's: its Video and Design queues, for whoever
   // works or runs them. Everyone else's work is to-dos, in My tasks.
