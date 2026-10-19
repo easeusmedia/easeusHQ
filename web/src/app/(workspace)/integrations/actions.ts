@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -12,6 +13,7 @@ import { CLAUDE_SETTINGS, checkClaudeKey } from "@/lib/claude";
 import { AI_ADMIN_KEY, AI_BUDGET, readCostReport } from "@/lib/ai";
 import { GMAIL_SETTINGS, SALES_GMAIL_SETTINGS } from "@/lib/gmail";
 import { CALENDAR_SETTINGS } from "@/lib/googleCalendar";
+import { hashKey, makeKey } from "@/lib/mcp/keys";
 
 // Connecting the team's Google Drive, from inside the app rather than from
 // deploy settings — see lib/drive.ts. Admin and Abhishek only: this is the
@@ -261,6 +263,32 @@ export async function saveAiBudget(usd: number): Promise<{ error?: string }> {
   if (!Number.isFinite(usd) || usd <= 0 || usd > 10000) return { error: "Give a limit in dollars, above zero." };
   const value = String(Math.round(usd * 100) / 100);
   await prisma.appSetting.upsert({ where: { key: AI_BUDGET }, create: { key: AI_BUDGET, value }, update: { value } });
+  revalidatePath("/integrations");
+  return {};
+}
+
+// Your Claude, connected to the app (the MCP link, app/api/mcp, lib/mcp): one
+// link per person (Abhishek, 18 Oct 2026), so making one turns off the one
+// before. The link is shown once, here; only its hash is kept.
+export async function makeClaudeConnection(): Promise<{ error?: string; link?: string }> {
+  const me = await requireAdmin();
+  if (!me) return { error: "Only an admin can change this." };
+  const key = makeKey();
+  await prisma.$transaction([
+    prisma.connection.updateMany({ where: { userId: me.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+    prisma.connection.create({ data: { userId: me.id, name: "Claude", keyHash: hashKey(key) }, select: { id: true } }),
+  ]);
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "app.easeus.media";
+  const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)/.test(host) ? "http" : "https");
+  revalidatePath("/integrations");
+  return { link: `${proto}://${host}/api/mcp/${key}` };
+}
+
+export async function turnOffClaudeConnection(): Promise<{ error?: string }> {
+  const me = await requireAdmin();
+  if (!me) return { error: "Only an admin can change this." };
+  await prisma.connection.updateMany({ where: { userId: me.id, revokedAt: null }, data: { revokedAt: new Date() } });
   revalidatePath("/integrations");
   return {};
 }

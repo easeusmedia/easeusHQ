@@ -11,6 +11,7 @@ import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
 import { apifyAccount, apifyTokens } from "@/lib/apify";
 import { ClaudeIntegration } from "./ClaudeIntegration";
+import { ClaudeConnection } from "./ClaudeConnection";
 import { GmailIntegration } from "./GmailIntegration";
 import { CalendarIntegration } from "./CalendarIntegration";
 import { calendarAccount } from "@/lib/googleCalendar";
@@ -35,7 +36,7 @@ export default async function IntegrationsPage({
 
   // every connection's settings side by side: nothing here waits on anything
   // else, and the Apify accounts are a call out to Apify each
-  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, salesGmail, calendar, gmailSends] = await Promise.all([
+  const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, salesGmail, calendar, gmailSends, connection] = await Promise.all([
     driveSettings(),
     frameioSettings(),
     notionSettings(),
@@ -51,6 +52,8 @@ export default async function IntegrationsPage({
     gmailAccount("sales"),
     calendarAccount(),
     gmailCanSend(),
+    // your Claude's link to the app (MCP): whether it's on, never the key
+    prisma.connection.findFirst({ where: { userId: user.id, revokedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true, lastUsedAt: true } }),
   ]);
 
   return (
@@ -91,6 +94,8 @@ export default async function IntegrationsPage({
         adminEnding={aiAdmin?.value.slice(-4) ?? null}
         spend={spend}
       />
+
+      <ClaudeConnection active={connection ? { createdAt: connection.createdAt.toISOString(), lastUsedAt: connection.lastUsedAt?.toISOString() ?? null } : null} />
 
       <GmailIntegration account={gmail} canSend={gmailSends} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
       <GmailIntegration inbox="sales" account={salesGmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
