@@ -1,4 +1,4 @@
-// "Easeus HQ (Dev)": the Claude app on this Mac, connected to the LOCAL
+// "easeus-hq-dev" (Easeus HQ (Dev)): the Claude app on this Mac, on the LOCAL
 // Easeus HQ (localhost, the test database). The live one is "Easeus HQ",
 // added in claude.ai with https://app.easeus.media/api/mcp (sign-in, OAuth).
 // The Claude app runs local servers as a program it talks to over
