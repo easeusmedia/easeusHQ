@@ -7,6 +7,7 @@ import { getRealViewer } from "@/lib/auth";
 import { seesSalesMail } from "@/lib/scope";
 import { trashFile } from "@/lib/drive";
 import { DOC_ID, docUploadUrl, newDocId } from "@/lib/docTrack";
+import { trackerSeen, type TrackerSeen } from "@/lib/mailTrack";
 
 const MAX_MB = 25;
 
@@ -50,12 +51,10 @@ export async function deletePdf(id: string): Promise<{ error?: string }> {
   return {};
 }
 
-// When your mail tracker last logged an email you sent, from whichever
-// browser it's in: the boards' chip, in a browser without it (Safari, the
-// Dock app), shows it's on where you send from
-export async function myTrackerLastSent(): Promise<string | null> {
+// When your mail tracker last checked in, and its version (lib/mailTrack):
+// the boards' chip, in a browser without it (Safari, the Dock app), shows
+// whether it's on in Chrome
+export async function myTrackerSeen(): Promise<TrackerSeen | null> {
   const me = await getRealViewer();
-  if (!me) return null;
-  const last = await prisma.trackedMail.findFirst({ where: { userId: me.id }, orderBy: { sentAt: "desc" }, select: { sentAt: true } });
-  return last?.sentAt.toISOString() ?? null;
+  return me ? trackerSeen(me.id) : null;
 }

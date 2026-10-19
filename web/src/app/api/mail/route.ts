@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { onStaff } from "@/lib/users";
-import { keyOwner, recordSelfView, recordSent } from "@/lib/mailTrack";
+import { keyOwner, recordCheckIn, recordSelfView, recordSent } from "@/lib/mailTrack";
 
 export const dynamic = "force-dynamic";
 
 // What the mail tracker extension reports, with its person's key:
 // { kind: "sent", id, from, to, subject, links } as an email goes out, and
-// { kind: "self", id } when the sender is looking at it themselves.
+// { kind: "self", id } when the sender is looking at it themselves, and
+// { kind: "here", version } as it checks in (every half hour, 1.0.8 on).
 export async function POST(request: Request) {
   const userId = keyOwner(request.headers.get("x-tracker-key"));
   // a key stops working once its person leaves
@@ -20,6 +21,10 @@ export async function POST(request: Request) {
   }
   if (body?.kind === "self" && typeof body.id === "string") {
     await recordSelfView(body.id);
+    return NextResponse.json({ ok: true });
+  }
+  if (body?.kind === "here") {
+    await recordCheckIn(userId, body.version);
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "Nothing to record." }, { status: 400 });

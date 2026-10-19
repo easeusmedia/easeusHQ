@@ -91,6 +91,24 @@ export async function recordClick(id: string, n: number, staff: boolean, agent: 
 // One of us looked at a sent email (the extension saw it on their screen;
 // the sales inbox is shared, so anyone on the team). Kept as its own event:
 // an open within half a minute of it, before or after (the two race), was ours.
+// The extension checking in (1.0.8 on, every half hour while Chrome is
+// open): when, and which version, per person, so a browser without it
+// (Safari, the Dock app) can still tell it's on
+const SEEN = (userId: string) => `mail-tracker-seen:${userId}`;
+export type TrackerSeen = { at: string; version: string };
+export async function recordCheckIn(userId: string, version: unknown) {
+  const value = JSON.stringify({ at: new Date().toISOString(), version: String(version ?? "").slice(0, 20) } satisfies TrackerSeen);
+  await prisma.appSetting.upsert({ where: { key: SEEN(userId) }, create: { key: SEEN(userId), value }, update: { value } });
+}
+export async function trackerSeen(userId: string): Promise<TrackerSeen | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: SEEN(userId) } });
+  try {
+    return row ? (JSON.parse(row.value) as TrackerSeen) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function recordSelfView(id: string) {
   if (!MAIL_ID.test(id)) return;
   const mail = await prisma.trackedMail.findUnique({ where: { id }, select: { id: true } });

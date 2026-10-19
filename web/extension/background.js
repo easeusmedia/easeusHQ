@@ -40,6 +40,21 @@ chrome.runtime.onMessage.addListener((msg) => {
   } else if (msg?.kind === "self") post(msg);
 });
 
-chrome.alarms.create("flush", { periodInMinutes: 5 });
-chrome.alarms.onAlarm.addListener(flush);
-chrome.runtime.onStartup.addListener(flush);
+// Checking in (1.0.8): while Chrome is open, every half hour and whenever
+// it's connected, so Easeus HQ can tell it's on even in a browser without
+// it (Safari, the Dock app)
+const checkIn = () => post({ kind: "here", version: chrome.runtime.getManifest().version });
+
+// made once: making one again (each time the worker wakes) would push it
+// back, and the half-hourly check-in would never come
+for (const [name, periodInMinutes] of [["flush", 5], ["here", 30]])
+  chrome.alarms.get(name).then((a) => a || chrome.alarms.create(name, { periodInMinutes }));
+chrome.alarms.onAlarm.addListener((a) => (a.name === "here" ? checkIn() : flush()));
+chrome.runtime.onStartup.addListener(() => {
+  flush();
+  checkIn();
+});
+chrome.runtime.onInstalled.addListener(checkIn);
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.key || changes.base) checkIn();
+});

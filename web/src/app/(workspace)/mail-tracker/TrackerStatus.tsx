@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CircleCheck, Download } from "lucide-react";
+import { CHECKS_IN, older } from "../TrackerChip";
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -28,10 +29,27 @@ export function TrackerStatus({ tracked }: { tracked: { from: string; count: num
   return (
     <div className="mt-6 flex flex-col gap-3">
       {version !== null ? (
-        <div className="panel flex items-center gap-3 rounded-2xl px-5 py-4">
-          <CircleCheck size={18} className="shrink-0 text-emerald-400" />
-          <p className="text-sm">Connected. Every email sent from Gmail in this browser is tracked.</p>
-        </div>
+        <>
+          <div className="panel flex items-center gap-3 rounded-2xl px-5 py-4">
+            <CircleCheck size={18} className="shrink-0 text-emerald-400" />
+            <p className="text-sm">Connected. Every email sent from Gmail in this browser is tracked.</p>
+          </div>
+          {/* older than the check-in (1.0.8): Safari and the Dock app can't tell it's on */}
+          {older(version, CHECKS_IN) && (
+            <ol className="panel flex list-decimal flex-col gap-3 rounded-2xl py-4 pr-5 pl-10 text-sm marker:text-muted">
+              <li>
+                <a href="/mail-tracker.zip" download className="btn btn-ghost -my-1 inline-flex items-center gap-1.5">
+                  <Download size={14} /> Download tracker {CHECKS_IN}
+                </a>{" "}
+                and unzip it.
+              </li>
+              <li>
+                In <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs">chrome://extensions</span>, remove Easeus Mail Tracker, then click Load unpacked and choose the new folder.
+              </li>
+              <li>Reload this page and any open Gmail tab.</li>
+            </ol>
+          )}
+        </>
       ) : (
         <ol className="panel flex list-decimal flex-col gap-3 rounded-2xl py-4 pr-5 pl-10 text-sm marker:text-muted">
           <li>

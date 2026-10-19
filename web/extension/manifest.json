@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Easeus Mail Tracker",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Counts opens and link clicks on the emails you send from Gmail, for Easeus HQ.",
   "permissions": [
     "storage",
