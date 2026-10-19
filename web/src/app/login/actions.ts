@@ -10,6 +10,15 @@ import { redirect } from "next/navigation";
 // form otherwise clears) and only the password is typed again
 export type LoginState = { error?: string; email?: string };
 
+function pageHere(next: string): string | null {
+  try {
+    const u = new URL(next, "http://here");
+    return next && u.origin === "http://here" ? u.pathname + u.search : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
@@ -25,7 +34,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if ((theme === "dark" || theme === "mist") && theme !== user.theme) await prisma.user.update({ where: { id: user.id }, data: { theme } });
 
   await createSession(user.id);
-  // a Founder starts on Home; everyone else on the Board
-  // everyone starts on Home
-  redirect("/home");
+  // everyone starts on Home, unless sent here from a page of this app:
+  // parsed as a browser would, so it's only ever a page here, never another site
+  redirect(pageHere(String(formData.get("next") ?? "")) ?? "/home");
 }

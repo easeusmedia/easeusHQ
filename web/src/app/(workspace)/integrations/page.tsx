@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
-import { getRealUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { DRIVE_SETTINGS, brandAssetsName, driveSettings } from "@/lib/drive";
 import { NOTION_SETTINGS, clientDatabaseId, notionSettings, taskDatabaseId } from "@/lib/notion";
@@ -13,6 +12,7 @@ import { AnalyticsIntegration } from "./AnalyticsIntegration";
 import { apifyAccount, apifyTokens } from "@/lib/apify";
 import { ClaudeIntegration } from "./ClaudeIntegration";
 import { ClaudeConnection } from "./ClaudeConnection";
+import { myClaudeConnection } from "./actions";
 import { GmailIntegration } from "./GmailIntegration";
 import { CalendarIntegration } from "./CalendarIntegration";
 import { calendarAccount } from "@/lib/googleCalendar";
@@ -53,9 +53,9 @@ export default async function IntegrationsPage({
     gmailAccount("sales"),
     calendarAccount(),
     gmailCanSend(),
-    // your Claude's link to the app (MCP): whether it's on, never the key.
-    // Yours even while looking as someone: its buttons change only yours
-    getRealUserId().then((id) => prisma.connection.findFirst({ where: { userId: id ?? "", revokedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true, lastUsedAt: true } })),
+    // your Claude's connection to the app (MCP): the address and whether
+    // it's on. Yours even while looking as someone: its button changes only yours
+    myClaudeConnection(),
   ]);
 
   return (
@@ -97,7 +97,7 @@ export default async function IntegrationsPage({
         spend={spend}
       />
 
-      <ClaudeConnection active={connection ? { createdAt: connection.createdAt.toISOString(), lastUsedAt: connection.lastUsedAt?.toISOString() ?? null } : null} />
+      {connection && <ClaudeConnection url={connection.url} active={connection.active} />}
 
       <GmailIntegration account={gmail} canSend={gmailSends} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />
       <GmailIntegration inbox="sales" account={salesGmail} clientId={settings[DRIVE_SETTINGS.clientId] ?? ""} />

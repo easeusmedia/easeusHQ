@@ -11,7 +11,7 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients, seesSalesMail } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients, connectsClaude } from "@/lib/scope";
 import { ViewAsBanner } from "./ViewAsBanner";
 import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -144,7 +144,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         canSeeFinance={canEditPeople(sessionUser)}
         name={sessionUser.name}
         // their own account to change: not while looking as someone else
-        account={viewingAs ? null : { id: sessionUser.id, name: sessionUser.name, email: sessionUser.email, claude: seesSalesMail(viewer) }}
+        account={viewingAs ? null : { id: sessionUser.id, name: sessionUser.name, email: sessionUser.email, claude: connectsClaude(viewer) }}
         fullAccess={isAbhishekOrAdmin(sessionUser)}
         isEditor={editor}
         unreadBySender={unreadBySender}

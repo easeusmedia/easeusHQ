@@ -20,7 +20,8 @@ const INPUT = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 tex
 // picked), your name and the email you sign in with, and a "Change
 // password" button that opens the password fields only when asked for. A new
 // email or password needs the current password, which appears only then.
-// For Level 1 and Sales (`claude`), their own Claude connection link too.
+// For those who may connect Claude (`claude`: Level 1, and Level 2 in
+// Sales), the connector address and their connection.
 // Opens on `open`.
 export function AccountDialog({ open, onClose, account }: { open: boolean; onClose: () => void; account: { id: string; name: string; email: string; claude: boolean } }) {
   const router = useRouter();
@@ -37,9 +38,8 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
   const photoInput = useRef<HTMLInputElement>(null);
   const [photoState, setPhotoState] = useState<string | null>(null);
   const hasPhoto = !!usePhoto(account.name);
-  // their Claude link as it stands (undefined until read, and again once
-  // closed, so a link shown once doesn't show again)
-  const [claude, setClaude] = useState<{ createdAt: string; lastUsedAt: string | null } | null | undefined>(undefined);
+  // their Claude connection as it stands (undefined until read, and again once closed)
+  const [claude, setClaude] = useState<Awaited<ReturnType<typeof myClaudeConnection>> | undefined>(undefined);
 
   async function setPhoto(file: File | null) {
     setPhotoState("Saving…");
@@ -66,7 +66,6 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
       setError(null);
       setBusy(false);
       setPhotoState(null);
-      // unread (not "off") if this fails: "Make the link" would end one that works
       if (account.claude) myClaudeConnection().then(setClaude).catch(() => {});
       d.showModal();
     } else if (!open && d.open) d.close();
@@ -223,8 +222,8 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
         </div>
       </form>
       {account.claude && (
-        <Reveal open={claude !== undefined}>
-          {claude !== undefined && <ClaudeConnection active={claude} onChange={setClaude} className="mx-6 mb-6 border-t border-border pt-5" />}
+        <Reveal open={!!claude}>
+          {claude && <ClaudeConnection url={claude.url} active={claude.active} onChange={(active) => setClaude({ ...claude, active })} className="mx-6 mb-6 border-t border-border pt-5" />}
         </Reveal>
       )}
     </dialog>

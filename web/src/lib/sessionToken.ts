@@ -17,15 +17,18 @@ export const COOKIE_OPTIONS = {
   maxAge: 60 * 60 * 24 * 30,
 } as const;
 
+// the app's signature on a value (the session here; lib/mcp/oauth's sealed
+// values sign "<kind>.<value>", so neither passes for the other)
+export const mac = (value: string) => createHmac("sha256", SECRET).update(value).digest("hex");
+
 export function sign(userId: string): string {
-  const sig = createHmac("sha256", SECRET).update(userId).digest("hex");
-  return `${userId}.${sig}`;
+  return `${userId}.${mac(userId)}`;
 }
 
 export function unsign(token: string): string | null {
   const [userId, sig] = token.split(".");
   if (!userId || !sig) return null;
-  const expected = createHmac("sha256", SECRET).update(userId).digest("hex");
+  const expected = mac(userId);
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b) ? userId : null;

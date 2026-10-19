@@ -22,7 +22,7 @@ const THEMES = [
 // no card, the mark, two fields drawn as lines, and an outlined button that
 // takes the app's blue glass on hover. A look picked here is the app's too
 // once signed in.
-export function LoginForm({ theme: initial }: { theme: "dark" | "mist" }) {
+export function LoginForm({ theme: initial, next }: { theme: "dark" | "mist"; next?: string }) {
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [theme, setTheme] = useState(initial);
@@ -54,6 +54,7 @@ export function LoginForm({ theme: initial }: { theme: "dark" | "mist" }) {
       <form action={formAction} className="rise-in flex w-full max-w-[300px] flex-col items-center">
         {/* the look picked here becomes theirs in the app */}
         {picked && <input type="hidden" name="theme" value={theme} />}
+        {next && <input type="hidden" name="next" value={next} />}
         <Image src="/logo.png" alt="Easeus" width={44} height={44} className="h-11 w-11 object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]" priority />
         <p className="mt-5 text-sm tracking-wide text-white/70">Sign in to Easeus HQ</p>
 

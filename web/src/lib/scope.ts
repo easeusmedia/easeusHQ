@@ -57,6 +57,12 @@ export function seesClients(user: Pick<Viewer, "role" | "email" | "departments">
   return isFounder(user) || !user.departments.length || user.departments.some((d) => d.slug !== DEPT.sales);
 }
 
+// Who may connect their Claude to the Sales dashboard (MCP, lib/mcp): Level 1,
+// and Level 2 in Sales (Abhishek, 19 Oct 2026)
+export function connectsClaude(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
+  return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.sales));
+}
+
 // Sales' email numbers and tracked PDFs (the Email pages): Level 1 and Sales
 export function seesSalesMail(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
   return isFounder(user) || inDepartment(user, DEPT.sales);
