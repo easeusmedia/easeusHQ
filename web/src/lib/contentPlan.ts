@@ -22,13 +22,15 @@ export type PlanItem = {
 // Where every client starts (in DELIVERABLE_TYPES order), delivered a week
 // on from the day the project's made (Abhishek, 19 Oct 2026): made on the
 // 1st, the trailer is due the 7th, the long-form edit and its thumbnail the
-// 8th, the reels the 8th and 9th.
+// 8th, the reels the 8th and 9th. The processed audio goes with the
+// long-form, on the 8th (Abhishek, 20 Oct 2026).
 export const DEFAULT_PLAN: PlanItem[] = [
   { type: "YouTube Long-Form", count: 1, startDay: 0, endDay: 7 },
   { type: "Reel Trailer", count: 1, startDay: 0, endDay: 6 },
   { type: "Reel", count: 6, startDay: 7, endDay: 8 },
   { type: "Bonus Reel", count: 0, startDay: 7, endDay: 8 },
   { type: "Thumbnails", count: 1, startDay: 0, endDay: 7 },
+  { type: "Audio", count: 1, startDay: 0, endDay: 7 },
 ];
 
 const int = (v: unknown, min: number, max: number, fallback: number) =>
@@ -60,6 +62,7 @@ export const TYPE_TAG: Record<string, string> = {
   Reel: "Reel",
   "Bonus Reel": "Reel",
   Thumbnails: "Thumbnail",
+  Audio: "Audio engineering",
 };
 
 // what one of them is called on its task: "Thumbnail", not "Thumbnails"
@@ -112,11 +115,14 @@ const DELIVERABLE_LABEL: Record<string, string> = {
   Reel: "Reel",
   "Bonus Reel": "Bonus reel",
   Thumbnails: "Thumbnail",
+  Audio: "Audio",
 };
 
 // A new project's deliverables, one placeholder each, named after the
 // project and due by the blueprint: what the project page lists (and the
 // client's), each filled in with its link later and every part editable.
+// Whatever deliverable is picked appears (Abhishek, 20 Oct 2026): one the
+// blueprint has none of gets one, due on its day.
 export function planDeliverables(
   plan: PlanItem[],
   types: string[],
@@ -124,9 +130,10 @@ export function planDeliverables(
   start: string,
   deadline?: string
 ): { name: string; type: string; due: string }[] {
-  const counts = Object.fromEntries(plan.map((p) => [p.type, p.count]));
+  const picked = plan.map((p) => (types.includes(p.type) && p.count === 0 ? { ...p, count: 1 } : p));
+  const counts = Object.fromEntries(picked.map((p) => [p.type, p.count]));
   const seen: Record<string, number> = {};
-  return planTasks(plan, types, projectName, start, deadline).map((t) => {
+  return planTasks(picked, types, projectName, start, deadline).map((t) => {
     const n = (seen[t.type] = (seen[t.type] ?? 0) + 1);
     const label = DELIVERABLE_LABEL[t.type] ?? t.type;
     return { name: `${projectName} ${label}${counts[t.type] > 1 ? ` ${n}` : ""}`, type: t.type, due: t.due };

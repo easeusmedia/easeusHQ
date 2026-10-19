@@ -35,7 +35,7 @@ test("a type the project doesn't have, or the client doesn't get, plans nothing"
 
 test("a saved plan is cleaned up, and an older one read as ranges", () => {
   const plan = planFor([{ type: "Reel", count: 99, startDay: -4, endDay: -9 }, { type: "Nonsense", count: 3 }, null]);
-  assert.equal(plan.length, 5);
+  assert.equal(plan.length, 6);
   assert.deepEqual(plan.find((p) => p.type === "Reel"), { type: "Reel", count: 30, startDay: 0, endDay: 0 });
   assert.deepEqual(planFor(undefined), DEFAULT_PLAN);
   // "6 reels, first on day 5, then every 2 days" was days 5 to 15
@@ -45,4 +45,16 @@ test("a saved plan is cleaned up, and an older one read as ranges", () => {
     startDay: 5,
     endDay: 15,
   });
+});
+
+test("every picked deliverable is a placeholder: the audio with the long-form, a bonus reel the blueprint has none of on its day", () => {
+  const d = planDeliverables(DEFAULT_PLAN, ["YouTube Long-Form", "Audio", "Bonus Reel"], "Pip Jamison", "2026-10-01");
+  assert.deepEqual(
+    d.map((x) => [x.name, x.due]),
+    [
+      ["Pip Jamison Long-form", "2026-10-08"],
+      ["Pip Jamison Audio", "2026-10-08"],
+      ["Pip Jamison Bonus reel", "2026-10-09"],
+    ]
+  );
 });

@@ -108,6 +108,19 @@ export function Organisation({
 
   const kindMessage = (t: WorkTag) =>
     `Remove "${t.name}"?${t.uses ? ` ${t.uses} ${t.uses === 1 ? "task loses it" : "tasks lose it"}; the tasks stay.` : ""}`;
+  const kindChip = (k: WorkTag) => (
+    <span key={k.id} className="group/k flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-foreground/80">
+      {k.name}
+      <ConfirmButton
+        confirm="Remove"
+        message={kindMessage(k)}
+        className="text-muted opacity-0 transition-opacity group-hover/k:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+        onConfirm={() => removeKind(k.id)}
+      >
+        <X size={10} />
+      </ConfirmButton>
+    </span>
+  );
   const roleMessage = (r: Position) => `Remove the role "${r.name}"?${r.people ? ` ${people(r.people)} will lose it.` : ""}`;
 
   return (
@@ -184,27 +197,20 @@ export function Organisation({
                           </ConfirmButton>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {tags
-                            .filter((k) => k.roleId === r.id)
-                            .map((k) => (
-                              <span key={k.id} className="group/k flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-foreground/80">
-                                {k.name}
-                                <ConfirmButton
-                                  confirm="Remove"
-                                  message={kindMessage(k)}
-                                  className="text-muted opacity-0 transition-opacity group-hover/k:opacity-100 hover:text-red-400 focus-visible:opacity-100"
-                                  onConfirm={() => removeKind(k.id)}
-                                >
-                                  <X size={10} />
-                                </ConfirmButton>
-                              </span>
-                            ))}
+                          {tags.filter((k) => k.roleId === r.id).map(kindChip)}
                           <AddInline small label="Kind of work" onAdd={(name) => addKind(name, r)} />
                         </div>
                       </div>
                     );
                   })}
                 </div>
+                {/* kinds of work added for the department with no role (a
+                    project's file form adds Production's this way) */}
+                {tags.some((k) => k.teamId === t.id && !k.roleId) && (
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2.5">
+                    {tags.filter((k) => k.teamId === t.id && !k.roleId).map(kindChip)}
+                  </div>
+                )}
                 <div className="mt-2">
                   <AddInline label="Add role" onAdd={(name) => addRole(name, t.id)} />
                 </div>

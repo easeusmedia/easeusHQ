@@ -798,17 +798,13 @@ export async function createProject(
   if (!client) return { error: "Client not found." };
 
   // its deliverables, one placeholder each ("Pip Jamison Reel 1"), due by
-  // the client's blueprint from the day it starts (today, unless picked);
-  // a picked type the blueprint has none of still gets one, undated
+  // the client's blueprint from the day it starts (today, unless picked)
   const plan = planFor(client.contentPlan);
   const types = deliverableTypes ?? plan.filter((p) => p.count > 0).map((p) => p.type);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(planFrom ?? "") ? planFrom! : new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const until = planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > day ? planUntil : undefined;
   const deliverables = planDeliverables(plan, types, trimmed, day, until);
-  const placeholders = [
-    ...deliverables.map((d) => ({ name: d.name, contentType: d.type, dueDate: new Date(d.due) })),
-    ...types.filter((t) => !deliverables.some((d) => d.type === t)).map((t) => ({ name: t, contentType: t, dueDate: null })),
-  ];
+  const placeholders = deliverables.map((d) => ({ name: d.name, contentType: d.type, dueDate: new Date(d.due) }));
 
   const project = await prisma.project.create({
     data: {
@@ -838,7 +834,7 @@ export async function createProject(
         )
       : [];
   if (planned.length) {
-    const tags = await prisma.taskTag.findMany({ select: { id: true, name: true } });
+    const tags = await prisma.taskTag.findMany({ select: { id: true, name: true, workflow: true, teamId: true } });
     const tagFor = (type: string) => tags.find((t) => t.name.toLowerCase() === TYPE_TAG[type]?.toLowerCase());
     const now = Date.now();
     const made = await prisma.$transaction(
@@ -851,7 +847,9 @@ export async function createProject(
             dueDate: new Date(t.due),
             deliveryDate: new Date(t.due),
             sortOrder: now + i,
-            ...(tagFor(t.type) ? { tags: { connect: { id: tagFor(t.type)!.id } } } : {}),
+            // moved and filed the way its kind of work is, as a task made by
+            // hand would be (actions.ts placeTask): Audio's is a to-do
+            ...(tagFor(t.type) ? { tags: { connect: { id: tagFor(t.type)!.id } }, workflow: tagFor(t.type)!.workflow, teamId: tagFor(t.type)!.teamId } : {}),
           },
           select: { id: true },
         })

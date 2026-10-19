@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { canEditPeople, canSetAccess, isFounder, type Viewer } from "@/lib/scope";
+import { canEditPeople, canSetAccess, isFounder, setsUp, type Viewer } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { isStorablePicture } from "@/lib/photos";
 import { revalidatePath } from "next/cache";
@@ -295,9 +295,10 @@ export async function deleteDepartment(id: string): Promise<PeopleFormState> {
 // A department's work tags: the kinds of work its tasks are labelled with
 // ("Reel", "Proposal"), offered on the Type chip to that department. Same
 // rule as positions: one of the same name anywhere is refused, not doubled.
+// Also offered on a project's file form, for Production (projects/ProjectFiles).
 export async function createWorkTag(name: string, teamId: string, roleId?: string): Promise<PeopleFormState & { id?: string; name?: string; workflow?: string }> {
-  const actor = await requirePeopleAdmin();
-  if (!actor) return { error: "Only Level 1 can add a work tag." };
+  const actor = await getViewer();
+  if (!actor || !setsUp(actor)) return { error: "Only Level 1 and Admin & Technical's Level 2 can add a work tag." };
   const trimmed = name.trim();
   if (!trimmed) return { error: "Give the work tag a name." };
 

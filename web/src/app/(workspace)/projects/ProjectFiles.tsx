@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, AudioLines, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Megaphone, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpRight, AudioLines, CalendarDays, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Megaphone, Pencil, Plus, Trash2, X } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { Dropdown } from "../Dropdown";
 import { addProjectAsset, updateProjectAsset, deleteProjectAsset, setPostDate } from "../clients/actions";
+import { createWorkTag } from "../team/actions";
+import { AddInline } from "../EditableName";
 import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { formatDate } from "../TaskCard";
@@ -61,6 +63,7 @@ function typeKind(type: string) {
   if (t.includes("reel")) return "Reel";
   if (t.includes("thumb")) return "Thumbnail";
   if (t.includes("carousel")) return "Carousel";
+  if (t.includes("audio")) return "Audio";
   if (t === "misc.") return "Other";
   return type;
 }
@@ -68,6 +71,7 @@ function typeKind(type: string) {
 // what the file is, at a glance
 function iconFor(type: string, name: string) {
   if (/thumb/i.test(type) || /thumb/i.test(name)) return ImageIcon;
+  if (/audio/i.test(type)) return AudioLines;
   if (type === "Misc.") {
     if (/audio|\.(mp3|wav|m4a)$/i.test(name)) return AudioLines;
     if (/copy|script|caption|doc|brief/i.test(name)) return FileText;
@@ -92,7 +96,7 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; post?: string | null };
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; post?: string | null; due?: string | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -105,6 +109,7 @@ export function ProjectFiles({
   readOnly = false,
   canPost = false,
   tagOptions = [],
+  tagTeamId,
 }: {
   projectId: string;
   assets: ProjectAssetData[];
@@ -118,6 +123,8 @@ export function ProjectFiles({
   canPost?: boolean;
   // the tags a file can be given (the same as a task's kinds of work)
   tagOptions?: Tag[];
+  // given, a new tag can be added from the form, into this department
+  tagTeamId?: string;
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -143,8 +150,9 @@ export function ProjectFiles({
       name: a.name,
       type: a.contentType,
       link: a.link,
-      // when it's due, then where it lives
-      sub: [a.dueDate ? `Due ${formatDate(`${a.dueDate}T00:00:00Z`)}` : null, source(a.link)].filter(Boolean).join(" · "),
+      // where it lives; when it's due sits on the right
+      sub: source(a.link),
+      due: a.dueDate ?? null,
       asset: a,
       ...kindsOf(a.tags, typeKind(a.contentType)),
     })),
@@ -188,6 +196,7 @@ export function ProjectFiles({
         <div className="fade-in panel mb-4 rounded-2xl">
           <AssetForm
             tagOptions={tagOptions}
+            tagTeamId={tagTeamId}
             onCancel={() => setAdding(false)}
             onSubmit={async (input) => {
               const res = await addProjectAsset(projectId, input);
@@ -236,6 +245,7 @@ export function ProjectFiles({
                     <AssetForm
                       initial={a}
                       tagOptions={tagOptions}
+                      tagTeamId={tagTeamId}
                       onCancel={() => setEditingId(null)}
                       onSubmit={async (input) => {
                         const res = await updateProjectAsset(a.id, input);
@@ -274,6 +284,13 @@ export function ProjectFiles({
                       <span className="truncate">· {r.sub}</span>
                     </span>
                   </span>
+                  {r.due && (
+                    // its delivery date, picked out so it's seen at a glance
+                    <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/15 px-2.5 py-1 text-xs font-medium tabular-nums text-accent">
+                      <CalendarDays size={12} />
+                      {formatDate(`${r.due}T00:00:00Z`)}
+                    </span>
+                  )}
                   {canPost && !readOnly && r.type === "delivered" && <PostingDate taskId={r.id} initial={r.post ?? null} />}
                   {r.link && (
                     <ArrowUpRight
@@ -317,11 +334,13 @@ export function ProjectFiles({
 function AssetForm({
   initial,
   tagOptions,
+  tagTeamId,
   onCancel,
   onSubmit,
 }: {
   initial?: ProjectAssetData;
   tagOptions: Tag[];
+  tagTeamId?: string;
   onCancel: () => void;
   onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string }) => Promise<string | null>;
 }) {
@@ -330,6 +349,10 @@ function AssetForm({
   const [link, setLink] = useState(initial?.link ?? "");
   const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  // tags added from this form, shown and picked at once
+  const [added, setAdded] = useState<Tag[]>([]);
+  // and any it already carries from elsewhere, so they can still be taken off
+  const options = [...tagOptions, ...(initial?.tags ?? []).filter((t) => !tagOptions.some((o) => o.id === t.id)), ...added];
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -361,11 +384,11 @@ function AssetForm({
           <DatePicker value={dueDate} onChange={setDueDate} placeholder="Delivery date" />
         </div>
       </div>
-      {tagOptions.length > 0 && (
+      {(options.length > 0 || tagTeamId) && (
         // the same kinds of work a task is tagged with
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-xs text-muted">Tags</span>
-          {tagOptions.map((t) => {
+          {options.map((t) => {
             const on = tagIds.includes(t.id);
             return (
               <button
@@ -381,6 +404,22 @@ function AssetForm({
               </button>
             );
           })}
+          {tagTeamId && (
+            <AddInline
+              label="Tag"
+              onAdd={async (tagName) => {
+                const res = await createWorkTag(tagName, tagTeamId);
+                if (res.error || !res.id) {
+                  setError(res.error ?? "That tag couldn't be added.");
+                  return res.error ?? "error";
+                }
+                setError(null);
+                setAdded((a) => [...a, { id: res.id!, name: res.name! }]);
+                setTagIds((ids) => [...ids, res.id!]);
+                return undefined;
+              }}
+            />
+          )}
         </div>
       )}
       {error && <p className="text-xs text-red-300">{error}</p>}

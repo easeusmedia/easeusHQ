@@ -2,7 +2,8 @@
 // Files section groups by (projects/[id]/page.tsx). Fixed and shared, not
 // per-client, so creating a project applies the identical structure
 // regardless of which client or who's setting it up.
-export const DELIVERABLE_TYPES = ["YouTube Long-Form", "Reel Trailer", "Reel", "Bonus Reel", "Thumbnails"] as const;
+// Audio: the episode's processed audio, for Spotify and the other podcast apps
+export const DELIVERABLE_TYPES = ["YouTube Long-Form", "Reel Trailer", "Reel", "Bonus Reel", "Thumbnails", "Audio"] as const;
 
 // Sort order for a project's Files section — "Misc." is the catch-all
 // bucket for anything that doesn't fit one of the real deliverable types

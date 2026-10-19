@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { logoSrcAt } from "@/lib/photos";
 import { logoVersions } from "@/lib/pictureVersions";
 import { Avatar } from "../../(workspace)/TaskCard";
@@ -21,8 +20,9 @@ import { sharedClient } from "./shared";
 // (see proxy.ts), only while ops has sharing switched on. The same layout
 // as the team's page for this client — header, the four numbers, then
 // Overview / Deliverables / Client info — made read-only, with the team's
-// side taken out: no billing, no internal work, no editing, no editor
-// names, no private notes or onboarding. Feedback for the team at the end.
+// side taken out: no billing, no tasks at all (their projects and files
+// only), no editing, no editor names, no private notes or onboarding.
+// Feedback for the team at the end.
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +56,9 @@ export default async function SharedClientPage({
       deliverables: { orderBy: { sortOrder: "asc" } },
       projects: {
         orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
-        include: { _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES }, internal: false } } } } },
+        include: { _count: { select: { assets: true } } },
       },
     },
-  });
-  const activeTasks = await prisma.task.count({
-    where: { projectId: { in: client.projects.map((p) => p.id) }, status: { in: ACTIVE_STATUSES }, internal: false },
   });
 
   const logo = logoSrcAt(client.slug, (await logoVersions()).get(client.id));
@@ -79,7 +76,7 @@ export default async function SharedClientPage({
     completedAt: p.completedAt ? shortDate(p.completedAt) : null,
     date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10),
     assetCount: p._count.assets,
-    activeTasks: p._count.tasks,
+    activeTasks: 0,
     invoiceStatus: p.invoiceStatus,
     invoiceBatch: p.invoiceBatch,
   }));
@@ -113,7 +110,6 @@ export default async function SharedClientPage({
 
       <div className="mb-10">
         <ClientStats
-          activeTasks={activeTasks}
           inProgress={client.projects.filter((p) => p.status !== "completed").length}
           completed={client.projects.filter((p) => p.status === "completed").length}
           unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}

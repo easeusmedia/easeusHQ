@@ -2,7 +2,7 @@ import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { effectiveRole, isFounder, isLead, runsClients } from "@/lib/scope";
+import { effectiveRole, isFounder, isLead, runsClients, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // one round: none of these needs another's answer
-  const [sessionUserId, viewer, users, project, typeCounts, allTags] = await Promise.all([
+  const [sessionUserId, viewer, users, project, typeCounts, allTags, production] = await Promise.all([
     getSessionUserId(),
     getViewer(),
     getAllUsers(),
@@ -42,7 +42,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     }),
     // every type in use, most common first, for the header's Type picker
     prisma.project.groupBy({ by: ["type"], _count: { type: true }, orderBy: { _count: { type: "desc" } } }),
-    prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, teamId: true } }),
+    prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, team: { select: { slug: true } } } }),
+    prisma.team.findUnique({ where: { slug: "production" }, select: { id: true } }),
   ]);
   if (!sessionUserId) redirect("/login");
   const me = users.find((u) => u.id === sessionUserId);
@@ -186,10 +187,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           tags: t.tags.map((g) => ({ id: g.id, name: g.name })),
         }))}
         canPost={runsClients(viewer)}
-        // the kinds of work this person picks from on a task: their team's, and shared ones
-        tagOptions={allTags
-          .filter((t) => isFounder(viewer) || !t.teamId || viewer.departments.some((d) => d.id === t.teamId))
-          .map((t) => ({ id: t.id, name: t.name }))}
+        // a file is Production's work: only Production's kinds of work
+        tagOptions={allTags.filter((t) => t.team?.slug === "production").map((t) => ({ id: t.id, name: t.name }))}
+        // and a new one added there lands in Production (lib/scope setsUp)
+        tagTeamId={setsUp(viewer) ? production?.id : undefined}
       />
     </div>
   );

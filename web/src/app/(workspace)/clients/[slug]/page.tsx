@@ -144,11 +144,6 @@ export default async function ClientDetailPage({
     // is filtered) — the delete confirmation says what would go with it
     prisma.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds } }, _count: { _all: true } }),
   ]);
-  // the client's work splits two ways on the Overview: what they'll receive,
-  // and what's done for them behind the scenes
-  const deliverableTasks = tasks.filter((t) => !t.internal);
-  const internalTasks = tasks.filter((t) => t.internal);
-
   const boardProjects = client.projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: client.id, name: client.name } }));
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
@@ -248,8 +243,10 @@ export default async function ClientDetailPage({
                   <p className="-mt-3 mb-3 text-xs text-muted">
                     Work for the client. Once delivered, it appears in their projects.
                   </p>
+                  {/* everything for the client in one list, internal work too
+                      (Abhishek, 20 Oct 2026) */}
                   <ClientOngoing
-                    tasks={deliverableTasks}
+                    tasks={tasks}
                     workTasks={clientWorkTasks.map((t) => ({
                       id: t.id,
                       title: t.title,
@@ -267,31 +264,6 @@ export default async function ClientDetailPage({
                     taskTags={taskTags}
                   />
                 </section>
-
-                {/* The other half of the client's work: real work done for
-                    them that never leaves the studio — audio engineering,
-                    colour correction, channel management. It belongs to the
-                    client and is tracked and assigned like anything else,
-                    it just isn't a deliverable, so it's listed apart from
-                    the work that is rather than mixed in with it. */}
-                {internalTasks.length > 0 && (
-                  <section>
-                    <h2 className="mb-4 text-sm font-medium">Internal work</h2>
-                    <p className="-mt-3 mb-3 text-xs text-muted">
-                      Work done behind the scenes for this client. It isn&apos;t delivered to them and doesn&apos;t count towards delivered projects.
-                    </p>
-                    <ClientOngoing
-                      tasks={internalTasks}
-                      clientName={client.name}
-                      editors={editors}
-                      projects={boardProjects}
-                      actingUserId={me.id}
-                      actingRole={effectiveRole(me) as Role}
-                      taskTags={taskTags}
-                    />
-                  </section>
-                )}
-
 
                 <ProjectsSection
                   clientId={client.id}
