@@ -210,9 +210,10 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
 
     // hard rule, not just a UI nicety: a task can't be marked delivered
     // without a Drive link on record — enforced here so it holds regardless
-    // of which UI path (button, dropdown, or a future API caller) triggers it
+    // of which UI path (button, dropdown, or a future API caller) triggers it.
+    // Internal work isn't delivered to anyone, so it's done without one.
     const video = workflowOf(task.workflow) === "video";
-    if (video && to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
+    if (video && !task.internal && to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
       return { error: "Add a Drive link before marking this delivered." };
     }
     // same rule for review: nobody, internal or client, can review a cut

@@ -619,7 +619,8 @@ export function HomeView({
         ) : (
           <div className="flex flex-col gap-2">
             {mine.map((i) => {
-              const tickable = i.source === "work" || i.workflow === "todo";
+              // Level 1 and 2 tick any of theirs off, no queues (My tasks too)
+              const tickable = i.source === "work" || i.workflow === "todo" || env.actingRole !== "employee";
               const due = dueText(i.due, today);
               return (
                 <div key={i.key} {...frozen(i.id)} onPointerEnter={() => warmTask({ kind: i.source, id: i.id })} className="panel-soft panel-hover flex items-center gap-3 rounded-2xl px-4 py-3">

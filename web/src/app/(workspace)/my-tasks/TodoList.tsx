@@ -607,11 +607,13 @@ function Row({
   const ref = useRef<{ open: () => void }>(null);
   const task = item.task;
   const flow = workflowOf(task?.workflow);
-  // a to-do is ticked off; a video or design moves by its stages
-  const tickable = !!item.todo || flow === "todo";
+  // a to-do is ticked off; a video or design moves by its stages, but only
+  // for Level 3: Level 1 and 2 tick their own off too, no queues (19 Oct 2026)
+  const staged = flow !== "todo" && actingRole === "employee";
+  const tickable = !!item.todo || !staged;
   const due = item.due ? dueLabel(item.due, today) : null;
   const stage =
-    task && flow !== "todo" ? (
+    task && staged ? (
       <div onClick={(e) => e.stopPropagation()}>
         <StatusSelect
           taskId={task.id}
