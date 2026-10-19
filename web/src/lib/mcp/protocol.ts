@@ -13,6 +13,10 @@ export type ServerInfo = {
   name: string;
   version: string;
   instructions: string;
+  // what Claude shows for the connector (MCP 2025-11-25): our own icon, not
+  // the parent domain's favicon it falls back to (easeus.media's blue one)
+  icons?: { src: string; mimeType: string; sizes: string[] }[];
+  websiteUrl?: string;
 };
 
 // A message to the person's Claude rather than a crash: what went wrong, in words
@@ -69,7 +73,7 @@ async function handleOne(msg: unknown, tools: Tool[], info: ServerInfo): Promise
       return reply(id, {
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: info.name, version: info.version },
+        serverInfo: { name: info.name, version: info.version, ...(info.icons && { icons: info.icons }), ...(info.websiteUrl && { websiteUrl: info.websiteUrl }) },
         instructions: info.instructions,
       });
     }

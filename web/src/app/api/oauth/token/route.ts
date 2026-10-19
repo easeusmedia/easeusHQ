@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { traced } from "@/lib/mcp/trail";
 import { prisma } from "@/lib/prisma";
 import { onStaff } from "@/lib/users";
 import { connectsClaude } from "@/lib/scope";
@@ -11,7 +10,7 @@ const fail = (error: string, error_description: string, status = 400) => NextRes
 // A Claude trading the code from someone's Allow for its own key: a
 // Connection like any other (lib/mcp/keys), turned off from Account.
 // No expiry and no refresh: a key lasts until it's turned off.
-export const POST = traced(async (request: Request) => {
+export async function POST(request: Request) {
   const type = request.headers.get("content-type") ?? "";
   const form = type.includes("application/json")
     ? new Map(Object.entries((await request.json().catch(() => ({}))) as Record<string, string>))
@@ -31,4 +30,4 @@ export const POST = traced(async (request: Request) => {
   const key = makeKey();
   await prisma.connection.create({ data: { userId: user.id, name: client.n, keyHash: hashKey(key) }, select: { id: true } });
   return NextResponse.json({ access_token: key, token_type: "Bearer" }, { headers: { "cache-control": "no-store" } });
-});
+}

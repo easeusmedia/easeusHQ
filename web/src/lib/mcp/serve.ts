@@ -16,7 +16,9 @@ export async function answerMcp(request: Request, viewer: KeyViewer): Promise<Re
   if (body == null) return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, { status: 400 });
 
   const { connectionId, lastUsedAt, ...acting } = viewer;
-  const answer = await runAs(acting, () => handleRpc(body, salesTools(acting, originOf(request.headers)), INFO));
+  const origin = originOf(request.headers);
+  const info = { ...INFO, icons: [{ src: `${origin}/app-icon-512.png`, mimeType: "image/png", sizes: ["512x512"] }], websiteUrl: origin };
+  const answer = await runAs(acting, () => handleRpc(body, salesTools(acting, origin), info));
   await touchKey(connectionId, lastUsedAt);
 
   if (answer === null) return new Response(null, { status: 202 });

@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { traced } from "@/lib/mcp/trail";
 import { redirectAllowed, seal } from "@/lib/mcp/oauth";
 
 // A Claude registering itself (RFC 7591) before its first sign-in. Nothing
 // is stored: its id is its name and addresses, sealed (lib/mcp/oauth).
-export const POST = traced(async (request: Request) => {
+export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { client_name?: unknown; redirect_uris?: unknown } | null;
   const uris = Array.isArray(body?.redirect_uris) ? body.redirect_uris.filter((u): u is string => typeof u === "string") : [];
   if (!uris.length || uris.length > 5 || !uris.every(redirectAllowed))
@@ -22,4 +21,4 @@ export const POST = traced(async (request: Request) => {
     },
     { status: 201, headers: { "cache-control": "no-store" } },
   );
-});
+}

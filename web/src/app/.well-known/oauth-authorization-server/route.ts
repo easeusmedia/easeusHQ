@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { traced } from "@/lib/mcp/trail";
 import { originOf } from "@/lib/mcp/oauth";
 
 // Easeus HQ's sign-in for Claude (RFC 8414): register, sign in and allow,
 // then trade the code for a key. PKCE only, no client secrets.
-export const GET = traced((request: Request) => {
+export function GET(request: Request) {
   const origin = originOf(request.headers);
   return NextResponse.json(
     {
@@ -19,4 +18,4 @@ export const GET = traced((request: Request) => {
     },
     { headers: { "cache-control": "public, max-age=3600" } },
   );
-});
+}
