@@ -356,13 +356,7 @@ function LeadPage({
               ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : []),
             ]}
           />
-          {/* who handed it to whom; every earlier hand-off is in History */}
-          {assignee && assignee === lead.assignedTo?.id && lead.assignedByName && (
-            <span className="fade-in px-1 text-xs text-muted">
-              Assigned by {lead.assignedByName}
-              {lead.assignedAt && <>, {formatDateTime(lead.assignedAt)}</>}
-            </span>
-          )}
+          {/* who handed it to whom is in History, with every hand-off (not repeated up here) */}
         </span>
         </div>
         <span className="flex shrink-0 items-center gap-1">
