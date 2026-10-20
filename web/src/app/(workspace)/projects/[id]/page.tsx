@@ -72,11 +72,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     dayOfMonth: project.client.billingDayOfMonth,
     every: project.client.billingMilestoneCount,
   };
+  const names = (project.client.invoiceNames ?? {}) as Record<string, string>;
   const batches = clientBatches(
     project.client.projects,
     rule,
     new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })
-  );
+  ).map((b) => (names[b.key] ? { ...b, label: rule.cadence === "monthly_date" ? names[b.key] : `${b.label} · ${names[b.key]}` } : b));
   const inBatch = batches.find((b) => b.ids.includes(project.id));
   const nextKey = newBatchKey(batches, rule);
   const monthly = rule.cadence === "monthly_date";

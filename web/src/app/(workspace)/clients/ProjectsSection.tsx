@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, Filter, LayoutGrid, List, Receipt } from "lucide-react";
+import { ChevronRight, Filter, LayoutGrid, List, Pencil, Receipt } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
 import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule, type Payment } from "@/lib/invoiceBatches";
-import { moveProjectToInvoice } from "./actions";
+import { moveProjectToInvoice, renameInvoice } from "./actions";
+import { EditableName } from "../EditableName";
 import type { PlanItem } from "@/lib/contentPlan";
 import { Dropdown } from "../Dropdown";
 import { Reveal } from "../Reveal";
@@ -46,6 +47,7 @@ export function ProjectsSection({
   canMoveInvoices = false,
   plan,
   blueprint,
+  invoiceNames = {},
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -66,6 +68,8 @@ export function ProjectsSection({
   plan?: PlanItem[];
   // the button that edits it, beside the heading (the team's page only)
   blueprint?: React.ReactNode;
+  // invoices given their own names, by key (Client.invoiceNames)
+  invoiceNames?: Record<string, string>;
 }) {
   // "invoice": every project, in sections, one per invoice
   const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
@@ -108,7 +112,7 @@ export function ProjectsSection({
       .map((p) => ({ id: p.id, date: p.date, pin: pins[p.id] ?? p.invoiceBatch, open: !p.completedAt })),
     billing,
     today
-  );
+  ).map((b) => (invoiceNames[b.key] ? { ...b, label: invoiceNames[b.key] } : b));
   const nextKey = newBatchKey(batches, billing);
   const canMove = canMoveInvoices && !projectBase;
   const [dragId, setDragId] = useState<string | null>(null);
@@ -170,6 +174,8 @@ export function ProjectsSection({
   // Stored as what's been flipped from that default rather than what's open,
   // so switching into this view later still opens the first one.
   const [flipped, setFlipped] = useState<Set<string>>(() => new Set());
+  // the invoice whose name is being changed (its pencil, ops only)
+  const [renaming, setRenaming] = useState<string | null>(null);
   const toggleGroup = (key: string) =>
     setFlipped((cur) => {
       const next = new Set(cur);
@@ -398,18 +404,54 @@ export function ProjectsSection({
                   over === g.key ? "border-blue-400/60 bg-blue-400/[0.06]" : "border-border/60 bg-surface/40"
                 }`}
               >
-                <button
-                  type="button"
+                {/* a row, not a button, so the invoice's name can be renamed in it */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleGroup(g.key)}
+                  onKeyDown={(e) => {
+                    // the row's own keys, not its pencil's
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleGroup(g.key);
+                    }
+                  }}
                   aria-expanded={isOpen}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60"
+                  className="group/inv flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60"
                 >
                   <ChevronRight
                     size={14}
                     className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
                   />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{g.label}</span>
+                    {renaming === g.key ? (
+                      <EditableName
+                        name={g.label}
+                        editing
+                        onEditingChange={(on) => !on && setRenaming(null)}
+                        onSave={async (name) => (await renameInvoice(clientId, g.key, name)).error}
+                        className="text-sm font-medium"
+                      />
+                    ) : (
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="block truncate text-sm font-medium">{g.label}</span>
+                        {canMove && g.key !== "unfinished" && (
+                          <button
+                            type="button"
+                            title="Rename"
+                            aria-label={`Rename ${g.label}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenaming(g.key);
+                            }}
+                            className="shrink-0 rounded text-muted opacity-0 transition-opacity duration-200 group-hover/inv:opacity-100 hover:text-foreground focus-visible:opacity-100"
+                          >
+                            <Pencil size={11} />
+                          </button>
+                        )}
+                      </span>
+                    )}
                     <span className="block truncate text-xs text-muted">
                       {g.detail}
                       {g.key !== "unfinished" && ` · ${g.items.length} project${g.items.length === 1 ? "" : "s"}`}
@@ -438,7 +480,7 @@ export function ProjectsSection({
                   ) : (
                     !covers.length && <span className="ml-auto" />
                   )}
-                </button>
+                </div>
                 <Reveal open={isOpen}>
                   <div
                     className="border-t border-border/60 p-3"

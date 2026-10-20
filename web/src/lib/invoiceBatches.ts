@@ -182,6 +182,15 @@ export function clientBatches(
   );
 }
 
+// Numbered invoices without gaps (Abhishek, 20 Oct 2026: "invoice 5 should
+// come after 4"): given the invoices there are, each key that changes,
+// mapped to its new one, so the numbers run 1, 2, 3… with every later one
+// moved down. Months are never renumbered.
+export function closeGaps(keys: (string | null)[]): Map<string, string> {
+  const nums = [...new Set(keys.flatMap((k) => (k?.match(MILESTONE_KEY) ? [Number(k.slice(6))] : [])))].sort((a, b) => a - b);
+  return new Map(nums.flatMap((n, i) => (n === i + 1 ? [] : [[`batch-${n}`, `batch-${i + 1}`] as [string, string]])));
+}
+
 // Where a project can be moved: the invoices there are, plus one more after
 // the newest (the next month, or the next number).
 export function newBatchKey(batches: Batch[], rule: BillingRule): string | null {

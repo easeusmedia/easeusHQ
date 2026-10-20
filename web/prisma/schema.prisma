@@ -312,6 +312,8 @@ model Client {
   billingCadence        BillingCadence?
   billingDayOfMonth     Int? // monthly_date: which day of the month (1-31)
   billingMilestoneCount Int? // milestone: delivered tasks per invoice
+  // what an invoice is called when renamed, by its key ("batch-5": "INV-0042")
+  invoiceNames          Json?
   // anchor for "delivered since last invoice" on milestone clients —
   // reset every time a new invoice is logged for this client
   lastInvoicedAt        DateTime?

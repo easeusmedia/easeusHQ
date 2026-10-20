@@ -12,7 +12,7 @@ import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
-import { clientBatches, newBatchKey, pinsAfterMove } from "@/lib/invoiceBatches";
+import { clientBatches, closeGaps, pinsAfterMove } from "@/lib/invoiceBatches";
 import { TYPE_TAG, planDeliverables, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
 
@@ -151,6 +151,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
+      clientId: true,
       client: {
         select: {
           billingCadence: true,
@@ -164,6 +165,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
   if (!project) return { error: "That project no longer exists." };
   if (key === null) {
     await prisma.project.update({ where: { id: projectId }, data: { invoiceBatch: null } });
+    await closeInvoiceGaps(project.clientId);
     return {};
   }
   const c = project.client;
@@ -179,6 +181,71 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
       .filter(([id, k]) => saved.get(id) !== k)
       .map(([id, k]) => prisma.project.update({ where: { id }, data: { invoiceBatch: k } }))
   );
+  await closeInvoiceGaps(project.clientId);
+  return {};
+}
+
+// A client billed every N projects keeps its invoice numbers in order
+// (lib/invoiceBatches closeGaps): "Invoice 6" after 4 becomes 5. Worked out
+// from the invoices as the page shows them, so counted (unpinned) work is
+// never mistaken for a gap; when there is one, each invoice is pinned where
+// it stands under its new number, and a renamed one keeps its name. Monthly
+// invoices, and numbers given by hand to a client with no rule, are left as
+// they are. Run after any move into or out of an invoice, and after a
+// project is deleted.
+async function closeInvoiceGaps(clientId: string): Promise<void> {
+  const c = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: {
+      billingCadence: true,
+      billingDayOfMonth: true,
+      billingMilestoneCount: true,
+      invoiceNames: true,
+      projects: { select: { id: true, completedAt: true, createdAt: true, invoiceBatch: true } },
+    },
+  });
+  if (!c || c.billingCadence !== "milestone") return;
+  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
+  const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
+  const moves = closeGaps(batches.map((b) => b.key));
+  if (!moves.size) return;
+  const saved = new Map(c.projects.map((p) => [p.id, p.invoiceBatch]));
+  const pins = batches.flatMap((b) => b.ids.map((id) => [id, moves.get(b.key) ?? b.key] as const)).filter(([id, k]) => saved.get(id) !== k);
+  const names = (c.invoiceNames ?? {}) as Record<string, string>;
+  const shown = new Set(batches.map((b) => b.key));
+  const kept = Object.fromEntries(Object.entries(names).filter(([k]) => shown.has(k)).map(([k, v]) => [moves.get(k) ?? k, v]));
+  await prisma.$transaction([
+    ...pins.map(([id, k]) => prisma.project.update({ where: { id }, data: { invoiceBatch: k }, select: { id: true } })),
+    prisma.client.update({ where: { id: clientId }, data: { invoiceNames: kept }, select: { id: true } }),
+  ]);
+}
+
+// An invoice's own name ("INV-0042"), shown wherever the invoice is, the
+// client's page included. Its usual name ("Invoice 5"), or nothing, puts
+// that back.
+export async function renameInvoice(clientId: string, key: string, name: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only the operations team can rename an invoice." };
+  const c = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: {
+      billingCadence: true,
+      billingDayOfMonth: true,
+      billingMilestoneCount: true,
+      invoiceNames: true,
+      projects: { select: { id: true, completedAt: true, createdAt: true, invoiceBatch: true } },
+    },
+  });
+  if (!c) return { error: "Client not found." };
+  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
+  const batch = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })).find((b) => b.key === key);
+  if (!batch) return { error: "That invoice no longer exists. Refresh the page and try again." };
+  const names = { ...((c.invoiceNames ?? {}) as Record<string, string>) };
+  const trimmed = name.trim().slice(0, 60);
+  if (trimmed && trimmed !== batch.label) names[key] = trimmed;
+  else delete names[key];
+  await prisma.client.update({ where: { id: clientId }, data: { invoiceNames: names }, select: { id: true } });
+  revalidatePath("/clients/[slug]", "page");
+  revalidatePath("/projects/[id]", "page");
   return {};
 }
 
@@ -1005,7 +1072,7 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can delete a project." };
 
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true, clientId: true } });
   if (!project) return { error: "Project not found." };
 
   const taskIds = (await prisma.task.findMany({ where: { projectId }, select: { id: true } })).map((t) => t.id);
@@ -1022,6 +1089,8 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
     prisma.invoice.deleteMany({ where: { projectId } }),
     prisma.project.delete({ where: { id: projectId } }),
   ]);
+  // the only project in an invoice: the invoices after it close up
+  await closeInvoiceGaps(project.clientId);
 
   revalidatePath("/clients/[slug]", "page");
   revalidatePath("/board"); // its tasks were on it

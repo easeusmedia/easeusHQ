@@ -128,6 +128,7 @@ export default async function SharedClientPage({
                 <ProjectsSection
                   clientId={client.id}
                   projects={projectCards}
+                  invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   initialShow={show}
                   initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { batchPayment, clientBatches, invoiceBatches, newBatchKey, pinsAfterMove } from "./invoiceBatches.ts";
+import { batchPayment, clientBatches, closeGaps, invoiceBatches, newBatchKey, pinsAfterMove } from "./invoiceBatches.ts";
 
 const p = (id: string, date: string) => ({ id, date });
 
@@ -110,4 +110,10 @@ test("a project given an invoice number is in it before it's finished", () => {
     "2026-09-20"
   );
   assert.deepEqual(b.map((x) => [x.key, x.ids.join()]), [["batch-2", "pip"], ["batch-1", "done"]]);
+});
+
+test("invoice numbers close up: 1, 2, 3, 4, 6 becomes 1 to 5, and months are left alone", () => {
+  assert.deepEqual([...closeGaps(["batch-4", "batch-6", "batch-1", "batch-2", "batch-3", "batch-6", null])], [["batch-6", "batch-5"]]);
+  assert.deepEqual([...closeGaps(["batch-3", "batch-7"])], [["batch-3", "batch-1"], ["batch-7", "batch-2"]]);
+  assert.deepEqual([...closeGaps(["batch-1", "batch-2", "2026-09", null])], []);
 });
