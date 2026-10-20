@@ -101,7 +101,6 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   const dueDateInput = String(formData.get("dueDate") ?? "").trim();
   const deliveryDateInput = String(formData.get("deliveryDate") ?? "").trim();
   const postDateInput = String(formData.get("postDate") ?? "").trim();
-  const internal = formData.get("internal") === "on";
   const scheduledForInput = String(formData.get("scheduledFor") ?? "").trim();
 
   // unassigned is fine — someone picks it up later
@@ -116,6 +115,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   }
   // an editor's work is measured by its type, so it needs one
   const tagIds = formData.getAll("tagIds").map(String).filter(Boolean);
+  // no Type: an admin task, internal, ticked off when done (placeTask)
+  const internal = formData.get("internal") === "on" || (!tagIds.length && !formData.get("roleId"));
   if (assignee && editsVideos(assignee) && !tagIds.length) {
     return { error: TYPE_NEEDED };
   }
@@ -380,7 +381,8 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   // list, so unchecking really does remove. The hidden "tagsPresent" marker
   // distinguishes "the form had no tag section" from "every tag unchecked".
   const tagIds = formData.getAll("tagIds").map(String).filter(Boolean);
-  const internal = formData.get("internal") === "on";
+  // no Type: an admin task, internal (placeTask)
+  const internal = formData.get("internal") === "on" || !tagIds.length;
 
   // yyyy-mm-dd or empty (cleared); absent means the form didn't show it
   const day = (name: string): Date | null | undefined => {
