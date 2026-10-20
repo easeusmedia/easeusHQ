@@ -90,6 +90,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   }
 
   const departmentName = new Map(teams.map((t) => [t.slug, t.name]));
+  // the admins' own work isn't the team's to follow (Abhishek, 20 Oct 2026):
+  // left off Home, except for the admin themselves
+  const admins = new Set(users.filter((u) => u.role === "admin" && u.id !== viewer.id).map((u) => u.id));
   const items: HomeItem[] = [
     ...tasks.map((t) => ({
       key: `t${t.id}`,
@@ -126,7 +129,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       strikes: t.strikes ?? 0,
       todo: t,
     })),
-  ];
+  ].filter((i) => !admins.has(i.person?.id ?? ""));
 
   const notices: Notice[] = [
     ...extras,
