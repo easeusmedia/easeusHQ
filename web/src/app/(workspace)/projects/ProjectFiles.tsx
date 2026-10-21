@@ -14,8 +14,19 @@ import { formatDate } from "../TaskCard";
 import { TaskTagChip } from "../TaskTagPicker";
 
 type Tag = { id: string; name: string };
-// dueDate: yyyy-mm-dd, when it's due to the client
-export type ProjectAssetData = { id: string; name: string; contentType: string; link: string | null; tags?: Tag[]; dueDate?: string | null };
+// dueDate: yyyy-mm-dd, when it's due to the client. task: the task that
+// fills it (lib/deliverableLink), delivered or not; taskOptions: the
+// project's tasks of its kind, to pick another by hand
+export type ProjectAssetData = {
+  id: string;
+  name: string;
+  contentType: string;
+  link: string | null;
+  tags?: Tag[];
+  dueDate?: string | null;
+  task?: { id: string; title: string; delivered: boolean; post?: string | null } | null;
+  taskOptions?: { id: string; title: string }[];
+};
 
 const TYPE_OPTIONS = TYPE_ORDER.map((t) => ({ value: t, label: t === "Misc." ? "Other" : t }));
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
@@ -96,7 +107,8 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; post?: string | null; due?: string | null };
+// postTask: the delivered task its posting day is set on
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; post?: string | null; postTask?: string; due?: string | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -143,6 +155,7 @@ export function ProjectFiles({
       // untagged, it's already filed under "Delivered": just the day
       sub: d.tags?.length ? `Delivered ${formatDate(d.at)}` : formatDate(d.at),
       post: d.post ?? null,
+      postTask: d.id,
       ...kindsOf(d.tags, "Delivered"),
     })),
     ...assets.map((a) => ({
@@ -150,10 +163,11 @@ export function ProjectFiles({
       name: a.name,
       type: a.contentType,
       link: a.link,
-      // where it lives; when it's due sits on the right
-      sub: source(a.link),
+      // where it lives, and the task that fills it; when it's due sits on the right
+      sub: a.task ? `${source(a.link)} · ${a.task.title}` : source(a.link),
       due: a.dueDate ?? null,
       asset: a,
+      ...(a.task?.delivered ? { post: a.task.post ?? null, postTask: a.task.id } : {}),
       ...kindsOf(a.tags, typeKind(a.contentType)),
     })),
   ];
@@ -291,7 +305,7 @@ export function ProjectFiles({
                       {formatDate(`${r.due}T00:00:00Z`)}
                     </span>
                   )}
-                  {canPost && !readOnly && r.type === "delivered" && <PostingDate taskId={r.id} initial={r.post ?? null} />}
+                  {canPost && !readOnly && r.postTask && <PostingDate taskId={r.postTask} initial={r.post ?? null} />}
                   {r.link && (
                     <ArrowUpRight
                       size={15}
@@ -342,13 +356,15 @@ function AssetForm({
   tagOptions: Tag[];
   tagTeamId?: string;
   onCancel: () => void;
-  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string }) => Promise<string | null>;
+  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string; taskId?: string }) => Promise<string | null>;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [contentType, setContentType] = useState(initial?.contentType ?? TYPE_ORDER[0]);
   const [link, setLink] = useState(initial?.link ?? "");
   const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  // the task that fills it, picked by hand when the match was wrong
+  const [taskId, setTaskId] = useState(initial?.task?.id ?? "");
   // tags added from this form, shown and picked at once
   const [added, setAdded] = useState<Tag[]>([]);
   // and any it already carries from elsewhere, so they can still be taken off
@@ -359,7 +375,7 @@ function AssetForm({
   async function submit() {
     setSaving(true);
     setError(null);
-    const err = await onSubmit({ name, contentType, link, tagIds, dueDate });
+    const err = await onSubmit({ name, contentType, link, tagIds, dueDate, ...(taskId && taskId !== initial?.task?.id ? { taskId } : {}) });
     setSaving(false);
     if (err) setError(err);
   }
@@ -384,6 +400,14 @@ function AssetForm({
           <DatePicker value={dueDate} onChange={setDueDate} placeholder="Delivery date" />
         </div>
       </div>
+      {!!initial?.taskOptions?.length && (
+        <Dropdown
+          defaultValue={taskId}
+          options={initial.taskOptions.map((t) => ({ value: t.id, label: t.title }))}
+          placeholder="The task that fills it"
+          onChange={setTaskId}
+        />
+      )}
       {(options.length > 0 || tagTeamId) && (
         // the same kinds of work a task is tagged with
         <div className="flex flex-wrap items-center gap-1.5">

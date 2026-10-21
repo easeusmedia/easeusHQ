@@ -109,7 +109,7 @@ export function planTasks(
 
 // what a deliverable is called inside its project: "Pip Jamison Reel 1",
 // "Pip Jamison Trailer"
-const DELIVERABLE_LABEL: Record<string, string> = {
+export const DELIVERABLE_LABEL: Record<string, string> = {
   "YouTube Long-Form": "Long-form",
   "Reel Trailer": "Trailer",
   Reel: "Reel",

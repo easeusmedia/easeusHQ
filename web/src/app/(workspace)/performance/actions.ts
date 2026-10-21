@@ -12,6 +12,7 @@ async function requireFounder() {
 import { canEditPeople, isFounder } from "@/lib/scope";
 import { isLetter, LETTERS, VIDEO_SCORING_KEY, withVideoScoringDefaults, type VideoScoring } from "@/lib/videoScore";
 import { refreshAllVideoScores, refreshVideoScores } from "@/lib/videoScores";
+import { linkDeliverables } from "@/lib/deliverableLink";
 import { aiSortEntries, syncFrameioFeedback } from "@/lib/frameioFeedback";
 
 type Result = { error?: string };
@@ -320,6 +321,8 @@ export async function setTaskType(taskId: string, type: string): Promise<Result>
   // the work last moved
   await prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${before.updatedAt} WHERE id = ${taskId}`;
   await refreshVideoScores([taskId]);
+  // a new kind may mean another placeholder (lib/deliverableLink)
+  await linkDeliverables([taskId]);
   done();
   return {};
 }

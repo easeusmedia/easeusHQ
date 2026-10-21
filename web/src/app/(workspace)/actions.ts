@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflowOf, type Role, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
+import { linkDeliverables } from "@/lib/deliverableLink";
 import { destroySession, getRealViewer, getSessionUserId, requireOps } from "@/lib/auth";
 import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder, setsUp } from "@/lib/scope";
@@ -152,6 +153,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   });
 
   await prisma.activityLog.create({ data: { actorId: actor.id, action: "created", entity: "Task", entityId: task.id } });
+  // its project's placeholder of its kind (lib/deliverableLink)
+  await linkDeliverables([task.id]);
 
   // Mirror it into Notion's Editing Queue, for the people whose work lives
   // there. Deliberately not awaited for correctness: if Notion is slow or
@@ -256,6 +259,8 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     });
     // the move (and any grade) changes its scores; a failure here never undoes the move
     await refreshVideoScores([taskId]).catch(() => {});
+    // delivered: its Drive link fills its placeholder (lib/deliverableLink)
+    await linkDeliverables([taskId], { delivering: to === "delivered_and_uploaded" });
     revalidatePath("/board");
     return { success: true };
   } catch (err) {
@@ -333,7 +338,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   // a Lead edits the work they can see, and hands it only down the levels
   const viewer = await getViewer();
   if (!viewer) return { error: "Your session has ended. Please sign in again." };
-  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true, dueDate: true, strikes: true } });
+  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true, dueDate: true, strikes: true, driveLink: true } });
   if (!current) return { error: "You can't change this task." };
   if (assignedToId && assignedToId !== current.assignedToId && assignedToId !== viewer.id) {
     const target = await prisma.user.findUnique({ where: { id: assignedToId }, select: { id: true, role: true, teamId: true, departments: { select: { id: true } } } });
@@ -447,6 +452,8 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     },
   });
   if (moved) await recordDateChange({ kind: "task", id: taskId }, current.dueDate, dueDate ?? null, dateReason, viewer.id, current.strikes);
+  // a new project, kind or Drive link: its placeholder follows (lib/deliverableLink)
+  await linkDeliverables([taskId], { delivering: driveLink !== undefined && driveLink !== current.driveLink, oldLink: current.driveLink });
   revalidatePath("/board");
   revalidatePath("/clients");
   return { success: true };
@@ -667,6 +674,8 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
 
     let created = 0;
     let updated = 0;
+    // every task this sync made, or moved to another stage
+    const synced: string[] = [];
     let skipped = 0;
     // grouped, not one line per row: with a few hundred rows in that
     // database, "couldn't match a client" 28 times is noise, and the one
@@ -756,6 +765,7 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
             },
           });
         }
+        if (!ours && before !== notionStatus) synced.push(existingId);
         updated++;
         continue;
       }
@@ -773,7 +783,8 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
 
       const queuedOn = getDate(row.properties, "Editor Queu Date");
       const importedAt = new Date();
-      await prisma.task.create({
+      const made = await prisma.task.create({
+        select: { id: true },
         data: {
           ...sharedData,
           // Already with the client when it arrived: nobody saw it get there,
@@ -788,8 +799,11 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
           notionPageId: row.id,
         },
       });
+      synced.push(made.id);
       created++;
     }
+    // what came from Notion finds its placeholders too (lib/deliverableLink)
+    await linkDeliverables(synced);
 
     const skippedReasons = [...skips].map(([reason, titles]) => {
       const shown = titles.slice(0, 4).join(", ");

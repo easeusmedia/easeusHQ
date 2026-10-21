@@ -43,7 +43,8 @@ export default async function SharedProjectPage({
     : null;
   if (!client || !project) redirect("/login");
   const delivered = await prisma.task.findMany({
-    where: { projectId: project.id, status: "delivered_and_uploaded", internal: false },
+    // one that fills a placeholder shows as that placeholder (lib/deliverableLink)
+    where: { projectId: project.id, status: "delivered_and_uploaded", internal: false, deliverable: { is: null } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,

@@ -173,9 +173,16 @@ export async function sweepIfDue(now = new Date()) {
 // A task goes for good: no copy is kept, since deleted work would only pile
 // up in the database (6 Oct 2026; it used to be kept whole with a reason)
 export async function deleteForGood(ref: TaskRef): Promise<void> {
-  // its notices ("... was due and isn't finished") go with it
+  // its notices ("... was due and isn't finished") go with it, and the
+  // link it put on its placeholder (lib/deliverableLink), so another task
+  // can fill that one
   if (ref.kind === "task") {
-    await prisma.$transaction([prisma.notice.deleteMany({ where: { taskId: ref.id } }), prisma.feedback.deleteMany({ where: { taskId: ref.id } }), prisma.task.deleteMany({ where: { id: ref.id } })]);
+    await prisma.$transaction([
+      prisma.$executeRaw`UPDATE "ProjectAsset" a SET link = NULL FROM "Task" t WHERE a."taskId" = t.id AND t.id = ${ref.id} AND a.link = t."driveLink"`,
+      prisma.notice.deleteMany({ where: { taskId: ref.id } }),
+      prisma.feedback.deleteMany({ where: { taskId: ref.id } }),
+      prisma.task.deleteMany({ where: { id: ref.id } }),
+    ]);
   } else {
     await prisma.$transaction([prisma.notice.deleteMany({ where: { workTaskId: ref.id } }), prisma.workTask.deleteMany({ where: { id: ref.id } })]);
   }

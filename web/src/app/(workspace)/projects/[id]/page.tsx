@@ -15,6 +15,7 @@ import { NewTaskRow } from "../../NewTaskRow";
 import { ProjectHeader } from "../ProjectHeader";
 import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
+import { kindOf, typesOf } from "@/lib/deliverableMatch";
 import { InvoicePicker } from "../InvoicePicker";
 import { ActiveClient } from "../../clients/ActiveClient";
 import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
@@ -33,7 +34,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       include: {
         // newest first, for the task form's "latest few" project list
         client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
-        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } } } },
+        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, status: true, postDate: true, assignedToId: true } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
           include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
@@ -53,6 +54,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (isLead(viewer)) {
     const founders = new Set(users.filter((u) => isFounder(u)).map((u) => u.id));
     project.tasks = project.tasks.filter((t) => !t.assignedToId || !founders.has(t.assignedToId));
+    // nor which of a Founder's tasks fills a placeholder
+    for (const a of project.assets) if (a.task?.assignedToId && founders.has(a.task.assignedToId)) a.task = null;
   }
   // an editor sees a client through its own page only (their work and its
   // documents), which also decides whether they may see it at all
@@ -93,7 +96,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
-  const deliveredFiles = done.filter((t) => t.status === "delivered_and_uploaded");
+  // a delivered task that fills a placeholder is shown as that placeholder,
+  // not a second time (lib/deliverableLink)
+  const linked = new Set(project.assets.map((a) => a.taskId).filter(Boolean));
+  const deliveredFiles = done.filter((t) => t.status === "delivered_and_uploaded" && !linked.has(t.id));
   // when each was really delivered, and whether this person plans postings
   const delivered = await deliveredAt(deliveredFiles.map((t) => t.id));
 
@@ -177,7 +183,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       <ProjectFiles
         projectId={project.id}
-        assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link, tags: a.tags, dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null }))}
+        assets={project.assets.map((a) => ({
+          id: a.id,
+          name: a.name,
+          contentType: a.contentType,
+          link: a.link,
+          tags: a.tags,
+          dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
+          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null } : null,
+          // the project's tasks of its kind, to pick by hand
+          taskOptions: project.tasks.filter((t) => !t.internal && typesOf(t.tags.map((g) => g.name), t.title).includes(kindOf(a.contentType) ?? "")).map((t) => ({ id: t.id, title: t.title })),
+        }))}
         delivered={deliveredFiles.map((t) => ({
           id: t.id,
           title: t.title,

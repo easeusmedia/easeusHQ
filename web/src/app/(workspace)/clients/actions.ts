@@ -14,6 +14,7 @@ import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, t
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 import { clientBatches, closeGaps, pinsAfterMove } from "@/lib/invoiceBatches";
 import { TYPE_TAG, planDeliverables, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
+import { linkDeliverables } from "@/lib/deliverableLink";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
 
 // The two On Hold clients ops is still actively tracking, chosen
@@ -925,6 +926,8 @@ export async function createProject(
     await prisma.activityLog.createMany({
       data: made.map((t) => ({ actorId: user.id, action: "created", entity: "Task", entityId: t.id })),
     });
+    // each takes the placeholder made for it above ("Reel 2 · X" the "X Reel 2")
+    await linkDeliverables(made.map((t) => t.id));
     revalidatePath("/board");
   }
   if (invoiceNumber && Number.isInteger(invoiceNumber) && invoiceNumber > 0) {
@@ -996,7 +999,8 @@ export async function updateProject(
 // names, types and links all get corrected by hand from the project page.
 
 // dueDate: yyyy-mm-dd, "" for none; left out, it's kept as it is
-export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[]; dueDate?: string };
+// taskId: the task that fills it, picked by hand (absent: left as it is)
+export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[]; dueDate?: string; taskId?: string };
 const dueOf = (v: string | undefined) => (v === undefined ? undefined : /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v) : null);
 
 async function revalidateProject(projectId: string) {
@@ -1043,16 +1047,39 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
     return { error: err instanceof Error ? err.message : "That link isn't valid." };
   }
 
+  // a task picked by hand to fill it, in place of the one matched (lib/deliverableLink):
+  // from this project; it leaves any placeholder it held, and once it's
+  // delivered its Drive link is this one's
+  const current = await prisma.projectAsset.findUnique({ where: { id: assetId }, select: { projectId: true, taskId: true, task: { select: { driveLink: true } } } });
+  if (!current) return { error: "That file no longer exists." };
+  const picked =
+    input.taskId && input.taskId !== current.taskId
+      ? await prisma.task.findFirst({ where: { id: input.taskId, projectId: current.projectId }, select: { id: true, status: true, driveLink: true } })
+      : null;
+  if (input.taskId && input.taskId !== current.taskId && !picked) return { error: "That task isn't in this project." };
+  // the placeholder it leaves gives back the link it brought
+  if (picked) {
+    await prisma.projectAsset.updateMany({ where: { taskId: picked.id, link: picked.driveLink ?? "" }, data: { link: null } });
+    await prisma.projectAsset.updateMany({ where: { taskId: picked.id }, data: { taskId: null } });
+  }
+  // here: the picked task's link once it's delivered; else the one the
+  // task it replaces brought goes, and anything typed by hand stays
+  const leaving = current.task?.driveLink ?? null;
+  if (picked) link = picked.status === "delivered_and_uploaded" && picked.driveLink ? picked.driveLink : link && link === leaving ? null : link;
+
   const asset = await prisma.projectAsset.update({
     where: { id: assetId },
     data: {
       name: input.name.trim(),
       contentType: input.contentType.trim() || "Misc.",
       link,
+      ...(picked ? { taskId: picked.id } : {}),
       ...(input.dueDate !== undefined ? { dueDate: dueOf(input.dueDate) } : {}),
       ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
     },
   });
+  // the task it had finds another of its kind, if there's one free
+  if (picked && current.taskId) await linkDeliverables([current.taskId]);
   await revalidateProject(asset.projectId);
   return {};
 }

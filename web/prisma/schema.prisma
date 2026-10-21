@@ -133,6 +133,11 @@ model ProjectAsset {
   // what kind of work it is — the same tags a task carries (Reel, Trailer…)
   tags TaskTag[]
 
+  // the task that fills it: matched by kind and number, and its final Drive
+  // link becomes this one's on delivery (lib/deliverableLink.ts)
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId String? @unique
+
   @@index([projectId])
 }
 
@@ -636,6 +641,8 @@ model Task {
 
   // The work this task is: thumbnail, audio engineering, reel, and so on.
   tags     TaskTag[]
+  // the project placeholder it fills (ProjectAsset.taskId)
+  deliverable ProjectAsset?
   // Work done for this client that they never receive as a file — audio
   // engineering, colour correction, channel management. It still belongs to
   // the client, still gets assigned and tracked; it just isn't a deliverable,
