@@ -278,6 +278,7 @@ export function TodoList({
 
   async function tick(item: Item) {
     setError(null);
+    unmark(`${item.todo ? "todo" : "task"}${item.id}`);
     setTicking((t) => new Set(t).add(item.key));
     // a beat to see it ticked
     await new Promise((r) => setTimeout(r, 450));
@@ -319,6 +320,11 @@ export function TodoList({
     router.refresh();
   }
 
+  // ticked back: off the Completed list at once (it used to wait for the
+  // save and the page to reload), back on it with the reason if it fails.
+  // When: finished again after that (ticked again, here or anywhere), it shows.
+  const [reopened, setReopened] = useState<Map<string, number>>(new Map());
+  const unmark = (key: string) => setReopened((r) => new Map([...r].filter(([k]) => k !== key)));
   // what's been finished in the chosen stretch, newest first, by month
   const finished = useMemo(() => {
     const t = env.today;
@@ -332,19 +338,27 @@ export function TodoList({
             : period === "range"
               ? (!range.from || day >= range.from) && (!range.to || day <= range.to)
               : true;
-    const shown = done.filter((d) => inPeriod(dayOf(new Date(d.at))));
+    const shown = done.filter((d) => {
+      const at = reopened.get(`${d.kind}${d.id}`);
+      return !(at && new Date(d.at).getTime() <= at) && inPeriod(dayOf(new Date(d.at)));
+    });
     const months = new Map<string, Done[]>();
     for (const d of shown) {
       const m = monthOf(dayOf(new Date(d.at)));
       months.set(m, [...(months.get(m) ?? []), d]);
     }
     return { count: shown.length, months: [...months.entries()] };
-  }, [done, period, range, env.today]);
+  }, [done, period, range, env.today, reopened]);
 
   async function reopen(d: { id: string; kind: "todo" | "task" }) {
     setError(null);
-    const res = d.kind === "todo" ? await moveWorkTask(d.id, "todo", 0) : await moveTask(d.id, "queued");
-    if (res.error) return setError(res.error);
+    const key = `${d.kind}${d.id}`;
+    setReopened((r) => new Map(r).set(key, Date.now()));
+    const res = await (d.kind === "todo" ? moveWorkTask(d.id, "todo", 0) : moveTask(d.id, "queued")).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+    if (res.error) {
+      unmark(key);
+      return setError(res.error);
+    }
     setGone((g) => new Set([...g].filter((k) => k !== `${d.kind === "todo" ? "w" : "t"}${d.id}`)));
     router.refresh();
   }
@@ -536,10 +550,10 @@ export function TodoList({
                       {MONTHS[Number(m.slice(5, 7)) - 1]} {m.slice(0, 4)} <span className="text-muted/60 tabular-nums">· {list.length}</span>
                     </p>
                     {list.map((d) => {
-                      const reopenable = d.kind === "todo" || workflowOf(d.workflow) === "todo";
+                      // any of it ticks back on, client work too (it's ticked off in one tap)
                       return (
                         <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.03]">
-                          <Tick state="done" label={reopenable ? "Mark not done" : "Finished"} onClick={reopenable ? () => reopen(d) : undefined} />
+                          <Tick state="done" label="Mark not done" onClick={() => reopen(d)} />
                           <span className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-white/20">{d.title}</span>
                           {d.client && <span className="hidden shrink-0 text-xs text-muted/70 sm:block">{d.client}</span>}
                           <span className="w-14 shrink-0 text-right text-xs text-muted/70 tabular-nums">{shortDay(dayOf(new Date(d.at)))}</span>
