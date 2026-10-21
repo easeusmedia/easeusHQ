@@ -33,7 +33,7 @@ import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { closeOnBackdrop } from "../dialog";
-import { moveTask } from "../actions";
+import { tickTask } from "../actions";
 import { moveWorkTask } from "../my-tasks/actions";
 import { Composer, type TodoKind } from "../my-tasks/TodoList";
 import { WorkTaskDialog, type Project } from "../my-tasks/WorkTaskDialog";
@@ -475,11 +475,17 @@ export function HomeView({
   // their own overdue work asks for a new date before it's ticked off or
   // opened, as in My tasks (FrozenTasks); Work in progress isn't locked
   const frozen = useFrozen();
+  // why a tick didn't go through, under your list (it used to just come back)
+  const [tickError, setTickError] = useState<string | null>(null);
   async function tick(item: HomeItem) {
+    setTickError(null);
     setGone((g) => new Set(g).add(item.key));
     // failed outright (offline) as well as refused: it comes back
-    const res = await (item.source === "work" ? moveWorkTask(item.id, "done", item.todo?.sortOrder ?? 0) : moveTask(item.id, "delivered_and_uploaded")).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
-    if (res.error) setGone((g) => new Set([...g].filter((k) => k !== item.key)));
+    const res = await (item.source === "work" ? moveWorkTask(item.id, "done", item.todo?.sortOrder ?? 0) : tickTask(item.id)).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+    if (res.error) {
+      setGone((g) => new Set([...g].filter((k) => k !== item.key)));
+      setTickError(res.error);
+    }
     router.refresh();
   }
 
@@ -646,6 +652,7 @@ export function HomeView({
             })}
           </div>
         )}
+        {tickError && <p className="fade-in mt-2 px-1 text-sm text-red-300">{tickError}</p>}
       </Section>
     ),
     calendar: (

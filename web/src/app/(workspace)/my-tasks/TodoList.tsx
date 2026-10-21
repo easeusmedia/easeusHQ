@@ -8,7 +8,7 @@ import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
-import { createTask, deleteTask, moveTask } from "../actions";
+import { createTask, deleteTask, moveTask, tickTask } from "../actions";
 import { createWorkTask, deleteWorkTask, moveWorkTask } from "./actions";
 import { ConfirmButton } from "../ConfirmButton";
 import { addDays, dayOf, daysBetween, mondayOf, shortDay, weekday } from "@/lib/editorKpi";
@@ -283,7 +283,7 @@ export function TodoList({
     await new Promise((r) => setTimeout(r, 450));
     setGone((g) => new Set(g).add(item.key));
     // a request that fails outright (offline) puts it back too, not just a refusal
-    const res = await (item.todo ? moveWorkTask(item.id, "done", item.todo.sortOrder) : moveTask(item.id, "delivered_and_uploaded")).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
+    const res = await (item.todo ? moveWorkTask(item.id, "done", item.todo.sortOrder) : tickTask(item.id)).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     setTicking((t) => {
       const next = new Set(t);
       next.delete(item.key);

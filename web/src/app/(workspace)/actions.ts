@@ -195,7 +195,7 @@ type StatusChangeExtras = { frameioLink?: string; driveLink?: string; reviewNote
 // error #441" digest in production (Next.js only preserves the message
 // for an error a form action returns, not one it throws). Same reason
 // createTask/updateTask were converted earlier.
-async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChangeExtras): Promise<TaskFormState> {
+async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChangeExtras, ticked = false): Promise<TaskFormState> {
   try {
     const actor = await sessionActor();
     if (!actor) return { error: "Your session has ended. Please sign in again." };
@@ -211,13 +211,17 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     if (!canTransition(task.status, to, { role: actingRole, isAssignee }, task.workflow)) {
       return { error: "You can't move this task to that stage." };
     }
+    // Level 1 and 2 ticking off their own task (Home, My tasks): it's done,
+    // no Drive link or grade asked for (Abhishek, 21 Oct 2026). Editors'
+    // work still needs both, on the Board.
+    const ownTick = ticked && actingRole !== "employee" && isAssignee;
 
     // hard rule, not just a UI nicety: a task can't be marked delivered
     // without a Drive link on record — enforced here so it holds regardless
     // of which UI path (button, dropdown, or a future API caller) triggers it.
     // Internal work isn't delivered to anyone, so it's done without one.
     const video = workflowOf(task.workflow) === "video";
-    if (video && !task.internal && to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
+    if (video && !task.internal && to === "delivered_and_uploaded" && !driveLink && !task.driveLink && !ownTick) {
       return { error: "Add a Drive link before marking this delivered." };
     }
     // same rule for review: nobody, internal or client, can review a cut
@@ -227,8 +231,9 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     }
     // the quality inspection grades a video on first review: the first time
     // core moves it on from Sent for approval (lib/videoScore.ts)
-    const grade = needsGrade(task, to, actingRole) ? extras.grade : undefined;
-    if (needsGrade(task, to, actingRole) && !isLetter(grade)) return { error: "Grade the video first: S, A+, A, B, C or D." };
+    const grading = needsGrade(task, to, actingRole) && !ownTick;
+    const grade = grading ? extras.grade : undefined;
+    if (grading && !isLetter(grade)) return { error: "Grade the video first: S, A+, A, B, C or D." };
 
     await prisma.task.update({
       where: { id: taskId },
@@ -262,6 +267,11 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
 // dragging a card call this exact same function, so they behave identically
 export async function moveTask(taskId: string, to: TaskStatus, extras: StatusChangeExtras = {}): Promise<TaskFormState> {
   return changeStatus(taskId, to, extras);
+}
+
+// the tick on Home and My tasks: done (Delivered) in one tap
+export async function tickTask(taskId: string): Promise<TaskFormState> {
+  return changeStatus(taskId, "delivered_and_uploaded", {}, true);
 }
 
 // pure manual reordering within a column — no status change, no workflow
