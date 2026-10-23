@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -133,12 +133,19 @@ export function Messages({
   const stage = board.stages.find((s) => s.id === stageId);
   const today = dayOf(stage?.name ?? "");
 
-  async function saveVar(name: string, value: string) {
+  async function saveVar(name: string, value: string): Promise<string | undefined> {
     if ((lead.vars[name] ?? "") === value.trim()) return;
+    setError(null);
     setTyped((t) => ({ ...t, [name]: value.trim() }));
     const res = await setLeadVar(lead.id, name, value).catch(() => ({ error: OFFLINE }));
-    if (res.error) setError(res.error);
-    else onSaved();
+    if (!res.error) {
+      onSaved();
+      return;
+    }
+    // not saved: the window goes back to the saved value
+    setTyped((t) => Object.fromEntries(Object.entries(t).filter(([k]) => k !== name)));
+    setError(res.error);
+    return res.error;
   }
   async function saveMine(messageId: string, draft: Draft | null) {
     setError(null);
@@ -247,6 +254,7 @@ export function Messages({
           sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
           onMine={(d) => saveMine(chosen.id, d)}
+          onVar={saveVar}
         />
         {can && reached && (chosen.channel === "email" ? lead.email.sent || lead.email.bounced : !!platform) && (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -596,6 +604,7 @@ function MessageForm({
   sent,
   extra,
   onMine,
+  onVar,
 }: {
   message: MessageData;
   stages: StageData[];
@@ -609,6 +618,7 @@ function MessageForm({
   sent: SentData | null;
   extra?: string | null;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
+  onVar: (name: string, value: string) => Promise<string | undefined>;
 }) {
   const canBuild = useContext(CanBuild);
   const source = own ?? message;
@@ -620,10 +630,13 @@ function MessageForm({
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState(false);
   const [copied, setCopied] = useState(false);
+  // the values the editor was filled from: what it's read back against
+  const [base, setBase] = useState(vars);
   const shownSubject = sent ? sent.subject : fillText(source.subject, vars);
   const shownBody = sent ? sent.body : fillText(source.body, vars);
 
   function edit() {
+    setBase(vars);
     setSubject(shownSubject);
     setBody(shownBody);
     setError(null);
@@ -633,7 +646,20 @@ function MessageForm({
     if (draft && !draft.body.trim()) return setError("A message needs some words.");
     setBusy(true);
     setError(null);
-    const err = await onMine(draft);
+    let err: string | undefined;
+    if (draft) {
+      // read back against what it was filled from: a changed value goes to
+      // Fill in (and every message); other changes keep their variables
+      let subject = readEdit(source.subject, base, draft.subject, ["Name"]);
+      let body = readEdit(source.body, base, draft.body, ["Name"]);
+      // one value changed two ways: each part keeps its own wording instead
+      if ("name" in subject && "name" in body && subject.name === body.name && subject.value !== body.value) {
+        subject = readEdit(source.subject, base, draft.subject, ["Name", subject.name]);
+        body = readEdit(source.body, base, draft.body, ["Name", body.name]);
+      }
+      for (const r of [subject, body]) if ("name" in r) err ??= await onVar(r.name, r.value);
+      if (!err && ("text" in subject || "text" in body)) err = await onMine({ subject: "text" in subject ? subject.text : source.subject, body: "text" in body ? body.text : source.body });
+    } else err = await onMine(null);
     setBusy(false);
     if (err) return setError(err);
     setEditing(false);

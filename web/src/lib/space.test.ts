@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -377,4 +377,47 @@ test("an edit is kept per opener, so Days 1 and 2 still change with the opener",
   assert.equal(preparedFor(p, { opener: "5" }, "m1")?.body, "main, edited");
   // one opener: edits stay under the message alone
   assert.equal(draftKey({ drafts: {}, openers: [p.openers[0]] }, {}, "m1"), "m1");
+});
+
+test("an edited message: a changed value goes to the form, other changes keep the variables", () => {
+  const t = "Hi {{Greeting name}},\n\nYour {{Top video}} video has {{Top video views}} views. See {{Link}}";
+  const v = { "Greeting name": "Dr Kay", "Top video": "lysine", "Top video views": "88K" };
+  const filled = fillText(t, v);
+  assert.deepEqual(readEdit(t, v, filled), { same: true });
+  // inside one value: its new wording
+  assert.deepEqual(readEdit(t, v, filled.replace("88K", "90K")), { name: "Top video views", value: "90K" });
+  assert.deepEqual(readEdit(t, v, filled.replace("lysine", "biotin")), { name: "Top video", value: "biotin" });
+  assert.deepEqual(readEdit(t, v, filled.replace("lysine", "lysene")), { name: "Top video", value: "lysene" });
+  assert.deepEqual(readEdit(t, v, filled.replace("Dr Kay", "Dr Kaye")), { name: "Greeting name", value: "Dr Kaye" });
+  // anywhere else: the lead's own copy, the untouched values still variables
+  const own = readEdit(t, v, filled.replace("video has", "video now has"));
+  assert.deepEqual(own, { text: "Hi {{Greeting name}},\n\nYour {{Top video}} video now has {{Top video views}} views. See {{Link}}" });
+  assert.equal(fillText((own as { text: string }).text, v), filled.replace("video has", "video now has"));
+  // a change across a value bakes that one value in, and only that one
+  assert.deepEqual(readEdit(t, v, filled.replace("lysine video", "lysine clip")), { text: "Hi {{Greeting name}},\n\nYour {{Top video}} clip has {{Top video views}} views. See {{Link}}" });
+  const across = readEdit(t, v, filled.replace("lysine video", "biotin clip"));
+  assert.deepEqual(across, { text: "Hi {{Greeting name}},\n\nYour biotin clip has {{Top video views}} views. See {{Link}}" });
+  // typing right after a value is new text for this message, not a longer value
+  assert.deepEqual(readEdit(t, v, filled.replace("lysine", "lysine tablets")), { text: "Hi {{Greeting name}},\n\nYour {{Top video}} tablets video has {{Top video views}} views. See {{Link}}" });
+  assert.deepEqual(readEdit(t, v, filled.replace("88K views", "88K+ views")), { text: "Hi {{Greeting name}},\n\nYour {{Top video}} video has {{Top video views}}+ views. See {{Link}}" });
+  // a value emptied is a text change; an unfilled variable stays as it was
+  assert.deepEqual(readEdit(t, v, filled.replace("lysine", "")), { text: "Hi {{Greeting name}},\n\nYour  video has {{Top video views}} views. See {{Link}}" });
+  assert.deepEqual(readEdit(t, v, filled.replace("See {{Link}}", "See {{Link}} now")), { text: "Hi {{Greeting name}},\n\nYour {{Top video}} video has {{Top video views}} views. See {{Link}} now" });
+});
+
+test("an edited message: the cases the review found", () => {
+  const t = "your {{Latest video}} video. Hi {{Name}}, see {{Link}}\n\nBest,\n{{Sender}}";
+  const v = { "Latest video": "mushrooms for wellness", Name: "Jon", Sender: "Ashmit" };
+  const filled = fillText(t, v);
+  // the last word(s) of a value taken out: a shorter value
+  assert.deepEqual(readEdit(t, v, filled.replace("mushrooms for wellness", "mushrooms for")), { name: "Latest video", value: "mushrooms for" });
+  assert.deepEqual(readEdit(t, v, filled.replace("mushrooms for wellness", "mushrooms")), { name: "Latest video", value: "mushrooms" });
+  // two separate edits: the variables between them stay variables
+  assert.deepEqual(readEdit(t, v, filled.replace("your", "Your").replace("Best,", "Thanks,")), { text: "Your {{Latest video}} video. Hi {{Name}}, see {{Link}}\n\nThanks,\n{{Sender}}" });
+  // a link typed over {{Link}} fills it
+  assert.deepEqual(readEdit(t, v, filled.replace("{{Link}}", "https://easeus.media")), { name: "Link", value: "https://easeus.media" });
+  // Name can't change here: typed onto, it's written in, not glued on
+  assert.deepEqual(readEdit(t, v, filled.replace("Jon", "Jonathan"), ["Name"]), { text: "your {{Latest video}} video. Hi Jonathan, see {{Link}}\n\nBest,\n{{Sender}}" });
+  // a line break is never a value
+  assert.ok("text" in readEdit(t, v, filled.replace("mushrooms for", "mushrooms\nfor")));
 });

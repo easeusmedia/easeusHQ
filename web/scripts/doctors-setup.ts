@@ -6,7 +6,8 @@
 // to pick from when Instagram hid the account).
 //   node --env-file=.env scripts/run.cjs scripts/doctors-setup.ts setup <import.json> [--live]
 //   node --env-file=.env scripts/run.cjs scripts/doctors-setup.ts leads <import.json> [--live]
-// The import file is kept outside git, at ../data/dream/import.json (contact details).
+// The import file is kept outside git, at ../data/dream/ (contact details): build.py makes
+// import.json, clean.py import.clean.json, and template.py import.tpl.json, the one to use.
 // setup can run again safely: a board already there is left as it is. leads
 // skips a doctor whose name is already on the board.
 import "./live";
@@ -26,6 +27,8 @@ type Row = {
   values: Record<string, unknown>;
   openers: { label: string; slots: Record<string, Slot> }[];
   drafts: Record<string, Slot>;
+  // the values its {{Variables}} take (data/dream/template.py): the Fill in form
+  vars?: Record<string, string>;
 };
 type ImportFile = { yt: Row[]; ig: Row[]; templates: { yt: Record<string, Slot>; ig: Record<string, Slot> } };
 
@@ -149,14 +152,16 @@ async function leads(path: string | undefined) {
       where: { teamId, parentId: portal, slug: slugify(b.name), kind: "board" },
       select: {
         id: true,
-        stages: { select: { id: true, name: true, messages: { select: { id: true, name: true } } } },
+        stages: { select: { id: true, name: true, messages: { select: { id: true, name: true } } }, orderBy: { sortOrder: "asc" } },
         fields: { select: { id: true, name: true, kind: true, options: { select: { id: true, name: true } } } },
       },
     });
     if (!board) throw new Error(`The board "${b.name}" isn't there yet. Run setup first.`);
-    // every doctor starts in the board's first stage; the team moves a few at
-    // a time on to Ready to reach out (Abhishek, 17 Oct 2026)
-    const start = board.stages.find((s) => s.name === STAGES[0].name)!;
+    // every doctor starts in the board's first stage, whatever it's called now
+    // (live renamed Dream list); the team moves a few at a time on to Ready to
+    // reach out (Abhishek, 17 Oct 2026)
+    const start = board.stages[0];
+    if (!start) throw new Error(`The board "${b.name}" has no stages.`);
     const messageId = new Map(board.stages.flatMap((s) => s.messages).map((m) => [m.name, m.id]));
     const byName = (slots: Record<string, Slot>) =>
       Object.fromEntries(Object.entries(slots).flatMap(([name, d]) => (messageId.has(name) ? [[messageId.get(name)!, { subject: d.subject ?? "", body: d.body } satisfies Draft]] : [])));
@@ -191,6 +196,7 @@ async function leads(path: string | undefined) {
             assignedByName: me.name,
             assignedAt: new Date(),
             values: values as Prisma.InputJsonValue,
+            vars: (r.vars ?? {}) as Prisma.InputJsonValue,
             // every message written for it is one of its openers (one when there's
             // no choice to make); drafts stay for what the team rewrites
             openers: (r.openers.length ? r.openers.map((o) => ({ label: o.label, drafts: byName({ ...r.drafts, ...o.slots }) })) : [{ label: "", drafts: byName(r.drafts) }]) as Prisma.InputJsonValue,

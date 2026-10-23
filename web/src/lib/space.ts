@@ -697,6 +697,114 @@ export function fillText(text: string, vars: Record<string, string>): string {
   return text.replace(VAR, (whole, name: string) => vars[name.trim()] ?? whole);
 }
 
+// A message edited as plain text, read back against the wording it was filled
+// from (Abhishek, 23 Oct 2026). A change inside one variable's value is that
+// value's new wording: the Fill in form and every message take it (typing over
+// a {{Link}} still to fill fills it). Any other change is the lead's own copy,
+// with every variable the edit didn't touch kept as its {{Variable}}, so the
+// form still reaches it.
+export type EditRead = { same: true } | { name: string; value: string } | { text: string };
+type Hunk = { of: number; ot: number; ef: number; et: number };
+const TOKEN = /[\p{L}\p{N}]+|\s+|[^\p{L}\p{N}\s]/gu;
+const isWord = (c: string | undefined) => !!c && /[\p{L}\p{N}]/u.test(c);
+
+// where two texts differ, word by word, as stretches of each (from, to)
+function textDiff(a: string, b: string): Hunk[] {
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let q = 0;
+  while (q < a.length - p && q < b.length - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;
+  const whole = [{ of: p, ot: a.length - q, ef: p, et: b.length - q }];
+  const A = [...a.slice(p, a.length - q).matchAll(TOKEN)];
+  const B = [...b.slice(p, b.length - q).matchAll(TOKEN)];
+  const n = A.length;
+  const m = B.length;
+  // ponytail: plain LCS table over the changed middle only; one stretch when it's huge
+  if (!n || !m || n * m > 4_000_000) return whole;
+  const T = new Uint32Array((n + 1) * (m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--) T[i * (m + 1) + j] = A[i][0] === B[j][0] ? T[(i + 1) * (m + 1) + j + 1] + 1 : Math.max(T[(i + 1) * (m + 1) + j], T[i * (m + 1) + j + 1]);
+  const hunks: Hunk[] = [];
+  const posA = (i: number) => p + (i < n ? A[i].index : a.length - q - p);
+  const posB = (j: number) => p + (j < m ? B[j].index : b.length - q - p);
+  let i = 0;
+  let j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i][0] === B[j][0]) {
+      i++;
+      j++;
+      continue;
+    }
+    const h = { of: posA(i), ot: 0, ef: posB(j), et: 0 };
+    while ((i < n || j < m) && !(i < n && j < m && A[i][0] === B[j][0])) {
+      if (j >= m || (i < n && T[(i + 1) * (m + 1) + j] >= T[i * (m + 1) + j + 1])) i++;
+      else j++;
+    }
+    hunks.push({ ...h, ot: posA(i), et: posB(j) });
+  }
+  return hunks;
+}
+
+// fixed: variables that can't change here (Name comes from the person picked)
+export function readEdit(template: string, vars: Record<string, string>, edited: string, fixed: string[] = []): EditRead {
+  // the text as it was shown, and where each variable sits in it (filled, or still {{Name}})
+  let filled = "";
+  let at = 0;
+  const spans: { name: string; from: number; to: number }[] = [];
+  for (const m of template.matchAll(VAR)) {
+    filled += template.slice(at, m.index);
+    const shown = vars[m[1]] ?? m[0];
+    spans.push({ name: m[1], from: filled.length, to: filled.length + shown.length });
+    filled += shown;
+    at = m.index + m[0].length;
+  }
+  filled += template.slice(at);
+  if (edited === filled) return { same: true };
+
+  // a change sits inside a variable when it's within its words; typed at its
+  // edge only when it carries on the same word ("Dr Kay" to "Dr Kaye", not
+  // "lysine tablets" or "88K+")
+  const inside = (s: { from: number; to: number }, h: Hunk) =>
+    s.to > s.from &&
+    (h.of < h.ot
+      ? s.from <= h.of && h.ot <= s.to
+      : (s.from < h.of && h.of < s.to) || (h.of === s.to && isWord(edited[h.ef]) && isWord(filled[h.of - 1])) || (h.of === s.from && isWord(edited[h.et - 1]) && isWord(filled[h.of])));
+  const touches = (s: { from: number; to: number }, h: Hunk) => (h.of < h.ot ? h.of < s.to && h.ot > s.from : inside(s, h));
+
+  // a word taken out or put in where the same letters repeat could sit in
+  // more than one place: the place inside a variable, when there is one
+  const hunks = textDiff(filled, edited).map((h, k, all) => {
+    if (h.of < h.ot && h.ef < h.et) return h;
+    const lo = k ? all[k - 1].ot : 0;
+    const hi = k < all.length - 1 ? all[k + 1].of : filled.length;
+    const text = h.of < h.ot ? filled : edited;
+    const [f, t] = h.of < h.ot ? ["of", "ot"] as const : ["ef", "et"] as const;
+    const tries = [h];
+    for (let c = { ...h }; c.of > lo && text[c[f] - 1] === text[c[t] - 1]; ) tries.push((c = { of: c.of - 1, ot: c.ot - 1, ef: c.ef - 1, et: c.et - 1 }));
+    for (let c = { ...h }; c.ot < hi && text[c[f]] === text[c[t]] && c[t] < text.length; ) tries.push((c = { of: c.of + 1, ot: c.ot + 1, ef: c.ef + 1, et: c.et + 1 }));
+    return tries.find((c) => spans.some((s) => inside(s, c))) ?? h;
+  });
+
+  // every change inside the same one variable: its new value
+  const hit = spans.filter((s) => hunks.some((h) => touches(s, h)));
+  const only = hit.length === 1 ? hit[0] : null;
+  if (only && !fixed.includes(only.name) && hunks.every((h) => inside(only, h))) {
+    const shift = hunks.reduce((n, h) => n + (h.et - h.ef) - (h.ot - h.of), 0);
+    const value = edited.slice(only.from, only.to + shift);
+    if (value.trim() && !/[{}\n\r]/.test(value)) return { name: only.name, value };
+  }
+  // the lead's own copy: the variables no change touched stay variables
+  let text = "";
+  let from = 0;
+  for (const s of spans) {
+    if (hit.includes(s)) continue;
+    const shift = hunks.filter((h) => h.ot <= s.from && !(h.of === h.ot && h.of === s.from && inside(s, h))).reduce((n, h) => n + (h.et - h.ef) - (h.ot - h.of), 0);
+    text += edited.slice(from, s.from + shift) + `{{${s.name}}}`;
+    from = s.to + shift;
+  }
+  return { text: text + edited.slice(from) };
+}
+
 // ---- Addresses ----
 export function slugify(name: string): string {
   return (
