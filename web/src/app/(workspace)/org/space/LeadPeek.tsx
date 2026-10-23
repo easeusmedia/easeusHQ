@@ -6,6 +6,7 @@ import { Check, ChevronRight, Maximize2, Minimize2, Plus, Trash2, User } from "l
 import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
+import { Warning } from "./Warning";
 import { LeadHistory } from "./LeadHistory";
 import { Messages } from "./Messages";
 import { LeadProfile } from "./LeadFacts";
@@ -286,12 +287,15 @@ function LeadPage({
   const start = outreachStart(board.stages);
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
   const gated = beforeReady(board.stages, stageId, (events ?? []).filter((e) => e.kind === "created" || e.kind === "moved").map((e) => e.toStage));
-  const left = gated ? approvalsMissing(board, lead, prepared?.openers ?? [], contactList, lead.email.opens > 0) : [];
+  const left = gated ? approvalsMissing(board, lead, prepared?.openers ?? [], contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts")) : [];
   // (until its openers and record load, what's approved for each can't be read)
   const blocked = gated && (!prepared || left.length > 0);
-  const blockedWhy = left.length ? `Approve every message first: ${unapprovedText(left)}.` : undefined;
+  const blockedWhy = left.length ? unapprovedText(left) : "This lead's messages are still loading. Try again in a moment.";
+  // a move held back says why, as the board does when a card is dropped there
+  const [warning, setWarning] = useState<string | null>(null);
   function moveToReady() {
     if (!ready) return;
+    if (blocked) return setWarning(blockedWhy);
     const from = stageId;
     setStageId(ready.id);
     run(moveLead(id, ready.id, lastInStage(), moveNeedsReason(order, from, ready.id) ? "Every message approved." : undefined), () => setStageId(from));
@@ -355,11 +359,10 @@ function LeadPage({
                     <button
                       key={s.id}
                       type="button"
-                      // Ready to reach out and on: not until every message is approved
-                      disabled={blocked && i >= start && !isDead(s.name)}
-                      title={blocked && i >= start && !isDead(s.name) ? blockedWhy : undefined}
                       onClick={() => {
                         closeMenu();
+                        // Ready to reach out and on: not until every message is approved
+                        if (blocked && i >= start && !isDead(s.name)) return setWarning(blockedWhy);
                         pickStage(s.id);
                       }}
                       className="menu-item px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
@@ -525,10 +528,11 @@ function LeadPage({
           )}
         </p>
         {ready && (
-          <button type="button" onClick={moveToReady} disabled={blocked} title={blockedWhy} className="btn btn-glow fade-in min-w-0 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" onClick={moveToReady} className={`btn fade-in min-w-0 ${blocked ? "btn-ghost" : "btn-glow"}`}>
             <span className="truncate">Move to {ready.name}</span>
           </button>
         )}
+        <Warning text={warning} label="Not yet" onClose={() => setWarning(null)} />
         <button type="button" onClick={close} className="btn btn-ghost shrink-0">
           Close
         </button>

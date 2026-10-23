@@ -817,8 +817,9 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
           (Array.isArray(full?.openers) ? full.openers : []) as Opener[],
           leadPeople((lead.values ?? {}) as Record<string, unknown>, fields as Pick<FieldData, "id" | "kind">[]),
           opened,
+          fields.length > 0,
         );
-        if (missing.length) return { error: `Approve every message first: ${unapprovedText(missing)}.` };
+        if (missing.length) return { error: unapprovedText(missing) };
       }
     }
     const needs = moveNeedsReason(stages.map((s) => s.id), lead.stageId, toStageId);

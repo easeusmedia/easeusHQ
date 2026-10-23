@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, keptRules, passesRules, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, openerOwn, unapprovedText } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, openerOwn, unapprovedText } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -64,47 +64,45 @@ test("checkbox, date and text", () => {
   assert.deepEqual(cleanValue("text", "  "), { value: null });
 });
 
-test("a lead passes a filter only when it passes every rule", () => {
+test("amounts read as typed on a lead", () => {
+  for (const [t, n] of [["20,400", 20400], ["352", 352], ["2.2K", 2200], ["1.1M", 1100000], ["10k+", 10000], [" 951000 ", 951000]] as const) assert.equal(parseAmount(t), n, t);
+  for (const t of ["", "N/A", "about 2K", "2.2.2"]) assert.equal(parseAmount(t), null, t);
+});
+
+test("a board filters on the values its leads actually have", () => {
   const fields = [
-    { id: "country", kind: "select" as const, options: [{ id: "usa", name: "USA", color: "" }, { id: "uk", name: "UK", color: "" }] },
-    { id: "bio", kind: "text" as const, options: [] },
-    { id: "subs", kind: "count" as const, options: [] },
-    { id: "people", kind: "contacts" as const, options: [] },
-    { id: "links", kind: "links" as const, options: [] },
-    { id: "met", kind: "date" as const, options: [] },
+    { id: "opener", name: "Opener", kind: "select" as const, options: [{ id: "d1", name: "D1", color: "" }, { id: "d2", name: "D2", color: "" }, { id: "d3", name: "D3", color: "" }] },
+    { id: "meme", name: "Meme board", kind: "select" as const, options: [{ id: "m1", name: "1", color: "" }] },
+    { id: "people", name: "Contacts", kind: "contacts" as const, options: [] },
+    { id: "subs", name: "Subscribers", kind: "text" as const, options: [] },
+    { id: "note", name: "To check", kind: "text" as const, options: [] },
+    { id: "bio", name: "Bio", kind: "text" as const, options: [] },
+    { id: "links", name: "Links", kind: "links" as const, options: [] },
   ];
-  const lead = {
-    country: ["uk"],
-    bio: "Weekly Cooking Show",
-    subs: { n: 1200, remark: "growing" },
-    people: [{ id: "c1", name: "Ana", role: "", channels: [{ kind: "email", value: "ana@x.com" }, { kind: "instagram", value: " " }] }],
-    met: "2025-10-01",
-  };
-  const pass = (rules: Parameters<typeof passesRules>[1]) => passesRules(lead, rules, fields);
-  assert.equal(pass([]), true);
-  assert.equal(pass([{ field: "country", op: "is", values: ["usa", "uk"] }]), true);
-  assert.equal(pass([{ field: "country", op: "is", values: ["usa"] }]), false);
-  assert.equal(pass([{ field: "bio", op: "contains", values: ["cooking"] }]), true);
-  assert.equal(pass([{ field: "subs", op: "contains", values: ["120"] }]), true);
-  assert.equal(pass([{ field: "subs", op: "contains", values: ["fall"] }]), false);
-  // a date contains what it reads as on the cards ("1 Oct 2025"), or as stored
-  for (const t of ["oct", "1 Oct", "1 Oct 2025", "2025-10"]) assert.equal(pass([{ field: "met", op: "contains", values: [t] }]), true, t);
-  assert.equal(pass([{ field: "met", op: "contains", values: ["Nov"] }]), false);
-  // a contact's channel counts only with something in it
-  assert.equal(pass([{ field: "people", op: "has", values: ["email"] }]), true);
-  assert.equal(pass([{ field: "people", op: "has", values: ["instagram"] }]), false);
-  assert.equal(pass([{ field: "people", op: "lacks", values: ["linkedin"] }]), true);
-  assert.equal(pass([{ field: "people", op: "has", values: [] }]), true);
-  assert.equal(pass([{ field: "links", op: "lacks", values: [] }]), true);
-  // every rule must hold; a property that's gone doesn't count
-  assert.equal(pass([{ field: "country", op: "is", values: ["uk"] }, { field: "bio", op: "contains", values: ["tech"] }]), false);
-  assert.equal(pass([{ field: "gone", op: "is", values: ["x"] }]), true);
-  // saved rules drop what the board no longer has
-  assert.deepEqual(
-    keptRules([{ field: "country", op: "is", values: ["usa", "old"] }, { field: "country", op: "is", values: ["old"] }, { field: "gone", op: "has", values: [] }, { field: "bio", op: "near", values: [] }, null], fields),
-    [{ field: "country", op: "is", values: ["usa"] }]
-  );
-  assert.deepEqual(keptRules("junk", fields), []);
+  const ana = { id: "c1", name: "Ana", role: "", channels: [{ kind: "email", value: "ana@x.com" }, { kind: "instagram", value: " " }] };
+  const leads = [
+    { values: { opener: ["d1"], meme: ["m1"], people: [ana], subs: "20,400", note: "Find first name", bio: "a" } },
+    { values: { opener: ["d1"], people: [{ ...ana, channels: [{ kind: "youtube", value: "@b" }] }], subs: "2.2K", note: "Find first name", bio: "b" } },
+    { values: { opener: ["d2", "gone"], people: [], subs: "N/A", bio: "c" } },
+    ...Array.from({ length: 11 }, (_, i) => ({ values: { bio: `bio ${i}`, links: [{ label: "", url: "x" }] } })),
+  ];
+  const groups = facets(leads, fields);
+  // Meme board, free text (13 bios) and links are left out; values no lead has too
+  assert.deepEqual(groups.map((g) => [g.name, g.values.map((v) => `${v.label} ${v.count}`)]), [
+    ["Opener", ["D1 2", "D2 1"]],
+    ["Contacts", ["Has email 1", "Has YouTube 1", "No way to reach them 12"]],
+    ["Subscribers", ["1K to 10K 1", "10K to 100K 1"]],
+    ["To check", ["Find first name 2"]],
+  ]);
+  const shown = (picks: Record<string, string[]>) => leads.flatMap((l, i) => (passesFacets(l.values, picks, groups) ? [i] : []));
+  assert.equal(shown({}).length, leads.length);
+  // within a property any picked value, across properties all of them
+  assert.deepEqual(shown({ opener: ["d1", "d2"] }), [0, 1, 2]);
+  assert.deepEqual(shown({ opener: ["d1", "d2"], people: ["youtube"] }), [1]);
+  assert.deepEqual(shown({ people: ["none"], opener: ["d2"] }), [2]);
+  assert.deepEqual(shown({ subs: ["2"] }), [0]);
+  // a property that isn't a filter any more doesn't count
+  assert.deepEqual(shown({ meme: ["m1"] }).length, leads.length);
 });
 
 test("a count or contact with nothing in it isn't filled", () => {
@@ -512,26 +510,31 @@ test("a lead goes into Ready to reach out only once every message it can be sent
   ];
   const all = (c: string, ...ids: string[]) => Object.fromEntries(ids.map((id) => [`${id}@${c}`, at]));
   // no contacts: the lead itself, every day's message on every platform
-  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], []).map((m) => [m.day, m.message.id, m.contact]), [[1, "e1", null], [1, "l1", null], [2, "i1", null], [3, "e2", null]]);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], []).map((m) => [m.day, m.message?.id, m.contact]), [[1, "e1", null], [1, "l1", null], [2, "i1", null], [3, "e2", null]]);
   assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: { e1: at, l1: at, i1: at, e2: at } }, [], []), []);
   // a day they can't be reached on passes: no Instagram, so Day 2 needs nothing
   const ann = person("ann", "email", "linkedin");
   assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann]), []);
   // everyone on the lead, each on their own
   const bo = person("bo", "email");
-  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann, bo]).map((m) => `${m.message.id}@${m.contact?.id}`), ["e1@bo", "e2@bo"]);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann, bo]).map((m) => `${m.message?.id}@${m.contact?.id}`), ["e1@bo", "e2@bo"]);
   // the opener in use: its own message under it, or approved before openers had their own
-  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#0@bo": at } }, openers, [bo]).map((m) => m.message.id), ["e1"]);
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#0@bo": at } }, openers, [bo]).map((m) => m.message?.id), ["e1"]);
   assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#1@bo": at } }, openers, [bo]), []);
   assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: all("bo", "e1", "e2") }, openers, [bo]), []);
   // the error names the first still to approve, and how many more
   const left = approvalsMissing({ ...days, messages: days.messages.map((m) => ({ ...m, name: m.id === "e2" ? "Day 3 · Email 2" : m.name })) }, { picks: {}, approvals: all("bo", "e1") }, [], [{ ...bo, name: "Dr Karandish" }]);
-  assert.equal(unapprovedText(left), "Day 3 · Email 2 for Dr Karandish");
-  assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [])), "Day 1 · e1 and 3 more");
+  assert.equal(unapprovedText(left), "Approve every message first: Day 3 · Email 2 for Dr Karandish.");
+  assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [])), "Approve every message first: Day 1 · e1 and 3 more.");
+  // on a board that keeps people: nobody on the lead, or nobody reachable, never passes
+  assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [], false, true)), "Add a contact first.");
+  const nobody = { ...person("nb"), name: "Dr K" };
+  assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [nobody], false, true)), "Add an email, LinkedIn or Instagram for Dr K first.");
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], [nobody]), []);
   // a day picked by whether its email was opened, as the day strip picks it
   const day2 = { stages: days.stages, messages: [{ id: "no", stageId: "d2", channel: "instagram", name: "Didn't open Email 1" }, { id: "yes", stageId: "d2", channel: "instagram", name: "Already opened Email 1" }] };
   assert.deepEqual(approvalsMissing(day2, { picks: {}, approvals: { yes: at } }, [], [], true), []);
-  assert.deepEqual(approvalsMissing(day2, { picks: {}, approvals: { yes: at } }, [], []).map((m) => m.message.id), ["no"]);
+  assert.deepEqual(approvalsMissing(day2, { picks: {}, approvals: { yes: at } }, [], []).map((m) => m.message?.id), ["no"]);
 });
 
 test("Dead is before Ready to reach out until the lead's record has it there or later", () => {

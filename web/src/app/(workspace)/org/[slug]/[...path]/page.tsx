@@ -80,7 +80,6 @@ export default async function SpacePage({
         board={board}
         people={people}
         canBuild={canBuild}
-        viewerId={viewer.id}
         boardTemplates={boardTemplates}
         initialLeadId={typeof query.lead === "string" ? query.lead : null}
       />

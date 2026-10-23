@@ -222,3 +222,14 @@ test("each place takes one column; a person's details and links can take several
   const mapping = { "m.a": "var:Observation", "m.b": "var:Observation", email: "contact.email", "work email": "contact.email", url: "link", site: "link" };
   assert.deepEqual(oneEach(cols, mapping), { ...mapping, "m.b": "ignore" });
 });
+
+test("one name per person, links that are addresses, and who can't be reached yet", () => {
+  const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }, { id: "l", name: "Links", kind: "links", required: false, onCard: false, options: [] }], messages: [], leads: [] };
+  const cols = ["g", "docs[].n", "docs[].l", "url"].map((path) => ({ path, values: [] }));
+  const mapping = oneEach(cols, { g: "contact.name", "docs[].n": "contact.name", "docs[].l": "link", url: "link" });
+  assert.equal(mapping["docs[].n"], "ignore");
+  const p = buildLeads([{ g: "Dr Karandish", docs: [{ n: "Dr. K | PCH MedSpa", l: "YT 1" }], url: "https://www.youtube.com/@PCHMedSpa" }], mapping, board as never);
+  assert.equal(p.leads[0].contacts?.[0].name, "Dr Karandish");
+  assert.deepEqual(p.leads[0].links?.map((l) => l.url), ["https://www.youtube.com/@PCHMedSpa"]);
+  assert.deepEqual(p.unreachable, [p.leads[0].title]);
+});

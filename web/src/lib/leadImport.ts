@@ -320,10 +320,11 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
 // Where what Claude read out goes (importActions extractLeads): it comes in
 // the board's own words, so each column is placed by its exact name, never
 // guessed from a heading ("Avg. views" and {{Dr. Name}} as they are)
-// Every place takes one column, but a person's details and links can come
-// from several ("Email", "Work email"): the first column keeps a place,
-// any other one put there is left out
-export const sharedPlace = (t: Target) => t.startsWith("contact.") || t === "link" || t === "ignore";
+// Every place takes one column, but a person's handles and links can come
+// from several ("Email", "Work email"): the first column keeps a place, any
+// other one put there is left out. A name is one column ("Dr Karandish", not
+// that and the clinic's name joined)
+export const sharedPlace = (t: Target) => (t.startsWith("contact.") && t !== "contact.name" && t !== "contact.role") || t === "link" || t === "ignore";
 export function oneEach(columns: Column[], mapping: Record<string, Target>): Record<string, Target> {
   const taken = new Set<Target>();
   return Object.fromEntries(
@@ -368,6 +369,8 @@ export type Preview = {
   duplicates: LeadIn[];
   // left out, and why ("Row 4": no name; "Glow Clinic": no contact details)
   incomplete: { name: string; why: string }[];
+  // imported, but nobody on them has an email, Instagram or LinkedIn yet
+  unreachable: string[];
   existing: number;
   // without a name, or a property the board requires
   unnamed: number;
@@ -447,15 +450,18 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       if (!v) continue;
       const [, id, part] = mapping[p].split(":");
       const d = (out[id] ??= { subject: "", body: "" });
-      if (part === "subject") d.subject ||= v.slice(0, 300);
-      else d.body ||= v.slice(0, 20_000);
+      // "[link]" left in a sequence page's wording is the {{Link}} fill-in (Abhishek, 23 Oct 2026)
+      const text = v.replaceAll("[link]", "{{Link}}");
+      if (part === "subject") d.subject ||= text.slice(0, 300);
+      else d.body ||= text.slice(0, 20_000);
     }
     return Object.fromEntries(Object.entries(out).filter(([, d]) => d.body));
   };
 
   const seen = new Set(board.leads.map((l) => l.title.trim().toLowerCase()));
   const unmatched = new Set<string>();
-  const out: Preview = { leads: [], duplicates: [], incomplete: [], existing: 0, unnamed: 0, missing: 0, unmatched: [] };
+  const out: Preview = { leads: [], duplicates: [], incomplete: [], unreachable: [], existing: 0, unnamed: 0, missing: 0, unmatched: [] };
+  const keepsPeople = board.fields.some((f) => f.kind === "contacts");
   for (const [n, row] of rows.entries()) {
     const flat = flatten(row);
 
@@ -482,7 +488,11 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       const v = vs.length ? valueOf(f, vs, unmatched) : null;
       if (v != null) values[f.id] = v;
     }
-    const links = [...new Set(valuesFor(flat, "link"))].slice(0, 50).map((url) => ({ label: "", url: url.slice(0, 500) }));
+    // only real addresses: a page's labels ("YT 1") aren't links
+    const links = [...new Set(valuesFor(flat, "link"))]
+      .filter((u) => /^(https?:\/\/|www\.)\S+$/i.test(u.trim()))
+      .slice(0, 50)
+      .map((url) => ({ label: "", url: url.trim().slice(0, 500) }));
     const vars = Object.fromEntries(varNames.map((n) => [n.slice(0, 60), valuesFor(flat, `var:${n}`).join(", ").slice(0, 2000)]).filter(([, v]) => v));
     // the sequence's other messages go with every opener (as doctors-setup did)
     const main = draftsOf(flat, backups ? messagePaths.filter((p) => !p.startsWith(backups)) : messagePaths);
@@ -512,6 +522,7 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     }
     seen.add(title.toLowerCase());
     out.leads.push(lead);
+    if (keepsPeople && !contacts.some((c) => c.email?.length || c.instagram?.length || c.linkedin?.length)) out.unreachable.push(title);
   }
   out.unmatched = [...unmatched];
   return out;

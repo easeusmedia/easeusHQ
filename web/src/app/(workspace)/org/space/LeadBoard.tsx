@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, Plus, Trash2 } from "lucide-react";
 import { dayOf, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
 import { DEPT } from "@/lib/scope";
@@ -10,6 +10,7 @@ import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLe
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadCard } from "./LeadCard";
 import { ImportLeads } from "./ImportLeads";
+import { Warning } from "./Warning";
 import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
 import { MENU_ITEM, MoreMenu } from "../../MoreMenu";
@@ -604,19 +605,7 @@ export function LeadBoard({
         }}
       />
 
-      {error && (
-        <div onClick={() => setError(null)} className="fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
-          <div role="alertdialog" aria-label="Couldn't save" onClick={(e) => e.stopPropagation()} className="glass pop-in flex max-w-sm flex-col items-center gap-4 rounded-2xl p-6 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-red-400/15">
-              <ShieldAlert size={22} className="text-red-300" />
-            </div>
-            <p className="text-sm text-foreground">{error}</p>
-            <button type="button" autoFocus onClick={() => setError(null)} className="btn btn-sm btn-glow">
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
+      <Warning text={error} onClose={() => setError(null)} />
     </>
   );
 }

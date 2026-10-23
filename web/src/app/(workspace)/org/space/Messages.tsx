@@ -239,7 +239,8 @@ export function Messages({
     const needs = platform === "linkedin" && !m.accepted;
     const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
     return (
-      <div key={chosen.channel} className={`flex flex-col gap-2.5 ${can ? "" : "opacity-50"}`} title={can ? undefined : `${c?.name.trim() || "This lead"} has no ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}${chosen.channel === "email" ? " address" : " handle"}`}>
+      // one they can't be sent stays readable, its header saying why (Abhishek: greyed read as switched off)
+      <div key={chosen.channel} className="flex flex-col gap-2.5">
         {options.length > 1 &&
           (options.length <= 4 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -267,6 +268,7 @@ export function Messages({
           thread={firstEmail && firstEmail.id !== chosen.id ? (own(firstEmail.id)?.subject ?? firstEmail.subject) : ""}
           sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
+          cant={can ? null : chosen.channel === "email" ? "No email address" : `No ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}`}
           onMine={(d) => saveMine(chosen.id, d)}
           onVar={saveVar}
         />
@@ -623,6 +625,7 @@ function MessageForm({
   thread,
   sent,
   extra,
+  cant,
   onMine,
   onVar,
 }: {
@@ -639,6 +642,8 @@ function MessageForm({
   thread: string;
   sent: SentData | null;
   extra?: string | null;
+  // why it can't be sent to the person picked ("No email address")
+  cant?: string | null;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
   onVar: (name: string, value: string) => Promise<string | undefined>;
 }) {
@@ -710,6 +715,7 @@ function MessageForm({
           <h4 className="flex items-center gap-2 text-sm font-medium text-foreground">
             <span className="min-w-0 truncate">{message.name}</span>
             {rewritten && !sent && <span className="shrink-0 text-xs font-normal text-muted">· Edited</span>}
+            {cant && !sent && <span className="shrink-0 text-xs font-normal text-amber-300/90">· {cant}</span>}
             {sent && (
               <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[12px] font-medium text-emerald-300">
                 <Check size={11} /> Sent

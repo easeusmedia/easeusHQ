@@ -4,8 +4,6 @@
 // through its stages, with properties every lead records. The rules here are
 // pure, so the server enforces them and the client can preview them.
 
-import { shortDay } from "./editorKpi.ts";
-
 export type SpaceKind = "section" | "portal" | "board";
 
 // What each level is called, and what it holds
@@ -263,40 +261,89 @@ export function isFilled(kind: FieldKind, v: unknown): boolean {
   return true;
 }
 
-// A board filter's rule on one property: one of the picked tags (values: option
-// ids), text that contains values[0], or having it or not (for contacts,
-// values[0] can be a channel: "has an Instagram")
-export type LeadRule = { field: string; op: "is" | "contains" | "has" | "lacks"; values: string[] };
+// ---- Board filters ----
+// What a board can be filtered on: each property's values that its leads
+// actually have, with how many have each. Ticking values within a property
+// means any of them; across properties, all must hold.
+export type FacetKind = "tag" | "contact" | "range" | "text" | "checkbox";
+export type FacetValue = { key: string; label: string; count: number };
+export type Facet = { field: string; name: string; kind: FacetKind; values: FacetValue[] };
+// picked value keys, by field id
+export type FacetPicks = Record<string, string[]>;
 
-// Whether a lead's values pass every rule; a rule on a property the board no
-// longer has passes
-export function passesRules(values: Record<string, unknown>, rules: LeadRule[], fields: Pick<FieldData, "id" | "kind">[]): boolean {
-  return rules.every((r) => {
-    const f = fields.find((x) => x.id === r.field);
-    if (!f) return true;
-    const v = values[f.id];
-    if (r.op === "is") return Array.isArray(v) && v.some((id) => r.values.includes(id));
-    if (r.op === "contains") {
-      // a date as it's stored and as it reads ("2026-10-01 1 Oct 2026")
-      const text = typeof v === "string" ? (f.kind === "date" ? `${v} ${shortDay(v)} ${v.slice(0, 4)}` : v) : f.kind === "count" && v ? `${(v as CountValue).n ?? ""} ${(v as CountValue).remark}` : "";
-      return text.toLowerCase().includes((r.values[0] ?? "").toLowerCase());
-    }
-    const channel = f.kind === "contacts" ? r.values[0] : undefined;
-    const has = channel ? Array.isArray(v) && (v as Contact[]).some((p) => p.channels.some((ch) => ch.kind === channel && ch.value.trim())) : isFilled(f.kind, v);
-    return has === (r.op === "has");
+const REACH = ["email", "instagram", "linkedin", "youtube", "phone"] as const;
+const REACH_LABEL: Record<string, string> = { email: "Has email", instagram: "Has Instagram", linkedin: "Has LinkedIn", youtube: "Has YouTube", phone: "Has phone", none: "No way to reach them" };
+const RANGES = [
+  { label: "Under 1K", min: 0 },
+  { label: "1K to 10K", min: 1e3 },
+  { label: "10K to 100K", min: 1e4 },
+  { label: "100K to 1M", min: 1e5 },
+  { label: "1M and more", min: 1e6 },
+];
+const MULT: Record<string, number> = { "": 1, k: 1e3, m: 1e6, b: 1e9 };
+// a text property with more distinct values than this is free text
+const MAX_TEXT_VALUES = 12;
+
+// A number as it's typed on a lead: "20,400", "352", "2.2K", "1.1M", "10K+"
+export function parseAmount(text: string): number | null {
+  const m = /^(\d*\.?\d+)\s*([kmb]?)\+?$/i.exec(text.trim().replace(/,/g, ""));
+  return m ? Math.round(Number(m[1]) * MULT[m[2].toLowerCase()]) : null;
+}
+
+const textOf = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+// How a property is filtered, from its kind and (for text) what its leads hold
+function facetKind(f: Pick<FieldData, "name" | "kind">, vals: unknown[]): FacetKind | null {
+  // Meme board only picks Day 6's image, so it isn't offered as a filter (it confused)
+  if (/^meme board$/i.test(f.name.trim())) return null;
+  if (f.kind === "select" || f.kind === "multi") return "tag";
+  if (f.kind === "contacts") return "contact";
+  if (f.kind === "checkbox") return "checkbox";
+  if (f.kind === "count") return "range";
+  if (f.kind !== "text") return null; // links and dates
+  const texts = vals.map(textOf).filter(Boolean);
+  // mostly numbers ("20,400", "2.2K"): by size, the odd word left out
+  if (texts.filter((t) => parseAmount(t) != null).length * 2 > texts.length) return "range";
+  return new Set(texts).size <= MAX_TEXT_VALUES ? "text" : null;
+}
+
+// The values one lead's property falls under
+function facetKeys(kind: FacetKind, v: unknown): string[] {
+  if (kind === "tag") return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  if (kind === "checkbox") return [v === true ? "yes" : "no"];
+  if (kind === "text") return textOf(v) ? [textOf(v)] : [];
+  if (kind === "contact") {
+    const people = Array.isArray(v) ? (v as Contact[]) : [];
+    const has = REACH.filter((k) => people.some((p) => p?.channels?.some((c) => c.kind === k && c.value?.trim())));
+    return has.length ? has : ["none"];
+  }
+  const n = typeof v === "string" ? parseAmount(v) : typeof (v as CountValue | null)?.n === "number" ? (v as CountValue).n : null;
+  return n == null ? [] : [String(RANGES.filter((r) => n >= r.min).length - 1)];
+}
+
+// Every property's values across these leads, each with its count, in the
+// property's own order (tags as the board lists them, sizes small to big,
+// text values most common first); a property no lead has a value in is left out
+export function facets(leads: Pick<LeadData, "values">[], fields: Pick<FieldData, "id" | "name" | "kind" | "options">[]): Facet[] {
+  return fields.flatMap((f) => {
+    const kind = facetKind(f, leads.map((l) => l.values[f.id]));
+    if (!kind) return [];
+    const counts = new Map<string, number>();
+    for (const l of leads) for (const k of facetKeys(kind, l.values[f.id])) counts.set(k, (counts.get(k) ?? 0) + 1);
+    const labels: [string, string][] =
+      kind === "tag" ? f.options.map((o) => [o.id, o.name])
+      : kind === "contact" ? [...REACH, "none"].map((k) => [k, REACH_LABEL[k]])
+      : kind === "range" ? RANGES.map((r, i) => [String(i), r.label])
+      : kind === "checkbox" ? [["yes", "Checked"], ["no", "Not checked"]]
+      : [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b)).map((k) => [k, k]);
+    const values = labels.flatMap(([key, label]) => (counts.get(key) ? [{ key, label, count: counts.get(key)! }] : []));
+    return values.length ? [{ field: f.id, name: f.name, kind, values }] : [];
   });
 }
 
-// Rules kept from before (this browser's saved filters), with any whose
-// property or tags have since gone dropped
-export function keptRules(raw: unknown, fields: Pick<FieldData, "id" | "options">[]): LeadRule[] {
-  return (Array.isArray(raw) ? (raw as Partial<LeadRule>[]) : []).flatMap((r) => {
-    const f = fields.find((x) => x.id === r?.field);
-    const op = r?.op as LeadRule["op"];
-    if (!f || !["is", "contains", "has", "lacks"].includes(op) || !Array.isArray(r.values)) return [];
-    const values = op === "is" ? r.values.filter((id) => f.options.some((o) => o.id === id)) : r.values.filter((x) => typeof x === "string");
-    return op === "is" && !values.length ? [] : [{ field: f.id, op, values }];
-  });
+// Whether a lead holds one of the picked values in every property picked in
+export function passesFacets(values: Record<string, unknown>, picks: FacetPicks, groups: Facet[]): boolean {
+  return groups.every((g) => !picks[g.field]?.length || facetKeys(g.kind, values[g.field]).some((k) => picks[g.field].includes(k)));
 }
 
 // ---- Messages ----
@@ -503,17 +550,29 @@ export const approvalIn = (approvals: Record<string, Approval | null | undefined
 // can be reached on. A day with nothing they can be reached by passes.
 // Picked by whether its email was opened, as the day strip does (a lead
 // moved back can have been).
-export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name">; contact: Contact | null };
+// message null: the person can't be reached at all (no contact, or none of
+// the channels the sequence writes on), so there is nothing to approve yet
+export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name"> | null; contact: Contact | null };
+// needsContact: the board keeps people on its leads (a contacts property), so a
+// lead with nobody on it, or someone with no handle the messages go to, can't
+// go on to Ready to reach out: approving nothing would pass (Abhishek, 23 Oct 2026)
 export function approvalsMissing(
   board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel">[] },
   lead: { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined> },
   openers: Opener[],
   contacts: Contact[],
   opened = false,
+  needsContact = false,
 ): Unapproved[] {
   const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
   const missing: Unapproved[] = [];
-  for (const contact of contacts.length ? contacts : [null])
+  if (needsContact && !contacts.length && days.length) return [{ day: 0, message: null, contact: null }];
+  const sent = board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") != null);
+  for (const contact of contacts.length ? contacts : [null]) {
+    if (needsContact && contact && sent.length && !sent.some((m) => hasChannel(contact, m.channel))) {
+      missing.push({ day: 0, message: null, contact });
+      continue;
+    }
     for (const day of days) {
       const on = messagesOnDay(board, day);
       for (const channel of new Set(on.map((m) => m.channel))) {
@@ -522,6 +581,7 @@ export function approvalsMissing(
         if (hasChannel(contact, m.channel) && !approvalIn(lead.approvals, approvalKey({ openers }, lead.picks, m.id, contact))) missing.push({ day, message: m, contact });
       }
     }
+  }
   return missing;
 }
 // Before Ready to reach out, where going on waits for every message to be
@@ -536,12 +596,19 @@ export function beforeReady(stages: Pick<StageData, "id" | "name">[], stageId: s
   const later = new Set(stages.slice(start).filter((s) => !isDead(s.name)).map((s) => s.name));
   return isDead(stages[i].name) && !record.some((n) => !!n && (later.has(n) || dayOf(n) != null));
 }
-// "Day 3 · Email 2 for Dr Karandish and 4 more"
+// Why it can't go on yet, as a sentence: "Approve every message first: Day 3
+// · Email 2 for Dr Karandish and 4 more." or "Add an email, LinkedIn or
+// Instagram for Dr Karandish first."
 export function unapprovedText(missing: Unapproved[]): string {
+  const unreachable = missing.find((m) => !m.message);
+  if (unreachable) {
+    const who = unreachable.contact?.name.trim();
+    return unreachable.contact ? `Add an email, LinkedIn or Instagram${who ? ` for ${who}` : ""} first.` : "Add a contact first.";
+  }
   const [{ day, message, contact }] = missing;
   const name = contact?.name.trim();
   const more = missing.length - 1;
-  return `Day ${day} · ${message.name.replace(/^day \d+\s*·\s*/i, "")}${name ? ` for ${name}` : ""}${more ? ` and ${more} more` : ""}`;
+  return `Approve every message first: Day ${day} · ${message!.name.replace(/^day \d+\s*·\s*/i, "")}${name ? ` for ${name}` : ""}${more ? ` and ${more} more` : ""}.`;
 }
 
 // The day the LinkedIn connection request goes out: the sequence's first
