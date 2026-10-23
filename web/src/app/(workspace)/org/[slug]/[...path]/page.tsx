@@ -10,6 +10,8 @@ import { SpaceGrid, SpaceTitle } from "../../space/SpaceGrid";
 import { PortalView } from "../../space/PortalView";
 
 export const dynamic = "force-dynamic";
+// the server actions on the page too: importing leads waits on Claude (ImportLeads)
+export const maxDuration = 60;
 
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
