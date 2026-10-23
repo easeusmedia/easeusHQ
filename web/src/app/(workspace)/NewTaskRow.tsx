@@ -1,5 +1,6 @@
 "use client";
 
+import { dayOf } from "@/lib/editorKpi";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { Building2, CalendarClock, Link2, MoreHorizontal, Send, User, X } from "lucide-react";
 import { createTask, type TaskFormState } from "./actions";
@@ -58,7 +59,8 @@ export function NewTaskRow({
       projectId: defaultProjectId ?? "",
       // an editor's only choice is themselves, so it's already made
       assignedToId: editors.length === 1 ? editors[0].id : "",
-      dueDate: "",
+      // due the day it's set (Abhishek, 23 Oct 2026), unless picked
+      dueDate: dayOf(new Date()),
       deliveryDate: "",
       scheduledFor: "",
       rawLink: "",
@@ -82,6 +84,7 @@ export function NewTaskRow({
   }, [draftKey, written, f]);
 
   function open() {
+    const today = dayOf(new Date());
     if (!draftLoaded.current) {
       draftLoaded.current = true;
       const d = readDraft<ReturnType<typeof blank>>(draftKey);
@@ -94,9 +97,13 @@ export function NewTaskRow({
           clientId: project?.client.id ?? (projects.some((p) => p.client.id === d.clientId) ? (d.clientId ?? "") : preset?.client.id ?? ""),
           projectId: project?.id ?? defaultProjectId ?? "",
           assignedToId: editors.some((e) => e.id === d.assignedToId) ? (d.assignedToId ?? "") : blank().assignedToId,
+          // a draft with no due day takes today's, as a new one does
+          dueDate: d.dueDate || today,
         });
       }
     }
+    // a day already gone (left open overnight, or an old draft) moves up to today
+    setF((cur) => (cur.dueDate && cur.dueDate < today ? { ...cur, dueDate: today } : cur));
     dialogRef.current?.showModal();
   }
 
@@ -323,7 +330,8 @@ export function NewTaskRow({
               <DatePicker
                 pill={{ icon: <CalendarClock size={12} className="text-orange-400" /> }}
                 value={f.scheduledFor}
-                onChange={(v) => set({ scheduledFor: v })}
+                // hidden till after it's due: due the day it shows
+                onChange={(v) => set({ scheduledFor: v, ...(v && f.dueDate && v > f.dueDate ? { dueDate: v } : {}) })}
                 placeholder="Hide until…"
               />
               <label className={`${pill(f.internal)} cursor-pointer`}>

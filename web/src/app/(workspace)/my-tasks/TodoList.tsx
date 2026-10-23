@@ -748,12 +748,16 @@ export function Composer({
   onClose?: () => void;
 }) {
   const router = useRouter();
+  // due the day it's set (Abhishek, 23 Oct 2026), unless picked; a day
+  // already gone (left open overnight) moves up to today
+  const [f, setF] = useState(() => ({ ...blank, due: dayOf(new Date()) }));
+  const freshDue = (due: string) => (due && due < dayOf(new Date()) ? dayOf(new Date()) : due);
   const [open, setOpenState] = useState(startOpen);
   const setOpen = (v: boolean) => {
     setOpenState(v);
+    if (v) setF((cur) => ({ ...cur, due: freshDue(cur.due) }));
     if (!v) onClose?.();
   };
-  const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<typeof blank>) => setF((cur) => ({ ...cur, ...patch }));
@@ -812,7 +816,7 @@ export function Composer({
     setBusy(false);
     if (res.error) return setError(res.error);
     // stays open for the next one, keeping the chips that usually repeat
-    setF((cur) => ({ ...blank, due: cur.due, kindId: cur.kindId, clientId: cur.clientId, projectId: cur.projectId, assignedToId: cur.assignedToId }));
+    setF((cur) => ({ ...blank, due: freshDue(cur.due), kindId: cur.kindId, clientId: cur.clientId, projectId: cur.projectId, assignedToId: cur.assignedToId }));
     router.refresh();
   }
 
@@ -899,10 +903,7 @@ export function Composer({
         )}
       </div>
       {error && <p className="fade-in mt-2 text-xs text-red-300">{error}</p>}
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-        <p className="text-xs text-muted">
-          {kind ? (kind.workflow === "todo" ? (f.clientId ? "Client work, ticked off when done" : "A to-do") : `Moves through the ${kind.workflow === "design" ? "Design" : "Video"} stages`) : f.clientId ? "Client work, ticked off when done" : "A to-do"}
-        </p>
+      <div className="mt-4 flex items-center justify-end gap-3 border-t border-border/60 pt-3">
         <div className="flex gap-2">
           <button type="button" onClick={() => setOpen(false)} className="btn btn-sm btn-ghost">
             Cancel

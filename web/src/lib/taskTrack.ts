@@ -1,7 +1,8 @@
 import { prisma } from "./prisma";
 import { dayOf, shortDay } from "./editorKpi";
-import { isFounder, isLead, type Viewer } from "./scope";
-import { ACTIVE_STATUSES } from "./workflow";
+import { effectiveRole, isFounder, isLead, type Viewer } from "./scope";
+import { ACTIVE_STATUSES, canTransition, workflowOf, type Role } from "./workflow";
+import { needsGrade } from "./videoScore";
 import { overdueAudience, overdueText } from "./overdue.ts";
 import { departmentFromTitle } from "./department.ts";
 
@@ -135,6 +136,10 @@ export type ToAnswer = {
   client: string | null;
   // whose it is, when it isn't the viewer's own
   owner: string | null;
+  // "Already done" goes through for them: the tick changeStatus would let
+  // them make (an editor's video moves on the Board; someone else's video
+  // needs its Drive link and grade)
+  finishable: boolean;
 };
 type Answerer = { id: string; role: string; email?: string | null; departments?: { id: string }[] };
 export async function overdueToAnswer(user: Answerer, now = new Date()): Promise<ToAnswer[]> {
@@ -146,13 +151,26 @@ export async function overdueToAnswer(user: Answerer, now = new Date()): Promise
   const tasksOf = isFounder(user) ? {} : { OR: [...own, ...(leads.length ? [{ teamId: { in: leads } }] : [])] };
   const todosOf = { OR: [{ assignedToId: userId }, ...(leads.length ? [{ teamId: { in: leads }, assignedTo: { role: "employee" as const } }] : [])] };
   const select = { id: true, title: true, dueDate: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } as const;
+  const role = effectiveRole(user) as Role;
   // this runs on every page: one round to the database
   const [tasks, todos] = await Promise.all([
-    prisma.task.findMany({ where: { ...tasksOf, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } }, select }),
+    prisma.task.findMany({
+      where: { ...tasksOf, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } },
+      select: { ...select, status: true, workflow: true, internal: true, driveLink: true, inspectionGrade: true, shares: { where: { userId }, select: { userId: true } } },
+    }),
     prisma.workTask.findMany({ where: { ...todosOf, status: { not: "done" }, dueDate: { lt: before } }, select }),
   ]);
-  return [...tasks.map((t) => ({ ...t, kind: "task" as const })), ...todos.map((t) => ({ ...t, kind: "work" as const }))]
-    .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: (t.assignedToId ?? t.createdById) === userId ? null : (t.assignedTo?.name ?? null) }));
+  const finishable = (t: (typeof tasks)[number]) => {
+    const isAssignee = t.assignedToId === userId || t.shares.length > 0;
+    const ownTick = role !== "employee" && isAssignee;
+    return (
+      canTransition(t.status, "delivered_and_uploaded", { role, isAssignee }, t.workflow) &&
+      (workflowOf(t.workflow) !== "video" || t.internal || !!t.driveLink || ownTick) &&
+      (ownTick || !needsGrade(t, "delivered_and_uploaded", role))
+    );
+  };
+  return [...tasks.map((t) => ({ ...t, kind: "task" as const, finishable: finishable(t) })), ...todos.map((t) => ({ ...t, kind: "work" as const, finishable: true }))]
+    .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: (t.assignedToId ?? t.createdById) === userId ? null : (t.assignedTo?.name ?? null), finishable: t.finishable }));
 }
 
 // A task locked for this person (overdueToAnswer), until it has a new date

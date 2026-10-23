@@ -21,6 +21,7 @@ import { exportFolder, uploadFromUrl } from "@/lib/drive";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
+import { moveWorkTask } from "./my-tasks/actions";
 import { fetchTaskRows, getTitleText, getStatusName, getFirstPersonName, getUrl, getDate } from "@/lib/notion";
 
 // Every link field below goes through this before it ever reaches the DB —
@@ -983,23 +984,69 @@ export async function copyFrameioFileToDrive(
 // a new completion date, today or later, and the reason, on a task that's
 // the person's own. The move is kept like any other, and the task's overdue
 // notices count as read.
-export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
+// An overdue task someone may answer for: theirs; a Lead's, for their
+// departments' frozen work; or a Level 1 looking as them. The record says who set it.
+async function overdueTask(kind: "task" | "work", id: string) {
   const [me, lookingAs] = await Promise.all([getRealViewer(), getSessionUserId()]);
-  if (!me) return { error: "Your session has ended. Please sign in again." };
+  if (!me) return { error: "Your session has ended. Please sign in again." } as const;
+  const select = { dueDate: true, strikes: true, assignedToId: true, createdById: true, sortOrder: true } as const;
+  const row = kind === "task" ? await prisma.task.findUnique({ where: { id }, select }) : await prisma.workTask.findUnique({ where: { id }, select });
+  const owner = row?.assignedToId ?? row?.createdById;
+  if (!row || !owner || (owner !== me.id && !(isFounder(me) && lookingAs === owner) && !(await frozenFor(me, id)))) return { error: "That task isn't yours to move." } as const;
+  return { me, row, owner };
+}
+
+export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
   const why = reason.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < dayOf(new Date())) return { error: "Pick today or a later day." };
   if (!why) return { error: "Add a short reason." };
-  const select = { dueDate: true, strikes: true, assignedToId: true, createdById: true } as const;
-  const row = kind === "task" ? await prisma.task.findUnique({ where: { id }, select }) : await prisma.workTask.findUnique({ where: { id }, select });
-  // theirs; a Lead's, for their departments' frozen work; or a Level 1
-  // looking as them. The record says who set it.
-  const owner = row?.assignedToId ?? row?.createdById;
-  if (!row || !owner || (owner !== me.id && !(isFounder(me) && lookingAs === owner) && !(await frozenFor(me, id)))) return { error: "That task isn't yours to move." };
+  const found = await overdueTask(kind, id);
+  if ("error" in found) return { error: found.error };
+  const { me, row, owner } = found;
   const due = new Date(day);
   if (kind === "task") await prisma.task.update({ where: { id }, data: { dueDate: due } });
   else await prisma.workTask.update({ where: { id }, data: { dueDate: due } });
   await Promise.all([
     recordDateChange({ kind, id }, row.dueDate, due, why, me.id, row.strikes),
+    prisma.notice.updateMany({ where: { forId: owner, kind: "overdue", readAt: null, ...(kind === "task" ? { taskId: id } : { workTaskId: id }) }, data: { readAt: new Date() } }),
+  ]);
+  revalidatePath("/", "layout");
+  return {};
+}
+
+// Answering it for work that was in fact finished, only not ticked off then
+// (Abhishek, 23 Oct 2026): done, on the day picked (any day up to today),
+// with why it wasn't ticked. History, its delivered day and its deadline
+// read that day as when it was finished.
+export async function finishOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
+  const why = reason.trim();
+  const today = dayOf(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > today) return { error: "Pick the day it was finished: today or earlier." };
+  if (!why) return { error: "Add a short reason." };
+  const found = await overdueTask(kind, id);
+  if ("error" in found) return { error: found.error };
+  const { me, row, owner } = found;
+  // that evening, or now if it's today
+  const at = day === today ? new Date() : new Date(`${day}T18:00:00+05:30`);
+  const started = new Date();
+  if (kind === "work") {
+    const res = await moveWorkTask(id, "done", row.sortOrder);
+    if (res.error) return { error: res.error };
+    await prisma.workTask.update({ where: { id }, data: { completedAt: at } });
+  } else {
+    // done as a tick is (no Drive link asked of your own task)
+    const res = await changeStatus(id, "delivered_and_uploaded", {}, true);
+    if (res.error) return { error: res.error };
+    // its handoff too, when this is what set it (the deadline was met that day)
+    const now = await prisma.task.findUnique({ where: { id }, select: { handedOffAt: true } });
+    await prisma.$transaction([
+      prisma.task.update({ where: { id }, data: { updatedAt: at, ...(now?.handedOffAt && now.handedOffAt >= started ? { handedOffAt: at } : {}) } }),
+      prisma.activityLog.updateMany({ where: { entity: "Task", entityId: id, createdAt: { gte: started } }, data: { createdAt: at } }),
+    ]);
+  }
+  await Promise.all([
+    // the due date kept (from and to the same): its record reads as ticked off late, not moved
+    recordDateChange({ kind, id }, row.dueDate, row.dueDate, why, me.id, row.strikes),
     prisma.notice.updateMany({ where: { forId: owner, kind: "overdue", readAt: null, ...(kind === "task" ? { taskId: id } : { workTaskId: id }) }, data: { readAt: new Date() } }),
   ]);
   revalidatePath("/", "layout");

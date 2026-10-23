@@ -124,7 +124,8 @@ export function TaskRecordPanel({
   type Event = { at: string; tone: "plain" | "change" | "add"; text: string; note?: string };
   const events: Event[] = [
     ...(hasDates && firstDue ? [{ at: new Date(createdAt).toISOString(), tone: "plain" as const, text: `Due date set to ${day(firstDue)}${record.createdBy ? ` by ${first(record.createdBy)}` : ""}` }] : []),
-    ...record.dates.map((d) => ({ at: d.at, tone: "change" as const, text: `${first(d.by)} changed the due date to ${day(d.to)}`, note: d.reason })),
+    // the same date both sides: done already, ticked off late (FrozenTasks)
+    ...record.dates.map((d) => ({ at: d.at, tone: "change" as const, text: d.from && d.from === d.to ? `${first(d.by)} ticked it off late` : `${first(d.by)} changed the due date to ${day(d.to)}`, note: d.reason })),
     ...record.people.map((p) => ({ at: p.at, tone: "add" as const, text: `${first(p.by)} added ${first(p.name)}`, note: p.reason })),
   ].sort((a, b) => a.at.localeCompare(b.at));
   const DOT = { plain: "bg-white/40", change: "bg-amber-300", add: "bg-emerald-400" };

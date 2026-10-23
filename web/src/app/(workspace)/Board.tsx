@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import { Fragment, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Trash2, X } from "lucide-react";
 import { TaskCard, STATUS_STYLE, extraFieldFor, tierFor, type TaskCardData } from "./TaskCard";
@@ -81,6 +81,14 @@ export function Board({
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // where the dragged card will land, shown as a slot of its size (as on the
+  // Sales boards): the stage it's over and its place among the others there
+  const [over, setOver] = useState<{ status: TaskStatus; index: number } | null>(null);
+  const [dragHeight, setDragHeight] = useState(0);
+  const endDrag = () => {
+    setDraggingId(null);
+    setOver(null);
+  };
   // Picking several rows at once, to delete them in one go. List view only:
   // the board's cards are for dragging, and a checkbox on each would be in
   // the way of the thing they're actually for.
@@ -215,9 +223,20 @@ export function Board({
   // one drop handler per column, attached to the whole card-list container
   // (not per card) — covers dropping on a card, between cards, or in the
   // empty space below the last one, all the same way
+  // where in a stage a card dragged at `y` lands, among the other cards:
+  // before the first whose middle is below the pointer, or at the end
+  function landingIndex(column: HTMLElement, y: number, dragId: string) {
+    const cards = [...column.querySelectorAll<HTMLElement>("[data-task-id]")].filter((el) => el.dataset.taskId !== dragId);
+    const i = cards.findIndex((el) => {
+      const r = el.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    });
+    return i < 0 ? cards.length : i;
+  }
+
   function handleColumnDrop(to: TaskStatus, e: React.DragEvent<HTMLDivElement>) {
     const taskId = draggingId;
-    setDraggingId(null);
+    endDrag();
     if (!taskId) return;
     const draggedTask = optimisticTasks.find((t) => t.id === taskId);
     if (!canDropInto(draggedTask, to)) {
@@ -293,6 +312,11 @@ export function Board({
   function dropZone(col: Column) {
     const columnTasks = columnOf(col.status);
     const list = layout === "list";
+    // the slot where the dragged card will land, unless that's where it already is
+    const rest = columnTasks.filter((t) => t.id !== draggingId);
+    const from = columnTasks.findIndex((t) => t.id === draggingId);
+    const slotAt = draggingId && over?.status === col.status && over.index !== from ? over.index : -1;
+    const slot = <div key="slot" style={{ height: dragHeight || 56 }} className={`fade-in shrink-0 border border-dashed border-white/15 bg-white/[0.03] ${list ? "" : "rounded-2xl"}`} />;
     const empty = columnTasks.length === 0;
     // a list's first stage opens with its own "Add a task" row
     const addRow = list && col.status === "queued" && canCreate;
@@ -306,7 +330,14 @@ export function Board({
                 `rounded-2xl border border-dashed transition-colors ${draggingId ? "border-white/20" : "border-transparent"}`
               : "flex flex-col divide-y divide-white/[0.05] overflow-hidden panel-soft rounded-2xl"
         }
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!draggingId) return;
+          // a slot only where the card may go
+          if (!canDropInto(optimisticTasks.find((t) => t.id === draggingId), col.status)) return over && setOver(null);
+          const index = landingIndex(e.currentTarget, e.clientY, draggingId);
+          if (over?.status !== col.status || over.index !== index) setOver({ status: col.status, index });
+        }}
         onDrop={(e) => {
           e.preventDefault();
           handleColumnDrop(col.status, e);
@@ -316,16 +347,20 @@ export function Board({
           <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" />
         )}
         {columnTasks.map((task) => (
+          <Fragment key={task.id}>
+          {slotAt >= 0 && rest[slotAt]?.id === task.id && slot}
           <div
-            key={task.id}
             data-task-id={task.id}
             draggable
-            onDragStart={() => setDraggingId(task.id)}
+            onDragStart={(e) => {
+              setDragHeight(e.currentTarget.offsetHeight);
+              setDraggingId(task.id);
+            }}
             // safety net: if the drop lands somewhere that never calls
             // handleColumnDrop (outside any dropzone, Escape, the browser
             // chrome), draggingId was never cleared — the card stayed stuck
             // at 40% opacity until the next drag. This always fires.
-            onDragEnd={() => setDraggingId(null)}
+            onDragEnd={endDrag}
             className={`${list ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === task.id ? "opacity-40" : ""}`}
           >
             {list ? (
@@ -354,7 +389,9 @@ export function Board({
               />
             )}
           </div>
+          </Fragment>
         ))}
+        {slotAt >= 0 && slotAt >= rest.length && slot}
         {list ? (
           empty &&
           !addRow && <p className="px-1 py-1.5 text-xs text-muted/60">{draggingId ? "Drop to move here" : "Nothing here"}</p>

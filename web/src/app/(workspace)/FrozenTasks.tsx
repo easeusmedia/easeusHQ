@@ -7,7 +7,8 @@ import { shortDay } from "@/lib/editorKpi";
 import { ordinal } from "@/lib/overdue";
 import type { ToAnswer } from "@/lib/taskTrack";
 import { DatePicker } from "./DatePicker";
-import { answerOverdue } from "./actions";
+import { answerOverdue, finishOverdue } from "./actions";
+import { dayOf } from "@/lib/editorKpi";
 import { closeOnBackdrop } from "./dialog";
 
 const Frozen = createContext<Set<string>>(new Set());
@@ -82,9 +83,9 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg badge-lit">
                 <Clock size={16} />
               </span>
-              <h2 className="text-base font-semibold">Set a new due date</h2>
+              <h2 className="text-base font-semibold">This task is overdue</h2>
             </div>
-            <p className="text-sm text-muted">This task passed its due date. Give it a new date and a short reason to work on it again.</p>
+            <p className="text-sm text-muted">Give it a new date, or the day it was finished if it&apos;s done, and a short reason.</p>
             <Answer key={asking.id} t={asking} onDone={() => setAsking(null)} />
           </div>
         )}
@@ -93,8 +94,12 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
   );
 }
 
+// Still to do: a new due date, today or later. Already done, only not ticked
+// off then: the day it was finished, today or earlier, and it's done
+// (Abhishek, 23 Oct 2026).
 function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
   const router = useRouter();
+  const [done, setDone] = useState(false);
   const [day, setDay] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -103,7 +108,7 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
   async function save() {
     setBusy(true);
     setError(null);
-    const res = await answerOverdue(t.kind, t.id, day, reason).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    const res = await (done ? finishOverdue : answerOverdue)(t.kind, t.id, day, reason).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
     setBusy(false);
     if (res.error) return setError(res.error);
     onDone();
@@ -120,11 +125,35 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
           {t.strikes > 1 && <span className="text-rose-300"> · late for the {ordinal(t.strikes)} time</span>}
         </p>
       </div>
-      <DatePicker value={day} onChange={setDay} placeholder="New due date" clearable={false} />
+      {t.finishable && (
+        <div role="tablist" aria-label="Where it stands" className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+          {[
+            { key: false, label: "New date" },
+            { key: true, label: "Already done" },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              role="tab"
+              aria-selected={done === o.key}
+              onClick={() => {
+                setDone(o.key);
+                // done: most often finished today and ticked late
+                setDay(o.key ? dayOf(new Date()) : "");
+                setError(null);
+              }}
+              className="seg flex-1 rounded-full px-3 py-1 text-xs font-medium"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <DatePicker key={String(done)} value={day} onChange={setDay} placeholder={done ? "Finished on" : "New due date"} clearable={false} />
       <textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="Why it slipped, and what changes now"
+        placeholder={done ? "Why it wasn't ticked off that day" : "Why it slipped, and what changes now"}
         aria-label="Reason"
         className="field field-sizing-content min-h-16 resize-none rounded-xl px-3 py-2 text-sm"
       />
@@ -139,7 +168,7 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
           Cancel
         </button>
         <button type="button" onClick={save} disabled={busy || !day || !reason.trim()} className="btn btn-sm btn-glow disabled:opacity-50">
-          {busy ? "Saving…" : "Save"}
+          {busy ? "Saving…" : done ? "Mark done" : "Save"}
         </button>
       </div>
     </div>
