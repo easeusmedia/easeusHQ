@@ -10,7 +10,7 @@ import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
 import { Reveal } from "../../Reveal";
-import { extractLeads, fillImportedCountries, importLeads, mapColumns, nameSlots } from "./importActions";
+import { enrichImportedLeads, extractLeads, fillImportedCountries, importLeads, mapColumns, nameSlots } from "./importActions";
 
 const OFFLINE = "That couldn't be reached. Check your connection and try again.";
 // leads a call, as add_leads takes them
@@ -179,10 +179,20 @@ export function ImportLeads({ board }: { board: BoardData }) {
     setBusy(null);
   }
 
-  // the leads just added, their Country from their YouTube channels, in the
-  // background; the board redrawn if any were filled
+  // the leads just added, in the background: first what the Notion pages they
+  // link to say (emails, handles, Country), then Country from their YouTube
+  // channels where it's still empty; the board redrawn if anything was added
   async function fillLater(ids: string[]) {
     let filled = 0;
+    for (let i = 0; i < ids.length; i += FILL_CHUNK) {
+      let todo = ids.slice(i, i + FILL_CHUNK);
+      // the ones time ran out for go again, until none are left (or nothing moves)
+      for (let round = 0; todo.length && round < 4; round++) {
+        const res = await enrichImportedLeads(board.id, todo).catch(() => ({ added: 0, left: [] as string[] }));
+        filled += res.added ?? 0;
+        todo = res.left ?? [];
+      }
+    }
     for (let i = 0; i < ids.length; i += FILL_CHUNK) {
       const res = await fillImportedCountries(board.id, ids.slice(i, i + FILL_CHUNK)).catch(() => ({ filled: 0 }));
       filled += res.filled ?? 0;

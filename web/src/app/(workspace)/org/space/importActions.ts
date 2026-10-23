@@ -11,6 +11,7 @@ import { claudeJson } from "@/lib/claude";
 import { salesTools } from "@/lib/mcp/tools";
 import { ToolError } from "@/lib/mcp/protocol";
 import { fillCountries } from "@/lib/channelCountry";
+import { enrichFromLinkedPages } from "@/lib/linkedPages";
 import { boardVars, CONTACT, targetsOf, type LeadIn, type Part, type Row, type Target } from "@/lib/leadImport";
 import { askNames, type Slot } from "@/lib/leadTemplates";
 import { isFieldKind, type FieldData, type MessageData } from "@/lib/space";
@@ -253,6 +254,24 @@ export async function importLeads(boardId: string, leads: LeadIn[], duplicates =
     if (err instanceof ToolError) return { error: err.message };
     console.error(err);
     return { error: "Those leads couldn't be added." };
+  }
+}
+
+// The leads just imported, their contact details (emails, LinkedIn,
+// Instagram, the doctor's name, Country) read from the Notion pages they link
+// to (lib/linkedPages, no Claude): how much was added, and the leads time ran
+// out for, to send again
+export async function enrichImportedLeads(boardId: string, ids: string[]): Promise<Done & { added?: number; left?: string[] }> {
+  const b = await boardFor(boardId);
+  if ("error" in b) return b;
+  const leadIds = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string").slice(0, 100);
+  if (!leadIds.length) return { added: 0, left: [] };
+  try {
+    const r = await enrichFromLinkedPages(boardId, leadIds);
+    return { added: r.channels + r.countries, left: r.left };
+  } catch (err) {
+    console.error(err);
+    return { error: "The linked pages couldn't be read." };
   }
 }
 
