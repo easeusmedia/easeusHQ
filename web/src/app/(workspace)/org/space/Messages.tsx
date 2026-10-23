@@ -208,15 +208,20 @@ export function Messages({
   // a day is done once every message the person can be reached by is approved
   // (a greyed one, on a platform they aren't on, doesn't count)
   const dayApproved = (x: SequenceTab) => {
-    const sendable = chosenOn(x, person).filter((m) => hasChannel(person, m.channel));
-    return sendable.length > 0 && sendable.every((m) => !!approvalOf(keyOf(m.id, person)));
+    const chosen = chosenOn(x, person);
+    const sendable = chosen.filter((m) => hasChannel(person, m.channel));
+    // nothing they can be sent yet (no email or handle on them): every message counts, so approving still ticks the day
+    const due = sendable.length ? sendable : chosen;
+    return due.length > 0 && due.every((m) => !!approvalOf(keyOf(m.id, person)));
   };
   // the same opener the wording comes from (openerOf), so the lit one is the one shown
   const opener = prepared ? openerIndex(prepared, picks) : 0;
   // an opener is done, green, once each of its own messages the person gets
   // (the one picked on its day, on a platform they're on) is approved for it
   const openerMessages = prepared ? openerOwn(prepared.openers) : new Set<string>();
-  const openersDue = tabs.flatMap((x) => chosenOn(x, person)).filter((m) => openerMessages.has(m.id) && hasChannel(person, m.channel));
+  const openersOwn = tabs.flatMap((x) => chosenOn(x, person)).filter((m) => openerMessages.has(m.id));
+  const openersSendable = openersOwn.filter((m) => hasChannel(person, m.channel));
+  const openersDue = openersSendable.length ? openersSendable : openersOwn;
   const openerApproved = (i: number) => openersDue.length > 0 && openersDue.every((m) => !!approvalOf(keyOf(m.id, person, i)));
   // the sequence's first email: one after it with no subject of its own is a reply in its thread
   const firstEmail = tabs.filter((x) => x.day != null).flatMap((x) => x.messages).find((m) => m.channel === "email");
@@ -344,7 +349,7 @@ export function Messages({
                     const done = openerApproved(i);
                     // green (!: the picked chip's look in globals.css is unlayered)
                     return (
-                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener picked; Days 3 to 8 stay the same" className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs ${done ? "border-emerald-400/40! text-emerald-300!" : ""}`}>
+                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener picked; Days 3 to 8 stay the same" className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${done ? `border-emerald-400/40! text-emerald-200! ${i === opener ? "bg-emerald-400/25!" : "bg-emerald-400/15!"}` : ""}`}>
                         {done && <Check size={12} className="shrink-0" aria-label="Approved" />}
                         {o.label || `Opener ${i + 1}`}
                       </button>
@@ -391,8 +396,9 @@ export function Messages({
                   );
                 })}
               </div>
-              <button type="button" onClick={() => setLibrary(true)} aria-label="All messages" title="All messages" className="grid size-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
-                <Library size={15} />
+              <button type="button" onClick={() => setLibrary(true)} title="All messages" className="flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                Templates
+                <Library size={14} />
               </button>
             </div>
           </div>
@@ -730,6 +736,17 @@ function MessageForm({
               needed to send this one shows here (Day 6's meme board image) */}
           {extra && <p className="mt-0.5 text-xs leading-relaxed text-foreground/80">{extra}</p>}
         </div>
+        {/* editing: its buttons up here, not under a long message */}
+        {editing && (
+          <span className="fade-in -mt-0.5 flex shrink-0 items-center gap-1.5">
+            <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
+              Cancel
+            </button>
+            <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
+              {busy ? "Saving…" : "Save for this lead"}
+            </button>
+          </span>
+        )}
         {!editing && (
           <span className="-mt-0.5 flex shrink-0 items-center">
             <button type="button" onClick={() => copy("body")} title={copied === "body" ? "Copied" : isEmail && shownSubject ? "Copy the body" : "Copy the message"} aria-label={isEmail && shownSubject ? "Copy the body" : "Copy the message"} className={ICON}>
@@ -758,22 +775,16 @@ function MessageForm({
               {error}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {message.channel === "linkedin" && <Limit channel={message.channel} text={body} />}
-            {rewritten && (
-              <button type="button" onClick={() => save(null)} disabled={busy} className="flex items-center gap-1 text-muted transition-colors hover:text-foreground">
-                <RotateCcw size={11} /> {written ? "Back to the written message" : "Back to the template"}
-              </button>
-            )}
-            <span className="ml-auto flex gap-1.5">
-              <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
-                Cancel
-              </button>
-              <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
-                {busy ? "Saving…" : "Save for this lead"}
-              </button>
-            </span>
-          </div>
+          {(message.channel === "linkedin" || rewritten) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {message.channel === "linkedin" && <Limit channel={message.channel} text={body} />}
+              {rewritten && (
+                <button type="button" onClick={() => save(null)} disabled={busy} className="flex items-center gap-1 text-muted transition-colors hover:text-foreground">
+                  <RotateCcw size={11} /> {written ? "Back to the written message" : "Back to the template"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">

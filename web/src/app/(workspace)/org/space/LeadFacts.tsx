@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Trash2, Type, Users, X, type LucideIcon } from "lucide-react";
 import { handleOf, isFilled, linkName, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
-import { InstagramIcon, LinkedinIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
+import { InstagramIcon, LinkedinIcon, NotionIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { CheckboxEditor, CountEditor, DateEditor, dayLabel, hrefOf, TagEditor } from "./values";
 
 // What's known about a lead, read at a glance (Abhishek, 17 Oct 2026: minimal,
@@ -341,7 +341,7 @@ function PlatformIcon({ platform, size = 14 }: { platform: Platform; size?: numb
 // a platform's icon on its own, in its colour
 const ICON_TONE: Record<Platform, string> = { youtube: "text-red-400", instagram: "text-pink-400", linkedin: "text-sky-400", x: "text-foreground/80", notion: "", phone: "text-emerald-300", email: "text-sky-300", other: "text-muted" };
 function ChipIcon({ platform, size = 13 }: { platform: Platform; size?: number }) {
-  if (platform === "notion") return <span className="grid shrink-0 place-items-center rounded-[3px] bg-white font-bold text-black" style={{ width: size + 1, height: size + 1, fontSize: size * 0.7 }}>N</span>;
+  if (platform === "notion") return <NotionIcon size={size} className="text-foreground" />;
   const Icon = { youtube: YoutubeIcon, instagram: InstagramIcon, linkedin: LinkedinIcon, x: XIcon, phone: Phone, email: Mail, other: Globe }[platform];
   return <Icon size={size} className={`shrink-0 ${ICON_TONE[platform]}`} />;
 }
