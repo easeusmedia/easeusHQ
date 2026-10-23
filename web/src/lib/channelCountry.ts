@@ -16,17 +16,26 @@ const BUDGET_MS = 40_000;
 const SHORT: Record<string, string> = { "united states": "USA", "united kingdom": "UK", "united arab emirates": "UAE" };
 export const boardCountry = (name: string) => SHORT[name.trim().toLowerCase()] ?? name.trim();
 
-// the channel's About page, from the lead's Links or a contact's YouTube
-// (a channel address, or a bare @handle); a video link isn't a channel
-const CHANNEL = /youtube\.com\/(@[^/?#\s]+|(?:channel|c|user)\/[^/?#\s]+)/i;
+// the channel's About page, from the lead's Links or a contact's YouTube: a
+// channel address (@handle, /channel/, /c/, /user/ or an old youtube.com/name),
+// a bare @handle or channel id, or a contact's YouTube written as just the
+// name; a video link isn't a channel
+const CHANNEL = /youtube\.com\/(@[^/?#\s]+|(?:channel|c|user)\/[^/?#\s]+|(?!(?:watch|shorts|playlist|results|feed|embed|live|hashtag|redirect|post)(?:[/?#\s]|$))[\w.-]+(?=[/?#\s]|$))/i;
+const NOT_A_NAME = /^(?:none|null|nil|n\.?a|tbd|unknown)$/i;
+function channelPath(raw: string, isYoutube: boolean): string | null {
+  const v = raw.trim();
+  const path = CHANNEL.exec(v)?.[1];
+  if (path) return path;
+  if (/^UC[\w-]{22}$/.test(v)) return `channel/${v}`;
+  if (/^@[\w.-]+$/.test(v)) return v;
+  return isYoutube && /^[\w.-]{3,}$/.test(v) && !NOT_A_NAME.test(v) ? `@${v}` : null;
+}
 export function aboutUrlOf(values: Record<string, unknown>, fields: { id: string; kind: string }[]): string | null {
   const all = (kind: string) => fields.filter((f) => f.kind === kind).flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as unknown[]) : []));
-  const youtubes = (all("contacts") as Contact[]).flatMap((c) => c.channels ?? []).filter((ch) => ch.kind === "youtube").map((ch) => ch.value.trim());
-  for (const raw of [...(all("links") as LinkValue[]).map((l) => l.url ?? ""), ...youtubes]) {
-    const path = CHANNEL.exec(raw)?.[1] ?? (/^@[\w.-]+$/.test(raw) ? raw : null);
-    if (path) return `https://www.youtube.com/${path}/about`;
-  }
-  return null;
+  const links = (all("links") as LinkValue[]).map((l) => channelPath(l.url ?? "", false));
+  const youtubes = (all("contacts") as Contact[]).flatMap((c) => c.channels ?? []).filter((ch) => ch.kind === "youtube").map((ch) => channelPath(ch.value ?? "", true));
+  const path = [...links, ...youtubes].find(Boolean);
+  return path ? `https://www.youtube.com/${path}/about` : null;
 }
 
 // the country an About page names, if it names one
@@ -70,7 +79,6 @@ export async function fillCountries(boardId: string, leadIds?: string[]): Promis
     return url ? [{ id: l.id, url }] : [];
   });
 
-  // ponytail: two fills on one board at the same moment could each add the same new country, as addOption could
   const options = new Map(field.options.map((o) => [o.name.toLowerCase(), Promise.resolve(o.id)]));
   let count = field.options.length;
   let sortOrder = Math.max(0, ...field.options.map((o) => o.sortOrder));
@@ -78,7 +86,7 @@ export async function fillCountries(boardId: string, leadIds?: string[]): Promis
     const key = name.toLowerCase();
     if (!options.has(key)) {
       const color = COLOR_NAMES[(count++ % (COLOR_NAMES.length - 1)) + 1];
-      options.set(key, prisma.fieldOption.create({ data: { fieldId: field.id, name, color, sortOrder: ++sortOrder }, select: { id: true } }).then((o) => o.id));
+      options.set(key, tagFor(field.id, name, color, ++sortOrder));
     }
     return options.get(key)!;
   };
@@ -100,4 +108,15 @@ export async function fillCountries(boardId: string, leadIds?: string[]): Promis
     }),
   );
   return filled;
+}
+
+// A tag by name on one property, made if it isn't there: one run at a time per
+// property (a lock held for the moment it takes), so two fills finishing
+// together never add the same country twice
+export function tagFor(fieldId: string, name: string, color: string, sortOrder: number): Promise<string> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${fieldId}::text))`;
+    const found = await tx.fieldOption.findFirst({ where: { fieldId, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+    return (found ?? (await tx.fieldOption.create({ data: { fieldId, name, color, sortOrder }, select: { id: true } }))).id;
+  });
 }

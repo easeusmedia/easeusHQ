@@ -1,5 +1,5 @@
 import { prisma } from "./prisma.ts";
-import { boardCountry } from "./channelCountry.ts";
+import { boardCountry, tagFor } from "./channelCountry.ts";
 import { cleanValue, COLOR_NAMES, type ChannelKind, type Contact, type LinkValue } from "./space.ts";
 
 // A lead's contact details from the public Notion page(s) in its Links
@@ -332,7 +332,6 @@ export async function enrichFromLinkedPages(boardId: string, leadIds?: string[])
   done.leads = todo.length;
 
   // the same as channelCountry's: the colour addOption would give it
-  // ponytail: two runs on one board at the same moment could each add the same new country, as addOption could
   const options = new Map((countryField?.options ?? []).map((o) => [o.name.toLowerCase(), Promise.resolve(o.id)]));
   let count = countryField?.options.length ?? 0;
   let sortOrder = Math.max(0, ...(countryField?.options ?? []).map((o) => o.sortOrder));
@@ -340,7 +339,7 @@ export async function enrichFromLinkedPages(boardId: string, leadIds?: string[])
     const key = name.toLowerCase();
     if (!options.has(key)) {
       const color = COLOR_NAMES[(count++ % (COLOR_NAMES.length - 1)) + 1];
-      options.set(key, prisma.fieldOption.create({ data: { fieldId, name, color, sortOrder: ++sortOrder }, select: { id: true } }).then((o) => o.id));
+      options.set(key, tagFor(fieldId, name, color, ++sortOrder));
     }
     return options.get(key)!;
   };

@@ -677,6 +677,14 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
             );
             const to = lead.assigned_to ? await personOf(board.teamId, lead.assigned_to) : { id: acting.id, name: acting.name };
             const id = await prisma.$transaction(async (tx) => {
+              if (!a.allow_duplicates) {
+                // two imports at once (two tabs, two people) take turns on the board, so the
+                // second sees what the first just added; the set above stays the fast path
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${board.id}::text))`;
+                // not Prisma's mode "insensitive": that is ILIKE, where a "_" or "%" in a name matches anything
+                const taken = await tx.$queryRaw<unknown[]>`SELECT 1 FROM "Lead" WHERE "boardId" = ${board.id} AND lower(trim(title)) = lower(${title}) LIMIT 1`;
+                if (taken.length) return null;
+              }
               const made = await tx.lead.create({
                 data: {
                   boardId: board.id,
@@ -707,6 +715,10 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
               return made.id;
             });
             existing.add(title.toLowerCase());
+            if (!id) {
+              skipped.push({ title, reason: "already on the board" });
+              continue;
+            }
             created.push({ id, title, url: `${board.url}&lead=${id}` });
           } catch (err) {
             failed.push({

@@ -21,11 +21,15 @@ const WORDY = /[\p{L}\p{N}]/u;
 const BREAK = /(\s*\n\s*|(?<=[.!?])(?<!\b(?:Dr|Dra|Drs|Mr|Mrs|Ms|Prof|St|Jr|Sr|vs|e\.g|i\.e)\.)[ \t]+)/;
 // add_leads' limits (lib/mcp/tools.ts): a template is longer than its words
 const LIMIT = { subject: 300, body: 20_000 } as const;
+// a title just before a name, which is the name's own ("Hi {{Greeting name}}" holds "Dr Kay")
+const TITLE = /\b(?:Dr|Dra|Drs|Prof|Mr|Mrs|Ms)\.?\s*$/;
+// words naming nobody: "Your channel audit", "Hi there"
+const NOBODY = /^(?:you|your)$/i;
+const FILLER = /\b(?:hi|hello|hey|dear)\s+(?:there|everyone|all|team|folks|friends?)$/i;
 
 type Tok = { id: number; from: number; to: number };
-// a sentence, the leads (by their place in the import) whose messages have
-// it, and the sentence before it where it was first seen
-type Unit = { text: string; toks: Tok[]; ids: number[]; at: number; leads: number[]; prev: string };
+// a sentence, and the leads (by their place in the import) whose messages have it
+type Unit = { text: string; toks: Tok[]; ids: number[]; at: number; leads: number[] };
 // the words its sentences share, and how few it may come down to while it's new
 type Shape = { skel: number[]; counts: Map<number, number>; units: Unit[]; least: number };
 // a blank in one sentence, by where its value sits
@@ -33,7 +37,8 @@ type Span = { slot: string; from: number; to: number };
 // a blank as Claude is asked to name it: a few words either side, a few values
 // (one for every blank holding the same thing, whatever message it's in)
 export type Slot = { id: string; before: string; after: string; examples: string[] };
-export type Plan = { slots: Slot[]; spans: Map<string, Span[]> };
+// differ: pairs of slots ("s1 s4", in slots' order) some lead has different words in
+export type Plan = { slots: Slot[]; spans: Map<string, Span[]>; differ: Set<string> };
 
 const partsOf = (lead: LeadIn) =>
   (lead.openers ?? []).flatMap((o, opener) => Object.entries(o.drafts).flatMap(([id, d]) => (["subject", "body"] as const).map((part) => ({ opener, key: `${id}:${part}`, part, text: d[part] }))));
@@ -82,7 +87,8 @@ const overlap = (a: Map<number, number>, b: Map<number, number>) => {
 // sentence's own. While it's new (under three sentences) it can still lose a
 // few of the words it started with (a third at most) and its blanks stay
 // short; settled, a sentence keeps every word of it, so one odd sentence
-// can't wear it down.
+// can't wear it down, and where it has three words or more a blank may run
+// to a long video title.
 function fit(shape: Shape, u: Unit, counts: Map<number, number>, word: (id: number) => boolean): [number, number][] | null {
   const s = shape.skel.length;
   const settled = shape.units.length >= 3;
@@ -90,7 +96,8 @@ function fit(shape: Shape, u: Unit, counts: Map<number, number>, word: (id: numb
   if (overlap(shape.counts, counts) < keep) return null;
   const pairs = common(shape.skel, u.ids);
   if (pairs.length < keep || !pairs.some(([i]) => word(shape.skel[i]))) return null;
-  return longestRun(u.ids, pairs.map(([, j]) => j), word) > (settled ? 8 : Math.min(8, Math.max(3, s))) ? null : pairs;
+  const most = settled ? (shape.skel.filter(word).length >= 3 ? 20 : 8) : Math.min(8, Math.max(3, s));
+  return longestRun(u.ids, pairs.map(([, j]) => j), word) > most ? null : pairs;
 }
 
 // Two shapes of two sentences or more are one when each keeps all but one
@@ -123,16 +130,18 @@ function longestRun(ids: number[], kept: number[], word: (id: number) => boolean
 }
 
 // The words all of a gap's values start or end with are the sentence's own
-// ("on" in "your video on lysine"), so long as each value keeps a word, and
-// so is the "'s" of a name ("Dr Kay's")
+// ("on" in "your video on lysine"), so long as each value keeps a word,
+// though a title stays with its name; and so is the "'s" of a name ("Dr
+// Kay's", "Dr Chris'")
 type Value = { from: number; to: number; value: string };
 function trimCommon(values: Value[]) {
   if (values.length < 2) return;
   const toks = values.map((v) => [...v.value.matchAll(TOKEN)]);
   const short = Math.min(...toks.map((t) => t.length));
   const same = (pick: (t: RegExpExecArray[]) => RegExpExecArray | undefined) => toks.every((t) => pick(t)?.[0] === pick(toks[0])?.[0]);
+  const titled = TITLE.test(toks[0][0]?.[0] ?? "");
   let head = 0;
-  while (head < short - 1 && same((t) => t[head])) head++;
+  while (!titled && head < short - 1 && same((t) => t[head])) head++;
   let tail = 0;
   while (tail < short - 1 - head && same((t) => t.at(-1 - tail))) tail++;
   for (const [i, v] of values.entries()) {
@@ -144,11 +153,109 @@ function trimCommon(values: Value[]) {
     v.from += a;
     v.value = v.value.slice(a, b);
   }
-  for (const v of values)
-    if (/\p{L}['’]s$/u.test(v.value)) {
-      v.value = v.value.slice(0, -2);
-      v.to -= 2;
+  for (const v of values) {
+    // an s' only where it's the one quote in the value, not the end of a 'quoted words'
+    const s = /(?<=\p{L})['’]s$|(?<=^[^'’]*s)['’]$/u.exec(v.value);
+    if (!s) continue;
+    v.to -= v.value.length - s.index;
+    v.value = v.value.slice(0, s.index);
+  }
+}
+
+type Blank = { key: string; context: { before: string; after: string }; at: { u: Unit; from: number; to: number }[]; values: Map<number, string[]> };
+// each lead's words in a blank, in the order its sentences have them
+function holding(at: Blank["at"]) {
+  const values = new Map<number, string[]>();
+  for (const { u, from, to } of at)
+    for (const n of u.leads) {
+      const had = values.get(n) ?? [];
+      const v = u.text.slice(from, to);
+      if (!had.includes(v)) values.set(n, [...had, v]);
     }
+  return values;
+}
+// a blank tells leads apart, not one lead's openers
+const apart = (b: Blank) => new Set([...b.values.values()].map((v) => v[0])).size > 1;
+
+// A blank whose words, for most of its leads, are words the lead has in
+// another blank with more at one end ("lysine from 2 weeks ago" beside
+// "lysine", "30+ videos since" beside "30+") holds two things: the other's,
+// and the words added, a blank of their own where they part from lead to
+// lead ("2 weeks"), else written out ("videos since")
+function unglue(blanks: Blank[]) {
+  // where v has w at one end and more words, the more as [start, end] in v
+  const more = (v: string, w: string): [number, number] | null => {
+    if (v.length <= w.length || !w) return null;
+    if (v.startsWith(w) && /^[^\p{L}\p{N}]/u.test(v.slice(w.length))) return [w.length, v.length];
+    if (v.endsWith(w) && /[^\p{L}\p{N}]$/u.test(v.slice(0, -w.length))) return [0, v.length - w.length];
+    return null;
+  };
+  // each lead's words in every blank, and how many blanks have them
+  const count = new Map<number, Map<string, number>>();
+  const tally = (b: Blank, by: number) => {
+    for (const [n, vs] of b.values) {
+      const m = count.get(n) ?? new Map<string, number>();
+      count.set(n, m);
+      for (const v of vs) m.set(v, (m.get(v) ?? 0) + by);
+    }
+  };
+  for (const b of blanks) tally(b, 1);
+  for (const b of [...blanks]) {
+    // a lead's words in another blank than b, the longest first
+    const others = (n: number) => [...(count.get(n) ?? [])].filter(([w, k]) => k > (b.values.get(n)?.includes(w) ? 1 : 0)).map(([w]) => w).sort((x, y) => y.length - x.length);
+    let fits = 0;
+    let longer = 0;
+    for (const [n, vs] of b.values) {
+      const ws = others(n);
+      const glued = vs.filter((v) => ws.some((w) => more(v, w)));
+      if (vs.every((v) => glued.includes(v) || ws.includes(v))) fits++;
+      if (glued.length) longer++;
+    }
+    if (longer < Math.max(2, b.values.size * 0.1) || fits < b.values.size / 2) continue;
+    const found = b.at.flatMap((at) => {
+      const v = at.u.text.slice(at.from, at.to);
+      const w = others(at.u.leads[0]).find((w) => more(v, w) && at.u.leads.every((n) => others(n).includes(w)));
+      if (!w) return [];
+      const [s, e] = more(v, w)!;
+      // without the marks that join them on ("& recovery", "lysine, from …")
+      const pre = v.slice(s, e).match(/^[\s,;:&–—-]*/)![0].length;
+      const post = v.slice(s, e).match(/[\s,;:&–—-]*$/)![0].length;
+      const value = v.slice(s + pre, e - post);
+      return WORDY.test(value) ? [{ at, w, end: s > 0, from: at.from + s + pre, to: at.from + e - post, value }] : [];
+    });
+    // the words added are the wording of a shape that lost them, which more
+    // than one sentence adds ("from … ago", "usually get around"), or the
+    // lead's words in another blank (a list's next item); never one title
+    // that ends in another ("medications after jaw surgery")
+    const wording = (v: string) => new Set(v.toLowerCase().match(/[\p{L}\p{N}]+/gu));
+    const seen = new Map<string, number>();
+    for (const f of found) for (const t of wording(f.value)) seen.set(t, (seen.get(t) ?? 0) + 1);
+    const added = found.filter((f) => others(f.at.u.leads[0]).includes(f.value) || [...wording(f.value)].some((t) => seen.get(t)! > 1));
+    if (!added.length) continue;
+    const was = new Map(added.map((f) => [f, [f.at.from, f.at.to]]));
+    for (const { at, w, end } of added) {
+      if (end) at.to = at.from + w.length;
+      else at.from = at.to - w.length;
+    }
+    tally(b, -1);
+    b.values = holding(b.at);
+    tally(b, 1);
+    // the words added after the other blank's, and those before, are two blanks
+    for (const end of [true, false]) {
+      const side = added.filter((f) => f.end === end);
+      if (!side.length) continue;
+      trimCommon(side);
+      const [x] = side;
+      const [from, to] = was.get(x)!;
+      // its words either side: the other blank's as "…"
+      const near = (a: number, z: number) => x.at.u.text.slice(a, z).replace(x.w, "…");
+      const at = side.map((f) => ({ u: f.at.u, from: f.from, to: f.to }));
+      const rest: Blank = { key: b.key, context: { before: `${b.context.before} ${near(from, x.from)}`.trim(), after: `${near(x.to, to)} ${b.context.after}`.trim() }, at, values: holding(at) };
+      if (!apart(rest)) continue;
+      blanks.push(rest);
+      tally(rest, 1);
+    }
+  }
 }
 
 // Where every lead's messages part: the blanks, and where each sits in each sentence
@@ -162,12 +269,9 @@ export function findSlots(leads: LeadIn[]): Plan {
     for (const { key, text } of partsOf(lead)) {
       const pool = pools.get(key) ?? new Map<string, Unit>();
       pools.set(key, pool);
-      let prev = "";
       for (const [i, sentence] of text.split(BREAK).entries()) {
         if (i % 2 || !WORDY.test(sentence)) continue;
         const had = pool.get(sentence);
-        const before = prev;
-        prev = sentence;
         if (had) {
           if (had.leads.at(-1) !== n) had.leads.push(n);
           continue;
@@ -178,14 +282,13 @@ export function findSlots(leads: LeadIn[]): Plan {
           if (WORDY.test(m[0][0]) || m[0].startsWith("{{")) words.add(id);
           return { id, from: m.index, to: m.index + m[0].length };
         });
-        pool.set(sentence, { text: sentence, toks, ids: toks.map((t) => t.id), at: pool.size, leads: [n], prev: before });
+        pool.set(sentence, { text: sentence, toks, ids: toks.map((t) => t.id), at: pool.size, leads: [n] });
       }
     }
 
   // words more leads share than this are the wording of a kind of opener
   // ("Great breakdown"), not one lead's own; a number is always the lead's
   const crowd = Math.max(3, Math.ceil(leads.length * 0.05));
-  type Blank = { key: string; context: { before: string; after: string }; at: { u: Unit; from: number; to: number }[]; values: Map<number, string[]> };
   const blanks: Blank[] = [];
   for (const [key, pool] of pools) {
     // shortest first, so a shape starts from few words and each sentence that
@@ -238,9 +341,13 @@ export function findSlots(leads: LeadIn[]): Plan {
           let to = k < s ? u.toks[pairs[k][1]].from : u.text.length;
           while (from < to && /\s/.test(u.text[from])) from++;
           while (to > from && /\s/.test(u.text[to - 1])) to--;
+          const title = WORDY.test(u.text.slice(from, to)) && TITLE.exec(u.text.slice(0, from));
+          if (title) from = title.index;
           const value = u.text.slice(from, to);
-          // a value is words (as many as add_leads keeps), never a {{Variable}} already there
-          return WORDY.test(value) && !/[{}]/.test(value) && value.length <= 2000 ? { from, to, value } : null;
+          // a value is words (as many as add_leads keeps), never a {{Variable}}
+          // already there, nor words naming nobody
+          const named = !NOBODY.test(value) && !FILLER.test(u.text.slice(0, to));
+          return WORDY.test(value) && !/[{}]/.test(value) && value.length <= 2000 && named ? { from, to, value } : null;
         });
       });
       // at each gap, the lead's own words: never a wording many leads share
@@ -272,7 +379,8 @@ export function findSlots(leads: LeadIn[]): Plan {
           const v = g?.[k];
           if (!g || !v) continue;
           if (!blank.at.length) {
-            // the sentence's words either side, its other blanks as "…", after the end of the one before
+            // the sentence's words either side, its other blanks as "…" (never
+            // the sentence before, which is one lead's)
             const around = (from: number, to: number) => {
               let out = "";
               let p = from;
@@ -283,19 +391,16 @@ export function findSlots(leads: LeadIn[]): Plan {
               }
               return (out + u.text.slice(p, to)).trim().split(/\s+/);
             };
-            blank.context = { before: [...u.prev.split(/\s+/).slice(-6), ...around(0, v.from)].filter(Boolean).slice(-14).join(" "), after: around(v.to, u.text.length).slice(0, 8).join(" ") };
+            blank.context = { before: around(0, v.from).filter(Boolean).slice(-14).join(" "), after: around(v.to, u.text.length).slice(0, 8).join(" ") };
           }
           blank.at.push({ u, from: v.from, to: v.to });
-          for (const n of u.leads) {
-            const had = blank.values.get(n) ?? [];
-            if (!had.includes(v.value)) blank.values.set(n, [...had, v.value]);
-          }
         }
-        // a blank tells leads apart, not one lead's openers
-        if (new Set([...blank.values.values()].map((v) => v[0])).size > 1) blanks.push(blank);
+        blank.values = holding(blank.at);
+        if (apart(blank)) blanks.push(blank);
       }
     }
   }
+  unglue(blanks);
 
   // blanks holding the same words for the same leads, in every opener, are
   // one kind (the greeting in every email, the video Email 1 and the DMs both
@@ -318,24 +423,42 @@ export function findSlots(leads: LeadIn[]): Plan {
       if (both > 1 && same >= both * 0.8) kind[root(b)] = root(a);
     }
 
-  const slots: Slot[] = [];
-  const spans = new Map<string, Span[]>();
-  const slotOf = new Map<number, string>();
+  // each kind's words for each lead; the kind most leads have first, so it
+  // keeps a name another kind is given too (fillTemplates)
+  const held = new Map<number, Map<number, Set<string>>>();
   for (const [i, blank] of blanks.entries()) {
-    const r = root(i);
-    if (!slotOf.has(r)) {
-      // named by the kind's blank most leads have, with the values of the first leads that have it
-      const main = blanks.filter((_, j) => root(j) === r).sort((a, b) => b.values.size - a.values.size)[0];
-      const values = [...main.values].sort((a, b) => a[0] - b[0]).map(([, v]) => v[0]);
-      slotOf.set(r, `s${slots.length + 1}`);
-      slots.push({ id: slotOf.get(r)!, ...main.context, examples: [...new Set(values)].slice(0, 3).map((v) => v.slice(0, 80)) });
-    }
+    const kept = held.get(root(i)) ?? new Map<number, Set<string>>();
+    held.set(root(i), kept);
+    for (const [n, vs] of blank.values) kept.set(n, new Set([...(kept.get(n) ?? []), ...vs]));
+  }
+  const kinds = [...held.keys()].sort((a, b) => held.get(b)!.size - held.get(a)!.size);
+  const slotOf = new Map(kinds.map((r, i) => [r, `s${i + 1}`]));
+  const slots = kinds.map((r): Slot => {
+    // named by the kind's blank most leads have, with the values of the first leads that have it
+    const main = blanks.filter((_, j) => root(j) === r).sort((a, b) => b.values.size - a.values.size)[0];
+    const values = [...main.values].sort((a, b) => a[0] - b[0]).map(([, v]) => v[0]);
+    return { id: slotOf.get(r)!, ...main.context, examples: [...new Set(values)].slice(0, 3).map((v) => v.slice(0, 80)) };
+  });
+  // kinds some lead has different words in, which never share a name
+  const differ = new Set<string>();
+  for (const [x, a] of kinds.entries())
+    for (const b of kinds.slice(x + 1))
+      for (const [n, vs] of held.get(a)!) {
+        const ws = held.get(b)!.get(n);
+        if (ws && (ws.size !== vs.size || [...ws].some((w) => !vs.has(w)))) {
+          differ.add(`${slotOf.get(a)} ${slotOf.get(b)}`);
+          break;
+        }
+      }
+  const spans = new Map<string, Span[]>();
+  for (const [i, blank] of blanks.entries())
     for (const { u, from, to } of blank.at) {
       const k = unitKey(blank.key, u.text);
-      spans.set(k, [...(spans.get(k) ?? []), { slot: slotOf.get(r)!, from, to }]);
+      spans.set(k, [...(spans.get(k) ?? []), { slot: slotOf.get(root(i))!, from, to }]);
     }
-  }
-  return { slots, spans };
+  // in the order they sit in the sentence (a blank split off another comes last)
+  for (const s of spans.values()) s.sort((a, b) => a.from - b.from);
+  return { slots, spans, differ };
 }
 
 // ---- Names ----
@@ -345,17 +468,16 @@ const STOP = new Set(
 );
 const NAMEISH = /^(?:dr\.?\s+)?\p{Lu}[\p{L}.'-]*(?:\s+\p{Lu}[\p{L}.'-]*){0,2}$/iu;
 // A blank's name without Claude, from the words beside it: a greeting's
-// name, else the nearest word that says what it is ("88K views" is Views,
-// "video on lysine" is Video)
+// name, else the nearest word that says what it is ("video on lysine" is
+// Video), for a number the word right after it ("88K views" is Views)
 export function fallbackName(s: Pick<Slot, "before" | "after" | "examples">): string {
   const greeting = /\b(hi|hello|hey|dear)$/i.test(s.before) || (/,$/.test(s.before) && /^[.!?,]*$/.test(s.after));
   if (greeting && s.examples.every((v) => NAMEISH.test(v))) return "Greeting name";
-  if (/\b(hi|hello|hey|dear) (dr|dra|prof)\.?$/i.test(s.before)) return "Last name";
   const words = (t: string) => (t.match(/\p{L}[\p{L}'’-]*/gu) ?? []).filter((w) => !STOP.has(w.toLowerCase().replace("’", "'")));
   const before = words(s.before).at(-1);
   const after = words(s.after)[0];
   const numeric = s.examples.every((v) => /^[\d.,]+[kmb]?\+?$/i.test(v));
-  const w = numeric ? (after ?? before) : (before ?? after);
+  const w = numeric ? (after && s.after.startsWith(after) ? after : before) : (before ?? after);
   return w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : numeric ? "Number" : "Detail";
 }
 // What Claude is asked (importActions nameSlots): one short name for each
@@ -391,16 +513,24 @@ const cleanName = (n: string | undefined) =>
 // ---- The leads, as templates ----
 
 // Every lead's messages with their blanks named, and the lead's values in its
-// variables. Within a lead one name holds one value: where a lead has two
-// under one name (the video its main opener names, another its backup does),
-// the second takes "Top video (backup)", so nothing is written over; and the
-// same words twice are one variable, whichever names they came under. A
+// variables. Two slots some lead has different words in never share a name,
+// so a name means one thing on every lead: the slot most leads have keeps
+// it, the next is "Typical views 2". Within a lead one name holds one
+// value: where one slot has two (the video its main opener names, another
+// its backup does), the second takes "Top video (backup)", so nothing is
+// written over; and the same words twice are one variable, whichever names
+// they came under. A
 // value the lead already had stays, and so does every {{Variable}} its
 // messages already used. A message comes back word for word once filled in,
 // or stays as it was written.
 export function fillTemplates(leads: LeadIn[], plan: Plan, names: Record<string, string>): LeadIn[] {
   if (!plan.slots.length) return leads;
-  const named = Object.fromEntries(plan.slots.map((s) => [s.id, cleanName(names[s.id]) || fallbackName(s)]));
+  const named: Record<string, string> = {};
+  for (const s of plan.slots) {
+    const base = cleanName(names[s.id]) || fallbackName(s);
+    named[s.id] = base;
+    for (let k = 2; plan.slots.some((t) => t !== s && named[t.id] === named[s.id] && plan.differ.has(`${t.id} ${s.id}`)); k++) named[s.id] = `${base} ${k}`;
+  }
   return leads.map((lead) => {
     const parts = partsOf(lead);
     if (!parts.length) return lead;
