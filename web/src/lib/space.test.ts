@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, openerOwn, unapprovedText } from "./space.ts";
+import { facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, openerOwn, unapprovedText } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -87,9 +87,10 @@ test("a board filters on the values its leads actually have", () => {
     ...Array.from({ length: 11 }, (_, i) => ({ values: { bio: `bio ${i}`, links: [{ label: "", url: "x" }] } })),
   ];
   const groups = facets(leads, fields);
-  // Meme board, free text (13 bios) and links are left out; values no lead has too
+  // Meme board, free text (13 bios) and links are left out; values no lead
+  // has too, except a tag property's options, which all stay (0 for none yet)
   assert.deepEqual(groups.map((g) => [g.name, g.values.map((v) => `${v.label} ${v.count}`)]), [
-    ["Opener", ["D1 2", "D2 1"]],
+    ["Opener", ["D1 2", "D2 1", "D3 0"]],
     ["Contacts", ["Has email 1", "Has YouTube 1", "No way to reach them 12"]],
     ["Subscribers", ["1K to 10K 1", "10K to 100K 1"]],
     ["To check", ["Find first name 2"]],
@@ -550,4 +551,12 @@ test("Dead is before Ready to reach out until the lead's record has it there or 
   assert.equal(beforeReady(stages, "dead", ["Replied"]), false);
   // a board with no day sequence has no gate
   assert.equal(beforeReady([{ id: "a", name: "Dead" }], "a", []), false);
+});
+
+test("Opener and Country lead the filters, read without their codes", () => {
+  assert.equal(leadingFacet({ name: "Opener", kind: "tag" }), true);
+  assert.equal(leadingFacet({ name: "Country", kind: "tag" }), true);
+  assert.equal(leadingFacet({ name: "Subscribers", kind: "range" }), false);
+  assert.equal(facetLabel("D1 · Old hit still on top"), "Old hit still on top");
+  assert.equal(facetLabel("USA"), "USA");
 });

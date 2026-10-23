@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, EyeOff, Filter, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Rows3, Search, Send, Table2, Trash2, Users, UserCheck, X } from "lucide-react";
-import { facets, outreachStart, outreachStats, passesFacets, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type Facet, type FacetPicks, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
+import { Check, ChevronRight, EyeOff, Filter, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Rows3, Search, Send, Table2, Trash2, Users, UserCheck, X } from "lucide-react";
+import { facetLabel, facets, leadingFacet, outreachStart, outreachStats, passesFacets, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type Facet, type FacetPicks, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadList } from "./LeadList";
 import { LeadTable } from "./LeadTable";
@@ -13,6 +13,7 @@ import { CanBuild, Menu } from "./values";
 import { deleteSpace, renameSpace, setLeadMark } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { StatTile } from "../../StatTile";
+import { Reveal } from "../../Reveal";
 import { EditableName } from "../../EditableName";
 import { chip } from "../../chip";
 import { setParam } from "../../urlState";
@@ -324,8 +325,8 @@ export function PortalView({
         </label>
         {groups.length > 0 && (
           <Menu
-            height={380}
-            width={300}
+            height={460}
+            width={340}
             buttonClassName={chip(picked.length > 0)}
             button={
               <>
@@ -333,12 +334,12 @@ export function PortalView({
               </>
             }
           >
-            {() => <FilterPanel groups={groups} picks={on} onToggle={toggle} />}
+            {() => <FilterPanel groups={groups} picks={on} onToggle={toggle} onClear={() => setPicks({})} />}
           </Menu>
         )}
         {picked.map(({ g, v }) => {
           // contacts read on their own ("Has email"), the rest with their property
-          const label = g.kind === "contact" ? v.label : `${g.name}: ${v.label}`;
+          const label = g.kind === "contact" ? v.label : `${g.name}: ${facetLabel(v.label)}`;
           return (
             <span key={`${g.field}:${v.key}`} title={label} className={`fade-in ${chip(true)} max-w-72 pr-1.5`}>
               <span className="min-w-0 truncate">{label}</span>
@@ -406,29 +407,103 @@ export function PortalView({
   );
 }
 
-// The Filter menu: each property with the values this board's leads have,
-// and how many have each, to tick
-function FilterPanel({ groups, picks, onToggle }: { groups: Facet[]; picks: FacetPicks; onToggle: (field: string, key: string) => void }) {
-  // no taller than the menu's 380 with its padding and edge, so it's never cut off
+// The Filter menu (Abhishek, 23 Oct 2026). Up top, the two that lead, the
+// kind of opener and the country, as chips to tap, every choice there even
+// before a lead has it; underneath, "More filters": each other property
+// folded, its values to tick with how many leads have each
+function FilterPanel({ groups, picks, onToggle, onClear }: { groups: Facet[]; picks: FacetPicks; onToggle: (field: string, key: string) => void; onClear: () => void }) {
+  const leading = groups.filter(leadingFacet);
+  // the others only where some lead has a value (or one is ticked)
+  const rest = groups.filter((g) => !leadingFacet(g) && g.values.some((v) => v.count || picks[g.field]?.includes(v.key)));
+  // a property with something ticked starts open
+  const [open, setOpen] = useState<Set<string>>(() => new Set(rest.filter((g) => picks[g.field]?.length).map((g) => g.field)));
+  const [more, setMore] = useState(() => open.size > 0 || !leading.length);
+  const any = Object.values(picks).some((v) => v.length);
+  const fold = (field: string) => setOpen((o) => (o.has(field) ? new Set([...o].filter((f) => f !== field)) : new Set([...o, field])));
   return (
-    <div className="flex max-h-[min(23rem,70vh)] flex-col overflow-y-auto p-0.5">
-      {groups.map((g) => (
-        <div key={g.field} role="group" aria-label={g.name} className="flex flex-col">
-          <p className="px-2 pt-2.5 pb-1 text-[12px] font-medium text-muted/70 first:pt-1.5">{g.name}</p>
-          {g.values.map((v) => {
-            const on = !!picks[g.field]?.includes(v.key);
-            return (
-              <button key={v.key} type="button" aria-pressed={on} onClick={() => onToggle(g.field, v.key)} className="menu-item px-2 py-1.5 text-xs">
-                <span className={`grid size-3.5 shrink-0 place-items-center rounded-[4px] border transition-colors duration-150 ${on ? "border-accent/60 bg-accent/20 text-accent" : "border-white/[0.18]"}`}>
-                  {on && <Check size={10} strokeWidth={3} className="pop-in" />}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{v.label}</span>
-                <span className="shrink-0 text-muted tabular-nums">{v.count}</span>
-              </button>
-            );
-          })}
+    // no taller than the menu's 460 with its padding and edge, so it's never cut off
+    <div className="flex max-h-[min(28rem,70vh)] flex-col overflow-y-auto p-1.5">
+      {leading.map((g) => (
+        <div key={g.field} role="group" aria-label={g.name} className="flex flex-col gap-2 px-1.5 pt-1.5 pb-3">
+          <p className="text-[11px] font-medium tracking-wide text-muted uppercase">{g.name}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {g.values.map((v) => {
+              const on = !!picks[g.field]?.includes(v.key);
+              return (
+                <button
+                  key={v.key}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={!v.count && !on}
+                  title={v.label}
+                  onClick={() => onToggle(g.field, v.key)}
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 disabled:opacity-40 ${
+                    on ? "border-accent/50 bg-accent/15 text-foreground" : "border-white/[0.09] bg-white/[0.03] text-foreground/85 enabled:hover:border-white/20 enabled:hover:bg-white/[0.06]"
+                  }`}
+                >
+                  {on && <Check size={11} strokeWidth={3} className="pop-in text-accent" />}
+                  {facetLabel(v.label)}
+                  <span className={`tabular-nums ${on ? "text-accent" : "text-muted"}`}>{v.count}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ))}
+
+      {rest.length > 0 && (
+        <div className={leading.length ? "border-t border-white/[0.06] pt-1.5" : ""}>
+          {leading.length > 0 && (
+            <button type="button" aria-expanded={more} onClick={() => setMore((m) => !m)} className="menu-item px-1.5 py-1.5 text-xs text-muted">
+              <ChevronRight size={13} className={`shrink-0 transition-transform duration-200 ${more ? "rotate-90" : ""}`} />
+              More filters
+            </button>
+          )}
+          <Reveal open={more}>
+            <div className="flex flex-col">
+              {rest.map((g) => {
+                const ticked = picks[g.field]?.length ?? 0;
+                const isOpen = open.has(g.field);
+                return (
+                  <div key={g.field} role="group" aria-label={g.name}>
+                    <button type="button" aria-expanded={isOpen} onClick={() => fold(g.field)} className="menu-item px-1.5 py-1.5 text-xs">
+                      <ChevronRight size={13} className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`} />
+                      <span className="min-w-0 flex-1 truncate text-foreground/90">{g.name}</span>
+                      {ticked > 0 && <span className="fade-in rounded-full bg-accent/15 px-1.5 text-[11px] text-accent tabular-nums">{ticked}</span>}
+                    </button>
+                    <Reveal open={isOpen}>
+                      <div className="flex flex-col pb-1 pl-5">
+                        {g.values
+                          .filter((v) => v.count || picks[g.field]?.includes(v.key))
+                          .map((v) => {
+                            const on = !!picks[g.field]?.includes(v.key);
+                            return (
+                              <button key={v.key} type="button" aria-pressed={on} onClick={() => onToggle(g.field, v.key)} className="menu-item px-1.5 py-1.5 text-xs">
+                                <span className={`grid size-3.5 shrink-0 place-items-center rounded-[4px] border transition-colors duration-150 ${on ? "border-accent/60 bg-accent/20 text-accent" : "border-white/[0.18]"}`}>
+                                  {on && <Check size={10} strokeWidth={3} className="pop-in" />}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate">{facetLabel(v.label)}</span>
+                                <span className="shrink-0 text-muted tabular-nums">{v.count}</span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </Reveal>
+                  </div>
+                );
+              })}
+            </div>
+          </Reveal>
+        </div>
+      )}
+
+      {any && (
+        <div className="fade-in mt-1 flex justify-end border-t border-white/[0.06] px-1.5 pt-2 pb-0.5">
+          <button type="button" onClick={onClear} className="btn btn-xs btn-ghost">
+            Clear all
+          </button>
+        </div>
+      )}
     </div>
   );
 }

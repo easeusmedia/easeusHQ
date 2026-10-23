@@ -336,10 +336,17 @@ export function facets(leads: Pick<LeadData, "values">[], fields: Pick<FieldData
       : kind === "range" ? RANGES.map((r, i) => [String(i), r.label])
       : kind === "checkbox" ? [["yes", "Checked"], ["no", "Not checked"]]
       : [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b)).map((k) => [k, k]);
-    const values = labels.flatMap(([key, label]) => (counts.get(key) ? [{ key, label, count: counts.get(key)! }] : []));
-    return values.length ? [{ field: f.id, name: f.name, kind, values }] : [];
+    // tags keep every option (none yet is 0), so a property's choices stay put
+    const values = labels.flatMap(([key, label]) => (counts.get(key) || kind === "tag" ? [{ key, label, count: counts.get(key) ?? 0 }] : []));
+    return values.some((v) => v.count) || (kind === "tag" && values.length) ? [{ field: f.id, name: f.name, kind, values }] : [];
   });
 }
+
+// The two filters that lead (Abhishek, 23 Oct 2026): the kind of opener
+// ("Version" on the Instagram board) and the country; the rest fold away
+export const leadingFacet = (g: Pick<Facet, "name" | "kind">) => g.kind === "tag" && /^(opener|version|country)$/i.test(g.name.trim());
+// "D1 · Old hit still on top" reads as "Old hit still on top": the code means nothing on its own
+export const facetLabel = (label: string) => label.replace(/^[A-Z]\d+\s*·\s*/, "");
 
 // Whether a lead holds one of the picked values in every property picked in
 export function passesFacets(values: Record<string, unknown>, picks: FacetPicks, groups: Facet[]): boolean {
