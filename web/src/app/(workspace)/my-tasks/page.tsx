@@ -23,9 +23,11 @@ export default async function MyTasksPage() {
   const [work, users, tasks, done, doneTasks, kinds, me] = await Promise.all([
     loadWork(viewer, "mine", { withQueue: false }),
     getAllUsers(),
-    // your client work, and what you've been brought onto: anything still open
+    // your client work, and what you've been brought onto: anything still
+    // open. Final export ready is your part done: it stays on the board's
+    // queue for the upload (Abhishek, 23 Oct 2026)
     prisma.task.findMany({
-      where: { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }], status: { in: ACTIVE_STATUSES }, project: { client: { status: "current" } } },
+      where: { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }], status: { in: ACTIVE_STATUSES.filter((s) => s !== "final_export_ready") }, project: { client: { status: "current" } } },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     }),

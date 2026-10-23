@@ -94,7 +94,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // left off Home, except for the admin themselves
   const admins = new Set(users.filter((u) => u.role === "admin" && u.id !== viewer.id).map((u) => u.id));
   const items: HomeItem[] = [
-    ...tasks.map((t) => ({
+    // Final export ready is the person's part done (Abhishek, 23 Oct 2026):
+    // off their own list, still in the team's work and on the board's queue
+    ...tasks.filter((t) => t.status !== "final_export_ready" || (!member && t.assignedToId !== viewer.id)).map((t) => ({
       key: `t${t.id}`,
       id: t.id,
       source: "task" as const,
