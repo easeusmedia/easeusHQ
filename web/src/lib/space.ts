@@ -142,8 +142,8 @@ export type Opener = { label: string; drafts: Record<string, Draft> };
 // id, and the messages written for it ahead, by opener (main, then backups)
 export type Prepared = { drafts: Record<string, Draft>; openers: Opener[] };
 // The opener a lead's messages use: the one picked, else its main one
-export const openerIndex = (p: Prepared, picks: Record<string, string>): number => (p.openers[Number(picks.opener)] ? Number(picks.opener) : 0);
-export const openerOf = (p: Prepared, picks: Record<string, string>): Opener | undefined => p.openers[openerIndex(p, picks)];
+export const openerIndex = (p: Pick<Prepared, "openers">, picks: Record<string, string>): number => (p.openers[Number(picks.opener)] ? Number(picks.opener) : 0);
+export const openerOf = (p: Pick<Prepared, "openers">, picks: Record<string, string>): Opener | undefined => p.openers[openerIndex(p, picks)];
 // Where a message rewritten for this lead is kept: under the opener in use
 // when that opener wrote it ("msgId#1"), so each opener keeps its own edit
 // and Days 1 and 2 still change with the opener; else under the message alone
@@ -426,6 +426,8 @@ export function markAny(marks: Marks, p: Marked, kind: MarkKind): Mark | undefin
 export function leadContacts(values: Record<string, unknown>, fields: Pick<FieldData, "id" | "kind">[]): Contact[] {
   return fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : []));
 }
+// the ones the lead window has a tab for: a name, or a way to reach them (an empty row is no one)
+export const leadPeople = (values: Record<string, unknown>, fields: Pick<FieldData, "id" | "kind">[]) => leadContacts(values, fields).filter((c) => c.name.trim() || c.channels.some((ch) => ch.value.trim()));
 
 // Whether a contact can be reached on a platform: a handle (or address) for
 // it. A day's message on a platform the contact has no handle for shows
@@ -435,7 +437,7 @@ export const hasChannel = (c: Contact | null, platform: string) => !c || c.chann
 // A pick (or anything kept per day) belongs to one contact: "day-1@c2"
 export const forContact = (key: string, contact: Contact | null) => (contact ? `${key}@${contact.id}` : key);
 
-export const messagesOnDay = (board: Pick<BoardData, "stages" | "messages">, day: number) =>
+export const messagesOnDay = <M extends Pick<MessageData, "stageId">>(board: { stages: Pick<StageData, "id" | "name">[]; messages: M[] }, day: number) =>
   board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") === day);
 
 // the platforms marked by hand that a day's messages go out on
@@ -467,6 +469,56 @@ export function chosenFor<T extends Pick<MessageData, "id" | "name" | "channel">
 // platform's buttons
 export function dayPlatform(board: Pick<BoardData, "stages" | "messages">, picks: Record<string, string>, day: number, opened = false, contact: Contact | null = null): string | null {
   return chosenFor(messagesOnDay(board, day), picks, `day-${day}`, contact, opened)?.channel ?? null;
+}
+
+// ---- Approvals ----
+// The messages an opener writes itself: the ones its lead's openers word
+// differently. Every opener carries every message; only Days 1 and 2 differ.
+export function openerOwn(openers: Opener[]): Set<string> {
+  const said = (o: Opener, id: string) => JSON.stringify([o.drafts?.[id]?.subject, o.drafts?.[id]?.body]);
+  const ids = new Set(openers.flatMap((o) => Object.keys(o.drafts ?? {})));
+  return new Set([...ids].filter((id) => openers.some((o) => said(o, id) !== said(openers[0], id))));
+}
+// Where a message's approval for a person is kept: an opener's own message
+// under that opener (the one in use unless said), "msgId#1@c2", so each
+// opener is approved on its own; any other under the message, "msgId@c2"
+export const approvalKey = (p: Pick<Prepared, "openers">, picks: Record<string, string>, messageId: string, contact: Contact | null, opener = openerIndex(p, picks)) =>
+  forContact(openerOwn(p.openers).has(messageId) ? `${messageId}#${opener}` : messageId, contact);
+// an opener's approval, else one from before openers had their own
+export const unscoped = (key: string) => key.replace(/#\d+/, "");
+export const approvalIn = (approvals: Record<string, Approval | null | undefined>, key: string) => approvals[key] ?? approvals[unscoped(key)] ?? null;
+
+// What's still to approve before a lead goes into Ready to reach out
+// (Abhishek, 23 Oct 2026): for each person on it (none: the lead itself),
+// each day's message on each platform, as the day strip picks it, that they
+// can be reached on. A day with nothing they can be reached by passes.
+// Picked as if no email was opened yet (none is, before Ready to reach out).
+export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name">; contact: Contact | null };
+export function approvalsMissing(
+  board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel">[] },
+  lead: { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined> },
+  openers: Opener[],
+  contacts: Contact[],
+): Unapproved[] {
+  const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const missing: Unapproved[] = [];
+  for (const contact of contacts.length ? contacts : [null])
+    for (const day of days) {
+      const on = messagesOnDay(board, day);
+      for (const channel of new Set(on.map((m) => m.channel))) {
+        const options = on.filter((m) => m.channel === channel);
+        const m = chosenFor(options, lead.picks, `day-${day}`, contact, false) ?? options[0];
+        if (hasChannel(contact, m.channel) && !approvalIn(lead.approvals, approvalKey({ openers }, lead.picks, m.id, contact))) missing.push({ day, message: m, contact });
+      }
+    }
+  return missing;
+}
+// "Day 3 · Email 2 for Dr Karandish and 4 more"
+export function unapprovedText(missing: Unapproved[]): string {
+  const [{ day, message, contact }] = missing;
+  const name = contact?.name.trim();
+  const more = missing.length - 1;
+  return `Day ${day} · ${message.name.replace(/^day \d+\s*·\s*/i, "")}${name ? ` for ${name}` : ""}${more ? ` and ${more} more` : ""}`;
 }
 
 // The day the LinkedIn connection request goes out: the sequence's first

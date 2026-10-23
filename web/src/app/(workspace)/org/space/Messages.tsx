@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalKey, openerOwn, unscoped } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -89,14 +89,20 @@ export function Messages({
   const own = (id: string): Draft | undefined => (merged ? preparedFor(merged, picks, id) : undefined);
   // approved as ready to send, by message and person, ahead of the save
   const [approved, setApproved] = useState<Record<string, Approval | null>>({});
-  const approvalOf = (key: string) => (key in approved ? approved[key] : (lead.approvals?.[key] ?? null));
+  const approvalAt = (key: string) => (key in approved ? approved[key] : (lead.approvals?.[key] ?? null));
+  // an opener's own approval, else one from before openers had their own (lib/space approvalIn)
+  const approvalOf = (key: string) => approvalAt(key) ?? approvalAt(unscoped(key));
+  // where a message's approval is kept: for the opener (the one in use unless said) when it's the opener's own
+  const keyOf = (messageId: string, c: Contact | null, i?: number) => approvalKey(prepared ?? { openers: [] }, picks, messageId, c, i);
   async function approve(key: string, on: boolean) {
-    const before = approvalOf(key);
+    // undone, the one from before openers had their own goes too, as on the server
+    const keys = on ? [key] : [...new Set([key, unscoped(key)])];
+    const before = Object.fromEntries(keys.map((k) => [k, approvalAt(k)]));
     setError(null);
-    setApproved((a) => ({ ...a, [key]: on ? { by: "You", at: new Date().toISOString() } : null }));
+    setApproved((a) => ({ ...a, ...Object.fromEntries(keys.map((k) => [k, on ? { by: "You", at: new Date().toISOString() } : null])) }));
     const res = await approveMessage(lead.id, key, on).catch(() => ({ error: OFFLINE }));
     if (res.error) {
-      setApproved((a) => ({ ...a, [key]: before }));
+      setApproved((a) => ({ ...a, ...before }));
       return setError(res.error);
     }
     onSaved();
@@ -203,10 +209,17 @@ export function Messages({
   // (a greyed one, on a platform they aren't on, doesn't count)
   const dayApproved = (x: SequenceTab) => {
     const sendable = chosenOn(x, person).filter((m) => hasChannel(person, m.channel));
-    return sendable.length > 0 && sendable.every((m) => !!approvalOf(forContact(m.id, person)));
+    return sendable.length > 0 && sendable.every((m) => !!approvalOf(keyOf(m.id, person)));
   };
   // the same opener the wording comes from (openerOf), so the lit one is the one shown
   const opener = prepared ? openerIndex(prepared, picks) : 0;
+  // an opener is done, green, once each of its own messages the person gets
+  // (the one picked on its day, on a platform they're on) is approved for it
+  const openerMessages = prepared ? openerOwn(prepared.openers) : new Set<string>();
+  const openersDue = tabs.flatMap((x) => chosenOn(x, person)).filter((m) => openerMessages.has(m.id) && hasChannel(person, m.channel));
+  const openerApproved = (i: number) => openersDue.length > 0 && openersDue.every((m) => !!approvalOf(keyOf(m.id, person, i)));
+  // the sequence's first email: one after it with no subject of its own is a reply in its thread
+  const firstEmail = tabs.filter((x) => x.day != null).flatMap((x) => x.messages).find((m) => m.channel === "email");
 
   // before Ready to reach out: what's known about it, nothing to send
   if (!tabs.length) return <div className={`${PANEL} @container min-h-0 w-full max-w-xl flex-1 overflow-y-auto`}>{aside}</div>;
@@ -250,7 +263,8 @@ export function Messages({
           own={own(chosen.id)}
           rewritten={rewritten(chosen.id)}
           written={!!(prepared && openerOf(prepared, picks)?.drafts[chosen.id])}
-          approval={{ at: approvalOf(forContact(chosen.id, c)), set: (on) => approve(forContact(chosen.id, c), on) }}
+          approval={{ at: approvalOf(keyOf(chosen.id, c)), set: (on) => approve(keyOf(chosen.id, c), on) }}
+          thread={firstEmail && firstEmail.id !== chosen.id ? (own(firstEmail.id)?.subject ?? firstEmail.subject) : ""}
           sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
           onMine={(d) => saveMine(chosen.id, d)}
@@ -324,11 +338,16 @@ export function Messages({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted">Opener</span>
                 <div role="tablist" aria-label="Opener" className="flex flex-wrap items-center gap-1.5">
-                  {openers.map((o, i) => (
-                    <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener picked; Days 3 to 8 stay the same" className="chip rounded-full px-3 py-1 text-xs">
-                      {o.label || `Opener ${i + 1}`}
-                    </button>
-                  ))}
+                  {openers.map((o, i) => {
+                    const done = openerApproved(i);
+                    // green (!: the picked chip's look in globals.css is unlayered)
+                    return (
+                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener picked; Days 3 to 8 stay the same" className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs ${done ? "border-emerald-400/40! text-emerald-300!" : ""}`}>
+                        {done && <Check size={12} className="shrink-0" aria-label="Approved" />}
+                        {o.label || `Opener ${i + 1}`}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -601,6 +620,7 @@ function MessageForm({
   rewritten,
   written,
   approval,
+  thread,
   sent,
   extra,
   onMine,
@@ -615,6 +635,8 @@ function MessageForm({
   rewritten: boolean;
   written: boolean;
   approval: { at: Approval | null; set: (on: boolean) => void };
+  // the subject of the sequence's first email, as this lead has it (none: this is it)
+  thread: string;
   sent: SentData | null;
   extra?: string | null;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
@@ -629,10 +651,14 @@ function MessageForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"subject" | "body" | null>(null);
   // the values the editor was filled from: what it's read back against
   const [base, setBase] = useState(vars);
-  const shownSubject = sent ? sent.subject : fillText(source.subject, vars);
+  // an email with no subject of its own (Emails 2 to 4) is a reply in the first one's thread
+  const subjectText = isEmail && !source.subject.trim() && thread.trim() ? `Re: ${thread}` : source.subject;
+  // left as it was, that "Re: " isn't saved as the lead's own subject
+  const threadSubject = subjectText !== source.subject ? fillText(subjectText, vars) : null;
+  const shownSubject = sent ? sent.subject : fillText(subjectText, vars);
   const shownBody = sent ? sent.body : fillText(source.body, vars);
 
   function edit() {
@@ -664,10 +690,11 @@ function MessageForm({
     if (err) return setError(err);
     setEditing(false);
   }
-  async function copy() {
-    await navigator.clipboard.writeText(isEmail && shownSubject ? `Subject: ${shownSubject}\n\n${shownBody}` : shownBody);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  // the subject and the words each copy on their own
+  async function copy(what: "subject" | "body") {
+    await navigator.clipboard.writeText(what === "subject" ? shownSubject : shownBody);
+    setCopied(what);
+    setTimeout(() => setCopied(null), 1500);
   }
   if (template) return <TemplateEditor message={message} stages={stages} names={names} leadId={leadId} onDone={() => setTemplate(false)} />;
 
@@ -695,8 +722,8 @@ function MessageForm({
         </div>
         {!editing && (
           <span className="-mt-0.5 flex shrink-0 items-center">
-            <button type="button" onClick={copy} title={copied ? "Copied" : "Copy the message"} aria-label="Copy the message" className={ICON}>
-              {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
+            <button type="button" onClick={() => copy("body")} title={copied === "body" ? "Copied" : isEmail && shownSubject ? "Copy the body" : "Copy the message"} aria-label={isEmail && shownSubject ? "Copy the body" : "Copy the message"} className={ICON}>
+              {copied === "body" ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
             </button>
             {!sent && (
               <button type="button" onClick={edit} title="Edit for this lead" aria-label="Edit this message" className={ICON}>
@@ -732,7 +759,7 @@ function MessageForm({
               <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
                 Cancel
               </button>
-              <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
+              <button type="button" onClick={() => save({ subject: subject === threadSubject ? source.subject : subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
                 {busy ? "Saving…" : "Save for this lead"}
               </button>
             </span>
@@ -741,9 +768,14 @@ function MessageForm({
       ) : (
         <div className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
           {isEmail && shownSubject && (
-            <p className="mb-3 text-foreground">
-              <span className="text-muted">Subject: </span>
-              <span className="font-medium">{sent ? shownSubject : <Filled text={source.subject} vars={vars} />}</span>
+            <p className="mb-3 flex items-start gap-1.5 text-foreground">
+              <span className="min-w-0">
+                <span className="text-muted">Subject: </span>
+                <span className="font-medium">{sent ? shownSubject : <Filled text={subjectText} vars={vars} />}</span>
+              </span>
+              <button type="button" onClick={() => copy("subject")} title={copied === "subject" ? "Copied" : "Copy the subject"} aria-label="Copy the subject" className="-my-0.5 grid size-6 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+                {copied === "subject" ? <Check size={12} className="text-emerald-300" /> : <Copy size={12} />}
+              </button>
             </p>
           )}
           {sent ? shownBody : <Filled text={source.body} vars={vars} />}
@@ -762,7 +794,7 @@ function MessageForm({
               approval.at ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20" : "border-white/[0.12] bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
             }`}
           >
-            <Check size={13} className={approval.at ? "" : "text-emerald-300"} />
+            {approval.at && <Check size={13} />}
             {approval.at ? "Approved" : "Approve"}
           </button>
         </footer>

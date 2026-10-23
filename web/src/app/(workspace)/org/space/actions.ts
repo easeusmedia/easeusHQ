@@ -35,6 +35,14 @@ import {
   readMarks,
   NO_CONTACT,
   type MarkChange,
+  approvalsMissing,
+  isDead,
+  leadPeople,
+  outreachStart,
+  unapprovedText,
+  unscoped,
+  type Approval,
+  type Opener,
 } from "@/lib/space";
 
 // A department's pages: sections, portals, boards, and the leads on them.
@@ -684,18 +692,20 @@ export async function pickMessage(id: string, key: string, messageId: string | n
   }
 }
 
-// A message approved as ready to send, for one person on the lead ("msgId@c2"),
-// or no longer (on: false). Written alone, so approvals by others stay.
+// A message approved as ready to send, for one person on the lead ("msgId@c2";
+// an opener's own message for that opener, "msgId#1@c2"), or no longer (on:
+// false, which takes off one from before openers had their own too). Written
+// alone, so approvals by others stay.
 export async function approveMessage(id: string, key: string, on: boolean): Promise<Done> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
   if (typeof key !== "string" || !key || key.length > 120) return { error: "That message couldn't be found." };
-  const messageId = key.split("@")[0];
+  const messageId = key.split(/[@#]/)[0];
   if (!(await prisma.stageMessage.count({ where: { id: messageId, stage: { boardId: lead.boardId } } }))) return { error: "That message no longer exists. Refresh and try again." };
   try {
-    if (!on) await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = "approvals" - ${key}::text WHERE id = ${id}`;
+    if (!on) await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = "approvals" - ${key}::text - ${unscoped(key)}::text WHERE id = ${id}`;
     else {
       const mark = JSON.stringify({ by: who.name, at: new Date().toISOString() });
       await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = jsonb_set(coalesce("approvals", '{}'::jsonb), ARRAY[${key}::text], ${mark}::jsonb, true) WHERE id = ${id}`;
@@ -767,7 +777,10 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
 
 // Into another stage. One step forward needs nothing; going back, or
 // skipping ahead, needs a reason, which stays on the lead's record. Without
-// one, the answer says so ({ needsReason }) and nothing moves.
+// one, the answer says so ({ needsReason }) and nothing moves. Into Ready to
+// reach out (or past it) from before it only once every message is approved
+// (lib/space approvalsMissing), reason or not; Dead stays open, and a lead
+// already past it moves freely.
 export async function moveLead(id: string, toStageId: string, sortOrder: number, reason?: string): Promise<Done & { needsReason?: boolean }> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
@@ -782,6 +795,21 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
     const stages = await prisma.boardStage.findMany({ where: { boardId: lead.boardId }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } });
     const to = stages.find((s) => s.id === toStageId);
     if (!to) return { error: "That stage no longer exists. Refresh and try again." };
+    const start = outreachStart(stages);
+    if (start >= 0 && stages.findIndex((s) => s.id === lead.stageId) < start && stages.indexOf(to) >= start && !isDead(to.name)) {
+      const [full, messages, fields] = await Promise.all([
+        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, openers: true } }),
+        prisma.stageMessage.findMany({ where: { stage: { boardId: lead.boardId } }, select: { id: true, stageId: true, name: true, channel: true }, orderBy: [{ stage: { sortOrder: "asc" } }, { sortOrder: "asc" }] }),
+        prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
+      ]);
+      const missing = approvalsMissing(
+        { stages, messages },
+        { picks: (full?.picks ?? {}) as Record<string, string>, approvals: (full?.approvals ?? {}) as Record<string, Approval> },
+        (Array.isArray(full?.openers) ? full.openers : []) as Opener[],
+        leadPeople((lead.values ?? {}) as Record<string, unknown>, fields as Pick<FieldData, "id" | "kind">[]),
+      );
+      if (missing.length) return { error: `Approve every message first: ${unapprovedText(missing)}.` };
+    }
     const needs = moveNeedsReason(stages.map((s) => s.id), lead.stageId, toStageId);
     const why = (reason ?? "").trim().slice(0, 2000);
     if (needs && !why) return { needsReason: true, error: "Say why it's skipping ahead or going back." };

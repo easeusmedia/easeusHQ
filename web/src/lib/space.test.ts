@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, keptRules, passesRules } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, keptRules, passesRules, approvalIn, approvalKey, approvalsMissing, openerOwn, unapprovedText } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -458,4 +458,48 @@ test("an edited message: the cases the review found", () => {
   assert.deepEqual(readEdit(t, v, filled.replace("Jon", "Jonathan"), ["Name"]), { text: "your {{Latest video}} video. Hi Jonathan, see {{Link}}\n\nBest,\n{{Sender}}" });
   // a line break is never a value
   assert.ok("text" in readEdit(t, v, filled.replace("mushrooms for", "mushrooms\nfor")));
+});
+
+test("an opener's own messages are approved per opener; an older approval still counts", () => {
+  const openers = [
+    { label: "Main", drafts: { e1: { subject: "Hi", body: "main" }, e2: { subject: "", body: "day 3" } } },
+    { label: "Backup", drafts: { e1: { subject: "Hi", body: "backup" }, e2: { subject: "", body: "day 3" } } },
+  ];
+  assert.deepEqual([...openerOwn(openers)], ["e1"]);
+  assert.deepEqual([...openerOwn([openers[0]])], []);
+  const c = person("c1", "email");
+  assert.equal(approvalKey({ openers }, { opener: "1" }, "e1", c), "e1#1@c1");
+  assert.equal(approvalKey({ openers }, {}, "e1", c, 1), "e1#1@c1");
+  assert.equal(approvalKey({ openers }, { opener: "1" }, "e2", c), "e2@c1");
+  assert.equal(approvalKey({ openers: [openers[0]] }, {}, "e1", null), "e1");
+  const at = { by: "A", at: "2026-10-23" };
+  assert.equal(approvalIn({ "e1@c1": at }, "e1#1@c1"), at);
+  assert.equal(approvalIn({ "e1#0@c1": at }, "e1#1@c1"), null);
+  assert.equal(approvalIn({ "e1#0": at }, "e1#0"), at);
+});
+
+test("a lead goes into Ready to reach out only once every message it can be sent is approved", () => {
+  const at = { by: "A", at: "2026-10-23" };
+  const openers = [
+    { label: "Main", drafts: { e1: { subject: "", body: "main" } } },
+    { label: "Backup", drafts: { e1: { subject: "", body: "backup" } } },
+  ];
+  const all = (c: string, ...ids: string[]) => Object.fromEntries(ids.map((id) => [`${id}@${c}`, at]));
+  // no contacts: the lead itself, every day's message on every platform
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], []).map((m) => [m.day, m.message.id, m.contact]), [[1, "e1", null], [1, "l1", null], [2, "i1", null], [3, "e2", null]]);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: { e1: at, l1: at, i1: at, e2: at } }, [], []), []);
+  // a day they can't be reached on passes: no Instagram, so Day 2 needs nothing
+  const ann = person("ann", "email", "linkedin");
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann]), []);
+  // everyone on the lead, each on their own
+  const bo = person("bo", "email");
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann, bo]).map((m) => `${m.message.id}@${m.contact?.id}`), ["e1@bo", "e2@bo"]);
+  // the opener in use: its own message under it, or approved before openers had their own
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#0@bo": at } }, openers, [bo]).map((m) => m.message.id), ["e1"]);
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#1@bo": at } }, openers, [bo]), []);
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: all("bo", "e1", "e2") }, openers, [bo]), []);
+  // the error names the first still to approve, and how many more
+  const left = approvalsMissing({ ...days, messages: days.messages.map((m) => ({ ...m, name: m.id === "e2" ? "Day 3 · Email 2" : m.name })) }, { picks: {}, approvals: all("bo", "e1") }, [], [{ ...bo, name: "Dr Karandish" }]);
+  assert.equal(unapprovedText(left), "Day 3 · Email 2 for Dr Karandish");
+  assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [])), "Day 1 · e1 and 3 more");
 });
