@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, keptRules, passesRules } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -62,6 +62,44 @@ test("checkbox, date and text", () => {
   assert.deepEqual(cleanValue("date", "2026-10-02"), { value: "2026-10-02" });
   assert.ok("error" in cleanValue("date", "02/10/2026"));
   assert.deepEqual(cleanValue("text", "  "), { value: null });
+});
+
+test("a lead passes a filter only when it passes every rule", () => {
+  const fields = [
+    { id: "country", kind: "select" as const, options: [{ id: "usa", name: "USA", color: "" }, { id: "uk", name: "UK", color: "" }] },
+    { id: "bio", kind: "text" as const, options: [] },
+    { id: "subs", kind: "count" as const, options: [] },
+    { id: "people", kind: "contacts" as const, options: [] },
+    { id: "links", kind: "links" as const, options: [] },
+  ];
+  const lead = {
+    country: ["uk"],
+    bio: "Weekly Cooking Show",
+    subs: { n: 1200, remark: "growing" },
+    people: [{ id: "c1", name: "Ana", role: "", channels: [{ kind: "email", value: "ana@x.com" }, { kind: "instagram", value: " " }] }],
+  };
+  const pass = (rules: Parameters<typeof passesRules>[1]) => passesRules(lead, rules, fields);
+  assert.equal(pass([]), true);
+  assert.equal(pass([{ field: "country", op: "is", values: ["usa", "uk"] }]), true);
+  assert.equal(pass([{ field: "country", op: "is", values: ["usa"] }]), false);
+  assert.equal(pass([{ field: "bio", op: "contains", values: ["cooking"] }]), true);
+  assert.equal(pass([{ field: "subs", op: "contains", values: ["120"] }]), true);
+  assert.equal(pass([{ field: "subs", op: "contains", values: ["fall"] }]), false);
+  // a contact's channel counts only with something in it
+  assert.equal(pass([{ field: "people", op: "has", values: ["email"] }]), true);
+  assert.equal(pass([{ field: "people", op: "has", values: ["instagram"] }]), false);
+  assert.equal(pass([{ field: "people", op: "lacks", values: ["linkedin"] }]), true);
+  assert.equal(pass([{ field: "people", op: "has", values: [] }]), true);
+  assert.equal(pass([{ field: "links", op: "lacks", values: [] }]), true);
+  // every rule must hold; a property that's gone doesn't count
+  assert.equal(pass([{ field: "country", op: "is", values: ["uk"] }, { field: "bio", op: "contains", values: ["tech"] }]), false);
+  assert.equal(pass([{ field: "gone", op: "is", values: ["x"] }]), true);
+  // saved rules drop what the board no longer has
+  assert.deepEqual(
+    keptRules([{ field: "country", op: "is", values: ["usa", "old"] }, { field: "country", op: "is", values: ["old"] }, { field: "gone", op: "has", values: [] }, { field: "bio", op: "near", values: [] }, null], fields),
+    [{ field: "country", op: "is", values: ["usa"] }]
+  );
+  assert.deepEqual(keptRules("junk", fields), []);
 });
 
 test("a count or contact with nothing in it isn't filled", () => {
