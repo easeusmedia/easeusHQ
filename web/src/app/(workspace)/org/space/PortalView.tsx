@@ -2,27 +2,30 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EyeOff, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Rows3, Search, Send, Table2, Trash2, Users, UserCheck } from "lucide-react";
-import { outreachStart, outreachStats, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
+import { Bookmark, EyeOff, Filter, Kanban, Layers, Mail, MailOpen, MapPin, Pencil, Plus, Quote, Reply, Rows3, Search, Send, Table2, Trash2, Users, UserCheck, X } from "lucide-react";
+import { CHANNELS, keptRules, outreachStart, outreachStats, passesRules, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type FieldData, type LeadData, type LeadRule, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadList } from "./LeadList";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { CanBuild } from "./values";
+import { CanBuild, Menu } from "./values";
 import { deleteSpace, renameSpace, setLeadMark } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { StatTile } from "../../StatTile";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
+import { chip } from "../../chip";
 import { setParam } from "../../urlState";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 import { TrackerChip } from "../../TrackerChip";
 
 type View = "board" | "list" | "table";
-type Prefs = { view: View; hideEmpty: boolean; platform: Platform | "all" };
-const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false, platform: "all" };
-// per board, in this browser: board or table, and whether empty stages show
+type SavedFilter = { name: string; rules: LeadRule[] };
+type Prefs = { view: View; hideEmpty: boolean; platform: Platform | "all"; filters: SavedFilter[] };
+const DEFAULT_PREFS: Prefs = { view: "board", hideEmpty: false, platform: "all", filters: [] };
+// per board, in this browser: board or table, whether empty stages show, and
+// the filters saved by name
 const prefsKey = (boardId: string) => `space:board:${boardId}`;
 
 const PLATFORM_ICON: Record<Platform | "all", React.ReactNode> = {
@@ -32,6 +35,7 @@ const PLATFORM_ICON: Record<Platform | "all", React.ReactNode> = {
   linkedin: <LinkedinIcon size={13} className="text-blue-400" />,
 };
 const SEG_ROW = "flex w-fit items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
+const SMALL_INPUT = "w-full min-w-0 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground outline-none! transition-colors placeholder:text-muted focus:border-accent/40";
 
 // Everything a search can find on a lead: its name, and each contact's name,
 // emails and handles
@@ -80,6 +84,9 @@ export function PortalView({
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [query, setQuery] = useState("");
   const [who, setWho] = useState("all");
+  // the Opener and Country picks, by field, and the Filter menu's rules
+  const [quick, setQuick] = useState<Record<string, string>>({});
+  const [rules, setRules] = useState<LeadRule[]>([]);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -113,7 +120,8 @@ export function PortalView({
     try {
       const saved = JSON.parse(localStorage.getItem(prefsKey(boardId)) ?? "null") as Partial<Prefs> | null;
       const platform = PLATFORMS.find((p) => p === saved?.platform) ?? "all";
-      setPrefs({ view: saved?.view === "table" || saved?.view === "list" ? saved.view : "board", hideEmpty: saved?.hideEmpty === true, platform }); // eslint-disable-line react-hooks/set-state-in-effect
+      const filters = Array.isArray(saved?.filters) ? saved.filters : [];
+      setPrefs({ view: saved?.view === "table" || saved?.view === "list" ? saved.view : "board", hideEmpty: saved?.hideEmpty === true, platform, filters }); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {
       setPrefs(DEFAULT_PREFS);
     }
@@ -139,6 +147,8 @@ export function PortalView({
     setOpenId(null);
     setQuery("");
     setWho("all");
+    setQuick({});
+    setRules([]);
     setGoing(slug);
     startSwitch(() => router.push(`${url.pathname}${url.search}`, { scroll: false }));
   }
@@ -171,7 +181,16 @@ export function PortalView({
   const q = query.trim().toLowerCase();
   const leads = board.leads.map((l) => (tracked[l.id] ? { ...l, marks: tracked[l.id] } : l));
   const whose = leads.filter((l) => who === "all" || [l.createdBy.id, l.assignedTo?.id].includes(who === "mine" ? viewerId : who));
-  const shown = whose.filter((l) => !q || searchText(l, contactFields).includes(q));
+  // the Opener and Country filters, on a board that has them, then the Filter
+  // menu's own (only those whose property and tags the board still has)
+  const quickFields = [/^opener$/i, /^country$/i].flatMap((re) => board.fields.find((f) => f.kind === "select" && re.test(f.name)) ?? []);
+  const active = keptRules(rules, board.fields);
+  const allRules = keptRules([...quickFields.flatMap((f) => (quick[f.id] ? [{ field: f.id, op: "is", values: [quick[f.id]] }] : [])), ...rules], board.fields);
+  const shown = whose.filter((l) => passesRules(l.values, allRules, board.fields) && (!q || searchText(l, contactFields).includes(q)));
+  const savedFilters = prefs.filters.flatMap((s) => {
+    const kept = keptRules(s?.rules, board.fields);
+    return typeof s?.name === "string" && kept.length ? [{ name: s.name, rules: kept }] : [];
+  });
   // reaching out, in numbers: for whoever is picked, whatever is searched
   // on one platform or all
   const stats = outreachStart(board.stages) >= 0 ? outreachStats(whose, prefs.platform === "all" ? null : prefs.platform) : null;
@@ -323,6 +342,39 @@ export function PortalView({
           />
         </label>
         <Dropdown size="sm" pill={{ icon: <Users size={13} className="text-accent" /> }} value={who} options={whoOptions} onChange={setWho} />
+        {quickFields.map((f) => (
+          <Dropdown
+            key={f.id}
+            size="sm"
+            pill={{ icon: /country/i.test(f.name) ? <MapPin size={13} className="text-emerald-300" /> : <Quote size={13} className="text-violet-300" /> }}
+            value={quick[f.id] ?? ""}
+            options={[{ value: "", label: `Any ${f.name.toLowerCase()}` }, ...f.options.map((o) => ({ value: o.id, label: o.name }))]}
+            onChange={(v) => setQuick((x) => ({ ...x, [f.id]: v }))}
+          />
+        ))}
+        <Menu
+          height={380}
+          width={300}
+          buttonClassName={chip(active.length > 0)}
+          button={
+            <>
+              <Filter size={13} className="text-accent" /> {active.length ? `${active.length} ${active.length === 1 ? "filter" : "filters"}` : "Filter"}
+            </>
+          }
+        >
+          {(close) => <FilterPanel fields={board.fields} rules={active} saved={savedFilters} onRules={setRules} onSaved={(filters) => savePrefs({ filters })} close={close} />}
+        </Menu>
+        {active.map((r, i) => {
+          const label = ruleLabel(r, board.fields);
+          return (
+            <span key={i} title={label} className={`fade-in ${chip(true)} max-w-72 pr-1.5`}>
+              <span className="min-w-0 truncate">{label}</span>
+              <button type="button" onClick={() => setRules(active.filter((_, j) => j !== i))} aria-label={`Remove ${label}`} title="Remove" className="grid size-5 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground">
+                <X size={11} />
+              </button>
+            </span>
+          );
+        })}
         {prefs.view === "board" && (
           <button
             type="button"
@@ -373,5 +425,140 @@ export function PortalView({
       />
     </div>
     </CanBuild.Provider>
+  );
+}
+
+// a filter as its chip reads: "Country: USA, UK", "Bio contains “cooking”",
+// "Contacts: has Instagram"
+function ruleLabel(r: LeadRule, fields: FieldData[]) {
+  const f = fields.find((x) => x.id === r.field);
+  if (!f) return "";
+  if (r.op === "is") return `${f.name}: ${f.options.filter((o) => r.values.includes(o.id)).map((o) => o.name).join(", ")}`;
+  if (r.op === "contains") return `${f.name} contains “${r.values[0]}”`;
+  if (f.kind === "checkbox") return `${f.name}: ${r.op === "has" ? "checked" : "not checked"}`;
+  return `${f.name}: ${r.op === "has" ? "has" : "doesn't have"} ${CHANNELS.find((c) => c.kind === r.values[0])?.label ?? "any"}`;
+}
+
+// The Filter menu: a rule on any property, added to the ones on (each must
+// hold); what's on, saved by name for this board; and the saved ones, to put
+// back on or delete
+function FilterPanel({
+  fields,
+  rules,
+  saved,
+  onRules,
+  onSaved,
+  close,
+}: {
+  fields: FieldData[];
+  rules: LeadRule[];
+  saved: SavedFilter[];
+  onRules: (rules: LeadRule[]) => void;
+  onSaved: (saved: SavedFilter[]) => void;
+  close: () => void;
+}) {
+  const [fieldId, setFieldId] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [text, setText] = useState("");
+  const [has, setHas] = useState(true);
+  const [channel, setChannel] = useState("");
+  const [name, setName] = useState("");
+  const field = fields.find((f) => f.id === fieldId);
+  // tags are picked, words are typed, and the rest are had or not
+  const op = field?.kind === "select" || field?.kind === "multi" ? "is" : field?.kind === "text" || field?.kind === "count" || field?.kind === "date" ? "contains" : has ? "has" : "lacks";
+  const values = op === "is" ? picked : op === "contains" ? [text.trim()].filter(Boolean) : channel ? [channel] : [];
+  const ready = !!field && (values.length > 0 || op === "has" || op === "lacks");
+  function pickField(id: string) {
+    setFieldId(id);
+    setPicked([]);
+    setText("");
+    setHas(true);
+    setChannel("");
+  }
+  function add() {
+    if (!field || !ready) return;
+    onRules([...rules, { field: field.id, op, values }]);
+    pickField("");
+  }
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    const n = name.trim();
+    if (!n) return;
+    onSaved([...saved.filter((s) => s.name !== n), { name: n, rules }]);
+    setName("");
+  }
+  return (
+    <div className="flex max-h-[min(28rem,70vh)] flex-col gap-2.5 overflow-y-auto p-1.5">
+      <Dropdown size="sm" value={fieldId} placeholder="Property" options={fields.map((f) => ({ value: f.id, label: f.name }))} onChange={pickField} />
+      {field && (
+        <div key={field.id} className="fade-in flex flex-col gap-2">
+          {op === "is" ? (
+            <div className="flex flex-wrap gap-1.5">
+              {field.options.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  aria-pressed={picked.includes(o.id)}
+                  onClick={() => setPicked((p) => (p.includes(o.id) ? p.filter((x) => x !== o.id) : [...p, o.id]))}
+                  className="chip rounded-full px-3 py-1 text-xs"
+                >
+                  {o.name}
+                </button>
+              ))}
+            </div>
+          ) : op === "contains" ? (
+            <input autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Contains" aria-label="Contains" className={SMALL_INPUT} />
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className={SEG_ROW}>
+                {[true, false].map((h) => (
+                  <button key={String(h)} type="button" aria-pressed={has === h} onClick={() => setHas(h)} className="seg rounded-full px-3 py-1 text-xs font-medium">
+                    {field.kind === "checkbox" ? (h ? "Checked" : "Not checked") : h ? "Has" : "Doesn't have"}
+                  </button>
+                ))}
+              </div>
+              {field.kind === "contacts" && (
+                <div className="min-w-28 flex-1">
+                  <Dropdown size="sm" value={channel} options={[{ value: "", label: "Any" }, ...CHANNELS.map((c) => ({ value: c.kind, label: c.label }))]} onChange={setChannel} />
+                </div>
+              )}
+            </div>
+          )}
+          <button type="button" onClick={add} disabled={!ready} className="btn btn-sm btn-glow w-fit">
+            Add filter
+          </button>
+        </div>
+      )}
+      {rules.length > 0 && (
+        <form onSubmit={save} className="flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name this filter" aria-label="Filter name" className={SMALL_INPUT} />
+          <button type="submit" disabled={!name.trim()} className="btn btn-sm btn-ghost shrink-0">
+            Save
+          </button>
+        </form>
+      )}
+      {saved.length > 0 && (
+        <div className="flex flex-col border-t border-white/[0.06] pt-1.5">
+          {saved.map((s) => (
+            <div key={s.name} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onRules(s.rules);
+                  close();
+                }}
+                className="menu-item px-2 py-1.5 text-xs"
+              >
+                <Bookmark size={13} className="shrink-0 text-accent" />
+                <span className="min-w-0 truncate">{s.name}</span>
+              </button>
+              <button type="button" onClick={() => onSaved(saved.filter((x) => x !== s))} aria-label={`Delete ${s.name}`} title={`Delete ${s.name}`} className="grid size-6 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

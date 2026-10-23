@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Type, Users, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Trash2, Type, Users, X, type LucideIcon } from "lucide-react";
 import { handleOf, isFilled, linkName, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -678,8 +678,8 @@ export function ContactForm({ initial, onSave, onCancel, onRemove }: { initial: 
       )}
       <div className="flex items-center gap-2">
         {onRemove && (
-          <button type="button" onClick={onRemove} className="text-xs text-red-300/80 transition-colors hover:text-red-300">
-            Remove this contact
+          <button type="button" onClick={onRemove} aria-label="Remove this contact" title="Remove this contact" className="shrink-0 rounded-md p-1.5 text-muted transition-colors hover:text-red-400">
+            <Trash2 size={14} />
           </button>
         )}
         <span className="ml-auto flex gap-1.5">

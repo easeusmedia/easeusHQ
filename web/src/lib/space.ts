@@ -261,6 +261,41 @@ export function isFilled(kind: FieldKind, v: unknown): boolean {
   return true;
 }
 
+// A board filter's rule on one property: one of the picked tags (values: option
+// ids), text that contains values[0], or having it or not (for contacts,
+// values[0] can be a channel: "has an Instagram")
+export type LeadRule = { field: string; op: "is" | "contains" | "has" | "lacks"; values: string[] };
+
+// Whether a lead's values pass every rule; a rule on a property the board no
+// longer has passes
+export function passesRules(values: Record<string, unknown>, rules: LeadRule[], fields: Pick<FieldData, "id" | "kind">[]): boolean {
+  return rules.every((r) => {
+    const f = fields.find((x) => x.id === r.field);
+    if (!f) return true;
+    const v = values[f.id];
+    if (r.op === "is") return Array.isArray(v) && v.some((id) => r.values.includes(id));
+    if (r.op === "contains") {
+      const text = typeof v === "string" ? v : f.kind === "count" && v ? `${(v as CountValue).n ?? ""} ${(v as CountValue).remark}` : "";
+      return text.toLowerCase().includes((r.values[0] ?? "").toLowerCase());
+    }
+    const channel = f.kind === "contacts" ? r.values[0] : undefined;
+    const has = channel ? Array.isArray(v) && (v as Contact[]).some((p) => p.channels.some((ch) => ch.kind === channel && ch.value.trim())) : isFilled(f.kind, v);
+    return has === (r.op === "has");
+  });
+}
+
+// Rules kept from before (this browser's saved filters), with any whose
+// property or tags have since gone dropped
+export function keptRules(raw: unknown, fields: Pick<FieldData, "id" | "options">[]): LeadRule[] {
+  return (Array.isArray(raw) ? (raw as Partial<LeadRule>[]) : []).flatMap((r) => {
+    const f = fields.find((x) => x.id === r?.field);
+    const op = r?.op as LeadRule["op"];
+    if (!f || !["is", "contains", "has", "lacks"].includes(op) || !Array.isArray(r.values)) return [];
+    const values = op === "is" ? r.values.filter((id) => f.options.some((o) => o.id === id)) : r.values.filter((x) => typeof x === "string");
+    return op === "is" && !values.length ? [] : [{ field: f.id, op, values }];
+  });
+}
+
 // ---- Messages ----
 // A stage's message is fixed text with {{Variables}} each lead fills in:
 // "Hey {{Name}}, watched your {{Guest}} episode".
