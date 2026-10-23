@@ -8,7 +8,7 @@ import { sortBetween } from "@/lib/reorder";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadCard } from "./LeadCard";
-import { NewLead } from "./NewLead";
+import { ImportLeads } from "./ImportLeads";
 import { EditableName } from "../../EditableName";
 import { MENU_ITEM, MoreMenu } from "../../MoreMenu";
 import { Reveal } from "../../Reveal";
@@ -422,7 +422,7 @@ export function LeadBoard({
         className={`flex min-w-0 flex-col gap-2 ${short ? "min-h-24" : "min-h-[60vh]"}`}
       >
         {/* every lead starts here, at the first stage */}
-        {i === 0 && <NewLead boardId={board.id} onCreated={onOpen} />}
+        {i === 0 && <ImportLeads board={board} />}
         {list.map((lead, n) => (
           <Fragment key={lead.id}>
             {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}

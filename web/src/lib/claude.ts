@@ -1,4 +1,4 @@
-import { callClaude, HAIKU, type Block, type Message, type Tool } from "./ai";
+import { callClaude, HAIKU, type Block, type CallInput, type Message, type Tool } from "./ai";
 
 // Talking to Claude for the contract assistant and the Frame.io sorter. Both
 // go through lib/ai.ts, which meters every call against the month's
@@ -25,8 +25,22 @@ export async function claude({
 
 // One answer in a fixed JSON shape, for sorting and extracting rather than
 // conversation. Haiku: a classification doesn't need more.
-export async function claudeJson<T>({ system, prompt, schema, maxTokens = 4096 }: { system: string; prompt: string; schema: Record<string, unknown>; maxTokens?: number }): Promise<T> {
-  const res = await callClaude({ feature: "frameio", model: HAIKU, system, messages: [{ role: "user", content: prompt }], format: schema, maxTokens });
+export async function claudeJson<T>({
+  system,
+  prompt,
+  schema,
+  maxTokens = 4096,
+  feature = "frameio",
+  userId,
+}: {
+  system: string;
+  prompt: string;
+  schema: Record<string, unknown>;
+  maxTokens?: number;
+  feature?: CallInput["feature"];
+  userId?: string;
+}): Promise<T> {
+  const res = await callClaude({ feature, model: HAIKU, system, messages: [{ role: "user", content: prompt }], format: schema, maxTokens, userId });
   const text = res.content.find((b): b is { type: "text"; text: string } => b.type === "text")?.text;
   if (!text) throw new Error("Claude sent nothing back.");
   return JSON.parse(text) as T;

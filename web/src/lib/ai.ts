@@ -124,7 +124,7 @@ export async function aiSpend(): Promise<{ spent: number; budget: number; accoun
 export class OverBudget extends Error {}
 
 export type CallInput = {
-  feature: "assistant" | "frameio" | "contracts";
+  feature: "assistant" | "frameio" | "contracts" | "leads";
   model: string;
   system: string | { type: "text"; text: string }[];
   messages: Message[];
