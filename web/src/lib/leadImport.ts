@@ -417,7 +417,7 @@ function valueOf(f: FieldData, vs: string[], unmatched: Set<string>): unknown {
 // Every row as a lead, in add_leads' limits (lib/mcp/tools.ts leadIn), and
 // what the preview counts: the ones already on the board (by name, as
 // add_leads dedupes), those missing what the board requires, tags not found
-export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields"> & { leads: Pick<LeadData, "title">[] }): Preview {
+export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields"> & Partial<Pick<BoardData, "messages">> & { leads: Pick<LeadData, "title">[] }): Preview {
   const paths = Object.keys(mapping).filter((p) => mapping[p] !== "ignore");
   const to = (prefix: string) => paths.filter((p) => mapping[p].startsWith(prefix));
   const contactPaths = to("contact.");
@@ -455,6 +455,8 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       if (part === "subject") d.subject ||= text.slice(0, 300);
       else d.body ||= text.slice(0, 20_000);
     }
+    // an email that came without its subject keeps the board's ("{{Subject}}")
+    for (const [id, d] of Object.entries(out)) d.subject ||= board.messages?.find((m) => m.id === id)?.subject ?? "";
     return Object.fromEntries(Object.entries(out).filter(([, d]) => d.body));
   };
 

@@ -265,7 +265,7 @@ export function Messages({
           rewritten={rewritten(chosen.id)}
           written={!!(prepared && openerOf(prepared, picks)?.drafts[chosen.id])}
           approval={{ at: approvalOf(keyOf(chosen.id, c)), set: (on) => approve(keyOf(chosen.id, c), on) }}
-          thread={firstEmail && firstEmail.id !== chosen.id ? (own(firstEmail.id)?.subject ?? firstEmail.subject) : ""}
+          thread={firstEmail && firstEmail.id !== chosen.id ? own(firstEmail.id)?.subject.trim() || firstEmail.subject : ""}
           sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
           cant={can ? null : chosen.channel === "email" ? "No email address" : `No ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}`}
@@ -660,7 +660,11 @@ function MessageForm({
   // the values the editor was filled from: what it's read back against
   const [base, setBase] = useState(vars);
   // an email with no subject of its own (Emails 2 to 4) is a reply in the first one's thread
-  const subjectText = isEmail && !source.subject.trim() && thread.trim() ? `Re: ${thread}` : source.subject;
+  // the lead's own wording with no subject of its own (an import that brought
+  // only the words) keeps the board's subject for it ("{{Subject}}"); an email
+  // with none at all (Emails 2 to 4) is a reply in the first one's thread
+  const ownSubject = source.subject.trim() ? source.subject : message.subject;
+  const subjectText = isEmail && !ownSubject.trim() && thread.trim() ? `Re: ${thread}` : ownSubject;
   const shownSubject = sent ? sent.subject : fillText(subjectText, vars);
   const shownBody = sent ? sent.body : fillText(source.body, vars);
 
