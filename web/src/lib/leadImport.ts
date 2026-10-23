@@ -305,8 +305,8 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
       named && `var:${named}`,
       MENTIONS.find(([w]) => h.includes(w))?.[1],
       values.every(isEmail) ? "contact.email" : undefined,
-      values.every((v) => /linkedin\.com\//i.test(v)) ? "contact.linkedin" : undefined,
-      values.every((v) => /instagram\.com\//i.test(v)) ? "contact.instagram" : undefined,
+      values.every((v) => /linkedin\.com\//i.test(v) && !postLink(v)) ? "contact.linkedin" : undefined,
+      values.every((v) => /instagram\.com\//i.test(v) && !postLink(v)) ? "contact.instagram" : undefined,
       values.every((v) => /^https?:\/\/\S+$/i.test(v)) ? "link" : undefined,
       options && `field:${options.id}`,
     ].find((x): x is Target => !!x && offered.has(x) && !taken.has(x) && fits(x, values));
@@ -343,6 +343,10 @@ const nameWords = (name = "") =>
       .filter((w) => w && !TITLES.has(w)),
   );
 const HANDLES = ["email", "instagram", "linkedin", "youtube", "phone", "x", "website"] as const;
+// an address of one post rather than a profile: an Instagram reel or post, a
+// LinkedIn post, a YouTube video or Short
+export const postLink = (v: string) =>
+  /instagram\.com\/(reels?|p|tv|stories|explore)\//i.test(v) || /linkedin\.com\/(posts|feed|pulse)\//i.test(v) || /youtube\.com\/(watch|shorts)\b|youtu\.be\//i.test(v);
 const handlesOf = (c: ContactIn) => HANDLES.flatMap((k) => (c[k] ?? []).map((v) => `${k}:${v.trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "")}`));
 // a person's name before a channel's ("Dr Karandish", not "Dr. K | PCH MedSpa"), then the longest
 const channelish = (n: string) => /\s[|/–-]\s|\|/.test(n);
@@ -496,7 +500,8 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       if (k === "name") c.name = fullest([c.name, ...vs])?.slice(0, 120);
       else if (k === "role") c.role = [c.role, ...vs].filter(Boolean).join(", ").slice(0, 60);
       else {
-        const list = k === "email" ? vs.flatMap(emails) : vs;
+        // a post's address (a reel, a video) is a link to it, never the person's handle
+        const list = k === "email" ? vs.flatMap(emails) : vs.filter((v) => !postLink(v));
         c[k] = [...new Set([...(c[k] ?? []), ...list.filter(Boolean).map((v) => v.slice(0, k === "phone" ? 60 : 300))])].slice(0, 20);
       }
     }

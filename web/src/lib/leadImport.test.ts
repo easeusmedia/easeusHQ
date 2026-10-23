@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, halves, oneEach, samePeople, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
+import { autoMap, buildLeads, columnsOf, halves, oneEach, postLink, samePeople, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -256,4 +256,16 @@ test("a practice or channel beside the doctor on one lead is the doctor's page",
 test("a message keeps its main column and its backups' column", () => {
   const cols = ["m.email", "alt[].email", "m.email2"].map((path) => ({ path, values: [] }));
   assert.deepEqual(oneEach(cols, { "m.email": "message:e1:body", "alt[].email": "message:e1:body", "m.email2": "message:e1:body" }), { "m.email": "message:e1:body", "alt[].email": "message:e1:body", "m.email2": "ignore" });
+});
+
+test("a reel's or a video's address is a link, not the person's handle", () => {
+  assert.equal(postLink("https://www.instagram.com/reel/DbcLmdege-h/"), true);
+  assert.equal(postLink("https://www.instagram.com/avanceplasticsurgery"), false);
+  assert.equal(postLink("https://www.youtube.com/watch?v=x"), true);
+  assert.equal(postLink("https://www.linkedin.com/in/erezdayan/"), false);
+  const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }, { id: "l", name: "Links", kind: "links", required: false, onCard: false, options: [] }], messages: [], leads: [] };
+  const cols = [{ path: "reel", values: ["https://www.instagram.com/reel/DbcLmdege-h/"] }];
+  assert.notEqual(autoMap(cols, board as never).reel, "contact.instagram");
+  const p = buildLeads([{ cn: "Avance", ig: ["https://www.instagram.com/avanceplasticsurgery", "https://www.instagram.com/reel/DbcLmdege-h/"] }], { cn: "title", "ig[]": "contact.instagram" }, board as never);
+  assert.deepEqual(p.leads[0].contacts?.[0].instagram, ["https://www.instagram.com/avanceplasticsurgery"]);
 });
