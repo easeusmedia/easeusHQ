@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, keptRules, passesRules, approvalIn, approvalKey, approvalsMissing, openerOwn, unapprovedText } from "./space.ts";
+import { cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, keptRules, passesRules, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, openerOwn, unapprovedText } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -71,12 +71,14 @@ test("a lead passes a filter only when it passes every rule", () => {
     { id: "subs", kind: "count" as const, options: [] },
     { id: "people", kind: "contacts" as const, options: [] },
     { id: "links", kind: "links" as const, options: [] },
+    { id: "met", kind: "date" as const, options: [] },
   ];
   const lead = {
     country: ["uk"],
     bio: "Weekly Cooking Show",
     subs: { n: 1200, remark: "growing" },
     people: [{ id: "c1", name: "Ana", role: "", channels: [{ kind: "email", value: "ana@x.com" }, { kind: "instagram", value: " " }] }],
+    met: "2025-10-01",
   };
   const pass = (rules: Parameters<typeof passesRules>[1]) => passesRules(lead, rules, fields);
   assert.equal(pass([]), true);
@@ -85,6 +87,9 @@ test("a lead passes a filter only when it passes every rule", () => {
   assert.equal(pass([{ field: "bio", op: "contains", values: ["cooking"] }]), true);
   assert.equal(pass([{ field: "subs", op: "contains", values: ["120"] }]), true);
   assert.equal(pass([{ field: "subs", op: "contains", values: ["fall"] }]), false);
+  // a date contains what it reads as on the cards ("1 Oct 2025"), or as stored
+  for (const t of ["oct", "1 Oct", "1 Oct 2025", "2025-10"]) assert.equal(pass([{ field: "met", op: "contains", values: [t] }]), true, t);
+  assert.equal(pass([{ field: "met", op: "contains", values: ["Nov"] }]), false);
   // a contact's channel counts only with something in it
   assert.equal(pass([{ field: "people", op: "has", values: ["email"] }]), true);
   assert.equal(pass([{ field: "people", op: "has", values: ["instagram"] }]), false);
@@ -460,6 +465,15 @@ test("an edited message: the cases the review found", () => {
   assert.ok("text" in readEdit(t, v, filled.replace("mushrooms for", "mushrooms\nfor")));
 });
 
+test("a reply's subject reads back against the \"Re: \" it shows", () => {
+  const re = "Re: {{Guest}} on {{Podcast}}";
+  const v = { Guest: "Kay", Podcast: "Health Hour" };
+  // left as it was: nothing of its own, so it still follows the thread
+  assert.deepEqual(readEdit(re, v, fillText(re, v), ["Name"]), { same: true });
+  assert.deepEqual(readEdit(re, v, "Re: Kaye on Health Hour", ["Name"]), { name: "Guest", value: "Kaye" });
+  assert.deepEqual(readEdit(re, v, "Re: Kay on Health Hour (follow-up)", ["Name"]), { text: "Re: {{Guest}} on {{Podcast}} (follow-up)" });
+});
+
 test("an opener's own messages are approved per opener; an older approval still counts", () => {
   const openers = [
     { label: "Main", drafts: { e1: { subject: "Hi", body: "main" }, e2: { subject: "", body: "day 3" } } },
@@ -471,11 +485,23 @@ test("an opener's own messages are approved per opener; an older approval still 
   assert.equal(approvalKey({ openers }, { opener: "1" }, "e1", c), "e1#1@c1");
   assert.equal(approvalKey({ openers }, {}, "e1", c, 1), "e1#1@c1");
   assert.equal(approvalKey({ openers }, { opener: "1" }, "e2", c), "e2@c1");
-  assert.equal(approvalKey({ openers: [openers[0]] }, {}, "e1", null), "e1");
+  // one opener: what it carries is approved under it, so a backup added later starts unapproved
+  assert.equal(approvalKey({ openers: [openers[0]] }, {}, "e1", null), "e1#0");
+  assert.equal(approvalKey({ openers: [openers[0]] }, {}, "t1", null), "t1");
   const at = { by: "A", at: "2026-10-23" };
   assert.equal(approvalIn({ "e1@c1": at }, "e1#1@c1"), at);
   assert.equal(approvalIn({ "e1#0@c1": at }, "e1#1@c1"), null);
   assert.equal(approvalIn({ "e1#0": at }, "e1#0"), at);
+  // approved under the one opener, then a backup is added: its own Day 1 isn't approved, a message they word alike is
+  const single = { [approvalKey({ openers: [openers[0]] }, {}, "e1", c)]: at, [approvalKey({ openers: [openers[0]] }, {}, "e2", c)]: at };
+  assert.equal(approvalIn(single, approvalKey({ openers }, {}, "e1", c)), at);
+  assert.equal(approvalIn(single, approvalKey({ openers }, { opener: "1" }, "e1", c)), null);
+  assert.equal(approvalIn(single, approvalKey({ openers }, { opener: "1" }, "e2", c)), at);
+  // one from before (unscoped) still counts under one opener; taking one off takes the one standing for it
+  assert.equal(approvalIn({ "e1@c1": at }, approvalKey({ openers: [openers[0]] }, {}, "e1", c)), at);
+  assert.deepEqual(approvalKeys("e1#0@c1"), ["e1#0@c1", "e1@c1"]);
+  assert.deepEqual(approvalKeys("e2@c1"), ["e2@c1", "e2#0@c1"]);
+  assert.deepEqual(approvalKeys("e2"), ["e2", "e2#0"]);
 });
 
 test("a lead goes into Ready to reach out only once every message it can be sent is approved", () => {
@@ -502,4 +528,23 @@ test("a lead goes into Ready to reach out only once every message it can be sent
   const left = approvalsMissing({ ...days, messages: days.messages.map((m) => ({ ...m, name: m.id === "e2" ? "Day 3 · Email 2" : m.name })) }, { picks: {}, approvals: all("bo", "e1") }, [], [{ ...bo, name: "Dr Karandish" }]);
   assert.equal(unapprovedText(left), "Day 3 · Email 2 for Dr Karandish");
   assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [])), "Day 1 · e1 and 3 more");
+  // a day picked by whether its email was opened, as the day strip picks it
+  const day2 = { stages: days.stages, messages: [{ id: "no", stageId: "d2", channel: "instagram", name: "Didn't open Email 1" }, { id: "yes", stageId: "d2", channel: "instagram", name: "Already opened Email 1" }] };
+  assert.deepEqual(approvalsMissing(day2, { picks: {}, approvals: { yes: at } }, [], [], true), []);
+  assert.deepEqual(approvalsMissing(day2, { picks: {}, approvals: { yes: at } }, [], []).map((m) => m.message.id), ["no"]);
+});
+
+test("Dead is before Ready to reach out until the lead's record has it there or later", () => {
+  const stages = [...days.stages, { id: "dead", name: "Dead", color: "red" }];
+  assert.equal(beforeReady(stages, "d0", []), false);
+  assert.equal(beforeReady(stages, "d1", []), false);
+  // made in Dead, or moved there from before: going on still waits for the approvals
+  assert.equal(beforeReady(stages, "dead", ["Dead"]), true);
+  assert.equal(beforeReady([{ id: "list", name: "Dream list" }, ...stages], "list", []), true);
+  // it has been in Ready to reach out, a day or a stage after them: free
+  assert.equal(beforeReady(stages, "dead", ["Dead", "Ready to reach out", "Dead"]), false);
+  assert.equal(beforeReady(stages, "dead", ["Day 1"]), false);
+  assert.equal(beforeReady(stages, "dead", ["Replied"]), false);
+  // a board with no day sequence has no gate
+  assert.equal(beforeReady([{ id: "a", name: "Dead" }], "a", []), false);
 });

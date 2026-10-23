@@ -35,12 +35,14 @@ import {
   readMarks,
   NO_CONTACT,
   type MarkChange,
+  approvalKeys,
   approvalsMissing,
+  beforeReady,
   isDead,
+  leadEmails,
   leadPeople,
   outreachStart,
   unapprovedText,
-  unscoped,
   type Approval,
   type Opener,
 } from "@/lib/space";
@@ -694,7 +696,7 @@ export async function pickMessage(id: string, key: string, messageId: string | n
 
 // A message approved as ready to send, for one person on the lead ("msgId@c2";
 // an opener's own message for that opener, "msgId#1@c2"), or no longer (on:
-// false, which takes off one from before openers had their own too). Written
+// false, which takes off the one standing for it too: lib/space approvalKeys). Written
 // alone, so approvals by others stay.
 export async function approveMessage(id: string, key: string, on: boolean): Promise<Done> {
   const lead = await leadWithBoard(id);
@@ -705,8 +707,10 @@ export async function approveMessage(id: string, key: string, on: boolean): Prom
   const messageId = key.split(/[@#]/)[0];
   if (!(await prisma.stageMessage.count({ where: { id: messageId, stage: { boardId: lead.boardId } } }))) return { error: "That message no longer exists. Refresh and try again." };
   try {
-    if (!on) await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = "approvals" - ${key}::text - ${unscoped(key)}::text WHERE id = ${id}`;
-    else {
+    if (!on) {
+      const [own, standing] = approvalKeys(key);
+      await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = "approvals" - ${own}::text - ${standing}::text WHERE id = ${id}`;
+    } else {
       const mark = JSON.stringify({ by: who.name, at: new Date().toISOString() });
       await prisma.$executeRaw`UPDATE "Lead" SET "approvals" = jsonb_set(coalesce("approvals", '{}'::jsonb), ARRAY[${key}::text], ${mark}::jsonb, true) WHERE id = ${id}`;
     }
@@ -780,7 +784,8 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
 // one, the answer says so ({ needsReason }) and nothing moves. Into Ready to
 // reach out (or past it) from before it only once every message is approved
 // (lib/space approvalsMissing), reason or not; Dead stays open, and a lead
-// already past it moves freely.
+// already past it moves freely (from Dead too, once its record has it there:
+// lib/space beforeReady).
 export async function moveLead(id: string, toStageId: string, sortOrder: number, reason?: string): Promise<Done & { needsReason?: boolean }> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
@@ -796,19 +801,25 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
     const to = stages.find((s) => s.id === toStageId);
     if (!to) return { error: "That stage no longer exists. Refresh and try again." };
     const start = outreachStart(stages);
-    if (start >= 0 && stages.findIndex((s) => s.id === lead.stageId) < start && stages.indexOf(to) >= start && !isDead(to.name)) {
+    if (start >= 0 && (stages.findIndex((s) => s.id === lead.stageId) < start || isDead(lead.stage.name)) && stages.indexOf(to) >= start && !isDead(to.name)) {
       const [full, messages, fields] = await Promise.all([
-        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, openers: true } }),
+        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, openers: true, createdAt: true, events: { where: { kind: { in: ["created", "moved"] } }, select: { toStage: true } } } }),
         prisma.stageMessage.findMany({ where: { stage: { boardId: lead.boardId } }, select: { id: true, stageId: true, name: true, channel: true }, orderBy: [{ stage: { sortOrder: "asc" } }, { sortOrder: "asc" }] }),
         prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
       ]);
-      const missing = approvalsMissing(
-        { stages, messages },
-        { picks: (full?.picks ?? {}) as Record<string, string>, approvals: (full?.approvals ?? {}) as Record<string, Approval> },
-        (Array.isArray(full?.openers) ? full.openers : []) as Opener[],
-        leadPeople((lead.values ?? {}) as Record<string, unknown>, fields as Pick<FieldData, "id" | "kind">[]),
-      );
-      if (missing.length) return { error: `Approve every message first: ${unapprovedText(missing)}.` };
+      if (beforeReady(stages, lead.stageId, full?.events.map((e) => e.toStage) ?? [])) {
+        // opened as the lead window has it: its tracked emails since it was added (org/space/data.ts)
+        const since = new Date((full?.createdAt.getTime() ?? 0) - 3_600_000);
+        const opened = (await prisma.trackedMail.count({ where: { to: { in: leadEmails(lead.values) }, sentAt: { gte: since }, opens: { gt: 0 } } })) > 0;
+        const missing = approvalsMissing(
+          { stages, messages },
+          { picks: (full?.picks ?? {}) as Record<string, string>, approvals: (full?.approvals ?? {}) as Record<string, Approval> },
+          (Array.isArray(full?.openers) ? full.openers : []) as Opener[],
+          leadPeople((lead.values ?? {}) as Record<string, unknown>, fields as Pick<FieldData, "id" | "kind">[]),
+          opened,
+        );
+        if (missing.length) return { error: `Approve every message first: ${unapprovedText(missing)}.` };
+      }
     }
     const needs = moveNeedsReason(stages.map((s) => s.id), lead.stageId, toStageId);
     const why = (reason ?? "").trim().slice(0, 2000);

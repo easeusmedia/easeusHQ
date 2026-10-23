@@ -654,8 +654,10 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
             continue;
           }
           try {
-            const stage = lead.stage ? startIn(board, stageOf(board, lead.stage)) : (forAll ?? board.stages[0]);
+            // the first stage too: on a board that starts at Ready to reach out, nothing starts there
+            const stage = lead.stage ? stageOf(board, lead.stage) : (forAll ?? board.stages[0]);
             if (!stage) throw new ToolError("This board has no stages yet.");
+            startIn(board, stage);
             const values: Record<string, unknown> = {};
             const input: Record<string, unknown> = { ...(lead.values ?? {}) };
             if (lead.contacts) input[board.fields.find((f) => f.kind === "contacts")?.name ?? "Contacts"] = lead.contacts;

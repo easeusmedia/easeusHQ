@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadContacts, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalKey, openerOwn, unscoped } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -72,8 +72,8 @@ export function Messages({
   const names = variablesIn(board.messages.flatMap((m) => [m.subject, m.body]));
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState(false);
-  // the people on the lead (none: the lead itself), one at a time
-  const contacts = leadContacts(lead.values, board.fields);
+  // the people on the lead (none: the lead itself), one at a time, as the contact tabs and the approvals have them
+  const contacts = leadPeople(lead.values, board.fields);
   const people: (Contact | null)[] = contacts.length ? contacts : [null];
   const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
   // whose messages: picked at the top of the window, for both its sides
@@ -89,15 +89,15 @@ export function Messages({
   const own = (id: string): Draft | undefined => (merged ? preparedFor(merged, picks, id) : undefined);
   // approved as ready to send, by message and person, ahead of the save
   const [approved, setApproved] = useState<Record<string, Approval | null>>({});
-  const approvalAt = (key: string) => (key in approved ? approved[key] : (lead.approvals?.[key] ?? null));
-  // an opener's own approval, else one from before openers had their own (lib/space approvalIn)
-  const approvalOf = (key: string) => approvalAt(key) ?? approvalAt(unscoped(key));
+  const approvals = { ...lead.approvals, ...approved };
+  // an approval, else the one standing for it (lib/space approvalIn)
+  const approvalOf = (key: string) => approvalIn(approvals, key);
   // where a message's approval is kept: for the opener (the one in use unless said) when it's the opener's own
   const keyOf = (messageId: string, c: Contact | null, i?: number) => approvalKey(prepared ?? { openers: [] }, picks, messageId, c, i);
   async function approve(key: string, on: boolean) {
-    // undone, the one from before openers had their own goes too, as on the server
-    const keys = on ? [key] : [...new Set([key, unscoped(key)])];
-    const before = Object.fromEntries(keys.map((k) => [k, approvalAt(k)]));
+    // undone, the one standing for it goes too, as on the server
+    const keys = on ? [key] : approvalKeys(key);
+    const before = Object.fromEntries(keys.map((k) => [k, approvals[k] ?? null]));
     setError(null);
     setApproved((a) => ({ ...a, ...Object.fromEntries(keys.map((k) => [k, on ? { by: "You", at: new Date().toISOString() } : null])) }));
     const res = await approveMessage(lead.id, key, on).catch(() => ({ error: OFFLINE }));
@@ -656,8 +656,6 @@ function MessageForm({
   const [base, setBase] = useState(vars);
   // an email with no subject of its own (Emails 2 to 4) is a reply in the first one's thread
   const subjectText = isEmail && !source.subject.trim() && thread.trim() ? `Re: ${thread}` : source.subject;
-  // left as it was, that "Re: " isn't saved as the lead's own subject
-  const threadSubject = subjectText !== source.subject ? fillText(subjectText, vars) : null;
   const shownSubject = sent ? sent.subject : fillText(subjectText, vars);
   const shownBody = sent ? sent.body : fillText(source.body, vars);
 
@@ -675,12 +673,14 @@ function MessageForm({
     let err: string | undefined;
     if (draft) {
       // read back against what it was filled from: a changed value goes to
-      // Fill in (and every message); other changes keep their variables
-      let subject = readEdit(source.subject, base, draft.subject, ["Name"]);
+      // Fill in (and every message); other changes keep their variables. A
+      // reply's subject reads against the "Re: " it shows, so left as it was
+      // it still follows the thread
+      let subject = readEdit(subjectText, base, draft.subject, ["Name"]);
       let body = readEdit(source.body, base, draft.body, ["Name"]);
       // one value changed two ways: each part keeps its own wording instead
       if ("name" in subject && "name" in body && subject.name === body.name && subject.value !== body.value) {
-        subject = readEdit(source.subject, base, draft.subject, ["Name", subject.name]);
+        subject = readEdit(subjectText, base, draft.subject, ["Name", subject.name]);
         body = readEdit(source.body, base, draft.body, ["Name", body.name]);
       }
       for (const r of [subject, body]) if ("name" in r) err ??= await onVar(r.name, r.value);
@@ -759,7 +759,7 @@ function MessageForm({
               <button type="button" onClick={() => setEditing(false)} className="btn btn-sm btn-ghost">
                 Cancel
               </button>
-              <button type="button" onClick={() => save({ subject: subject === threadSubject ? source.subject : subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
+              <button type="button" onClick={() => save({ subject, body })} disabled={busy || !body.trim()} className="btn btn-sm btn-glow">
                 {busy ? "Saving…" : "Save for this lead"}
               </button>
             </span>

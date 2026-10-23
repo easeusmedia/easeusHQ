@@ -1,14 +1,16 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { dayOf, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
 import { sortBetween } from "@/lib/reorder";
+import { DEPT } from "@/lib/scope";
 import { createStage, deleteStage, moveLead, orderStages, renameStage, reorderLead } from "./actions";
 import { ReasonDialog } from "./ReasonDialog";
 import { LeadCard } from "./LeadCard";
 import { ImportLeads } from "./ImportLeads";
+import { NewLead } from "./NewLead";
 import { EditableName } from "../../EditableName";
 import { MENU_ITEM, MoreMenu } from "../../MoreMenu";
 import { Reveal } from "../../Reveal";
@@ -127,6 +129,8 @@ export function LeadBoard({
   onTrack?: (id: string, change: MarkChange) => void;
 }) {
   const router = useRouter();
+  // Sales boards import their leads (add_leads is Sales only); the rest add them one at a time
+  const sales = useParams<{ slug: string }>().slug === DEPT.sales;
   const [local, setLocal] = useState(() => fresh(board));
   const live = local.for === board ? local : fresh(board);
   const update = (fn: (l: Local) => Partial<Local>) =>
@@ -422,7 +426,7 @@ export function LeadBoard({
         className={`flex min-w-0 flex-col gap-2 ${short ? "min-h-24" : "min-h-[60vh]"}`}
       >
         {/* every lead starts here, at the first stage */}
-        {i === 0 && <ImportLeads board={board} />}
+        {i === 0 && (sales ? <ImportLeads board={board} /> : <NewLead boardId={board.id} onCreated={onOpen} />)}
         {list.map((lead, n) => (
           <Fragment key={lead.id}>
             {slotAt >= 0 && rest[slotAt]?.id === lead.id && slot}

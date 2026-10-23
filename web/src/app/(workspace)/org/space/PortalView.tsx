@@ -487,8 +487,9 @@ function FilterPanel({
     onSaved([...saved.filter((s) => s.name !== n), { name: n, rules }]);
     setName("");
   }
+  // no taller than the Filter menu's 380 with its padding and edge, so it's never cut off
   return (
-    <div className="flex max-h-[min(28rem,70vh)] flex-col gap-2.5 overflow-y-auto p-1.5">
+    <div className="flex max-h-[min(23rem,70vh)] flex-col gap-2.5 overflow-y-auto p-1.5">
       <Dropdown size="sm" value={fieldId} placeholder="Property" options={fields.map((f) => ({ value: f.id, label: f.name }))} onChange={pickField} />
       {field && (
         <div key={field.id} className="fade-in flex flex-col gap-2">

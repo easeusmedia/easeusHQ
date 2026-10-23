@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleAlert, Copy, FileText, FileUp, Tag, UserPlus, X } from "lucide-react";
-import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, partsOf, readFile, targetsOf, Unreadable, type Column, type Part, type Row, type Target } from "@/lib/leadImport";
+import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, partsOf, placeExtracted, readFile, targetsOf, Unreadable, type Column, type Part, type Row, type Target } from "@/lib/leadImport";
 import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
@@ -19,11 +19,11 @@ const plural = (n: number) => `${n} lead${n === 1 ? "" : "s"}`;
 
 type Loaded = { name: string; rows: Row[]; columns: Column[]; mapping: Record<string, Target> };
 
-// "Import leads", where "New lead" was: a file of leads dropped or picked,
-// read in the browser (lib/leadImport), its columns placed on the board's
-// properties (by code, then one small Claude call for what code can't tell,
-// each fixable by hand), a preview of what will come in, then add_leads in
-// fifties. They always land in the board's first stage.
+// "Import leads", where "New lead" was on a Sales board: a file of leads
+// dropped or picked, read in the browser (lib/leadImport), its columns placed
+// on the board's properties (by code, then one small Claude call for what
+// code can't tell, each fixable by hand), a preview of what will come in,
+// then add_leads in fifties. They always land in the board's first stage.
 export function ImportLeads({ board }: { board: BoardData }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
@@ -49,9 +49,10 @@ export function ImportLeads({ board }: { board: BoardData }) {
     ref.current?.showModal();
   }
 
-  // Claude reads the parts, three at a time; a part whose answer ran out of room is halved
+  // Claude reads the parts one after another (Next sends a page's server
+  // actions one at a time anyway), so one that fails stops the rest; a part
+  // whose answer ran out of room or time is halved
   async function extract(parts: Part[]): Promise<Row[]> {
-    let done = 0;
     const one = async (part: Part): Promise<Row[]> => {
       const res: Awaited<ReturnType<typeof extractLeads>> = await extractLeads(board.id, part).catch(() => ({ error: OFFLINE }));
       if (res.tooLong) {
@@ -62,19 +63,12 @@ export function ImportLeads({ board }: { board: BoardData }) {
       if (res.error) throw new Unreadable(res.error);
       return res.rows ?? [];
     };
-    const out: Row[][] = [];
-    let next = 0;
-    setBusy(`Reading the leads, 0 of ${parts.length}…`);
-    await Promise.all(
-      Array.from({ length: Math.min(3, parts.length) }, async () => {
-        while (next < parts.length) {
-          const i = next++;
-          out[i] = await one(parts[i]);
-          setBusy(`Reading the leads, ${++done} of ${parts.length}…`);
-        }
-      }),
-    );
-    return out.flat();
+    const out: Row[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      setBusy(`Reading the leads, ${i} of ${parts.length}…`);
+      out.push(...(await one(parts[i])));
+    }
+    return out;
   }
 
   async function take(f: File | undefined) {
@@ -88,16 +82,10 @@ export function ImportLeads({ board }: { board: BoardData }) {
       const rows = "rows" in read ? read.rows : await extract(partsOf(read));
       if (!rows.length) throw new Unreadable("There are no leads in that file to import.");
       const columns = columnsOf(rows);
-      let mapping = autoMap(columns, board);
       // what Claude read out (importActions extractLeads) is in the board's
       // own terms, placed as named, so only a file's own columns are asked about
-      if (!("rows" in read))
-        for (const { path } of columns) {
-          if (path === "title") mapping[path] = "title";
-          else if (path === "links[]") mapping[path] = "link";
-          else if (path.startsWith("contacts[].")) mapping[path] = `contact.${path.slice(11)}`;
-        }
-      const left = "rows" in read ? columns.filter((c) => !mapping[c.path]) : [];
+      let mapping = "rows" in read ? autoMap(columns, board) : placeExtracted(columns, board);
+      const left = columns.filter((c) => !mapping[c.path]);
       if (left.length) {
         setBusy("Placing the columns…");
         const res: Awaited<ReturnType<typeof mapColumns>> = await mapColumns(

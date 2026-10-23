@@ -17,7 +17,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, isDead, leadPeople, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, beforeReady, isDead, leadPeople, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -281,12 +281,14 @@ function LeadPage({
   const contactList = leadPeople(values, board.fields);
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
   // Ready to reach out (by place: the stage before Day 1), reached from before
-  // it only once every message is approved, as moveLead checks; Dead stays open
+  // it only once every message is approved, as moveLead checks; Dead stays
+  // open, and moving on from it waits too until its record has it there
   const start = outreachStart(board.stages);
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
-  const left = ready ? approvalsMissing(board, lead, prepared?.openers ?? [], contactList) : [];
-  // (until its openers load, what's approved for each can't be read)
-  const blocked = !!ready && (!prepared || left.length > 0);
+  const gated = beforeReady(board.stages, stageId, (events ?? []).filter((e) => e.kind === "created" || e.kind === "moved").map((e) => e.toStage));
+  const left = gated ? approvalsMissing(board, lead, prepared?.openers ?? [], contactList, lead.email.opens > 0) : [];
+  // (until its openers and record load, what's approved for each can't be read)
+  const blocked = gated && (!prepared || left.length > 0);
   const blockedWhy = left.length ? `Approve every message first: ${unapprovedText(left)}.` : undefined;
   function moveToReady() {
     if (!ready) return;

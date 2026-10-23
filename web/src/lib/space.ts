@@ -4,6 +4,8 @@
 // through its stages, with properties every lead records. The rules here are
 // pure, so the server enforces them and the client can preview them.
 
+import { shortDay } from "./editorKpi.ts";
+
 export type SpaceKind = "section" | "portal" | "board";
 
 // What each level is called, and what it holds
@@ -275,7 +277,8 @@ export function passesRules(values: Record<string, unknown>, rules: LeadRule[], 
     const v = values[f.id];
     if (r.op === "is") return Array.isArray(v) && v.some((id) => r.values.includes(id));
     if (r.op === "contains") {
-      const text = typeof v === "string" ? v : f.kind === "count" && v ? `${(v as CountValue).n ?? ""} ${(v as CountValue).remark}` : "";
+      // a date as it's stored and as it reads ("2026-10-01 1 Oct 2026")
+      const text = typeof v === "string" ? (f.kind === "date" ? `${v} ${shortDay(v)} ${v.slice(0, 4)}` : v) : f.kind === "count" && v ? `${(v as CountValue).n ?? ""} ${(v as CountValue).remark}` : "";
       return text.toLowerCase().includes((r.values[0] ?? "").toLowerCase());
     }
     const channel = f.kind === "contacts" ? r.values[0] : undefined;
@@ -481,24 +484,32 @@ export function openerOwn(openers: Opener[]): Set<string> {
 }
 // Where a message's approval for a person is kept: an opener's own message
 // under that opener (the one in use unless said), "msgId#1@c2", so each
-// opener is approved on its own; any other under the message, "msgId@c2"
-export const approvalKey = (p: Pick<Prepared, "openers">, picks: Record<string, string>, messageId: string, contact: Contact | null, opener = openerIndex(p, picks)) =>
-  forContact(openerOwn(p.openers).has(messageId) ? `${messageId}#${opener}` : messageId, contact);
-// an opener's approval, else one from before openers had their own
-export const unscoped = (key: string) => key.replace(/#\d+/, "");
-export const approvalIn = (approvals: Record<string, Approval | null | undefined>, key: string) => approvals[key] ?? approvals[unscoped(key)] ?? null;
+// opener is approved on its own; with one opener, every message it carries
+// under it ("msgId#0@c2"), so a backup added later starts unapproved; any
+// other under the message, "msgId@c2"
+export const approvalKey = (p: Pick<Prepared, "openers">, picks: Record<string, string>, messageId: string, contact: Contact | null, opener = openerIndex(p, picks)) => {
+  const scoped = openerOwn(p.openers).has(messageId) || (p.openers.length === 1 && !!p.openers[0].drafts?.[messageId]);
+  return forContact(scoped ? `${messageId}#${opener}` : messageId, contact);
+};
+// The keys an approval is read from (and taken off with): its own, then the
+// one standing for it: for an opener's, one from before openers had their
+// own; for a message every opener words alike, the main opener's
+export const approvalKeys = (key: string) => [key, key.includes("#") ? key.replace(/#\d+/, "") : key.replace(/^[^@]+/, "$&#0")];
+export const approvalIn = (approvals: Record<string, Approval | null | undefined>, key: string) => approvalKeys(key).map((k) => approvals[k]).find((a) => !!a) ?? null;
 
 // What's still to approve before a lead goes into Ready to reach out
 // (Abhishek, 23 Oct 2026): for each person on it (none: the lead itself),
 // each day's message on each platform, as the day strip picks it, that they
 // can be reached on. A day with nothing they can be reached by passes.
-// Picked as if no email was opened yet (none is, before Ready to reach out).
+// Picked by whether its email was opened, as the day strip does (a lead
+// moved back can have been).
 export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name">; contact: Contact | null };
 export function approvalsMissing(
   board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel">[] },
   lead: { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined> },
   openers: Opener[],
   contacts: Contact[],
+  opened = false,
 ): Unapproved[] {
   const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
   const missing: Unapproved[] = [];
@@ -507,11 +518,23 @@ export function approvalsMissing(
       const on = messagesOnDay(board, day);
       for (const channel of new Set(on.map((m) => m.channel))) {
         const options = on.filter((m) => m.channel === channel);
-        const m = chosenFor(options, lead.picks, `day-${day}`, contact, false) ?? options[0];
+        const m = chosenFor(options, lead.picks, `day-${day}`, contact, opened) ?? options[0];
         if (hasChannel(contact, m.channel) && !approvalIn(lead.approvals, approvalKey({ openers }, lead.picks, m.id, contact))) missing.push({ day, message: m, contact });
       }
     }
   return missing;
+}
+// Before Ready to reach out, where going on waits for every message to be
+// approved: a stage before it, or Dead when the lead's record (the stages it
+// was made or moved into) never had it in Ready to reach out or later, so
+// Dead is no way round the approvals
+export function beforeReady(stages: Pick<StageData, "id" | "name">[], stageId: string, record: (string | null)[]): boolean {
+  const start = outreachStart(stages);
+  if (start < 0) return false;
+  const i = stages.findIndex((s) => s.id === stageId);
+  if (i < start) return true;
+  const later = new Set(stages.slice(start).filter((s) => !isDead(s.name)).map((s) => s.name));
+  return isDead(stages[i].name) && !record.some((n) => !!n && (later.has(n) || dayOf(n) != null));
 }
 // "Day 3 · Email 2 for Dr Karandish and 4 more"
 export function unapprovedText(missing: Unapproved[]): string {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, halves, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, tableRows } from "./leadImport.ts";
+import { autoMap, buildLeads, columnsOf, halves, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -43,9 +43,15 @@ test("a grid's rows by its headings: blanks named, repeats numbered, empty lines
   assert.deepEqual(tableRows([["Email", "", "Email"], ["", "", ""], ["a@x.com", "x", "b@x.com"]]), [{ Email: "a@x.com", "Column 2": "x", "Email 2": "b@x.com" }]);
 });
 
-test("JSON: the longest list of objects, wherever it is", () => {
+test("JSON: the longest list of objects, wherever it is, but not one inside the records", () => {
   assert.deepEqual(jsonRows({ meta: { tags: [{ a: 1 }] }, data: { rows: [{ n: "A" }, { n: "B" }] } }), [{ n: "A" }, { n: "B" }]);
   assert.deepEqual(jsonRows({ just: "an object" }), []);
+  const eps = [1, 2, 3, 4, 5].map((ep) => ({ ep }));
+  assert.deepEqual(
+    jsonRows([{ title: "A", episodes: eps }, { title: "B" }, { title: "C" }]).map((r) => r.title),
+    ["A", "B", "C"],
+  );
+  assert.deepEqual(jsonRows([{ title: "Pod", contacts: [{ name: "a" }, { name: "b" }] }]), [{ title: "Pod", contacts: [{ name: "a" }, { name: "b" }] }]);
 });
 
 test("HTML: rows from its JSON blocks, read from the string alone", () => {
@@ -57,6 +63,8 @@ test("HTML: rows from its JSON blocks, read from the string alone", () => {
     { g: "Dr S", docs: [] },
   ]);
   assert.deepEqual(htmlScriptRows("<table><tr><td>no blocks</td></tr></table>"), []);
+  // a page's search details aren't its leads
+  assert.deepEqual(htmlScriptRows(`<script type="application/ld+json">{"@graph":[{"@type":"WebPage"},{"@type":"WebSite"},{"@type":"Organization"}]}</script>`), []);
 });
 
 test("common headings place themselves", () => {
@@ -81,6 +89,30 @@ test("common headings place themselves", () => {
 test("a heading only counts when the values fit it, else they tell", () => {
   const cols = columnsOf([{ li: "Hi Dr K, watched your video", em: ["k@x.com"], url: "https://youtube.com/@k", t: "D2", board: "UK" }]);
   assert.deepEqual(autoMap(cols, board), { "em[]": "contact.email", url: "link", t: "field:opener", board: "field:country" });
+});
+
+test("people and links only go where the board keeps them", () => {
+  const bare = { fields: [field("subs", "Subscribers", "text")], messages: [] };
+  const values = targetsOf(bare).map((t) => t.value);
+  assert.ok(!values.includes("link") && !values.some((v) => v.startsWith("contact.")));
+  assert.deepEqual(autoMap(columnsOf([{ Company: "Clinic", Name: "Jane", Email: "j@x.com", URL: "https://x.com", Subscribers: "12k" }]), bare), { Company: "title", Subscribers: "field:subs" });
+});
+
+test("what Claude read out is placed by its exact names", () => {
+  const b = {
+    fields: [field("contacts", "Contacts", "contacts"), field("links", "Links", "links"), field("avg", "Avg. views", "text"), field("web", "Website", "text")],
+    messages: [message("m1", "Email 1", "email", "Hi {{Dr. Name}}")],
+  };
+  const rows = [{ title: "Jane Clinic", contacts: [{ name: "Jane", website: "jane.me" }], links: ["https://jane.clinic"], "Avg. views": "12k", Website: "janeclinic.com", "{{Dr. Name}}": "Dr Jane" }];
+  assert.deepEqual(placeExtracted(columnsOf(rows), b), {
+    title: "title",
+    "contacts[].name": "contact.name",
+    "contacts[].website": "contact.website",
+    "links[]": "link",
+    "Avg. views": "field:avg",
+    Website: "field:web",
+    "{{Dr. Name}}": "var:Dr. Name",
+  });
 });
 
 test("a value is a tag by its name or the start of it", () => {
@@ -164,12 +196,21 @@ test("without a name column, the people's names name the lead", () => {
   assert.deepEqual(p.leads, [{ title: "Jane Doe", contacts: [{ name: "Jane Doe", email: ["jane@x.com"] }] }]);
 });
 
-test("Claude's parts: about 12,000 characters or five pictures, halved when an answer runs out", () => {
+test("Claude's parts: about 6,000 characters or two pictures, halved when an answer runs out", () => {
   const line = "x".repeat(5000);
-  const parts = partsOf({ text: [line, line, line].join("\n"), images: ["a", "b", "c", "d", "e", "f"] });
+  const parts = partsOf({ text: [line, line, line].join("\n"), images: ["a", "b", "c", "d", "e"] });
   assert.deepEqual(
     parts.map((p) => (p.text ? p.text.length : p.images!.length)),
-    [10002, 5001, 5, 1],
+    [5001, 5001, 5001, 2, 2, 1],
+  );
+  // a line with no breaks (a minified page) is cut between words, none lost
+  const words = Array.from({ length: 3000 }, (_, i) => `lead${i}`).join(" ");
+  const cut = partsOf({ text: words, images: [] });
+  assert.ok(cut.length > 1 && cut.every((p) => p.text!.length <= 6_002));
+  assert.equal(cut.map((p) => p.text!.trim()).join(" "), words);
+  assert.deepEqual(
+    partsOf({ text: "x".repeat(13_000), images: [] }).map((p) => p.text!.length),
+    [6001, 6001, 1001],
   );
   assert.deepEqual(halves({ images: ["a", "b", "c"] }), [{ images: ["a", "b"] }, { images: ["c"] }]);
   assert.deepEqual(halves({ text: "one\ntwo\nthree" }), [{ text: "one\ntwo" }, { text: "three" }]);

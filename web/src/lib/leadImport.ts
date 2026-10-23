@@ -130,14 +130,15 @@ export function tableRows(grid: string[][]): Row[] {
   return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])));
 }
 
-// The records in parsed JSON: its longest list of objects, wherever it is
+// The records in parsed JSON: its longest list of objects, wherever it is,
+// but never one inside another's records (a lead's own people or episodes)
 export function jsonRows(v: unknown): Row[] {
   let best: Row[] = [];
   const walk = (x: unknown) => {
     if (Array.isArray(x)) {
       const objects = x.filter((e): e is Row => !!e && typeof e === "object" && !Array.isArray(e));
       if (objects.length > best.length) best = objects;
-      x.forEach(walk);
+      if (!objects.length) x.forEach(walk);
     } else if (x && typeof x === "object") Object.values(x).forEach(walk);
   };
   walk(v);
@@ -145,8 +146,9 @@ export function jsonRows(v: unknown): Row[] {
 }
 
 // The records in a page's JSON blocks (<script type="application/json">, as
-// the Dream 300 sequence pages carry them, or ld+json), read without a DOM
-const JSON_SCRIPT = /<script\b[^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
+// the Dream 300 sequence pages carry them), read without a DOM. Not ld+json:
+// that's the page's own details for search engines, never its leads.
+const JSON_SCRIPT = /<script\b[^>]*\btype\s*=\s*["']?application\/json\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
 export function htmlScriptRows(html: string): Row[] {
   let best: Row[] = [];
   for (const m of html.matchAll(JSON_SCRIPT)) {
@@ -195,13 +197,15 @@ type Board = Pick<BoardData, "fields" | "messages">;
 export const boardVars = (board: Pick<BoardData, "messages">) => variablesIn(board.messages.flatMap((m) => [m.subject, m.body]));
 const placed = (f: Pick<FieldData, "kind">) => f.kind !== "contacts" && f.kind !== "links";
 
-// Everywhere a column can go, as the Dropdown lists them
+// Everywhere a column can go, as the Dropdown lists them: people and links
+// only on a board with a property to keep them in
 export function targetsOf(board: Board): PickOption[] {
+  const has = (kind: string) => board.fields.some((f) => f.kind === kind);
   return [
     { value: "ignore", label: "Leave out" },
     { value: "title", label: "Lead name", group: "Lead" },
-    { value: "link", label: "Link", group: "Lead" },
-    ...CONTACT.map(([k, label]) => ({ value: `contact.${k}`, label, group: "Contact" })),
+    ...(has("links") ? [{ value: "link", label: "Link", group: "Lead" }] : []),
+    ...(has("contacts") ? CONTACT.map(([k, label]) => ({ value: `contact.${k}`, label, group: "Contact" })) : []),
     ...board.fields.filter(placed).map((f) => ({ value: `field:${f.id}`, label: f.name, group: "Properties" })),
     ...boardVars(board).map((v) => ({ value: `var:${v}`, label: v, group: "Variables" })),
     ...board.messages.flatMap((m) => [
@@ -280,6 +284,7 @@ const single = (t: Target, board: Board) =>
 // A column it can't place is left out of the result.
 export function autoMap(columns: Column[], board: Board): Record<string, Target> {
   const vars = boardVars(board);
+  const offered = new Set(targetsOf(board).map((t) => t.value));
   const out: Record<string, Target> = {};
   const taken = new Set<Target>();
   for (const { path, values } of columns) {
@@ -304,12 +309,26 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
       values.every((v) => /instagram\.com\//i.test(v)) ? "contact.instagram" : undefined,
       values.every((v) => /^https?:\/\/\S+$/i.test(v)) ? "link" : undefined,
       options && `field:${options.id}`,
-    ].find((x): x is Target => !!x && !taken.has(x) && fits(x, values));
+    ].find((x): x is Target => !!x && offered.has(x) && !taken.has(x) && fits(x, values));
     if (!t) continue;
     out[path] = t;
     if (single(t, board)) taken.add(t);
   }
   return out;
+}
+
+// Where what Claude read out goes (importActions extractLeads): it comes in
+// the board's own words, so each column is placed by its exact name, never
+// guessed from a heading ("Avg. views" and {{Dr. Name}} as they are)
+export function placeExtracted(columns: Column[], board: Board): Record<string, Target> {
+  return Object.fromEntries(
+    columns.map(({ path }) => {
+      const field = board.fields.find((f) => placed(f) && f.name === path);
+      const v = /^\{\{(.+)\}\}$/.exec(path)?.[1];
+      const t = path === "title" ? "title" : path === "links[]" ? "link" : path.startsWith("contacts[].") ? `contact.${path.slice(11)}` : field ? `field:${field.id}` : v ? `var:${v}` : "ignore";
+      return [path, t];
+    }),
+  );
 }
 
 // ---- The leads, as add_leads takes them ----
@@ -476,22 +495,25 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
 // ---- Claude's part: words and pictures, in pieces ----
 
 export type Part = { text?: string; images?: string[] };
-// About 12,000 characters, or five pictures (under 3 MB together, well
-// inside a server action's 4.5 MB), per call
+// About 6,000 characters, or two pictures (under 3 MB together, well inside
+// a server action's 4.5 MB), per call: few enough leads that Claude's answer
+// comes well inside the page's minute (importActions extractLeads). A line
+// longer than that (a page or JSON with no line breaks) is cut between words.
+const PART = 6_000;
 export function partsOf({ text, images }: { text: string; images: string[] }): Part[] {
   const parts: Part[] = [];
   let chunk = "";
-  for (const line of text.split("\n")) {
-    if (chunk.length + line.length > 12_000) {
+  for (const line of text.split("\n").flatMap((l) => l.match(new RegExp(`.{1,${PART}}(?:\\s+|$)|.{1,${PART}}`, "gs")) ?? [""])) {
+    if (chunk.length + line.length > PART) {
       if (chunk.trim()) parts.push({ text: chunk });
       chunk = "";
     }
-    chunk += `${line.slice(0, 12_000)}\n`;
+    chunk += `${line}\n`;
   }
   if (chunk.trim()) parts.push({ text: chunk });
   let group: string[] = [];
   for (const img of images) {
-    if (group.length === 5 || group.reduce((n, g) => n + g.length, 0) + img.length > 3_000_000) {
+    if (group.length === 2 || group.reduce((n, g) => n + g.length, 0) + img.length > 3_000_000) {
       parts.push({ images: group });
       group = [];
     }
@@ -538,31 +560,37 @@ function xlsxRows(files: Record<string, string>): Row[] {
   return tableRows(grid);
 }
 
-// A page's JSON blocks, else its first table, else its words.
+// A page's JSON blocks or its tables, whichever holds the most rows, else its
+// words. A break or the end of a block is a line break, so the words of
+// neighbouring elements never run together ("Jane Doejane@clinic.com").
 // ponytail: a cell's words only, not where its link points; read hrefs if a column of "Visit" links turns up
 function readHtml(html: string): Read {
-  const rows = htmlScriptRows(html);
-  if (rows.length) return { rows };
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const table = doc.querySelector("table");
-  const cells = tableRows(table ? [...table.rows].map((tr) => [...tr.cells].map((td) => td.textContent?.replace(/\s+/g, " ").trim() ?? "")) : []);
-  if (cells.length) return { rows: cells };
   doc.querySelectorAll("script, style, noscript").forEach((e) => e.remove());
+  doc.querySelectorAll("br").forEach((e) => e.replaceWith("\n"));
+  doc.querySelectorAll("address, article, aside, blockquote, dd, div, dt, footer, h1, h2, h3, h4, h5, h6, header, li, p, pre, section, td, th, tr").forEach((e) => e.append("\n"));
+  const tables = [...doc.querySelectorAll("table")].map((t) => tableRows([...t.rows].map((tr) => [...tr.cells].map((td) => td.textContent?.replace(/\s+/g, " ").trim() ?? ""))));
+  const rows = [htmlScriptRows(html), ...tables].reduce((a, b) => (b.length > a.length ? b : a));
+  if (rows.length) return { rows };
   return { text: doc.body?.textContent?.replace(/\n\s*\n+/g, "\n").trim() ?? "", images: [] };
 }
 
-// A PDF's words, page by page; a page with next to none is a scan, sent as a picture
+// A PDF's words, page by page; a page with next to none and a picture on it
+// is a scan, sent as a picture. A short page without one keeps its words,
+// and a blank page adds nothing.
 async function readPdf(file: File): Promise<Read> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  const pictures = new Set<number>([pdfjs.OPS.paintImageXObject, pdfjs.OPS.paintInlineImageXObject, pdfjs.OPS.paintImageMaskXObject, pdfjs.OPS.paintImageXObjectRepeat]);
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   let text = "";
   const images: string[] = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n);
     const words = (await page.getTextContent()).items.map((i) => ("str" in i ? i.str + (i.hasEOL ? "\n" : " ") : "")).join("");
-    if (words.trim().length >= 100) {
-      text += `${words}\n`;
+    const scan = words.trim().length < 100 && (await page.getOperatorList()).fnArray.some((op) => pictures.has(op));
+    if (!scan) {
+      if (words.trim()) text += `${words}\n`;
       continue;
     }
     if (images.length === MAX_SCANS) throw new Unreadable(`That PDF has more than ${MAX_SCANS} scanned pages. Split it into smaller files.`);
@@ -591,7 +619,13 @@ export async function readFile(file: File): Promise<Read> {
     if (kind === "xlsx") read = { rows: xlsxRows(files) };
     else {
       const doc = files["word/document.xml"] ? xmlOf(files["word/document.xml"]) : null;
-      read = { text: doc ? all(doc, "p").map((p) => all(p, "t").map((t) => t.textContent ?? "").join("")).join("\n") : "", images: [] };
+      // a run's words, its tabs and its line breaks, in order
+      const words = (p: Element) =>
+        all(p, "r")
+          .flatMap((r) => [...r.children])
+          .map((e) => (e.localName === "t" ? (e.textContent ?? "") : e.localName === "tab" ? "\t" : e.localName === "br" || e.localName === "cr" ? "\n" : ""))
+          .join("");
+      read = { text: doc ? all(doc, "p").map(words).join("\n") : "", images: [] };
     }
   } else {
     const text = await file.text();
