@@ -323,8 +323,62 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
 // Every place takes one column, but a person's handles and links can come
 // from several ("Email", "Work email"): the first column keeps a place, any
 // other one put there is left out. A name is one column ("Dr Karandish", not
-// that and the clinic's name joined)
-export const sharedPlace = (t: Target) => (t.startsWith("contact.") && t !== "contact.name" && t !== "contact.role") || t === "link" || t === "ignore";
+// that and the clinic's name joined: several name columns give the fullest)
+export const sharedPlace = (t: Target) => (t.startsWith("contact.") && t !== "contact.role") || t === "link" || t === "ignore";
+// One person written twice (two Notion pages for one doctor, "Sophie
+// Shotter" and "Dr Sophie Shotter") is one contact: the same name once titles
+// and letters' styles are set aside (one name's words all in the other's), or
+// an email or handle in common. They keep the fullest name and every handle.
+const TITLES = new Set(["dr", "doctor", "md", "do", "facs", "phd", "mbbs", "dds", "dmd", "frcs", "pa", "pac", "np", "rn", "prof", "mr", "mrs", "ms", "miss"]);
+const nameWords = (name = "") =>
+  new Set(
+    name
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .split(" ")
+      .filter((w) => w && !TITLES.has(w)),
+  );
+const HANDLES = ["email", "instagram", "linkedin", "youtube", "phone", "x", "website"] as const;
+const handlesOf = (c: ContactIn) => HANDLES.flatMap((k) => (c[k] ?? []).map((v) => `${k}:${v.trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "")}`));
+// a person's name before a channel's ("Dr Karandish", not "Dr. K | PCH MedSpa"), then the longest
+const channelish = (n: string) => /\s[|/–-]\s|\|/.test(n);
+export const fullest = (names: (string | undefined)[]) =>
+  names
+    .map((n) => n?.trim())
+    .filter((n): n is string => !!n)
+    .sort((a, b) => Number(channelish(a)) - Number(channelish(b)) || b.length - a.length)[0];
+export function samePeople(people: ContactIn[]): ContactIn[] {
+  const out: ContactIn[] = [];
+  for (const c of people) {
+    const words = nameWords(c.name);
+    const handles = new Set(handlesOf(c));
+    const same = out.find((o) => {
+      const ow = nameWords(o.name);
+      const named = words.size > 0 && ow.size > 0 && ([...words].every((w) => ow.has(w)) || [...ow].every((w) => words.has(w)));
+      return named || handlesOf(o).some((h) => handles.has(h));
+    });
+    if (same) join(same, c);
+    else out.push({ ...c });
+  }
+  // a practice or channel written as a person ("Dr. Katzen Plastic Surgery",
+  // "MYAutoimmuneMD") beside the doctor on the same lead is the doctor's own
+  // page, not someone else: folded into the doctor (two practices stay two)
+  const person = out.find((c) => !businessLike(c.name));
+  if (!person) return out;
+  for (const c of out.filter((c) => c !== person && businessLike(c.name))) join(person, c, true);
+  return out.filter((c) => c === person || !businessLike(c.name));
+}
+// one contact's handles (and a better name, unless only handles count) into another
+function join(into: ContactIn, c: ContactIn, handlesOnly = false) {
+  if (!handlesOnly) into.name = fullest([into.name, c.name]);
+  if (!into.role && c.role) into.role = c.role;
+  for (const k of HANDLES) if (c[k]?.length) into[k] = [...new Set([...(into[k] ?? []), ...c[k]!])].slice(0, 20);
+}
+const PRACTICE = /\b(clinic|surgery|plasticsurgery|institute|cent(er|re)|med ?spa|aesthetics?|dermatology|derm|skin|medical|health|wellness|hospital|spa|group|associates|studio|plastic)\b/i;
+// a name that reads as a business or a channel: practice words, or one word run together ("MYAutoimmuneMD")
+const businessLike = (name = "") => PRACTICE.test(name) || (!/\s/.test(name.trim()) && /[a-z][A-Z]/.test(name));
+
 export function oneEach(columns: Column[], mapping: Record<string, Target>): Record<string, Target> {
   const taken = new Set<Target>();
   return Object.fromEntries(
@@ -434,7 +488,8 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       const vs = flat[p];
       if (!vs?.length) continue;
       const k = mapping[p].slice(8) as ContactKey;
-      if (k === "name") c.name = [c.name, ...vs].filter(Boolean).join(" ").slice(0, 120);
+      // the fullest of its names ("Dr Sophie Shotter", not "Dr Shotter"), never two joined
+      if (k === "name") c.name = fullest([c.name, ...vs])?.slice(0, 120);
       else if (k === "role") c.role = [c.role, ...vs].filter(Boolean).join(", ").slice(0, 60);
       else {
         const list = k === "email" ? vs.flatMap(emails) : vs;
@@ -474,7 +529,7 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       groups = elementsAt(row, people).map((e) => flatten(e, people));
       groups[0] = { ...groups[0], ...rest };
     }
-    const contacts = groups.map(contactOf).filter((c): c is ContactIn => !!c).slice(0, 50);
+    const contacts = samePeople(groups.map(contactOf).filter((c): c is ContactIn => !!c)).slice(0, 50);
 
     const named = paths.filter((p) => mapping[p] === "title").map((p) => flat[p]).find((v) => v?.length) ?? contacts.flatMap((c) => c.name ?? []);
     const title = named.join(" / ").trim().replace(/\s+/g, " ").slice(0, 200);

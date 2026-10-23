@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, halves, oneEach, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
+import { autoMap, buildLeads, columnsOf, halves, oneEach, samePeople, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -227,9 +227,28 @@ test("one name per person, links that are addresses, and who can't be reached ye
   const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }, { id: "l", name: "Links", kind: "links", required: false, onCard: false, options: [] }], messages: [], leads: [] };
   const cols = ["g", "docs[].n", "docs[].l", "url"].map((path) => ({ path, values: [] }));
   const mapping = oneEach(cols, { g: "contact.name", "docs[].n": "contact.name", "docs[].l": "link", url: "link" });
-  assert.equal(mapping["docs[].n"], "ignore");
   const p = buildLeads([{ g: "Dr Karandish", docs: [{ n: "Dr. K | PCH MedSpa", l: "YT 1" }], url: "https://www.youtube.com/@PCHMedSpa" }], mapping, board as never);
   assert.equal(p.leads[0].contacts?.[0].name, "Dr Karandish");
   assert.deepEqual(p.leads[0].links?.map((l) => l.url), ["https://www.youtube.com/@PCHMedSpa"]);
   assert.deepEqual(p.unreachable, [p.leads[0].title]);
+});
+
+test("one person written twice is one contact, with the fullest name and every handle", () => {
+  assert.deepEqual(samePeople([{ name: "Sophie Shotter" }, { name: "Dr Sophie Shotter", email: ["hello@drsophieshotter.com"] }]), [{ name: "Dr Sophie Shotter", email: ["hello@drsophieshotter.com"] }]);
+  assert.equal(samePeople([{ name: "𝐁𝐞𝐧 𝐓𝐚𝐥𝐞𝐢, 𝐌𝐃" }, { name: "Ben Talei, MD Facial plastic Surgeon" }]).length, 1);
+  // a handle in common, whatever the names
+  assert.equal(samePeople([{ name: "Doctor Mesa", instagram: ["https://instagram.com/doctor.mesa/"] }, { name: "John Mesa", instagram: ["https://www.instagram.com/doctor.mesa"] }]).length, 1);
+  // two people at one clinic stay two
+  assert.equal(samePeople([{ name: "Dr. Ross Kopelman" }, { name: "Dr. Joel Kopelman" }]).length, 2);
+  const cols = ["g", "docs[].n"].map((path) => ({ path, values: [] }));
+  const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }], messages: [], leads: [] };
+  const p = buildLeads([{ g: "Dr Shotter", docs: [{ n: "Sophie Shotter" }, { n: "Dr Sophie Shotter" }] }], oneEach(cols, { g: "contact.name", "docs[].n": "contact.name" }), board as never);
+  assert.deepEqual(p.leads[0].contacts, [{ name: "Dr Sophie Shotter" }]);
+});
+
+test("a practice or channel beside the doctor on one lead is the doctor's page", () => {
+  assert.deepEqual(samePeople([{ name: "Timothy Katzen" }, { name: "Dr. Katzen Plastic Surgery", instagram: ["@katzen"] }]), [{ name: "Timothy Katzen", instagram: ["@katzen"] }]);
+  assert.deepEqual(samePeople([{ name: "MYAutoimmuneMD" }, { name: "Dr. Micah Yu" }]).map((c) => c.name), ["Dr. Micah Yu"]);
+  // two practices, no doctor named: both stay
+  assert.equal(samePeople([{ name: "Savalia Plastic Surgery" }, { name: "Colorado Plastic Surgery Center - DenverBodyDoc" }]).length, 2);
 });
