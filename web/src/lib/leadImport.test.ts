@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, halves, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
+import { autoMap, buildLeads, columnsOf, halves, oneEach, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -215,4 +215,10 @@ test("Claude's parts: about 6,000 characters or two pictures, halved when an ans
   assert.deepEqual(halves({ images: ["a", "b", "c"] }), [{ images: ["a", "b"] }, { images: ["c"] }]);
   assert.deepEqual(halves({ text: "one\ntwo\nthree" }), [{ text: "one\ntwo" }, { text: "three" }]);
   assert.equal(halves({ text: "no breaks" }), null);
+});
+
+test("each place takes one column; a person's details and links can take several", () => {
+  const cols = ["m.a", "m.b", "email", "work email", "url", "site"].map((path) => ({ path, values: [] }));
+  const mapping = { "m.a": "var:Observation", "m.b": "var:Observation", email: "contact.email", "work email": "contact.email", url: "link", site: "link" };
+  assert.deepEqual(oneEach(cols, mapping), { ...mapping, "m.b": "ignore" });
 });

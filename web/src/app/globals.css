@@ -788,6 +788,18 @@ dialog[open]::backdrop {
   .progress-line::after { display: none; }
 }
 
+/* Import leads: a bar for work that can't be counted, sliding across */
+.import-slide {
+  animation: import-slide 1.4s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+@keyframes import-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(310%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .import-slide { animation: none; width: 100%; opacity: 0.5; }
+}
+
 /* the one solid accent on the page */
 .btn-primary {
   background: var(--accent);

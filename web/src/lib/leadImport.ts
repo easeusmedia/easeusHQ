@@ -320,6 +320,23 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
 // Where what Claude read out goes (importActions extractLeads): it comes in
 // the board's own words, so each column is placed by its exact name, never
 // guessed from a heading ("Avg. views" and {{Dr. Name}} as they are)
+// Every place takes one column, but a person's details and links can come
+// from several ("Email", "Work email"): the first column keeps a place,
+// any other one put there is left out
+export const sharedPlace = (t: Target) => t.startsWith("contact.") || t === "link" || t === "ignore";
+export function oneEach(columns: Column[], mapping: Record<string, Target>): Record<string, Target> {
+  const taken = new Set<Target>();
+  return Object.fromEntries(
+    columns.map((c) => {
+      const t = mapping[c.path] ?? "ignore";
+      if (sharedPlace(t)) return [c.path, t];
+      if (taken.has(t)) return [c.path, "ignore"];
+      taken.add(t);
+      return [c.path, t];
+    }),
+  );
+}
+
 export function placeExtracted(columns: Column[], board: Board): Record<string, Target> {
   return Object.fromEntries(
     columns.map(({ path }) => {
@@ -347,7 +364,10 @@ export type LeadIn = {
 };
 export type Preview = {
   leads: LeadIn[];
-  // already on the board, or twice in the file
+  // already on the board, or twice in the file: skipped, unless added anyway
+  duplicates: LeadIn[];
+  // left out, and why ("Row 4": no name; "Glow Clinic": no contact details)
+  incomplete: { name: string; why: string }[];
   existing: number;
   // without a name, or a property the board requires
   unnamed: number;
@@ -435,8 +455,8 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
 
   const seen = new Set(board.leads.map((l) => l.title.trim().toLowerCase()));
   const unmatched = new Set<string>();
-  const out: Preview = { leads: [], existing: 0, unnamed: 0, missing: 0, unmatched: [] };
-  for (const row of rows) {
+  const out: Preview = { leads: [], duplicates: [], incomplete: [], existing: 0, unnamed: 0, missing: 0, unmatched: [] };
+  for (const [n, row] of rows.entries()) {
     const flat = flatten(row);
 
     // people: one per element of their list, the row's other columns on the first
@@ -452,10 +472,7 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     const title = named.join(" / ").trim().replace(/\s+/g, " ").slice(0, 200);
     if (!title) {
       out.unnamed++;
-      continue;
-    }
-    if (seen.has(title.toLowerCase())) {
-      out.existing++;
+      out.incomplete.push({ name: `Row ${n + 1}`, why: "no name" });
       continue;
     }
 
@@ -474,19 +491,27 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       .slice(0, 10)
       .map((drafts) => ({ label: "", drafts }));
 
-    if (board.fields.some((f) => f.required && (f.kind === "contacts" ? !contacts.length : f.kind === "links" ? !links.length : values[f.id] == null))) {
+    const lacking = board.fields.filter((f) => f.required && (f.kind === "contacts" ? !contacts.length : f.kind === "links" ? !links.length : values[f.id] == null));
+    if (lacking.length) {
       out.missing++;
+      out.incomplete.push({ name: title, why: `no ${lacking.map((f) => (f.kind === "contacts" ? "contact details" : f.name.toLowerCase())).join(" or ")}` });
       continue;
     }
-    seen.add(title.toLowerCase());
-    out.leads.push({
+    const lead: LeadIn = {
       title,
       ...(Object.keys(values).length ? { values } : {}),
       ...(contacts.length ? { contacts } : {}),
       ...(links.length ? { links } : {}),
       ...(Object.keys(vars).length ? { vars } : {}),
       ...(openers.length ? { openers } : {}),
-    });
+    };
+    if (seen.has(title.toLowerCase())) {
+      out.existing++;
+      out.duplicates.push(lead);
+      continue;
+    }
+    seen.add(title.toLowerCase());
+    out.leads.push(lead);
   }
   out.unmatched = [...unmatched];
   return out;

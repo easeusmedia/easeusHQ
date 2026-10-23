@@ -1,15 +1,14 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
-import { CircleAlert, Copy, FileText, FileUp, Tag, UserPlus, X } from "lucide-react";
-import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, partsOf, placeExtracted, readFile, targetsOf, Unreadable, type Column, type Part, type Row, type Target } from "@/lib/leadImport";
+import { Check, CircleAlert, Copy, FileText, FileUp, Tag, X } from "lucide-react";
+import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeExtracted, readFile, targetsOf, Unreadable, type LeadIn, type Part, type Preview, type Row } from "@/lib/leadImport";
 import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
-import { Dropdown } from "../../Dropdown";
 import { Reveal } from "../../Reveal";
-import { StatTile } from "../../StatTile";
 import { extractLeads, importLeads, mapColumns } from "./importActions";
 
 const OFFLINE = "That couldn't be reached. Check your connection and try again.";
@@ -17,35 +16,94 @@ const OFFLINE = "That couldn't be reached. Check your connection and try again."
 const CHUNK = 50;
 const plural = (n: number) => `${n} lead${n === 1 ? "" : "s"}`;
 
-type Loaded = { name: string; rows: Row[]; columns: Column[]; mapping: Record<string, Target> };
+// what's happening now, and how far along when that can be counted
+type Busy = { step: "read" | "place" | "extract" | "import"; at?: number; of?: number };
+const said = (b: Busy) => (b.step === "import" && b.of ? `Importing ${plural(b.of)}` : "Importing the leads");
+
+// A turning ring, a line for the step and a thin bar: filling when the work
+// can be counted, sliding when it can't. Done, a tick and how many came in.
+function Progress({ busy, added }: { busy: Busy | null; added: number | null }) {
+  const share = busy?.of ? Math.max(0.04, (busy.at ?? 0) / busy.of) : null;
+  return (
+    <div role="status" aria-live="polite" className="fade-in flex flex-col items-center gap-3 px-4 py-9 text-sm">
+      {added !== null ? (
+        <span className="pop-in grid size-9 place-items-center rounded-full bg-emerald-400/15 text-emerald-300">
+          <Check size={18} />
+        </span>
+      ) : (
+        <svg viewBox="0 0 36 36" aria-hidden className="size-9 animate-spin [animation-duration:1.1s] motion-reduce:animate-none">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="rgb(255 255 255 / 0.08)" strokeWidth="3" />
+          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeDasharray="26 94" />
+        </svg>
+      )}
+      <p key={added !== null ? "done" : busy?.step} className="fade-in text-foreground/90">
+        {added !== null ? `${plural(added)} added` : busy ? said(busy) : ""}
+      </p>
+      <div className="h-1 w-48 overflow-hidden rounded-full bg-white/[0.06]">
+        {added !== null ? (
+          <div className="h-full w-full rounded-full bg-emerald-400/70" />
+        ) : share !== null ? (
+          <div className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out" style={{ width: `${share * 100}%` }} />
+        ) : (
+          <div className="import-slide h-full w-1/3 rounded-full bg-accent/80" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// One kind of problem in the file: what it is, how many, the names (a short
+// list that scrolls) and, for duplicates, the choice
+function Problem({ Icon, title, names, children }: { Icon: typeof Copy; title: string; names: string[]; children?: React.ReactNode }) {
+  return (
+    <section className="fade-in rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
+      <div className="flex items-center gap-2">
+        <Icon size={14} className="shrink-0 text-amber-300" />
+        <p className="min-w-0 flex-1 text-sm text-foreground">{title}</p>
+        {children}
+      </div>
+      <ul className="mt-2 max-h-24 overflow-y-auto text-xs leading-relaxed text-muted">
+        {names.map((n, i) => (
+          <li key={i} className="truncate">
+            {n}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 // "Import leads", where "New lead" was on a Sales board: a file of leads
 // dropped or picked, read in the browser (lib/leadImport), its columns placed
 // on the board's properties (by code, then one small Claude call for what
-// code can't tell, each fixable by hand), a preview of what will come in,
-// then add_leads in fifties. They always land in the board's first stage.
+// code can't tell), then add_leads in fifties, into the board's first stage.
+// A file with nothing wrong goes straight in; otherwise only what's wrong
+// shows (Abhishek, 23 Oct 2026): duplicates (skip or add anyway), leads
+// missing details (left out) and values the board doesn't have (left off).
 export function ImportLeads({ board }: { board: BoardData }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  // the file read, kept while picking another so the preview keeps its words as it folds
-  const [file, setFile] = useState<Loaded | null>(null);
-  const [picking, setPicking] = useState(true);
-  // what's happening now (reading, placing, importing), if anything
-  const [busy, setBusy] = useState<string | null>(null);
+  // the file read, with what it would bring in, while its problems are shown
+  const [file, setFile] = useState<{ name: string; preview: Preview } | null>(null);
+  // what's happening now (reading, importing), if anything
+  const [busy, setBusy] = useState<Busy | null>(null);
+  // how many came in, shown for a moment before it closes
+  const [added, setAdded] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // the duplicates: skipped, or added anyway
+  const [twice, setTwice] = useState(false);
   // a file dragged over the window
   const [over, setOver] = useState(false);
 
   const targets = useMemo(() => targetsOf(board), [board]);
-  const preview = useMemo(() => (file ? buildLeads(file.rows, file.mapping, board) : null), [file, board]);
-  const required = board.fields.filter((f) => f.required).map((f) => f.name);
 
   function open() {
     setFile(null);
-    setPicking(true);
     setError(null);
     setBusy(null);
+    setAdded(null);
+    setTwice(false);
     ref.current?.showModal();
   }
 
@@ -65,7 +123,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
     };
     const out: Row[] = [];
     for (let i = 0; i < parts.length; i++) {
-      setBusy(`Reading the leads, ${i} of ${parts.length}…`);
+      setBusy({ step: "extract", at: i, of: parts.length });
       out.push(...(await one(parts[i])));
     }
     return out;
@@ -76,7 +134,9 @@ export function ImportLeads({ board }: { board: BoardData }) {
     const problem = fileProblem(f);
     setError(problem);
     if (problem) return;
-    setBusy("Reading the file…");
+    setFile(null);
+    setTwice(false);
+    setBusy({ step: "read" });
     try {
       const read = await readFile(f);
       const rows = "rows" in read ? read.rows : await extract(partsOf(read));
@@ -87,18 +147,20 @@ export function ImportLeads({ board }: { board: BoardData }) {
       let mapping = "rows" in read ? autoMap(columns, board) : placeExtracted(columns, board);
       const left = columns.filter((c) => !mapping[c.path]);
       if (left.length) {
-        setBusy("Placing the columns…");
+        setBusy({ step: "place" });
         const res: Awaited<ReturnType<typeof mapColumns>> = await mapColumns(
           board.id,
           left.map((c) => ({ path: c.path, samples: c.values.slice(0, 2).map((v) => v.slice(0, 60)) })),
         ).catch(() => ({ error: OFFLINE }));
-        // without Claude, they're placed by hand
-        if (res.error) setError(res.error);
+        if (res.error) throw new Unreadable(res.error);
         mapping = { ...mapping, ...res.mapping };
       }
       const known = new Set(targets.map((t) => t.value));
-      setFile({ name: f.name, rows, columns, mapping: Object.fromEntries(columns.map((c) => [c.path, known.has(mapping[c.path]) ? mapping[c.path] : "ignore"])) });
-      setPicking(false);
+      const preview = buildLeads(rows, oneEach(columns, Object.fromEntries(columns.map((c) => [c.path, known.has(mapping[c.path]) ? mapping[c.path] : "ignore"]))), board);
+      if (!preview.leads.length && !preview.duplicates.length) throw new Unreadable(preview.incomplete.length ? "None of the leads in that file have the details the board needs." : "There are no leads in that file to import.");
+      // nothing wrong: straight in
+      if (!preview.duplicates.length && !preview.incomplete.length && !preview.unmatched.length) return await run(preview.leads, false);
+      setFile({ name: f.name, preview });
     } catch (err) {
       if (!(err instanceof Unreadable)) console.error(err);
       setError(err instanceof Unreadable ? err.message : "That file couldn't be read.");
@@ -106,15 +168,17 @@ export function ImportLeads({ board }: { board: BoardData }) {
     setBusy(null);
   }
 
-  async function submit() {
-    const leads = preview?.leads ?? [];
-    if (!leads.length || busy) return;
+  // in fifties, with the bar filling; done, a tick for a moment, then it
+  // closes and the board fills (refreshed after, as a redrawn board would
+  // close it early)
+  async function run(leads: LeadIn[], duplicates: boolean) {
+    if (!leads.length) return;
     setError(null);
     let created = 0;
     const failed: string[] = [];
     for (let i = 0; i < leads.length; i += CHUNK) {
-      setBusy(`Importing ${Math.min(i + CHUNK, leads.length)} of ${leads.length}…`);
-      const res: Awaited<ReturnType<typeof importLeads>> = await importLeads(board.id, leads.slice(i, i + CHUNK)).catch(() => ({ error: OFFLINE }));
+      setBusy({ step: "import", at: i, of: leads.length });
+      const res: Awaited<ReturnType<typeof importLeads>> = await importLeads(board.id, leads.slice(i, i + CHUNK), duplicates).catch(() => ({ error: OFFLINE }));
       if (res.error) {
         failed.push(res.error);
         break;
@@ -122,13 +186,25 @@ export function ImportLeads({ board }: { board: BoardData }) {
       created += res.created ?? 0;
       failed.push(...(res.failed ?? []).map((x) => `${x.title}: ${x.error}`));
     }
+    if (!failed.length) {
+      flushSync(() => {
+        setBusy({ step: "import", at: leads.length, of: leads.length });
+        setAdded(created);
+      });
+      await new Promise((r) => setTimeout(r, 1200));
+      setBusy(null);
+      ref.current?.close();
+      return router.refresh();
+    }
     setBusy(null);
     if (created) router.refresh();
-    if (!failed.length) return ref.current?.close();
     setError(`${created ? `${plural(created)} added. ` : ""}${failed[0]}${failed.length > 1 ? ` And ${failed.length - 1} more.` : ""}`);
   }
 
-  const count = preview?.leads.length ?? 0;
+  const p = file?.preview;
+  const going = p ? p.leads.length + (twice ? p.duplicates.length : 0) : 0;
+  // the problems show until it's importing; the drop area until a file has them
+  const showing = !!p && !busy && added === null;
   return (
     <>
       <button type="button" onClick={open} className={`${ADD_BUTTON} w-full`}>
@@ -149,7 +225,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
           setOver(false);
           take(e.dataTransfer.files[0]);
         }}
-        className="glass fixed top-1/2 left-1/2 m-0 max-h-[calc(100dvh-2rem)] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 max-h-[calc(100dvh-2rem)] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
       >
         <div className="flex items-center justify-between px-5 pt-4">
           <p className="text-xs font-medium text-muted">Import leads</p>
@@ -163,19 +239,24 @@ export function ImportLeads({ board }: { board: BoardData }) {
           </button>
         </div>
 
-        <Reveal open={picking}>
+        <Reveal open={!showing}>
           <div className="px-5 pt-3 pb-5">
-            <button
-              type="button"
-              disabled={!!busy}
-              onClick={() => input.current?.click()}
-              className={`flex w-full flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed px-4 py-10 text-sm transition-colors disabled:cursor-default ${
-                over ? "border-accent/60 bg-accent/[0.06] text-foreground" : "border-white/15 bg-white/[0.02] text-muted hover:border-white/25 hover:text-foreground"
-              }`}
-            >
-              <FileUp size={20} className={busy ? "animate-pulse" : ""} />
-              {busy ?? "Drop a file here, or choose one"}
-            </button>
+            {busy || added !== null ? (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <Progress busy={busy} added={added} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => input.current?.click()}
+                className={`fade-in flex w-full flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed px-4 py-10 text-sm transition-colors ${
+                  over ? "border-accent/60 bg-accent/[0.06] text-foreground" : "border-white/15 bg-white/[0.02] text-muted hover:border-white/25 hover:text-foreground"
+                }`}
+              >
+                <FileUp size={20} />
+                Drop a file here, or choose one
+              </button>
+            )}
             <input
               ref={input}
               type="file"
@@ -189,45 +270,38 @@ export function ImportLeads({ board }: { board: BoardData }) {
           </div>
         </Reveal>
 
-        <Reveal open={!picking && !!file}>
-          {file && preview && (
-            <div className="flex flex-col gap-4 px-5 pt-3 pb-5">
+        <Reveal open={showing}>
+          {p && (
+            <div className="flex flex-col gap-3 px-5 pt-3 pb-5">
               <div className="flex items-center gap-2 text-sm">
                 <FileText size={14} className="shrink-0 text-muted" />
                 <span className="min-w-0 truncate">{file.name}</span>
-                <button type="button" disabled={!!busy} onClick={() => setPicking(true)} className="btn btn-sm btn-ghost ml-auto shrink-0">
+                <button type="button" onClick={() => setFile(null)} className="btn btn-sm btn-ghost ml-auto shrink-0">
                   Choose another
                 </button>
               </div>
+              <p className="text-sm text-muted">{p.leads.length ? `${plural(p.leads.length)} ready to import. Check these first:` : "Check these first:"}</p>
 
-              <div className="grid grid-cols-2 rounded-xl border border-white/[0.07] bg-foreground/[0.02] sm:grid-cols-4">
-                <StatTile bare label="New leads" value={count} Icon={UserPlus} />
-                <StatTile bare label="Already on the board" value={preview.existing} Icon={Copy} />
-                <div title={[`${preview.unnamed} without a name`, ...(required.length ? [`${preview.missing} without ${required.join(" or ")}`] : [])].join("\n")}>
-                  <StatTile bare label="Missing details" value={preview.unnamed + preview.missing} Icon={CircleAlert} />
-                </div>
-                <div title={preview.unmatched.join("\n")}>
-                  <StatTile bare label="Not in the tags" value={preview.unmatched.length} Icon={Tag} />
-                </div>
-              </div>
-
-              <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-white/[0.07]">
-                {file.columns.map((c) => (
-                  <div key={c.path} className="flex items-center gap-3 border-b border-white/[0.05] px-3 py-2 last:border-b-0">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-foreground" title={c.path}>
-                        {c.path}
-                      </p>
-                      <p className="truncate text-xs text-muted" title={c.values[0]}>
-                        {c.values[0]}
-                      </p>
-                    </div>
-                    <div className="w-40 shrink-0 sm:w-52">
-                      <Dropdown size="sm" value={file.mapping[c.path]} options={targets} onChange={(v) => setFile({ ...file, mapping: { ...file.mapping, [c.path]: v } })} />
-                    </div>
+              {p.duplicates.length > 0 && (
+                <Problem Icon={Copy} title={`${plural(p.duplicates.length)} already on the board`} names={p.duplicates.map((l) => l.title)}>
+                  <div aria-label="Duplicates" className="flex shrink-0 rounded-full bg-white/[0.04] p-0.5 ring-1 ring-white/[0.07]">
+                    {[
+                      { on: false, label: "Skip them" },
+                      { on: true, label: "Add anyway" },
+                    ].map((o) => (
+                      <button key={o.label} type="button" aria-pressed={twice === o.on} onClick={() => setTwice(o.on)} className="seg rounded-full px-2.5 py-0.5 text-xs font-medium">
+                        {o.label}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </Problem>
+              )}
+              {p.incomplete.length > 0 && (
+                <Problem Icon={CircleAlert} title={`${plural(p.incomplete.length)} missing details, left out`} names={p.incomplete.map((x) => `${x.name}: ${x.why}`)} />
+              )}
+              {p.unmatched.length > 0 && (
+                <Problem Icon={Tag} title={`${p.unmatched.length} value${p.unmatched.length === 1 ? "" : "s"} the board doesn't have, left off`} names={p.unmatched} />
+              )}
             </div>
           )}
         </Reveal>
@@ -240,9 +314,11 @@ export function ImportLeads({ board }: { board: BoardData }) {
             <button type="button" onClick={() => ref.current?.close()} className="btn btn-ghost">
               Cancel
             </button>
-            <button type="button" disabled={!!busy || picking || !count} onClick={submit} className="btn btn-glow disabled:opacity-60">
-              {busy && !picking ? busy : count && !picking ? `Import ${plural(count)}` : "Import leads"}
-            </button>
+            {showing && (
+              <button type="button" disabled={!going} onClick={() => p && run(twice ? [...p.leads, ...p.duplicates] : p.leads, twice)} className="fade-in btn btn-glow disabled:opacity-60">
+                {going ? `Import ${plural(going)}` : "Nothing to import"}
+              </button>
+            )}
           </div>
         </div>
       </dialog>
