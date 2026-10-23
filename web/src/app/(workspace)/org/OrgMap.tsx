@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
@@ -9,7 +9,8 @@ import { markOf } from "./marks";
 import { STAGE } from "@/lib/stages";
 import type { TaskStatus } from "@/lib/workflow";
 import { EditableName } from "../EditableName";
-import { renameTeam } from "./space/actions";
+import { renameTeam, reorderDepartments } from "./space/actions";
+import { moveTo } from "@/lib/reorder";
 
 export type MapPerson = { name: string; on: string | null; status: TaskStatus | null; open: number; late: number; leads: number };
 // canRename: Level 1 and the department's Leads (set by the page)
@@ -22,33 +23,90 @@ function Pill({ n, label, tone }: { n: number; label: string; tone: keyof typeof
 }
 
 // The company at a glance: a panel a department, its people up front with
-// what each is on. The department with the most people gets the wide panel,
-// first; one with no one in it yet is a slim row at the foot. A panel opens
-// its department.
-export function OrgMap({ departments }: { departments: MapDepartment[] }) {
+// what each is on. The departments come in their own order, the sidebar's
+// (Abhishek, 23 Oct 2026), which whoever sets the app up changes by
+// dragging a panel. The department with the most people gets the wide
+// panel; one with no one in it yet is slim. A panel opens its department.
+export function OrgMap({ departments, canReorder = false }: { departments: MapDepartment[]; canReorder?: boolean }) {
+  const router = useRouter();
+  const [dragging, setDragging] = useState<string | null>(null);
+  // the order while a drag is in flight, so panels make room under the cursor
+  const [preview, setPreview] = useState<string[] | null>(null);
+  // the order just dropped, until the page brings it back
+  const [dropped, setDropped] = useState<{ base: MapDepartment[]; ids: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const byId = new Map(departments.map((d) => [d.id, d]));
+  const settled = dropped?.base === departments ? dropped.ids : departments.map((d) => d.id);
+  const ids = preview ?? settled;
+  const ordered = ids.flatMap((id) => byId.get(id) ?? []);
   const staffed = departments.filter((d) => d.people.length > 0);
-  const empty = departments.filter((d) => d.people.length === 0);
   const widest = staffed.reduce<MapDepartment | null>((w, d) => (!w || d.people.length > w.people.length ? d : w), null);
-  const ordered = widest ? [widest, ...staffed.filter((d) => d !== widest)] : [];
+
+  // over another panel: slot the dragged one before or after it, by which
+  // half the cursor is over (the grid reads across)
+  function hover(e: React.DragEvent<HTMLDivElement>, targetId: string) {
+    if (!dragging) return;
+    e.preventDefault();
+    if (dragging === targetId) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const next = moveTo(ids, dragging, targetId, e.clientX > r.left + r.width / 2);
+    if (next.join() !== ids.join()) setPreview(next);
+  }
+  async function drop() {
+    const order = preview;
+    setDragging(null);
+    setPreview(null);
+    if (!order || order.join() === settled.join()) return;
+    setError(null);
+    setDropped({ base: departments, ids: order });
+    const res = await reorderDepartments(order);
+    if (res.error) {
+      setDropped(null);
+      setError(res.error);
+    } else router.refresh();
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Organization</h1>
-      <div className="@container flex flex-col gap-4">
-        <div className="grid grid-flow-dense gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
+      {error && <p className="text-xs text-red-300">{error}</p>}
+      <div className="@container">
+        <div
+          className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3"
+          onDragOver={(e) => dragging && e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            drop();
+          }}
+        >
           {ordered.map((d) => (
-            <Department key={d.slug} d={d} wide={d === widest && staffed.length > 1} />
+            <div
+              key={d.slug}
+              draggable={canReorder}
+              onDragStart={(e) => {
+                setDragging(d.id);
+                e.dataTransfer.effectAllowed = "move";
+                // without this Firefox won't fire onDrop
+                e.dataTransfer.setData("text/plain", d.id);
+              }}
+              onDragOver={(e) => hover(e, d.id)}
+              // a drag that's cancelled (Esc, dropped outside) puts everything back
+              onDragEnd={() => {
+                setDragging(null);
+                setPreview(null);
+              }}
+              className={`min-w-0 transition-opacity duration-200 ${d === widest && staffed.length > 1 ? "@2xl:col-span-2" : ""} ${canReorder ? "cursor-grab active:cursor-grabbing" : ""} ${dragging === d.id ? "opacity-40" : ""}`}
+            >
+              <Department d={d} />
+            </div>
           ))}
         </div>
-        {empty.map((d) => (
-          <Department key={d.slug} d={d} wide={false} />
-        ))}
       </div>
     </div>
   );
 }
 
-function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
+function Department({ d }: { d: MapDepartment }) {
   const router = useRouter();
   // Level 1 and its Leads can rename it, right here
   const rename = async (name: string) => {
@@ -60,7 +118,7 @@ function Department({ d, wide }: { d: MapDepartment; wide: boolean }) {
   return (
     <PrefetchLink
       href={`/org/${d.slug}`}
-      className={`@container group relative flex min-w-0 flex-col overflow-hidden panel panel-hover rounded-3xl hover:-translate-y-0.5 ${slim ? "px-5 py-4" : "gap-3 p-5"} ${wide ? "@2xl:col-span-2" : ""}`}
+      className={`@container group relative flex h-full min-w-0 flex-col overflow-hidden panel panel-hover rounded-3xl hover:-translate-y-0.5 ${slim ? "px-5 py-4" : "gap-3 p-5"}`}
     >
       {d.open > 0 && <div className="glass-glow" />}
       <div className="relative flex items-center gap-3">

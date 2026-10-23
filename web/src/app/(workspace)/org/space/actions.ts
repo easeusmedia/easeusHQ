@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
-import { buildsDepartment, isFounder, worksDepartment } from "@/lib/scope";
+import { buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   CHILD_OF,
   cleanValue,
@@ -211,6 +211,29 @@ export async function renameTeam(id: string, name: string): Promise<Done> {
     return {};
   } catch (err) {
     return failed(err, "That name couldn't be saved.");
+  }
+}
+
+// The departments in the order they're dragged into on Organization, the
+// order the sidebar lists them in too (Abhishek, 23 Oct 2026). Whoever sets
+// the app up (lib/scope setsUp). Only the ones shown move; any not shown
+// (a Lead sees their own) keep their places.
+export async function reorderDepartments(ids: string[]): Promise<Done> {
+  const viewer = await getViewer();
+  if (!viewer || !setsUp(viewer)) return { error: "Only Level 1 and Admin & Technical's Level 2 can reorder departments." };
+  try {
+    const all = await prisma.team.findMany({ select: { id: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
+    if (new Set(ids).size !== ids.length || !ids.every((id) => all.some((t) => t.id === id))) {
+      return { error: "The departments changed meanwhile. Refresh the page and try again." };
+    }
+    const queue = [...ids];
+    const order = all.map((t) => (ids.includes(t.id) ? queue.shift()! : t.id));
+    await prisma.$transaction(order.map((id, i) => prisma.team.update({ where: { id }, data: { sortOrder: i }, select: { id: true } })));
+    // the sidebar lists every department
+    revalidatePath("/", "layout");
+    return {};
+  } catch (err) {
+    return failed(err, "That order couldn't be saved.");
   }
 }
 
