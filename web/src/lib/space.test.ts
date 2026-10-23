@@ -513,25 +513,26 @@ test("a lead goes into Ready to reach out only once every message it can be sent
   // no contacts: the lead itself, every day's message on every platform
   assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], []).map((m) => [m.day, m.message?.id, m.contact]), [[1, "e1", null], [1, "l1", null], [2, "i1", null], [3, "e2", null]]);
   assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: { e1: at, l1: at, i1: at, e2: at } }, [], []), []);
-  // a day they can't be reached on passes: no Instagram, so Day 2 needs nothing
+  // a day they can't be reached on counts as the day's tick does: approving its message completes it
   const ann = person("ann", "email", "linkedin");
-  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann]), []);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann]).map((m) => m.message?.id), ["i1"]);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "i1", "e2") }, [], [ann]), []);
   // everyone on the lead, each on their own
   const bo = person("bo", "email");
-  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann, bo]).map((m) => `${m.message?.id}@${m.contact?.id}`), ["e1@bo", "e2@bo"]);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: all("ann", "e1", "l1", "e2") }, [], [ann, bo]).map((m) => `${m.message?.id}@${m.contact?.id}`), ["i1@ann", "e1@bo", "i1@bo", "e2@bo"]);
   // the opener in use: its own message under it, or approved before openers had their own
-  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#0@bo": at } }, openers, [bo]).map((m) => m.message?.id), ["e1"]);
-  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2"), "e1#1@bo": at } }, openers, [bo]), []);
-  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: all("bo", "e1", "e2") }, openers, [bo]), []);
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2", "i1"), "e1#0@bo": at } }, openers, [bo]).map((m) => m.message?.id), ["e1"]);
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: { ...all("bo", "e2", "i1"), "e1#1@bo": at } }, openers, [bo]), []);
+  assert.deepEqual(approvalsMissing(days, { picks: { opener: "1" }, approvals: all("bo", "e1", "e2", "i1") }, openers, [bo]), []);
   // the error names the first still to approve, and how many more
-  const left = approvalsMissing({ ...days, messages: days.messages.map((m) => ({ ...m, name: m.id === "e2" ? "Day 3 · Email 2" : m.name })) }, { picks: {}, approvals: all("bo", "e1") }, [], [{ ...bo, name: "Dr Karandish" }]);
+  const left = approvalsMissing({ ...days, messages: days.messages.map((m) => ({ ...m, name: m.id === "e2" ? "Day 3 · Email 2" : m.name })) }, { picks: {}, approvals: all("bo", "e1", "i1") }, [], [{ ...bo, name: "Dr Karandish" }]);
   assert.equal(unapprovedText(left), "Approve every message first: Day 3 · Email 2 for Dr Karandish.");
   assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [])), "Approve every message first: Day 1 · e1 and 3 more.");
   // on a board that keeps people: nobody on the lead, or nobody reachable, never passes
   assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [], false, true)), "Add a contact first.");
   const nobody = { ...person("nb"), name: "Dr K" };
   assert.equal(unapprovedText(approvalsMissing(days, { picks: {}, approvals: {} }, [], [nobody], false, true)), "Add an email, LinkedIn or Instagram for Dr K first.");
-  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], [nobody]), []);
+  assert.deepEqual(approvalsMissing(days, { picks: {}, approvals: {} }, [], [nobody]).map((m) => m.message?.id), ["e1", "l1", "i1", "e2"]);
   // a day picked by whether its email was opened, as the day strip picks it
   const day2 = { stages: days.stages, messages: [{ id: "no", stageId: "d2", channel: "instagram", name: "Didn't open Email 1" }, { id: "yes", stageId: "d2", channel: "instagram", name: "Already opened Email 1" }] };
   assert.deepEqual(approvalsMissing(day2, { picks: {}, approvals: { yes: at } }, [], [], true), []);

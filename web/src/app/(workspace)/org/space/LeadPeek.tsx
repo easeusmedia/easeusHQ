@@ -18,7 +18,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, beforeReady, isDead, leadPeople, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, unapprovedLines, beforeReady, isDead, leadPeople, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -293,6 +293,8 @@ function LeadPage({
   const blockedWhy = left.length ? unapprovedText(left) : "This lead's messages are still loading. Try again in a moment.";
   // a move held back says why, as the board does when a card is dropped there
   const [warning, setWarning] = useState<string | null>(null);
+  // shown with the warning: everything left, one per line
+  const leftLines = left.length ? unapprovedLines(left) : [];
   function moveToReady() {
     if (!ready) return;
     if (blocked) return setWarning(blockedWhy);
@@ -532,7 +534,7 @@ function LeadPage({
             <span className="truncate">Move to {ready.name}</span>
           </button>
         )}
-        <Warning text={warning} label="Not yet" onClose={() => setWarning(null)} />
+        <Warning text={warning && leftLines.length ? `Before ${ready?.name ?? "Ready to reach out"}:` : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={() => setWarning(null)} />
         <button type="button" onClick={close} className="btn btn-ghost shrink-0">
           Close
         </button>

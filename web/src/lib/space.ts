@@ -576,17 +576,18 @@ export function approvalsMissing(
   if (needsContact && !contacts.length && days.length) return [{ day: 0, message: null, contact: null }];
   const sent = board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") != null);
   for (const contact of contacts.length ? contacts : [null]) {
-    if (needsContact && contact && sent.length && !sent.some((m) => hasChannel(contact, m.channel))) {
-      missing.push({ day: 0, message: null, contact });
-      continue;
-    }
+    // nobody to send to yet: said first, and the messages are still listed
+    if (needsContact && contact && sent.length && !sent.some((m) => hasChannel(contact, m.channel))) missing.push({ day: 0, message: null, contact });
     for (const day of days) {
       const on = messagesOnDay(board, day);
-      for (const channel of new Set(on.map((m) => m.channel))) {
+      const chosen = [...new Set(on.map((m) => m.channel))].map((channel) => {
         const options = on.filter((m) => m.channel === channel);
-        const m = chosenFor(options, lead.picks, `day-${day}`, contact, opened) ?? options[0];
-        if (hasChannel(contact, m.channel) && !approvalIn(lead.approvals, approvalKey({ openers }, lead.picks, m.id, contact))) missing.push({ day, message: m, contact });
-      }
+        return chosenFor(options, lead.picks, `day-${day}`, contact, opened) ?? options[0];
+      });
+      // as the day's tick counts them: what they can be sent, or (nothing on
+      // that day reaching them) every message, so approving still completes it
+      const sendable = chosen.filter((m) => hasChannel(contact, m.channel));
+      for (const m of sendable.length ? sendable : chosen) if (!approvalIn(lead.approvals, approvalKey({ openers }, lead.picks, m.id, contact))) missing.push({ day, message: m, contact });
     }
   }
   return missing;
@@ -602,6 +603,16 @@ export function beforeReady(stages: Pick<StageData, "id" | "name">[], stageId: s
   if (i < start) return true;
   const later = new Set(stages.slice(start).filter((s) => !isDead(s.name)).map((s) => s.name));
   return isDead(stages[i].name) && !record.some((n) => !!n && (later.has(n) || dayOf(n) != null));
+}
+// Everything it still needs before Ready to reach out, one line each, in day
+// order (the lead window's warning lists them all, so nothing is guessed)
+export function unapprovedLines(missing: Unapproved[], most = 10): string[] {
+  const lines = missing.map(({ day, message, contact }) => {
+    const who = contact?.name.trim();
+    if (!message) return contact ? `Add an email, LinkedIn or Instagram${who ? ` for ${who}` : ""}` : "Add a contact";
+    return `Approve Day ${day} · ${message.name.replace(/^day \d+\s*·\s*/i, "")}${who ? ` for ${who}` : ""}`;
+  });
+  return lines.length > most ? [...lines.slice(0, most), `And ${lines.length - most} more`] : lines;
 }
 // Why it can't go on yet, as a sentence: "Approve every message first: Day 3
 // · Email 2 for Dr Karandish and 4 more." or "Add an email, LinkedIn or

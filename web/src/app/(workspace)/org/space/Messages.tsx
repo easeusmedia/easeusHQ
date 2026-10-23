@@ -4,7 +4,7 @@ import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
 import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn } from "@/lib/space";
-import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadVar, updateMessage } from "./actions";
+import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
@@ -153,6 +153,20 @@ export function Messages({
     setError(res.error);
     return res.error;
   }
+  async function addChannel(c: Contact | null, channel: string, typed: string): Promise<string | undefined> {
+    const field = board.fields.find((f) => f.kind === "contacts");
+    const value = channelValue(channel, typed);
+    if (!field || !value) return "That couldn't be added.";
+    const list = (Array.isArray(lead.values[field.id]) ? lead.values[field.id] : []) as Contact[];
+    const kind = channel as Contact["channels"][number]["kind"];
+    const known = c && list.some((x) => x.id === c.id);
+    const next = known
+      ? list.map((x) => (x.id === c!.id ? { ...x, channels: [...x.channels.filter((ch) => ch.value.trim()), { kind, value }] } : x))
+      : [...list, { id: crypto.randomUUID(), name: c?.name ?? "", role: c?.role ?? "", channels: [{ kind, value }] }];
+    const res = await setLeadValue(lead.id, field.id, next).catch(() => ({ error: OFFLINE }));
+    if (res.error) return res.error;
+    onSaved();
+  }
   async function saveMine(messageId: string, draft: Draft | null) {
     setError(null);
     // a new edit goes under the opener in use (when it wrote this message); putting back takes off the one shown
@@ -207,12 +221,18 @@ export function Messages({
   const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
   // a day is done once every message the person can be reached by is approved
   // (a greyed one, on a platform they aren't on, doesn't count)
-  const dayApproved = (x: SequenceTab) => {
+  // what a day needs approved, and what's still left (named, so a hover says so)
+  const dayProgress = (x: SequenceTab) => {
     const chosen = chosenOn(x, person);
     const sendable = chosen.filter((m) => hasChannel(person, m.channel));
     // nothing they can be sent yet (no email or handle on them): every message counts, so approving still ticks the day
     const due = sendable.length ? sendable : chosen;
-    return due.length > 0 && due.every((m) => !!approvalOf(keyOf(m.id, person)));
+    const left = due.filter((m) => !approvalOf(keyOf(m.id, person)));
+    return { due: due.length, done: due.length - left.length, left: left.map((m) => m.name) };
+  };
+  const dayApproved = (x: SequenceTab) => {
+    const p = dayProgress(x);
+    return p.due > 0 && p.done === p.due;
   };
   // the same opener the wording comes from (openerOf), so the lit one is the one shown
   const opener = prepared ? openerIndex(prepared, picks) : 0;
@@ -222,7 +242,8 @@ export function Messages({
   const openersOwn = tabs.flatMap((x) => chosenOn(x, person)).filter((m) => openerMessages.has(m.id));
   const openersSendable = openersOwn.filter((m) => hasChannel(person, m.channel));
   const openersDue = openersSendable.length ? openersSendable : openersOwn;
-  const openerApproved = (i: number) => openersDue.length > 0 && openersDue.every((m) => !!approvalOf(keyOf(m.id, person, i)));
+  const openerLeft = (i: number) => openersDue.filter((m) => !approvalOf(keyOf(m.id, person, i)));
+  const openerApproved = (i: number) => openersDue.length > 0 && openerLeft(i).length === 0;
   // the sequence's first email: one after it with no subject of its own is a reply in its thread
   const firstEmail = tabs.filter((x) => x.day != null).flatMap((x) => x.messages).find((m) => m.channel === "email");
 
@@ -273,7 +294,8 @@ export function Messages({
           thread={firstEmail && firstEmail.id !== chosen.id ? own(firstEmail.id)?.subject.trim() || firstEmail.subject : ""}
           sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
-          cant={can ? null : chosen.channel === "email" ? "No email address" : `No ${PLATFORM_NAME[chosen.channel as keyof typeof PLATFORM_NAME] ?? chosen.channel}`}
+          cant={can ? null : (chosen.channel as "email" | "linkedin" | "instagram" | "other")}
+          onAddChannel={(value) => addChannel(c, chosen.channel, value)}
           onMine={(d) => saveMine(chosen.id, d)}
           onVar={saveVar}
         />
@@ -347,11 +369,18 @@ export function Messages({
                 <div role="tablist" aria-label="Opener" className="flex flex-wrap items-center gap-1.5">
                   {openers.map((o, i) => {
                     const done = openerApproved(i);
+                    const left = openerLeft(i);
+                    const begun = openersDue.length - left.length;
                     // green (!: the picked chip's look in globals.css is unlayered)
                     return (
-                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title="Days 1 and 2 change with the opener picked; Days 3 to 8 stay the same" className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${done ? `border-emerald-400/40! text-emerald-200! ${i === opener ? "bg-emerald-400/25!" : "bg-emerald-400/15!"}` : ""}`}>
+                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title={done ? "Approved: Days 1 and 2 for this opener" : `To approve for this opener (Days 1 and 2): ${left.map((m) => m.name).join(", ")}`} className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${done ? `border-emerald-400/40! text-emerald-200! ${i === opener ? "bg-emerald-400/25!" : "bg-emerald-400/15!"}` : ""}`}>
                         {done && <Check size={12} className="shrink-0" aria-label="Approved" />}
                         {o.label || `Opener ${i + 1}`}
+                        {!done && begun > 0 && (
+                          <span className="fade-in text-[11px] text-muted tabular-nums">
+                            {begun}/{openersDue.length}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -364,7 +393,8 @@ export function Messages({
                 {tabs.map((x, i) => {
                   const replied = repliedOn(x.key);
                   const on = x.key === t.key;
-                  const ready = dayApproved(x);
+                  const progress = dayProgress(x);
+                  const ready = progress.due > 0 && progress.done === progress.due;
                   const tone = x.when === "now" ? "emerald" : x.when === "next" ? "accent" : null;
                   // the open one always says its name; the others, when it's tight, a number (a stage: its first letter)
                   const short = fit > 0 && !on;
@@ -376,7 +406,7 @@ export function Messages({
                         role="tab"
                         aria-selected={on}
                         onClick={() => setTab(x.key)}
-                        title={x.sub}
+                        title={ready ? `${x.title}: approved` : progress.left.length ? `${x.title}: approve ${progress.left.join(", ")}` : x.sub}
                         className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-200 ${short ? (fit >= 2 ? "p-0.5" : "p-1") : "py-1 pr-3.5 pl-1.5"} ${
                           on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                         }`}
@@ -386,7 +416,13 @@ export function Messages({
                             <Check size={12} />
                           </span>
                         ) : (
-                          <span className={`grid size-5 shrink-0 place-items-center rounded-full ring-1 text-[10px] tabular-nums ${tone === "emerald" ? "ring-emerald-400/50 text-emerald-300" : tone === "accent" ? "ring-accent/50 text-accent" : "ring-white/15"}`} aria-label={x.when === "now" ? "Today" : x.when === "next" ? "Next" : undefined}>
+                          <span className={`relative grid size-5 shrink-0 place-items-center rounded-full ring-1 text-[10px] tabular-nums ${tone === "emerald" ? "ring-emerald-400/50 text-emerald-300" : tone === "accent" ? "ring-accent/50 text-accent" : "ring-white/15"}`} aria-label={x.when === "now" ? "Today" : x.when === "next" ? "Next" : undefined}>
+                            {/* part approved: the ring fills that far */}
+                            {progress.done > 0 && (
+                              <svg viewBox="0 0 20 20" aria-hidden className="absolute inset-0 size-5 -rotate-90">
+                                <circle cx="10" cy="10" r="9.5" fill="none" stroke="rgb(52 211 153 / 0.8)" strokeWidth="1.5" pathLength="100" strokeDasharray={`${(progress.done / progress.due) * 100} 100`} className="transition-[stroke-dasharray] duration-300" />
+                              </svg>
+                            )}
                             {short ? (x.day ?? x.title.charAt(0)) : tone && <span className={`size-1.5 rounded-full ${tone === "emerald" ? "bg-emerald-400" : "bg-accent"}`} />}
                           </span>
                         )}
@@ -618,6 +654,21 @@ function Limit({ channel, text, className = "" }: { channel: string; text: strin
 // Approve at its foot. The pencil opens it to change for this lead alone (the
 // template and other leads stay as they are), with Back to what was written
 // for it (or the template). A message sent already reads as it went.
+// "+ Add an email address": what a message that can't be sent yet asks for, and an example
+const ADD_LABEL: Record<string, string> = { email: "an email address", linkedin: "their LinkedIn", instagram: "their Instagram", other: "a website" };
+const ADD_EXAMPLE: Record<string, string> = { email: "name@clinic.com", linkedin: "linkedin.com/in/their-name", instagram: "@their.handle or instagram.com/their.handle", other: "clinic.com" };
+// what's typed, as the contact keeps it: an Instagram "@handle" or a bare LinkedIn name made a profile address
+function channelValue(kind: string, typed: string): string | null {
+  const v = typed.trim();
+  if (!v) return null;
+  if (kind === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v.toLowerCase() : null;
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^(www\.)?(instagram|linkedin)\.com\//i.test(v)) return `https://${v.replace(/^www\./i, "www.")}`;
+  if (kind === "instagram" && /^@?[\w.]{2,30}$/.test(v)) return `https://www.instagram.com/${v.replace(/^@/, "")}/`;
+  if (kind === "linkedin" && /^[\w-]{3,100}$/.test(v)) return `https://www.linkedin.com/in/${v}/`;
+  return /\s/.test(v) ? null : v;
+}
+
 function MessageForm({
   message,
   stages,
@@ -632,6 +683,7 @@ function MessageForm({
   sent,
   extra,
   cant,
+  onAddChannel,
   onMine,
   onVar,
 }: {
@@ -648,8 +700,9 @@ function MessageForm({
   thread: string;
   sent: SentData | null;
   extra?: string | null;
-  // why it can't be sent to the person picked ("No email address")
+  // the channel the person picked has nothing on yet, so this can't be sent
   cant?: string | null;
+  onAddChannel: (value: string) => Promise<string | undefined>;
   onMine: (draft: Draft | null) => Promise<string | undefined>;
   onVar: (name: string, value: string) => Promise<string | undefined>;
 }) {
@@ -663,6 +716,22 @@ function MessageForm({
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState(false);
   const [copied, setCopied] = useState<"subject" | "body" | null>(null);
+  // adding the email or handle this message needs, right where it's missing
+  const [adding, setAdding] = useState(false);
+  const [handle, setHandle] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  async function addHandle(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cant) return;
+    if (!channelValue(cant, handle)) return setAddError(cant === "email" ? "That doesn't look like an email address." : "That doesn't look like a link or handle.");
+    setBusy(true);
+    const err = await onAddChannel(handle);
+    setBusy(false);
+    if (err) return setAddError(err);
+    setAdding(false);
+    setHandle("");
+    setAddError(null);
+  }
   // the values the editor was filled from: what it's read back against
   const [base, setBase] = useState(vars);
   // an email with no subject of its own (Emails 2 to 4) is a reply in the first one's thread
@@ -725,7 +794,11 @@ function MessageForm({
           <h4 className="flex items-center gap-2 text-sm font-medium text-foreground">
             <span className="min-w-0 truncate">{message.name}</span>
             {rewritten && !sent && <span className="shrink-0 text-xs font-normal text-muted">· Edited</span>}
-            {cant && !sent && <span className="shrink-0 text-xs font-normal text-amber-300/90">· {cant}</span>}
+            {cant && !sent && !adding && (
+              <button type="button" onClick={() => setAdding(true)} className="fade-in shrink-0 text-xs font-normal text-amber-300/90 transition-colors hover:text-amber-200">
+                + Add {ADD_LABEL[cant] ?? "a way to reach them"}
+              </button>
+            )}
             {sent && (
               <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[12px] font-medium text-emerald-300">
                 <Check size={11} /> Sent
@@ -765,6 +838,31 @@ function MessageForm({
           </span>
         )}
       </header>
+
+      {adding && cant && !sent && (
+        <form onSubmit={addHandle} className="fade-in flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-3">
+          <input
+            autoFocus
+            value={handle}
+            onChange={(e) => (setHandle(e.target.value), setAddError(null))}
+            onKeyDown={(e) => e.key === "Escape" && setAdding(false)}
+            placeholder={ADD_EXAMPLE[cant] ?? ""}
+            aria-label={`Add ${ADD_LABEL[cant] ?? "a way to reach them"}`}
+            className={`${FIELD} min-w-0 flex-1 text-sm`}
+          />
+          <button type="button" onClick={() => (setAdding(false), setHandle(""), setAddError(null))} className="btn btn-sm btn-ghost">
+            Cancel
+          </button>
+          <button type="submit" disabled={busy || !handle.trim()} className="btn btn-sm btn-glow">
+            {busy ? "Adding…" : "Add"}
+          </button>
+          {addError && (
+            <p role="alert" className="w-full text-xs text-red-300">
+              {addError}
+            </p>
+          )}
+        </form>
+      )}
 
       {editing ? (
         <div className="fade-in flex flex-col gap-2.5 px-4 py-4">
