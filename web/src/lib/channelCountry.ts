@@ -6,6 +6,8 @@ import { countryName, type LeadIn } from "./leadImport.ts";
 // the channel's About page says where it is ("country":"United States" in
 // the page's data), read with no key and no Claude. Only an empty Country is
 // filled, never one already set; a channel that doesn't say leaves it empty.
+// An import reads the same page for the channel's own links as well
+// (lib/leadLinks); this is the pass afterwards, for leads it didn't reach.
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const AT_ONCE = 6;
@@ -23,7 +25,7 @@ export const boardCountry = (name: string) => SHORT[name.trim().toLowerCase()] ?
 // name; a video link isn't a channel
 const CHANNEL = /youtube\.com\/(@[^/?#\s]+|(?:channel|c|user)\/[^/?#\s]+|(?!(?:watch|shorts|playlist|results|feed|embed|live|hashtag|redirect|post)(?:[/?#\s]|$))[\w.-]+(?=[/?#\s]|$))/i;
 const NOT_A_NAME = /^(?:none|null|nil|n\.?a|tbd|unknown)$/i;
-function channelPath(raw: string, isYoutube: boolean): string | null {
+export function channelPath(raw: string, isYoutube: boolean): string | null {
   const v = raw.trim();
   const path = CHANNEL.exec(v)?.[1];
   if (path) return path;

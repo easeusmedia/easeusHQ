@@ -1,5 +1,6 @@
 import { prisma } from "./prisma.ts";
 import { boardCountry, tagFor } from "./channelCountry.ts";
+import { isGreeting } from "./leadImport.ts";
 import { cleanValue, COLOR_NAMES, type ChannelKind, type Contact, type LinkValue } from "./space.ts";
 
 // A lead's contact details from the public Notion page(s) in its Links
@@ -7,11 +8,13 @@ import { cleanValue, COLOR_NAMES, type ChannelKind, type Contact, type LinkValue
 // doctors' Notion pages do ("Email ID 1: …", "LinkedIn Profile: …",
 // "Instagram Link: …"), read with no token as the page's own site reads them.
 // Only added, never replacing: emails and handles the lead lacks, a name for a
-// contact without one, Country while empty. Staff written on a page under
-// their own heading ("CEO:", "Marketing Director:") or a doctor named in the
-// label ("Email ID of Dr. Luke Maxfield") are their own contacts, never the
-// doctor's; the clinic's, brand's and other accounts ("Clinic's IG") are left
-// out.
+// contact without one (or a fuller one), Country while empty. Everyone on a
+// page is a possible contact (Abhishek's call, 23 Oct 2026: find every
+// possible contact): staff under their own heading ("CEO:", "Medical
+// Director:") and doctors named in the label ("Email ID of Dr. Luke Maxfield")
+// are each their own contact, with their role; the clinic's accounts
+// ("Clinic's IG", the brand's website) only when nobody on the lead has an
+// Instagram otherwise.
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const AT_ONCE = 4;
@@ -19,9 +22,12 @@ const FETCH_MS = 8_000;
 // no new read starts after this; one read in flight can add FETCH_MS, so the whole stays under 45 s
 const BUDGET_MS = 34_000;
 
-export type Details = { emails: string[]; linkedin: string[]; instagram: string[]; youtube: string[]; phones: string[]; websites: string[] };
+export type Details = { emails: string[]; linkedin: string[]; instagram: string[]; youtube: string[]; x: string[]; tiktok: string[]; phones: string[]; websites: string[] };
 export type Other = Details & { role: string; name?: string };
-export type NotionPage = Details & { name?: string; country?: string; others: Other[] };
+// site: a website's or a channel's own details (lib/leadLinks), the owner's,
+// so only the kinds nobody on the lead has yet; clinic: the clinic's accounts
+// text: the page's words, as read
+export type NotionPage = Details & { name?: string; country?: string; others: Other[]; clinic: { instagram: string[]; websites: string[] }; site?: boolean; text?: string };
 
 // ---- Addresses, as the app keeps them ----
 
@@ -38,6 +44,31 @@ export function youtubeUrl(raw: string): string | null {
   const path = /^(?:https?:\/\/)?(?:[\w-]+\.)*youtube\.com\/(@[^/?#\s<>]+|(?:channel|c|user)\/[^/?#\s<>]+)/i.exec(raw.trim())?.[1];
   return path ? `https://www.youtube.com/${path}` : null;
 }
+const X_NOT_PROFILE = new Set(["intent", "share", "home", "hashtag", "search", "i", "explore", "login", "signup", "settings", "privacy", "tos", "messages", "notifications"]);
+export function xUrl(raw: string): string | null {
+  const h = /^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:twitter|x)\.com\/(?:#!\/)?@?([A-Za-z0-9_]{1,15})(?=[/?#]|$)/i.exec(raw.trim())?.[1]?.toLowerCase();
+  return h && !X_NOT_PROFILE.has(h) ? `https://x.com/${h}` : null;
+}
+// a TikTok profile, never one of its videos
+export function tiktokUrl(raw: string): string | null {
+  const h = /^(?:https?:\/\/)?(?:[\w-]+\.)*tiktok\.com\/@([\w.-]{2,24})\/?(?:[?#].*)?$/i.exec(raw.trim())?.[1]?.toLowerCase();
+  return h ? `https://www.tiktok.com/@${h}` : null;
+}
+// the platforms' own accounts, and site builders' left in a template's footer
+const OWN = /\/(@?(instagram|linkedin|youtube|twitter|x|tiktok|wix|squarespace|godaddy|shopify|wordpress|webflow|elementor))\/?$/i;
+// A link's profile onto the list for its platform, if it's one
+export function profileInto(d: Details, raw: string) {
+  for (const [key, of] of [
+    ["instagram", instagramUrl],
+    ["linkedin", linkedinUrl],
+    ["youtube", youtubeUrl],
+    ["x", xUrl],
+    ["tiktok", tiktokUrl],
+  ] as const) {
+    const u = of(raw);
+    if (u && !OWN.test(u)) add(d[key], u);
+  }
+}
 const SOCIAL = /(^|\.)(instagram|linkedin|youtube|youtu|facebook|tiktok|twitter|x|notion)\.(com|be|so|site)$/i;
 function websiteUrl(raw: string): string | null {
   try {
@@ -50,8 +81,10 @@ function websiteUrl(raw: string): string | null {
 
 // ---- One page's text, into people ----
 
-const EMAIL = /[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
-const URLS = /(?:https?:\/\/)?(?:[\w-]+\.)*(?:instagram|linkedin|youtube)\.com\/[^\s<>()"']+|https?:\/\/[^\s<>()"']+/gi;
+// every part bounded, and starting where an address can, so a page of
+// letters with no "@" is read in one pass, not one per letter (lib/leadLinks too)
+export const EMAIL = /(?<![A-Za-z0-9._%+'-])[A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24}/g;
+const URLS = /(?<![\w.-])(?:https?:\/\/)?(?:[\w-]+\.)*(?:instagram|linkedin|youtube)\.com\/[^\s<>()"']+|https?:\/\/[^\s<>()"']+/gi;
 const PHONE = /\+?\d[\d\s().-]{6,}\d/g;
 // "Label: value", the colon not a link's ("https://…")
 const LABEL = /^([^:\n]{1,60}?)\s*:(?!\/\/)\s*(.*)$/;
@@ -60,6 +93,8 @@ const COPY = /copy|subject|^(instagram|linkedin|ig|email)\s*dm$/i;
 const CHANNEL = /e-?mail|linked\s*in|insta|\big\b|\byt\b|you\s*tube|web|site|phone|whats\s*app|mobile|\btel\b|link|page|profile|tik\s*tok|facebook|twitter/i;
 // someone else's account: the clinic's, a brand's, a nurse's, an app's
 const NOT_THEIRS = /clinic|brand|other|nurse|podcast|academy|\bapp\b|business|account|common|company|course|page 2/i;
+// ...of those, the clinic's own (its Instagram, its website)
+const CLINIC = /clinic|brand|business|company|practice/i;
 const WEBSITE = /web|site/i;
 const PHONE_LABEL = /phone|whats\s*app|mobile|\btel\b/i;
 const NAMED = /\s(?:of|by)?\s*(dr[.,]?\s+[a-z][\w.'-]*(?:\s+[a-z][\w.'-]*)*)$/i;
@@ -73,7 +108,8 @@ export function samePerson(a = "", b = ""): boolean {
   return x.length > 0 && y.length > 0 && (x.every((w) => y.includes(w)) || y.every((w) => x.includes(w)));
 }
 
-const empty = (): Details => ({ emails: [], linkedin: [], instagram: [], youtube: [], phones: [], websites: [] });
+export const emptyDetails = (): Details => ({ emails: [], linkedin: [], instagram: [], youtube: [], x: [], tiktok: [], phones: [], websites: [] });
+const empty = emptyDetails;
 const add = (list: string[], v: string | null) => {
   if (v && !list.some((x) => x.toLowerCase() === v.toLowerCase())) list.push(v);
 };
@@ -83,6 +119,7 @@ const add = (list: string[], v: string | null) => {
 export function detailsOf(props: Record<string, string>, lines: string[]): NotionPage {
   const main = empty();
   const others: Other[] = [];
+  const clinic = { instagram: [] as string[], websites: [] as string[] };
   const mailed = new Set<Details>();
   const name = props.Name?.normalize("NFKC").replace(/\s*<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 120) || undefined;
   const country = props.Country?.trim() || undefined;
@@ -94,14 +131,12 @@ export function detailsOf(props: Record<string, string>, lines: string[]): Notio
     last = { label, to: p };
     if (!NOT_THEIRS.test(label)) {
       for (const e of value.match(EMAIL) ?? []) add(p.emails, e.toLowerCase());
-      for (const u of value.match(URLS) ?? []) {
-        add(p.instagram, instagramUrl(u));
-        add(p.linkedin, linkedinUrl(u));
-        add(p.youtube, youtubeUrl(u));
-      }
+      for (const u of value.match(URLS) ?? []) profileInto(p, u);
       if (PHONE_LABEL.test(label)) for (const n of value.match(PHONE) ?? []) add(p.phones, n.replace(/\s+/g, " "));
-    }
-    if (WEBSITE.test(label)) for (const u of value.match(/https?:\/\/[^\s<>()"']+/gi) ?? []) add(p.websites, websiteUrl(u));
+    } else if (CLINIC.test(label)) for (const u of value.match(URLS) ?? []) add(clinic.instagram, instagramUrl(u));
+    // a website: theirs, the clinic's, or someone else's (left out)
+    const sites = !WEBSITE.test(label) ? null : CLINIC.test(label) ? clinic.websites : NOT_THEIRS.test(label) ? null : p.websites;
+    if (sites) for (const u of value.match(/https?:\/\/[^\s<>()"']+/gi) ?? []) add(sites, websiteUrl(u));
   };
   const another = (role: string) => {
     const o: Other = { ...empty(), role };
@@ -152,7 +187,8 @@ export function detailsOf(props: Record<string, string>, lines: string[]): Notio
     ...(country && { country }),
     ...main,
     // a person: named, or reachable by email or LinkedIn
-    others: others.filter((o) => (o.name || o.emails.length || o.linkedin.length) && o.emails.length + o.linkedin.length + o.instagram.length + o.phones.length + o.websites.length > 0),
+    others: others.filter((o) => (o.name || o.emails.length || o.linkedin.length) && KINDS.some(([key]) => o[key].length)),
+    clinic,
   };
 }
 
@@ -162,7 +198,7 @@ export function detailsOf(props: Record<string, string>, lines: string[]): Notio
 export function notionPageOf(url: string): { origin: string; id: string } | null {
   try {
     const u = new URL(url.trim());
-    if (u.protocol !== "https:" || !/(^|\.)notion\.(so|site)$/i.test(u.hostname)) return null;
+    if (u.protocol !== "https:" || u.port || !/(^|\.)notion\.(so|site)$/i.test(u.hostname)) return null;
     const hex = /([0-9a-f]{32})\/?$/i.exec(u.pathname.replace(/-/g, ""))?.[1]?.toLowerCase();
     if (!hex) return null;
     const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
@@ -216,54 +252,168 @@ export function pageOf(recordMap: unknown, id: string): { props: Record<string, 
   return { props, lines };
 }
 
-// One public Notion page, read and parsed; null when it can't be
-export async function readNotionPage(url: string, ms = FETCH_MS): Promise<NotionPage | null> {
+// Notion's API rich text, a link's address kept when its words aren't it
+const apiText = (rich: unknown): string =>
+  Array.isArray(rich) ? rich.map((r: { plain_text?: string; href?: string | null }) => `${r.plain_text ?? ""}${r.href && !(r.plain_text ?? "").includes(r.href) ? ` <${r.href}>` : ""}`).join("") : "";
+// a property's words, whatever its kind
+const apiProp = (p: Rec): string => {
+  const v = p[p.type as string];
+  if (Array.isArray(v)) return p.type === "multi_select" ? v.map((o: { name?: string }) => o.name ?? "").join(", ") : apiText(v);
+  return typeof v === "string" ? v : typeof (v as Rec | null)?.name === "string" ? ((v as Rec).name as string) : "";
+};
+
+// A notion.so page that isn't public but is shared with the app's Notion
+// connection (NOTION_TOKEN), through Notion's API: its properties, and its
+// blocks' words a few levels into toggles and columns (ten calls at most)
+async function apiPage(id: string): Promise<{ props: Record<string, string>; lines: string[] }> {
+  const { notionGet } = await import("./notion.ts");
+  const page = await notionGet(`/pages/${id}`);
+  const props = Object.fromEntries(Object.entries((page.properties ?? {}) as Record<string, Rec>).map(([k, p]) => [p.type === "title" ? "Name" : k, apiProp(p)]));
+  const lines: string[] = [];
+  let calls = 0;
+  const walk = async (bid: string, depth: number) => {
+    let cursor: string | undefined;
+    do {
+      if (++calls > 10) return;
+      const r = await notionGet(`/blocks/${bid}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`);
+      for (const b of (r.results ?? []) as Rec[]) {
+        const t = apiText(((b[b.type as string] ?? {}) as Rec).rich_text).trim();
+        if (t) lines.push(t);
+        if (b.has_children && depth < 3) await walk(String(b.id), depth + 1);
+      }
+      cursor = r.has_more ? r.next_cursor : undefined;
+    } while (cursor);
+  };
+  await walk(id, 0);
+  return { props, lines };
+}
+
+// an answer that may be different in a moment: too many reads, or the server's trouble
+export const busy = (status: number) => status === 429 || status >= 500;
+// rejects when the time is up, for what can't be handed a signal
+const timedOut = (signal: AbortSignal) => new Promise<never>((_, no) => signal.addEventListener("abort", () => no(signal.reason), { once: true }));
+
+// One Notion page, read and parsed: the public page, else (a notion.so page
+// that isn't public) through the app's Notion connection, only when `shared`
+// says the reader may: it sees the team's own pages too (the workbook, the
+// clients' records), so only Level 1's imports use it (importActions
+// findContacts). Null when it can't be read; running out of time, or Notion
+// busy (429, 5xx) or out of reach, throws, so a caller can try again later.
+export async function loadNotion(url: string, ms = FETCH_MS, shared = false): Promise<NotionPage | null> {
   const at = notionPageOf(url);
   if (!at) return null;
-  try {
-    const res = await fetch(`${at.origin}/api/v3/loadPageChunk`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "user-agent": UA },
-      body: JSON.stringify({ pageId: at.id, limit: 100, cursor: { stack: [] }, chunkNumber: 0, verticalColumns: false }),
-      signal: AbortSignal.timeout(ms),
-    });
-    if (!res.ok) return null;
-    const page = pageOf(((await res.json()) as Rec)?.recordMap, at.id);
-    return page ? detailsOf(page.props, page.lines) : null;
-  } catch {
+  const signal = AbortSignal.timeout(ms);
+  const late = (e: unknown) => {
+    if (signal.aborted) throw e;
     return null;
-  }
+  };
+  const pub = await fetch(`${at.origin}/api/v3/loadPageChunk`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "user-agent": UA },
+    body: JSON.stringify({ pageId: at.id, limit: 100, cursor: { stack: [] }, chunkNumber: 0, verticalColumns: false }),
+    signal,
+  }).then(async (res) => {
+    if (busy(res.status)) throw new Error(`Notion answered ${res.status}`);
+    return res.ok ? pageOf(((await res.json().catch(late)) as Rec | null)?.recordMap, at.id) : null;
+  });
+  const read = (p: { props: Record<string, string>; lines: string[] }) => ({ ...detailsOf(p.props, p.lines), text: p.lines.join("\n") });
+  if (pub) return read(pub);
+  if (!shared || at.origin !== "https://www.notion.so" || !process.env.NOTION_TOKEN) return null;
+  const api = await Promise.race([apiPage(at.id), timedOut(signal)]).catch(late);
+  return api ? read(api) : null;
 }
+// ...null however it fails
+export const readNotionPage = (url: string, ms = FETCH_MS): Promise<NotionPage | null> => loadNotion(url, ms).catch(() => null);
 
 // ---- Onto a lead ----
 
 const norm = (v: string) => v.trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "");
 const keyOf = (kind: ChannelKind, v: string) =>
-  `${kind}:${norm((kind === "instagram" ? instagramUrl(v.trim().replace(/^@/, "instagram.com/")) : kind === "linkedin" ? linkedinUrl(v) : kind === "youtube" ? youtubeUrl(v) : null) ?? v)}`;
+  `${kind}:${norm((kind === "instagram" ? instagramUrl(v.trim().replace(/^@/, "instagram.com/")) : kind === "linkedin" ? linkedinUrl(v) : kind === "youtube" ? youtubeUrl(v) : kind === "x" ? xUrl(v) : null) ?? v)}`;
 const KINDS: [keyof Details, ChannelKind][] = [
   ["emails", "email"],
   ["linkedin", "linkedin"],
   ["instagram", "instagram"],
   ["youtube", "youtube"],
+  ["x", "x"],
+  ["tiktok", "other"],
   ["phones", "phone"],
   ["websites", "other"],
 ];
+// what a lead's messages can go to
+const REACH: ChannelKind[] = ["email", "instagram", "linkedin"];
+// which of a page's lists a contact's channel is (a TikTok and a website are both "other")
+const listOf = (ch: Contact["channels"][number]): keyof Details =>
+  ch.kind === "other" ? (tiktokUrl(ch.value) ? "tiktok" : "websites") : KINDS.find(([, kind]) => kind === ch.kind)![0];
 
-// A lead's contacts with its pages' details added: the doctor's onto the
-// contact their name matches, else the first (named, if it has no name); each
-// other person onto the contact their name matches; staff with no contact of
-// their own (a CEO, a marketing director) stay off unless staff is asked for,
-// as they'd each get the doctor's whole sequence (Abhishek's call, 23 Oct
-// 2026). Nothing already on the lead (or a YouTube channel in its Links) twice.
-export function withPages(contacts: Contact[], pages: NotionPage[], links: string[] = [], staff = false): { contacts: Contact[]; added: ChannelKind[]; people: number; named: number } {
+// The people in one name: "Dr Shah & Dr Maxfield", "Dr. Muneeb Shah and Dr.
+// Luke Maxfield", joined by &, and, /, + (or commas between doctors, or only
+// a space before the next one's title: "Dr. Ross Kopelman Dr. Joel
+// Kopelman"), each part a person (a title, or two to four words that aren't a
+// practice's), so "VIVIFY plastic surgery & medspa" is no one's
+const PRACTICE = /clinic|surgery|cent(er|re)|medical|med\s?spa|spa\b|aesthetic|derm|skin|health|institute|cosmetic|wellness|group|hair|plastic|laser|beauty/i;
+const DOCTOR = /^(dr|doctor|prof)\b\.?/i;
+export function namesIn(name = ""): string[] {
+  const isPerson = (p: string) => DOCTOR.test(p) || (words(p).length >= 2 && words(p).length <= 4 && !PRACTICE.test(p));
+  const parts = name
+    .split(/\s*(?:&|\+|\/|\band\b)\s*|,?\s+(?=(?:dr|doctor|prof)\b\.?\s)/i)
+    .flatMap((p) => (p.split(/\s*,\s*/).every((x) => DOCTOR.test(x)) ? p.split(/\s*,\s*/) : [p]))
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length > 1 && parts.every(isPerson) ? parts : [];
+}
+// a person's name, not a business's or a channel's: a title, people named
+// together, or two to four words none of them a practice's ("Jonathan Zelken",
+// not "Doctorly" or "The Skin Center")
+const personal = (name = "") => DOCTOR.test(name.trim()) || namesIn(name).length > 0 || (/^\S+(\s+\S+){1,3}$/.test(name.trim()) && !PRACTICE.test(name));
+// a name up to its credentials or brand: "Robert Najera, M.D. - Dr. Dallas" is Robert Najera
+const firstPart = (name: string) => name.split(/\s+[-–—|]\s+|\s*[|,]\s*/)[0].trim();
+
+// "linkedin.com/in/byron-poindexter-50831721" is Byron Poindexter: the
+// address's words up to its letters or id; one run together ("robertsigal")
+// names no one
+export function linkedinName(url = ""): string {
+  const slug = /linkedin\.com\/in\/([^/?#\s]+)/i.exec(url)?.[1];
+  let parts: string[];
+  try {
+    parts = slug ? decodeURIComponent(slug).split(/[-_]+/) : [];
+  } catch {
+    return "";
+  }
+  if (DOCTOR.test(parts[0] ?? "")) parts.shift();
+  const end = parts.findIndex((p) => /\d/.test(p) || TITLES.has(p.toLowerCase()));
+  const name = end < 0 ? parts : parts.slice(0, end);
+  while (name.length && name[name.length - 1].length < 2) name.pop();
+  return name.length >= 2 && name.every((p) => /^\p{L}[\p{L}'.]*$/u.test(p)) ? name.map((p) => p[0].toUpperCase() + p.slice(1).toLowerCase()).join(" ") : "";
+}
+
+// A lead's contacts with its pages' details added. A page's own details go
+// onto the one contact its name is (or one holding an address of the page's),
+// else the first; every other person on it onto the one contact their name
+// is (or an address), else as their own contact with their role (named from
+// their LinkedIn when the page doesn't say). A name two contacts share
+// ("Dr. Kopelman", with Dr. Ross and Dr. Joel Kopelman) is neither's, unless
+// an address or its LinkedIn says whose. The lead's one contact naming the
+// page's people together ("Dr Shah & Dr Maxfield"), with nothing of its own,
+// gives way to them. A contact without a name, or with a greeting for one
+// ("there"), takes the page's, and a shorter form of it ("Dr Kim") the fuller
+// one (only its person's part). Then the sites' and channels' details (site),
+// the owner's, onto the contact without a role (staff have theirs), else one
+// named after the lead, for the kinds nobody has yet (three emails at most);
+// then the clinic's Instagram, when nobody has one, on the lead's own
+// business-named contact, else one of its own (role Clinic, never a person's
+// name). Nothing already on the lead (or a YouTube channel in its Links)
+// twice; 50 contacts at most; no contact left that's only the lead's
+// business name and can't be written to.
+export function withPages(contacts: Contact[], pages: NotionPage[], links: string[] = [], title = ""): { contacts: Contact[]; added: ChannelKind[]; people: number; named: number } {
   const out = contacts.map((c) => ({ ...c, channels: [...c.channels] }));
   const seen = new Set([...out.flatMap((c) => c.channels.map((ch) => keyOf(ch.kind, ch.value))), ...links.map((l) => keyOf("youtube", l))]);
   const added: ChannelKind[] = [];
   let people = 0;
   let named = 0;
-  const fresh = (d: Details) =>
+  const fresh = (d: Partial<Details>) =>
     KINDS.flatMap(([key, kind]) =>
-      d[key].flatMap((value) => {
+      (d[key] ?? []).flatMap((value) => {
         const k = keyOf(kind, value);
         if (seen.has(k)) return [];
         seen.add(k);
@@ -279,19 +429,82 @@ export function withPages(contacts: Contact[], pages: NotionPage[], links: strin
     c.channels.push(...chs.slice(0, Math.max(0, 100 - c.channels.length)));
     added.push(...chs.map((ch) => ch.kind));
   };
-  for (const page of pages) {
-    const main = out.find((c) => samePerson(c.name, page.name)) ?? out[0];
-    if (main && !main.name.trim() && page.name) {
-      main.name = page.name;
-      named++;
-    }
+  const nameFrom = (c: Contact | undefined, name = "") => {
+    if (!c || !name || c.name === name) return;
+    // a fuller name is only the person's part of the page's, never a name for several people ("Dr. A & Dr. B"); the contact's title stays ("Dr Najera", "Dr Robert Najera")
+    const full = firstPart(name);
+    if (isGreeting(c.name)) c.name = name;
+    else if (samePerson(c.name, full) && words(full).length > words(c.name).length && !namesIn(full).length) c.name = DOCTOR.test(c.name) && !DOCTOR.test(full) ? `${DOCTOR.exec(c.name)![0]} ${full}` : full;
+    else return;
+    named++;
+  };
+  // the one contact a name is: of those it matches (itself or one of the
+  // people it names), the closest, fewest words apart; null when two are as
+  // close ("Dr. Kopelman" and Dr. Ross and Dr. Joel Kopelman), undefined for none
+  const whose = (name = ""): Contact | null | undefined => {
+    const gap = (c: Contact) => Math.min(...[c.name, ...namesIn(c.name)].map((p) => (samePerson(p, name) ? Math.abs(words(p).length - words(name).length) : Infinity)));
+    const [a, b] = out.map((c) => ({ c, g: gap(c) })).filter((x) => x.g < Infinity).sort((x, y) => x.g - y.g);
+    return !a ? undefined : b?.g === a.g ? null : a.c;
+  };
+  // whoever on the lead has one of these addresses
+  const holder = (d: Details) => {
+    const keys = new Set(KINDS.flatMap(([key, kind]) => d[key].map((v) => keyOf(kind, v))));
+    return out.find((c) => c.channels.some((ch) => keys.has(keyOf(ch.kind, ch.value))));
+  };
+  // who someone on a page is: the one contact their name is, else whoever has
+  // one of their addresses; a name two share settled by an address or their
+  // LinkedIn's name, else null (their own contact)
+  const who = (name: string, d: Details) => {
+    const one = whose(name);
+    return one !== null ? (one ?? holder(d)) : (holder(d) ?? whose(linkedinName(d.linkedin[0])) ?? null);
+  };
+  const lone = out.length === 1 && !out[0].channels.length ? namesIn(out[0].name) : [];
+  for (const page of lone.length ? pages : []) {
+    const them = lone.map((n) => page.others.find((o) => o.name && samePerson(n, o.name)));
+    if (!them.every(Boolean)) continue;
+    out.splice(0, 1, ...them.map((o, i) => ({ id: i ? crypto.randomUUID() : out[0].id, name: o!.name!, role: o!.role, channels: [] })));
+    break;
+  }
+
+  for (const page of pages.filter((p) => !p.site)) {
+    const found = who(page.name ?? "", page);
+    const main = found === undefined ? out[0] : (found ?? undefined);
+    nameFrom(main, page.name);
     into(main, fresh(page), page.name);
     for (const o of page.others) {
-      const theirs = o.name ? out.find((c) => samePerson(c.name, o.name)) : undefined;
-      if (theirs || staff) into(theirs, fresh(o), o.name, o.role);
+      const name = o.name || linkedinName(o.linkedin[0]);
+      const theirs = who(name, o) ?? undefined;
+      nameFrom(theirs, name);
+      if (theirs && !theirs.role && o.role) theirs.role = o.role;
+      into(theirs, fresh(o), name, o.role);
     }
   }
-  return { contacts: out, added, people, named };
+  for (const page of pages.filter((p) => p.site)) {
+    const has = new Set(out.flatMap((c) => c.channels.map(listOf)));
+    const theirs = Object.fromEntries(KINDS.map(([key]) => [key, has.has(key) ? [] : key === "emails" ? page.emails.slice(0, 3) : page[key]]));
+    const chs = fresh(theirs);
+    // the owner: whoever has no role (never a staff member), unnamed (or greeted, "there") taking the lead's name
+    const owner = out.find((c) => !c.role);
+    if (owner && chs.length && isGreeting(owner.name)) nameFrom(owner, title);
+    into(owner, chs, title);
+  }
+  const reached = (c: Contact) => c.channels.some((ch) => REACH.includes(ch.kind));
+  const clinic = pages.flatMap((p) => p.clinic?.instagram ?? []);
+  if (clinic.length && !out.some((c) => c.channels.some((ch) => ch.kind === "instagram"))) {
+    // the contact with the lead's own name when that's a business's ("Glow Clinic"), else a new one: unnamed when the lead is a person ("Dr Jane Kim")
+    const own = out.find((c) => !c.role && samePerson(c.name, title) && !personal(c.name));
+    if (own) own.role = "Clinic";
+    into(own, fresh({ instagram: clinic }), personal(title) ? "" : title, "Clinic");
+  }
+  // the lead's own business name (a clinic's, a channel's) or none on a
+  // contact that still can't be written to, beside people who can, is no one
+  // to write to (and would hold the lead back from Ready to reach out): what
+  // it has (a website, a TikTok) goes onto the first of them. A person's name
+  // stays ("Jonathan Zelken" on the lead "Jonathan Zelken, MD").
+  const first = out.find(reached);
+  const placeholder = (c: Contact) => !c.role && !reached(c) && (isGreeting(c.name) || (samePerson(c.name, title) && !personal(c.name)));
+  if (first) for (const c of out.filter(placeholder)) first.channels.push(...c.channels.slice(0, Math.max(0, 100 - first.channels.length)));
+  return { contacts: first ? out.filter((c) => !placeholder(c)) : out, added, people, named };
 }
 
 export type Enriched = {
@@ -322,12 +535,12 @@ export async function enrichFromLinkedPages(boardId: string, leadIds?: string[])
   const linkFields = fields.filter((f) => f.kind === "links");
   const countryField = fields.find((f) => f.kind === "select");
   if (!people || !linkFields.length) return done;
-  const leads = await prisma.lead.findMany({ where: { boardId, ...(leadIds && { id: { in: leadIds } }) }, select: { id: true, values: true } });
+  const leads = await prisma.lead.findMany({ where: { boardId, ...(leadIds && { id: { in: leadIds } }) }, select: { id: true, title: true, values: true } });
   const todo = leads.flatMap((l) => {
     const values = (l.values ?? {}) as Record<string, unknown>;
     const links = linkFields.flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as LinkValue[]) : [])).map((l) => l?.url ?? "");
     const urls = [...new Set(links.filter((u) => notionPageOf(u)))];
-    return urls.length ? [{ id: l.id, values, links, urls }] : [];
+    return urls.length ? [{ id: l.id, title: l.title, values, links, urls }] : [];
   });
   done.leads = todo.length;
 
@@ -369,7 +582,7 @@ export async function enrichFromLinkedPages(boardId: string, leadIds?: string[])
         if (!pages.length) continue;
 
         const before = Array.isArray(lead.values[people.id]) ? (lead.values[people.id] as Contact[]) : [];
-        const r = withPages(before, pages, lead.links);
+        const r = withPages(before, pages, lead.links, lead.title);
         const cleaned = cleanValue("contacts", r.contacts);
         if (r.added.length || r.named) {
           if ("value" in cleaned) {

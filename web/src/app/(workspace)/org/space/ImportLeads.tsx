@@ -4,18 +4,19 @@ import { useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AtSign, Check, CircleAlert, Copy, FileText, FileUp, X } from "lucide-react";
-import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeExtracted, readFile, targetsOf, Unreadable, type LeadIn, type Part, type Preview, type Read, type Row } from "@/lib/leadImport";
+import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeExtracted, readFile, targetsOf, unreachable, Unreadable, type LeadIn, type Part, type Preview, type Read, type Row } from "@/lib/leadImport";
 import { fillTemplates, findSlots } from "@/lib/leadTemplates";
 import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
 import { Reveal } from "../../Reveal";
-import { extractLeads, importLeads, mapColumns, nameSlots } from "./importActions";
+import { extractLeads, findContacts, importLeads, mapColumns, nameSlots } from "./importActions";
 
 const OFFLINE = "That couldn't be reached. Check your connection and try again.";
 // leads a call, as add_leads takes them
 const CHUNK = 50;
-// leads a call whose countries are read, so the page's other actions never wait long behind them
+// leads a call whose links are read (importActions findContacts), well inside the page's minute
+const FIND = 20;
 const plural = (n: number) => `${n} lead${n === 1 ? "" : "s"}`;
 
 // Several files as one import: their rows together, and their words and
@@ -67,6 +68,27 @@ export async function readParts(parts: Part[], ask: (p: Part) => Promise<{ rows?
   return out;
 }
 
+// Each lead's contacts from its links, twenty a call, one call after
+// another (a page's actions go one at a time anyway). Only what a lead's
+// links can change comes back (its contacts and Country); a call that fails
+// leaves its leads as they were, read again once they're imported, as are
+// the leads it couldn't read in time (unread). Nothing more is asked once the
+// dialog is closed (gone).
+type Found = { leads?: Pick<LeadIn, "contacts" | "values">[]; unread?: string[]; error?: string };
+export async function findAll(leads: LeadIn[], ask: (ls: LeadIn[]) => Promise<Found>, gone: () => boolean, onPart: (at: number, of: number) => void): Promise<{ leads: LeadIn[]; unread: string[] }> {
+  const out = [...leads];
+  const unread: string[] = [];
+  for (let i = 0; i < leads.length && !gone(); i += FIND) {
+    onPart(i, leads.length);
+    const part = leads.slice(i, i + FIND);
+    const res = await ask(part.map(({ title, contacts, links, values }) => ({ title, contacts, links, values }))).catch((): Found => ({ error: OFFLINE }));
+    if (res.leads?.length === part.length) res.leads.forEach((l, j) => (out[i + j] = { ...part[j], contacts: l.contacts, values: l.values }));
+    else unread.push(...part.map((l) => l.title));
+    unread.push(...(res.unread ?? []));
+  }
+  return { leads: out, unread };
+}
+
 // add_leads' calls: the new leads in fifties (a title already on the board
 // is skipped, so sending one again is harmless), then the duplicates added anyway
 export type Batch = { leads: LeadIn[]; twice: boolean };
@@ -86,8 +108,8 @@ export const leftOut = (why: string, columns: string[]) =>
   `${why} Importing now leaves out ${new Intl.ListFormat("en-GB").format(columns.length > 4 ? [...columns.slice(0, 3), `${columns.length - 3} more`] : columns)}.`;
 
 // what's happening now, and how far along when that can be counted
-type Busy = { step: "read" | "place" | "extract" | "import"; at?: number; of?: number };
-const said = (b: Busy) => (b.step === "import" && b.of ? `Importing ${plural(b.of)}` : "Importing the leads");
+type Busy = { step: "read" | "place" | "extract" | "find" | "import"; at?: number; of?: number };
+const said = (b: Busy) => (b.step === "find" ? "Finding contacts" : b.step === "import" && b.of ? `Importing ${plural(b.of)}` : "Importing the leads");
 
 // A turning ring, a line for the step and a thin bar: filling when the work
 // can be counted, sliding when it can't. Done, a tick and how many came in.
@@ -145,18 +167,21 @@ function Problem({ Icon, title, names, children }: { Icon: typeof Copy; title: s
 // "Import leads", where "New lead" was on a Sales board: files of leads
 // dropped, picked or pasted, read in the browser (lib/leadImport), its columns placed
 // on the board's properties (by code, then one small Claude call for what
-// code can't tell), then add_leads in fifties, into the board's first stage.
-// A file with nothing to decide goes straight in; otherwise only what needs
-// a decision shows (Abhishek, 23 Oct 2026): duplicates (skip or add anyway),
-// leads missing details (the rest can go in without them) and leads nobody
-// on them can be reached on yet (they can't go on to Ready to reach out
-// until an email, Instagram or LinkedIn is added).
+// code can't tell), each lead's contacts found from its links (its Notion
+// pages, channel, website), then add_leads in fifties, into the board's
+// first stage. A file with nothing to decide goes straight in; otherwise
+// only what needs a decision shows (Abhishek, 23 Oct 2026): duplicates (skip
+// or add anyway), leads missing details (the rest can go in without them)
+// and leads nobody on them can be reached on even after their links were
+// read (they can't go on to Ready to reach out until an email, Instagram or
+// LinkedIn is added).
 export function ImportLeads({ board }: { board: BoardData }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  // the file read, with what it would bring in, while its problems are shown
-  const [file, setFile] = useState<{ name: string; preview: Preview } | null>(null);
+  // the file read, with what it would bring in, while its problems are shown;
+  // unread: the leads whose links are read again once they're imported
+  const [file, setFile] = useState<{ name: string; preview: Preview; unread: string[] } | null>(null);
   // what's happening now (reading, importing), if anything
   const [busy, setBusy] = useState<Busy | null>(null);
   // how many came in, shown for a moment before it closes
@@ -237,11 +262,18 @@ export function ImportLeads({ board }: { board: BoardData }) {
       const plan = findSlots([...built.leads, ...built.duplicates]);
       const named: Awaited<ReturnType<typeof nameSlots>> = plan.slots.length ? await nameSlots(board.id, plan.slots).catch(() => ({})) : {};
       if (gone()) return;
-      const preview = { ...built, leads: fillTemplates(built.leads, plan, named.names ?? {}), duplicates: fillTemplates(built.duplicates, plan, named.names ?? {}) };
+      const filled = [...fillTemplates(built.leads, plan, named.names ?? {}), ...fillTemplates(built.duplicates, plan, named.names ?? {})];
+      // their contacts from their links, so who can't be reached is known from what's there
+      const people = board.fields.some((f) => f.kind === "contacts");
+      const reached = people ? await findAll(filled, (ls) => findContacts(board.id, ls), gone, (at, of) => setBusy({ step: "find", at, of })) : { leads: filled, unread: filled.map((l) => l.title) };
+      if (gone()) return;
+      const leads = reached.leads.slice(0, built.leads.length);
+      const unread = new Set(reached.unread);
+      const preview = { ...built, leads, duplicates: reached.leads.slice(built.leads.length), unreachable: people ? unreachable(leads.filter((l) => !unread.has(l.title))) : [] };
       // kept while it imports, so a call that fails leaves the rest to import again
-      setFile({ name: files.length > 1 ? `${files.length} files` : files[0].name, preview });
+      setFile({ name: files.length > 1 ? `${files.length} files` : files[0].name, preview, unread: reached.unread });
       // nothing to decide: straight in (a value the board doesn't have is simply left off)
-      if (!unplaced && !preview.duplicates.length && !preview.incomplete.length && !preview.unreachable.length) return await run(preview.leads, [], s);
+      if (!unplaced && !preview.duplicates.length && !preview.incomplete.length && !preview.unreachable.length) return await run(preview.leads, [], reached.unread, s);
       if (unplaced) setError(leftOut(unplaced, left.map((c) => c.path)));
     } catch (err) {
       if (!(err instanceof Unreadable)) console.error(err);
@@ -251,8 +283,8 @@ export function ImportLeads({ board }: { board: BoardData }) {
     setBusy(null);
   }
 
-  // the server reads the leads' linked pages and YouTube channels after each
-  // batch (importActions importLeads); the board is refreshed as that lands
+  // the server reads again, after each batch, the links of leads it couldn't
+  // read in time (importActions importLeads); the board is refreshed as that lands
   function refreshLater() {
     for (const ms of [15_000, 45_000]) setTimeout(() => router.refresh(), ms);
   }
@@ -261,7 +293,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
   // closes and the board fills (refreshed after, as a redrawn board would
   // close it early). A call that fails leaves only what didn't go in to
   // import again; closed meanwhile, it stops before the next call.
-  async function run(leads: LeadIn[], dups: LeadIn[], s = session.current) {
+  async function run(leads: LeadIn[], dups: LeadIn[], unread: string[], s = session.current) {
     const live = () => s === session.current;
     const batches = batchesOf(leads, dups);
     if (!batches.length) return;
@@ -276,7 +308,8 @@ export function ImportLeads({ board }: { board: BoardData }) {
     for (const [i, b] of batches.entries()) {
       if (!live()) break;
       setBusy({ step: "import", at: sent, of: total });
-      const res: Awaited<ReturnType<typeof importLeads>> = await importLeads(board.id, b.leads, b.twice).catch(() => ({ error: OFFLINE }));
+      const late = b.leads.filter((l) => unread.includes(l.title)).map((l) => l.title);
+      const res: Awaited<ReturnType<typeof importLeads>> = await importLeads(board.id, b.leads, b.twice, late).catch(() => ({ error: OFFLINE }));
       if (res.error) {
         failed.push(res.error);
         stop = i;
@@ -310,7 +343,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
     }
     if (created) {
       router.refresh();
-      refreshLater();
+      if (unread.length) refreshLater();
     }
   }
 
@@ -437,7 +470,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
               Cancel
             </button>
             {showing && (
-              <button type="button" disabled={!going} onClick={() => p && run(p.leads, twice ? p.duplicates : [])} className="fade-in btn btn-glow disabled:opacity-60">
+              <button type="button" disabled={!going} onClick={() => p && run(p.leads, twice ? p.duplicates : [], file.unread)} className="fade-in btn btn-glow disabled:opacity-60">
                 {!going ? "Nothing to import" : p.incomplete.length ? `Import the other ${plural(going)}` : `Import ${plural(going)}`}
               </button>
             )}

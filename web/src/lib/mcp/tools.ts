@@ -176,10 +176,11 @@ const stageOf = (board: Board, key: string) => {
   return s;
 };
 // where a new lead can start: before Ready to reach out, or Dead. It goes
-// there once every message is approved (moveLead).
+// there once every message is approved and filled in (moveLead, the one
+// guard every stage change here goes through).
 const startIn = (board: Board, s: Board["stages"][number]) => {
   const start = outreachStart(board.stages);
-  if (start >= 0 && board.stages.indexOf(s) >= start && !isDead(s.name)) throw new ToolError(`A new lead can't start in ${s.name}. Add it before ${board.stages[start].name}; it moves there once every message is approved.`);
+  if (start >= 0 && board.stages.indexOf(s) >= start && !isDead(s.name)) throw new ToolError(`A new lead can't start in ${s.name}. Add it before ${board.stages[start].name}; it moves there once every message is filled in and approved.`);
   return s;
 };
 const messageOf = (board: Board, key: string) => {
@@ -625,7 +626,7 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
 
     tool(
       "add_leads",
-      "Put prepared leads on a board, up to 50 a call, each with its fields, people, links, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
+      "Put prepared leads on a board, up to 50 a call, each with its fields, people, links, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is filled in and approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
       z.object({
         board_id: z.string().describe("The board's id or name"),
         leads: z.array(leadIn).min(1).max(50),

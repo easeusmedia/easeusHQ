@@ -174,12 +174,10 @@ export function LeadProfile({
     return n > 1 ? `${who.name.trim() || title} · ${n}` : who.name.trim() || title;
   })();
   const recent = (channel?.stats?.recent ?? []).filter((r) => r.views != null);
-  // the channel's pictures, its YouTube one first
+  // the channel's one picture (Abhishek, 23 Oct 2026: not YouTube's and Instagram's both): its YouTube one, else the one it has
   const stats = channel?.stats;
-  const faces = Object.entries(stats?.avatars ?? {})
-    .filter((e): e is [string, string] => !!e[1])
-    .sort(([a], [b]) => (b === "youtube" ? 1 : 0) - (a === "youtube" ? 1 : 0));
-  if (!faces.length && stats?.avatar) faces.push([stats.platform, stats.avatar]);
+  const faces = Object.entries(stats?.avatars ?? {}).filter((e): e is [string, string] => !!e[1]);
+  const face = faces.find(([p]) => p === "youtube") ?? faces[0] ?? (stats?.avatar ? ([stats.platform, stats.avatar] as [string, string]) : undefined);
   const SECTION = "px-5 py-5";
   const editingWho = !!who && editing === who.id;
 
@@ -189,7 +187,7 @@ export function LeadProfile({
       <section className={SECTION}>
         <Head title="Channel" editing={editingDetails} onEdit={editable.length ? onEditDetails : undefined} />
         <div className="mb-5 flex min-w-0 items-center gap-3">
-          <Pictures faces={faces} name={title} />
+          <Picture face={face} name={title} />
           <p className="min-w-0 text-sm leading-snug font-semibold break-words text-foreground">{title}</p>
         </div>
         {editingDetails ? (
@@ -254,26 +252,21 @@ export function LeadProfile({
   );
 }
 
-// the channel's pictures, overlapping, each with its platform's badge; else its initials
-function Pictures({ faces, name }: { faces: [string, string][]; name: string }) {
-  if (!faces.length) return <Face src={null} name={name} size={44} />;
+// the channel's picture with its platform's badge; else its initials
+function Picture({ face, name }: { face: [string, string] | undefined; name: string }) {
+  if (!face) return <Face src={null} name={name} size={44} />;
+  const [platform, src] = face;
+  const badge = PLATFORM_BADGE[platform];
   return (
-    <div className="flex shrink-0 -space-x-3">
-      {faces.slice(0, 3).map(([platform, src]) => {
-        const badge = PLATFORM_BADGE[platform];
-        return (
-          <span key={platform} className="relative block" title={`${HANDLE[platform as ChannelKind]?.name ?? platform} picture`}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
-            <img src={src} alt="" referrerPolicy="no-referrer" className="size-11 rounded-full object-cover ring-2 ring-black/40" />
-            {badge && (
-              <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-black/40 ${badge.tone}`}>
-                <badge.Icon size={9} />
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </div>
+    <span className="relative block shrink-0" title={`${HANDLE[platform as ChannelKind]?.name ?? platform} picture`}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a small picture saved with the lead's channel read */}
+      <img src={src} alt="" referrerPolicy="no-referrer" className="size-11 rounded-full object-cover ring-2 ring-black/40" />
+      {badge && (
+        <span className={`absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full text-white ring-2 ring-black/40 ${badge.tone}`}>
+          <badge.Icon size={9} />
+        </span>
+      )}
+    </span>
   );
 }
 

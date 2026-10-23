@@ -18,7 +18,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, unapprovedLines, beforeReady, isDead, leadPeople, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, unapprovedLines, beforeReady, isDead, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -184,12 +184,16 @@ function LeadPage({
     };
   }, [id, open, router]);
 
-  // after any save: say so, show the new line on the record, refresh the board
+  // after any save: say so, show the new line on the record (and its own
+  // wording, which the move into Ready to reach out reads), refresh the board
   function saved() {
     clearTimeout(statusTimer.current);
     setStatus("saved");
     statusTimer.current = setTimeout(() => setStatus((s) => (s === "saved" ? null : s)), 2000);
-    getLeadDetails(id).then((r) => r.events && setEvents(r.events));
+    getLeadDetails(id).then((r) => {
+      if (r.events) setEvents(r.events);
+      if (r.prepared) setPrepared(r.prepared);
+    });
     router.refresh();
   }
   async function run<T extends { error?: string }>(work: Promise<T>, undo?: () => void): Promise<T> {
@@ -282,12 +286,14 @@ function LeadPage({
   const contactList = leadPeople(values, board.fields);
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
   // Ready to reach out (by place: the stage before Day 1), reached from before
-  // it only once every message is approved, as moveLead checks; Dead stays
+  // it only once every message is approved and filled in, as moveLead checks; Dead stays
   // open, and moving on from it waits too until its record has it there
   const start = outreachStart(board.stages);
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
   const gated = beforeReady(board.stages, stageId, (events ?? []).filter((e) => e.kind === "created" || e.kind === "moved").map((e) => e.toStage));
-  const left = gated ? approvalsMissing(board, lead, prepared?.openers ?? [], contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts")) : [];
+  // typed in the Fill in form (Messages), ahead of its save: filling the last one and moving goes straight on (the save lands first, server actions run one at a time)
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const left = gated ? approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts")) : [];
   // (until its openers and record load, what's approved for each can't be read)
   const blocked = gated && (!prepared || left.length > 0);
   const blockedWhy = left.length ? unapprovedText(left) : "This lead's messages are still loading. Try again in a moment.";
@@ -295,6 +301,12 @@ function LeadPage({
   const [warning, setWarning] = useState<string | null>(null);
   // shown with the warning: everything left, one per line
   const leftLines = left.length ? unapprovedLines(left) : [];
+  // held back for empty fill-ins: once the warning is dismissed, the Fill in form shows them (Messages)
+  const [nudge, setNudge] = useState(0);
+  function dismissWarning() {
+    setWarning(null);
+    if (left.some((m) => m.fill)) setNudge((n) => n + 1);
+  }
   function moveToReady() {
     if (!ready) return;
     if (blocked) return setWarning(blockedWhy);
@@ -469,6 +481,9 @@ function LeadPage({
             onMark={(c) => onTrack(id, c)}
             onSaved={saved}
             person={person}
+            nudge={nudge}
+            typed={typed}
+            setTyped={setTyped}
             aside={
               <LeadProfile
                 title={title || lead.title}
@@ -534,7 +549,7 @@ function LeadPage({
             <span className="truncate">Move to {ready.name}</span>
           </button>
         )}
-        <Warning text={warning && leftLines.length ? `Before ${ready?.name ?? "Ready to reach out"}:` : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={() => setWarning(null)} />
+        <Warning text={warning && leftLines.length ? `Before ${ready?.name ?? "Ready to reach out"}:` : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={dismissWarning} />
         <button type="button" onClick={close} className="btn btn-ghost shrink-0">
           Close
         </button>

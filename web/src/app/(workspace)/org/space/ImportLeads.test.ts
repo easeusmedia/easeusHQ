@@ -6,7 +6,7 @@ import { partsOf, type Part } from "../../../../lib/leadImport.ts";
 
 // the dialog's pure helpers, from the component file itself (jiti reads its JSX and "@/" paths)
 const jiti = createJiti(import.meta.url, { alias: { "@": resolve(import.meta.dirname, "../../../..") }, jsx: true });
-const { batchesOf, leftOut, pasted, readParts, together, unsent } = await jiti.import<typeof import("./ImportLeads.tsx")>("./ImportLeads.tsx");
+const { batchesOf, findAll, leftOut, pasted, readParts, together, unsent } = await jiti.import<typeof import("./ImportLeads.tsx")>("./ImportLeads.tsx");
 
 test("several screenshots are read together, two a call, beside a file's rows", () => {
   const img = "data:image/jpeg;base64,AAAA";
@@ -84,4 +84,34 @@ test("new leads never go with allow_duplicates; after a failed call only what di
 test("without Claude's placing, the columns left out are named", () => {
   assert.equal(leftOut("Claude is busy right now.", ["City", "Notes"]), "Claude is busy right now. Importing now leaves out City and Notes.");
   assert.equal(leftOut("Claude is busy right now.", ["a", "b", "c", "d", "e"]), "Claude is busy right now. Importing now leaves out a, b, c and 2 more.");
+});
+
+test("contacts are found twenty leads a call, one after another; a call that fails leaves its leads to be read after the import", async () => {
+  const leads = Array.from({ length: 45 }, (_, i) => ({ title: `Lead ${i}`, links: [{ label: "", url: `https://x.com/${i}` }], vars: { Name: "kept" } }));
+  const sent: number[] = [];
+  const steps: number[] = [];
+  const found = await findAll(
+    leads,
+    async (ls) => {
+      sent.push(ls.length);
+      // only what the links can change is sent
+      assert.deepEqual(Object.keys(ls[0]).sort(), ["contacts", "links", "title", "values"]);
+      if (sent.length === 2) throw new Error("offline");
+      return { leads: ls.map((l) => ({ contacts: [{ name: l.title, email: ["a@b.com"] }] })), unread: sent.length === 3 ? [ls[0].title] : [] };
+    },
+    () => false,
+    (at) => steps.push(at),
+  );
+  assert.deepEqual(sent, [20, 20, 5]);
+  assert.deepEqual(steps, [0, 20, 40]);
+  assert.deepEqual(found.leads[0], { title: "Lead 0", links: [{ label: "", url: "https://x.com/0" }], vars: { Name: "kept" }, contacts: [{ name: "Lead 0", email: ["a@b.com"] }], values: undefined });
+  // the second call failed: its twenty as they were, to read later; the third's one not read in time
+  assert.equal(found.leads[25], leads[25]);
+  assert.deepEqual(found.unread, [...leads.slice(20, 40).map((l) => l.title), "Lead 40"]);
+
+  // closed meanwhile: nothing more is asked
+  let open = true;
+  const asked: number[] = [];
+  await findAll(leads, async (ls) => (asked.push(ls.length), (open = false), {}), () => !open, () => {});
+  assert.deepEqual(asked, [20]);
 });

@@ -551,27 +551,64 @@ export const approvalKey = (p: Pick<Prepared, "openers">, picks: Record<string, 
 export const approvalKeys = (key: string) => [key, key.includes("#") ? key.replace(/#\d+/, "") : key.replace(/^[^@]+/, "$&#0")];
 export const approvalIn = (approvals: Record<string, Approval | null | undefined>, key: string) => approvalKeys(key).map((k) => approvals[k]).find((a) => !!a) ?? null;
 
-// What's still to approve before a lead goes into Ready to reach out
-// (Abhishek, 23 Oct 2026): for each person on it (none: the lead itself),
-// each day's message on each platform, as the day strip picks it, that they
-// can be reached on. A day with nothing they can be reached by passes.
-// Picked by whether its email was opened, as the day strip does (a lead
-// moved back can have been).
-// message null: the person can't be reached at all (no contact, or none of
-// the channels the sequence writes on), so there is nothing to approve yet
-export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name"> | null; contact: Contact | null };
+// ---- Fill-ins ----
+// A message's words as the lead window shows them: the lead's own wording
+// (preparedFor) else the template, the board's subject where its own has none
+// ponytail: a reply's "Re:" subject (the first email's) isn't counted here, only on that email's day
+export function wordingOf(p: Prepared, picks: Record<string, string>, m: Pick<MessageData, "id" | "subject" | "body">): Draft {
+  const own = preparedFor(p, picks, m.id);
+  return { subject: own?.subject.trim() ? own.subject : m.subject, body: own?.body ?? m.body };
+}
+// a lead's variables for one person on it: Name is their own first name
+export const varsFor = (vars: Record<string, string>, c: Contact | null): Record<string, string> => (c?.name.trim() ? { ...vars, Name: c.name.trim().split(/\s+/)[0] } : vars);
+// the {{Variables}} these messages use, as this lead words them, with no value yet
+export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body">[], p: Prepared, picks: Record<string, string>, vars: Record<string, string>): string[] {
+  return variablesIn(messages.flatMap((m) => Object.values(wordingOf(p, picks, m)))).filter((n) => !vars[n]);
+}
+
+// What's left of one day for one person (Abhishek, 23 Oct 2026): its
+// messages, one per platform as the day strip picks them (by whether its
+// email was opened: a lead moved back can have been), that they can be sent
+// (none: every one, so approving still completes the day), each to approve,
+// and every {{Variable}} the ones they can be sent use still to fill in (a
+// message nobody gets never needs its words). A day is done, ticked, only
+// when both are empty (a message can still be approved before its fill-ins are).
+// vars: the lead's values as leadVars has them (what the Fill in form shows)
+export type LeadState = { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined>; vars: Record<string, string> };
+export function dayLeft<M extends Pick<MessageData, "id" | "name" | "channel" | "subject" | "body">>(on: M[], key: string, lead: LeadState, p: Prepared, contact: Contact | null, opened: boolean) {
+  const chosen = [...new Set(on.map((m) => m.channel))].map((channel) => {
+    const options = on.filter((m) => m.channel === channel);
+    return chosenFor(options, lead.picks, key, contact, opened) ?? options[0];
+  });
+  const sendable = chosen.filter((m) => hasChannel(contact, m.channel));
+  const due = sendable.length ? sendable : chosen;
+  return {
+    due,
+    approve: due.filter((m) => !approvalIn(lead.approvals, approvalKey(p, lead.picks, m.id, contact))),
+    fill: emptyFills(sendable, p, lead.picks, varsFor(lead.vars, contact)),
+  };
+}
+
+// What's still to do before a lead goes into Ready to reach out (Abhishek,
+// 23 Oct 2026): every day left complete (dayLeft) for each person on it
+// (none: the lead itself). Each empty fill-in comes once, first (filling it
+// changes the messages), with the first day and person it's missing for.
+// message null (and no fill): the person can't be reached at all (no
+// contact, or none of the channels the sequence writes on)
+export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name"> | null; contact: Contact | null; fill?: string };
 // needsContact: the board keeps people on its leads (a contacts property), so a
 // lead with nobody on it, or someone with no handle the messages go to, can't
 // go on to Ready to reach out: approving nothing would pass (Abhishek, 23 Oct 2026)
 export function approvalsMissing(
-  board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel">[] },
-  lead: { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined> },
-  openers: Opener[],
+  board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel" | "subject" | "body">[] },
+  lead: LeadState,
+  prepared: Prepared,
   contacts: Contact[],
   opened = false,
   needsContact = false,
 ): Unapproved[] {
   const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const fills: Unapproved[] = [];
   const missing: Unapproved[] = [];
   if (needsContact && !contacts.length && days.length) return [{ day: 0, message: null, contact: null }];
   const sent = board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") != null);
@@ -579,18 +616,12 @@ export function approvalsMissing(
     // nobody to send to yet: said first, and the messages are still listed
     if (needsContact && contact && sent.length && !sent.some((m) => hasChannel(contact, m.channel))) missing.push({ day: 0, message: null, contact });
     for (const day of days) {
-      const on = messagesOnDay(board, day);
-      const chosen = [...new Set(on.map((m) => m.channel))].map((channel) => {
-        const options = on.filter((m) => m.channel === channel);
-        return chosenFor(options, lead.picks, `day-${day}`, contact, opened) ?? options[0];
-      });
-      // as the day's tick counts them: what they can be sent, or (nothing on
-      // that day reaching them) every message, so approving still completes it
-      const sendable = chosen.filter((m) => hasChannel(contact, m.channel));
-      for (const m of sendable.length ? sendable : chosen) if (!approvalIn(lead.approvals, approvalKey({ openers }, lead.picks, m.id, contact))) missing.push({ day, message: m, contact });
+      const left = dayLeft(messagesOnDay(board, day), `day-${day}`, lead, prepared, contact, opened);
+      for (const fill of left.fill) if (!fills.some((f) => f.fill === fill)) fills.push({ day, message: null, contact, fill });
+      for (const m of left.approve) missing.push({ day, message: m, contact });
     }
   }
-  return missing;
+  return [...fills, ...missing];
 }
 // Before Ready to reach out, where going on waits for every message to be
 // approved: a stage before it, or Dead when the lead's record (the stages it
@@ -607,17 +638,22 @@ export function beforeReady(stages: Pick<StageData, "id" | "name">[], stageId: s
 // Everything it still needs before Ready to reach out, one line each, in day
 // order (the lead window's warning lists them all, so nothing is guessed)
 export function unapprovedLines(missing: Unapproved[], most = 10): string[] {
-  const lines = missing.map(({ day, message, contact }) => {
+  const lines = missing.map(({ day, message, contact, fill }) => {
     const who = contact?.name.trim();
+    if (fill) return `Fill in ${fill}`;
     if (!message) return contact ? `Add an email, LinkedIn or Instagram${who ? ` for ${who}` : ""}` : "Add a contact";
     return `Approve Day ${day} · ${message.name.replace(/^day \d+\s*·\s*/i, "")}${who ? ` for ${who}` : ""}`;
   });
   return lines.length > most ? [...lines.slice(0, most), `And ${lines.length - most} more`] : lines;
 }
-// Why it can't go on yet, as a sentence: "Approve every message first: Day 3
-// · Email 2 for Dr Karandish and 4 more." or "Add an email, LinkedIn or
-// Instagram for Dr Karandish first."
+// "Link", "Link and Peak views", "Link, Guest and Peak views"
+export const listed = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]);
+// Why it can't go on yet, as a sentence: "Fill in Link and Peak views
+// first.", "Approve every message first: Day 3 · Email 2 for Dr Karandish and
+// 4 more." or "Add an email, LinkedIn or Instagram for Dr Karandish first."
 export function unapprovedText(missing: Unapproved[]): string {
+  const fills = missing.flatMap((m) => (m.fill ? [m.fill] : []));
+  if (fills.length) return `Fill in ${listed(fills)} first.`;
   const unreachable = missing.find((m) => !m.message);
   if (unreachable) {
     const who = unreachable.contact?.name.trim();

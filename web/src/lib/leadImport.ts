@@ -609,12 +609,19 @@ const apartPeople = (c: ContactIn): ContactIn[] => {
   return [{ ...c, name: first }, ...more.map((name) => ({ name }))];
 };
 
+// A greeting is never anyone's name (Abhishek, 23 Oct 2026: 30 contacts came
+// in as "there" and "Dr Kim"): a column headed like one ("Greeting name",
+// "Salutation", "Hi", "Dear ..."), and a name that's only a greeting word
+const greetingHead = (path: string) => /^(greeting|salutation|dear)|^(hi|hello|hey)(name)?$/.test(norm(bareName(path)));
+export const isGreeting = (name = "") => /^(there|team|all|everyone|everybody|friends?|sir|madam|ma'?am|folks|guys)?$/i.test(name.trim().replace(/[\s!,.:;]+$/, ""));
+
 // One column per place; a message's two columns (its whole text and a line
 // from it) keep the longest, anything else the first. A message or a
 // variable only takes values that can be one (Claude's choices too: never a
 // sentence on {{Link}}), and each list of backups (alt[]) has its own. A tag
 // code beside an opener's messages ("m.c": D1, when "t" has the Opener
-// field) names that opener ("label:<field id>").
+// field) names that opener ("label:<field id>"). A greeting column is never
+// the contact's name.
 export function oneEach(columns: Column[], mapping: Record<string, Target>): Record<string, Target> {
   const length = (c: Column) => c.values.reduce((n, v) => n + v.length, 0) / (c.values.length || 1);
   const parent = (p: string) => p.slice(0, Math.max(0, p.lastIndexOf(".")));
@@ -628,7 +635,7 @@ export function oneEach(columns: Column[], mapping: Record<string, Target>): Rec
   const holder = new Map<string, Column>();
   for (const c of columns) {
     let t = mapping[c.path] ?? "ignore";
-    if ((t.startsWith("message:") || t.startsWith("var:")) && !fits(t, c.values)) t = "ignore";
+    if (((t.startsWith("message:") || t.startsWith("var:")) && !fits(t, c.values)) || (t === "contact.name" && greetingHead(c.path))) t = "ignore";
     out[c.path] = t;
     if (sharedPlace(t)) continue;
     const key = t.startsWith("message:") || t.startsWith("var:") || t === "contact.role" ? `${t}@${listOf(c.path)}${personOf(c.path)}` : t;
@@ -815,7 +822,7 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       const vs = flat[p];
       if (!vs?.length) continue;
       const k = mapping[p].slice(8) as ContactKey;
-      if (k === "name") names.push(...vs);
+      if (k === "name") names.push(...vs.filter((v) => !isGreeting(v)));
       else if (k === "role") c.role = [c.role, ...vs].filter(Boolean).join(", ").slice(0, 60);
       else for (const v of vs.flatMap(listed)) put(c, k, v, posts);
     }
@@ -952,15 +959,16 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       out.duplicates.push(lead);
     } else out.leads.push(lead);
   }
-  // a lead linking to a Notion page isn't asked about: its page is read for
-  // the details right after it's imported (lib/linkedPages)
-  if (board.fields.some((f) => f.kind === "contacts"))
-    out.unreachable = out.leads
-      .filter((l) => !l.contacts?.some((c) => c.email?.length || c.instagram?.length || c.linkedin?.length) && !l.links?.some((x) => /(^|[/.])notion\.(so|site)\//i.test(x.url)))
-      .map((l) => l.title);
+  if (board.fields.some((f) => f.kind === "contacts")) out.unreachable = unreachable(out.leads);
   out.unmatched = [...unmatched];
   return out;
 }
+
+// Whether anyone on a lead can be written to (an email, Instagram or
+// LinkedIn), and the leads nobody on can be: the dialog asks again once their
+// links have been read (importActions findContacts)
+export const reachable = (l: Pick<LeadIn, "contacts">) => !!l.contacts?.some((c) => c.email?.length || c.instagram?.length || c.linkedin?.length);
+export const unreachable = (leads: LeadIn[]) => leads.filter((l) => !reachable(l)).map((l) => l.title);
 
 // ---- Claude's part: words and pictures, in pieces ----
 

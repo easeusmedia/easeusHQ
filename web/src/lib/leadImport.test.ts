@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, decode, flatten, halves, jsonFileRows, oneEach, postLink, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, targetsOf, textRows } from "./leadImport.ts";
+import { autoMap, buildLeads, columnsOf, decode, flatten, halves, isGreeting, jsonFileRows, oneEach, postLink, reachable, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, targetsOf, textRows, unreachable } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -579,10 +579,30 @@ test("a lead named by an @handle takes the person's name when the file has one",
   assert.equal(p.leads[0].title, "Dr Jane Doe");
 });
 
-test("a lead with a Notion page isn't asked about for contact details: its page is read after", () => {
+test("who can't be reached is told from the contacts alone: a Notion page is read for them before (ImportLeads findAll)", () => {
   const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }, { id: "l", name: "Links", kind: "links", required: false, onCard: false, options: [] }], messages: [], leads: [] };
   const p = buildLeads([{ cn: "Dr K", g: "Dr K", no: "https://adorable-tower-3f9.notion.site/089b6a208044827f9721814679a8773c" }, { cn: "Dr Q", g: "Dr Q" }], { cn: "title", g: "contact.name", no: "link" }, board as never);
-  assert.deepEqual(p.unreachable, ["Dr Q"]);
+  assert.deepEqual(p.unreachable, ["Dr K", "Dr Q"]);
+  assert.equal(reachable({ contacts: [{ name: "Dr K", phone: ["+1 555 0100"], website: ["k.com"] }] }), false);
+  assert.equal(reachable({ contacts: [{ name: "Dr K" }, { linkedin: ["https://www.linkedin.com/in/drk/"] }] }), true);
+  assert.deepEqual(unreachable([{ title: "A", contacts: [{ email: ["a@a.com"] }] }, { title: "B" }, { title: "C", contacts: [{ instagram: ["@c"] }] }]), ["B"]);
+});
+
+test("a greeting is never the contact's name: a column headed like one, or a greeting word", () => {
+  const cols = ["Greeting name", "Salutation", "Hi", "Dear Doctor", "History", "Name"].map((path) => ({ path, values: [] }));
+  const all = Object.fromEntries(cols.map((c) => [c.path, "contact.name"]));
+  assert.deepEqual(oneEach(cols, all), { "Greeting name": "ignore", Salutation: "ignore", Hi: "ignore", "Dear Doctor": "ignore", History: "contact.name", Name: "contact.name" });
+  // on a variable, it stays there
+  assert.equal(oneEach(cols.slice(0, 1), { "Greeting name": "var:Greeting name" })["Greeting name"], "var:Greeting name");
+  assert.equal(autoMap(columnsOf([{ "Greeting name": "Dr Kim", Clinic: "Glow" }]), board)["Greeting name"], "var:Greeting name");
+  for (const g of ["there", "Team", "all", "everyone", "friend", "Sir", "madam", "", "there!"]) assert.equal(isGreeting(g), true, g);
+  assert.equal(isGreeting("Dr Kim"), false);
+  const people = { fields: [field("c", "Contacts", "contacts", tags(), true)], messages: [], leads: [] };
+  const p = buildLeads([{ cn: "Glow", g: "there", e: "a@glow.com" }, { cn: "Ritz", g: "Dr Kim", e: "k@ritz.com" }], { cn: "title", g: "contact.name", e: "contact.email" }, people);
+  assert.deepEqual(
+    p.leads.map((l) => l.contacts),
+    [[{ email: ["a@glow.com"] }], [{ email: ["k@ritz.com"], name: "Dr Kim" }]],
+  );
 });
 
 test("a real country however it's written, and nothing else", () => {

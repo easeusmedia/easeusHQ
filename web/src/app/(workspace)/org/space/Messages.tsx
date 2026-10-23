@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, varsFor, wordingOf } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -49,6 +49,9 @@ export function Messages({
   prepared,
   aside,
   person: picked_person,
+  nudge = 0,
+  typed,
+  setTyped,
   onMark,
   onSaved,
 }: {
@@ -61,11 +64,15 @@ export function Messages({
   aside: React.ReactNode;
   // the person picked at the top of the window, when the lead has more than one
   person: Contact | null;
+  // counts up when a move was held back for empty fill-ins: the Fill in form comes into view and they pulse
+  nudge?: number;
+  // what's typed in the Fill in form, ahead of the save: kept by the window (LeadPeek), so a move straight after sees it
+  typed: Record<string, string>;
+  setTyped: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onMark: (change: MarkChange) => void;
   onSaved: () => void;
 }) {
   // what's typed above shows in every message at once, ahead of the save
-  const [typed, setTyped] = useState<Record<string, string>>({});
   const [mine, setMine] = useState<Record<string, Draft | null>>({});
   const vars = leadVars({ ...lead, vars: { ...lead.vars, ...typed } }, board.fields);
   const auto = leadVars({ ...lead, vars: {} }, board.fields);
@@ -78,7 +85,6 @@ export function Messages({
   const idOf = (c: Contact | null) => c?.id ?? NO_CONTACT;
   // whose messages: picked at the top of the window, for both its sides
   const person = people.find((c) => idOf(c) === idOf(picked_person)) ?? people[0];
-  const firstName = (name: string) => name.trim().split(/\s+/)[0];
   const request = requestDay(board);
   // a day's message (or the opener) picked here, ahead of the save
   const [picked, setPicked] = useState<Record<string, string | null>>({});
@@ -212,24 +218,30 @@ export function Messages({
   const sentIds = new Set((sent ?? []).map((x) => x.messageId ?? ""));
   // the variables the person's messages use (every day, so it's filled once), and which are still blank
   const allMessages = tabs.flatMap((t) => t.messages);
-  const used = variablesIn(allMessages.flatMap((m) => [own(m.id)?.subject ?? m.subject, own(m.id)?.body ?? m.body]));
-  const blanks = used.filter((n) => !vars[n]);
+  // the wording each message shows (lib/space wordingOf), and the lead as this window has it, ahead of the saves
+  const wording = merged ?? { drafts: {}, openers: [] };
+  const state = { picks, approvals, vars };
+  const used = variablesIn(allMessages.flatMap((m) => Object.values(wordingOf(wording, picks, m))));
+  // only the ones a day's tick waits on (dayLeft) for anyone on the lead, as a move does: these are ringed, counted and pulsed
+  // (none until the lead's own wording loads: the board's templates can use fill-ins its wording doesn't)
+  const waiting = new Set(merged ? people.flatMap((c) => tabs.flatMap((x) => dayLeft(x.messages, x.key, state, wording, c, lead.email.opens > 0).fill)) : []);
+  const blanks = used.filter((n) => waiting.has(n));
   const openers = prepared?.openers ?? [];
   // which meme board image goes with Day 6's email, from the lead's property
   const memeField = board.fields.find((f) => /^meme board$/i.test(f.name.trim()));
   const memeBoard = memeField ? memeField.options.find((o) => (lead.values[memeField.id] as string[] | undefined)?.includes(o.id))?.name : undefined;
   const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
-  // a day is done once every message the person can be reached by is approved
-  // (a greyed one, on a platform they aren't on, doesn't count)
-  // what a day needs approved, and what's still left (named, so a hover says so)
+  // a day is done once the person's messages on it are approved and every
+  // fill-in they use is filled (lib/space dayLeft, as the move into Ready to
+  // reach out has it); the ring fills with the approvals, an empty fill-in
+  // holding it short. What's left is named, so a hover says so.
   const dayProgress = (x: SequenceTab) => {
-    const chosen = chosenOn(x, person);
-    const sendable = chosen.filter((m) => hasChannel(person, m.channel));
-    // nothing they can be sent yet (no email or handle on them): every message counts, so approving still ticks the day
-    const due = sendable.length ? sendable : chosen;
-    const left = due.filter((m) => !approvalOf(keyOf(m.id, person)));
-    return { due: due.length, done: due.length - left.length, left: left.map((m) => m.name) };
+    const { due, approve, fill: left } = dayLeft(x.messages, x.key, state, wording, person, lead.email.opens > 0);
+    const fill = merged ? left : [];
+    return { due: due.length + fill.length, done: due.length - approve.length, approve: approve.map((m) => m.name), fill };
   };
+  // "fill in Link, approve Email 1"
+  const todo = (fill: string[], approve: string[]) => [fill.length ? `fill in ${listed(fill)}` : "", approve.length ? `approve ${approve.join(", ")}` : ""].filter(Boolean).join(", ");
   const dayApproved = (x: SequenceTab) => {
     const p = dayProgress(x);
     return p.due > 0 && p.done === p.due;
@@ -237,15 +249,28 @@ export function Messages({
   // the same opener the wording comes from (openerOf), so the lit one is the one shown
   const opener = prepared ? openerIndex(prepared, picks) : 0;
   // an opener is done, green, once each of its own messages the person gets
-  // (the one picked on its day, on a platform they're on) is approved for it
+  // (the one picked on its day, on a platform they're on) is approved for it,
+  // and the fill-ins its wording of them uses are filled
   const openerMessages = prepared ? openerOwn(prepared.openers) : new Set<string>();
   const openersOwn = tabs.flatMap((x) => chosenOn(x, person)).filter((m) => openerMessages.has(m.id));
   const openersSendable = openersOwn.filter((m) => hasChannel(person, m.channel));
   const openersDue = openersSendable.length ? openersSendable : openersOwn;
   const openerLeft = (i: number) => openersDue.filter((m) => !approvalOf(keyOf(m.id, person, i)));
-  const openerApproved = (i: number) => openersDue.length > 0 && openerLeft(i).length === 0;
+  const openerFills = (i: number) => emptyFills(openersSendable, wording, { ...picks, opener: String(i) }, varsFor(vars, person));
+  const openerApproved = (i: number) => openersDue.length > 0 && openerLeft(i).length === 0 && openerFills(i).length === 0;
   // the sequence's first email: one after it with no subject of its own is a reply in its thread
   const firstEmail = tabs.filter((x) => x.day != null).flatMap((x) => x.messages).find((m) => m.channel === "email");
+
+  // a move held back for empty fill-ins (LeadPeek): the form comes into view, its empty fields pulse once
+  const fillForm = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = fillForm.current;
+    if (!nudge || !el) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "nearest" });
+    if (still) return;
+    for (const input of el.querySelectorAll("[data-empty]")) input.animate([{ boxShadow: "0 0 0 0 rgb(252 165 165 / 0.45)" }, { boxShadow: "0 0 0 6px rgb(252 165 165 / 0)" }], { duration: 900, delay: 250, easing: "ease-out" });
+  }, [nudge]);
 
   // before Ready to reach out: what's known about it, nothing to send
   if (!tabs.length) return <div className={`${PANEL} @container min-h-0 w-full max-w-xl flex-1 overflow-y-auto`}>{aside}</div>;
@@ -260,7 +285,7 @@ export function Messages({
     const reached = t.when === "done" || (t.day != null && today != null && t.day <= today);
     const platform = MARKED.includes(chosen.channel as Marked) ? (chosen.channel as Marked) : null;
     const m = platform ? (lead.marks[idOf(c)]?.[platform] ?? {}) : {};
-    const rowVars = c?.name.trim() ? { ...vars, Name: firstName(c.name) } : vars;
+    const rowVars = varsFor(vars, c);
     const mark = (kind: "accepted" | "replied") => platform && onMark({ contact: idOf(c), platform, kind, day: m[kind] ? null : t.key });
     const needs = platform === "linkedin" && !m.accepted;
     const chip = "chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50";
@@ -332,12 +357,13 @@ export function Messages({
           {aside}
           {/* the form, under the lead's details (Abhishek, 23 Oct 2026): the words that change per lead, typed once, filling every message that uses them */}
           {prepared && used.length > 0 && (
-            <section className="border-t border-white/[0.06] px-5 py-5">
+            <section ref={fillForm} className="border-t border-white/[0.06] px-5 py-5">
               <div className="mb-3 flex items-center gap-2">
                 <p className="text-[11px] font-medium tracking-wide text-muted uppercase">Fill in</p>
                 <span className={`ml-auto text-xs ${blanks.length ? "text-red-300" : "text-emerald-300"}`}>{blanks.length ? `${blanks.length} to fill` : "All filled"}</span>
               </div>
               <div className="flex flex-col gap-3">
+                {/* an empty one a message uses: a thin red ring, the red of its {{Variable}} in the messages, gone once filled */}
                 {used.map((name) => (
                   <label key={name} className="flex min-w-0 flex-col gap-1">
                     <span className="text-xs text-muted">{name}</span>
@@ -347,7 +373,8 @@ export function Messages({
                       onBlur={(e) => saveVar(name, e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                       placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                      className={`${INPUT} ${!(typed[name] ?? lead.vars[name] ?? auto[name]) ? "border-red-400/30" : ""}`}
+                      data-empty={blanks.includes(name) || undefined}
+                      className={`${INPUT} ${blanks.includes(name) ? "border-red-300/50" : ""}`}
                     />
                   </label>
                 ))}
@@ -370,15 +397,16 @@ export function Messages({
                   {openers.map((o, i) => {
                     const done = openerApproved(i);
                     const left = openerLeft(i);
+                    const fills = openerFills(i);
                     const begun = openersDue.length - left.length;
                     // green (!: the picked chip's look in globals.css is unlayered)
                     return (
-                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title={done ? "Approved: Days 1 and 2 for this opener" : `To approve for this opener (Days 1 and 2): ${left.map((m) => m.name).join(", ")}`} className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${done ? `border-emerald-400/40! text-emerald-200! ${i === opener ? "bg-emerald-400/25!" : "bg-emerald-400/15!"}` : ""}`}>
+                      <button key={i} type="button" role="tab" aria-selected={i === opener} onClick={() => i !== opener && pickOpenerAt(i)} title={done ? "Approved: Days 1 and 2 for this opener" : `For this opener (Days 1 and 2): ${todo(fills, left.map((m) => m.name))}`} className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${done ? `border-emerald-400/40! text-emerald-200! ${i === opener ? "bg-emerald-400/25!" : "bg-emerald-400/15!"}` : ""}`}>
                         {done && <Check size={12} className="shrink-0" aria-label="Approved" />}
                         {o.label || `Opener ${i + 1}`}
                         {!done && begun > 0 && (
                           <span className="fade-in text-[11px] text-muted tabular-nums">
-                            {begun}/{openersDue.length}
+                            {begun}/{openersDue.length + fills.length}
                           </span>
                         )}
                       </button>
@@ -406,7 +434,7 @@ export function Messages({
                         role="tab"
                         aria-selected={on}
                         onClick={() => setTab(x.key)}
-                        title={ready ? `${x.title}: approved` : progress.left.length ? `${x.title}: approve ${progress.left.join(", ")}` : x.sub}
+                        title={ready ? `${x.title}: approved` : progress.done < progress.due ? `${x.title}: ${todo(progress.fill, progress.approve)}` : x.sub}
                         className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-200 ${short ? (fit >= 2 ? "p-0.5" : "p-1") : "py-1 pr-3.5 pl-1.5"} ${
                           on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                         }`}

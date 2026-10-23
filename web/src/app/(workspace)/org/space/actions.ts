@@ -783,7 +783,7 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
 // skipping ahead, needs a reason, which stays on the lead's record. Without
 // one, the answer says so ({ needsReason }) and nothing moves. Into Ready to
 // reach out (or past it) from before it only once every message is approved
-// (lib/space approvalsMissing), reason or not; Dead stays open, and a lead
+// and its fill-ins filled (lib/space approvalsMissing), reason or not; Dead stays open, and a lead
 // already past it moves freely (from Dead too, once its record has it there:
 // lib/space beforeReady).
 export async function moveLead(id: string, toStageId: string, sortOrder: number, reason?: string): Promise<Done & { needsReason?: boolean }> {
@@ -803,19 +803,26 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
     const start = outreachStart(stages);
     if (start >= 0 && (stages.findIndex((s) => s.id === lead.stageId) < start || isDead(lead.stage.name)) && stages.indexOf(to) >= start && !isDead(to.name)) {
       const [full, messages, fields] = await Promise.all([
-        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, openers: true, createdAt: true, events: { where: { kind: { in: ["created", "moved"] } }, select: { toStage: true } } } }),
-        prisma.stageMessage.findMany({ where: { stage: { boardId: lead.boardId } }, select: { id: true, stageId: true, name: true, channel: true }, orderBy: [{ stage: { sortOrder: "asc" } }, { sortOrder: "asc" }] }),
+        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, vars: true, drafts: true, openers: true, createdAt: true, events: { where: { kind: { in: ["created", "moved"] } }, select: { toStage: true } } } }),
+        prisma.stageMessage.findMany({ where: { stage: { boardId: lead.boardId } }, select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true }, orderBy: [{ stage: { sortOrder: "asc" } }, { sortOrder: "asc" }] }),
         prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
       ]);
       if (beforeReady(stages, lead.stageId, full?.events.map((e) => e.toStage) ?? [])) {
         // opened as the lead window has it: its tracked emails since it was added (org/space/data.ts)
         const since = new Date((full?.createdAt.getTime() ?? 0) - 3_600_000);
         const opened = (await prisma.trackedMail.count({ where: { to: { in: leadEmails(lead.values) }, sentAt: { gte: since }, opens: { gt: 0 } } })) > 0;
+        const values = (lead.values ?? {}) as Record<string, unknown>;
+        const contactFields = fields as Pick<FieldData, "id" | "kind">[];
         const missing = approvalsMissing(
           { stages, messages },
-          { picks: (full?.picks ?? {}) as Record<string, string>, approvals: (full?.approvals ?? {}) as Record<string, Approval> },
-          (Array.isArray(full?.openers) ? full.openers : []) as Opener[],
-          leadPeople((lead.values ?? {}) as Record<string, unknown>, fields as Pick<FieldData, "id" | "kind">[]),
+          {
+            picks: (full?.picks ?? {}) as Record<string, string>,
+            approvals: (full?.approvals ?? {}) as Record<string, Approval>,
+            // the values the Fill in form shows: typed, else known (Name, Podcast)
+            vars: leadVars({ title: lead.title, values, vars: (full?.vars ?? {}) as Record<string, string> }, contactFields),
+          },
+          { drafts: (full?.drafts ?? {}) as Prepared["drafts"], openers: (Array.isArray(full?.openers) ? full.openers : []) as Opener[] },
+          leadPeople(values, contactFields),
           opened,
           fields.length > 0,
         );
