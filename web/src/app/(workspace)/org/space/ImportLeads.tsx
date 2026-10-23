@@ -5,11 +5,12 @@ import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AtSign, Check, CircleAlert, Copy, FileText, FileUp, X } from "lucide-react";
 import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeExtracted, readFile, targetsOf, Unreadable, type LeadIn, type Part, type Preview, type Row } from "@/lib/leadImport";
+import { fillTemplates, findSlots } from "@/lib/leadTemplates";
 import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
 import { Reveal } from "../../Reveal";
-import { extractLeads, fillImportedCountries, importLeads, mapColumns } from "./importActions";
+import { extractLeads, fillImportedCountries, importLeads, mapColumns, nameSlots } from "./importActions";
 
 const OFFLINE = "That couldn't be reached. Check your connection and try again.";
 // leads a call, as add_leads takes them
@@ -160,8 +161,14 @@ export function ImportLeads({ board }: { board: BoardData }) {
         mapping = { ...mapping, ...res.mapping };
       }
       const known = new Set(targets.map((t) => t.value));
-      const preview = buildLeads(rows, oneEach(columns, Object.fromEntries(columns.map((c) => [c.path, known.has(mapping[c.path]) ? mapping[c.path] : "ignore"]))), board);
-      if (!preview.leads.length && !preview.duplicates.length) throw new Unreadable(preview.incomplete.length ? "None of the leads in that file have the details the board needs." : "There are no leads in that file to import.");
+      const built = buildLeads(rows, oneEach(columns, Object.fromEntries(columns.map((c) => [c.path, known.has(mapping[c.path]) ? mapping[c.path] : "ignore"]))), board);
+      if (!built.leads.length && !built.duplicates.length) throw new Unreadable(built.incomplete.length ? "None of the leads in that file have the details the board needs." : "There are no leads in that file to import.");
+      // messages written out for each lead come in as fill-in-the-blank
+      // templates with the lead's values (lib/leadTemplates); unnamed by
+      // Claude, a blank is named from the words beside it
+      const plan = findSlots([...built.leads, ...built.duplicates]);
+      const named: Awaited<ReturnType<typeof nameSlots>> = plan.slots.length ? await nameSlots(board.id, plan.slots).catch(() => ({})) : {};
+      const preview = { ...built, leads: fillTemplates(built.leads, plan, named.names ?? {}), duplicates: fillTemplates(built.duplicates, plan, named.names ?? {}) };
       // nothing to decide: straight in (a value the board doesn't have is simply left off)
       if (!preview.duplicates.length && !preview.incomplete.length && !preview.unreachable.length) return await run(preview.leads, false);
       setFile({ name: f.name, preview });

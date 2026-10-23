@@ -325,6 +325,9 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
 // other one put there is left out. A name is one column ("Dr Karandish", not
 // that and the clinic's name joined: several name columns give the fullest)
 export const sharedPlace = (t: Target) => (t.startsWith("contact.") && t !== "contact.role") || t === "link" || t === "ignore";
+// a message takes one column for the main opener and one in each list of
+// backups ("m.email" and "alt[].email"): the backups are openers of their own
+const listOf2 = (path: string) => (path.includes("[]") ? path.slice(0, path.indexOf("[]") + 2) : "");
 // One person written twice (two Notion pages for one doctor, "Sophie
 // Shotter" and "Dr Sophie Shotter") is one contact: the same name once titles
 // and letters' styles are set aside (one name's words all in the other's), or
@@ -380,13 +383,14 @@ const PRACTICE = /\b(clinic|surgery|plasticsurgery|institute|cent(er|re)|med ?sp
 const businessLike = (name = "") => PRACTICE.test(name) || (!/\s/.test(name.trim()) && /[a-z][A-Z]/.test(name));
 
 export function oneEach(columns: Column[], mapping: Record<string, Target>): Record<string, Target> {
-  const taken = new Set<Target>();
+  const taken = new Set<string>();
   return Object.fromEntries(
     columns.map((c) => {
       const t = mapping[c.path] ?? "ignore";
       if (sharedPlace(t)) return [c.path, t];
-      if (taken.has(t)) return [c.path, "ignore"];
-      taken.add(t);
+      const key = t.startsWith("message:") ? `${t}@${listOf2(c.path)}` : t;
+      if (taken.has(key)) return [c.path, "ignore"];
+      taken.add(key);
       return [c.path, t];
     }),
   );

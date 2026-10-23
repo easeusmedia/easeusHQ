@@ -70,7 +70,9 @@ function numberOf(f: FieldData, v: unknown): string | null {
     const n = (v as { n: number | null } | null)?.n;
     return n == null ? null : n.toLocaleString("en-GB");
   }
-  return f.kind === "text" && typeof v === "string" && NUMERIC.test(v.trim()) ? v.trim() : null;
+  if (f.kind !== "text" || typeof v !== "string" || !NUMERIC.test(v.trim())) return null;
+  // "20400" reads as "20,400"; "20,400" and "1.2K" stay as written
+  return /^\d+$/.test(v.trim()) ? Number(v.trim()).toLocaleString("en-GB") : v.trim();
 }
 const named = (f: FieldData, re: RegExp) => re.test(f.name.trim());
 const tagNames = (f: FieldData, v: unknown) => (Array.isArray(v) ? (v as string[]).flatMap((id) => f.options.filter((o) => o.id === id).map((o) => o.name)) : []);
@@ -101,9 +103,9 @@ const PLATFORM_BADGE: Record<string, { Icon: React.ComponentType<{ size?: number
 
 // The lead's profile, in two parts, everything a list (Abhishek, 19 Oct
 // 2026: "bring the previous thing where everything is in the list format"):
-// - the CHANNEL: its picture and name, its numbers with their icons, then
-//   its pages as rows (icon on the left, plain name, handle in grey), the
-//   rest, and its latest uploads. Edit opens the channel's details as a form.
+// - the CHANNEL: its picture and name, then its numbers, its pages and the
+//   rest as even rows (icon on the left, plain name, the value or handle in
+//   grey), and its latest uploads. Edit opens the channel's details as a form.
 //   The working tags (opener, version, meme board) stay off it.
 // - the CONTACT: the person picked on the tabs at the top (whose messages
 //   show), as rows too: email addresses to copy, phone, their own pages.
@@ -146,10 +148,10 @@ export function LeadProfile({
   // the form has them too, last, so they can still be set
   const editable = [...shown, ...fields.filter((f) => f.kind !== "contacts" && named(f, WORKING))];
   const details = shown.filter((f) => isFilled(f.kind, values[f.id]));
-  // the numbers (and where it is) side by side; links as rows; the rest after
-  const tiles = details.filter((f) => numberOf(f, values[f.id]) != null || (f.kind === "select" && named(f, /^country$/i)));
+  // the numbers (and where it is) first, then the links, then the rest
+  const numbers = details.filter((f) => numberOf(f, values[f.id]) != null || (f.kind === "select" && named(f, /^country$/i)));
   const linkFields = details.filter((f) => f.kind === "links");
-  const rest = details.filter((f) => !tiles.includes(f) && !linkFields.includes(f));
+  const rest = details.filter((f) => !numbers.includes(f) && !linkFields.includes(f));
   // the channel's pages: the lead's own links, each once; two with one name
   // are told apart. A person's own LinkedIn or Instagram stays with them.
   // (A link whose address isn't a web address still shows, as words.)
@@ -193,50 +195,17 @@ export function LeadProfile({
         {editingDetails ? (
           <DetailsForm fields={editable} values={values} label={fieldLabel} onSave={onSaveValue} />
         ) : (
-          (tiles.length > 0 || pages.length > 0 || rest.length > 0) && (
-            <div className="flex flex-col gap-5">
-              {tiles.length > 0 && (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-                  {tiles.map((f) => {
-                    const { Icon, tone } = iconOf(f);
-                    return (
-                      <div key={f.id} className="flex min-w-0 items-center gap-2.5">
-                        <span className={`${CIRCLE} ${tone}`}>
-                          <Icon size={15} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-[15px] leading-tight font-semibold tracking-tight text-foreground tabular-nums">{numberOf(f, values[f.id]) ?? tagNames(f, values[f.id]).join(", ")}</span>
-                          <span className="block truncate text-xs text-muted">{f.name}</span>
-                          {f.kind === "count" && (values[f.id] as { remark?: string }).remark?.trim() && <span className="mt-0.5 block text-xs text-foreground/75">{(values[f.id] as { remark: string }).remark.trim()}</span>}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {pages.length > 0 && (
-                <div className="-my-1 flex flex-col">
-                  {pages.map((l, i) => (
-                    <LinkRow key={i} href={l.href} name={l.name} sub={handleOf(l.href)} platform={l.platform} />
-                  ))}
-                </div>
-              )}
-              {rest.map((f) => {
-                const { Icon, tone } = iconOf(f);
-                return (
-                  <div key={f.id} className="flex min-w-0 gap-2.5">
-                    <span className={`${CIRCLE} ${tone}`}>
-                      <Icon size={15} />
-                    </span>
-                    <div className="min-w-0 flex-1 pt-px">
-                      <p className="text-xs text-muted">{f.name}</p>
-                      <div className="mt-0.5 min-w-0 text-[13px] text-foreground/90">
-                        <DetailValue field={f} value={values[f.id]} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          (numbers.length > 0 || pages.length > 0 || rest.length > 0) && (
+            <div className="-my-1 flex flex-col">
+              {numbers.map((f) => (
+                <FactRow key={f.id} field={f} value={values[f.id]} />
+              ))}
+              {pages.map((l, i) => (
+                <LinkRow key={`page-${i}`} href={l.href} name={l.name} sub={handleOf(l.href)} platform={l.platform} />
+              ))}
+              {rest.map((f) => (
+                <FactRow key={f.id} field={f} value={values[f.id]} />
+              ))}
             </div>
           )
         )}
@@ -401,6 +370,30 @@ function LinkRow({ href, name, sub, platform }: { href: string; name: string; su
   );
 }
 
+// a detail as a row the size of a page's: its icon, its name, its value in
+// grey (a number as "20,400", a choice by name). A long value wraps under,
+// the icon staying by its first line.
+function FactRow({ field, value }: { field: FieldData; value: unknown }) {
+  const { Icon, tone } = iconOf(field);
+  const remark = field.kind === "count" ? (value as { remark?: string }).remark?.trim() : "";
+  return (
+    <div className="-mx-1.5 flex min-w-0 items-start gap-2.5 px-1.5 py-1 text-[13px] text-foreground/85">
+      <span className={`${CIRCLE} ${tone}`}>
+        <Icon size={14} />
+      </span>
+      <span className="flex min-h-8 min-w-0 flex-1 items-center">
+        <span className="min-w-0 break-words">
+          {field.name}
+          <span className="ml-2 text-xs text-muted tabular-nums">
+            {numberOf(field, value) ?? <DetailValue field={field} value={value} />}
+            {remark && ` · ${remark}`}
+          </span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
 // The person picked on the tabs: their initials, name and role (when it says
 // more than the channel's name), then everything about them as rows: email
 // addresses (to copy), phone, their own pages (the channel's are above)
@@ -443,17 +436,11 @@ function PersonBlock({ person, name, named, channelUrls }: { person: Contact; na
   );
 }
 
-// A detail's value in words: a list to check as warning lines, choices by name
+// A detail's value in words: a list to check as a warning, choices by name
 function DetailValue({ field, value }: { field: FieldData; value: unknown }) {
   if (named(field, /^to check$/i)) {
     const lines = field.kind === "text" ? String(value).split("\n").filter((x) => x.trim()) : tagNames(field, value);
-    return (
-      <span className="flex flex-col gap-0.5 text-amber-200/90">
-        {lines.map((l, i) => (
-          <span key={i}>{l}</span>
-        ))}
-      </span>
-    );
+    return <span className="text-amber-200/90">{lines.map((l) => l.trim()).join(", ")}</span>;
   }
   if (field.kind === "select" || field.kind === "multi") return <>{tagNames(field, value).map(plainOption).join(", ")}</>;
   if (field.kind === "checkbox") return <>Yes</>;

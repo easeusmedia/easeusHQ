@@ -252,3 +252,8 @@ test("a practice or channel beside the doctor on one lead is the doctor's page",
   // two practices, no doctor named: both stay
   assert.equal(samePeople([{ name: "Savalia Plastic Surgery" }, { name: "Colorado Plastic Surgery Center - DenverBodyDoc" }]).length, 2);
 });
+
+test("a message keeps its main column and its backups' column", () => {
+  const cols = ["m.email", "alt[].email", "m.email2"].map((path) => ({ path, values: [] }));
+  assert.deepEqual(oneEach(cols, { "m.email": "message:e1:body", "alt[].email": "message:e1:body", "m.email2": "message:e1:body" }), { "m.email": "message:e1:body", "alt[].email": "message:e1:body", "m.email2": "ignore" });
+});
