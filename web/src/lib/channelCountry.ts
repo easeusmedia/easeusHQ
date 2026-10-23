@@ -1,5 +1,6 @@
 import { prisma } from "./prisma.ts";
 import { COLOR_NAMES, type Contact, type LinkValue } from "./space.ts";
+import { countryName, type LeadIn } from "./leadImport.ts";
 
 // A Sales lead's Country, from its YouTube channel (Abhishek, 23 Oct 2026):
 // the channel's About page says where it is ("country":"United States" in
@@ -64,10 +65,7 @@ async function channelCountry(url: string, ms: number): Promise<string | null> {
 // colour addOption would give it), set as the board stores a tag. How many
 // were filled. A board without a Country tag property does nothing.
 export async function fillCountries(boardId: string, leadIds?: string[]): Promise<number> {
-  const field = await prisma.boardField.findFirst({
-    where: { boardId, kind: "select", name: { equals: "Country", mode: "insensitive" } },
-    select: { id: true, options: { select: { id: true, name: true, sortOrder: true } } },
-  });
+  const field = await countryField(boardId);
   if (!field) return 0;
   const [fields, leads] = await Promise.all([
     prisma.boardField.findMany({ where: { boardId, kind: { in: ["links", "contacts"] } }, select: { id: true, kind: true } }),
@@ -79,17 +77,7 @@ export async function fillCountries(boardId: string, leadIds?: string[]): Promis
     return url ? [{ id: l.id, url }] : [];
   });
 
-  const options = new Map(field.options.map((o) => [o.name.toLowerCase(), Promise.resolve(o.id)]));
-  let count = field.options.length;
-  let sortOrder = Math.max(0, ...field.options.map((o) => o.sortOrder));
-  const optionFor = (name: string) => {
-    const key = name.toLowerCase();
-    if (!options.has(key)) {
-      const color = COLOR_NAMES[(count++ % (COLOR_NAMES.length - 1)) + 1];
-      options.set(key, tagFor(field.id, name, color, ++sortOrder));
-    }
-    return options.get(key)!;
-  };
+  const optionFor = tagsOf(field);
 
   const until = Date.now() + BUDGET_MS;
   let next = 0;
@@ -108,6 +96,47 @@ export async function fillCountries(boardId: string, leadIds?: string[]): Promis
     }),
   );
   return filled;
+}
+
+// Countries an import names that the board has no tag for yet ("Italy" from
+// "Milan, Italy"), added as tags the way fillCountries adds them and set by
+// id; a name that isn't a real country is left out
+export async function importCountries(boardId: string, leads: LeadIn[]): Promise<LeadIn[]> {
+  const field = await countryField(boardId);
+  if (!field) return leads;
+  const ids = new Set(field.options.map((o) => o.id));
+  const optionFor = tagsOf(field);
+  return Promise.all(
+    leads.map(async (l) => {
+      const v = l.values?.[field.id];
+      if (!Array.isArray(v) || v.every((x) => ids.has(x))) return l;
+      const tags = await Promise.all(v.map((x) => (ids.has(x) ? x : ((n) => n && optionFor(boardCountry(n)))(countryName(String(x))))));
+      const kept = tags.filter(Boolean).slice(0, 1);
+      return { ...l, values: { ...l.values, [field.id]: kept.length ? kept : null } };
+    }),
+  );
+}
+
+const countryField = (boardId: string) =>
+  prisma.boardField.findFirst({
+    where: { boardId, kind: "select", name: { equals: "Country", mode: "insensitive" } },
+    select: { id: true, options: { select: { id: true, name: true, sortOrder: true } } },
+  });
+
+// A property's tag id by name, added (the colour addOption would give it) if
+// it isn't there; asked twice for one name, it's made once
+function tagsOf(field: { id: string; options: { id: string; name: string; sortOrder: number }[] }) {
+  const options = new Map(field.options.map((o) => [o.name.toLowerCase(), Promise.resolve(o.id)]));
+  let count = field.options.length;
+  let sortOrder = Math.max(0, ...field.options.map((o) => o.sortOrder));
+  return (name: string) => {
+    const key = name.toLowerCase();
+    if (!options.has(key)) {
+      const color = COLOR_NAMES[(count++ % (COLOR_NAMES.length - 1)) + 1];
+      options.set(key, tagFor(field.id, name, color, ++sortOrder));
+    }
+    return options.get(key)!;
+  };
 }
 
 // A tag by name on one property, made if it isn't there: one run at a time per

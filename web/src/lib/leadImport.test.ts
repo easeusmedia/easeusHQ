@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, decode, flatten, halves, jsonFileRows, oneEach, postLink, samePeople, slices, htmlScriptRows, jsonRows, matchOption, parseCsv, partsOf, placeExtracted, tableRows, targetsOf, textRows } from "./leadImport.ts";
+import { autoMap, buildLeads, columnsOf, decode, flatten, halves, jsonFileRows, oneEach, postLink, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, targetsOf, textRows } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -188,7 +188,8 @@ test("the leads add_leads gets: people per doctor, main and backup openers, tags
   assert.equal(p.existing, 1);
   assert.equal(p.missing, 1);
   assert.equal(p.unnamed, 1);
-  assert.deepEqual(p.unmatched, ["To check: Unknown", "Country: France"]);
+  // France, a real country, goes on by name for importLeads to add as a tag
+  assert.deepEqual(p.unmatched, ["To check: Unknown"]);
 });
 
 test("without a name column, the people's names name the lead", () => {
@@ -576,4 +577,21 @@ test("a lead named by an @handle takes the person's name when the file has one",
   const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }], messages: [], leads: [] };
   const p = buildLeads([{ user: "@drjanedoe", full: "Dr Jane Doe", mail: "jane@example.com" }], { user: "title", full: "contact.name", mail: "contact.email" }, board as never);
   assert.equal(p.leads[0].title, "Dr Jane Doe");
+});
+
+test("a lead with a Notion page isn't asked about for contact details: its page is read after", () => {
+  const board = { fields: [{ id: "c", name: "Contacts", kind: "contacts", required: true, onCard: false, options: [] }, { id: "l", name: "Links", kind: "links", required: false, onCard: false, options: [] }], messages: [], leads: [] };
+  const p = buildLeads([{ cn: "Dr K", g: "Dr K", no: "https://adorable-tower-3f9.notion.site/089b6a208044827f9721814679a8773c" }, { cn: "Dr Q", g: "Dr Q" }], { cn: "title", g: "contact.name", no: "link" }, board as never);
+  assert.deepEqual(p.unreachable, ["Dr Q"]);
+});
+
+test("a real country however it's written, and nothing else", () => {
+  assert.equal(countryName("Milan, Italy"), "Italy");
+  assert.equal(countryName("Italia"), "Italy");
+  assert.equal(countryName("U.S."), "United States");
+  assert.equal(countryName("Dubai"), "United Arab Emirates");
+  assert.equal(countryName("japan"), "Japan");
+  assert.equal(countryName("European Union"), null);
+  assert.equal(countryName("Somewhere nice"), null);
+  assert.equal(countryName(""), null);
 });

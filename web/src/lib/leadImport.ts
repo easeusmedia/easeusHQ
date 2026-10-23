@@ -371,6 +371,30 @@ const COUNTRIES = [
   ["singapore", "sg"],
   ["saudi arabia", "ksa", "sa"],
 ];
+// Every country's English name by its lower case ("italy": "Italy"), from the
+// runtime's own list of regions; groupings and test codes aren't countries
+let NAMES: Map<string, string> | undefined;
+function countryNames() {
+  if (!NAMES) {
+    const d = new Intl.DisplayNames("en", { type: "region", fallback: "none" });
+    NAMES = new Map();
+    for (let a = 65; a <= 90; a++)
+      for (let b = 65; b <= 90; b++) {
+        const code = String.fromCharCode(a, b);
+        const n = /^(EU|EZ|UN|QO|XA|XB|ZZ)$/.test(code) ? undefined : d.of(code);
+        if (n) NAMES.set(n.toLowerCase(), n);
+      }
+  }
+  return NAMES;
+}
+// A real country however it's written ("Milan, Italy", "Italia", "U.S."), by
+// its English name ("United States"), else null
+export function countryName(value: string): string | null {
+  const names = countryNames();
+  const named = (v: string) => names.get(v) ?? COUNTRIES.find((g) => g.includes(v))?.map((n) => names.get(n)).find(Boolean) ?? null;
+  const v = value.trim().toLowerCase().replace(/\./g, "");
+  return v ? (named(v) ?? named(v.split(",").pop()!.trim())) : null;
+}
 // A value as one of a field's tags: by its name or the start of it ("D1" is
 // "D1 · Old hit still on top"), a country however it's written ("U.S.",
 // "Dubai, UAE"), a code before other words ("D1 - Old hit"), or the words
@@ -637,7 +661,7 @@ export type ContactIn = { name?: string; role?: string } & Partial<Record<Exclud
 export type DraftIn = { subject: string; body: string };
 export type LeadIn = {
   title: string;
-  // by field id; tags by option id
+  // by field id; tags by option id, a Country the board lacks by its name
   values?: Record<string, unknown>;
   contacts?: ContactIn[];
   links?: { label: string; url: string }[];
@@ -670,8 +694,12 @@ function valueOf(f: FieldData, vs: string[], unmatched: Set<string>): unknown {
         .flatMap((v) => tagsIn(f, v))
         .flatMap((t) => {
           const o = matchOption(f.options, t);
-          if (!o) unmatched.add(`${f.name}: ${t}`);
-          return o ? [o.id] : [];
+          if (o) return [o.id];
+          // a real country the board has no tag for yet goes by name: importLeads adds the tag
+          const country = /^country$/i.test(f.name.trim()) ? countryName(t) : null;
+          if (country) return [country];
+          unmatched.add(`${f.name}: ${t}`);
+          return [];
         });
       const unique = [...new Set(ids)];
       return unique.length ? unique.slice(0, f.kind === "select" ? 1 : undefined) : null;
@@ -924,7 +952,12 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       out.duplicates.push(lead);
     } else out.leads.push(lead);
   }
-  if (board.fields.some((f) => f.kind === "contacts")) out.unreachable = out.leads.filter((l) => !l.contacts?.some((c) => c.email?.length || c.instagram?.length || c.linkedin?.length)).map((l) => l.title);
+  // a lead linking to a Notion page isn't asked about: its page is read for
+  // the details right after it's imported (lib/linkedPages)
+  if (board.fields.some((f) => f.kind === "contacts"))
+    out.unreachable = out.leads
+      .filter((l) => !l.contacts?.some((c) => c.email?.length || c.instagram?.length || c.linkedin?.length) && !l.links?.some((x) => /(^|[/.])notion\.(so|site)\//i.test(x.url)))
+      .map((l) => l.title);
   out.unmatched = [...unmatched];
   return out;
 }
