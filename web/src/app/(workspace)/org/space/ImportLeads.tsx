@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Check, CircleAlert, Copy, FileText, FileUp, Tag, X } from "lucide-react";
+import { Check, CircleAlert, Copy, FileText, FileUp, X } from "lucide-react";
 import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeExtracted, readFile, targetsOf, Unreadable, type LeadIn, type Part, type Preview, type Row } from "@/lib/leadImport";
 import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
@@ -77,9 +77,9 @@ function Problem({ Icon, title, names, children }: { Icon: typeof Copy; title: s
 // dropped or picked, read in the browser (lib/leadImport), its columns placed
 // on the board's properties (by code, then one small Claude call for what
 // code can't tell), then add_leads in fifties, into the board's first stage.
-// A file with nothing wrong goes straight in; otherwise only what's wrong
-// shows (Abhishek, 23 Oct 2026): duplicates (skip or add anyway), leads
-// missing details (left out) and values the board doesn't have (left off).
+// A file with nothing to decide goes straight in; otherwise only what needs
+// a decision shows (Abhishek, 23 Oct 2026): duplicates (skip or add anyway)
+// and leads missing details (the rest can go in without them).
 export function ImportLeads({ board }: { board: BoardData }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
@@ -158,8 +158,8 @@ export function ImportLeads({ board }: { board: BoardData }) {
       const known = new Set(targets.map((t) => t.value));
       const preview = buildLeads(rows, oneEach(columns, Object.fromEntries(columns.map((c) => [c.path, known.has(mapping[c.path]) ? mapping[c.path] : "ignore"]))), board);
       if (!preview.leads.length && !preview.duplicates.length) throw new Unreadable(preview.incomplete.length ? "None of the leads in that file have the details the board needs." : "There are no leads in that file to import.");
-      // nothing wrong: straight in
-      if (!preview.duplicates.length && !preview.incomplete.length && !preview.unmatched.length) return await run(preview.leads, false);
+      // nothing to decide: straight in (a value the board doesn't have is simply left off)
+      if (!preview.duplicates.length && !preview.incomplete.length) return await run(preview.leads, false);
       setFile({ name: f.name, preview });
     } catch (err) {
       if (!(err instanceof Unreadable)) console.error(err);
@@ -280,10 +280,8 @@ export function ImportLeads({ board }: { board: BoardData }) {
                   Choose another
                 </button>
               </div>
-              <p className="text-sm text-muted">{p.leads.length ? `${plural(p.leads.length)} ready to import. Check these first:` : "Check these first:"}</p>
-
               {p.duplicates.length > 0 && (
-                <Problem Icon={Copy} title={`${plural(p.duplicates.length)} already on the board`} names={p.duplicates.map((l) => l.title)}>
+                <Problem Icon={Copy} title={`${p.duplicates.length === 1 ? "1 lead is" : `${p.duplicates.length} leads are`} already on the board`} names={p.duplicates.map((l) => l.title)}>
                   <div aria-label="Duplicates" className="flex shrink-0 rounded-full bg-white/[0.04] p-0.5 ring-1 ring-white/[0.07]">
                     {[
                       { on: false, label: "Skip them" },
@@ -297,10 +295,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
                 </Problem>
               )}
               {p.incomplete.length > 0 && (
-                <Problem Icon={CircleAlert} title={`${plural(p.incomplete.length)} missing details, left out`} names={p.incomplete.map((x) => `${x.name}: ${x.why}`)} />
-              )}
-              {p.unmatched.length > 0 && (
-                <Problem Icon={Tag} title={`${p.unmatched.length} value${p.unmatched.length === 1 ? "" : "s"} the board doesn't have, left off`} names={p.unmatched} />
+                <Problem Icon={CircleAlert} title={`${p.incomplete.length === 1 ? "1 lead is" : `${p.incomplete.length} leads are`} missing details and can't be imported`} names={p.incomplete.map((x) => `${x.name}: ${x.why}`)} />
               )}
             </div>
           )}
@@ -316,7 +311,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
             </button>
             {showing && (
               <button type="button" disabled={!going} onClick={() => p && run(twice ? [...p.leads, ...p.duplicates] : p.leads, twice)} className="fade-in btn btn-glow disabled:opacity-60">
-                {going ? `Import ${plural(going)}` : "Nothing to import"}
+                {!going ? "Nothing to import" : p.incomplete.length ? `Import the other ${plural(going)}` : `Import ${plural(going)}`}
               </button>
             )}
           </div>
