@@ -9,11 +9,13 @@ import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
 import { Reveal } from "../../Reveal";
-import { extractLeads, importLeads, mapColumns } from "./importActions";
+import { extractLeads, fillImportedCountries, importLeads, mapColumns } from "./importActions";
 
 const OFFLINE = "That couldn't be reached. Check your connection and try again.";
 // leads a call, as add_leads takes them
 const CHUNK = 50;
+// leads a call whose countries are read, so the page's other actions never wait long behind them
+const FILL_CHUNK = 30;
 const plural = (n: number) => `${n} lead${n === 1 ? "" : "s"}`;
 
 // what's happening now, and how far along when that can be counted
@@ -170,6 +172,17 @@ export function ImportLeads({ board }: { board: BoardData }) {
     setBusy(null);
   }
 
+  // the leads just added, their Country from their YouTube channels, in the
+  // background; the board redrawn if any were filled
+  async function fillLater(ids: string[]) {
+    let filled = 0;
+    for (let i = 0; i < ids.length; i += FILL_CHUNK) {
+      const res = await fillImportedCountries(board.id, ids.slice(i, i + FILL_CHUNK)).catch(() => ({ filled: 0 }));
+      filled += res.filled ?? 0;
+    }
+    if (filled) router.refresh();
+  }
+
   // in fifties, with the bar filling; done, a tick for a moment, then it
   // closes and the board fills (refreshed after, as a redrawn board would
   // close it early)
@@ -177,6 +190,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
     if (!leads.length) return;
     setError(null);
     let created = 0;
+    const ids: string[] = [];
     const failed: string[] = [];
     for (let i = 0; i < leads.length; i += CHUNK) {
       setBusy({ step: "import", at: i, of: leads.length });
@@ -186,6 +200,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
         break;
       }
       created += res.created ?? 0;
+      ids.push(...(res.ids ?? []));
       failed.push(...(res.failed ?? []).map((x) => `${x.title}: ${x.error}`));
     }
     if (!failed.length) {
@@ -196,10 +211,12 @@ export function ImportLeads({ board }: { board: BoardData }) {
       await new Promise((r) => setTimeout(r, 1200));
       setBusy(null);
       ref.current?.close();
+      void fillLater(ids);
       return router.refresh();
     }
     setBusy(null);
     if (created) router.refresh();
+    void fillLater(ids);
     setError(`${created ? `${plural(created)} added. ` : ""}${failed[0]}${failed.length > 1 ? ` And ${failed.length - 1} more.` : ""}`);
   }
 

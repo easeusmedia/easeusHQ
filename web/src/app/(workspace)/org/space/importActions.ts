@@ -10,6 +10,7 @@ import { callClaude, HAIKU, type Block } from "@/lib/ai";
 import { claudeJson } from "@/lib/claude";
 import { salesTools } from "@/lib/mcp/tools";
 import { ToolError } from "@/lib/mcp/protocol";
+import { fillCountries } from "@/lib/channelCountry";
 import { boardVars, CONTACT, targetsOf, type LeadIn, type Part, type Row, type Target } from "@/lib/leadImport";
 import { isFieldKind, type FieldData, type MessageData } from "@/lib/space";
 
@@ -206,17 +207,33 @@ export async function extractLeads(boardId: string, part: Part): Promise<Done & 
 // Up to 50 leads onto the board, through add_leads: they land in its first
 // stage, given to whoever imports them; a name already there is skipped
 // duplicates: leads whose name is already on the board, added anyway when asked
-export async function importLeads(boardId: string, leads: LeadIn[], duplicates = false): Promise<Done & { created?: number; failed?: { title: string; error: string }[] }> {
+export async function importLeads(boardId: string, leads: LeadIn[], duplicates = false): Promise<Done & { created?: number; ids?: string[]; failed?: { title: string; error: string }[] }> {
   const b = await boardFor(boardId);
   if ("error" in b) return b;
   // the origin only makes the links add_leads sends back, unused here
   const add = salesTools(b.viewer, "").find((t) => t.name === "add_leads")!;
   try {
-    const res = (await add.run({ board_id: boardId, leads, allow_duplicates: duplicates === true })) as { created: unknown[]; failed?: { title: string; error: string }[] };
-    return { created: res.created.length, failed: res.failed ?? [] };
+    const res = (await add.run({ board_id: boardId, leads, allow_duplicates: duplicates === true })) as { created: { id: string }[]; failed?: { title: string; error: string }[] };
+    return { created: res.created.length, ids: res.created.map((c) => c.id), failed: res.failed ?? [] };
   } catch (err) {
     if (err instanceof ToolError) return { error: err.message };
     console.error(err);
     return { error: "Those leads couldn't be added." };
+  }
+}
+
+// The leads just imported, their Country filled from their YouTube channels
+// (lib/channelCountry): how many were. The browser sends a few dozen a call,
+// so whatever else the page asks meanwhile never waits long behind it.
+export async function fillImportedCountries(boardId: string, ids: string[]): Promise<Done & { filled?: number }> {
+  const b = await boardFor(boardId);
+  if ("error" in b) return b;
+  const leadIds = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string").slice(0, 100);
+  if (!leadIds.length) return { filled: 0 };
+  try {
+    return { filled: await fillCountries(boardId, leadIds) };
+  } catch (err) {
+    console.error(err);
+    return { error: "The countries couldn't be filled in." };
   }
 }
