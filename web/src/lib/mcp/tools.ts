@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEPT, DEVELOPER, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
-import { cleanValue, dayOf, isFieldKind, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
+import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
 import { addOption, assignLead, moveLead, renameLead, setLeadDraft, setLeadNotes, setLeadValue, setLeadVar } from "@/app/(workspace)/org/space/actions";
 import type { ChannelStats } from "@/lib/channelStats";
 import { ToolError, type ServerInfo, type Tool } from "./protocol";
@@ -21,7 +21,7 @@ export const INFO: ServerInfo = {
   version: "1",
   instructions: [
     "Easeus HQ's Sales dashboard: boards of leads (doctors, podcasts). Each lead sits on a stage (Dream list, Ready to reach out, Day 1 to Day 8, Replied...) and has fields, the people to write to, links, and the emails written for it.",
-    "Start with list_boards: each board's id, stages, fields with their tags, message templates (by id) and the people leads can be assigned to. Then find_leads and get_lead to read, add_leads to put prepared leads on a board (up to 50 a call; they land in the first stage, Dream list, and the team moves them on), update_lead to change one, move_lead to move one.",
+    "Start with list_boards: each board's id, stages, fields with their tags, message templates (by id) and the people leads can be assigned to. Then find_leads and get_lead to read, add_leads to put prepared leads on a board (up to 50 a call; they land in the first stage, Dream list, and the team moves them on; none can start in Ready to reach out or later, only before it or in Dead, since a lead goes into Ready to reach out once every message is approved), update_lead to change one, move_lead to move one.",
     "Values go by field name (or id). Tags by name. People as { name, role, email, linkedin, instagram, youtube, phone }. A lead's opener emails as [{ label, drafts: { <message id or name>: { subject, body } } }], the main opener first, backups after.",
     "Nothing here deletes, and a lead is never moved unless asked.",
   ].join("\n"),
@@ -173,6 +173,13 @@ const fieldOf = (board: Board, key: string): Field => {
 const stageOf = (board: Board, key: string) => {
   const s = board.stages.find((x) => x.id === key) ?? board.stages.find((x) => same(x.name, key));
   if (!s) throw new ToolError(`${board.name} has no stage called ${key}. Its stages: ${board.stages.map((x) => x.name).join(", ")}.`);
+  return s;
+};
+// where a new lead can start: before Ready to reach out, or Dead. It goes
+// there once every message is approved (moveLead).
+const startIn = (board: Board, s: Board["stages"][number]) => {
+  const start = outreachStart(board.stages);
+  if (start >= 0 && board.stages.indexOf(s) >= start && !isDead(s.name)) throw new ToolError(`A new lead can't start in ${s.name}. Add it before ${board.stages[start].name}; it moves there once every message is approved.`);
   return s;
 };
 const messageOf = (board: Board, key: string) => {
@@ -418,7 +425,7 @@ const schemaOf = (s: z.ZodType) => {
 
 const leadIn = z.object({
   title: z.string().min(1).max(200).describe("The lead's name: the doctor or clinic, the podcast"),
-  stage: z.string().optional().describe("A stage id or name; the board's first stage when left out"),
+  stage: z.string().optional().describe("A stage id or name before Ready to reach out, or Dead; the board's first stage when left out"),
   values: z.record(z.string(), z.unknown()).optional().describe("By field name or id: text as a string, a number as a number, tags as a name or a list of names, a checkbox as true"),
   contacts: z.array(contactIn).max(50).optional().describe("The people to write to"),
   links: z.array(linkIn).max(50).optional().describe("The lead's own pages: YouTube channel, a video, its Notion page, its website"),
@@ -618,16 +625,16 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
 
     tool(
       "add_leads",
-      "Put prepared leads on a board, up to 50 a call, each with its fields, people, links, variables and opener emails. They land in the first stage (Dream list) unless a stage is given, and go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
+      "Put prepared leads on a board, up to 50 a call, each with its fields, people, links, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
       z.object({
         board_id: z.string().describe("The board's id or name"),
         leads: z.array(leadIn).min(1).max(50),
-        stage: z.string().optional().describe("A stage id or name for all of them"),
+        stage: z.string().optional().describe("A stage id or name for all of them, before Ready to reach out, or Dead"),
         allow_duplicates: z.boolean().default(false),
       }),
       async (a) => {
         const board = await boardOf(acting, origin, a.board_id);
-        const forAll = a.stage ? stageOf(board, a.stage) : null;
+        const forAll = a.stage ? startIn(board, stageOf(board, a.stage)) : null;
         const existing = new Set(
           (
             await prisma.lead.findMany({
@@ -647,7 +654,7 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
             continue;
           }
           try {
-            const stage = lead.stage ? stageOf(board, lead.stage) : (forAll ?? board.stages[0]);
+            const stage = lead.stage ? startIn(board, stageOf(board, lead.stage)) : (forAll ?? board.stages[0]);
             if (!stage) throw new ToolError("This board has no stages yet.");
             const values: Record<string, unknown> = {};
             const input: Record<string, unknown> = { ...(lead.values ?? {}) };

@@ -17,7 +17,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { leadContacts, moveNeedsReason, toneOf, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, isDead, leadPeople, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -278,8 +278,22 @@ function LeadPage({
   // its properties to edit, and its people
   const contactField = board.fields.find((f) => f.kind === "contacts");
   // the people on it, one picked at a time for the whole window
-  const contactList = leadContacts(values, board.fields).filter((c) => c.name.trim() || c.channels.some((ch) => ch.value.trim()));
+  const contactList = leadPeople(values, board.fields);
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
+  // Ready to reach out (by place: the stage before Day 1), reached from before
+  // it only once every message is approved, as moveLead checks; Dead stays open
+  const start = outreachStart(board.stages);
+  const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
+  const left = ready ? approvalsMissing(board, lead, prepared?.openers ?? [], contactList) : [];
+  // (until its openers load, what's approved for each can't be read)
+  const blocked = !!ready && (!prepared || left.length > 0);
+  const blockedWhy = left.length ? `Approve every message first: ${unapprovedText(left)}.` : undefined;
+  function moveToReady() {
+    if (!ready) return;
+    const from = stageId;
+    setStageId(ready.id);
+    run(moveLead(id, ready.id, lastInStage(), moveNeedsReason(order, from, ready.id) ? "Every message approved." : undefined), () => setStageId(from));
+  }
   // what each tab says: the name (else the first address), and a number when two share one
   const seenNames = new Map<string, number>();
   const tabNames = contactList.map((c) => {
@@ -339,11 +353,14 @@ function LeadPage({
                     <button
                       key={s.id}
                       type="button"
+                      // Ready to reach out and on: not until every message is approved
+                      disabled={blocked && i >= start && !isDead(s.name)}
+                      title={blocked && i >= start && !isDead(s.name) ? blockedWhy : undefined}
                       onClick={() => {
                         closeMenu();
                         pickStage(s.id);
                       }}
-                      className="menu-item px-2 py-1.5 text-xs"
+                      className="menu-item px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <StagePill name={s.name} color={s.color} />
                       {s.id === stageId ? <Check size={13} className="ml-auto shrink-0 text-accent" /> : i === order.indexOf(stageId) + 1 && <span className="ml-auto shrink-0 text-[12px] text-muted">Next</span>}
@@ -505,6 +522,11 @@ function LeadPage({
             </>
           )}
         </p>
+        {ready && (
+          <button type="button" onClick={moveToReady} disabled={blocked} title={blockedWhy} className="btn btn-glow fade-in min-w-0 disabled:cursor-not-allowed disabled:opacity-50">
+            <span className="truncate">Move to {ready.name}</span>
+          </button>
+        )}
         <button type="button" onClick={close} className="btn btn-ghost shrink-0">
           Close
         </button>
