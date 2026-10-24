@@ -315,7 +315,7 @@ export function linkToRead(raw: string): Link | null {
   }
   if (!/^https?:$/.test(u.protocol)) return null;
   const host = u.hostname.toLowerCase().replace(/^(www|m)\./, "");
-  if (/(^|\.)notion\.(so|site)$/.test(host)) return /[0-9a-f]{32}\/?$/i.test(u.pathname.replace(/-/g, "")) ? { kind: "notion", url: u.href } : null;
+  if (/(^|\.)notion\.(so|site|com)$/.test(host)) return /[0-9a-f]{32}\/?$/i.test(u.pathname.replace(/-/g, "")) ? { kind: "notion", url: u.href } : null;
   if (/(^|\.)youtube\.com$|^youtu\.be$/.test(host)) {
     const path = channelPath(u.href, false);
     return path ? { kind: "youtube", url: `https://www.youtube.com/${path}/about` } : null;

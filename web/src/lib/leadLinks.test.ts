@@ -62,6 +62,7 @@ test("a name is checked as the connection looks it up, so it can't answer differ
 
 test("which links are read, and as what", () => {
   assert.deepEqual(linkToRead("https://adorable-tower-3f9.notion.site/3bfb6a20804480d49ccde48bb0028c23"), { kind: "notion", url: "https://adorable-tower-3f9.notion.site/3bfb6a20804480d49ccde48bb0028c23" });
+  assert.deepEqual(linkToRead("https://app.notion.com/p/8aed62c3a9cb835b946f015b830d01e9"), { kind: "notion", url: "https://app.notion.com/p/8aed62c3a9cb835b946f015b830d01e9" });
   assert.deepEqual(linkToRead("https://www.youtube.com/@Doctorly/videos"), { kind: "youtube", url: "https://www.youtube.com/@Doctorly/about" });
   assert.deepEqual(linkToRead("https://docs.google.com/document/d/1AbC-d_9/edit?usp=sharing"), { kind: "doc", url: "https://docs.google.com/document/d/1AbC-d_9/export?format=txt" });
   assert.deepEqual(linkToRead("https://docs.google.com/spreadsheets/d/1XyZ/edit#gid=0"), { kind: "doc", url: "https://docs.google.com/spreadsheets/d/1XyZ/export?format=csv" });

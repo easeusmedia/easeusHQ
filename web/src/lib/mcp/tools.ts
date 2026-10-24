@@ -436,7 +436,11 @@ const leadIn = z.object({
   assigned_to: z.string().optional().describe("Who it's given to: a person's id, name or email (from list_boards); else whoever's key this is"),
 });
 
-export function salesTools(acting: Acting, origin: string): Tool[] {
+// imported: an import's add_leads (importActions importLeads), where a lead
+// goes in without the properties the board requires, left empty, as a file
+// can't always give them (Abhishek, 24 Oct 2026); a connection's calls still
+// need them, and the schema never offers the choice
+export function salesTools(acting: Acting, origin: string, { imported = false } = {}): Tool[] {
   const tool = <S extends z.ZodType>(name: string, description: string, schema: S, run: (args: z.infer<S>) => Promise<unknown>): Tool => ({
     name,
     description,
@@ -669,7 +673,7 @@ export function salesTools(acting: Acting, origin: string): Tool[] {
               if (v != null) values[f.id] = v;
             }
             const missing = board.fields.filter((f) => f.required && values[f.id] == null);
-            if (missing.length) throw new ToolError(`${missing.map((f) => f.name).join(", ")} ${missing.length === 1 ? "is" : "are"} required on ${board.name}.`);
+            if (missing.length && !imported) throw new ToolError(`${missing.map((f) => f.name).join(", ")} ${missing.length === 1 ? "is" : "are"} required on ${board.name}.`);
             const openers = lead.openers ? toOpeners(board, lead.openers) : [];
             const vars = Object.fromEntries(
               Object.entries(lead.vars ?? {})

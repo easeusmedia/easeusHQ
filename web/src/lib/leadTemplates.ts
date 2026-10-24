@@ -9,7 +9,7 @@
 // back word for word once filled in, stays as written. Pure; the blanks'
 // names come from one small Claude call (importActions nameSlots), else from
 // the words beside them.
-import { fillText, variablesIn } from "./space.ts";
+import { fillText, firstName, variablesIn } from "./space.ts";
 import type { LeadIn } from "./leadImport.ts";
 
 // a word (with the dots, commas, dashes and apostrophes inside it: "13,083",
@@ -26,6 +26,20 @@ const TITLE = /\b(?:Dr|Dra|Drs|Prof|Mr|Mrs|Ms)\.?\s*$/;
 // words naming nobody: "Your channel audit", "Hi there"
 const NOBODY = /^(?:you|your)$/i;
 const FILLER = /\b(?:hi|hello|hey|dear)\s+(?:there|everyone|all|team|folks|friends?)$/i;
+
+// A blank's value is words (as many as add_leads keeps), never a {{Variable}}
+// already there, nor words naming nobody, nor only little words in lower
+// case ("the"; "You Are Here" is a show), nor a cut through a quoted title
+// (half of "Rich… But Broke?"). upTo: its sentence up to its end.
+const blankValue = (value: string, upTo: string) =>
+  WORDY.test(value) &&
+  !/[{}]/.test(value) &&
+  value.length <= 2000 &&
+  !NOBODY.test(value) &&
+  !FILLER.test(upTo) &&
+  !(!/\p{Lu}/u.test(value) && (value.match(/[\p{L}\p{N}]+/gu) ?? []).every((w) => STOP.has(w))) &&
+  (value.match(/"/g) ?? []).length % 2 === 0 &&
+  (value.match(/“/g) ?? []).length === (value.match(/”/g) ?? []).length;
 
 type Tok = { id: number; from: number; to: number };
 // a sentence, and the leads (by their place in the import) whose messages have it
@@ -221,7 +235,7 @@ function unglue(blanks: Blank[]) {
       const pre = v.slice(s, e).match(/^[\s,;:&–—-]*/)![0].length;
       const post = v.slice(s, e).match(/[\s,;:&–—-]*$/)![0].length;
       const value = v.slice(s + pre, e - post);
-      return WORDY.test(value) ? [{ at, w, end: s > 0, from: at.from + s + pre, to: at.from + e - post, value }] : [];
+      return blankValue(value, at.u.text.slice(0, at.from + e - post)) ? [{ at, w, end: s > 0, from: at.from + s + pre, to: at.from + e - post, value }] : [];
     });
     // the words added are the wording of a shape that lost them, which more
     // than one sentence adds ("from … ago", "usually get around"), or the
@@ -344,10 +358,7 @@ export function findSlots(leads: LeadIn[]): Plan {
           const title = WORDY.test(u.text.slice(from, to)) && TITLE.exec(u.text.slice(0, from));
           if (title) from = title.index;
           const value = u.text.slice(from, to);
-          // a value is words (as many as add_leads keeps), never a {{Variable}}
-          // already there, nor words naming nobody
-          const named = !NOBODY.test(value) && !FILLER.test(u.text.slice(0, to));
-          return WORDY.test(value) && !/[{}]/.test(value) && value.length <= 2000 && named ? { from, to, value } : null;
+          return blankValue(value, u.text.slice(0, to)) ? { from, to, value } : null;
         });
       });
       // at each gap, the lead's own words: never a wording many leads share
@@ -501,6 +512,125 @@ export function askNames(slots: Slot[], boardVars: string[]) {
   };
 }
 
+// ---- The board's own wording ----
+
+// One sentence of the file's lined up word by word with the board's sentence
+// in that message it shares the most with, when most of the board
+// sentence's own words are in it, in order (the board's {{Variables}} aside)
+type Word = { id: number; from: number; to: number; word: string };
+function lineUp() {
+  const ids = new Map<string, number>();
+  const toks = (text: string): Word[] =>
+    [...text.matchAll(TOKEN)].map((m) => {
+      const id = ids.get(m[0]) ?? ids.size;
+      ids.set(m[0], id);
+      return { id, from: m.index, to: m.index + m[0].length, word: m[0] };
+    });
+  const own = (t: Word) => WORDY.test(t.word) && !t.word.startsWith("{{");
+  return (sentence: string, template: string) => {
+    const mine = toks(sentence);
+    const best = template
+      .split(BREAK)
+      .filter((x, i) => !(i % 2) && x.includes("{{"))
+      .map((x) => {
+        const theirs = toks(x);
+        return { theirs, pairs: common(theirs.map((t) => t.id), mine.map((t) => t.id)) };
+      })
+      .sort((a, b) => b.pairs.length - a.pairs.length)[0];
+    if (!best || best.pairs.filter(([i]) => own(best.theirs[i])).length < Math.max(1, Math.ceil(best.theirs.filter(own).length * 0.6))) return null;
+    return { mine, ...best };
+  };
+}
+const varOf = (t: Word | undefined) => (t ? /^\{\{\s*(.+?)\s*\}\}$/.exec(t.word)?.[1] : undefined);
+
+// The blanks the board's own wording of that message has a {{Variable}} in
+// the place of (its "Noticed, {{Short gap}}" beside a file's "Noticed, the
+// episode with no chapters"): that variable's name, so the blank fills the
+// board's own variable and no other's, and Claude isn't asked about it. A
+// blank is named when most of the sentences it's in say the same, and then
+// holds all the file's words in the variable's place. A variable a column of
+// the file fills (filled: {{Guest}} from its guest column) is that column's,
+// never a blank's: where a lead has no guest its words there are something
+// else (the episode's topic).
+export function boardNames(plan: Plan, messages: { id: string; subject: string; body: string }[], filled: string[] = []): Record<string, string> {
+  const line = lineUp();
+  const votes = new Map<string, Map<string, number>>();
+  const wide: { sp: Span; name: string; from: number; to: number }[] = [];
+  for (const [k, spans] of plan.spans) {
+    const [key, sentence] = k.split("\u0000");
+    const [id, part] = key.split(":");
+    const text = messages.find((m) => m.id === id)?.[part as "subject" | "body"] ?? "";
+    const best = text.includes("{{") ? line(sentence, text) : null;
+    if (!best) continue;
+    const { mine } = best;
+    for (const sp of spans) {
+      const before = best.pairs.filter(([, j]) => mine[j].to <= sp.from).at(-1);
+      const after = best.pairs.find(([, j]) => mine[j].from >= sp.to);
+      const between = best.theirs.slice(before ? before[0] + 1 : 0, after ? after[0] : best.theirs.length);
+      const tally = votes.get(sp.slot) ?? new Map<string, number>();
+      votes.set(sp.slot, tally);
+      const name = between.length === 1 ? varOf(between[0]) : undefined;
+      tally.set(name ?? "", (tally.get(name ?? "") ?? 0) + 1);
+      // its words are all the file's between those of the board's either side ("no chapters", not "chapters")
+      const from = before ? mine[before[1]].to : 0;
+      const to = after ? mine[after[1]].from : sentence.length;
+      if (name && spans.every((x) => x === sp || x.to <= from || x.from >= to)) wide.push({ sp, name, from: from + (sentence.slice(from, to).length - sentence.slice(from, to).trimStart().length), to: to - (sentence.slice(from, to).length - sentence.slice(from, to).trimEnd().length) });
+    }
+  }
+  const out: Record<string, string> = {};
+  for (const [slot, tally] of votes) {
+    const [name, n] = [...tally].sort((a, b) => b[1] - a[1])[0];
+    const all = [...tally.values()].reduce((a, b) => a + b, 0);
+    if (name && n * 2 > all && !filled.includes(name)) out[slot] = name;
+  }
+  for (const w of wide) if (out[w.sp.slot] === w.name && w.to > w.from) Object.assign(w.sp, { from: w.from, to: w.to });
+  return out;
+}
+
+// The variables a file's column was put on (by Claude) that the leads' own
+// messages say otherwise about: where the board's wording has {{Short gap}},
+// most leads' written-out messages have other words than the column's
+// ("Noticed, recent episodes sit around…" beside a topic, "house hacking").
+// Such a column isn't that variable; the dialog leaves it out (ImportLeads).
+export function misplacedVars(leads: LeadIn[], messages: { id: string; subject: string; body: string }[]): string[] {
+  const line = lineUp();
+  const tally = new Map<string, [number, number]>();
+  for (const lead of leads) {
+    const drafts = lead.openers?.[0]?.drafts ?? {};
+    const vars = lead.vars ?? {};
+    for (const m of messages)
+      for (const part of ["subject", "body"] as const) {
+        const text = drafts[m.id]?.[part];
+        if (!text || !variablesIn([m[part]]).some((v) => vars[v])) continue;
+        // each of the board's sentences with one of the lead's variables, against the lead's sentence most like it
+        for (const t of m[part].split(BREAK).filter((x, i) => !(i % 2) && variablesIn([x]).some((v) => vars[v]))) {
+          const best = text
+            .split(BREAK)
+            .filter((_, i) => !(i % 2))
+            .map((sentence) => ({ sentence, got: line(sentence, t) }))
+            .filter((x) => x.got)
+            .sort((a, b) => b.got!.pairs.length - a.got!.pairs.length)[0];
+          if (!best) continue;
+          const { theirs, pairs, mine } = best.got!;
+          for (const [i, w] of theirs.entries()) {
+            const v = varOf(w);
+            if (!v || !vars[v]) continue;
+            const before = pairs.filter(([a]) => a < i).at(-1);
+            const after = pairs.find(([a]) => a > i);
+            const said = best.sentence.slice(before ? mine[before[1]].to : 0, after ? mine[after[1]].from : best.sentence.length).trim();
+            // nothing there says nothing ("Watched your Kate's episode." beside "…episode with {{Guest}}.")
+            if (!said) continue;
+            const value = vars[v].trim();
+            const agrees = said === `{{${v}}}` || said.includes(value) || value.includes(said);
+            const [yes, no] = tally.get(v) ?? [0, 0];
+            tally.set(v, agrees ? [yes + 1, no] : [yes, no + 1]);
+          }
+        }
+      }
+  }
+  return [...tally].filter(([, [yes, no]]) => no >= 2 && no > yes * 2).map(([v]) => v);
+}
+
 // a name as {{Name}} can hold it, in what add_leads keeps (60 characters, with room for "(backup 2)")
 const cleanName = (n: string | undefined) =>
   (n ?? "")
@@ -511,6 +641,26 @@ const cleanName = (n: string | undefined) =>
     .trim();
 
 // ---- The leads, as templates ----
+
+// The blanks that hold each lead's first person's first name, for most of
+// the leads that have them: {{Name}}, which the lead window fills with each
+// person's own (lib/space varsFor), so a second person on a lead is greeted
+// by theirs, whatever Claude calls the blank (Abhishek, 24 Oct 2026)
+function firstNames(leads: LeadIn[], plan: Plan): Set<string> {
+  const tally = new Map<string, [number, number]>();
+  for (const lead of leads) {
+    const first = firstName(lead.contacts?.[0]?.name ?? "");
+    const held = new Map<string, boolean>();
+    for (const { key, text } of partsOf(lead))
+      for (const [i, sentence] of text.split(BREAK).entries())
+        for (const b of (i % 2 ? undefined : plan.spans.get(unitKey(key, sentence))) ?? []) held.set(b.slot, (held.get(b.slot) ?? true) && sentence.slice(b.from, b.to) === first);
+    for (const [slot, is] of held) {
+      const [n, k] = tally.get(slot) ?? [0, 0];
+      tally.set(slot, [n + 1, k + Number(is)]);
+    }
+  }
+  return new Set([...tally].filter(([, [n, k]]) => n >= 2 && k >= n * 0.8).map(([slot]) => slot));
+}
 
 // Every lead's messages with their blanks named, and the lead's values in its
 // variables. Two slots some lead has different words in never share a name,
@@ -525,9 +675,12 @@ const cleanName = (n: string | undefined) =>
 // or stays as it was written.
 export function fillTemplates(leads: LeadIn[], plan: Plan, names: Record<string, string>): LeadIn[] {
   if (!plan.slots.length) return leads;
+  // (only where a greeting is: "Hey ___", "___," on its line, "Thanks for connecting, ___"; never "episode with ___")
+  const greeting = (x: Slot) => !x.before.trim() || /(\b(hi|hello|hey|dear|thanks|thank you)|,)$/i.test(x.before.trim());
+  const greets = new Set([...firstNames(leads, plan)].filter((id) => greeting(plan.slots.find((x) => x.id === id)!)));
   const named: Record<string, string> = {};
   for (const s of plan.slots) {
-    const base = cleanName(names[s.id]) || fallbackName(s);
+    const base = greets.has(s.id) ? "Name" : cleanName(names[s.id]) || fallbackName(s);
     named[s.id] = base;
     for (let k = 2; plan.slots.some((t) => t !== s && named[t.id] === named[s.id] && plan.differ.has(`${t.id} ${s.id}`)); k++) named[s.id] = `${base} ${k}`;
   }
@@ -539,6 +692,11 @@ export function fillTemplates(leads: LeadIn[], plan: Plan, names: Record<string,
     for (const v of variablesIn(parts.map((p) => p.text))) if (!taken.has(v)) taken.set(v, null);
     const nameFor = (slot: string, value: string, backup: boolean) => {
       const base = named[slot];
+      // each person's own first name, never "Name (2)" beside a name the file gave
+      if (greets.has(slot)) {
+        taken.set(base, value);
+        return base;
+      }
       if (taken.get(base) === value) return base;
       // the same words the lead already has under another name are that one (a number may be two things)
       const same = /\p{N}/u.test(value) ? undefined : [...taken].find(([, v]) => v === value)?.[0];
@@ -549,17 +707,38 @@ export function fillTemplates(leads: LeadIn[], plan: Plan, names: Record<string,
         if (taken.get(n) === value) return n;
       }
     };
+    // a line that's only the first person's first name ("Rachel,") greets them, {{Name}} too
+    const first = firstName(lead.contacts?.[0]?.name ?? "");
+    // a blank naming someone on the lead by their first name, not where
+    // they're greeted, stays as written: a co-host named in the other's
+    // messages ("episode with Carter") is no Guest, and Name is each person's own
+    const people = new Set((lead.contacts ?? []).map((c) => firstName(c.name ?? "")).filter(Boolean));
+    const namesSomeone = (v: string) => (v.match(/[\p{L}\p{N}'’-]+/gu) ?? []).some((w) => people.has(w));
+    // a blank inside one of the lead's own values, whole words of it ("You
+    // Are Here" of "You Are Here Podcast", its last word shared by every
+    // lead), is that value
+    const whole = (sentence: string, b: Span, at: number) =>
+      Object.entries(lead.vars ?? {})
+        .map(([n, v]) => ({ n, v, p: sentence.lastIndexOf(v, b.from) }))
+        .find(({ v, p }) => p >= at && v.length > b.to - b.from && p + v.length >= b.to && !WORDY.test(sentence[p - 1] ?? "") && !WORDY.test(sentence[p + v.length] ?? ""));
     const made = parts.map(({ key, opener, text }) =>
       text
         .split(BREAK)
         .map((sentence, i) => {
-          const blanks = i % 2 ? undefined : plan.spans.get(unitKey(key, sentence));
+          if (i % 2) return sentence;
+          if (first && WORDY.test(first) && sentence.replace(/[\s,.!:;]+$/, "") === first) {
+            taken.set("Name", first);
+            return `{{Name}}${sentence.slice(first.length)}`;
+          }
+          const blanks = plan.spans.get(unitKey(key, sentence));
           if (!blanks) return sentence;
           let out = "";
           let at = 0;
           for (const b of blanks) {
-            out += `${sentence.slice(at, b.from)}{{${nameFor(b.slot, sentence.slice(b.from, b.to), opener > 0)}}}`;
-            at = b.to;
+            if (b.from < at || (!greets.has(b.slot) && namesSomeone(sentence.slice(b.from, b.to)))) continue;
+            const w = whole(sentence, b, at);
+            out += w ? `${sentence.slice(at, w.p)}{{${w.n}}}` : `${sentence.slice(at, b.from)}{{${nameFor(b.slot, sentence.slice(b.from, b.to), opener > 0)}}}`;
+            at = w ? w.p + w.v.length : b.to;
           }
           return out + sentence.slice(at);
         })

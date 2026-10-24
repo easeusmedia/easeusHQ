@@ -375,10 +375,14 @@ export function variablesIn(texts: string[]): string[] {
   return seen;
 }
 
+// A person's first name: their name's first word that isn't a title ("Dr.
+// Kristopher Sanchez" is Kristopher, never "Hey Dr.,"; Abhishek, 24 Oct 2026)
+export const firstName = (name: string): string => name.trim().split(/\s+/).find((w) => !/^(dr|dra|drs|doctor|prof|professor|mr|mrs|ms|miss|mx|sir)\.?$/i.test(w)) ?? "";
+
 // What a lead's messages know without asking: Name is its first contact's
 // first name, Podcast its own name. Anything typed on the lead wins.
 export function leadVars(lead: { title: string; values: Record<string, unknown>; vars: Record<string, string> }, fields: Pick<FieldData, "id" | "kind">[]): Record<string, string> {
-  const first = leadContacts(lead.values, fields).find((c) => c.name.trim())?.name.trim().split(/\s+/)[0];
+  const first = firstName(leadContacts(lead.values, fields).find((c) => c.name.trim())?.name ?? "");
   const auto: Record<string, string> = { Podcast: lead.title };
   if (first) auto.Name = first;
   const typed = Object.fromEntries(Object.entries(lead.vars ?? {}).filter(([, v]) => typeof v === "string" && v.trim()));
@@ -560,7 +564,7 @@ export function wordingOf(p: Prepared, picks: Record<string, string>, m: Pick<Me
   return { subject: own?.subject.trim() ? own.subject : m.subject, body: own?.body ?? m.body };
 }
 // a lead's variables for one person on it: Name is their own first name
-export const varsFor = (vars: Record<string, string>, c: Contact | null): Record<string, string> => (c?.name.trim() ? { ...vars, Name: c.name.trim().split(/\s+/)[0] } : vars);
+export const varsFor = (vars: Record<string, string>, c: Contact | null): Record<string, string> => (c && firstName(c.name) ? { ...vars, Name: firstName(c.name) } : vars);
 // the {{Variables}} these messages use, as this lead words them, with no value yet
 export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body">[], p: Prepared, picks: Record<string, string>, vars: Record<string, string>): string[] {
   return variablesIn(messages.flatMap((m) => Object.values(wordingOf(p, picks, m)))).filter((n) => !vars[n]);
@@ -850,7 +854,7 @@ function siteName(url: string): string {
   if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return /youtu\.be|\/(watch|shorts)\b/i.test(u) ? "Video" : "YouTube";
   if (/(^|\.)instagram\.com$/.test(host)) return /\/(reel|p)\//i.test(u) ? "Post" : "Instagram";
   if (/(^|\.)linkedin\.com$/.test(host)) return "LinkedIn";
-  if (/(^|\.)notion\.(so|site)$/.test(host)) return "Notion";
+  if (/(^|\.)notion\.(so|site|com)$/.test(host)) return "Notion";
   if (/(^|\.)(x\.com|twitter\.com)$/.test(host)) return "X";
   return host || "Link";
 }
@@ -877,7 +881,7 @@ export function handleOf(url: string): string | null {
   if (/(^|\.)instagram\.com$/.test(host)) return ["p", "reel", "reels", "stories", "explore"].includes(parts[0] ?? "") ? null : at(parts[0]);
   if (/(^|\.)(tiktok\.com|x\.com|twitter\.com|threads\.net)$/.test(host)) return at(parts[0]);
   if (/(^|\.)linkedin\.com$/.test(host)) return ["in", "company", "school"].includes(parts[0] ?? "") && parts[1] ? `${parts[0]}/${parts[1]}` : null;
-  if (/(^|\.)(notion\.(so|site)|linktr\.ee)$/.test(host)) return null;
+  if (/(^|\.)(notion\.(so|site|com)|linktr\.ee)$/.test(host)) return null;
   return host;
 }
 

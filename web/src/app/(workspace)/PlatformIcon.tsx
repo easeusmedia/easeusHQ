@@ -54,7 +54,7 @@ export function PlatformMark({ url, size = 14, className = "" }: { url: string; 
         ? LinkedinIcon
         : /(^|\.)(x\.com|twitter\.com)$/.test(host)
           ? XIcon
-          : /(^|\.)notion\.(so|site)$/.test(host)
+          : /(^|\.)notion\.(so|site|com)$/.test(host)
             ? NotionIcon
             : null;
   return Mark ? <Mark size={size} className={className} /> : <Globe size={size} className={`shrink-0 ${className}`} />;

@@ -309,7 +309,7 @@ function platformOf(url: string): Platform {
   if (/(^|\.)instagram\.com$/.test(host)) return "instagram";
   if (/(^|\.)linkedin\.com$/.test(host)) return "linkedin";
   if (/(^|\.)(x\.com|twitter\.com)$/.test(host)) return "x";
-  if (/(^|\.)notion\.(so|site)$/.test(host)) return "notion";
+  if (/(^|\.)notion\.(so|site|com)$/.test(host)) return "notion";
   return "other";
 }
 const sameUrl = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\/(www\.|m\.)?/, "").replace(/\/+$/, "");

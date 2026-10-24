@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, columnsOf, decode, flatten, halves, isGreeting, jsonFileRows, oneEach, postLink, reachable, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, targetsOf, textRows, unreachable } from "./leadImport.ts";
+import { autoMap, buildLeads, cellText, columnsOf, decode, flatten, halves, isGreeting, jsonFileRows, oneEach, placeable, postLink, reachable, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, tagsToAsk, targetsOf, textRows, unreachable } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -83,6 +83,8 @@ test("common headings place themselves", () => {
     Opener: "field:opener",
     "{{Greeting name}}": "var:Greeting name",
     "Email 1 subject": "message:m1:subject",
+    // what the file says about the lead goes on as its write-up
+    Notes: "notes",
   });
 });
 
@@ -122,6 +124,11 @@ test("a value is a tag by its name or the start of it", () => {
   assert.equal(matchOption(opts, " uk ")?.id, "o3");
   assert.equal(matchOption(opts, "D"), undefined);
   assert.equal(matchOption(opts, ""), undefined);
+  // a bare number is a tag's code ("1 · Hot"), never the count a tag starts with
+  const cadence = tags("More than 5 episodes a month", "4 episodes a month", "1 · Hot");
+  assert.equal(matchOption(cadence, "4"), undefined);
+  assert.equal(matchOption(cadence, "1")?.name, "1 · Hot");
+  assert.equal(matchOption(cadence, "4 episodes a month")?.id, "o2");
 });
 
 test("the leads add_leads gets: people per doctor, main and backup openers, tags by id", () => {
@@ -166,7 +173,7 @@ test("the leads add_leads gets: people per doctor, main and backup openers, tags
     "seq.e2": "message:m3:body",
   };
   const p = buildLeads(rows, mapping, board);
-  assert.deepEqual(p.leads, [
+  assert.deepEqual(p.leads.slice(0, 1), [
     {
       title: "PCH MedSpa",
       values: { subs: "20400", opener: ["o1"], check: ["o1"] },
@@ -176,17 +183,20 @@ test("the leads add_leads gets: people per doctor, main and backup openers, tags
       openers: [
         {
           label: "",
-          drafts: { m1: { subject: "your lysine video", body: "Hi Dr K, main" }, m2: { subject: "", body: "Hi, main note" }, m3: { subject: "", body: "Following up, Dr K" } },
+          // the lead's own name-like values are its variables wherever the messages have them
+          drafts: { m1: { subject: "your lysine video", body: "Hi {{Greeting name}}, main" }, m2: { subject: "", body: "Hi, main note" }, m3: { subject: "", body: "Following up, {{Greeting name}}" } },
         },
         {
           label: "",
-          drafts: { m1: { subject: "your other video", body: "Hi Dr K, backup" }, m2: { subject: "", body: "Hi, main note" }, m3: { subject: "", body: "Following up, Dr K" } },
+          drafts: { m1: { subject: "your other video", body: "Hi {{Greeting name}}, backup" }, m2: { subject: "", body: "Hi, main note" }, m3: { subject: "", body: "Following up, {{Greeting name}}" } },
         },
       ],
     },
   ]);
   assert.equal(p.existing, 1);
-  assert.equal(p.missing, 1);
+  // "Nobody" has no one on it, which the board requires: it goes in all the same, with nobody to reach
+  assert.deepEqual(p.leads[1], { title: "Nobody", values: { country: ["France"] } });
+  assert.deepEqual(p.unreachable, ["Nobody"]);
   assert.equal(p.unnamed, 1);
   // France, a real country, goes on by name for importLeads to add as a tag
   assert.deepEqual(p.unmatched, ["To check: Unknown"]);
@@ -295,6 +305,15 @@ test("a job title beside a company is the person's role; alone, it names the lea
   assert.equal(apollo.Company, "title");
   assert.equal(autoMap(columnsOf([{ Title: "The Skin Show", Host: "Jane" }]), people).Title, "title");
   assert.deepEqual(leadsOf("Title,Company,Email\nDermatologist,Glow Clinic,j@glow.com\nDermatologist,Ritz Derm,r@ritz.com").leads.map((l) => l.title), ["Glow Clinic", "Ritz Derm"]);
+  // a title in a list of people, its company at the lead's level, is each person's job
+  const rows = [
+    { people: [{ name: "Jo Bloggs", title: "CEO", email: "jo@acme.com" }], company: "Acme" },
+    { people: [{ name: "Ann Lee", title: "CEO", email: "ann@beta.com" }], company: "Beta" },
+  ];
+  const listed = autoMap(columnsOf(rows), people);
+  assert.equal(listed["people[].title"], "contact.role");
+  assert.equal(listed.company, "title");
+  assert.deepEqual(buildLeads(rows, listed, people).leads.map((l) => [l.title, l.contacts?.[0].role]), [["Acme", "CEO"], ["Beta", "CEO"]]);
 });
 
 test("first, middle and last names are one name", () => {
@@ -614,4 +633,186 @@ test("a real country however it's written, and nothing else", () => {
   assert.equal(countryName("European Union"), null);
   assert.equal(countryName("Somewhere nice"), null);
   assert.equal(countryName(""), null);
+});
+
+// ---- Importing any file, however it's laid out (Abhishek, 24 Oct 2026) ----
+
+test("a property the board requires never keeps a lead out: it goes in with that left empty", () => {
+  const b = { fields: [field("c", "Contacts", "contacts", tags(), true), field("t", "Trailer", "select", tags("Yes", "No"), true), field("n", "Shorts", "count", tags(), true)], messages: [], leads: [] };
+  const p = buildLeads([{ show: "The Show" }, { other: "no name" }], { show: "title", other: "ignore" }, b);
+  assert.deepEqual(p.leads, [{ title: "The Show" }]);
+  assert.deepEqual(p.incomplete, [{ name: "Row 2", why: "no name" }]);
+  // nobody on it to write to: still asked about after its links are read
+  assert.deepEqual(p.unreachable, ["The Show"]);
+});
+
+test("true and false, yes and no, 1 and 0 are a property's Yes and No tags", () => {
+  const b = { fields: [field("cap", "Community capture", "select", tags("Yes", "No")), field("news", "Newsletter", "select", tags("Yes", "No", "No but there is an email capture"))], messages: [], leads: [] };
+  const rows = [true, false, "y", "0"].map((v, i) => ({ t: `Show ${i}`, cap: v, news: v }));
+  const p = buildLeads(rows, { t: "title", cap: "field:cap", news: "field:news" }, b);
+  assert.deepEqual(
+    p.leads.map((l) => [l.values?.cap, l.values?.news]),
+    [
+      [["o1"], ["o1"]],
+      [["o2"], ["o2"]],
+      [["o1"], ["o1"]],
+      [["o2"], ["o2"]],
+    ],
+  );
+  assert.deepEqual(p.unmatched, []);
+  // never on a field whose tags aren't Yes and No, and never by values alone (a flag isn't any Yes/No field)
+  assert.deepEqual(autoMap(columnsOf([{ flag: "true" }, { flag: "false" }]), b), {});
+});
+
+test("values code can't match are asked about once, with what's beside them, and Claude's tags are used", () => {
+  const b = { fields: [field("cad", "Podcast cadence", "select", tags("4 episodes a month", "Less than 2 episodes a month")), field("country", "Country", "select", tags("USA"))], messages: [], leads: [] };
+  const rows = [
+    { t: "A", research: { window: 90, eps90: 5, list: [{ x: 1 }] }, c: "USA" },
+    { t: "B", research: { window: 90, eps90: 12 }, c: "France" },
+    { t: "C", research: { window: 90, eps90: 5 }, c: "USA" },
+  ];
+  const mapping = { t: "title", "research.eps90": "field:cad", c: "field:country" };
+  const asks = tagsToAsk(rows, mapping, b);
+  // each value once; a real country goes on by name, never asked about
+  assert.deepEqual(asks, [{ field: "cad", column: "research.eps90", values: ["5", "12"], beside: [{ "research.window": "90", "research.eps90": "5" }, { "research.window": "90", "research.eps90": "12" }] }]);
+  const p = buildLeads(rows, mapping, b, { cad: { "5": "o2", "12": "o1" } });
+  assert.deepEqual(
+    p.leads.map((l) => l.values?.cad),
+    [["o2"], ["o1"], ["o2"]],
+  );
+  // a value nobody matched stays empty and is said
+  assert.deepEqual(buildLeads(rows, mapping, b).unmatched, ["Podcast cadence: 5", "Podcast cadence: 12"]);
+});
+
+test("one column can write several messages: the board's same words on Instagram and LinkedIn", () => {
+  const b = { fields: [], messages: [message("ig", "Instagram 3", "instagram", "Hey {{Name}}"), message("li", "LinkedIn 3", "linkedin", "Hey {{Name}}"), message("e4", "Email 4", "email", "Bye")], leads: [] };
+  const cols = [
+    { path: "d7", values: ["Hey Rachel, last one"] },
+    { path: "d7b", values: ["Hey Rachel, the last one from me"] },
+  ];
+  // the longer column takes Instagram from the first; LinkedIn stays with the first
+  const m = oneEach(cols, { d7: "message:ig:body|message:li:body", d7b: "message:ig:body" });
+  assert.deepEqual(m, { d7: "message:li:body", d7b: "message:ig:body" });
+  const p = buildLeads([{ t: "Show", d7: "Hey Rachel, last one" }], { t: "title", d7: "message:ig:body|message:li:body" }, b);
+  assert.deepEqual(p.leads[0].openers, [{ label: "", drafts: { ig: { subject: "", body: "Hey Rachel, last one" }, li: { subject: "", body: "Hey Rachel, last one" } } }]);
+  assert.equal(placeable(b)("message:ig:body|message:li:body:Community"), true);
+  assert.equal(placeable(b)("message:gone:body"), false);
+});
+
+test("versions of a message are openers of their own, the one a column recommends first, sharing the rest", () => {
+  const b = { fields: [], messages: [message("e1", "Email 1", "email", "Hi"), message("e2", "Email 2", "email", "Hi again")], leads: [] };
+  const mapping = { t: "title", rec: "ignore", e1: "message:e1:body", comm: "message:e2:body:Community", asset: "message:e2:body:Asset map" };
+  const rows = [
+    { t: "A", rec: "asset", e1: "Hi A", comm: "People watch A", asset: "A has 20 pieces" },
+    { t: "B", rec: "community", e1: "Hi B", comm: "People watch B", asset: "B has 9 pieces" },
+    { t: "C", e1: "Hi C", comm: "People watch C" },
+  ];
+  const p = buildLeads(rows, mapping, b);
+  const said = (l: (typeof p.leads)[number]) => l.openers?.map((o) => [o.label, o.drafts.e1?.body, o.drafts.e2?.body]);
+  assert.deepEqual(said(p.leads[0]), [
+    ["Asset map", "Hi A", "A has 20 pieces"],
+    ["Community", "Hi A", "People watch A"],
+  ]);
+  assert.deepEqual(said(p.leads[1]), [
+    ["Community", "Hi B", "People watch B"],
+    ["Asset map", "Hi B", "B has 9 pieces"],
+  ]);
+  // only the version a lead has; without a column saying, the first column's version first
+  assert.deepEqual(said(p.leads[2]), [["Community", "Hi C", "People watch C"]]);
+  assert.deepEqual(
+    said(buildLeads(rows.map((r) => ({ ...r, rec: undefined })), mapping, b).leads[0])?.map((o) => o[0]),
+    ["Community", "Asset map"],
+  );
+});
+
+test("a list of people's messages are taken once, each one's name as {{Name}}; words that differ beyond it are that person's opener", () => {
+  const b = { fields: [field("c", "Contacts", "contacts")], messages: [message("e1", "Email 1", "email", "Hey {{Name}}"), message("e2", "Email 2", "email", "Bye")], leads: [] };
+  const mapping = { title: "title", "people[].first": "contact.name", "people[].full": "contact.name", "people[].msgs.d1": "message:e1:body", "people[].msgs.d2": "message:e2:body" };
+  const rows = [
+    {
+      title: "Show",
+      people: [
+        { first: "Tom", full: "Dr. Thomas Erb", msgs: { d1: "Hey Tom, loved it", d2: "Tom,\n\nThanks for connecting, Tom." } },
+        { full: "Dr. Carter Crowley", msgs: { d1: "Hey Carter, loved it", d2: "Carter,\n\nThanks for connecting, Carter." } },
+      ],
+    },
+  ];
+  const p = buildLeads(rows, mapping, b);
+  assert.deepEqual(p.leads[0].contacts?.map((c) => c.name), ["Dr. Thomas Erb", "Dr. Carter Crowley"]);
+  assert.deepEqual(p.leads[0].openers, [{ label: "", drafts: { e1: { subject: "", body: "Hey {{Name}}, loved it" }, e2: { subject: "", body: "{{Name}},\n\nThanks for connecting, {{Name}}." } } }]);
+  // a co-host's own words name the other host: kept, as an opener of theirs
+  rows[0].people[0].msgs.d1 = "Hey Tom, loved it with Carter";
+  rows[0].people[1].msgs.d1 = "Hey Carter, loved it with Tom";
+  const two = buildLeads(rows, mapping, b).leads[0].openers;
+  assert.deepEqual(two?.map((o) => [o.label, o.drafts.e1.body]), [
+    ["", "Hey {{Name}}, loved it with Carter"],
+    ["Carter", "Hey {{Name}}, loved it with Tom"],
+  ]);
+});
+
+test("a blank in single braces is a fill-in; JSON and code aren't", () => {
+  const b = { fields: [], messages: [message("e1", "Email 1", "email", "Hi")], leads: [] };
+  const body = 'Around {AVG} views, from {LOW} to { High }. {Guest name} said {"a": 1} and ${x} and {{Name}}.';
+  const p = buildLeads([{ t: "Show", e: body }], { t: "title", e: "message:e1:body" }, b);
+  assert.equal(p.leads[0].openers?.[0].drafts.e1.body, 'Around {{AVG}} views, from {{LOW}} to {{High}}. {{Guest name}} said {"a": 1} and ${x} and {{Name}}.');
+});
+
+test("a show's own title names it beside its research; its channel beside a list of people is its link", () => {
+  const rows = [{ title: "You Are Here Podcast", yt: "https://www.youtube.com/@youarehere/videos", people: [{ first: "Rachel", emails: ["r@x.com"] }], research: { channelName: "You Are Here Podcast with Rachel", last10: [{ title: "Egg freezing" }] } }];
+  const m = autoMap(columnsOf(rows), people);
+  assert.equal(m.title, "title");
+  assert.equal(m.yt, "link");
+  assert.equal(m["research.channelName"], undefined);
+  assert.equal(m["research.last10[].title"], undefined);
+});
+
+test("a show's own Instagram beside its people is its link, never the first person's", () => {
+  const rows = [{ title: "Commission and Cash Flow", podig: "https://www.instagram.com/realtyonegroup/", people: [{ full: "Michelle Maiman", emails: ["m@x.com"] }] }];
+  const m = autoMap(columnsOf(rows), people);
+  assert.equal(m.podig, "link");
+  const lead = buildLeads(rows, m, people).leads[0];
+  assert.deepEqual(lead.contacts, [{ name: "Michelle Maiman", email: ["m@x.com"] }]);
+  assert.deepEqual(lead.links, [{ label: "", url: "https://www.instagram.com/realtyonegroup/" }]);
+});
+
+test("a site with nobody's name beside it is the lead's link, not a nameless contact", () => {
+  const p = buildLeads([{ show: "Quiet Builders", site: "quietbuilders.co" }], { show: "title", site: "contact.website" }, people);
+  assert.deepEqual(p.leads[0], { title: "Quiet Builders", links: [{ label: "", url: "https://quietbuilders.co" }] });
+});
+
+test("a column saying which version to send names it by the version's columns too (A and B)", () => {
+  const b = { fields: [], messages: [message("e3", "Email 2", "email", "Hi again")], leads: [] };
+  const mapping = { t: "title", "c[].name": "contact.name", "c[].m.day3_a": "message:e3:body:Guest story", "c[].m.day3_b": "message:e3:body:View numbers" };
+  const rows = ["A", "B"].map((rec, i) => ({ t: `Show ${i}`, recommended: rec, c: [{ name: "Jo", m: { day3_a: "A story", day3_b: "Some numbers" } }] }));
+  assert.deepEqual(
+    buildLeads(rows, mapping, b).leads.map((l) => l.openers?.map((o) => o.label)),
+    [
+      ["Guest story", "View numbers"],
+      ["View numbers", "Guest story"],
+    ],
+  );
+});
+
+test("a single-brace blank spelled the file's way is the board's variable", () => {
+  const b = { fields: [], messages: [message("e1", "Email 1", "email", "Hey {{Name}}, loved {{Podcast}} with {{Guest}}")], leads: [] };
+  const p = buildLeads([{ t: "Show", e: "Hey {first_name}, loved {podcast} and the {guest} episode. {FNAME}, {First name}, {AVG}" }], { t: "title", e: "message:e1:body" }, b);
+  assert.equal(p.leads[0].openers?.[0].drafts.e1.body, "Hey {{Name}}, loved {{Podcast}} and the {{Guest}} episode. {{Name}}, {{Name}}, {{AVG}}");
+});
+
+test("a lead's own name-like values are its variables wherever its messages have them", () => {
+  const b = { fields: [], messages: [message("e1", "Email 1", "email", "Hi")], leads: [] };
+  const mapping = { t: "title", pod: "var:Podcast", guest: "var:Guest", s: "var:Subject", e: "message:e1:body" };
+  const row = { t: "Real Business", pod: "Real Business UK", guest: "Ruth Kudzi", s: "your episode", e: "Watched Real Business UK's episode feat. Ruth Kudzi. About your episode: {{Podcast}}." };
+  assert.equal(buildLeads([row], mapping, b).leads[0].openers?.[0].drafts.e1.body, "Watched {{Podcast}}'s episode feat. {{Guest}}. About your episode: {{Podcast}}.");
+});
+
+test("notes columns are the lead's write-up, a paragraph each", () => {
+  const p = buildLeads([{ t: "Show", notes: ["Paused in August", "Co-host left"], evidence: "rachelrhee.com/newsletter" }], { t: "title", "notes[]": "notes", evidence: "notes" }, people);
+  assert.equal(p.leads[0].notes, "Paused in August\nCo-host left\n\nrachelrhee.com/newsletter");
+});
+
+test("a table cell keeps its line breaks; its spaces run together", () => {
+  assert.equal(cellText("  Hey {First name},\n\n\n\n  I know   you're busy.\nBest,\n"), "Hey {First name},\n\nI know you're busy.\nBest,");
+  // a heading is one line
+  assert.deepEqual(Object.keys(tableRows([["Opening\nemail", "Name"], ["Hi", "Jo"]])[0]), ["Opening email", "Name"]);
 });

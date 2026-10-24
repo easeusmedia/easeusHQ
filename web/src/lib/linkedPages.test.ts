@@ -97,6 +97,10 @@ test("profile addresses and Notion links", () => {
     id: "089b6a20-8044-827f-9721-814679a8773c",
   });
   assert.equal(notionPageOf("https://www.notion.so/Dr-Kim-089b6a208044827f9721814679a8773c?pvs=4")?.id, "089b6a20-8044-827f-9721-814679a8773c");
+  // Notion's own new address, and a page under a workspace
+  assert.deepEqual(notionPageOf("https://app.notion.com/p/8aed62c3a9cb835b946f015b830d01e9"), { origin: "https://app.notion.com", id: "8aed62c3-a9cb-835b-946f-015b830d01e9" });
+  assert.equal(notionPageOf("https://www.notion.so/acme/Dr-Kim-089b6a208044827f9721814679a8773c")?.id, "089b6a20-8044-827f-9721-814679a8773c");
+  assert.equal(notionPageOf("https://www.notion.so/p/089b6a208044827f9721814679a8773c")?.id, "089b6a20-8044-827f-9721-814679a8773c");
   assert.equal(notionPageOf("https://example.com/089b6a208044827f9721814679a8773c"), null);
   assert.equal(notionPageOf("https://www.notion.so:8443/089b6a208044827f9721814679a8773c"), null);
   assert.equal(xUrl("https://twitter.com/DrKim?lang=en"), "https://x.com/drkim");
@@ -247,6 +251,11 @@ test("the clinic's Instagram only when nobody on the lead has one; a site's deta
   // a lead with nobody on it yet gets a contact named after it, and an unnamed one takes its name
   assert.equal(withPages([], [site], [], "Kim Clinic").contacts[0].name, "Kim Clinic");
   assert.equal(withPages([{ id: "c1", name: "there", role: "", channels: [] }], [site], [], "Kim Clinic").contacts[0].name, "Kim Clinic");
+  // a show's people all have roles: its channel's details go to the one the show is named after, else its host, never a contact of the show's name
+  const channel: NotionPage = { ...emptyDetails(), x: ["https://x.com/stumclaren"], websites: ["https://membership.io/"], others: [], clinic: { instagram: [], websites: [] }, site: true };
+  const host = (name: string) => ({ id: "h", name, role: "Host", channels: [{ kind: "email" as const, value: "s@x.com" }] });
+  assert.deepEqual(strip(withPages([host("Stu McLaren")], [channel], [], "Stu McLaren")), [["Stu McLaren", "Host", ["s@x.com", "https://x.com/stumclaren", "https://membership.io/"]]]);
+  assert.deepEqual(strip(withPages([{ ...host("Andrew Truong"), role: "Producer" }, host("Charlie Deaver")], [channel], [], "Risky Assets")).map((c) => c[0]), ["Andrew Truong", "Charlie Deaver"]);
 });
 
 test("a name two contacts share is neither's, unless an address or its LinkedIn says whose", () => {

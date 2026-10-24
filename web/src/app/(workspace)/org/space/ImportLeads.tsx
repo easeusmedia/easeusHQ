@@ -4,13 +4,14 @@ import { useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AtSign, Check, CircleAlert, Copy, FileText, FileUp, X } from "lucide-react";
-import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeExtracted, readFile, targetsOf, unreachable, Unreadable, type LeadIn, type Part, type Preview, type Read, type Row } from "@/lib/leadImport";
-import { fillTemplates, findSlots } from "@/lib/leadTemplates";
+import { ACCEPT, autoMap, buildLeads, columnsOf, fileProblem, halves, oneEach, partsOf, placeable, placeExtracted, readFile, tagsToAsk, unreachable, Unreadable, type LeadIn, type Part, type Preview, type Read, type Row } from "@/lib/leadImport";
+import { boardNames, fillTemplates, findSlots, misplacedVars } from "@/lib/leadTemplates";
 import type { BoardData } from "@/lib/space";
 import { ADD_BUTTON, PlusBadge } from "../../AddButton";
 import { closeOnBackdrop } from "../../dialog";
 import { Reveal } from "../../Reveal";
-import { extractLeads, findContacts, importLeads, mapColumns, nameSlots } from "./importActions";
+import { SAMPLE } from "./importClaude";
+import { extractLeads, findContacts, importLeads, mapColumns, matchTags, nameSlots } from "./importActions";
 
 const OFFLINE = "That couldn't be reached. Check your connection and try again.";
 // leads a call, as add_leads takes them
@@ -166,12 +167,14 @@ function Problem({ Icon, title, names, children }: { Icon: typeof Copy; title: s
 
 // "Import leads", where "New lead" was on a Sales board: files of leads
 // dropped, picked or pasted, read in the browser (lib/leadImport), its columns placed
-// on the board's properties (by code, then one small Claude call for what
-// code can't tell), each lead's contacts found from its links (its Notion
+// on the board's properties (by code, then one Claude call for what code
+// can't tell, and one for values code can't put on a property's tags),
+// each lead's contacts found from its links (its Notion
 // pages, channel, website), then add_leads in fifties, into the board's
 // first stage. A file with nothing to decide goes straight in; otherwise
 // only what needs a decision shows (Abhishek, 23 Oct 2026): duplicates (skip
-// or add anyway), leads missing details (the rest can go in without them)
+// or add anyway), leads without a name (the rest can go in without them;
+// a property the board requires never keeps one out, it's left empty)
 // and leads nobody on them can be reached on even after their links were
 // read (they can't go on to Ready to reach out until an email, Instagram or
 // LinkedIn is added).
@@ -196,7 +199,7 @@ export function ImportLeads({ board }: { board: BoardData }) {
   // dialog closed meanwhile) stops at its next step and changes nothing here
   const session = useRef(0);
 
-  const targets = useMemo(() => targetsOf(board), [board]);
+  const known = useMemo(() => placeable(board), [board]);
 
   function open() {
     session.current++;
@@ -247,22 +250,36 @@ export function ImportLeads({ board }: { board: BoardData }) {
         setBusy({ step: "place" });
         const res: Awaited<ReturnType<typeof mapColumns>> = await mapColumns(
           board.id,
-          left.map((c) => ({ path: c.path, samples: c.values.slice(0, 2).map((v) => v.slice(0, 60)) })),
+          left.map((c) => ({ path: c.path, samples: c.values.slice(0, 2).map((v) => v.slice(0, SAMPLE)) })),
+          Object.entries(mapping).map(([path, target]) => ({ path, target })),
         ).catch(() => ({ error: OFFLINE }));
         if (gone()) return;
         if (res.mapping) mapping = { ...mapping, ...res.mapping };
         else unplaced = res.error ?? OFFLINE;
       }
-      const known = new Set(targets.map((t) => t.value));
-      const built = buildLeads(rows, oneEach(columns, Object.fromEntries(columns.map((c) => [c.path, known.has(mapping[c.path]) ? mapping[c.path] : "ignore"]))), board);
-      if (!built.leads.length && !built.duplicates.length) throw new Unreadable(unplaced ?? (built.incomplete.length ? "None of the leads in that file have the details the board needs." : "There are no leads in that file to import."));
+      const placed = oneEach(columns, Object.fromEntries(columns.map((c) => [c.path, known(mapping[c.path]) ? mapping[c.path] : "ignore"])));
+      // values code can't put on a property's tags, matched by Claude; unmatched, left empty
+      const asks = tagsToAsk(rows, placed, board);
+      const told: Awaited<ReturnType<typeof matchTags>> = asks.length ? await matchTags(board.id, asks).catch(() => ({ error: OFFLINE })) : {};
+      if (gone()) return;
+      // Claude couldn't match them: they'd go in empty, so the person says whether to import
+      const untagged = told.error ? leftOut(told.error, asks.map((a) => a.column)) : null;
+      let built = buildLeads(rows, placed, board, told.tags ?? {});
+      // a column put on a variable that the file's own messages have other words in the place of isn't that variable
+      const wrong = misplacedVars([...built.leads, ...built.duplicates], board.messages);
+      if (wrong.length) built = buildLeads(rows, Object.fromEntries(Object.entries(placed).map(([p, t]) => [p, wrong.includes(t.slice(4)) && t.startsWith("var:") ? "ignore" : t])), board, told.tags ?? {});
+      if (!built.leads.length && !built.duplicates.length) throw new Unreadable(unplaced ?? (built.incomplete.length ? "None of the leads in that file have a name." : "There are no leads in that file to import."));
       // messages written out for each lead come in as fill-in-the-blank
       // templates with the lead's values (lib/leadTemplates); unnamed by
       // Claude, a blank is named from the words beside it
       const plan = findSlots([...built.leads, ...built.duplicates]);
-      const named: Awaited<ReturnType<typeof nameSlots>> = plan.slots.length ? await nameSlots(board.id, plan.slots).catch(() => ({})) : {};
+      // a blank where the board's own wording has a variable is that one; Claude names the rest
+      const fixed = boardNames(plan, board.messages, [...new Set([...built.leads, ...built.duplicates].flatMap((l) => Object.keys(l.vars ?? {})))]);
+      const unnamed = plan.slots.filter((x) => !fixed[x.id]);
+      const named: Awaited<ReturnType<typeof nameSlots>> = unnamed.length ? await nameSlots(board.id, unnamed).catch(() => ({})) : {};
       if (gone()) return;
-      const filled = [...fillTemplates(built.leads, plan, named.names ?? {}), ...fillTemplates(built.duplicates, plan, named.names ?? {})];
+      const names = { ...named.names, ...fixed };
+      const filled = [...fillTemplates(built.leads, plan, names), ...fillTemplates(built.duplicates, plan, names)];
       // their contacts from their links, so who can't be reached is known from what's there
       const people = board.fields.some((f) => f.kind === "contacts");
       const reached = people ? await findAll(filled, (ls) => findContacts(board.id, ls), gone, (at, of) => setBusy({ step: "find", at, of })) : { leads: filled, unread: filled.map((l) => l.title) };
@@ -273,8 +290,8 @@ export function ImportLeads({ board }: { board: BoardData }) {
       // kept while it imports, so a call that fails leaves the rest to import again
       setFile({ name: files.length > 1 ? `${files.length} files` : files[0].name, preview, unread: reached.unread });
       // nothing to decide: straight in (a value the board doesn't have is simply left off)
-      if (!unplaced && !preview.duplicates.length && !preview.incomplete.length && !preview.unreachable.length) return await run(preview.leads, [], reached.unread, s);
-      if (unplaced) setError(leftOut(unplaced, left.map((c) => c.path)));
+      if (!unplaced && !untagged && !preview.duplicates.length && !preview.incomplete.length && !preview.unreachable.length) return await run(preview.leads, [], reached.unread, s);
+      if (unplaced || untagged) setError([unplaced && leftOut(unplaced, left.map((c) => c.path)), untagged].filter(Boolean).join(" "));
     } catch (err) {
       if (!(err instanceof Unreadable)) console.error(err);
       if (gone()) return;

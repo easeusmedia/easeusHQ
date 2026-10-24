@@ -132,6 +132,8 @@ export type CallInput = {
   maxTokens: number;
   // Sonnet and Opus take an effort; Haiku 4.5 refuses one
   effort?: "low" | "medium" | "high";
+  // Sonnet 5 thinks unless told not to: off for a quick, fixed-shape answer
+  thinking?: "disabled";
   format?: Record<string, unknown>;
   // "none" on the last step of a tool loop, so it has to answer
   toolChoice?: "auto" | "none";
@@ -158,6 +160,7 @@ export async function callClaude(input: CallInput): Promise<{ content: Block[]; 
       max_tokens: input.maxTokens,
       system: input.system,
       messages: input.messages,
+      ...(input.thinking ? { thinking: { type: input.thinking } } : {}),
       ...(input.tools?.length ? { tools: input.tools, ...(input.toolChoice ? { tool_choice: { type: input.toolChoice } } : {}) } : {}),
       ...(Object.keys(outputConfig).length ? { output_config: outputConfig } : {}),
     }),

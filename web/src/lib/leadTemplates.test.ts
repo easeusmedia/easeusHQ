@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { askNames, fallbackName, fillTemplates, findSlots } from "./leadTemplates.ts";
+import { askNames, boardNames, fallbackName, fillTemplates, findSlots, misplacedVars } from "./leadTemplates.ts";
 import { fillText, variablesIn } from "./space.ts";
 import type { LeadIn } from "./leadImport.ts";
 
@@ -191,4 +191,74 @@ test("a blank's words for Claude are its own sentence's, never the sentence befo
   const views = plan.slots.find((s) => s.examples.includes("88K"))!;
   assert.equal(views.before, "It's at");
   assert.equal(views.after, "views so far.");
+});
+
+test("each lead's first person's first name is {{Name}}, so every person on it is greeted by their own", () => {
+  const leads = ["Rachel Rhee", "Michelle Maiman", "Carter Crowley"].map((full, i) => ({
+    ...lead(`Show ${i}`, { e3: `${full.split(" ")[0]},\n\nOne thing from the audit.`, e4: `Thanks for connecting, ${full.split(" ")[0]}.\n\nQuick one.` }),
+    contacts: [{ name: full }],
+  }));
+  // Claude called it something else; it's still the board's {{Name}}
+  const plan = findSlots(leads);
+  const out = fillTemplates(leads, plan, Object.fromEntries(plan.slots.map((s) => [s.id, "Greeting name"])));
+  assert.equal(out[1].openers![0].drafts.e4.body, "Thanks for connecting, {{Name}}.\n\nQuick one.");
+  // a line that's only the name too
+  assert.equal(out[1].openers![0].drafts.e3.body, "{{Name}},\n\nOne thing from the audit.");
+  assert.equal(out[1].vars?.Name, "Michelle");
+});
+
+test("a blank inside one of the lead's own values is that value, its shared last word and all", () => {
+  const shows = ["You Are Here Podcast", "Commission and Cash Flow Podcast", "Rock Solid Podcast"];
+  const leads = shows.map((show, i) => ({ ...lead(show, { e1: `Emailed you about ${show} - probably landed somewhere.` }), vars: { Podcast: show }, contacts: [{ name: `P${i}` }] }));
+  const out = fillTemplates(leads, findSlots(leads), {});
+  assert.deepEqual(
+    out.map((l) => l.openers![0].drafts.e1.body),
+    shows.map(() => "Emailed you about {{Podcast}} - probably landed somewhere."),
+  );
+});
+
+test("a blank where the board's own wording has a variable is that variable, without asking", () => {
+  const gaps = ["no chapters", "no trailer", "no clips"];
+  const leads = gaps.map((g, i) => lead(`Show ${i}`, { li: `Watched your episode.\nNoticed, ${g}\nShould I send it over?` }));
+  const plan = findSlots(leads);
+  const board = [{ id: "li", subject: "", body: "Watched your episode.\nNoticed, {{Short gap}}\nShould I send it over?" }];
+  const names = boardNames(plan, board);
+  assert.deepEqual(Object.values(names), ["Short gap"]);
+  assert.deepEqual(
+    fillTemplates(leads, plan, names).map((l) => l.vars),
+    gaps.map((g) => ({ "Short gap": g })),
+  );
+  // a board message without that variable there names nothing, nor does a variable a column of the file fills
+  assert.deepEqual(boardNames(plan, [{ id: "li", subject: "", body: "Noticed, {{Finding}} and more, {{Reason}}" }]), {});
+  assert.deepEqual(boardNames(plan, board, ["Short gap"]), {});
+});
+
+test("someone on the lead named in a blank stays written; little words and half a quote are no blank", () => {
+  const hosts = [
+    ["Carter", "Michelle"],
+    ["Garrett", "Dana"],
+    ["Charlie", "Andrew"],
+  ];
+  const leads = hosts.map(([other, first], i) => ({ ...lead(`Show ${i}`, { e1: `Hey {{Name}}, loved your episode with ${other}.` }), contacts: [{ name: `${first} X` }, { name: `${other} Y` }] }));
+  const out = fillTemplates(leads, findSlots(leads), {});
+  assert.deepEqual(
+    out.map((l) => l.openers![0].drafts.e1.body),
+    hosts.map(([other]) => `Hey {{Name}}, loved your episode with ${other}.`),
+  );
+  const said = ["the", "Kate's", "Ben's"].map((w, i) => lead(`L${i}`, { e1: `Watched ${w} episode on growth.` }));
+  const plan = findSlots(said);
+  assert.ok(plan.slots.every((s) => !s.examples.includes("the")));
+  const quoted = ['"Rich But Broke?" episode with Ted', '"Second Act" episode with Ana', '"Deep Work" episode with Lo'].map((t, i) => lead(`Q${i}`, { e1: `Watched your ${t} - love it.` }));
+  assert.ok(findSlots(quoted).slots.every((s) => s.examples.every((v) => (v.match(/"/g) ?? []).length % 2 === 0)));
+});
+
+test("a column on a variable that the leads' own messages have other words in the place of isn't that variable", () => {
+  const board = [{ id: "li", subject: "", body: "Hey {{Name}}, Watched your {{Guest}} episode.\nNoticed, {{Short gap}}\nShould I send it over?" }];
+  const shows = [
+    ["house hacking", "Kate Beale", "recent episodes sit around 300 views"],
+    ["vendor deals", "Ben Ortiz", "no clips on the channel"],
+    ["first homes", "Ana Diaz", "the titles say nothing"],
+  ];
+  const leads = shows.map(([topic, guest, gap], i) => ({ ...lead(`Show ${i}`, { li: `Hey {{Name}}, Watched your ${guest} episode.\nNoticed, ${gap}\nShould I send it over?` }), vars: { "Short gap": topic, Guest: guest } }));
+  assert.deepEqual(misplacedVars(leads, board), ["Short gap"]);
 });

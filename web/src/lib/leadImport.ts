@@ -6,7 +6,7 @@
 // like leads added through a connection. Pure down to the readers at the
 // end, which need a browser (DOMParser, canvas) and load pdfjs and fflate
 // only when a file needs them.
-import { fillText, handleOf, variablesIn, type BoardData, type FieldData, type LeadData, type OptionData } from "./space.ts";
+import { fillText, firstName, handleOf, variablesIn, type BoardData, type FieldData, type LeadData, type OptionData } from "./space.ts";
 import type { PickOption } from "./pickList.ts";
 
 // ---- Which files ----
@@ -90,6 +90,8 @@ function elementsAt(v: unknown, list: string, path = ""): unknown[] {
 }
 // the list a path is in, if any: "docs[].em[]" is in "docs[]"
 const listOf = (path: string) => (path.includes("[]") ? path.slice(0, path.indexOf("[]") + 2) : "");
+// the record a path is in: "m.email" is in "m", "title" in the row itself
+const parentOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf(".")));
 
 // RFC 4180: a quoted field can hold the delimiter, quotes ("") and line
 // breaks. The delimiter is a tab for TSV, else the one Excel's "sep=" line
@@ -129,7 +131,7 @@ export function parseCsv(text: string, delimiter?: string): string[][] {
 }
 
 // A Notion export's link to the page a cell names ("Glow Clinic (https://www.notion.so/…)")
-const NOTION_LINK = /\s*\((https?:\/\/(?:www\.)?notion\.(?:so|site)\/[^)\s]*)\)/g;
+const NOTION_LINK = /\s*\((https?:\/\/(?:www\.|app\.)?notion\.(?:so|site|com)\/[^)\s]*)\)/g;
 const reaches = (c: string) => /@|https?:\/\/|www\./i.test(c);
 
 // A grid's rows by its headings (a blank heading is "Column 3", a repeated one
@@ -146,7 +148,8 @@ export function tableRows(grid: string[][]): Row[] {
   const at = rows.slice(0, 10).findIndex((r) => filled(r) >= Math.max(2, Math.ceil(widest / 2)) && new Set(r.filter(Boolean)).size > 1 && !r.some(reaches));
   if (!rows.length) return [];
   const headless = at < 0 && rows[0].some((c) => reaches(c) || /^@\w/.test(c));
-  const first = headless ? [] : rows[Math.max(0, at)];
+  // (a heading is one line, whatever breaks its cell has)
+  const first = headless ? [] : rows[Math.max(0, at)].map((h) => h.replace(/\s+/g, " "));
   const same = (r: string[]) => first.length > 0 && first.every((h, i) => h.toLowerCase() === (r[i] ?? "").toLowerCase());
   const totals = (r: string[]) => /^(sub)?totals?:?$/i.test(r.find(Boolean) ?? "") && r.filter(Boolean).slice(1).every((c) => /^[\d.,\s%$€£-]+$/.test(c));
   const body = rows.slice(headless ? 0 : Math.max(0, at) + 1).filter((r) => !same(r) && !totals(r));
@@ -217,9 +220,20 @@ export function htmlScriptRows(html: string): Row[] {
 // ---- Where each column goes ----
 
 // The lead's name ("title"), its person ("contact.email"), its links
-// ("link"), a property ("field:<id>"), a variable ("var:<name>"), a message
-// written for it ("message:<id>:subject" or ":body"), or nowhere ("ignore")
+// ("link"), its write-up ("notes"), a property ("field:<id>"), a variable ("var:<name>"), a message
+// written for it ("message:<id>:subject" or ":body"), or nowhere ("ignore").
+// A message's target can name the version of it the column writes, when the
+// file words a message two ways for each lead ("message:<id>:body:Community"),
+// and a column that writes several messages (the board's same words on
+// Instagram and LinkedIn) has each one's target, joined by "|".
 export type Target = string;
+export const targetsIn = (t: Target): Target[] => (t.startsWith("message:") ? t.split("|") : [t]);
+const versionOf = (t: Target) => t.split(":")[3] ?? "";
+// Whether a target is one of the board's (its versions aside), as the dialog checks Claude's
+export function placeable(board: Board) {
+  const offered = new Set(targetsOf(board).map((t) => t.value));
+  return (t: Target | undefined) => !!t && targetsIn(t).every((x) => offered.has(x.startsWith("message:") ? x.split(":").slice(0, 3).join(":") : x));
+}
 export const CONTACT = [
   ["name", "Name"],
   ["role", "Role"],
@@ -259,6 +273,8 @@ export function targetsOf(board: Board): PickOption[] {
     { value: "ignore", label: "Leave out" },
     { value: "title", label: "Lead name", group: "Lead" },
     ...(has("links") ? [{ value: "link", label: "Link", group: "Lead" }] : []),
+    // what the file says about the lead that no property takes (its research notes), kept on the lead
+    { value: "notes", label: "Notes", group: "Lead" },
     ...(has("contacts") ? CONTACT.map(([k, label]) => ({ value: `contact.${k}`, label, group: "Contact" })) : []),
     ...board.fields.filter(placed).map((f) => ({ value: `field:${f.id}`, label: f.name, group: "Properties" })),
     ...boardVars(board).map((v) => ({ value: `var:${v}`, label: v, group: "Variables" })),
@@ -300,7 +316,7 @@ const NAME_PARTS = [
 ];
 const SAID: Record<string, Target> = {
   ...heads("title", ["title", "lead", "leadname", "company", "companyname", "business", "brand", "clinic", "clinica", "praxis", "practice", "podcast", "podcastname", "show", "showname", "channelname", "organisation", "organization", "account"]),
-  ...heads("contact.name", ["name", "fullname", "contact", "contactname", "person", "host", "hostname", "doctor", "first", "firstname", "givenname", "forename", "vorname", "fname", "nombre", "middle", "middlename", "last", "lastname", "surname", "familyname", "nachname", "lname", "apellido", "apellidos"]),
+  ...heads("contact.name", ["name", "fullname", "full", "contact", "contactname", "person", "host", "hostname", "doctor", "first", "firstname", "givenname", "forename", "vorname", "fname", "nombre", "middle", "middlename", "last", "lastname", "surname", "familyname", "nachname", "lname", "apellido", "apellidos"]),
   ...heads("contact.role", ["role", "position", "jobtitle", "designation", "cargo", "puesto"]),
   ...heads("contact.email", ["email", "emails", "emailaddress", "mail", "correo", "correoelectronico", "emailadresse"]),
   ...heads("contact.instagram", ["instagram", "ig", "insta"]),
@@ -310,6 +326,7 @@ const SAID: Record<string, Target> = {
   ...heads("contact.x", ["x", "twitter"]),
   ...heads("contact.website", ["website", "site", "web", "webseite", "sitioweb"]),
   ...heads("link", ["url", "link", "links"]),
+  ...heads("notes", ["notes", "note", "remarks", "comments"]),
 };
 // a heading by its words, else without a last "name" or "handle" ("Clinic name", "IG handle"), else its last step's
 const said = (path: string): Target | undefined => {
@@ -398,10 +415,13 @@ export function countryName(value: string): string | null {
 // A value as one of a field's tags: by its name or the start of it ("D1" is
 // "D1 · Old hit still on top"), a country however it's written ("U.S.",
 // "Dubai, UAE"), a code before other words ("D1 - Old hit"), or the words
-// after a tag's code when only one tag has them ("Old hit")
+// after a tag's code when only one tag has them ("Old hit"). A bare number
+// starts a tag only as its code ("1 · Hot"), never as a count ("4" isn't "4
+// episodes a month": 4 in 90 days is fewer; Claude reads those, matchTags)
 export function matchOption<O extends Pick<OptionData, "name">>(options: O[], value: string): O | undefined {
   const name = (o: O) => o.name.trim().toLowerCase();
-  const is = (v: string) => (v ? (options.find((o) => name(o) === v) ?? options.find((o) => name(o).startsWith(`${v} `))) : undefined);
+  const starts = (o: O, v: string) => name(o).startsWith(`${v} `) && (!/^\d+$/.test(v) || /^\s*[·:|–—-]/.test(name(o).slice(v.length)));
+  const is = (v: string) => (v ? (options.find((o) => name(o) === v) ?? options.find((o) => starts(o, v))) : undefined);
   const country = (v: string) => {
     const g = COUNTRIES.find((g) => g.includes(v.replace(/\./g, "")));
     return g && options.find((o) => g.includes(name(o)));
@@ -449,9 +469,17 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
   const offered = new Set(targetsOf(board).map((t) => t.value));
   const out: Record<string, Target> = {};
   const taken = new Set<Target>();
-  // a "Title" beside a company's name is the person's job (Apollo, Sales
-  // Navigator); alone it's the lead's name (a podcast directory)
-  const company = columns.some((c) => norm(bareName(c.path)) !== "title" && said(c.path) === "title");
+  // a "Title" beside a company's name in the same record is the person's job
+  // (Apollo, Sales Navigator), and so is one in a list's records beside a
+  // person's name or email (people[].title, the company at the lead's
+  // level); alone it's the lead's name (a podcast directory, a show with its
+  // channel's name deep in its research, its videos' titles in a list)
+  const beside = (path: string, re: RegExp) => columns.some((c) => c.path !== path && parentOf(c.path) === parentOf(path) && re.test(said(c.path) ?? ""));
+  const job = (path: string) => (columns.some((c) => parentOf(c.path) === parentOf(path) && norm(bareName(c.path)) !== "title" && said(c.path) === "title") || (!!listOf(path) && beside(path, /^contact\.(name|email)$/)));
+  // beside a list of the lead's people, the lead's own channel, site or
+  // profile ("yt" and the show's Instagram "podig" by "people[]") is its
+  // link, not the first person's
+  const peopleListed = columns.some((c) => listOf(c.path) && /^contact\.(name|email)$/.test(said(c.path) ?? ""));
   for (const { path, values } of columns) {
     const name = nameOf(path);
     const h = norm(name);
@@ -481,6 +509,15 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
         values.every((v) => tagsIn(f, v).every((t) => matchOption(f.options, t))) &&
         (values.every((v) => v.trim().length > 1) || f.name.toLowerCase().split(/[^a-z0-9]+/).some((w) => w && words.has(w))),
     );
+    // a column of codes inside a record ("m.c": D1, F2), most of them the
+    // tags of a field another column already has ("t"): that field's too, so
+    // oneEach makes it the label of the opener whose messages are beside it,
+    // or leaves it out
+    const codes =
+      parentOf(path) &&
+      values.length &&
+      values.every((v) => v.trim().length >= 2 && v.trim().length <= 12) &&
+      board.fields.find((f) => f.kind === "select" && taken.has(`field:${f.id}`) && values.filter((v) => matchOption(f.options, v)).length >= values.length / 2);
     // a list in a list's records (a post's tagged users) holds no one of the lead's
     const deep = (path.match(/\[\]\./g) ?? []).length > 1;
     const s = said(path);
@@ -490,16 +527,16 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
       // a profile's address is the person's, whatever its heading ("url", "profileUrl")
       values.every((v) => /linkedin\.com\/in\//i.test(v)) ? "contact.linkedin" : undefined,
       values.every((v) => /instagram\.com\/[\w.]/i.test(v) && !postLink(v)) ? "contact.instagram" : undefined,
-      s === "title" && h === "title" && company ? "contact.role" : s,
+      s === "title" && h === "title" && job(path) ? "contact.role" : s,
       message && `message:${message.id}:${h === norm(`${message.name} subject`) ? "subject" : "body"}`,
       named && `var:${named}`,
       MENTIONS.find(([w]) => norm(bareName(path)).includes(w))?.[1],
       values.every(isEmail) ? "contact.email" : undefined,
       values.every(isUrl) ? "link" : undefined,
       options && `field:${options.id}`,
-    ].find((x): x is Target => !!x && offered.has(x) && !taken.has(x) && fits(x, values) && !(deep && (x === "title" || x.startsWith("contact."))));
+    ].find((x): x is Target => !!x && offered.has(x) && !taken.has(x) && fits(x, values) && !(deep && (x === "title" || x.startsWith("contact.")))) ?? (codes ? `field:${codes.id}` : undefined);
     if (!t) continue;
-    out[path] = t;
+    out[path] = peopleListed && !listOf(path) && /^contact\.(youtube|website|instagram|linkedin|x)$/.test(t) && offered.has("link") ? "link" : t;
     if (single(t, board)) taken.add(t);
   }
   return out;
@@ -512,7 +549,7 @@ export function autoMap(columns: Column[], board: Board): Record<string, Target>
 // from several ("Email", "Work email"): the first column keeps a place, any
 // other one put there is left out. A name is one column ("Dr Karandish", not
 // that and the clinic's name joined: several name columns give the fullest)
-export const sharedPlace = (t: Target) => (t.startsWith("contact.") && t !== "contact.role") || t === "link" || t === "ignore";
+export const sharedPlace = (t: Target) => (t.startsWith("contact.") && t !== "contact.role") || t === "link" || t === "notes" || t === "ignore";
 // One person written twice (two Notion pages for one doctor, "Sophie
 // Shotter" and "Dr Sophie Shotter") is one contact: the same name once titles
 // and letters' styles are set aside (one name's words all in the other's), or
@@ -618,17 +655,17 @@ export const isGreeting = (name = "") => /^(there|team|all|everyone|everybody|fr
 // One column per place; a message's two columns (its whole text and a line
 // from it) keep the longest, anything else the first. A message or a
 // variable only takes values that can be one (Claude's choices too: never a
-// sentence on {{Link}}), and each list of backups (alt[]) has its own. A tag
-// code beside an opener's messages ("m.c": D1, when "t" has the Opener
-// field) names that opener ("label:<field id>"). A greeting column is never
-// the contact's name.
+// sentence on {{Link}}), and each list of backups (alt[]) has its own, as
+// each version of a message does. A column writing several messages holds
+// each of them on its own. A tag code beside an opener's messages ("m.c":
+// D1, when "t" has the Opener field) names that opener ("label:<field id>").
+// A greeting column is never the contact's name.
 export function oneEach(columns: Column[], mapping: Record<string, Target>): Record<string, Target> {
   const length = (c: Column) => c.values.reduce((n, v) => n + v.length, 0) / (c.values.length || 1);
-  const parent = (p: string) => p.slice(0, Math.max(0, p.lastIndexOf(".")));
   const openers = new Set(
     Object.keys(mapping)
       .filter((p) => mapping[p].startsWith("message:"))
-      .map(parent)
+      .map(parentOf)
       .filter(Boolean),
   );
   const out: Record<string, Target> = {};
@@ -638,15 +675,17 @@ export function oneEach(columns: Column[], mapping: Record<string, Target>): Rec
     if (((t.startsWith("message:") || t.startsWith("var:")) && !fits(t, c.values)) || (t === "contact.name" && greetingHead(c.path))) t = "ignore";
     out[c.path] = t;
     if (sharedPlace(t)) continue;
-    const key = t.startsWith("message:") || t.startsWith("var:") || t === "contact.role" ? `${t}@${listOf(c.path)}${personOf(c.path)}` : t;
-    const was = holder.get(key);
-    if (!was) {
-      holder.set(key, c);
-      continue;
+    for (const one of targetsIn(t)) {
+      const key = one.startsWith("message:") || one.startsWith("var:") || one === "contact.role" ? `${one}@${listOf(c.path)}${personOf(c.path)}` : one;
+      const was = holder.get(key);
+      if (!was) {
+        holder.set(key, c);
+        continue;
+      }
+      const [keep, drop] = one.startsWith("message:") && length(c) > length(was) ? [c, was] : [was, c];
+      holder.set(key, keep);
+      out[drop.path] = one.startsWith("field:") && openers.has(parentOf(drop.path)) ? `label:${one.slice(6)}` : targetsIn(out[drop.path]).filter((x) => x !== one).join("|") || "ignore";
     }
-    const [keep, drop] = t.startsWith("message:") && length(c) > length(was) ? [c, was] : [was, c];
-    holder.set(key, keep);
-    out[drop.path] = t.startsWith("field:") && openers.has(parent(drop.path)) ? `label:${t.slice(6)}` : "ignore";
   }
   return out;
 }
@@ -673,6 +712,7 @@ export type LeadIn = {
   contacts?: ContactIn[];
   links?: { label: string; url: string }[];
   vars?: Record<string, string>;
+  notes?: string;
   // the main opener first, then one per element of a list of them ("alt[]")
   openers?: { label: string; drafts: Record<string, DraftIn> }[];
 };
@@ -680,30 +720,47 @@ export type Preview = {
   leads: LeadIn[];
   // already on the board (by name or by an email or handle on it): skipped, unless added anyway
   duplicates: LeadIn[];
-  // left out, and why ("Row 4": no name; "Glow Clinic": no contact details)
+  // left out, and why ("Row 4": no name). A property the board requires
+  // never keeps a lead out: it goes in with that left empty (Abhishek, 24 Oct
+  // 2026), as the manual form's rule can't make a file have the value
   incomplete: { name: string; why: string }[];
   // imported, but nobody on them has an email, Instagram or LinkedIn yet
   unreachable: string[];
   existing: number;
-  // without a name, or a property the board requires
+  // without a name
   unnamed: number;
-  missing: number;
   // values that aren't one of their field's tags, as "Country: India"
   unmatched: string[];
 };
 
-// A property's value from the column's words, as add_leads stores it, or null
-function valueOf(f: FieldData, vs: string[], unmatched: Set<string>): unknown {
+// A yes or a no on a field whose tags are Yes and No: "true", "1" and "y" are Yes
+const YES = /^(true|yes|y|1)$/i;
+const NO = /^(false|no|n|0)$/i;
+const yesNo = <O extends Pick<OptionData, "name">>(options: O[], v: string) => {
+  const want = YES.test(v.trim()) ? "yes" : NO.test(v.trim()) ? "no" : "";
+  return want ? options.find((o) => o.name.trim().toLowerCase() === want) : undefined;
+};
+const isCountry = (f: Pick<FieldData, "name">) => /^country$/i.test(f.name.trim());
+// what a value is called in Claude's answer about tags (importActions
+// matchTags), as much of it as Claude is shown
+export const tagKey = (v: string) => v.trim().slice(0, 80).toLowerCase();
+// Tags Claude matched to values code couldn't, by field id and value: the option's id
+export type ToldTags = Record<string, Record<string, string>>;
+
+// A property's value from the column's words, as add_leads stores it, or
+// null; a tag by code, else as Claude matched it (told), else left off
+function valueOf(f: FieldData, vs: string[], unmatched: Set<string>, told: Record<string, string> = {}): unknown {
   switch (f.kind) {
     case "select":
     case "multi": {
       const ids = vs
         .flatMap((v) => tagsIn(f, v))
         .flatMap((t) => {
-          const o = matchOption(f.options, t);
+          const o = matchOption(f.options, t) ?? yesNo(f.options, t);
           if (o) return [o.id];
+          if (told[tagKey(t)]) return [told[tagKey(t)]];
           // a real country the board has no tag for yet goes by name: importLeads adds the tag
-          const country = /^country$/i.test(f.name.trim()) ? countryName(t) : null;
+          const country = isCountry(f) ? countryName(t) : null;
           if (country) return [country];
           unmatched.add(`${f.name}: ${t}`);
           return [];
@@ -788,34 +845,105 @@ function merge(into: LeadIn, l: LeadIn) {
   if (links.length) into.links = links;
   if (l.values) into.values = { ...l.values, ...into.values };
   if (l.vars) into.vars = { ...l.vars, ...into.vars };
+  if (l.notes && !into.notes?.includes(l.notes)) into.notes = [into.notes, l.notes].filter(Boolean).join("\n\n").slice(0, 10_000);
   if (!into.openers?.length && l.openers?.length) into.openers = l.openers;
 }
+
+// The values on a tag property that code can't match to a tag (a count of
+// episodes on "Podcast cadence"), for one Claude call (importActions
+// matchTags): each field's column, its different values, and a couple of
+// rows' values beside it in its record, which say what the values are
+// ("eps90" beside "sample_window": 90)
+export type TagAsk = { field: string; column: string; values: string[]; beside: Record<string, string>[] };
+export function tagsToAsk(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields">): TagAsk[] {
+  const flats = rows.map((r) => flatten(r));
+  const out: TagAsk[] = [];
+  // as many as one answer holds (about 30 tokens each, importActions matchTags)
+  let room = 100;
+  for (const f of board.fields.filter(choice))
+    for (const column of Object.keys(mapping).filter((p) => mapping[p] === `field:${f.id}`)) {
+      const values = new Map<string, string>();
+      const beside: Record<string, string>[] = [];
+      const near = (p: string) => parentOf(p) === parentOf(column) && !p.slice(parentOf(column).length).includes("[]");
+      for (const flat of flats) {
+        const left = (flat[column] ?? []).flatMap((v) => tagsIn(f, v)).filter((t) => !matchOption(f.options, t) && !yesNo(f.options, t) && !(isCountry(f) && countryName(t)));
+        if (!left.length) continue;
+        for (const t of left) if (values.size < Math.min(60, room)) values.set(tagKey(t), t.trim().slice(0, 80));
+        if (beside.length < 2) beside.push(Object.fromEntries(Object.entries(flat).filter(([p, vs]) => near(p) && vs.length === 1).slice(0, 25).map(([p, vs]) => [p, vs[0].slice(0, 60)])));
+      }
+      room -= values.size;
+      if (values.size) out.push({ field: f.id, column, values: [...values.values()], beside });
+    }
+  return out;
+}
+
+// A blank written in single braces for whoever sends it ("{AVG}", "{Guest
+// name}") is a fill-in, {{AVG}}, so the Fill in form asks for it and its day
+// waits for it; only words in the braces, never JSON or code. One the board
+// has, however the file spells it, is the board's ({podcast} is {{Podcast}},
+// {first_name} and {FNAME} are {{Name}}), so it fills itself in.
+const braced = (text: string, vars: string[] = []) =>
+  text.replace(/(?<![{$])\{\s*(\p{L}[\p{L}\p{N} _]{0,39}?)\s*\}(?!\})/gu, (_, v: string) => `{{${vars.find((b) => norm(b) === norm(v)) ?? (/^(first|firstname|fname)$/.test(norm(v)) && vars.includes("Name") ? "Name" : v)}}}`);
+const escaped = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Words the lead has as a variable's value, a name (the show, its guest, a
+// greeting's "Dr Kay": a capital letter in it, eight words at most), are
+// that variable wherever its messages have them, so a sentence no other lead
+// shares still fills in from the Fill in form (Abhishek, 24 Oct 2026: guests
+// and shows stayed written out); never a variable's sentences, nor words
+// inside a {{Variable}}
+const nameLike = (v: string) => v.length >= 3 && v.length <= 60 && /\p{Lu}/u.test(v) && v.split(/\s+/).length <= 8;
+const asVars = (text: string, vars: Record<string, string>) => {
+  const named = Object.entries(vars)
+    .filter(([, v]) => nameLike(v))
+    .sort((a, b) => b[1].length - a[1].length);
+  if (!named.length) return text;
+  return text
+    .split(/(\{\{[^{}]*\}\})/)
+    .map((part, i) => (i % 2 ? part : named.reduce((t, [n, v]) => t.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped(v)}(?![\\p{L}\\p{N}])`, "gu"), `{{${n}}}`), part)))
+    .join("");
+};
+// A person's own first name where their messages greet them ("Hey Michelle,",
+// "Michelle," on its line, "Thanks for connecting, Michelle.") is {{Name}},
+// which the lead window fills with each person's own (lib/space varsFor)
+const greetName = (text: string, first?: string) =>
+  first && /\p{L}{2}/u.test(first) ? text.replace(new RegExp(`(?<=^|\\b(?:[Hh]i|[Hh]ey|[Hh]ello|[Dd]ear|[Tt]hanks|[Tt]hank you)[ ,]*|, )${escaped(first)}(?=[\\s,.!?:;]|$)`, "gmu"), "{{Name}}") : text;
 
 // Every row as a lead, in add_leads' limits (lib/mcp/tools.ts leadIn), and
 // what the preview counts: the ones already on the board (by name, as
 // add_leads dedupes, or by an email or handle a lead there has), those
-// missing what the board requires, tags not found. A lead the file has twice
-// (by name, email or handle) is one lead with everything from both.
-export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields"> & Partial<Pick<BoardData, "messages">> & { leads: BoardLead[] }): Preview {
+// without a name, tags not found (told: the ones Claude matched). A lead the
+// file has twice (by name, email or handle) is one lead with everything from both.
+export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields"> & Partial<Pick<BoardData, "messages">> & { leads: BoardLead[] }, told: ToldTags = {}): Preview {
   const paths = Object.keys(mapping).filter((p) => mapping[p] !== "ignore");
   const to = (prefix: string) => paths.filter((p) => mapping[p].startsWith(prefix));
   const contactPaths = to("contact.");
   const messagePaths = to("message:");
-  // lists of people (docs[]; doctors[] and assistants[]) make one person each; a list of openers (alt[]) a backup each
+  // lists of people (docs[]; doctors[] and assistants[]) make one person each;
+  // a list of openers (alt[]) a backup each. A people list's messages are one
+  // person's words with each one's name, so the lead takes them once, from
+  // the first person who has them (lib/leadTemplates makes the name {{Name}})
   const peopleLists = [...new Set(contactPaths.map(listOf).filter(Boolean))];
-  const backups = messagePaths.map(listOf).find(Boolean) ?? "";
+  const spoken = [...new Set(messagePaths.map(listOf).filter((l) => peopleLists.includes(l)))];
+  const backups = messagePaths.map(listOf).find((l) => l && !peopleLists.includes(l)) ?? "";
   const inBackup = (p: string) => !!backups && p.startsWith(backups);
   const mainPaths = paths.filter((p) => !inBackup(p));
   const valuesFor = (flat: Flat, t: Target, among = paths) => among.filter((p) => mapping[p] === t).flatMap((p) => flat[p] ?? []);
   const varNames = [...new Set(to("var:").map((p) => mapping[p].slice(4)))];
+  const named = boardVars({ messages: board.messages ?? [] });
   // a row's own people columns, and each numbered person's ("Contact 2 Email")
   const top = contactPaths.filter((p) => !listOf(p));
   const numbers = [...new Set(top.map(personOf).filter(Boolean))];
   const pick = (flat: Flat, among: string[]) => Object.fromEntries(among.filter((p) => flat[p]).map((p) => [p, flat[p]]));
   // with a name column the people's names are only theirs; without one, a business among them names the lead
   const titled = to("title").length > 0;
+  const linked = board.fields.some((f) => f.kind === "links");
 
-  const contactOf = (flat: Flat, posts: string[]): ContactIn | null => {
+  // the name a lead's person is greeted by ({{Greeting name}}: "Dr Karandish")
+  // is theirs too, beside a list's names that read like a channel's, when
+  // the file has them as a person at all
+  const greeted = board.fields.some((f) => f.kind === "contacts") ? to("var:").filter((p) => !listOf(p) && /^(greeting name|first name|full name|name)$/i.test(mapping[p].slice(4))) : [];
+
+  const contactOf = (flat: Flat, posts: string[], also: string[] = []): ContactIn | null => {
     const c: ContactIn = {};
     const names: string[] = [];
     for (const p of contactPaths) {
@@ -826,6 +954,7 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       else if (k === "role") c.role = [c.role, ...vs].filter(Boolean).join(", ").slice(0, 60);
       else for (const v of vs.flatMap(listed)) put(c, k, v, posts);
     }
+    if (Object.keys(c).length || names.length) names.push(...also.filter((v) => !isGreeting(v)));
     // "First name", "Middle name" and "Last name" are one name; else the fullest of its names, never two joined
     const parts = NAME_PARTS.map((re) => contactPaths.find((p) => mapping[p] === "contact.name" && re.test(norm(bareName(p))) && flat[p]?.length)).map((p) => p && flat[p][0]);
     const name = (titled ? fullest : person)([...names, parts.filter(Boolean).join(" ")]);
@@ -833,18 +962,24 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     if (name) c.name = (/[\u{1D400}-\u{1D7FF}]/u.test(name) ? name.normalize("NFKC") : name).slice(0, 120);
     return Object.keys(c).length ? c : null;
   };
-  // a written-out message as the lead's draft; a backup's own words ({{Subject}} from alt[].s) filled in
-  const draftsOf = (flat: Flat, among: string[], own: Record<string, string> = {}) => {
+  // a written-out message as the lead's draft (each one its column writes;
+  // with a version, that version's and the ones every version shares); a
+  // backup's own words ({{Subject}} from alt[].s) filled in
+  // (first: the person whose words they are, by the first name they go by; vars: the lead's)
+  const draftsOf = (flat: Flat, among: string[], own: Record<string, string> = {}, version?: string, first?: string, vars: Record<string, string> = {}) => {
     const out: Record<string, DraftIn> = {};
     for (const p of among) {
       const v = flat[p]?.join("\n\n");
       if (!v) continue;
-      const [, id, part] = mapping[p].split(":");
-      const d = (out[id] ??= { subject: "", body: "" });
       // "[link]" left in a sequence page's wording is the {{Link}} fill-in (Abhishek, 23 Oct 2026)
-      const text = v.replaceAll("[link]", "{{Link}}");
-      if (part === "subject") d.subject ||= text.slice(0, 300);
-      else d.body ||= text.slice(0, 20_000);
+      const text = asVars(greetName(braced(v.replaceAll("[link]", "{{Link}}"), named), first), vars);
+      for (const t of targetsIn(mapping[p])) {
+        const [, id, part, of = ""] = t.split(":");
+        if (version !== undefined && of && of !== version) continue;
+        const d = (out[id] ??= { subject: "", body: "" });
+        if (part === "subject") d.subject ||= text.slice(0, 300);
+        else d.body ||= text.slice(0, 20_000);
+      }
     }
     // an email that came without its subject keeps the board's ("{{Subject}}")
     for (const [id, d] of Object.entries(out)) d.subject ||= board.messages?.find((m) => m.id === id)?.subject ?? "";
@@ -866,13 +1001,34 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     return p && f ? (matchOption(f.options, flat[p][0])?.name ?? flat[p][0]).slice(0, 60) : "";
   };
 
+  // Versions of a message (Abhishek, 24 Oct 2026: a file words Days 3 to 5
+  // two ways for each lead) are openers of their own, named by their
+  // version, in the order their columns come; each carries the messages every
+  // version shares. A column whose every value names a version puts the one
+  // it names first: by the words only that version's columns have in their
+  // names ("asset" for d3_asset, "b" for day3_b), else by the version's name
+  const versions = [...new Set(messagePaths.filter((p) => !inBackup(p)).flatMap((p) => targetsIn(mapping[p]).map(versionOf)).filter(Boolean))];
+  const flats = rows.map((r) => flatten(r));
+  const wordsOf = (v: string) => new Set(messagePaths.filter((p) => targetsIn(mapping[p]).some((t) => versionOf(t) === v)).flatMap((p) => p.split(/[^A-Za-z0-9]+/).map(norm).filter(Boolean)));
+  const own = new Map(versions.map((v) => [v, [...wordsOf(v)].filter((w) => versions.every((x) => x === v || !wordsOf(x).has(w)))]));
+  const alike = (a: string, b: string) => a === b || (Math.min(a.length, b.length) >= 3 && (a.startsWith(b) || b.startsWith(a)));
+  const versionNamed = (value: string) => {
+    const a = norm(value);
+    const byColumn = versions.filter((v) => own.get(v)!.some((w) => alike(a, w)));
+    return byColumn.length === 1 ? byColumn[0] : versions.find((v) => a.length >= 3 && alike(a, norm(v)));
+  };
+  const chooser =
+    versions.length > 1
+      ? Object.keys(Object.assign({}, ...flats)).find((p) => !listOf(p) && !paths.includes(p) && flats.some((f) => f[p]) && flats.every((f) => !f[p] || (f[p].length === 1 && versionNamed(f[p][0]))))
+      : undefined;
+
   const unmatched = new Set<string>();
-  const out: Preview = { leads: [], duplicates: [], incomplete: [], unreachable: [], existing: 0, unnamed: 0, missing: 0, unmatched: [] };
+  const out: Preview = { leads: [], duplicates: [], incomplete: [], unreachable: [], existing: 0, unnamed: 0, unmatched: [] };
   const kept: LeadIn[] = [];
   const byTitle = new Map<string, LeadIn>();
   const byReach = new Map<string, LeadIn>();
   for (const [n, row] of rows.entries()) {
-    const flat = flatten(row);
+    const flat = flats[n];
 
     // people: one per element of their lists and per numbered person, the row's other columns on the first
     const groups = [...numbers.map((num) => pick(flat, top.filter((p) => personOf(p) === num))), ...peopleLists.flatMap((l) => elementsAt(row, l).map((e) => flatten(e, l)))];
@@ -880,19 +1036,25 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     const posts: string[] = [];
     const contacts = samePeople(
       groups
-        .map((g) => contactOf(g, posts))
+        .map((g, i) => contactOf(g, posts, i ? [] : greeted.flatMap((p) => flat[p] ?? [])))
         .filter((c): c is ContactIn => !!c)
         .flatMap(apartPeople),
     ).slice(0, 50);
     // only real addresses (a page's labels, "YT 1", aren't links); an email, a
-    // phone or a person's profile put there is the first person's
+    // phone or a person's profile put there is the first person's, though
+    // beside a list of people a profile is the lead's own (a show's Instagram)
     const spill: ContactIn = {};
     const links: string[] = [];
     for (const v of [...valuesFor(flat, "link"), ...posts].flatMap(listed)) {
-      if (emails(v).length || PHONE(v) || (PROFILES.some(([k, re]) => k !== "youtube" && re.test(v)) && !postLink(v))) put(spill, PHONE(v) ? "phone" : "website", v, links);
+      if (emails(v).length || PHONE(v) || (!peopleLists.length && PROFILES.some(([k, re]) => k !== "youtube" && re.test(v)) && !postLink(v))) put(spill, PHONE(v) ? "phone" : "website", v, links);
       else if (isUrl(v)) links.push(linkOf(v));
     }
     if (Object.keys(spill).length) join(contacts[0] ?? (contacts[0] = {}), spill, true);
+    // a "person" that's only a site, with no name or role (a shortlist's
+    // website column, no people in the file), is the lead's link
+    const site = (c: ContactIn) => linked && !c.name && !c.role && Object.keys(c).every((k) => k === "website" || k === "youtube");
+    for (const c of contacts.filter(site)) links.push(...[...(c.website ?? []), ...(c.youtube ?? [])].filter(isUrl).map(linkOf));
+    const persons = contacts.filter((c) => !site(c));
 
     // without a name column: a business among the people's names ("Glow
     // Aesthetics Clinic" beside "Dr Jane Doe"), else the people, else a handle
@@ -915,26 +1077,69 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     const values: Record<string, unknown> = {};
     for (const f of board.fields.filter(placed)) {
       const vs = valuesFor(flat, `field:${f.id}`);
-      const v = vs.length ? valueOf(f, vs, unmatched) : null;
+      const v = vs.length ? valueOf(f, vs, unmatched, told[f.id]) : null;
       if (v != null) values[f.id] = v;
     }
     // a variable's value is the lead's own, never a backup's (each backup fills its own openers)
     const vars = Object.fromEntries(varNames.map((v) => [v.slice(0, 60), (valuesFor(flat, `var:${v}`, mainPaths)[0] ?? "").slice(0, 2000)]).filter(([, v]) => v));
+    // the messages: a people list's are each person's words, their own first
+    // name as {{Name}}. The first person's go in, and another's only where
+    // their words differ beyond that (a co-host's "with Michelle" beside the
+    // first's "with Carter", their own hook), as openers of their own named by them
+    const speakers = spoken.map((l) =>
+      elementsAt(row, l)
+        .map((e) => flatten(e, l))
+        .filter((ef) => messagePaths.some((p) => listOf(p) === l && ef[p]?.length)),
+    );
+    const wordsOf = (k: number) => {
+      const words = { ...flat };
+      for (const [i, l] of spoken.entries()) for (const p of messagePaths.filter((x) => listOf(x) === l)) words[p] = speakers[i][i ? 0 : k]?.[p] ?? [];
+      return words;
+    };
+    // the first name each goes by: the file's own (a "first" column), else their name's (lib/space firstName)
+    const firstOf = (ef: Flat | undefined) => {
+      const given = ef && contactPaths.find((p) => mapping[p] === "contact.name" && NAME_PARTS[0].test(norm(bareName(p))) && ef[p]?.length);
+      return ef && (given ? ef[given][0] : firstName(fullest(contactPaths.filter((p) => mapping[p] === "contact.name").flatMap((p) => ef[p] ?? [])) ?? ""));
+    };
     // the sequence's other messages go with every opener (as doctors-setup did)
-    const main = draftsOf(flat, messagePaths.filter((p) => !inBackup(p)));
+    const mainMessages = messagePaths.filter((p) => !inBackup(p));
+    const chosen = chooser && flat[chooser] ? versionNamed(flat[chooser][0]) : undefined;
+    const openersOf = (k: number) => {
+      const words = wordsOf(k);
+      const first = firstOf(speakers[0]?.[k]);
+      const who = (label: string) => (k ? [first ?? `Person ${k + 1}`, label].filter(Boolean).join(" · ") : label);
+      const present = versions.filter((v) => mainMessages.some((p) => words[p]?.length && targetsIn(mapping[p]).some((t) => versionOf(t) === v)));
+      return present.length
+        ? [...present].sort((a, b) => Number(b === chosen) - Number(a === chosen)).map((v) => ({ label: who(v), drafts: draftsOf(words, mainMessages, {}, v, first, vars) }))
+        : [{ label: who(labelOf(flat, mainPaths)), drafts: draftsOf(words, mainMessages, {}, undefined, first, vars) }];
+    };
+    const firsts = openersOf(0);
+    const said = (os: { drafts: Record<string, DraftIn> }[]) => JSON.stringify(os.map((o) => o.drafts));
+    const others = (speakers[0] ?? []).slice(1).flatMap((_, i) => {
+      const os = openersOf(i + 1);
+      return said(os) === said(firsts) ? [] : os;
+    });
+    const main = firsts[0].drafts;
     const backup = (e: unknown) => {
       const ef = flatten(e, backups);
       const own = Object.fromEntries(to("var:").filter((p) => inBackup(p) && ef[p]).map((p) => [mapping[p].slice(4), ef[p][0]]));
-      return { label: labelOf(ef, paths), drafts: { ...main, ...rewritten(own), ...draftsOf(ef, messagePaths, own) } };
+      return { label: labelOf(ef, paths), drafts: { ...main, ...rewritten(own), ...draftsOf(ef, messagePaths, own, undefined, undefined, vars) } };
     };
-    const openers = [{ label: labelOf(flat, mainPaths), drafts: main }, ...(backups ? elementsAt(row, backups).map(backup) : [])].filter((o) => Object.keys(o.drafts).length).slice(0, 10);
+    const openers = [...firsts, ...others, ...(backups ? elementsAt(row, backups).map(backup) : [])].filter((o) => Object.keys(o.drafts).length).slice(0, 10);
 
+    // each notes column a paragraph, a list's items a line each
+    const notes = to("notes")
+      .map((p) => (flat[p] ?? []).join("\n"))
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(0, 10_000);
     const lead: LeadIn = {
       title,
       ...(Object.keys(values).length ? { values } : {}),
-      ...(contacts.length ? { contacts } : {}),
+      ...(persons.length ? { contacts: persons } : {}),
       ...(links.length ? { links: [...new Set(links)].slice(0, 50).map((url) => ({ label: "", url: url.slice(0, 500) })) } : {}),
       ...(Object.keys(vars).length ? { vars } : {}),
+      ...(notes ? { notes } : {}),
       ...(openers.length ? { openers } : {}),
     };
     const reach = reachOf(lead);
@@ -950,11 +1155,7 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
   const onBoard = new Set(board.leads.map((l) => titleKey(l.title)));
   const reachable = new Set(board.leads.flatMap((l) => boardReach(l, board.fields)));
   for (const lead of kept) {
-    const lacking = board.fields.filter((f) => f.required && (f.kind === "contacts" ? !lead.contacts?.length : f.kind === "links" ? !lead.links?.length : lead.values?.[f.id] == null));
-    if (lacking.length) {
-      out.missing++;
-      out.incomplete.push({ name: lead.title, why: `no ${lacking.map((f) => (f.kind === "contacts" ? "contact details" : f.name.toLowerCase())).join(" or ")}` });
-    } else if (onBoard.has(titleKey(lead.title)) || reachOf(lead).some((k) => reachable.has(k))) {
+    if (onBoard.has(titleKey(lead.title)) || reachOf(lead).some((k) => reachable.has(k))) {
       out.existing++;
       out.duplicates.push(lead);
     } else out.leads.push(lead);
@@ -1191,9 +1392,20 @@ function readDocx(files: Record<string, string>, images: string[]): Read {
 // that's one link as its address when its words don't say ("Instagram",
 // "Email her"), a two-row heading as one ("Contact" over "Name" is "Contact
 // Name"), and a Google Sheets download's A, B, C row and row numbers left out
+// A cell's words with their line breaks (a <br>, a paragraph's end) kept, as
+// a CSV's quoted cell keeps them, so a message in a table comes in with its
+// paragraphs; spaces run together, a blank line at most
+export const cellText = (t: string) =>
+  t
+    .replace(/[^\S\n]+/g, " ")
+    .split("\n")
+    .map((l) => l.trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 function gridOf(t: HTMLTableElement): string[][] {
   const cell = (td: HTMLTableCellElement) => {
-    const text = td.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    const text = cellText(td.textContent ?? "");
     const a = td.querySelectorAll("a[href]");
     const href = a.length === 1 ? (a[0].getAttribute("href") ?? "") : "";
     return /^(https?:|mailto:)/i.test(href) && !reaches(text) ? linkTarget(href) : text;

@@ -198,11 +198,12 @@ export function detailsOf(props: Record<string, string>, lines: string[]): Notio
 export function notionPageOf(url: string): { origin: string; id: string } | null {
   try {
     const u = new URL(url.trim());
-    if (u.protocol !== "https:" || u.port || !/(^|\.)notion\.(so|site)$/i.test(u.hostname)) return null;
+    // notion.so, a workspace's notion.site, and app.notion.com ("/p/<id>"), Notion's own new address
+    if (u.protocol !== "https:" || u.port || !/(^|\.)notion\.(so|site|com)$/i.test(u.hostname)) return null;
     const hex = /([0-9a-f]{32})\/?$/i.exec(u.pathname.replace(/-/g, ""))?.[1]?.toLowerCase();
     if (!hex) return null;
     const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-    return { origin: /notion\.site$/i.test(u.hostname) ? u.origin : "https://www.notion.so", id };
+    return { origin: /notion\.site$/i.test(u.hostname) || /^app\.notion\.com$/i.test(u.hostname) ? u.origin : "https://www.notion.so", id };
   } catch {
     return null;
   }
@@ -262,7 +263,7 @@ const apiProp = (p: Rec): string => {
   return typeof v === "string" ? v : typeof (v as Rec | null)?.name === "string" ? ((v as Rec).name as string) : "";
 };
 
-// A notion.so page that isn't public but is shared with the app's Notion
+// A notion.so or app.notion.com page that isn't public but is shared with the app's Notion
 // connection (NOTION_TOKEN), through Notion's API: its properties, and its
 // blocks' words a few levels into toggles and columns (ten calls at most)
 async function apiPage(id: string): Promise<{ props: Record<string, string>; lines: string[] }> {
@@ -293,8 +294,8 @@ export const busy = (status: number) => status === 429 || status >= 500;
 // rejects when the time is up, for what can't be handed a signal
 const timedOut = (signal: AbortSignal) => new Promise<never>((_, no) => signal.addEventListener("abort", () => no(signal.reason), { once: true }));
 
-// One Notion page, read and parsed: the public page, else (a notion.so page
-// that isn't public) through the app's Notion connection, only when `shared`
+// One Notion page, read and parsed: the public page, else (a notion.so or
+// app.notion.com page that isn't public) through the app's Notion connection, only when `shared`
 // says the reader may: it sees the team's own pages too (the workbook, the
 // clients' records), so only Level 1's imports use it (importActions
 // findContacts). Null when it can't be read; running out of time, or Notion
@@ -318,7 +319,7 @@ export async function loadNotion(url: string, ms = FETCH_MS, shared = false): Pr
   });
   const read = (p: { props: Record<string, string>; lines: string[] }) => ({ ...detailsOf(p.props, p.lines), text: p.lines.join("\n") });
   if (pub) return read(pub);
-  if (!shared || at.origin !== "https://www.notion.so" || !process.env.NOTION_TOKEN) return null;
+  if (!shared || /notion\.site$/.test(at.origin) || !process.env.NOTION_TOKEN) return null;
   const api = await Promise.race([apiPage(at.id), timedOut(signal)]).catch(late);
   return api ? read(api) : null;
 }
@@ -398,8 +399,9 @@ export function linkedinName(url = ""): string {
 // gives way to them. A contact without a name, or with a greeting for one
 // ("there"), takes the page's, and a shorter form of it ("Dr Kim") the fuller
 // one (only its person's part). Then the sites' and channels' details (site),
-// the owner's, onto the contact without a role (staff have theirs), else one
-// named after the lead, for the kinds nobody has yet (three emails at most);
+// the owner's, onto the contact without a role (staff have theirs), else the
+// one the lead is named after, else its host or founder, else one named
+// after the lead, for the kinds nobody has yet (three emails at most);
 // then the clinic's Instagram, when nobody has one, on the lead's own
 // business-named contact, else one of its own (role Clinic, never a person's
 // name). Nothing already on the lead (or a YouTube channel in its Links)
@@ -483,8 +485,11 @@ export function withPages(contacts: Contact[], pages: NotionPage[], links: strin
     const has = new Set(out.flatMap((c) => c.channels.map(listOf)));
     const theirs = Object.fromEntries(KINDS.map(([key]) => [key, has.has(key) ? [] : key === "emails" ? page.emails.slice(0, 3) : page[key]]));
     const chs = fresh(theirs);
-    // the owner: whoever has no role (never a staff member), unnamed (or greeted, "there") taking the lead's name
-    const owner = out.find((c) => !c.role);
+    // the owner: whoever has no role (never a staff member), unnamed (or
+    // greeted, "there") taking the lead's name; else the one the lead's name
+    // is (a person's own show, "Stu McLaren"), else its host or founder,
+    // never a contact of the lead's name beside them
+    const owner = out.find((c) => !c.role) ?? whose(title) ?? out.find((c) => /\b(co-?host|host|co-?founder|founder|owner|ceo|creator)\b/i.test(c.role));
     if (owner && chs.length && isGreeting(owner.name)) nameFrom(owner, title);
     into(owner, chs, title);
   }

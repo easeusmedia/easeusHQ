@@ -24,7 +24,8 @@ export async function claude({
 }
 
 // One answer in a fixed JSON shape, for sorting and extracting rather than
-// conversation. Haiku: a classification doesn't need more.
+// conversation. Haiku: a classification doesn't need more, unless a caller
+// says otherwise (an import's column placement, asked once per file layout).
 export async function claudeJson<T>({
   system,
   prompt,
@@ -32,6 +33,9 @@ export async function claudeJson<T>({
   maxTokens = 4096,
   feature = "frameio",
   userId,
+  model = HAIKU,
+  effort,
+  thinking,
 }: {
   system: string;
   prompt: string;
@@ -39,8 +43,11 @@ export async function claudeJson<T>({
   maxTokens?: number;
   feature?: CallInput["feature"];
   userId?: string;
+  model?: string;
+  effort?: CallInput["effort"];
+  thinking?: CallInput["thinking"];
 }): Promise<T> {
-  const res = await callClaude({ feature, model: HAIKU, system, messages: [{ role: "user", content: prompt }], format: schema, maxTokens, userId });
+  const res = await callClaude({ feature, model, effort, thinking, system, messages: [{ role: "user", content: prompt }], format: schema, maxTokens, userId });
   const text = res.content.find((b): b is { type: "text"; text: string } => b.type === "text")?.text;
   if (!text) throw new Error("Claude sent nothing back.");
   return JSON.parse(text) as T;
