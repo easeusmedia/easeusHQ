@@ -93,12 +93,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // the admins' own work isn't the team's to follow (Abhishek, 20 Oct 2026):
   // left off Home, except for the admin themselves
   const admins = new Set(users.filter((u) => u.role === "admin" && u.id !== viewer.id).map((u) => u.id));
-  // A Level 3's part is done once they send it for approval (Abhishek, 24 Oct
-  // 2026): their work on Home, their own list and the team's Work in progress
-  // alike, is only what's with them (queued, editing, back for a revision); the
-  // rest stays on the board's queue
+  // A Level 3's work on Home, their own list and the team's Work in progress
+  // alike, is only what they're editing now (Abhishek, 24 Oct 2026): Editing,
+  // or back with them for a revision. Queued for later, sent for approval or
+  // past it, it stays on the board's queue only
   const level3 = new Set(users.filter((u) => isMember(u)).map((u) => u.id));
-  const withThem = (s: string) => s === "queued" || s === "editing" || s === "revision_requested";
+  const withThem = (s: string) => s === "editing" || s === "revision_requested";
   // Final export ready is anyone else's part done (Abhishek, 23 Oct 2026):
   // off their own list, still in the team's work and on the board's queue
   const onHome = (t: (typeof tasks)[number]) => (t.assignedToId && level3.has(t.assignedToId) ? withThem(t.status) : t.status !== "final_export_ready" || (!member && t.assignedToId !== viewer.id));
