@@ -83,9 +83,9 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg badge-lit">
                 <Clock size={16} />
               </span>
-              <h2 className="text-base font-semibold">This task is overdue</h2>
+              <h2 className="text-base font-semibold">Set a new due date</h2>
             </div>
-            <p className="text-sm text-muted">Give it a new date, or the day it was finished if it&apos;s done, and a short reason.</p>
+            <p className="text-sm text-muted">This task passed its due date. Give it a new date and a short reason to work on it again.</p>
             <Answer key={asking.id} t={asking} onDone={() => setAsking(null)} />
           </div>
         )}
@@ -94,12 +94,11 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
   );
 }
 
-// Still to do: a new due date, today or later. Already done, only not ticked
-// off then: the day it was finished, today or earlier, and it's done
-// (Abhishek, 23 Oct 2026).
+// One date, any day, and a reason (Abhishek, 24 Oct 2026): today or later is
+// its new due date; an earlier day is the day it was finished, only not
+// ticked off then, and it's done (where that tick would go through)
 function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
   const router = useRouter();
-  const [done, setDone] = useState(false);
   const [day, setDay] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -108,6 +107,7 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
   async function save() {
     setBusy(true);
     setError(null);
+    const done = t.finishable && day < dayOf(new Date());
     const res = await (done ? finishOverdue : answerOverdue)(t.kind, t.id, day, reason).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
     setBusy(false);
     if (res.error) return setError(res.error);
@@ -125,35 +125,11 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
           {t.strikes > 1 && <span className="text-rose-300"> · late for the {ordinal(t.strikes)} time</span>}
         </p>
       </div>
-      {t.finishable && (
-        <div role="tablist" aria-label="Where it stands" className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
-          {[
-            { key: false, label: "New date" },
-            { key: true, label: "Already done" },
-          ].map((o) => (
-            <button
-              key={o.label}
-              type="button"
-              role="tab"
-              aria-selected={done === o.key}
-              onClick={() => {
-                setDone(o.key);
-                // done: most often finished today and ticked late
-                setDay(o.key ? dayOf(new Date()) : "");
-                setError(null);
-              }}
-              className="seg flex-1 rounded-full px-3 py-1 text-xs font-medium"
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-      <DatePicker key={String(done)} value={day} onChange={setDay} placeholder={done ? "Finished on" : "New due date"} clearable={false} />
+      <DatePicker value={day} onChange={setDay} placeholder="New due date" clearable={false} />
       <textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder={done ? "Why it wasn't ticked off that day" : "Why it slipped, and what changes now"}
+        placeholder="Why it slipped, and what changes now"
         aria-label="Reason"
         className="field field-sizing-content min-h-16 resize-none rounded-xl px-3 py-2 text-sm"
       />
@@ -168,7 +144,7 @@ function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
           Cancel
         </button>
         <button type="button" onClick={save} disabled={busy || !day || !reason.trim()} className="btn btn-sm btn-glow disabled:opacity-50">
-          {busy ? "Saving…" : done ? "Mark done" : "Save"}
+          {busy ? "Saving…" : "Save"}
         </button>
       </div>
     </div>

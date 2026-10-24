@@ -136,7 +136,7 @@ export type ToAnswer = {
   client: string | null;
   // whose it is, when it isn't the viewer's own
   owner: string | null;
-  // "Already done" goes through for them: the tick changeStatus would let
+  // an earlier day in the overdue window (done that day) goes through for them: the tick changeStatus would let
   // them make (an editor's video moves on the Board; someone else's video
   // needs its Drive link and grade)
   finishable: boolean;
