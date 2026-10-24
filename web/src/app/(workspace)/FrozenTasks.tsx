@@ -22,7 +22,7 @@ export function useFrozen() {
 
 // Work left overdue, by anyone at any level (lib/taskTrack
 // overdueToAnswer), is locked on the Production board and lists, in My
-// tasks and in Home's own rows: any click, drag or Enter on it opens a
+// tasks and on Home: any click, drag or Enter on it opens a
 // prompt for a new due date and a reason instead. It shows a little darker
 // (globals.css), except on Home (data-frozen-plain). The task unlocks once
 // its date is in. A Level 1 looking as them sees their locked work and can

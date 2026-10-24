@@ -221,12 +221,16 @@ function dueText(due: string | null, today: string): { text: string; pill: strin
 }
 
 // one piece of work as a card: what it is, a line under it, whether it's
-// late, and who's on it
+// late, and who's on it. Late and the viewer's to answer for, a click asks
+// for its new date and a reason first, as everywhere (Abhishek, 24 Oct 2026)
 function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem; today: string; sub: string; onOpen: () => void; avatar?: boolean }) {
   const due = dueText(item.due, today);
+  const frozen = useFrozen();
   return (
     <button
       type="button"
+      {...frozen(item.id)}
+      data-frozen-plain
       onPointerEnter={() => warmTask({ kind: item.source, id: item.id })}
       onClick={onOpen}
       className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
@@ -472,8 +476,8 @@ export function HomeView({
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const shownDay = days.includes(day) ? day : days.includes(today) ? today : monday;
 
-  // their own overdue work asks for a new date before it's ticked off or
-  // opened, as in My tasks (FrozenTasks); Work in progress isn't locked
+  // overdue work asks for a new date before it's ticked off or opened, as in
+  // My tasks (FrozenTasks), in Work in progress too (WorkCard)
   const frozen = useFrozen();
   // why a tick didn't go through, under your list (it used to just come back)
   const [tickError, setTickError] = useState<string | null>(null);
