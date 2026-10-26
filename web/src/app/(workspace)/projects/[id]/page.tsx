@@ -2,16 +2,13 @@ import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { effectiveRole, isFounder, isLead, runsClients, setsUp } from "@/lib/scope";
+import { isFounder, isLead, runsClients, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
 import { getSessionUserId } from "@/lib/auth";
-import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { ACTIVE_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
-import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
-import { TaskRow } from "../../TaskRow";
-import { NewTaskRow } from "../../NewTaskRow";
+import { getAllUsers } from "@/lib/users";
+import { ACTIVE_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { ProjectHeader } from "../ProjectHeader";
 import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
@@ -38,7 +35,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, status: true, workflow: true, frameioLink: true, postDate: true, assignedToId: true } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
-          include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
+          include: { tags: true },
         },
       },
     }),
@@ -61,13 +58,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   // an editor sees a client through its own page only (their work and its
   // documents), which also decides whether they may see it at all
   if (me.role === "employee") redirect(`/clients/${project.client.slug}`);
-
-  const editors = assignOptionsFor(viewer, users);
-  const boardProjects = project.client.projects.map((p) => ({
-    id: p.id,
-    name: p.name || p.type,
-    client: { id: project.client.id, name: project.client.name },
-  }));
 
   // which invoice it's billed in — on any project, finished or not, with or
   // without a billing rule — and the others it could go in. Ops only.
@@ -151,39 +141,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         }
       />
 
-      <section className="mt-12">
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-sm font-medium">Tasks</h2>
-          {active.length > 0 && <span className="text-xs text-muted">{active.length} in progress</span>}
-        </div>
-        {/* Only what's still being worked on. A delivered task is a finished
-            file, so it's listed under Files, below, as one. */}
-        {active.length === 0 && (
-          <p className="mb-3 text-sm text-muted">
-            Nothing in progress{done.length > 0 ? `. ${done.length} delivered, listed under Files` : ""}.
-          </p>
-        )}
-        <ul className="flex flex-col gap-2">
-          {active.map((t) => (
-            <li key={t.id}>
-              <TaskRow
-                task={t}
-                clientName={project.client.name}
-                subtitle={t.assignedTo?.name ?? "Unassigned"}
-                editors={editors}
-                projects={boardProjects}
-                actingUserId={me.id}
-                actingRole={effectiveRole(me) as Role}
-              />
-            </li>
-          ))}
-          {/* every task made here is pre-scoped to this project — no
-              hunting it back out of a list of every project on the board */}
-          <li>
-            <NewTaskRow projects={boardProjects} editors={editors} defaultProjectId={project.id} canCreateProject />
-          </li>
-        </ul>
-      </section>
 
       <ProjectFiles
         projectId={project.id}
