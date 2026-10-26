@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useState } from "react";
+import { Fragment, createElement, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
@@ -10,7 +10,7 @@ import { STAGE } from "@/lib/stages";
 import type { TaskStatus } from "@/lib/workflow";
 import { EditableName } from "../EditableName";
 import { renameTeam, reorderDepartments } from "./space/actions";
-import { moveTo } from "@/lib/reorder";
+import { landingIndex, useEaseAside } from "../DropSlot";
 
 export type MapPerson = { name: string; on: string | null; status: TaskStatus | null; open: number; late: number; leads: number };
 // canRename: Level 1 and the department's Leads (set by the page)
@@ -30,33 +30,49 @@ function Pill({ n, label, tone }: { n: number; label: string; tone: keyof typeof
 export function OrgMap({ departments, canReorder = false }: { departments: MapDepartment[]; canReorder?: boolean }) {
   const router = useRouter();
   const [dragging, setDragging] = useState<string | null>(null);
-  // the order while a drag is in flight, so panels make room under the cursor
-  const [preview, setPreview] = useState<string[] | null>(null);
+  // where the dragged panel will land among the others, shown as a slot of
+  // its size, as on the boards (null: it's outside the map)
+  const [over, setOver] = useState<number | null>(null);
+  const [dragHeight, setDragHeight] = useState(0);
+  const endDrag = () => {
+    setDragging(null);
+    setOver(null);
+  };
   // the order just dropped, until the page brings it back
   const [dropped, setDropped] = useState<{ base: MapDepartment[]; ids: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const byId = new Map(departments.map((d) => [d.id, d]));
   const settled = dropped?.base === departments ? dropped.ids : departments.map((d) => d.id);
-  const ids = preview ?? settled;
-  const ordered = ids.flatMap((id) => byId.get(id) ?? []);
+  const ordered = settled.flatMap((id) => byId.get(id) ?? []);
   const staffed = departments.filter((d) => d.people.length > 0);
   const widest = staffed.reduce<MapDepartment | null>((w, d) => (!w || d.people.length > w.people.length ? d : w), null);
+  const wide = (d: MapDepartment | undefined) => d === widest && staffed.length > 1;
 
-  // over another panel: slot the dragged one before or after it, by which
-  // half the cursor is over (the grid reads across)
-  function hover(e: React.DragEvent<HTMLDivElement>, targetId: string) {
-    if (!dragging) return;
-    e.preventDefault();
-    if (dragging === targetId) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const next = moveTo(ids, dragging, targetId, e.clientX > r.left + r.width / 2);
-    if (next.join() !== ids.join()) setPreview(next);
+  // the slot, unless dropping there would leave the panel where it is
+  const rest = ordered.filter((d) => d.id !== dragging);
+  const from = ordered.findIndex((d) => d.id === dragging);
+  const slotAt = dragging && over !== null && over !== from ? over : -1;
+  const slot = <div key="slot" aria-hidden style={{ height: dragHeight || 56 }} className={`fade-in shrink-0 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] ${wide(byId.get(dragging ?? "")) ? "@2xl:col-span-2" : ""}`} />;
+  // the panels ease aside for the slot, and into their new places
+  const gridRef = useRef<HTMLDivElement>(null);
+  useEaseAside(gridRef, `${slotAt} ${settled.join()}`);
+  // where among the others a panel dragged to (x, y) lands; it reads across
+  // when the panels sit side by side, else down
+  function indexAt(box: HTMLElement, x: number, y: number, id: string) {
+    const panels = [...box.querySelectorAll<HTMLElement>(":scope > [data-drag-id]")];
+    const across = new Set(panels.map((el) => el.offsetLeft)).size > 1;
+    return landingIndex(box, panels.filter((el) => el.dataset.dragId !== id), x, y, across);
   }
-  async function drop() {
-    const order = preview;
-    setDragging(null);
-    setPreview(null);
-    if (!order || order.join() === settled.join()) return;
+
+  // its new place among the others, by where the pointer is (the grid reads across)
+  async function drop(e: React.DragEvent<HTMLDivElement>) {
+    const id = dragging;
+    endDrag();
+    if (!id) return;
+    const i = indexAt(e.currentTarget, e.clientX, e.clientY, id);
+    if (i === ordered.findIndex((d) => d.id === id)) return;
+    const order = rest.map((d) => d.id);
+    order.splice(i, 0, id);
     setError(null);
     setDropped({ base: departments, ids: order });
     const res = await reorderDepartments(order);
@@ -72,34 +88,49 @@ export function OrgMap({ departments, canReorder = false }: { departments: MapDe
       {error && <p className="text-xs text-red-300">{error}</p>}
       <div className="@container">
         <div
-          className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3"
-          onDragOver={(e) => dragging && e.preventDefault()}
+          ref={gridRef}
+          className="relative grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3"
+          onDragOver={(e) => {
+            if (!dragging) return;
+            e.preventDefault();
+            const i = indexAt(e.currentTarget, e.clientX, e.clientY, dragging);
+            if (i !== over) setOver(i);
+          }}
+          // out of the map: no slot. Measured, as WebKit doesn't always say
+          // where a drag went.
+          onDragLeave={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            if (e.clientX <= r.left || e.clientX >= r.right || e.clientY <= r.top || e.clientY >= r.bottom) setOver(null);
+          }}
           onDrop={(e) => {
             e.preventDefault();
-            drop();
+            drop(e);
           }}
         >
           {ordered.map((d) => (
+            <Fragment key={d.slug}>
+            {slotAt >= 0 && rest[slotAt]?.id === d.id && slot}
             <div
-              key={d.slug}
+              data-drag-id={d.id}
               draggable={canReorder}
               onDragStart={(e) => {
+                // a panel's link drags on its own: only a move for whoever may
+                if (!canReorder) return;
+                setDragHeight(e.currentTarget.offsetHeight);
                 setDragging(d.id);
                 e.dataTransfer.effectAllowed = "move";
                 // without this Firefox won't fire onDrop
                 e.dataTransfer.setData("text/plain", d.id);
               }}
-              onDragOver={(e) => hover(e, d.id)}
               // a drag that's cancelled (Esc, dropped outside) puts everything back
-              onDragEnd={() => {
-                setDragging(null);
-                setPreview(null);
-              }}
-              className={`min-w-0 transition-opacity duration-200 ${d === widest && staffed.length > 1 ? "@2xl:col-span-2" : ""} ${canReorder ? "cursor-grab active:cursor-grabbing" : ""} ${dragging === d.id ? "opacity-40" : ""}`}
+              onDragEnd={endDrag}
+              className={`min-w-0 transition-opacity duration-200 ${wide(d) ? "@2xl:col-span-2" : ""} ${canReorder ? "cursor-grab active:cursor-grabbing" : ""} ${dragging === d.id ? "opacity-40" : ""}`}
             >
               <Department d={d} />
             </div>
+            </Fragment>
           ))}
+          {slotAt >= 0 && slotAt >= rest.length && slot}
         </div>
       </div>
     </div>

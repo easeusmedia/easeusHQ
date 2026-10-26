@@ -13,6 +13,7 @@ import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
 import type { BillingCadence, InvoiceStatus } from "@prisma/client";
 import { clientBatches, closeGaps, pinsAfterMove } from "@/lib/invoiceBatches";
+import { PROJECT_ORDER, placeProject } from "@/lib/projectOrder";
 import { TYPE_TAG, planDeliverables, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
 import { linkDeliverables } from "@/lib/deliverableLink";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
@@ -142,6 +143,20 @@ export async function moveProjectToInvoice(projectId: string, key: string | null
   revalidatePath("/clients/[slug]", "page");
   revalidatePath(`/projects/${projectId}`);
   return res;
+}
+
+// A project dragged to a new place on its client's page (Abhishek, 27 Oct
+// 2026): just after `before`, the project shown ahead of where it was
+// dropped, or just before `after` when it now leads. One order for the whole
+// team, worked out here from what's saved (lib/projectOrder).
+export async function arrangeProject(clientId: string, projectId: string, before: string | null, after: string | null): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only the operations team can arrange projects." };
+  const order = await prisma.project.findMany({ where: { clientId }, orderBy: PROJECT_ORDER, select: { id: true, sortOrder: true } });
+  const ids = new Set(order.map((p) => p.id));
+  if (![projectId, before, after].every((id) => id === null || ids.has(id))) return { error: "That project isn't this client's." };
+  await prisma.$transaction(placeProject(order, projectId, before, after).map((p) => prisma.project.update({ where: { id: p.id }, data: { sortOrder: p.sortOrder } })));
+  revalidatePath("/clients/[slug]", "page");
+  return {};
 }
 
 // Puts a project in an invoice — any project, finished or not — or, with

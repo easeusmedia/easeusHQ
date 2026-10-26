@@ -23,6 +23,7 @@ import { ClientAnalytics } from "../ClientAnalytics";
 import { apifyTokens } from "@/lib/apify";
 import { socialLink } from "@/lib/analytics";
 import { planFor } from "@/lib/contentPlan";
+import { PROJECT_ORDER, billingOrder } from "@/lib/projectOrder";
 
 import { StatusDropdown } from "../StatusDropdown";
 import { ClientShare } from "../ClientShare";
@@ -49,7 +50,8 @@ function loadClient(slug: string) {
     where: { slug },
     include: {
       projects: {
-        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+        // as dragged into place, else the order they always had
+        orderBy: PROJECT_ORDER,
         include: {
           _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
         },
@@ -267,6 +269,7 @@ export default async function ClientDetailPage({
                 <ProjectsSection
                   clientId={client.id}
                   projects={projectCards}
+                  billingOrder={billingOrder(client.projects)}
                   invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   initialShow={show}
                   initialLayout={layout}

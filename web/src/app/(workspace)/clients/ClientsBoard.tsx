@@ -1,9 +1,10 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { Fragment, useOptimistic, useRef, useState, useTransition } from "react";
 import { LayoutGrid, List } from "lucide-react";
 import { reorderClient, updateClientStatus } from "./actions";
-import { moveTo, sortBetween } from "@/lib/reorder";
+import { sortBetween } from "@/lib/reorder";
+import { landingIndex, useEaseAside } from "../DropSlot";
 import { AddClientCard } from "./AddClientCard";
 import { ClientCard, ClientRow, type ClientCardData } from "./ClientCard";
 
@@ -18,16 +19,23 @@ const GROUPS: { status: string; label: string }[] = [
 // click away, not permanent dead weight taking up half the page.
 //
 // Dragging does two things. Onto a tab: moves the client to that status.
-// Onto another card: puts it there in the order — the cards make room as
-// you drag, and the order is shared by the whole team (it's the agency's
-// queue). Both are ops-only; for everyone else the cards just don't drag.
+// Onto another card: puts it there in the order (a slot of its size shows
+// where it will land, as on the boards), and the order is shared by the
+// whole team (it's the agency's queue). Both are ops-only; for everyone else
+// the cards just don't drag.
 export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[]; canArrange: boolean }) {
   const [, startTransition] = useTransition();
   const [view, setView] = useState<"grid" | "list">("grid");
   const [activeGroup, setActiveGroup] = useState("current");
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  // the order while a drag is in flight, so cards shift under the cursor
-  const [preview, setPreview] = useState<string[] | null>(null);
+  // where the dragged card will land among the others (null: it's outside the list)
+  const [over, setOver] = useState<number | null>(null);
+  const [dragHeight, setDragHeight] = useState(0);
+  const endDrag = () => {
+    setDraggingId(null);
+    setOver(null);
+  };
+  const listRef = useRef<HTMLDivElement>(null);
   const [sortOverrides, applySort] = useOptimistic(
     new Map<string, number>(),
     (state, update: { id: string; sortOrder: number }) => new Map(state).set(update.id, update.sortOrder)
@@ -58,37 +66,38 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
   const counts = Object.fromEntries(
     GROUPS.map((g) => [g.status, clients.filter((c) => (optimisticStatuses.get(c.id) ?? c.status) === g.status).length])
   );
-  const inGroup = clients.filter((c) => statusOf(c) === activeGroup).sort((a, b) => sortOf(a) - sortOf(b));
-  const visible = preview ? preview.map((id) => byId.get(id)!).filter((c) => c && statusOf(c) === activeGroup) : inGroup;
+  const bySort = (a: ClientCardData, b: ClientCardData) => sortOf(a) - sortOf(b);
+  const inGroup = clients.filter((c) => statusOf(c) === activeGroup).sort(bySort);
+  const dragged = draggingId ? byId.get(draggingId) : undefined;
+  const rest = inGroup.filter((c) => c.id !== draggingId);
+  const from = inGroup.findIndex((c) => c.id === draggingId);
+  // The slot: where the pointer is among the others, unless that leaves the
+  // card where it is. From another status's tab it's only a status change,
+  // so it keeps its place in the order, and the slot shows that place (found
+  // the way the list sorts, so it sits right among clients with the same order).
+  const at =
+    !dragged || over === null ? -1 : statusOf(dragged) !== activeGroup ? clients.filter((c) => c === dragged || statusOf(c) === activeGroup).sort(bySort).indexOf(dragged) : over;
+  const slotAt = at !== from ? at : -1;
+  const slot = <div key="slot" aria-hidden style={{ height: dragHeight || 56 }} className={`fade-in shrink-0 border border-dashed border-white/15 bg-white/[0.03] ${view === "grid" ? "rounded-3xl" : "rounded-2xl"}`} />;
+  // the cards ease aside for the slot, and into their new places
+  useEaseAside(listRef, `${slotAt} ${inGroup.map((c) => c.id).join()}`);
+  // where among the others a card dragged to (x, y) lands
+  const indexAt = (box: HTMLElement, x: number, y: number, id: string) =>
+    landingIndex(box, [...box.querySelectorAll<HTMLElement>(":scope > [data-drag-id]")].filter((el) => el.dataset.dragId !== id), x, y, view === "grid");
 
-  // Hovering another card in the same list: slot the dragged one in before
-  // or after it — by which half the cursor is over, left/right in the grid
-  // (it reads across) and top/bottom in the list.
-  function hoverCard(e: React.DragEvent<HTMLDivElement>, targetId: string) {
-    const dragged = draggingId ? byId.get(draggingId) : undefined;
-    if (!dragged || dragged.id === targetId || statusOf(dragged) !== activeGroup) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const after = view === "grid" ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
-    const next = moveTo(visible.map((c) => c.id), dragged.id, targetId, after);
-    if (next.join() !== visible.map((c) => c.id).join()) setPreview(next);
-  }
-
-  function drop() {
+  // Dropped in the open list: a status change when it came from another
+  // tab, else its new place among the others, by where the pointer is
+  function drop(e: React.DragEvent<HTMLDivElement>) {
     const id = draggingId;
-    const order = preview;
-    setDraggingId(null);
-    setPreview(null);
-    const dragged = id ? byId.get(id) : undefined;
-    if (!dragged) return;
+    endDrag();
+    const card = id ? byId.get(id) : undefined;
+    if (!card) return;
     // dragged in from another status's tab: that's a status change
-    if (statusOf(dragged) !== activeGroup) return commitStatus(dragged.id, activeGroup);
-    if (!order) return;
-    const i = order.indexOf(dragged.id);
-    const unchanged = order.join() === inGroup.map((c) => c.id).join();
-    if (i === -1 || unchanged) return;
-    const before = order[i - 1] ? sortOf(byId.get(order[i - 1])!) : undefined;
-    const after = order[i + 1] ? sortOf(byId.get(order[i + 1])!) : undefined;
-    commitSort(dragged.id, sortBetween(before, after));
+    if (statusOf(card) !== activeGroup) return commitStatus(card.id, activeGroup);
+    const others = inGroup.filter((c) => c.id !== card.id);
+    const i = indexAt(e.currentTarget, e.clientX, e.clientY, card.id);
+    if (i === inGroup.indexOf(card)) return;
+    commitSort(card.id, sortBetween(others[i - 1] && sortOf(others[i - 1]), others[i] && sortOf(others[i])));
   }
 
   return (
@@ -106,16 +115,12 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
               // you're dropping into and can release anywhere in it
               onDragOver={(e) => {
                 e.preventDefault();
-                if (draggingId && activeGroup !== g.status) {
-                  setActiveGroup(g.status);
-                  setPreview(null);
-                }
+                if (draggingId && activeGroup !== g.status) setActiveGroup(g.status);
               }}
               onDrop={(e) => {
                 e.preventDefault();
                 const id = draggingId;
-                setDraggingId(null);
-                setPreview(null);
+                endDrag();
                 if (id) commitStatus(id, g.status);
               }}
               aria-pressed={activeGroup === g.status}
@@ -142,36 +147,51 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
       </div>
 
       <div
-        onDragOver={(e) => e.preventDefault()}
+        ref={listRef}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!draggingId) return;
+          const i = indexAt(e.currentTarget, e.clientX, e.clientY, draggingId);
+          if (i !== over) setOver(i);
+        }}
+        // out of the list (onto a tab, or away): no slot. Measured, as
+        // WebKit doesn't always say where a drag went.
+        onDragLeave={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          if (e.clientX <= r.left || e.clientX >= r.right || e.clientY <= r.top || e.clientY >= r.bottom) setOver(null);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           // the tab hover above already switched activeGroup to wherever
           // this card is hovering, so dropping anywhere in the now-open
           // section — not just back on the tab button — lands it there
-          drop();
+          drop(e);
         }}
         className={
           view === "grid"
-            ? "grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] items-stretch gap-4"
-            : "flex flex-col gap-2"
+            ? "relative grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] items-stretch gap-4"
+            : "relative flex flex-col gap-2"
         }
       >
-        {visible.map((client) => (
+        {inGroup.map((client) => (
+          <Fragment key={client.id}>
+          {slotAt >= 0 && rest[slotAt]?.id === client.id && slot}
           <div
-            key={client.id}
+            data-drag-id={client.id}
             draggable={canArrange}
             onDragStart={(e) => {
+              // a client's logo drags on its own; only ops rearrange
+              if (!canArrange) return;
+              setDragHeight(e.currentTarget.offsetHeight);
               setDraggingId(client.id);
               e.dataTransfer.effectAllowed = "move";
               // without this Firefox won't fire onDrop for a drag that
               // never touches a text field
               e.dataTransfer.setData("text/plain", client.id);
-            }}
-            onDragOver={(e) => hoverCard(e, client.id)}
-            // a drag that's cancelled (Esc, dropped outside) puts everything back
-            onDragEnd={() => {
-              setDraggingId(null);
-              setPreview(null);
+              // a drag that's cancelled (Esc, dropped outside) puts everything
+              // back. Heard on the card itself: switching tabs mid-drag takes
+              // it off the page, out of React's reach.
+              e.currentTarget.addEventListener("dragend", endDrag, { once: true });
             }}
             className={`transition-opacity ${view === "grid" ? "h-full" : ""} ${canArrange ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === client.id ? "opacity-40" : ""}`}
           >
@@ -181,11 +201,13 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
               <ClientRow client={client} onStatusChange={canArrange ? commitStatus : undefined} />
             )}
           </div>
+          </Fragment>
         ))}
+        {slotAt >= 0 && slotAt >= rest.length && slot}
         {/* adding a client only makes sense into the live group */}
         {canArrange && activeGroup === "current" && <AddClientCard variant={view === "grid" ? "card" : "row"} />}
-        {!canArrange && visible.length === 0 && <p className="text-sm text-muted">No clients have been shared with you yet.</p>}
-        {canArrange && visible.length === 0 && activeGroup !== "current" && (
+        {!canArrange && inGroup.length === 0 && <p className="text-sm text-muted">No clients have been shared with you yet.</p>}
+        {canArrange && inGroup.length === 0 && activeGroup !== "current" && (
           <p className="text-xs text-muted">Drag a client onto this tab to move it here.</p>
         )}
       </div>

@@ -15,6 +15,7 @@ import { TagPill } from "../../(workspace)/clients/TagPill";
 import { ProfileHead } from "../../(workspace)/ProfileHead";
 import { FeedbackForm } from "./FeedbackForm";
 import { sharedClient } from "./shared";
+import { PROJECT_ORDER, billingOrder } from "@/lib/projectOrder";
 
 // A client's own page, shown at /clients/<name> to anyone not signed in
 // (see proxy.ts), only while ops has sharing switched on. The same layout
@@ -55,7 +56,8 @@ export default async function SharedClientPage({
       tags: true,
       deliverables: { orderBy: { sortOrder: "asc" } },
       projects: {
-        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+        // in the order the team arranged them (lib/projectOrder)
+        orderBy: PROJECT_ORDER,
         include: { _count: { select: { assets: true } } },
       },
     },
@@ -134,6 +136,8 @@ export default async function SharedClientPage({
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
                   today={today}
                   projectBase={`/share/${client.slug}/projects`}
+                  // invoices count projects as they always have, however they're arranged
+                  billingOrder={billingOrder(client.projects)}
                 />
               </div>
             ),

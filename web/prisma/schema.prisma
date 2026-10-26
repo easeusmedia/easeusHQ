@@ -576,6 +576,10 @@ model Project {
   completedAt   DateTime?
   notionPageId  String?        @unique
   createdAt     DateTime       @default(now())
+  // its place on the client's page once someone has dragged it there (lower
+  // first; a float so a move is one write). Null = never placed: those lead,
+  // in the order the page always had (lib/projectOrder) (Abhishek, 27 Oct 2026)
+  sortOrder     Float?
 
   tasks          Task[]
   invoices       Invoice[]

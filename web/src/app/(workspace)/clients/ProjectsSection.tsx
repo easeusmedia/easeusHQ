@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { ChevronRight, Filter, LayoutGrid, List, Pencil, Receipt } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
 import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule, type Payment } from "@/lib/invoiceBatches";
-import { moveProjectToInvoice, renameInvoice } from "./actions";
+import { arrangeProject, moveProjectToInvoice, renameInvoice } from "./actions";
+import { moveTo as moveInOrder } from "@/lib/reorder";
+import { DropSlot, landingIndex, useEaseAside } from "../DropSlot";
 import { EditableName } from "../EditableName";
 import type { PlanItem } from "@/lib/contentPlan";
 import { Dropdown } from "../Dropdown";
@@ -47,6 +49,7 @@ export function ProjectsSection({
   canMoveInvoices = false,
   plan,
   invoiceNames = {},
+  billingOrder,
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -67,6 +70,9 @@ export function ProjectsSection({
   plan?: PlanItem[];
   // invoices given their own names, by key (Client.invoiceNames)
   invoiceNames?: Record<string, string>;
+  // the ids in the order invoices count them in (lib/projectOrder), so
+  // dragging a card never moves it to another invoice; else as listed
+  billingOrder?: string[];
 }) {
   // "invoice": every project, in sections, one per invoice
   const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
@@ -102,10 +108,12 @@ export function ProjectsSection({
   // with the refreshed projects (a new `projects` array drops them).
   const [optimistic, setOptimistic] = useState<{ base: ProjectCardData[]; pins: Record<string, string> } | null>(null);
   const pins = optimistic?.base === projects ? optimistic.pins : {};
+  const billed = new Map(billingOrder?.map((id, i) => [id, i]));
   const batches = invoiceBatches(
     // finished work, and anything already put in an invoice by hand
     projects
       .filter((p) => p.completedAt || pins[p.id] || p.invoiceBatch)
+      .sort((a, b) => (billed.get(a.id) ?? 0) - (billed.get(b.id) ?? 0))
       .map((p) => ({ id: p.id, date: p.date, pin: pins[p.id] ?? p.invoiceBatch, open: !p.completedAt })),
     billing,
     today
@@ -115,6 +123,30 @@ export function ProjectsSection({
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  // Dragging a project to a new place among those shown, in the Projects
+  // view, grid or list (Abhishek, 27 Oct 2026); invoice moves stay in By
+  // invoice. Ops only, as moving invoices is. While it's dragged, a slot of
+  // its size shows where it will land (DropSlot), and the drop saves at once.
+  const [landAt, setLandAt] = useState<number | null>(null);
+  const [dragHeight, setDragHeight] = useState(0);
+  const dragged = useRef<HTMLElement | null>(null);
+  const arrangeRef = useRef<HTMLElement | null>(null);
+  // a drop shows at once: each move still being saved applies on top of
+  // whatever projects arrive (an earlier move's refresh included), so a card
+  // never slides back while its save is on the way, as on the boards
+  const [, startTransition] = useTransition();
+  const [ordered, applyArrange] = useOptimistic(projects, (cur, m: { id: string; before: string | null; after: string | null }) => {
+    const byId = new Map(cur.map((p) => [p.id, p]));
+    const ids = cur.map((p) => p.id);
+    return (m.before ? moveInOrder(ids, m.id, m.before, true) : moveInOrder(ids, m.id, m.after!, false)).flatMap((id) => byId.get(id) ?? []);
+  });
+  function endDrag() {
+    if (dragged.current) dragged.current.style.opacity = "";
+    dragged.current = null;
+    setDragId(null);
+    setOver(null);
+    setLandAt(null);
+  }
 
   async function moveTo(projectId: string, key: string) {
     if (batches.find((b) => b.ids.includes(projectId))?.key === key) return;
@@ -182,16 +214,77 @@ export function ProjectsSection({
 
   // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
   // the picker's own yyyy-mm-dd values is already a correct date compare
-  const dateFiltered = projects.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
+  const dateFiltered = ordered.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
   const visible = batch
-    ? projects.filter((p) => batch.ids.includes(p.id))
+    ? ordered.filter((p) => batch.ids.includes(p.id))
     : dateFilterActive
       ? dateFiltered
       : preset === "all" || preset === "invoice"
-        ? projects
-        : projects.slice(0, preset);
+        ? ordered
+        : ordered.slice(0, preset);
   const hiddenCount = projects.length - visible.length;
   const isDefault = !batch && !dateFilterActive && preset === DEFAULT_PRESET;
+
+  // the slot, unless dropping there would leave the project where it is
+  const rest = visible.filter((p) => p.id !== dragId);
+  const slotAt = dragId && landAt !== null && landAt !== visible.findIndex((p) => p.id === dragId) ? landAt : -1;
+  useEaseAside(arrangeRef, `${slotAt} ${visible.map((p) => p.id).join()}`);
+  const landing = (e: React.DragEvent) =>
+    arrangeRef.current && dragId
+      ? landingIndex(arrangeRef.current, [...arrangeRef.current.querySelectorAll<HTMLElement>(":scope > [data-project]")].filter((el) => el.dataset.project !== dragId), e.clientX, e.clientY, !list)
+      : -1;
+  // dropped at `at` among the others shown: just after the one before it
+  // there, else just before the one after, with any filter's hidden
+  // projects keeping their places (lib/projectOrder)
+  function arrange(id: string, at: number) {
+    const before = rest[at - 1]?.id ?? null;
+    const after = rest[at]?.id ?? null;
+    if (at < 0 || at === visible.findIndex((p) => p.id === id) || (!before && !after)) return;
+    setMoveError(null);
+    // a failed save ends its transition, which takes the move back off
+    startTransition(async () => {
+      applyArrange({ id, before, after });
+      const res = await arrangeProject(clientId, id, before, after).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+      if (res.error) setMoveError(res.error);
+    });
+  }
+  // on the grid, or the list's rows and the room around them
+  const arrangeable = canMove && !grouped
+    ? {
+        // cards and rows are links, which the browser already lets you drag
+        onDragStart: (e: React.DragEvent) => {
+          const card = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-project]") : null;
+          if (!card?.dataset.project) return;
+          e.dataTransfer.effectAllowed = "move";
+          // the card itself under the pointer, not the browser's picture of a link
+          const r = card.getBoundingClientRect();
+          e.dataTransfer.setDragImage(card, e.clientX - r.left, e.clientY - r.top);
+          dragged.current = card;
+          setDragHeight(card.offsetHeight);
+          setDragId(card.dataset.project);
+          // faded where it was, once the browser has its picture
+          setTimeout(() => {
+            if (dragged.current === card) card.style.opacity = "0.4";
+          });
+        },
+        onDragOver: (e: React.DragEvent) => {
+          if (!dragId) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          const at = landing(e);
+          if (at !== landAt) setLandAt(at);
+        },
+        onDrop: (e: React.DragEvent) => {
+          e.preventDefault();
+          const id = dragId;
+          const at = landing(e);
+          endDrag();
+          if (id) arrange(id, at);
+        },
+        // always fires, wherever it's let go (or Escape)
+        onDragEnd: endDrag,
+      }
+    : {};
 
   // one filter at a time — a batch, a preset, or a date range
   function selectBatch(key: string) {
@@ -367,6 +460,7 @@ export function ProjectsSection({
         </div>
       </div>
 
+      {moveError && <p className="text-xs text-red-300">{moveError}</p>}
       <div key={view} className={view !== firstView ? "fade-in" : undefined}>
       {grouped ? (
         <div className="flex flex-col gap-2">
@@ -375,7 +469,6 @@ export function ProjectsSection({
               Drag a finished project onto another invoice to move it there.
             </p>
           )}
-          {moveError && <p className="text-xs text-red-300">{moveError}</p>}
           {/* only while dragging: somewhere to start the next invoice */}
           {canMove && nextKey && (
             <Reveal open={!!dragId}>
@@ -489,10 +582,7 @@ export function ProjectsSection({
                       e.dataTransfer.effectAllowed = "move";
                       setDragId(id);
                     }}
-                    onDragEnd={() => {
-                      setDragId(null);
-                      setOver(null);
-                    }}
+                    onDragEnd={endDrag}
                   >
                     {list ? (
                       <div className="flex flex-col gap-3">
@@ -514,9 +604,9 @@ export function ProjectsSection({
           })}
         </div>
       ) : list ? (
-        <div className="flex flex-col gap-3">
+        <div {...arrangeable} className="flex flex-col gap-3">
           {!projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
-          <ProjectRows projects={visible} projectBase={projectBase} />
+          <ProjectRows ref={arrangeRef} projects={visible} projectBase={projectBase} slot={{ at: slotAt, height: dragHeight, dragId }} />
           {!batch && !dateFilterActive && hiddenCount > 0 && (
             <button onClick={() => selectPreset("all")} className="self-start text-xs text-muted hover:text-foreground">
               Show {hiddenCount} more
@@ -525,15 +615,25 @@ export function ProjectsSection({
           {dateFilterActive && visible.length === 0 && <p className="text-sm text-muted">No projects in that range.</p>}
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+        <div
+          ref={(el) => {
+            arrangeRef.current = el;
+          }}
+          {...arrangeable}
+          className="relative grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
+        >
           {!projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
           {visible.map((p) => (
-            <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
+            <Fragment key={p.id}>
+              {slotAt >= 0 && rest[slotAt]?.id === p.id && <DropSlot height={dragHeight} />}
+              <ProjectCard project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
+            </Fragment>
           ))}
+          {slotAt >= 0 && slotAt >= rest.length && <DropSlot height={dragHeight} />}
           {!batch && !dateFilterActive && hiddenCount > 0 && (
             <MoreProjectsCard
               count={hiddenCount}
-              cover={projects[visible.length]?.coverUrl ?? null}
+              cover={ordered[visible.length]?.coverUrl ?? null}
               onClick={() => selectPreset("all")}
             />
           )}
@@ -547,13 +647,36 @@ export function ProjectsSection({
   );
 }
 
-function ProjectRows({ projects, projectBase }: { projects: ProjectCardData[]; projectBase?: string }) {
+// `slot`: where a project being dragged will land (at -1: nowhere). Rows
+// that ease aside are transformed, so the rounded list isolates them (WebKit).
+function ProjectRows({
+  ref,
+  projects,
+  projectBase,
+  slot,
+}: {
+  ref?: React.RefObject<HTMLElement | null>;
+  projects: ProjectCardData[];
+  projectBase?: string;
+  slot?: { at: number; height: number; dragId: string | null };
+}) {
   if (projects.length === 0) return null;
+  const rest = projects.filter((p) => p.id !== slot?.dragId);
+  const at = slot?.at ?? -1;
   return (
-    <ul className="flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl">
+    <ul
+      ref={(el) => {
+        if (ref) ref.current = el;
+      }}
+      className="relative isolate flex flex-col divide-y divide-border overflow-hidden panel-soft rounded-xl"
+    >
       {projects.map((p) => (
-        <ProjectRow key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} />
+        <Fragment key={p.id}>
+          {at >= 0 && rest[at]?.id === p.id && <DropSlot height={slot!.height} row />}
+          <ProjectRow project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} />
+        </Fragment>
       ))}
+      {at >= 0 && at >= rest.length && <DropSlot height={slot!.height} row />}
     </ul>
   );
 }

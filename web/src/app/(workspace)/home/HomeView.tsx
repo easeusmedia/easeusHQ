@@ -118,8 +118,9 @@ function readLayout(have: SectionId[]): Layout {
   return { columns, collapsed: (base.collapsed ?? []).filter((s) => have.includes(s)) };
 }
 
-// a section is picked up by its handle and follows the pointer; the others
-// slide out of its way (HomeView)
+// a section is picked up by its handle and follows the pointer, leaving a
+// slot where it will land (as on the boards); the others slide out of its
+// way (HomeView)
 type Drag = { start: (id: SectionId, e: React.PointerEvent) => void; mount: (id: SectionId) => (el: HTMLElement | null) => void; dragging: SectionId | null };
 const SLIDE = { duration: 260, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" };
 
@@ -152,6 +153,7 @@ function Section({
   drag: Drag;
   children: React.ReactNode;
 }) {
+  const lifted = drag.dragging === id;
   return (
     <section
       ref={drag.mount(id)}
@@ -160,10 +162,14 @@ function Section({
       // eases between sizes; switching to a content-sized basis made it jump
       // taller, then shrink (and drop to nothing before opening). It never goes
       // below its header.
-      className={`panel relative flex min-h-[51px] flex-col rounded-2xl transition-[flex-grow,box-shadow] duration-300 ease-out ${
+      className={`relative flex min-h-[51px] flex-col rounded-2xl transition-[flex-grow] duration-300 ease-out ${
         !grow ? "flex-none" : collapsed ? "lg:flex-[0_1_0]" : roomy ? "lg:flex-[4_1_0]" : "lg:flex-[1_1_0]"
-      } ${drag.dragging === id ? "z-20 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : ""}`}
+      } ${lifted ? "z-20" : ""}`}
     >
+      {/* the slot it leaves while it's carried: where it will land */}
+      <div aria-hidden className={`pointer-events-none absolute inset-0 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] transition-opacity duration-300 motion-reduce:transition-none ${lifted ? "" : "opacity-0"}`} />
+      {/* the panel itself, last: it's what the pointer carries (HomeView) */}
+      <div className={`panel relative flex min-h-0 flex-1 flex-col rounded-2xl transition-[box-shadow] duration-300 ease-out ${lifted ? "shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : ""}`}>
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
         <button
           type="button"
@@ -191,6 +197,7 @@ function Section({
         <div className="min-h-0 overflow-y-auto max-lg:max-h-[70vh]">
           <div className="px-4 pb-4 sm:px-5">{children}</div>
         </div>
+      </div>
       </div>
     </section>
   );
@@ -376,14 +383,17 @@ export function HomeView({
   useLayoutEffect(() => {
     const before = was.current;
     was.current = null;
-    if (!before) return;
+    // no sliding when the system asks for less motion
+    if (!before || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     for (const [id, el] of els.current) {
       const from = before.get(id);
-      if (!from || id === grab.current?.id) continue;
+      if (!from) continue;
       const now = el.getBoundingClientRect();
       const dx = from.left - now.left;
       const dy = from.top - now.top;
-      if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], SLIDE);
+      // the one being carried is on the pointer: only its slot slides
+      const moving = id === grab.current?.id ? el.firstElementChild : el;
+      if (dx || dy) moving?.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], SLIDE);
     }
   }, [layout]);
   function arrange(next: Layout) {
@@ -409,9 +419,10 @@ export function HomeView({
         const g = grab.current;
         const node = g && els.current.get(g.id);
         if (!g || !node) return;
-        // under the pointer wherever its place in the layout has gone
+        // under the pointer wherever its place in the layout has gone; the
+        // section stays there as the slot, and its panel is what moves
         node.style.pointerEvents = "none";
-        node.style.transform = `translate(${ev.clientX - g.x - (node.offsetLeft - g.left)}px, ${ev.clientY - g.y - (node.offsetTop - g.top)}px) scale(1.01)`;
+        (node.lastElementChild as HTMLElement).style.transform = `translate(${ev.clientX - g.x - (node.offsetLeft - g.left)}px, ${ev.clientY - g.y - (node.offsetTop - g.top)}px) scale(1.01)`;
         const under = document.elementFromPoint(ev.clientX, ev.clientY);
         const over = under?.closest<HTMLElement>("[data-section]");
         const column = under?.closest<HTMLElement>("[data-column]");
@@ -435,11 +446,12 @@ export function HomeView({
         grab.current = null;
         setDragging(null);
         if (!node) return;
-        // settle into its place
-        const from = node.style.transform;
-        node.style.transform = "";
+        // settle into its place, over the slot
+        const panel = node.lastElementChild as HTMLElement;
+        const from = panel.style.transform;
+        panel.style.transform = "";
         node.style.pointerEvents = "";
-        if (from) node.animate([{ transform: from }, { transform: "none" }], SLIDE);
+        if (from && !matchMedia("(prefers-reduced-motion: reduce)").matches) panel.animate([{ transform: from }, { transform: "none" }], SLIDE);
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", drop);
@@ -739,7 +751,8 @@ export function HomeView({
           <div
             key={i}
             data-column={i}
-            className={`flex min-h-0 flex-col gap-4 ${!col.length ? `rounded-2xl border border-dashed transition-colors duration-300 max-lg:hidden ${dragging ? "border-accent/30" : "border-white/[0.08]"}` : ""}`}
+            // an empty column is open space: a section carried there shows its slot
+            className={`flex min-h-0 flex-col gap-4 ${!col.length ? "max-lg:hidden" : ""}`}
           >
             {col.map((id) => sections[id])}
           </div>
