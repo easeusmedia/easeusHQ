@@ -166,9 +166,9 @@ export function ProjectFiles({
       type: a.contentType,
       // the final file once it's in; until then the task's review link
       link: a.link ?? a.task?.review ?? null,
-      // where it lives, and how far the task that fills it has got (it has
-      // the same name: one piece of work); when it's due sits on the right
-      sub: a.task ? [source(a.link ?? a.task.review ?? null), a.task.delivered ? null : a.task.stage].filter(Boolean).join(" · ") : source(a.link),
+      // where it lives; the task's stage is in its window, not here
+      // (Abhishek, 27 Oct 2026); when it's due sits on the right
+      sub: source(a.link ?? a.task?.review ?? null),
       due: a.dueDate ?? null,
       asset: a,
       ...(a.task?.delivered ? { post: a.task.post ?? null, postTask: a.task.id } : {}),
