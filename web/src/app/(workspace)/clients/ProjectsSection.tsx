@@ -46,7 +46,6 @@ export function ProjectsSection({
   projectBase,
   canMoveInvoices = false,
   plan,
-  blueprint,
   invoiceNames = {},
 }: {
   clientId: string;
@@ -66,8 +65,6 @@ export function ProjectsSection({
   canMoveInvoices?: boolean;
   // the client's content blueprint, for a new project's planned tasks
   plan?: PlanItem[];
-  // the button that edits it, beside the heading (the team's page only)
-  blueprint?: React.ReactNode;
   // invoices given their own names, by key (Client.invoiceNames)
   invoiceNames?: Record<string, string>;
 }) {
@@ -223,7 +220,6 @@ export function ProjectsSection({
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-medium">Projects</h2>
-          {blueprint}
         </div>
         <div className="flex gap-0.5 rounded-lg panel-soft p-0.5">
           {(

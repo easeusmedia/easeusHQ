@@ -19,7 +19,6 @@ import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
 import { ProjectsSection } from "../ProjectsSection";
-import { BlueprintButton } from "../Blueprint";
 import { ClientAnalytics } from "../ClientAnalytics";
 import { apifyTokens } from "@/lib/apify";
 import { socialLink } from "@/lib/analytics";
@@ -274,8 +273,6 @@ export default async function ClientDetailPage({
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
                   canMoveInvoices
                   plan={plan}
-                  // what a new project's tasks are, and when — beside Projects
-                  blueprint={<BlueprintButton key="blueprint" clientId={client.id} plan={plan} />}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                 />
