@@ -24,8 +24,10 @@ export type ProjectAssetData = {
   tags?: Tag[];
   dueDate?: string | null;
   // stage: where the task that fills it is now; review: its Frame.io link,
-  // which the row opens until the final file is in
-  task?: { id: string; title: string; delivered: boolean; post?: string | null; stage?: string; review?: string | null } | null;
+  // which the row opens until the final file is in; original: the name it was
+  // made with in production; by: who it's with; deliveredOn: yyyy-mm-dd.
+  // Our side only: the client's page passes none of it.
+  task?: { id: string; title: string; delivered: boolean; post?: string | null; stage?: string; review?: string | null; original?: string | null; by?: string | null; deliveredOn?: string | null } | null;
 };
 
 const TYPE_OPTIONS = TYPE_ORDER.map((t) => ({ value: t, label: t === "Misc." ? "Other" : t }));
@@ -365,7 +367,6 @@ function AssetForm({
   const [link, setLink] = useState(initial?.link ?? "");
   const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
-  // the task that fills it, picked by hand when the match was wrong
   // tags added from this form, shown and picked at once
   const [added, setAdded] = useState<Tag[]>([]);
   // and any it already carries from elsewhere, so they can still be taken off
@@ -381,8 +382,19 @@ function AssetForm({
     if (err) setError(err);
   }
 
+  const task = initial?.task;
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-white/[0.02] p-3">
+      {/* the task behind it, to read (Abhishek, 27 Oct 2026): the name it was
+          made with in production, who did it, where it is now */}
+      {task && (task.by || task.original || task.stage) && (
+        <dl className="flex flex-wrap gap-x-6 gap-y-1.5 rounded-lg bg-white/[0.03] px-3 py-2.5 text-xs">
+          {task.original && task.original !== task.title && <Fact label="Made as" value={task.original} />}
+          <Fact label="By" value={task.by ?? "Not assigned"} />
+          {task.stage && <Fact label="Stage" value={task.stage} />}
+          {task.deliveredOn && <Fact label="Delivered" value={formatDate(`${task.deliveredOn}T00:00:00Z`)} />}
+        </dl>
+      )}
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
           autoFocus
@@ -452,6 +464,16 @@ function AssetForm({
           <Check size={13} /> {saving ? "Saving…" : "Save"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// one fact about the task behind a placeholder: a quiet label, then its value
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      <dt className="text-muted">{label}</dt>
+      <dd className="min-w-0 truncate text-foreground">{value}</dd>
     </div>
   );
 }

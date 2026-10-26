@@ -77,3 +77,17 @@ test("the placeholder already holding its file comes before its number", () => {
   const pasted = [slot("r1", "Jan Birley Reel 1", "Reel", "2026-10-17"), slot("r4", "Jan Birley Reel 4", "Reel", "2026-10-18", { link: "https://drive/x" })];
   assert.equal(pickSlot({ id: "a", title: "Elle Sera Reel 1", types: ["Reel"], driveLink: "https://drive/x" }, pasted)?.id, "r4");
 });
+
+test("untagged work around a deliverable fills no placeholder, whatever its name says", () => {
+  assert.deepEqual(typesOf([], "Reel Cover For Pip Episode"), []);
+  assert.deepEqual(typesOf([], "Amends to be done (Reels)/CL"), []);
+  assert.deepEqual(typesOf([], "CL Trailer Rectification"), []);
+  assert.deepEqual(typesOf([], "Posting (Instagram) reels"), []);
+  assert.deepEqual(typesOf([], "Schedule the reels"), []);
+  assert.deepEqual(typesOf([], "Reel captions for Kelly"), []);
+  // the deliverable itself still does
+  assert.deepEqual(typesOf([], "Kindness reel"), ["Reel"]);
+  assert.deepEqual(typesOf([], "Pip Jamieson Trailer"), ["Reel Trailer"]);
+  // a type given by hand always wins over the name
+  assert.deepEqual(typesOf(["Reel"], "Reel cover"), ["Reel"]);
+});

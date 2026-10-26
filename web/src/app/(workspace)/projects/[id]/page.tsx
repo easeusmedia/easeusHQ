@@ -31,7 +31,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       include: {
         // newest first, for the task form's "latest few" project list
         client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
-        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, status: true, workflow: true, frameioLink: true, postDate: true, assignedToId: true } } } },
+        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, originalTitle: true, status: true, workflow: true, frameioLink: true, postDate: true, assignedToId: true, assignedTo: { select: { name: true } } } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
           include: { tags: true },
@@ -93,8 +93,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   // 27 Oct 2026). One with no placeholders still shows what it delivered.
   const linked = new Set(project.assets.map((a) => a.taskId).filter(Boolean));
   const deliveredFiles = project.assets.length ? [] : done.filter((t) => t.status === "delivered_and_uploaded" && !linked.has(t.id));
-  // when each was really delivered, and whether this person plans postings
-  const delivered = await deliveredAt(deliveredFiles.map((t) => t.id));
+  // when each was really delivered, and whether this person plans postings;
+  // the placeholders' delivered tasks too, for their details
+  const filled = project.assets.flatMap((a) => (a.task?.status === "delivered_and_uploaded" ? [a.task.id] : []));
+  const delivered = await deliveredAt([...deliveredFiles.map((t) => t.id), ...filled]);
 
   return (
     <div>
@@ -150,7 +152,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           link: a.link,
           tags: a.tags,
           dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
-          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null, stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink } : null,
+          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null, stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink, original: a.task.originalTitle, by: a.task.assignedTo?.name ?? null, deliveredOn: delivered.get(a.task.id) ? indiaDay(delivered.get(a.task.id)!) : null } : null,
         }))}
         delivered={deliveredFiles.map((t) => ({
           id: t.id,

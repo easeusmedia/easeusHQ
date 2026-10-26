@@ -591,6 +591,10 @@ model Task {
   assignedTo   User?      @relation("AssignedTasks", fields: [assignedToId], references: [id])
   assignedToId String?
   title        String
+  // the name it was made with in production ("Kindness"), kept when it takes
+  // its placeholder's name ("Pip Jamieson Reel 4"): shown on the placeholder,
+  // never to the client (lib/deliverableLink)
+  originalTitle String?
   status       TaskStatus @default(queued)
   // the day work on it starts — with dueDate, the span the content calendar
   // draws it across. Null = just its due day.

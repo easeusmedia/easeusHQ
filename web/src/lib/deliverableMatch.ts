@@ -34,12 +34,19 @@ const TITLE_TYPES: [RegExp, string][] = [
   [/\baudio\b/i, "Audio"],
 ];
 
+// Work around a deliverable rather than the deliverable itself (Abhishek, 27
+// Oct 2026): posting it, its caption or cover, a round of amends or a fix,
+// a review. Untagged, a title like these fills no placeholder even when it
+// says "reel" ("Reel Cover For Pip Episode", "Amends to be done (Reels)").
+const AROUND = /\b(post(s|ing|ed)?|schedul\w*|captions?|copy|covers?|upload(s|ing)?|social|story|stories|amends?|amendments?|corrections?|rectif\w*|fix(es|ing)?|review(s|ing)?|analysis|feedback|meeting|research|scripts?|brief|ideas?|planning|plan|report)\b/i;
+
 export function typesOf(tags: string[], title: string): string[] {
   // tagged with other kinds of work only (Reel curation, a post): none
   if (tags.length) {
     const bonus = /bonus/i.test(title);
     return [...new Set(tags.flatMap((t) => TAG_TYPES[t.toLowerCase()] ?? []))].filter((t) => (t === "Reel" ? !bonus : t === "Bonus Reel" ? bonus : true));
   }
+  if (AROUND.test(title)) return [];
   const hit = TITLE_TYPES.find(([re]) => re.test(title));
   return hit ? [hit[1]] : [];
 }

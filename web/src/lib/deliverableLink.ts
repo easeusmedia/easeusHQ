@@ -3,16 +3,16 @@ import { extraName, pickSlot, typesOf } from "./deliverableMatch";
 
 // Tasks and their project's placeholders, kept together (Abhishek, 21 Oct
 // 2026): a task takes the placeholder of its kind (and number) in its
-// project as soon as it's made or changed, and its name with it; when it's
-// delivered its final Drive link becomes the placeholder's. Internal work and tasks of no
-// deliverable kind are left alone. Called after every write that can change
-// any of that; a failure never undoes the write itself.
+// project as soon as it's made or changed, and its name with it (the one it
+// was made with kept as originalTitle); with none free, a new one is added
+// for it. When it's delivered its final Drive link becomes the placeholder's.
+// Internal work, to-dos and work of no deliverable kind are left alone.
+// Called after every write that can change any of that; a failure never
+// undoes the write itself.
 //
 // delivering: called as it's delivered or its Drive link is set (a move to
 // Delivered, a tick, a saved Drive link). Only then does its link replace
-// what the placeholder has (one corrected by hand stays, otherwise), and only
-// then does a project of placeholders get one more when none of its kind is
-// left (one removed by hand isn't made again by a later sync).
+// what the placeholder has (one corrected by hand stays, otherwise).
 // oldLink: the Drive link it had before an edit; taken off, it comes off its
 // placeholder too
 export async function linkDeliverables(taskIds: string[], { delivering = false, oldLink = null as string | null } = {}): Promise<void> {
@@ -24,6 +24,8 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
     where: { id },
     select: {
       title: true,
+      originalTitle: true,
+      workflow: true,
       status: true,
       driveLink: true,
       internal: true,
@@ -36,7 +38,8 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
     },
   });
   if (!task) return;
-  const types = task.internal ? [] : typesOf(task.tags.map((t) => t.name), task.title);
+  // production work only: internal work and to-dos are never a deliverable
+  const types = task.internal || task.workflow === "todo" ? [] : typesOf(task.tags.map((t) => t.name), task.originalTitle ?? task.title);
   const rows = await prisma.projectAsset.findMany({
     where: { projectId: task.projectId },
     select: { id: true, name: true, contentType: true, dueDate: true, sortOrder: true, taskId: true, link: true },
@@ -64,23 +67,38 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
       data: { taskId: id, ...(fill ? { link: task.driveLink } : clear ? { link: null } : {}) },
     });
     if (!count && retry) return linkOne(id, delivering, oldLink, false);
-    // the task and the placeholder it fills are one piece of work under one
-    // name, the placeholder's (Abhishek, 27 Oct 2026); renaming either one
-    // renames the other (updateTask, updateProjectAsset)
-    if (count && task.title !== slot.name) await prisma.task.update({ where: { id }, data: { title: slot.name } });
-  } else if (delivering && delivered && types.length && rows.length && task.project.name) {
-    // a project laid out in placeholders, with none of its kind left
+    if (count) await takeName(id, task, slot.name);
+  } else if (types.length && rows.length && task.project.name) {
+    // a project laid out in placeholders, with none of its kind left: one
+    // more, as soon as the task is made (Abhishek, 27 Oct 2026; it used to
+    // wait for delivery), "Pip Jamieson Reel 7" after six
     const last = rows.reduce((n, r) => Math.max(n, r.sortOrder), -1);
+    const name = extraName(task.project.name, types[0], slots);
     await prisma.projectAsset.create({
       data: {
         projectId: task.projectId,
-        name: extraName(task.project.name, types[0], slots),
+        name,
         contentType: types[0],
-        link: task.driveLink,
+        link: delivered ? task.driveLink : null,
         dueDate: task.deliveryDate ?? task.dueDate,
         sortOrder: last + 1,
         taskId: id,
       },
     });
+    await takeName(id, task, name);
+  } else if (held && task.originalTitle && task.title !== task.originalTitle) {
+    // no placeholder for it any more (another project, another kind, now
+    // internal): it goes back to the name it was made with
+    await prisma.task.update({ where: { id }, data: { title: task.originalTitle } });
   }
+}
+
+// The task and the placeholder it fills are one piece of work under one
+// name, the placeholder's (Abhishek, 27 Oct 2026); renaming either one
+// renames the other (updateTask, updateProjectAsset). The name it was made
+// with in production ("Kindness") is kept, once, for the placeholder to show
+// our side (never the client's).
+async function takeName(id: string, task: { title: string; originalTitle: string | null }, name: string) {
+  if (task.title === name) return;
+  await prisma.task.update({ where: { id }, data: { title: name, ...(task.originalTitle ? {} : { originalTitle: task.title }) } });
 }
