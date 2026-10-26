@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { dayOf, isReplied, leadEmails, type Contact } from "./space";
+import { dayOf, emailStarts, isReplied, type Contact } from "./space";
 
 // A lead that writes back leaves the sequence for its board's Replied stage
 // by itself (9 Oct 2026, Abhishek): a reply by email (from the sales inbox),
@@ -53,13 +53,14 @@ const nameIn = (values: unknown, address: string) =>
     ?.name?.trim() || address;
 
 // New mail in the sales inbox from people: each lead on a day that one of
-// its addresses wrote to (since it was added, an hour's grace) has replied
+// its addresses wrote to (since that address was put on it: lib/space
+// emailStarts) has replied
 export async function moveRepliedByEmail(replies: { from: string; at: Date }[]) {
   if (!replies.length) return;
   const leads = await prisma.lead.findMany({ where: { stage: { name: { startsWith: "Day " } } }, select: { id: true, values: true, createdAt: true } });
   for (const l of leads) {
-    const mine = leadEmails(l.values);
-    const reply = replies.find((r) => mine.includes(r.from) && r.at.getTime() >= l.createdAt.getTime() - 3_600_000);
+    const starts = emailStarts(l.values, l.createdAt);
+    const reply = replies.find((r) => r.at.getTime() >= (starts.get(r.from) ?? Infinity));
     if (reply) await moveToReplied(l.id, INBOX, `${nameIn(l.values, reply.from)} replied by email`);
   }
 }

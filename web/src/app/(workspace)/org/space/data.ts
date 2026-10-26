@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { dayOf, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, reachOutDays, type Approval, type BoardData, type Contact, type FieldKind, type Mark, type Person, type Platform, type SpaceCard, type SpaceKind, readMarks, NO_CONTACT } from "@/lib/space";
+import { dayOf, emailStarts, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, reachOutDays, type Approval, type BoardData, type Contact, type FieldKind, type Mark, type Person, type Platform, type SpaceCard, type SpaceKind, readMarks, NO_CONTACT } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
@@ -89,10 +89,10 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
   });
   if (!board) return null;
   // Email, whatever its stage, from the sales inbox (whichever computer sent
-  // it) and the mail tracker: what went to its addresses since it was added
-  // (an hour's grace for an email sent just before), those emails' opens,
-  // and what they wrote back after (a person, not a bounce or an auto-reply).
-  // Emails from before it was a lead aren't its outreach.
+  // it) and the mail tracker: what went to each address since it was put on
+  // the lead (lib/space emailStarts), those emails' opens, and what they wrote
+  // back after (a person, not a bounce or an auto-reply). Emails from before
+  // aren't its outreach.
   const leadAddresses = new Map(board.leads.map((l) => [l.id, leadEmails(l.values)]));
   const all = [...new Set([...leadAddresses.values()].flat())];
   const [sentTo, tracked, heard] = await Promise.all([
@@ -107,18 +107,19 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
   });
   const emailOf = (l: (typeof board.leads)[number]) => {
     const mine = leadAddresses.get(l.id) ?? [];
-    const since = l.createdAt.getTime() - 3_600_000;
-    const out = sentTo.filter((m) => mine.includes(m.to) && m.at.getTime() >= since).map((m) => m.at);
-    const mails = tracked.filter((t) => mine.includes(t.to) && t.sentAt.getTime() >= since);
+    const starts = emailStarts(l.values, l.createdAt);
+    const counts = (address: string, at: Date) => mine.includes(address) && at.getTime() >= (starts.get(address) ?? Infinity);
+    const out = sentTo.filter((m) => counts(m.to, m.at)).map((m) => m.at);
+    const mails = tracked.filter((t) => counts(t.to, t.sentAt));
     const first = [...out, ...mails.map((t) => t.sentAt)].sort((a, b) => +a - +b)[0] ?? null;
-    const reply = first && heard.find((h) => mine.includes(h.from) && h.at > first);
+    const reply = first && heard.find((h) => counts(h.from, h.at) && h.at > first);
     // the day it was on when the reply came: its last move before, else where it is
     const moved = reply ? l.events.filter((e) => e.createdAt <= reply.at).pop()?.toStage : null;
     const stage = board.stages.find((s) => (moved ? s.name === moved : s.id === l.stageId)) ?? board.stages.find((s) => s.id === l.stageId);
     const opens = mails.reduce((n, t) => n + t.opens, 0);
     // who wrote back (each contact once, in the order they did): its name
     // from the lead's contacts, else the address
-    const repliers = first ? [...new Set(heard.filter((h) => mine.includes(h.from) && h.at > first).map((h) => h.from))] : [];
+    const repliers = first ? [...new Set(heard.filter((h) => counts(h.from, h.at) && h.at > first).map((h) => h.from))] : [];
     const nameOf = (address: string) => contactsOf(l.values).find((c) => c.channels?.some((ch) => ch.value?.trim().toLowerCase() === address))?.name?.trim() || address;
     return {
       sent: !!first,

@@ -39,8 +39,10 @@ import {
   approvalsMissing,
   beforeReady,
   isDead,
-  leadEmails,
+  emailStarts,
   leadPeople,
+  stampEmails,
+  type Contact,
   outreachStart,
   unapprovedText,
   type Approval,
@@ -610,7 +612,8 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
     if (!field || field.boardId !== lead.boardId || !isFieldKind(field.kind)) return { error: "That property no longer exists. Refresh and try again." };
     const clean = cleanValue(field.kind, value, field.options.map((o) => o.id));
     if ("error" in clean) return clean;
-    const v = clean.value;
+    // a contact's email is stamped with when its address was put on the lead (lib/space stampEmails)
+    const v = field.kind === "contacts" && Array.isArray(clean.value) ? stampEmails(clean.value as Contact[], lead.values, new Date().toISOString()) : clean.value;
     if (v == null) await prisma.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${fieldId}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     else
       await prisma.$executeRaw`UPDATE "Lead" SET "values" = jsonb_set(coalesce("values", '{}'::jsonb), ARRAY[${fieldId}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
@@ -808,9 +811,9 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
         prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
       ]);
       if (beforeReady(stages, lead.stageId, full?.events.map((e) => e.toStage) ?? [])) {
-        // opened as the lead window has it: its tracked emails since it was added (org/space/data.ts)
-        const since = new Date((full?.createdAt.getTime() ?? 0) - 3_600_000);
-        const opened = (await prisma.trackedMail.count({ where: { to: { in: leadEmails(lead.values) }, sentAt: { gte: since }, opens: { gt: 0 } } })) > 0;
+        // opened as the lead window has it: each address's tracked emails since it was put on the lead (org/space/data.ts)
+        const starts = [...emailStarts(lead.values, full?.createdAt ?? new Date(0))];
+        const opened = starts.length > 0 && (await prisma.trackedMail.count({ where: { OR: starts.map(([to, at]) => ({ to, sentAt: { gte: new Date(at) } })), opens: { gt: 0 } } })) > 0;
         const values = (lead.values ?? {}) as Record<string, unknown>;
         const contactFields = fields as Pick<FieldData, "id" | "kind">[];
         const missing = approvalsMissing(

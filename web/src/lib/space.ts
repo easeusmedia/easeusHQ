@@ -86,7 +86,8 @@ const isChannel = (k: unknown): k is ChannelKind => CHANNELS.some((c) => c.kind 
 export const CONTACT_ROLES = ["Host", "Co-host", "Founder", "Co-founder", "CEO", "Marketer", "Producer", "Assistant"];
 
 // How each kind is stored in Lead.values[fieldId]
-export type Contact = { id: string; name: string; role: string; channels: { kind: ChannelKind; value: string }[] };
+// since (an email's): when that address was put on the lead (stampEmails)
+export type Contact = { id: string; name: string; role: string; channels: { kind: ChannelKind; value: string; since?: string }[] };
 export type LinkValue = { label: string; url: string };
 export type CountValue = { n: number | null; remark: string };
 export type FieldValue = string[] | CountValue | Contact[] | LinkValue[] | boolean | string | null;
@@ -755,6 +756,49 @@ export function outreachStats(leads: Tracked[], platform: Platform | null) {
 // matching it to the sales inbox (org/space/data.ts, lib/mailReport.ts)
 const EMAILS = /[^\s"'<>,;:]+@[^\s"'<>,;:]+\.[a-z]{2,}/gi;
 export const leadEmails = (values: unknown) => [...new Set((JSON.stringify(values ?? {}).match(EMAILS) ?? []).map((e) => e.toLowerCase()))];
+
+// A lead's email counts from when each address was put on it (Abhishek, 26
+// Oct 2026), so changing a contact to an address that has written before
+// (a test inbox) never brings in another lead's emails. An address with no
+// stamp was there from the start: it counts from when the lead was added.
+// Each, in ms, with an hour's grace for an email sent just before.
+export function emailStarts(values: unknown, createdAt: Date): Map<string, number> {
+  const stamped = new Map<string, number>();
+  for (const v of Object.values((values ?? {}) as Record<string, unknown>)) {
+    if (!Array.isArray(v)) continue;
+    for (const ch of (v as Contact[]).flatMap((c) => c?.channels ?? [])) {
+      const at = ch?.kind === "email" && ch.since ? Date.parse(ch.since) : NaN;
+      const address = ch?.value?.trim().toLowerCase();
+      if (address && !Number.isNaN(at)) stamped.set(address, Math.max(stamped.get(address) ?? 0, at));
+    }
+  }
+  return new Map(leadEmails(values).map((a) => [a, Math.max(createdAt.getTime(), stamped.get(a) ?? 0) - 3_600_000]));
+}
+
+// Contacts about to be saved, each email stamped with when its address was
+// put on the lead: one already on it keeps its stamp (or none, if it had
+// none), a new one is stamped now. Whatever the browser sent is ignored.
+export function stampEmails(next: Contact[], before: unknown, now: string): Contact[] {
+  const had = new Set(leadEmails(before));
+  const since = new Map<string, string>();
+  for (const v of Object.values((before ?? {}) as Record<string, unknown>)) {
+    if (!Array.isArray(v)) continue;
+    for (const ch of (v as Contact[]).flatMap((c) => c?.channels ?? [])) {
+      const address = ch?.value?.trim().toLowerCase();
+      if (ch?.kind === "email" && address && ch.since && !since.has(address)) since.set(address, ch.since);
+    }
+  }
+  return next.map((c) => ({
+    ...c,
+    channels: c.channels.map((ch) => {
+      const plain = { kind: ch.kind, value: ch.value };
+      const address = ch.kind === "email" ? ch.value.trim().toLowerCase() : "";
+      if (!address) return plain;
+      const at = since.get(address) ?? (had.has(address) ? undefined : now);
+      return at ? { ...plain, since: at } : plain;
+    }),
+  }));
+}
 
 // A day's (or a stage's) key: one for every stage of a day ("day-7"), else the stage's own
 export const phaseKey = (stage: Pick<StageData, "id" | "name">) => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, dayLeft, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, dayLeft, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -601,4 +601,19 @@ test("Opener and Country lead the filters, read without their codes", () => {
   assert.equal(leadingFacet({ name: "Subscribers", kind: "range" }), false);
   assert.equal(facetLabel("D1 · Old hit still on top"), "Old hit still on top");
   assert.equal(facetLabel("USA"), "USA");
+});
+
+test("a lead's email counts from when each address was put on it", () => {
+  const person = (email: string, since?: string): Contact => ({ id: "c1", name: "Ezee", role: "Host", channels: [{ kind: "email", value: email, ...(since ? { since } : {}) }] });
+  const before = { f: [person("old@x.com")] };
+  // an address already on the lead keeps no stamp; a new one is stamped now; a browser's stamp is ignored
+  const saved = stampEmails([{ ...person("old@x.com"), channels: [{ kind: "email", value: "Old@x.com", since: "2020-01-01T00:00:00Z" }, { kind: "email", value: "new@x.com" }] }], before, "2026-10-26T07:48:00.000Z");
+  assert.deepEqual(saved[0].channels, [{ kind: "email", value: "Old@x.com" }, { kind: "email", value: "new@x.com", since: "2026-10-26T07:48:00.000Z" }]);
+  // saved again later: the stamp stays
+  assert.equal(stampEmails(saved, { f: saved }, "2026-11-01T00:00:00.000Z")[0].channels[1].since, "2026-10-26T07:48:00.000Z");
+  // counted from the lead's added day, or the stamp when later, an hour's grace either way
+  const added = new Date("2026-10-09T10:30:00Z");
+  const starts = emailStarts({ f: saved }, added);
+  assert.equal(starts.get("old@x.com"), added.getTime() - 3_600_000);
+  assert.equal(starts.get("new@x.com"), Date.parse("2026-10-26T07:48:00Z") - 3_600_000);
 });
