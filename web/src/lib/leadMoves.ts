@@ -53,14 +53,21 @@ const nameIn = (values: unknown, address: string) =>
     ?.name?.trim() || address;
 
 // New mail in the sales inbox from people: each lead on a day that one of
-// its addresses wrote to (since that address was put on it: lib/space
-// emailStarts) has replied
-export async function moveRepliedByEmail(replies: { from: string; at: Date }[]) {
+// its addresses answered, in a conversation we emailed that address in since
+// it was put on the lead (lib/space emailStarts), has replied. A fresh
+// email of theirs isn't a reply (Abhishek, 26 Oct 2026).
+export async function moveRepliedByEmail(replies: { from: string; at: Date; threadId: string }[]) {
   if (!replies.length) return;
-  const leads = await prisma.lead.findMany({ where: { stage: { name: { startsWith: "Day " } } }, select: { id: true, values: true, createdAt: true } });
+  const [leads, ours] = await Promise.all([
+    prisma.lead.findMany({ where: { stage: { name: { startsWith: "Day " } } }, select: { id: true, values: true, createdAt: true } }),
+    prisma.mailMessage.findMany({ where: { outgoing: true, threadId: { in: [...new Set(replies.map((r) => r.threadId))] } }, select: { threadId: true, to: true, at: true } }),
+  ]);
   for (const l of leads) {
     const starts = emailStarts(l.values, l.createdAt);
-    const reply = replies.find((r) => r.at.getTime() >= (starts.get(r.from) ?? Infinity));
+    const reply = replies.find((r) => {
+      const start = starts.get(r.from) ?? Infinity;
+      return r.at.getTime() >= start && ours.some((m) => m.threadId === r.threadId && m.to === r.from && m.at.getTime() >= start && m.at < r.at);
+    });
     if (reply) await moveToReplied(l.id, INBOX, `${nameIn(l.values, reply.from)} replied by email`);
   }
 }
