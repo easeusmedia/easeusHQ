@@ -24,7 +24,9 @@ export type ProjectAssetData = {
   link: string | null;
   tags?: Tag[];
   dueDate?: string | null;
-  task?: { id: string; title: string; delivered: boolean; post?: string | null } | null;
+  // stage: where the task that fills it is now; review: its Frame.io link,
+  // which the row opens until the final file is in
+  task?: { id: string; title: string; delivered: boolean; post?: string | null; stage?: string; review?: string | null } | null;
   taskOptions?: { id: string; title: string }[];
 };
 
@@ -162,9 +164,11 @@ export function ProjectFiles({
       id: a.id,
       name: a.name,
       type: a.contentType,
-      link: a.link,
-      // where it lives, and the task that fills it; when it's due sits on the right
-      sub: a.task ? `${source(a.link)} · ${a.task.title}` : source(a.link),
+      // the final file once it's in; until then the task's review link
+      link: a.link ?? a.task?.review ?? null,
+      // where it lives, and how far the task that fills it has got (it has
+      // the same name: one piece of work); when it's due sits on the right
+      sub: a.task ? [source(a.link ?? a.task.review ?? null), a.task.delivered ? null : a.task.stage].filter(Boolean).join(" · ") : source(a.link),
       due: a.dueDate ?? null,
       asset: a,
       ...(a.task?.delivered ? { post: a.task.post ?? null, postTask: a.task.id } : {}),

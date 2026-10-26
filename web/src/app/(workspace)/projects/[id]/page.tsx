@@ -16,6 +16,7 @@ import { ProjectHeader } from "../ProjectHeader";
 import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
 import { kindOf, typesOf } from "@/lib/deliverableMatch";
+import { stageLabel } from "@/lib/stages";
 import { InvoicePicker } from "../InvoicePicker";
 import { ActiveClient } from "../../clients/ActiveClient";
 import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
@@ -34,7 +35,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       include: {
         // newest first, for the task form's "latest few" project list
         client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
-        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, status: true, postDate: true, assignedToId: true } } } },
+        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, status: true, workflow: true, frameioLink: true, postDate: true, assignedToId: true } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
           include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
@@ -190,7 +191,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           link: a.link,
           tags: a.tags,
           dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
-          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null } : null,
+          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null, stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink } : null,
           // the project's tasks of its kind, to pick by hand
           taskOptions: project.tasks.filter((t) => !t.internal && typesOf(t.tags.map((g) => g.name), t.title).includes(kindOf(a.contentType) ?? "")).map((t) => ({ id: t.id, title: t.title })),
         }))}

@@ -1080,6 +1080,9 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
   });
   // the task it had finds another of its kind, if there's one free
   if (picked && current.taskId) await linkDeliverables([current.taskId]);
+  // the task that fills it goes by its name (lib/deliverableLink): renamed
+  // here, or newly picked, the task takes the name too
+  if (asset.taskId) await prisma.task.updateMany({ where: { id: asset.taskId, NOT: { title: asset.name } }, data: { title: asset.name } });
   await revalidateProject(asset.projectId);
   return {};
 }

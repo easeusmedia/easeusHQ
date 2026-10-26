@@ -339,7 +339,7 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
   // a Lead edits the work they can see, and hands it only down the levels
   const viewer = await getViewer();
   if (!viewer) return { error: "Your session has ended. Please sign in again." };
-  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true, dueDate: true, strikes: true, driveLink: true } });
+  const current = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, assigneeWhere(viewer)] }, select: { assignedToId: true, status: true, dueDate: true, strikes: true, driveLink: true, title: true, projectId: true } });
   if (!current) return { error: "You can't change this task." };
   if (assignedToId && assignedToId !== current.assignedToId && assignedToId !== viewer.id) {
     const target = await prisma.user.findUnique({ where: { id: assignedToId }, select: { id: true, role: true, teamId: true, departments: { select: { id: true } } } });
@@ -453,6 +453,9 @@ export async function updateTask(_prev: TaskFormState, formData: FormData): Prom
     },
   });
   if (moved) await recordDateChange({ kind: "task", id: taskId }, current.dueDate, dueDate ?? null, dateReason, viewer.id, current.strikes);
+  // renamed in the same project, the placeholder it fills takes the new name
+  // too: they're one piece of work under one name (lib/deliverableLink)
+  if (title !== current.title && projectId === current.projectId) await prisma.projectAsset.updateMany({ where: { taskId }, data: { name: title } });
   // a new project, kind or Drive link: its placeholder follows (lib/deliverableLink)
   await linkDeliverables([taskId], { delivering: driveLink !== undefined && driveLink !== current.driveLink, oldLink: current.driveLink });
   revalidatePath("/board");
@@ -647,8 +650,11 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
     // reason to make it N queries when it's this easy to make it one
     const mirrored = await prisma.task.findMany({
       where: { notionPageId: { in: rows.map((r) => r.id) } },
-      select: { id: true, notionPageId: true, status: true, handedOffAt: true },
+      select: { id: true, notionPageId: true, status: true, handedOffAt: true, deliverable: { select: { id: true } } },
     });
+    // a task that fills a placeholder goes by the placeholder's name, not
+    // Notion's (lib/deliverableLink), so a sync leaves its title alone
+    const named = new Set(mirrored.filter((t) => t.deliverable).map((t) => t.id));
     const statusById = new Map(mirrored.map((t) => [t.id, t.status]));
     const handedOffById = new Map(mirrored.map((t) => [t.id, t.handedOffAt]));
     const existingByNotionId = new Map(mirrored.map((t) => [t.notionPageId, t.id]));
@@ -733,7 +739,8 @@ export async function syncFromNotion(): Promise<NotionSyncResult> {
         // the board owns it once someone here has moved it, and Notion
         // never speaks for a stage past its own last one
         const ours = byHand.has(existingId) || !fromNotionAllowed(sharedData.status);
-        const { status: notionStatus, assignedToId, ...rest } = sharedData;
+        const { status: notionStatus, assignedToId, title: notionTitle, ...links } = sharedData;
+        const rest = named.has(existingId) ? links : { ...links, title: notionTitle };
         await prisma.task.update({
           where: { id: existingId },
           data: ours

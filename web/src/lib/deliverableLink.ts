@@ -3,8 +3,8 @@ import { extraName, pickSlot, typesOf } from "./deliverableMatch";
 
 // Tasks and their project's placeholders, kept together (Abhishek, 21 Oct
 // 2026): a task takes the placeholder of its kind (and number) in its
-// project as soon as it's made or changed, and when it's delivered its
-// final Drive link becomes the placeholder's. Internal work and tasks of no
+// project as soon as it's made or changed, and its name with it; when it's
+// delivered its final Drive link becomes the placeholder's. Internal work and tasks of no
 // deliverable kind are left alone. Called after every write that can change
 // any of that; a failure never undoes the write itself.
 //
@@ -64,6 +64,10 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
       data: { taskId: id, ...(fill ? { link: task.driveLink } : clear ? { link: null } : {}) },
     });
     if (!count && retry) return linkOne(id, delivering, oldLink, false);
+    // the task and the placeholder it fills are one piece of work under one
+    // name, the placeholder's (Abhishek, 27 Oct 2026); renaming either one
+    // renames the other (updateTask, updateProjectAsset)
+    if (count && task.title !== slot.name) await prisma.task.update({ where: { id }, data: { title: slot.name } });
   } else if (delivering && delivered && types.length && rows.length && task.project.name) {
     // a project laid out in placeholders, with none of its kind left
     const last = rows.reduce((n, r) => Math.max(n, r.sortOrder), -1);
