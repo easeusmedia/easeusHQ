@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { TaskRow } from "../TaskRow";
 import { ALL_STATUSES, type Role, type TaskStatus } from "@/lib/workflow";
 import type { TaskCardData } from "../TaskCard";
@@ -14,9 +13,10 @@ import { WorkTaskRow, type ClientWorkTask } from "./ClientWorkTasks";
 // wrong cut: from a client's page the question is "what is happening for
 // this client", and which internal board a job happens to live on isn't part
 // of the answer. Each row carries its own stage, so the two still read
-// correctly side by side. Five at a time, Show more for the next five
-// (Abhishek, 27 Oct 2026).
-const PAGE = 5;
+// correctly side by side. Only what's being worked on right now (Abhishek,
+// 27 Oct 2026): a video or design an editor is editing, or has back for a
+// revision, and the team's to-dos in progress. Queued, sent for approval
+// or further along, it's on the Task board tab.
 
 export function ClientOngoing({
   tasks,
@@ -37,11 +37,12 @@ export function ClientOngoing({
   actingRole: Role;
   taskTags?: TaskTagOption[];
 }) {
-  const [shown, setShown] = useState(PAGE);
+  tasks = tasks.filter((t) => t.status === "editing" || t.status === "revision_requested");
+  workTasks = workTasks.filter((t) => t.status === "in_progress");
   if (tasks.length === 0 && workTasks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border px-5 py-10 text-center">
-        <p className="text-sm text-muted">No work in progress for this client right now.</p>
+        <p className="text-sm text-muted">Nothing being worked on for this client right now.</p>
       </div>
     );
   }
@@ -71,20 +72,10 @@ export function ClientOngoing({
   ];
 
   return (
-    <div className="flex flex-col gap-3">
-      <ul className="flex flex-col gap-2">
-        {rows.slice(0, shown).map((r, i) => (
-          // the ones a Show more adds ease in
-          <li key={r.key} className={i >= PAGE ? "fade-in" : undefined}>
-            {r.row}
-          </li>
-        ))}
-      </ul>
-      {rows.length > shown && (
-        <button type="button" onClick={() => setShown((n) => n + PAGE)} className="self-center px-2 py-1 text-sm text-muted transition-colors hover:text-foreground">
-          Show more
-        </button>
-      )}
-    </div>
+    <ul className="flex flex-col gap-2">
+      {rows.map((r) => (
+        <li key={r.key}>{r.row}</li>
+      ))}
+    </ul>
   );
 }
