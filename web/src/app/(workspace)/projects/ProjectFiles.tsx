@@ -15,8 +15,7 @@ import { TaskTagChip } from "../TaskTagPicker";
 
 type Tag = { id: string; name: string };
 // dueDate: yyyy-mm-dd, when it's due to the client. task: the task that
-// fills it (lib/deliverableLink), delivered or not; taskOptions: the
-// project's tasks of its kind, to pick another by hand
+// fills it (lib/deliverableLink), delivered or not
 export type ProjectAssetData = {
   id: string;
   name: string;
@@ -27,7 +26,6 @@ export type ProjectAssetData = {
   // stage: where the task that fills it is now; review: its Frame.io link,
   // which the row opens until the final file is in
   task?: { id: string; title: string; delivered: boolean; post?: string | null; stage?: string; review?: string | null } | null;
-  taskOptions?: { id: string; title: string }[];
 };
 
 const TYPE_OPTIONS = TYPE_ORDER.map((t) => ({ value: t, label: t === "Misc." ? "Other" : t }));
@@ -360,7 +358,7 @@ function AssetForm({
   tagOptions: Tag[];
   tagTeamId?: string;
   onCancel: () => void;
-  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string; taskId?: string }) => Promise<string | null>;
+  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string }) => Promise<string | null>;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [contentType, setContentType] = useState(initial?.contentType ?? TYPE_ORDER[0]);
@@ -368,7 +366,6 @@ function AssetForm({
   const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   // the task that fills it, picked by hand when the match was wrong
-  const [taskId, setTaskId] = useState(initial?.task?.id ?? "");
   // tags added from this form, shown and picked at once
   const [added, setAdded] = useState<Tag[]>([]);
   // and any it already carries from elsewhere, so they can still be taken off
@@ -379,7 +376,7 @@ function AssetForm({
   async function submit() {
     setSaving(true);
     setError(null);
-    const err = await onSubmit({ name, contentType, link, tagIds, dueDate, ...(taskId && taskId !== initial?.task?.id ? { taskId } : {}) });
+    const err = await onSubmit({ name, contentType, link, tagIds, dueDate });
     setSaving(false);
     if (err) setError(err);
   }
@@ -404,14 +401,6 @@ function AssetForm({
           <DatePicker value={dueDate} onChange={setDueDate} placeholder="Delivery date" />
         </div>
       </div>
-      {!!initial?.taskOptions?.length && (
-        <Dropdown
-          defaultValue={taskId}
-          options={initial.taskOptions.map((t) => ({ value: t.id, label: t.title }))}
-          placeholder="The task that fills it"
-          onChange={setTaskId}
-        />
-      )}
       {(options.length > 0 || tagTeamId) && (
         // the same kinds of work a task is tagged with
         <div className="flex flex-wrap items-center gap-1.5">

@@ -12,7 +12,6 @@ import { ACTIVE_STATUSES, type TaskStatus } from "@/lib/workflow";
 import { ProjectHeader } from "../ProjectHeader";
 import { clientHref } from "@/lib/slug";
 import { ProjectFiles } from "../ProjectFiles";
-import { kindOf, typesOf } from "@/lib/deliverableMatch";
 import { stageLabel } from "@/lib/stages";
 import { InvoicePicker } from "../InvoicePicker";
 import { ActiveClient } from "../../clients/ActiveClient";
@@ -152,8 +151,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           tags: a.tags,
           dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
           task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null, stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink } : null,
-          // the project's tasks of its kind, to pick by hand
-          taskOptions: project.tasks.filter((t) => !t.internal && typesOf(t.tags.map((g) => g.name), t.title).includes(kindOf(a.contentType) ?? "")).map((t) => ({ id: t.id, title: t.title })),
         }))}
         delivered={deliveredFiles.map((t) => ({
           id: t.id,
