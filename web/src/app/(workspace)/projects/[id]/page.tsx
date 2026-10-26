@@ -98,9 +98,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
   // a delivered task that fills a placeholder is shown as that placeholder,
-  // not a second time (lib/deliverableLink)
+  // not a second time (lib/deliverableLink). A project laid out in
+  // placeholders shows those and nothing else: work the team made for
+  // itself (a reel cover, a round of amends) isn't a deliverable (Abhishek,
+  // 27 Oct 2026). One with no placeholders still shows what it delivered.
   const linked = new Set(project.assets.map((a) => a.taskId).filter(Boolean));
-  const deliveredFiles = done.filter((t) => t.status === "delivered_and_uploaded" && !linked.has(t.id));
+  const deliveredFiles = project.assets.length ? [] : done.filter((t) => t.status === "delivered_and_uploaded" && !linked.has(t.id));
   // when each was really delivered, and whether this person plans postings
   const delivered = await deliveredAt(deliveredFiles.map((t) => t.id));
 

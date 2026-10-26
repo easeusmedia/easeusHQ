@@ -42,9 +42,11 @@ export default async function SharedProjectPage({
       })
     : null;
   if (!client || !project) redirect("/login");
+  // one that fills a placeholder shows as that placeholder (lib/deliverableLink);
+  // a project laid out in placeholders shows only those, its deliverables
+  // (Abhishek, 27 Oct 2026), and one with none still shows what it delivered
   const delivered = await prisma.task.findMany({
-    // one that fills a placeholder shows as that placeholder (lib/deliverableLink)
-    where: { projectId: project.id, status: "delivered_and_uploaded", internal: false, deliverable: { is: null } },
+    where: { projectId: project.id, status: "delivered_and_uploaded", internal: false, deliverable: { is: null }, ...(project.assets.length ? { id: { in: [] } } : {}) },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
