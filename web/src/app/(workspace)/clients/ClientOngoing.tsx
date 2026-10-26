@@ -13,10 +13,11 @@ import { WorkTaskRow, type ClientWorkTask } from "./ClientWorkTasks";
 // wrong cut: from a client's page the question is "what is happening for
 // this client", and which internal board a job happens to live on isn't part
 // of the answer. Each row carries its own stage, so the two still read
-// correctly side by side. Only what's being worked on right now (Abhishek,
-// 27 Oct 2026): a video or design an editor is editing, or has back for a
-// revision, and the team's to-dos in progress. Queued, sent for approval
-// or further along, it's on the Task board tab.
+// correctly side by side. Only work under way (Abhishek, 27 Oct 2026): being
+// edited (or back for a revision), with us for approval, or with the client
+// for theirs, and anything the team has in progress for the client. Queued
+// or past the client, it's on the Task board tab.
+const UNDER_WAY = new Set(["editing", "revision_requested", "sent_for_approval", "sent_for_client_approval"]);
 
 export function ClientOngoing({
   tasks,
@@ -37,7 +38,7 @@ export function ClientOngoing({
   actingRole: Role;
   taskTags?: TaskTagOption[];
 }) {
-  tasks = tasks.filter((t) => t.status === "editing" || t.status === "revision_requested");
+  tasks = tasks.filter((t) => UNDER_WAY.has(t.status));
   workTasks = workTasks.filter((t) => t.status === "in_progress");
   if (tasks.length === 0 && workTasks.length === 0) {
     return (
