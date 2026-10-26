@@ -517,7 +517,7 @@ export async function deleteTask(taskId: string): Promise<{ error?: string }> {
   if (!(await prisma.task.count({ where: { AND: [{ id: taskId }, assigneeWhere(actor)] } }))) return { error: "You can't delete this task." };
   await deleteForGood({ kind: "task", id: taskId });
   revalidatePath("/board");
-  revalidatePath("/history");
+  revalidatePath("/team-work");
   return {};
 }
 
@@ -530,7 +530,7 @@ export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number
   const ids = (await prisma.task.findMany({ where: { AND: [{ id: { in: taskIds.filter(Boolean) } }, assigneeWhere(actor)] }, select: { id: true } })).map((t) => t.id);
   for (const id of ids) await deleteForGood({ kind: "task", id });
   revalidatePath("/board");
-  revalidatePath("/history");
+  revalidatePath("/team-work");
   return { deleted: ids.length };
 }
 
@@ -546,7 +546,7 @@ export async function deleteTaskPermanently(taskId: string, kind: "client" | "in
   const user = await getViewer();
   if (!user || !isAbhishekOrAdmin(user)) return { error: "Only Level 1 can delete a finished task." };
   await deleteForGood({ kind: kind === "internal" ? "work" : "task", id: taskId });
-  revalidatePath("/history");
+  revalidatePath("/team-work");
   revalidatePath("/team");
   return {};
 }

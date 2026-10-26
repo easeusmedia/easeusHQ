@@ -11,6 +11,8 @@
 // per-person numbers) is arithmetic that can be tested on its own.
 
 import { handoffUnknown } from "./due.ts";
+import { ACTIVE_STATUSES, type TaskStatus } from "./workflow.ts";
+import { parseStageChange } from "./stages.ts";
 
 export type HistoryItem = {
   id: string;
@@ -189,4 +191,92 @@ export function totals(items: HistoryItem[]) {
     revisionsPerTask: items.length ? round1(items.reduce((s, i) => s + i.revisions, 0) / items.length) : 0,
     onTimePct: rated.length ? Math.round((rated.filter(Boolean).length / rated.length) * 100) : null,
   };
+}
+
+// ---------- Team work (team-work/) ----------
+//
+// Everyone's work in one place, a person at a time: what they're on now and
+// everything they've finished, a window's worth at a time.
+
+// What someone is working on now, as Home counts it (home/page.tsx onHome):
+// a Level 3 only what's with them, Editing or back for a revision (Abhishek,
+// 24 Oct 2026); anyone else all their open client work but Final export
+// ready, which is their part done (23 Oct 2026)
+export function currentStatuses(member: boolean): TaskStatus[] {
+  return member ? ["editing", "revision_requested"] : ACTIVE_STATUSES.filter((s) => s !== "final_export_ready");
+}
+
+// What a Level 3 in Production is on right now (Abhishek, 26 Oct 2026):
+// work still with them (a video queued, being edited or back for a revision;
+// a to-do not done or waiting on someone) that is set for today, or already
+// late. Anything set for a later day waits, whatever its stage; anything sent
+// for approval, to the client or past them is the board's, not their list's.
+// Work with no date shows only while they're actually on it (Editing, back
+// for a revision, a to-do in progress).
+export function inHand(item: { kind: "task" | "work"; status: string; due: string | null }, today: string): boolean {
+  const withThem = item.kind === "task" ? ["queued", "editing", "revision_requested"].includes(item.status) : item.status === "todo" || item.status === "in_progress";
+  if (!withThem) return false;
+  if (item.due) return item.due <= today;
+  return item.kind === "task" ? item.status !== "queued" : item.status === "in_progress";
+}
+
+// When the work began: its first move into Editing, else its first move into
+// any other stage, else when it was made. A move into Delivered is the end,
+// never the start: a to-do ticked done, or a task sent straight to Delivered,
+// began when it was made
+export function startOf(trail: { action: string; at: Date }[], createdAt: Date): Date {
+  const moves = trail.flatMap((t) => {
+    const to = parseStageChange(t.action)?.to;
+    return to && to !== "delivered_and_uploaded" ? [{ to, at: t.at }] : [];
+  });
+  return (moves.find((m) => m.to === "editing") ?? moves[0])?.at ?? createdAt;
+}
+
+// How long something took: "3 days", or "5 h" under a day
+export function spanLabel(ms: number): string {
+  const hours = Math.max(0, ms) / HOUR;
+  if (hours < 1) return "Under 1 h";
+  if (Math.round(hours) < 24) return `${Math.round(hours)} h`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+// One finished task, as the list of someone's finished work is paged
+export type Done = { kind: "task" | "work"; id: string; at: Date };
+
+// A page of someone's finished work, newest first, finished within a range
+// of days in India (yyyy-mm-dd, either end open), and how many the range holds
+export function pageOfDone(done: Done[], { from, to, offset, limit }: { from?: string; to?: string; offset: number; limit: number }) {
+  const shown = done
+    .filter((d) => {
+      const day = istDay(d.at);
+      return (!from || day >= from) && (!to || day <= to);
+    })
+    .sort((a, b) => b.at.getTime() - a.at.getTime() || a.id.localeCompare(b.id));
+  return { total: shown.length, page: shown.slice(offset, offset + limit) };
+}
+
+// A window's worth of rows: as many as fit in the space a list has on
+// screen, and never fewer than ten (Abhishek, 26 Oct 2026)
+export function windowful(spacePx: number, rowPx: number): number {
+  return Math.max(10, Math.ceil(Math.max(0, spacePx) / rowPx));
+}
+
+// The stages a client task went through, oldest first: when it reached each,
+// who moved it there (Notion for a sync's move, nobody where it started) and
+// how long it stayed. The stage it's in now runs on to `now`; delivered is
+// the end, with no time of its own.
+export type Phase = { stage: string; at: Date; by: string | null; ms: number | null };
+export function stagePhases(trail: { action: string; at: Date; by: string }[], createdAt: Date, status: string, now: Date): Phase[] {
+  const moves = trail.flatMap((t) => {
+    const change = parseStageChange(t.action);
+    return change ? [{ from: change.from, stage: change.to, at: t.at, by: change.fromNotion ? "Notion" : t.by }] : [];
+  });
+  // an import can carry moves from before it was made here: it began at the first of them
+  const began = moves[0] && moves[0].at < createdAt ? moves[0].at : createdAt;
+  const steps = [{ stage: moves[0]?.from ?? status, at: began, by: null as string | null }, ...moves.map(({ stage, at, by }) => ({ stage, at, by }))];
+  return steps.map((s, i) => ({
+    ...s,
+    ms: i + 1 < steps.length ? steps[i + 1].at.getTime() - s.at.getTime() : s.stage === "delivered_and_uploaded" ? null : now.getTime() - s.at.getTime(),
+  }));
 }

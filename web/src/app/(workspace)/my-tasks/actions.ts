@@ -324,6 +324,6 @@ export async function deleteWorkTask(taskId: string): Promise<WorkTaskFormState>
   }
   await deleteForGood({ kind: "work", id: taskId });
   revalidatePath("/my-tasks");
-  revalidatePath("/history");
+  revalidatePath("/team-work");
   return { success: true };
 }

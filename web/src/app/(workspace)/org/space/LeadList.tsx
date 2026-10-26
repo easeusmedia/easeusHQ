@@ -1,26 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { dayOf, isFilled, leadContacts, type BoardData, type FieldData, type LeadData } from "@/lib/space";
 import { Dropdown } from "../../Dropdown";
 import { StagePill, TagPill } from "./pills";
 import { EmailStatus } from "./LeadCard";
+import { ShowMore } from "./LeadBoard";
+import { PAGE, pageByGroup, usePaging } from "./paging";
 
-const PER_PAGE = 60;
 const BAR = "flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
 
 // The leads as the Dream 300 sequence pages list them (Abhishek, 17 Oct
 // 2026): tabs along the top by the board's first tag on the card (YouTube:
 // its opener, Instagram: its version), each with its count, and a filter by
 // the stage it's on; then a row per lead: its name and people, its numbers,
-// and its stage, tags and email as chips. A row opens the lead.
-export function LeadList({ board, leads, filtered, onOpen }: { board: BoardData; leads: LeadData[]; filtered: boolean; onOpen: (id: string) => void }) {
+// and its stage, tags and email as chips. A row opens the lead. Each stage
+// shows ten rows at a time, ten more on each Show more.
+export function LeadList({ board, leads, filtered, filterKey, onOpen }: { board: BoardData; leads: LeadData[]; filtered: boolean; filterKey: string; onOpen: (id: string) => void }) {
   // the tabs: the first tag shown on the card, else none
   const group = board.fields.find((f) => f.onCard && f.kind === "select" && f.options.length);
   const [tab, setTab] = useState<string>("all");
   const [stageId, setStageId] = useState("");
-  const [shown, setShown] = useState(PER_PAGE);
+  // back to the first 10 with each new search, filter, tab or stage
+  const paging = usePaging(JSON.stringify([filterKey, tab, stageId]));
   const contactsField = board.fields.find((f) => f.kind === "contacts");
   // the numbers on a row: the card's other properties that aren't tags
   const facts = board.fields.filter((f) => f.onCard && f.kind !== "select" && f.kind !== "multi" && f.kind !== "contacts");
@@ -43,10 +46,7 @@ export function LeadList({ board, leads, filtered, onOpen }: { board: BoardData;
                 type="button"
                 role="tab"
                 aria-selected={tab === o.id}
-                onClick={() => {
-                  setTab(o.id);
-                  setShown(PER_PAGE);
-                }}
+                onClick={() => setTab(o.id)}
                 className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
               >
                 {o.name}
@@ -58,10 +58,7 @@ export function LeadList({ board, leads, filtered, onOpen }: { board: BoardData;
         <Dropdown
           size="sm"
           value={stageId}
-          onChange={(v) => {
-            setStageId(v);
-            setShown(PER_PAGE);
-          }}
+          onChange={setStageId}
           options={[{ value: "", label: "Any stage" }, ...board.stages.map((s) => ({ value: s.id, label: s.name }))]}
         />
       </div>
@@ -70,14 +67,14 @@ export function LeadList({ board, leads, filtered, onOpen }: { board: BoardData;
         <p className="rounded-2xl border border-dashed border-border px-5 py-12 text-center text-sm text-muted">{filtered || tab !== "all" || stageId ? "No leads match these filters." : "No leads yet."}</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {rows.slice(0, shown).map((l) => (
-            <Row key={l.id} lead={l} board={board} contactsField={contactsField} facts={facts} tags={tags} group={group} onOpen={onOpen} />
+          {pageByGroup(rows, (l) => l.stageId, paging.limit).map(({ group: stage, shown, more }) => (
+            <Fragment key={stage}>
+              {shown.map((l, n) => (
+                <Row key={l.id} lead={l} board={board} contactsField={contactsField} facts={facts} tags={tags} group={group} enter={n >= PAGE} onOpen={onOpen} />
+              ))}
+              {more && <ShowMore onMore={() => paging.more(stage)} />}
+            </Fragment>
           ))}
-          {rows.length > shown && (
-            <button type="button" onClick={() => setShown((n) => n + PER_PAGE)} className="btn btn-sm btn-glow mx-auto mt-1">
-              Show {Math.min(PER_PAGE, rows.length - shown)} more of {rows.length - shown}
-            </button>
-          )}
         </div>
       )}
     </div>
@@ -91,6 +88,7 @@ function Row({
   facts,
   tags,
   group,
+  enter,
   onOpen,
 }: {
   lead: LeadData;
@@ -99,6 +97,8 @@ function Row({
   facts: FieldData[];
   tags: FieldData[];
   group: FieldData | undefined;
+  // shown by a Show more: it eases in
+  enter: boolean;
   onOpen: (id: string) => void;
 }) {
   const stage = board.stages.find((s) => s.id === lead.stageId);
@@ -111,7 +111,7 @@ function Row({
     <button
       type="button"
       onClick={() => onOpen(lead.id)}
-      className="group card-surface card-interactive flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3 text-left"
+      className={`group card-surface card-interactive flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3 text-left ${enter ? "fade-in" : ""}`}
     >
       <span className="min-w-0 flex-[1_1_16rem]">
         <span className="block truncate text-sm font-medium">{lead.title}</span>

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer } from "@/lib/scope";
+import { assigneeWhere, effectiveRole, visibleTagWhere, type Viewer } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import type { Role } from "@/lib/workflow";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
@@ -12,7 +12,9 @@ import { ACTIVE_STATUSES } from "@/lib/workflow";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
 import { addDays, mondayOf, spanOf, stretchOpen } from "@/lib/timeline";
-import { CalendarGrid, type DayEntry } from "./CalendarGrid";
+import { CalendarGrid } from "./CalendarGrid";
+import { meetingsBetween } from "./day";
+import { isDay } from "@/lib/dayActivity";
 import { CalendarTimeline, type TimelineTask } from "./CalendarTimeline";
 
 export const dynamic = "force-dynamic";
@@ -24,107 +26,61 @@ function dateKey(d: Date) {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; view?: string; week?: string }>;
+  searchParams: Promise<{ month?: string; view?: string; week?: string; day?: string }>;
 }) {
   const sessionUserId = await getSessionUserId();
   if (!sessionUserId) redirect("/login");
 
-  const { month: monthParam, view, week } = await searchParams;
+  const { month: monthParam, view, week, day: dayParam } = await searchParams;
   if (view === "timeline") return <TimelinePage sessionUserId={sessionUserId} week={week} />;
-  const now = new Date();
-  const parsed = monthParam?.match(/^(\d{4})-(\d{1,2})$/);
+  const today = indiaDay(new Date());
+  // ?day= opens that day (linkable); without ?month= the grid shows its month
+  const openDay = isDay(dayParam) ? dayParam : null;
+  const parsed = (monthParam ?? openDay?.slice(0, 7))?.match(/^(\d{4})-(\d{1,2})$/);
   const [year, month] =
     parsed && Number(parsed[2]) >= 1 && Number(parsed[2]) <= 12
       ? [Number(parsed[1]), Number(parsed[2])]
-      : [now.getUTCFullYear(), now.getUTCMonth() + 1]; // malformed/garbage ?month= falls back to the current month
+      : [Number(today.slice(0, 4)), Number(today.slice(5, 7))]; // malformed/garbage ?month= falls back to the current month
   const monthIndex = month - 1; // 0-indexed for Date.UTC
-
+  const toParam = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   const monthStart = new Date(Date.UTC(year, monthIndex, 1));
-  const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 1)); // exclusive
-  // don't project counts onto days that haven't happened yet
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const rangeEnd = monthEnd < today ? monthEnd : new Date(today.getTime() + 86400000);
+  const prev = new Date(Date.UTC(year, monthIndex - 1, 1));
+  const next = new Date(Date.UTC(year, monthIndex + 1, 1));
+  // the whole visible grid: up to a week either side of the month
+  const gridFrom = new Date(`${addDays(`${toParam(monthStart)}-01`, -7)}T00:00:00+05:30`);
+  const gridTo = new Date(`${addDays(`${toParam(next)}-01`, 7)}T00:00:00+05:30`);
 
-  // users + tasks run together instead of waiting on the role check first
-  // (a wasted task query for the rare employee who lands here directly is
-  // cheaper than a second sequential round trip for every real visit)
   const viewer = await getViewer();
   if (!viewer || viewer.role === "employee") redirect("/board"); // Founders and Leads only — a management view
-  const [users, tasks, projects, allTags] = await Promise.all([
+  // The month is a calm grid now, no task counts in it (Abhishek, 26 Oct
+  // 2026): a day's work is read when it's opened (actions.ts openDay). The
+  // page itself only needs the days with meetings, for their dots, and what
+  // a task's window needs when one is opened from a day.
+  const [users, projects, allTags, meetings] = await Promise.all([
     getAllUsers(),
-    // A task counts on a given day if it was actually sitting in the
-    // dashboard that day: created on or before that day, and not yet
-    // delivered — the moment a task is marked delivered it drops off the
-    // live board, so it stops counting from that day on (see page.tsx's
-    // ACTIVE_STATUSES cutoff for the live-board equivalent of this rule).
-    prisma.task.findMany({
-      where: { AND: [{ project: { client: { status: "current" } }, createdAt: { lt: rangeEnd }, ...ON_STAFF }, assigneeWhere(viewer)] },
-      include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
-    }),
-    // for a task's own window: the projects it can move to, the tags on offer
     prisma.project.findMany({
       where: { client: { status: "current" } },
       include: { client: { select: { id: true, name: true } } },
       orderBy: [{ client: { name: "asc" } }, { createdAt: "desc" }],
     }),
     prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { team: { select: { name: true } } } }),
+    meetingsBetween(gridFrom, gridTo),
   ]);
   const me = users.find((u) => u.id === sessionUserId);
   if (!me) redirect("/board");
-  const env = envFor(viewer, users, projects, allTags);
-
-  // what goes live on the clients' channels, each day: Client success's to see
-  const postings: Record<string, DayEntry[]> = {};
-  if (runsClients(viewer)) {
-    for (const t of tasks) {
-      if (!t.postDate || t.postDate < monthStart || t.postDate >= monthEnd) continue;
-      (postings[dateKey(t.postDate)] ??= []).push({
-        taskId: t.id,
-        title: t.title,
-        clientName: t.project.client.name,
-        status: t.status,
-        actorName: t.assignedTo?.name ?? "Unassigned",
-      });
-    }
-  }
-
-  const delivered = await deliveredDays(tasks);
-  const days: Record<string, DayEntry[]> = {};
-  for (let d = new Date(monthStart); d < rangeEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-    const key = dateKey(d);
-    for (const task of tasks) {
-      if (dateKey(task.createdAt) > key) continue; // not created yet as of this day
-      const gone = delivered.get(task.id);
-      if (gone && gone <= key) continue; // already delivered by this day
-      (days[key] ??= []).push({
-        taskId: task.id,
-        title: task.title,
-        clientName: task.project.client.name,
-        status: task.status,
-        actorName: task.assignedTo?.name ?? "Unassigned",
-      });
-    }
-  }
+  const meetingDays = [...new Set((meetings ?? []).map((m) => indiaDay(m.start)))];
 
   const monthLabel = monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-  const prev = new Date(Date.UTC(year, monthIndex - 1, 1));
-  const next = new Date(Date.UTC(year, monthIndex + 1, 1));
-  const toParam = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  const todayParam = toParam(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+  const todayParam = today.slice(0, 7);
   const onThisMonth = toParam(monthStart) === todayParam;
   const arrow = "flex size-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground";
 
   return (
     <>
       <ViewSwitch view="month" />
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{monthLabel}</h1>
-          <p className="mt-1 text-sm text-muted">
-            The open tasks the team carried each day. A task counts until the day it&apos;s delivered to the client.
-          </p>
-        </div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">{monthLabel}</h1>
         <div className="flex items-center gap-1">
           {!onThisMonth && (
             <Link href={`/calendar?month=${todayParam}`} className="btn btn-sm btn-ghost mr-1">
@@ -140,7 +96,15 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      <CalendarGrid year={year} month={monthIndex} days={days} postings={postings} tasks={tasks} env={env} />
+      <CalendarGrid
+        key={toParam(monthStart)}
+        year={year}
+        month={monthIndex}
+        today={today}
+        meetingDays={meetingDays}
+        openDay={openDay}
+        env={envFor(viewer, users, projects, allTags)}
+      />
     </>
   );
 }

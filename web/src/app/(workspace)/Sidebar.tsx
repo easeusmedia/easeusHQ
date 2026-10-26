@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname } from "next/navigation";
 import { createElement, useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, History, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
+import { CloudFog, Eye, House, Network, BriefcaseBusiness, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
 import { markOf } from "./org/marks";
 import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./TaskCard";
@@ -38,7 +38,8 @@ const MAIN = [
   { href: "/org", label: "Organization", hint: "Departments and their boards", Icon: Network },
   // your own tasks only — the whole team's work is on the Board
   { href: "/my-tasks", label: "My tasks", hint: "Everything assigned to you", Icon: ListChecks },
-  { href: "/history", label: "History", hint: "Completed work, all in one place", Icon: History },
+  // everyone's current and finished work, a person at a time (History until 26 Oct 2026)
+  { href: "/team-work", label: "Team work", hint: "Everyone's current and past work", Icon: BriefcaseBusiness },
   // the team's own chat — a real page now, not the avatar stack that used
   // to float over the bottom-right corner of every other page
   { href: "/chat", label: "Chat", hint: "Message your teammates", Icon: MessagesSquare },
@@ -336,8 +337,8 @@ export function Sidebar({
     },
   };
 
-  // History is Level 1's; Organization only with a department to open; Clients not for Sales alone
-  const main = MAIN.filter((i) => (departments.length > 0 || i.href !== "/org") && (isFounder || i.href !== "/history") && (showClients || i.href !== "/clients"));
+  // Team work is Level 1's; Organization only with a department to open; Clients not for Sales alone
+  const main = MAIN.filter((i) => (departments.length > 0 || i.href !== "/org") && (isFounder || i.href !== "/team-work") && (showClients || i.href !== "/clients"));
   const groups = [
     // an editor sees their own numbers, read-only (the page takes them there)
     {

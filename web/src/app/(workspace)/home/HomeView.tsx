@@ -215,8 +215,9 @@ function dueText(due: string | null, today: string): { text: string; pill: strin
     const n = daysBetween(due, today);
     return { text: `${n} ${n === 1 ? "day" : "days"} late`, pill: "bg-rose-400/15 text-rose-300" };
   }
-  // the accent, as on the Board: yellow pulled the eye from everything else
-  if (due === today) return { text: "Due today", pill: "bg-accent/15 text-accent" };
+  // white, brighter than a later date and ringed (Abhishek, 26 Oct 2026):
+  // yellow pulled the eye from everything else, blue read like the rest
+  if (due === today) return { text: "Due today", pill: "bg-white/[0.12] text-foreground ring-1 ring-white/[0.2]" };
   return { text: `Due ${shortDay(due)}`, pill: "bg-white/[0.07] text-foreground/70" };
 }
 

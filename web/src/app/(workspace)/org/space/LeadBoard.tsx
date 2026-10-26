@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowLeftToLine, ArrowRight, ArrowRightToLine, ChevronDown, Eye, Plus, Trash2 } from "lucide-react";
 import { dayOf, moveNeedsReason, phaseKey, SECTIONS, stageSections, toneOf, type BoardData, type LeadData, type MarkChange, type Section, type StageData, tracksOutreach } from "@/lib/space";
@@ -12,6 +13,7 @@ import { LeadCard } from "./LeadCard";
 import { ImportLeads } from "./ImportLeads";
 import { Warning } from "./Warning";
 import { NewLead } from "./NewLead";
+import { PAGE, usePaging } from "./paging";
 import { EditableName } from "../../EditableName";
 import { MENU_ITEM, MoreMenu } from "../../MoreMenu";
 import { Reveal } from "../../Reveal";
@@ -19,9 +21,31 @@ import { scrollPageNearEdge } from "../../StickyColumns";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 const COLUMN = "w-[15rem] shrink-0";
-// a column shows this many cards, the rest on Show more
-const PER_COLUMN = 10;
 const QUIET_ROW = "flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-foreground/[0.05] hover:text-foreground";
+
+// A group's Show more: the next 10 ease in under the last, so the page stays
+// where it is. The last one takes the button away, so focus moves on to the
+// first lead it brought in rather than dropping to the top of the page.
+export function ShowMore({ onMore }: { onMore: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        const button = e.currentTarget;
+        // what the new leads come in after (in the table, the row before the button's own)
+        const before = (button.closest("tr") ?? button).previousElementSibling;
+        flushSync(onMore);
+        if (button.isConnected) return;
+        const first = before?.nextElementSibling;
+        const focusable = "button, [tabindex]";
+        (first?.matches(focusable) ? (first as HTMLElement) : first?.querySelector<HTMLElement>(focusable))?.focus();
+      }}
+      className={`${QUIET_ROW} justify-center`}
+    >
+      <ChevronDown size={14} /> Show more
+    </button>
+  );
+}
 
 const without = <T,>(map: Record<string, T>, id: string) => Object.fromEntries(Object.entries(map).filter(([k]) => k !== id));
 
@@ -109,11 +133,12 @@ const fresh = (board: BoardData): Local => ({ for: board, moved: {}, order: null
 // free; anything else asks why), each column adds a lead at its foot, and
 // stages are (for builders: lib/scope setsUp) renamed, recoloured, added, moved and
 // deleted from their headers. A board with a day sequence is a row per
-// section (In process, Replied), each folded by its name. A column shows 10 cards, the rest on Show more.
+// section (In process, Replied), each folded by its name. A column shows 10 cards, and 10 more on each Show more.
 export function LeadBoard({
   board,
   leads,
   canBuild,
+  filterKey,
   hideEmpty,
   onShowEmpty,
   onOpen,
@@ -122,6 +147,8 @@ export function LeadBoard({
   board: BoardData;
   // the board's leads after the search and filters
   leads: LeadData[];
+  // changes with the search and filters, taking each column back to its first 10
+  filterKey: string;
   canBuild: boolean;
   hideEmpty: boolean;
   onShowEmpty: () => void;
@@ -150,10 +177,10 @@ export function LeadBoard({
   const [error, setError] = useState<string | null>(null);
   const [newStageAt, setNewStageAt] = useState<number | null>(null);
   // held after closing too, so the dialogs keep their words while they fade
-  const [asking, setAsking] = useState<{ open: boolean; lead: LeadData; from: StageData; to: StageData; sortOrder: number } | null>(null);
+  const [asking, setAsking] = useState<{ open: boolean; lead: LeadData; from: StageData; to: StageData; sortOrder: number; at: number } | null>(null);
   const [removing, setRemoving] = useState<{ open: boolean; stage: StageData } | null>(null);
-  // the columns showing all their cards, and the sections folded away
-  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
+  // how many cards each column shows, and the sections folded away
+  const paging = usePaging(filterKey);
   const [folded, setFolded] = useState<Set<Section>>(() => new Set());
   const flip = <T,>(set: Set<T>, key: T) => {
     const next = new Set(set);
@@ -183,7 +210,10 @@ export function LeadBoard({
     setOver(null);
   };
 
-  async function move(id: string, stageId: string, sortOrder: number, reason?: string) {
+  // `at` is its place in the new column, which grows by one when that's
+  // past its last card showing, to keep the lead in view
+  async function move(id: string, stageId: string, sortOrder: number, at: number, reason?: string) {
+    paging.atLeast(stageId, at + 1);
     update((l) => ({ moved: { ...l.moved, [id]: { stageId, sortOrder } } }));
     const res = await moveLead(id, stageId, sortOrder, reason).catch(() => ({ error: OFFLINE, needsReason: false }));
     if (res.error) update((l) => ({ moved: without(l.moved, id) }));
@@ -216,10 +246,10 @@ export function LeadBoard({
       return;
     }
     const from = stages.find((s) => s.id === lead.stageId);
-    if (from && moveNeedsReason(order, lead.stageId, stage.id)) return setAsking({ open: true, lead, from, to: stage, sortOrder });
-    move(id, stage.id, sortOrder).then((res) => {
+    if (from && moveNeedsReason(order, lead.stageId, stage.id)) return setAsking({ open: true, lead, from, to: stage, sortOrder, at: index });
+    move(id, stage.id, sortOrder, index).then((res) => {
       // the stages changed under us and this now skips one: ask after all
-      if (res.needsReason && from) setAsking({ open: true, lead, from, to: stage, sortOrder });
+      if (res.needsReason && from) setAsking({ open: true, lead, from, to: stage, sortOrder, at: index });
       else if (res.error) setError(res.error);
     });
   }
@@ -402,9 +432,7 @@ export function LeadBoard({
   // A stage's cards: drop a card in, drag one out; the first stage adds leads.
   // While a card is dragged, only a slot of its size shows where it will land.
   function body(stage: StageData, i: number, col: LeadData[], short: boolean) {
-    const all = unfolded.has(stage.id);
-    const list = all ? col : col.slice(0, PER_COLUMN);
-    const more = col.length - PER_COLUMN;
+    const list = col.slice(0, paging.limit(stage.id));
     const isOver = !!drag && over?.stageId === stage.id;
     const rest = list.filter((l) => l.id !== drag);
     // the slot, unless dropping there would leave the card where it is
@@ -443,18 +471,14 @@ export function LeadBoard({
               // always fires, wherever the drop lands (or Escape), so a
               // card is never left faded
               onDragEnd={endDrag}
-              className={drag === lead.id ? "opacity-35" : n >= PER_COLUMN ? "fade-in" : ""}
+              className={drag === lead.id ? "opacity-35" : n >= PAGE ? "fade-in" : ""}
             >
               <LeadCard lead={lead} board={board} onOpen={onOpen} tracks={tracksOutreach(board.stages, lead)} day={dayOfLead(lead)} onTrack={onTrack} />
             </div>
           </Fragment>
         ))}
         {slotAt >= 0 && slotAt >= rest.length && slot}
-        {more > 0 && (
-          <button type="button" onClick={() => setUnfolded((u) => flip(u, stage.id))} className="btn btn-sm btn-glow w-full">
-            {all ? "Show less" : `Show ${more} more`}
-          </button>
-        )}
+        {col.length > list.length && <ShowMore onMore={() => paging.more(stage.id)} />}
       </section>
     );
   }
@@ -583,7 +607,7 @@ export function LeadBoard({
         onCancel={() => setAsking((a) => a && { ...a, open: false })}
         onConfirm={async (reason) => {
           if (!asking) return;
-          const res = await move(asking.lead.id, asking.to.id, asking.sortOrder, reason);
+          const res = await move(asking.lead.id, asking.to.id, asking.sortOrder, asking.at, reason);
           if (res.error) return res.error;
           setAsking((a) => a && { ...a, open: false });
         }}

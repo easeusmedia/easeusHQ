@@ -566,7 +566,7 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
 
   revalidatePath("/clients");
   revalidatePath("/board");
-  revalidatePath("/history");
+  revalidatePath("/team-work");
   return {};
 }
 
@@ -1121,7 +1121,7 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
 
   revalidatePath("/clients/[slug]", "page");
   revalidatePath("/board"); // its tasks were on it
-  revalidatePath("/history");
+  revalidatePath("/team-work");
   return {};
 }
 

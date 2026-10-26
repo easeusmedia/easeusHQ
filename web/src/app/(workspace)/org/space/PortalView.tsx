@@ -178,6 +178,8 @@ export function PortalView({
   for (const { g, v } of picked) (on[g.field] ??= []).push(v.key);
   const toggle = (field: string, key: string) => setPicks((p) => ({ ...p, [field]: p[field]?.includes(key) ? p[field].filter((k) => k !== key) : [...(p[field] ?? []), key] }));
   const shown = leads.filter((l) => passesFacets(l.values, on, groups) && (!q || searchText(l, contactFields).includes(q)));
+  // the views show 10 leads at a time; a new search, filter or board starts them at 10 again
+  const filterKey = JSON.stringify([board.id, q, on]);
   // reaching out, in numbers: every lead on the board, whatever is filtered
   // or searched, on one platform or all
   const stats = outreachStart(board.stages) >= 0 ? outreachStats(leads, prefs.platform === "all" ? null : prefs.platform) : null;
@@ -374,11 +376,11 @@ export function PortalView({
       {/* keyed by view so a switch eases in; dimmed while another board loads */}
       <div key={prefs.view} className={`fade-in min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {prefs.view === "board" ? (
-          <LeadBoard board={board} leads={shown} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} onTrack={track} />
+          <LeadBoard board={board} leads={shown} filterKey={filterKey} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} onTrack={track} />
         ) : prefs.view === "list" ? (
-          <LeadList board={board} leads={shown} filtered={filtered} onOpen={open} />
+          <LeadList board={board} leads={shown} filtered={filtered} filterKey={filterKey} onOpen={open} />
         ) : (
-          <LeadTable board={board} leads={shown} filtered={filtered} onOpen={open} />
+          <LeadTable board={board} leads={shown} filtered={filtered} filterKey={filterKey} onOpen={open} />
         )}
       </div>
 

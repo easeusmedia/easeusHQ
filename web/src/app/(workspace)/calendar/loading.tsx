@@ -5,12 +5,11 @@ export default function Loading() {
   return (
     <SkeletonPage className="flex flex-col gap-5">
       <SkeletonChips n={2} />
-      <SkeletonTitle sub />
-      <div className="panel grid grid-cols-7 gap-px overflow-hidden rounded-2xl p-2">
+      <SkeletonTitle />
+      <div className="panel grid grid-cols-7 gap-px overflow-hidden rounded-3xl p-2">
         {Array.from({ length: 35 }, (_, i) => (
-          <div key={i} className="flex h-24 flex-col gap-2 rounded-lg p-2">
-            <Bone className="h-3 w-5" />
-            {i % 4 === 1 && <Bone className="h-4 w-4/5 rounded-full" />}
+          <div key={i} className="flex h-16 flex-col gap-2 rounded-lg p-2 sm:h-24">
+            <Bone className="size-6 rounded-full" />
           </div>
         ))}
       </div>

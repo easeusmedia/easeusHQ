@@ -7,6 +7,7 @@ test("a nav item is lit on its own page and its sub-pages", () => {
   assert.equal(isActive("/clients", "/clients"), true);
   assert.equal(isActive("/clients", "/clients/client-elle-sera"), true);
   assert.equal(isActive("/my-tasks", "/my-tasks"), true);
+  assert.equal(isActive("/team-work", "/team-work"), true);
 });
 
 test("Clients stays lit on a project, which is reached from a client", () => {
@@ -19,7 +20,7 @@ test("a sibling route whose name merely starts the same does not count", () => {
 });
 
 test("items don't light up for each other", () => {
-  assert.equal(isActive("/history", "/clients"), false);
+  assert.equal(isActive("/team-work", "/clients"), false);
   assert.equal(isActive("/clients", "/calendar"), false);
   assert.equal(isActive("/board", "/my-tasks"), false);
 });

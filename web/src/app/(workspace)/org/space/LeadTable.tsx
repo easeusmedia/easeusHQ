@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { CalendarPlus, CircleDot, UserRound } from "lucide-react";
 import type { BoardData, LeadData } from "@/lib/space";
 import { Avatar, formatDate } from "../../TaskCard";
@@ -19,6 +20,8 @@ const FIELD_ICONS: Record<FieldKind, LucideIcon> = {
 };
 import { StagePill } from "./pills";
 import { ValueView } from "./values";
+import { ShowMore } from "./LeadBoard";
+import { PAGE, pageByGroup, usePaging } from "./paging";
 
 const HEAD = "px-3 py-2.5 text-left text-xs font-medium whitespace-nowrap text-muted";
 const CELL = "px-3 py-2 align-middle whitespace-nowrap";
@@ -27,8 +30,11 @@ const CELL = "px-3 py-2 align-middle whitespace-nowrap";
 const FROZEN = "mist-pin sticky left-0 z-10 bg-surface shadow-[1px_0_0_var(--border)]";
 
 // The same leads as a Notion table: one row each, a column per property.
-// Wide boards scroll sideways while the name stays put.
-export function LeadTable({ board, leads, filtered, onOpen }: { board: BoardData; leads: LeadData[]; filtered: boolean; onOpen: (id: string) => void }) {
+// Wide boards scroll sideways while the name stays put. Each stage shows ten
+// rows at a time, ten more on each Show more (back to 10 with a new search
+// or filter).
+export function LeadTable({ board, leads, filtered, filterKey, onOpen }: { board: BoardData; leads: LeadData[]; filtered: boolean; filterKey: string; onOpen: (id: string) => void }) {
+  const paging = usePaging(filterKey);
   const stageAt = new Map(board.stages.map((s, i) => [s.id, i]));
   const rows = [...leads].sort((a, b) => (stageAt.get(a.stageId) ?? 0) - (stageAt.get(b.stageId) ?? 0) || a.sortOrder - b.sortOrder);
 
@@ -41,7 +47,8 @@ export function LeadTable({ board, leads, filtered, onOpen }: { board: BoardData
   }
 
   return (
-    <div className="fade-in overflow-x-auto rounded-2xl border border-border bg-surface">
+    // isolate: rows easing in can't paint past the rounded corners in Safari
+    <div className="fade-in isolate overflow-x-auto rounded-2xl border border-border bg-surface">
       <table className="w-max min-w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -74,44 +81,58 @@ export function LeadTable({ board, leads, filtered, onOpen }: { board: BoardData
           </tr>
         </thead>
         <tbody>
-          {rows.map((lead) => {
-            const stage = board.stages.find((s) => s.id === lead.stageId);
-            return (
-              <tr
-                key={lead.id}
-                onClick={() => onOpen(lead.id)}
-                className="group cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-surface-2"
-              >
-                <td className={`${CELL} ${FROZEN} group-hover:bg-[linear-gradient(var(--surface-2),var(--surface-2))]`}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpen(lead.id);
-                    }}
-                    className="block max-w-80 truncate rounded text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          {pageByGroup(rows, (l) => l.stageId, paging.limit).map(({ group, shown, more }) => (
+            <Fragment key={group}>
+              {shown.map((lead, n) => {
+                const stage = board.stages.find((s) => s.id === lead.stageId);
+                return (
+                  <tr
+                    key={lead.id}
+                    onClick={() => onOpen(lead.id)}
+                    className={`group cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-surface-2 ${n >= PAGE ? "fade-in" : ""}`}
                   >
-                    {lead.title}
-                  </button>
-                </td>
-                <td className={CELL}>{stage && <StagePill name={stage.name} color={stage.color} />}</td>
-                <td className={CELL}>
-                  <span className="flex items-center gap-2 text-xs">
-                    <Avatar name={lead.createdBy.name} size={18} />
-                    {lead.createdBy.name}
-                  </span>
-                </td>
-                {board.fields.map((f) => (
-                  <td key={f.id} className={CELL}>
-                    <div className="flex max-w-64 min-w-0 items-center gap-1 overflow-hidden">
-                      <ValueView field={f} value={lead.values[f.id]} compact />
+                    <td className={`${CELL} ${FROZEN} group-hover:bg-[linear-gradient(var(--surface-2),var(--surface-2))]`}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpen(lead.id);
+                        }}
+                        className="block max-w-80 truncate rounded text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                      >
+                        {lead.title}
+                      </button>
+                    </td>
+                    <td className={CELL}>{stage && <StagePill name={stage.name} color={stage.color} />}</td>
+                    <td className={CELL}>
+                      <span className="flex items-center gap-2 text-xs">
+                        <Avatar name={lead.createdBy.name} size={18} />
+                        {lead.createdBy.name}
+                      </span>
+                    </td>
+                    {board.fields.map((f) => (
+                      <td key={f.id} className={CELL}>
+                        <div className="flex max-w-64 min-w-0 items-center gap-1 overflow-hidden">
+                          <ValueView field={f} value={lead.values[f.id]} compact />
+                        </div>
+                      </td>
+                    ))}
+                    <td className={`${CELL} text-xs text-muted tabular-nums`}>{formatDate(lead.createdAt)}</td>
+                  </tr>
+                );
+              })}
+              {/* under the stage's last row, held under the names while the table scrolls sideways */}
+              {more && (
+                <tr className="border-b border-border last:border-b-0">
+                  <td colSpan={board.fields.length + 4} className="p-1">
+                    <div className="sticky left-1 w-56">
+                      <ShowMore onMore={() => paging.more(group)} />
                     </div>
                   </td>
-                ))}
-                <td className={`${CELL} text-xs text-muted tabular-nums`}>{formatDate(lead.createdAt)}</td>
-              </tr>
-            );
-          })}
+                </tr>
+              )}
+            </Fragment>
+          ))}
         </tbody>
       </table>
     </div>

@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { getRealUserId } from "@/lib/auth";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
-import { assigneeWhere, effectiveRole, isFounder, isLead, isMember } from "@/lib/scope";
+import { assigneeWhere, DEPT, effectiveRole, isFounder, isLead, isMember } from "@/lib/scope";
+import { inHand } from "@/lib/history";
 import { LIVE_TASK } from "@/lib/workflow";
 import { STAGE, stageLabel, stageMeaning } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
@@ -56,7 +57,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   };
 
   // all of it side by side, Google included: nothing here waits on anything else
-  const [tasks, work, users, teams, kinds, calendar, googleApp, mine, extras] = await Promise.all([
+  const [tasks, work, users, teams, kinds, calendar, googleApp, mine, extras, , productionLevel3] = await Promise.all([
     prisma.task.findMany({
       where: { AND: [LIVE_TASK, scope] },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, team: { select: { name: true } }, shares: { where: { userId: viewer.id }, select: { id: true } } },
@@ -78,6 +79,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     // the night's overdue check, if it hasn't run today. Any notices it
     // makes arrive with the live refresh its own writes set off.
     sweepIfDue(),
+    // the Level 3s in Production, whose lists hold only what's in hand (lib/history inHand)
+    prisma.user.findMany({ where: { role: "employee", departments: { some: { slug: DEPT.production } } }, select: { id: true } }),
   ]);
 
   // the notices are on screen now: seen, but marked new this once (the
@@ -99,9 +102,18 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // past it, it stays on the board's queue only
   const level3 = new Set(users.filter((u) => isMember(u)).map((u) => u.id));
   const withThem = (s: string) => s === "editing" || s === "revision_requested";
+  // In Production, also what's set for today or already late, and to-dos the
+  // same way (Abhishek, 26 Oct 2026): nothing queued for a later day
+  const editors = new Set(productionLevel3.map((u) => u.id));
+  const dueOf = (t: (typeof tasks)[number]) => (t.dueDate && !t.handedOffAt ? dayOf(t.dueDate) : null);
   // Final export ready is anyone else's part done (Abhishek, 23 Oct 2026):
   // off their own list, still in the team's work and on the board's queue
-  const onHome = (t: (typeof tasks)[number]) => (t.assignedToId && level3.has(t.assignedToId) ? withThem(t.status) : t.status !== "final_export_ready" || (!member && t.assignedToId !== viewer.id));
+  const onHome = (t: (typeof tasks)[number]) =>
+    t.assignedToId && editors.has(t.assignedToId)
+      ? inHand({ kind: "task", status: t.status, due: dueOf(t) }, today)
+      : t.assignedToId && level3.has(t.assignedToId)
+        ? withThem(t.status)
+        : t.status !== "final_export_ready" || (!member && t.assignedToId !== viewer.id);
   const items: HomeItem[] = [
     ...tasks.filter(onHome).map((t) => ({
       key: `t${t.id}`,
@@ -113,7 +125,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       meaning: stageMeaning(t.status, t.workflow),
       pill: STAGE[t.status].pill,
       // its completion date is met once it first reaches the client
-      due: t.dueDate && !t.handedOffAt ? dayOf(t.dueDate) : null,
+      due: dueOf(t),
       delivery: t.deliveryDate ? dayOf(t.deliveryDate) : null,
       client: t.project.client.name,
       department: t.team?.name ?? null,
@@ -121,7 +133,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       strikes: t.strikes,
       task: t,
     })),
-    ...work.tasks.map((t) => ({
+    ...work.tasks.filter((t) => !editors.has(t.assignedTo.id) || inHand({ kind: "work", status: t.status, due: t.dueDate }, today)).map((t) => ({
       key: `w${t.id}`,
       id: t.id,
       source: "work" as const,
