@@ -159,6 +159,8 @@ export function ProjectFiles({
   // a tab whose last file was just removed falls back to All
   const shown = tab !== "all" && counts[tab] ? tab : "all";
   const visible = shown === "all" ? rows : rows.filter((r) => r.kinds.includes(shown));
+  // a draft column only where some file shown has a draft date
+  const anyDraft = visible.some((r) => r.draft);
 
   async function remove(id: string) {
     const res = await deleteProjectAsset(id);
@@ -276,25 +278,29 @@ export function ProjectFiles({
                   </span>
                   {/* its two dates, each named (Abhishek, 2 Nov 2026): the first
                       draft's in yellow, for the clients who approve one, and
-                      delivery in green */}
-                  {r.draft && (
-                    <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-amber-300">
-                      <PenLine size={12} />
-                      Draft {formatDate(`${r.draft}T00:00:00Z`)}
+                      delivery in green. Each in a slot of its own width, and
+                      the arrow's place kept, so they line up row under row */}
+                  {anyDraft && (
+                    <span className="flex shrink-0 justify-end sm:w-40">
+                      {r.draft && (
+                        <span className="flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-amber-300">
+                          <PenLine size={12} />
+                          Draft: {formatDate(`${r.draft}T00:00:00Z`)}
+                        </span>
+                      )}
                     </span>
                   )}
-                  {r.due && (
-                    <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-emerald-300">
-                      <CalendarCheck size={12} />
-                      Delivery {formatDate(`${r.due}T00:00:00Z`)}
-                    </span>
-                  )}
-                  {r.link && (
-                    <ArrowUpRight
-                      size={15}
-                      className="shrink-0 text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                    />
-                  )}
+                  <span className="flex shrink-0 justify-end sm:w-44">
+                    {r.due && (
+                      <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-emerald-300">
+                        <CalendarCheck size={12} />
+                        Delivery: {formatDate(`${r.due}T00:00:00Z`)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex w-[15px] shrink-0">
+                    {r.link && <ArrowUpRight size={15} className="text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100" />}
+                  </span>
                   {/* Always there — hidden until hovered, nobody knew a file
                       could be edited, and a touchscreen never hovers — but
                       faint until the row is pointed at. */}
