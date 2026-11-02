@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, AudioLines, CalendarDays, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpRight, AudioLines, CalendarCheck, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Pencil, PenLine, Plus, Trash2, X } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { Dropdown } from "../Dropdown";
 import { addProjectAsset, updateProjectAsset, deleteProjectAsset } from "../clients/actions";
@@ -274,17 +274,19 @@ export function ProjectFiles({
                       <span className="truncate">· {r.sub}</span>
                     </span>
                   </span>
+                  {/* its two dates, each named (Abhishek, 2 Nov 2026): the first
+                      draft's in yellow, for the clients who approve one, and
+                      delivery in green */}
                   {r.draft && (
-                    // its draft date, for the clients who approve a first draft: quieter than delivery
-                    <span title="Draft date" className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white/[0.04] px-2.5 py-1 text-xs font-medium tabular-nums text-muted">
+                    <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-amber-300">
+                      <PenLine size={12} />
                       Draft {formatDate(`${r.draft}T00:00:00Z`)}
                     </span>
                   )}
                   {r.due && (
-                    // its delivery date, picked out so it's seen at a glance
-                    <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/15 px-2.5 py-1 text-xs font-medium tabular-nums text-accent">
-                      <CalendarDays size={12} />
-                      {formatDate(`${r.due}T00:00:00Z`)}
+                    <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-emerald-300">
+                      <CalendarCheck size={12} />
+                      Delivery {formatDate(`${r.due}T00:00:00Z`)}
                     </span>
                   )}
                   {r.link && (
