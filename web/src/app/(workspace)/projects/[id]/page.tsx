@@ -152,6 +152,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           link: a.link,
           tags: a.tags,
           dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
+          draftDate: a.draftDate?.toISOString().slice(0, 10) ?? null,
           task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink, original: a.task.originalTitle, by: a.task.assignedTo?.name ?? null, deliveredOn: delivered.get(a.task.id) ? indiaDay(delivered.get(a.task.id)!) : null } : null,
         }))}
         delivered={deliveredFiles.map((t) => ({

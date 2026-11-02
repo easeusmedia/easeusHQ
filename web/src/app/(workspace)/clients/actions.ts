@@ -1013,9 +1013,9 @@ export async function updateProject(
 // Whatever the Notion import pulled in is a starting point, not gospel:
 // names, types and links all get corrected by hand from the project page.
 
-// dueDate: yyyy-mm-dd, "" for none; left out, it's kept as it is
+// dueDate, draftDate: yyyy-mm-dd, "" for none; left out, it's kept as it is
 // taskId: the task that fills it, picked by hand (absent: left as it is)
-export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[]; dueDate?: string; taskId?: string };
+export type ProjectAssetInput = { name: string; contentType: string; link: string; tagIds?: string[]; dueDate?: string; draftDate?: string; taskId?: string };
 const dueOf = (v: string | undefined) => (v === undefined ? undefined : /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v) : null);
 
 async function revalidateProject(projectId: string) {
@@ -1043,6 +1043,7 @@ export async function addProjectAsset(projectId: string, input: ProjectAssetInpu
       contentType: input.contentType.trim() || "Misc.",
       link,
       dueDate: dueOf(input.dueDate) ?? null,
+      draftDate: dueOf(input.draftDate) ?? null,
       sortOrder: (last?.sortOrder ?? 0) + 1,
       tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
     },
@@ -1090,6 +1091,7 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
       link,
       ...(picked ? { taskId: picked.id } : {}),
       ...(input.dueDate !== undefined ? { dueDate: dueOf(input.dueDate) } : {}),
+      ...(input.draftDate !== undefined ? { draftDate: dueOf(input.draftDate) } : {}),
       ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
     },
   });

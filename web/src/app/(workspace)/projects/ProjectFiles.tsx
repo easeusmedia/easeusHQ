@@ -23,6 +23,8 @@ export type ProjectAssetData = {
   link: string | null;
   tags?: Tag[];
   dueDate?: string | null;
+  // when its first draft goes to the client, for the clients who approve one
+  draftDate?: string | null;
   // stage: where the task that fills it is now; review: its Frame.io link,
   // which the row opens until the final file is in; original: the name it was
   // made with in production; by: who it's with; deliveredOn: yyyy-mm-dd.
@@ -85,7 +87,7 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null };
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -140,6 +142,7 @@ export function ProjectFiles({
       // (Abhishek, 27 Oct 2026); when it's due sits on the right
       sub: source(a.link ?? a.task?.review ?? null),
       due: a.dueDate ?? null,
+      draft: a.draftDate ?? null,
       asset: a,
       ...kindsOf(a.tags, typeKind(a.contentType)),
     })),
@@ -271,6 +274,12 @@ export function ProjectFiles({
                       <span className="truncate">· {r.sub}</span>
                     </span>
                   </span>
+                  {r.draft && (
+                    // its draft date, for the clients who approve a first draft: quieter than delivery
+                    <span title="Draft date" className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white/[0.04] px-2.5 py-1 text-xs font-medium tabular-nums text-muted">
+                      Draft {formatDate(`${r.draft}T00:00:00Z`)}
+                    </span>
+                  )}
                   {r.due && (
                     // its delivery date, picked out so it's seen at a glance
                     <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/15 px-2.5 py-1 text-xs font-medium tabular-nums text-accent">
@@ -328,13 +337,14 @@ function AssetForm({
   tagOptions: Tag[];
   tagTeamId?: string;
   onCancel: () => void;
-  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string }) => Promise<string | null>;
+  onSubmit: (input: { name: string; contentType: string; link: string; tagIds: string[]; dueDate: string; draftDate: string }) => Promise<string | null>;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [contentType, setContentType] = useState(initial?.contentType ?? TYPE_ORDER[0]);
   const [link, setLink] = useState(initial?.link ?? "");
   const [tagIds, setTagIds] = useState<string[]>(initial?.tags?.map((t) => t.id) ?? []);
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  const [draftDate, setDraftDate] = useState(initial?.draftDate ?? "");
   // tags added from this form, shown and picked at once
   const [added, setAdded] = useState<Tag[]>([]);
   // and any it already carries from elsewhere, so they can still be taken off
@@ -345,7 +355,7 @@ function AssetForm({
   async function submit() {
     setSaving(true);
     setError(null);
-    const err = await onSubmit({ name, contentType, link, tagIds, dueDate });
+    const err = await onSubmit({ name, contentType, link, tagIds, dueDate, draftDate });
     setSaving(false);
     if (err) setError(err);
   }
@@ -377,7 +387,10 @@ function AssetForm({
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={`${field} sm:flex-1`} />
-        <div className="sm:w-52">
+        <div className="sm:w-44">
+          <DatePicker value={draftDate} onChange={setDraftDate} placeholder="Draft date" />
+        </div>
+        <div className="sm:w-44">
           <DatePicker value={dueDate} onChange={setDueDate} placeholder="Delivery date" />
         </div>
       </div>

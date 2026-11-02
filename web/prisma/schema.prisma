@@ -127,6 +127,9 @@ model ProjectAsset {
   // when it's due to the client: a deliverable laid out when its project was
   // made (lib/contentPlan.ts planDeliverables), changed by hand as needed
   dueDate     DateTime?
+  // when its first draft goes to the client to approve before the edit
+  // starts: some clients only (Abhishek, 2 Nov 2026)
+  draftDate   DateTime?
 
   notionPageId String? @unique
 
