@@ -2,7 +2,7 @@ import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { isFounder, isLead, runsClients, setsUp } from "@/lib/scope";
+import { isFounder, isLead, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deliveredAt } from "@/lib/delivered";
 import { indiaDay } from "@/lib/due";
@@ -31,7 +31,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       include: {
         // newest first, for the task form's "latest few" project list
         client: { include: { projects: { orderBy: { createdAt: "desc" } } } },
-        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, originalTitle: true, status: true, workflow: true, frameioLink: true, postDate: true, assignedToId: true, assignedTo: { select: { name: true } } } } } },
+        assets: { orderBy: { sortOrder: "asc" }, include: { tags: { select: { id: true, name: true } }, task: { select: { id: true, title: true, originalTitle: true, status: true, workflow: true, frameioLink: true, assignedToId: true, assignedTo: { select: { name: true } } } } } },
         tasks: {
           orderBy: { createdAt: "desc" },
           include: { tags: true },
@@ -152,7 +152,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           link: a.link,
           tags: a.tags,
           dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
-          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", post: a.task.postDate ? indiaDay(a.task.postDate) : null, stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink, original: a.task.originalTitle, by: a.task.assignedTo?.name ?? null, deliveredOn: delivered.get(a.task.id) ? indiaDay(delivered.get(a.task.id)!) : null } : null,
+          task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink, original: a.task.originalTitle, by: a.task.assignedTo?.name ?? null, deliveredOn: delivered.get(a.task.id) ? indiaDay(delivered.get(a.task.id)!) : null } : null,
         }))}
         delivered={deliveredFiles.map((t) => ({
           id: t.id,
@@ -160,10 +160,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           link: t.driveLink,
           // the day it was marked delivered; failing that, the day it was due to reach them
           at: (delivered.get(t.id) ?? t.deliveryDate ?? t.updatedAt).toISOString(),
-          post: t.postDate ? indiaDay(t.postDate) : null,
           tags: t.tags.map((g) => ({ id: g.id, name: g.name })),
         }))}
-        canPost={runsClients(viewer)}
         // a file is Production's work: only Production's kinds of work
         tagOptions={allTags.filter((t) => t.team?.slug === "production").map((t) => ({ id: t.id, name: t.name }))}
         // and a new one added there lands in Production (lib/scope setsUp)
