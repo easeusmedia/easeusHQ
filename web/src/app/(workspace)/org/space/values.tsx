@@ -218,7 +218,7 @@ export function MenuPanel({ position, className = "", children }: { position: Po
 
 // Typing saves a moment after it stops (and on leaving the field, and if
 // the editor goes while a save is waiting), not on every key.
-function useDebounced<T>(save: (v: T) => void, ms = 600) {
+export function useDebounced<T>(save: (v: T) => void, ms = 600) {
   const latest = useRef(save);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pending = useRef<{ v: T } | null>(null);

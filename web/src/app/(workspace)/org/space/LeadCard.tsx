@@ -1,7 +1,9 @@
 "use client";
 
-import { Mail } from "lucide-react";
-import { leadContacts, MARKED, NO_CONTACT, PLATFORM_NAME, type BoardData, type Contact, type LeadData, type Marked, type MarkChange } from "@/lib/space";
+import { Mail, MapPin } from "lucide-react";
+import { isFilled, leadContacts, MARKED, NO_CONTACT, PLATFORM_NAME, type BoardData, type Contact, type LeadData, type Marked, type MarkChange } from "@/lib/space";
+import { ValueView } from "./values";
+import { WORKING } from "./LeadFacts";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
@@ -10,8 +12,10 @@ const ICON: Record<Marked, React.ReactNode> = {
   linkedin: <LinkedinIcon size={11} className="text-blue-400" />,
 };
 
-// One lead on the board: its name, who added it, with whoever it's given to,
-// and from Day 1 how it's going, as a status only: email (opened, replied,
+// One lead on the board: its name, its country and the properties pinned to
+// the cards (Abhishek, 3 Nov 2026: not who added it, which the lead window
+// says), whoever it's given to when that's someone else, and from Day 1 how
+// it's going, as a status only: email (opened, replied,
 // bounced: from the sales inbox and the mail tracker) and, for Instagram and
 // LinkedIn, the furthest thing that happened (replied, seen, accepted). No
 // names and nothing to tap here: who did what, and the taps, are inside the
@@ -44,6 +48,11 @@ export function LeadCard({
   };
   const statuses = tracks ? MARKED.flatMap((p) => { const s = statusOf(p); return s ? [{ p, s }] : []; }) : [];
   const mail = tracks && (lead.email.sent || lead.email.bounced || !!lead.email.replied);
+  // where the lead is, always; then whatever is pinned (the lead window's
+  // pins), never the working tags, whose onCard only names the List's tabs
+  const countryField = board.fields.find((f) => f.kind === "select" && /^country$/i.test(f.name.trim()));
+  const country = countryField && (Array.isArray(lead.values[countryField.id]) ? (lead.values[countryField.id] as string[]) : []).flatMap((id) => countryField.options.filter((o) => o.id === id).map((o) => o.name)).join(", ");
+  const pinned = board.fields.filter((f) => f.onCard && f !== countryField && !WORKING.test(f.name.trim()) && isFilled(f.kind, lead.values[f.id]));
 
   return (
     <div
@@ -59,21 +68,30 @@ export function LeadCard({
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-1.5 rounded-xl px-3 py-2.5 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
     >
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
-      <div className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-muted">
-        <Avatar name={lead.createdBy.name} size={16} />
-        <span className="min-w-0 truncate" title={`Added by ${lead.createdBy.name}`}>
-          {first(lead.createdBy.name)}
-        </span>
-        {lead.assignedTo && lead.assignedTo.id !== lead.createdBy.id && (
-          <>
-            <span className="text-muted/50">→</span>
-            <Avatar name={lead.assignedTo.name} size={16} />
-            <span className="min-w-0 truncate" title={`Assigned to ${lead.assignedTo.name}${lead.assignedByName ? ` by ${lead.assignedByName}` : ""}`}>
-              {first(lead.assignedTo.name)}
+      {(country || pinned.length > 0) && (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted">
+          {country && (
+            <span className="flex min-w-0 items-center gap-1" title="Country">
+              <MapPin size={12} className="shrink-0" />
+              <span className="truncate">{country}</span>
             </span>
-          </>
-        )}
-      </div>
+          )}
+          {pinned.map((f) => (
+            <span key={f.id} className="flex min-w-0 flex-wrap items-center gap-1">
+              <span className="shrink-0">{f.name}</span>
+              <ValueView field={f} value={lead.values[f.id]} compact />
+            </span>
+          ))}
+        </div>
+      )}
+      {lead.assignedTo && lead.assignedTo.id !== lead.createdBy.id && (
+        <div className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-muted">
+          <Avatar name={lead.assignedTo.name} size={16} />
+          <span className="min-w-0 truncate" title={`Assigned to ${lead.assignedTo.name}${lead.assignedByName ? ` by ${lead.assignedByName}` : ""}`}>
+            {first(lead.assignedTo.name)}
+          </span>
+        </div>
+      )}
       {(mail || statuses.length > 0) && (
         <div className="flex flex-wrap items-center gap-1 pt-0.5">
           {mail && <EmailStatus email={lead.email} named={false} />}

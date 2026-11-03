@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
-import { buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
+import { addsPages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   CHILD_OF,
   cleanValue,
@@ -48,6 +48,7 @@ import {
   type Approval,
   type Opener,
 } from "@/lib/space";
+import { DEAD_STAGE, makeSheet, movedValues, SHEET_STAGE } from "@/lib/leadSheet";
 
 // A department's pages: sections, portals, boards, and the leads on them.
 // Every action re-reads who's asking (never trusting the client), checks
@@ -158,20 +159,27 @@ async function copyStructure(tx: Prisma.TransactionClient, fromId: string, into:
 }
 
 // A new section (on the department), portal (in a section) or board (in a
-// portal); blank, or a copy of another one's structure. A blank board starts
+// portal); blank, or a copy of another one's structure. Under Leads, a new
+// tab is always a blank spreadsheet. A blank board starts
 // with three stages so it's usable at once.
 export async function createSpace(input: { teamId: string; parentId: string | null; name: string; copyFromId?: string | null }): Promise<Done & { id?: string; slug?: string; kind?: SpaceKind }> {
-  const who = await whoFor(input.teamId, true);
+  const who = await whoFor(input.teamId);
   if ("error" in who) return who;
+  // whoever builds, and Sales' Level 2 (lib/scope addsPages)
+  const viewer = await getViewer();
+  if (!viewer || !addsPages(viewer, input.teamId)) return { error: BUILDERS_ONLY };
   const name = cleanName(input.name);
   if (typeof name !== "string") return name;
   try {
     let kind: SpaceKind = CHILD_OF.department;
+    // a new tab under Sales > Leads: a spreadsheet, not an outreach board
+    let sheet = false;
     if (input.parentId) {
-      const parent = await spaceOf(input.parentId);
+      const parent = await prisma.space.findUnique({ where: { id: input.parentId }, select: { teamId: true, kind: true, leadBank: true } });
       if (!parent || parent.teamId !== input.teamId) return { error: "That page no longer exists." };
       if (parent.kind === "board") return { error: "A board can't hold pages." };
       kind = CHILD_OF[parent.kind as "section" | "portal"];
+      sheet = parent.leadBank;
     }
     const siblings = await prisma.space.findMany({ where: { teamId: input.teamId, parentId: input.parentId }, select: { slug: true, name: true, sortOrder: true } });
     if (siblings.some((s) => s.name.toLowerCase() === name.toLowerCase())) return { error: `"${name}" already exists here.` };
@@ -179,7 +187,7 @@ export async function createSpace(input: { teamId: string; parentId: string | nu
     const sortOrder = Math.max(0, ...siblings.map((s) => s.sortOrder)) + 1;
 
     let id: string;
-    if (input.copyFromId) {
+    if (input.copyFromId && !sheet) {
       const source = await spaceOf(input.copyFromId);
       if (!source || source.teamId !== input.teamId) return { error: "The page to copy no longer exists." };
       if (source.kind !== kind) return { error: `Only another ${kind} can be copied here.` };
@@ -187,7 +195,8 @@ export async function createSpace(input: { teamId: string; parentId: string | nu
     } else {
       id = await prisma.$transaction(async (tx) => {
         const made = await tx.space.create({ data: { teamId: input.teamId, parentId: input.parentId, kind, name, slug, sortOrder, createdById: who.id } });
-        if (kind === "board")
+        if (sheet) await makeSheet(tx, made.id);
+        else if (kind === "board")
           await tx.boardStage.createMany({
             data: [
               { boardId: made.id, name: "To do", color: "gray", sortOrder: 1 },
@@ -283,7 +292,8 @@ export async function reorderSpace(id: string, sortOrder: number): Promise<Done>
 }
 
 // Only an empty page goes: a section without portals, a portal without
-// boards, a board without leads (its stages and properties go with it).
+// boards, a board without leads (its stages and properties go with it). A
+// Leads tab also keeps the leads sent on from it, which its rows still show.
 export async function deleteSpace(id: string, reason: string): Promise<Done> {
   const space = await spaceOf(id);
   if (!space) return { error: "That page no longer exists." };
@@ -555,9 +565,10 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
 // ================= Leads =================
 
 // Every lead starts at the board's first stage, wherever it was added from
-// (with the podcast's links, when given, on the board's links property),
-// given to whoever added it until someone hands it on
-export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = []): Promise<Done & { id?: string }> {
+// (with the podcast's links, when given, on the board's links property, and
+// a Leads tab's people and notes: Abhishek, 3 Nov 2026), given to whoever
+// added it until someone hands it on
+export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = [], more: { contacts?: Contact[]; notes?: string } = {}): Promise<Done & { id?: string }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
   const who = await whoFor(board.teamId);
@@ -570,10 +581,17 @@ export async function createLead(boardId: string, title: string, links: { label:
     if (!stage) return { error: "This board has no stages yet." };
     const stageId = stage.id;
     const id = await prisma.$transaction(async (tx) => {
-      const field = links.length ? await tx.boardField.findFirst({ where: { boardId, kind: "links" }, orderBy: { sortOrder: "asc" }, select: { id: true } }) : null;
-      const clean = field ? cleanValue("links", links) : null;
-      const values = field && clean && "value" in clean && clean.value ? { [field.id]: clean.value } : {};
-      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values, sortOrder: Date.now(), createdById: who.id, assignedToId: who.id, assignedByName: who.name, assignedAt: new Date() }, select: { id: true } });
+      const values: Record<string, unknown> = {};
+      for (const [kind, v] of [["links", links], ["contacts", more.contacts ?? []]] as const) {
+        if (!v.length) continue;
+        const field = await tx.boardField.findFirst({ where: { boardId, kind }, orderBy: { sortOrder: "asc" }, select: { id: true } });
+        const clean = field ? cleanValue(kind, v) : null;
+        if (!field || !clean || !("value" in clean) || !clean.value) continue;
+        // a contact's email is stamped with when it was put on the lead (lib/space stampEmails)
+        values[field.id] = kind === "contacts" ? stampEmails(clean.value as Contact[], {}, new Date().toISOString()) : clean.value;
+      }
+      const notes = String(more.notes ?? "").slice(0, 100_000);
+      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values: values as Prisma.InputJsonValue, notes, sortOrder: Date.now(), createdById: who.id, assignedToId: who.id, assignedByName: who.name, assignedAt: new Date() }, select: { id: true } });
       await record(tx, lead.id, who, { kind: "created", summary: `Created in ${stage.name}`, toStage: stage.name });
       return lead.id;
     });
@@ -877,6 +895,94 @@ export async function deleteLead(id: string, reason: string): Promise<Done> {
     return {};
   } catch (err) {
     return failed(err, "That lead couldn't be deleted.");
+  }
+}
+
+// ================= Sales > Leads =================
+// (Abhishek, 3 Nov 2026) A lead on a Leads tab, with the tab's stages, for
+// whoever works in the department
+async function sheetLead(id: string) {
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    select: { id: true, title: true, boardId: true, stageId: true, values: true, notes: true, updatedAt: true, stage: { select: { name: true } }, board: { select: { teamId: true, name: true, parent: { select: { leadBank: true } }, stages: { select: { id: true, name: true } }, fields: { select: { id: true, kind: true } } } } },
+  });
+  return lead?.board.parent?.leadBank ? lead : null;
+}
+
+// Deleted, a lead goes to its tab's Dead leads; restored, back to the tab
+export async function setLeadDead(id: string, dead: boolean): Promise<Done> {
+  const lead = await sheetLead(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  const to = lead.board.stages.find((s) => s.name === (dead ? DEAD_STAGE : SHEET_STAGE));
+  if (!to) return { error: "This tab can't hold dead leads. Refresh and try again." };
+  if (to.name === lead.stage.name) return {};
+  try {
+    const done = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.lead.updateMany({ where: { id, boardId: lead.boardId, stageId: lead.stageId }, data: { stageId: to.id, stageSince: new Date(), ...edited(who) } });
+      if (count) await record(tx, id, who, { kind: "moved", summary: dead ? "Moved to Dead leads" : "Restored from Dead leads", fromStage: lead.stage.name, toStage: to.name });
+      return count > 0;
+    });
+    if (!done) return { error: "Someone has just changed or moved this lead. Refresh and try again." };
+    return {};
+  } catch (err) {
+    return failed(err, dead ? "That lead couldn't be deleted." : "That lead couldn't be restored.");
+  }
+}
+
+// Deleted from Dead leads: gone for good, its record with it
+export async function deleteLeadForever(id: string): Promise<Done> {
+  const lead = await sheetLead(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  if (lead.stage.name !== DEAD_STAGE) return { error: "Only a lead in Dead leads can be deleted for good." };
+  try {
+    const { count } = await prisma.lead.deleteMany({ where: { id, boardId: lead.boardId, stage: { name: DEAD_STAGE } } });
+    if (!count) return { error: "Someone has just changed or moved this lead. Refresh and try again." };
+    return {};
+  } catch (err) {
+    return failed(err, "That lead couldn't be deleted.");
+  }
+}
+
+// Into another board, at the end of its first stage: an outreach board, or
+// a Leads tab, from either (Abhishek, 3 Nov 2026). The same lead (history and
+// who found it with it), its properties onto that board's own (lib/leadSheet
+// movedValues: nothing is lost). Only if nobody changed it since it was read.
+export async function moveLeadTo(id: string, toBoardId: string): Promise<Done> {
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    select: { id: true, boardId: true, values: true, notes: true, updatedAt: true, stage: { select: { name: true } }, board: { select: { teamId: true, name: true, parent: { select: { leadBank: true } }, fields: { select: { id: true, name: true, kind: true, options: { select: { id: true, name: true } } } } } } },
+  });
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  try {
+    const to = await prisma.space.findUnique({
+      where: { id: toBoardId },
+      select: { id: true, teamId: true, kind: true, name: true, parent: { select: { leadBank: true } }, stages: { orderBy: { sortOrder: "asc" }, take: 1, select: { id: true, name: true } }, fields: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, kind: true, options: { select: { id: true, name: true } } } } },
+    });
+    // any other board of the department (a Podcast lead that belongs with Doctors)
+    if (!to || to.kind !== "board" || to.teamId !== lead.board.teamId || to.id === lead.boardId) return { error: "That board no longer exists. Refresh and try again." };
+    const first = to.stages[0];
+    if (!first) return { error: `${to.name} has no stages yet.` };
+    const moved = movedValues({ fields: lead.board.fields, values: (lead.values ?? {}) as Record<string, unknown>, notes: lead.notes }, to.fields);
+    const done = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.lead.updateMany({
+        where: { id, boardId: lead.boardId, updatedAt: lead.updatedAt },
+        data: { boardId: to.id, stageId: first.id, values: moved.values as Prisma.InputJsonValue, notes: moved.notes, sortOrder: Date.now(), stageSince: new Date(), ...edited(who) },
+      });
+      const named = (b: { name: string; parent: { leadBank: boolean } | null }) => (b.parent?.leadBank ? `Leads › ${b.name}` : b.name);
+      if (count) await record(tx, id, who, { kind: "moved", summary: `Moved from ${named(lead.board)} to ${named(to)}`, fromStage: lead.stage.name, toStage: first.name });
+      return count > 0;
+    });
+    if (!done) return { error: "Someone has just changed or moved this lead. Refresh and try again." };
+    revalidatePath("/org", "layout");
+    return {};
+  } catch (err) {
+    return failed(err, "That lead couldn't be moved. Try again.");
   }
 }
 

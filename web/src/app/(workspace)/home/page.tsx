@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { getRealUserId } from "@/lib/auth";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
-import { assigneeWhere, DEPT, effectiveRole, isFounder, isLead, isMember } from "@/lib/scope";
+import { assigneeWhere, DEPT, effectiveRole, isFounder, isLead, isMember, seesClients } from "@/lib/scope";
 import { inHand } from "@/lib/history";
 import { LIVE_TASK } from "@/lib/workflow";
 import { STAGE, stageLabel, stageMeaning } from "@/lib/stages";
@@ -17,6 +17,7 @@ import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { money } from "../finance/data";
 import { loadWork, ROLE_KINDS_SELECT, roleKinds } from "../workData";
 import { HomeView, type HomeItem, type Notice } from "./HomeView";
+import { noticeOf } from "./notices";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
+  // Sales alone: its own dashboard is their home (Abhishek, 3 Nov 2026)
+  if (!seesClients(viewer)) redirect("/org/sales");
   const full = isFounder(viewer);
   const member = isMember(viewer);
   const { week } = await searchParams;
@@ -154,20 +157,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   const notices: Notice[] = [
     ...extras,
-    ...mine.map((n) => ({
-      key: n.id,
-      id: n.id,
-      kind: n.kind === "overdue" ? ("overdue" as const) : n.kind === "shared" ? ("shared" as const) : ("note" as const),
-      tone: n.kind === "overdue" ? ("rose" as const) : n.kind === "shared" ? ("accent" as const) : ("neutral" as const),
-      text: n.body,
-      sub: [n.forwardedBy ? `Forwarded by ${n.forwardedBy}` : n.kind === "note" ? n.by : null, shortDay(dayOf(n.createdAt))].filter(Boolean).join(" · "),
-      remark: n.remark,
-      forwardedBy: n.forwardedBy,
-      forwardRemark: n.forwardRemark,
-      // the task it's about, to open
-      open: n.taskId ? `t${n.taskId}` : n.workTaskId ? `w${n.workTaskId}` : undefined,
-      fresh: fresh.has(n.id),
-    })),
+    ...mine.map((n) => noticeOf(n, fresh.has(n.id))),
   ];
 
   // IST, where everyone is

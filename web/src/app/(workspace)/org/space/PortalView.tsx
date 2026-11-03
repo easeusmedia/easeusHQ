@@ -2,19 +2,19 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, ChevronRight, EyeOff, Filter, Kanban, Layers, Mail, MailOpen, Pencil, Plus, Reply, Rows3, Search, Send, Table2, Trash2, Users, UserCheck, X } from "lucide-react";
+import { Check, ChevronRight, EyeOff, Filter, Kanban, Layers, Mail, MailOpen, Plus, Reply, Rows3, Search, Send, Table2, Users, UserCheck, X } from "lucide-react";
 import { facetLabel, facets, leadingFacet, outreachStart, outreachStats, passesFacets, PLATFORM_NAME, reachOutCounts, PLATFORMS, withMark, type BoardData, type Contact, type Facet, type FacetPicks, type LeadData, type MarkChange, type Marks, type Person, type Platform } from "@/lib/space";
 import { LeadBoard } from "./LeadBoard";
 import { LeadList } from "./LeadList";
 import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
+import type { OutreachBoard } from "@/lib/leadSheet";
 import { NewSpaceDialog } from "./NewSpaceDialog";
 import { CanBuild, Menu } from "./values";
-import { deleteSpace, renameSpace, setLeadMark } from "./actions";
-import { ReasonDialog } from "./ReasonDialog";
+import { setLeadMark } from "./actions";
+import { BoardTabs, SEG_ROW } from "./BoardTabs";
 import { StatTile } from "../../StatTile";
 import { Reveal } from "../../Reveal";
-import { EditableName } from "../../EditableName";
 import { chip } from "../../chip";
 import { setParam } from "../../urlState";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -33,7 +33,6 @@ const PLATFORM_ICON: Record<Platform | "all", React.ReactNode> = {
   instagram: <InstagramIcon size={13} className="text-pink-400" />,
   linkedin: <LinkedinIcon size={13} className="text-blue-400" />,
 };
-const SEG_ROW = "flex w-fit items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]";
 
 // Everything a search can find on a lead: its name, and each contact's name,
 // emails and handles
@@ -53,8 +52,10 @@ export function PortalView({
   board,
   people,
   canBuild,
+  canAdd = canBuild,
   initialLeadId,
   boardTemplates,
+  targets = [],
 }: {
   teamId: string;
   portal: { id: string; name: string };
@@ -62,17 +63,15 @@ export function PortalView({
   board: BoardData | null;
   people: Person[];
   canBuild: boolean;
+  // may add a board (Sales' Level 2 too)
+  canAdd?: boolean;
   initialLeadId: string | null;
   // every board in the department, for "Start from a copy of"
   boardTemplates?: { id: string; name: string }[];
+  // where a lead can be moved (data.ts moveTargets)
+  targets?: OutreachBoard[];
 }) {
   const router = useRouter();
-  // a board's new name, then the page (tabs, sidebar) catches up
-  const rename = (id: string) => async (name: string) => {
-    const res = await renameSpace(id, name);
-    if (res.error) return res.error;
-    router.refresh();
-  };
   const pathname = usePathname();
   const [switching, startSwitch] = useTransition();
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
@@ -81,8 +80,6 @@ export function PortalView({
   // the Filter menu's ticked values, by property
   const [picks, setPicks] = useState<FacetPicks>({});
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [renaming, setRenaming] = useState(false);
   // the board being switched to, until it arrives
   const [going, setGoing] = useState<string | null>(null);
   if (going && (board?.slug === going || !switching)) setGoing(null);
@@ -153,10 +150,10 @@ export function PortalView({
           <div>
             <p className="text-sm font-medium">{portal.name} has no boards yet</p>
             <p className="mt-1 text-xs text-muted">
-              {canBuild ? "Start one blank, or as a copy of a board you already have." : "A Level 1 or Level 2 lead in this department can add the first one."}
+              {canAdd ? "Start one blank, or as a copy of a board you already have." : "A Level 1 or Level 2 lead in this department can add the first one."}
             </p>
           </div>
-          {canBuild && (
+          {canAdd && (
             <button type="button" onClick={() => setCreating(true)} className="btn btn-sm btn-glow">
               <Plus size={14} /> New board
             </button>
@@ -195,48 +192,19 @@ export function PortalView({
     <div className="flex min-w-0 flex-col gap-4">
       {/* the boards: pick which; the open one is renamed or deleted where
           it sits, and a new one starts from the + */}
-      {(boards.length > 1 || canBuild) && (
-        <div className="flex max-w-full items-center gap-2">
-        <div role="tablist" aria-label="Boards" className={`${SEG_ROW} max-w-full overflow-x-auto`}>
-          {boards.map((b) => {
-            // the one picked lights at once, ahead of its board loading
-            const on = (going ?? board.slug) === b.slug;
-            const tools = on && !going && !renaming;
-            return (
-              <div key={b.id} role="tab" aria-selected={on} className="seg group/tab flex max-w-[18rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium">
-                {on && !going ? (
-                  canBuild ? <EditableName name={b.name} onSave={rename(b.id)} pencil="none" editing={renaming} onEditingChange={setRenaming} /> : <span className="truncate">{b.name}</span>
-                ) : (
-                  <button type="button" onClick={() => switchTo(b.slug)} className="-mx-3.5 -my-1.5 truncate px-3.5 py-1.5">
-                    {b.name}
-                  </button>
-                )}
-                {/* rename and delete, sliding out of the open tab on hover */}
-                {canBuild && (
-                  <span
-                    className={`flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity,margin] duration-300 ease-out ${
-                      tools ? "group-focus-within/tab:-mr-1.5 group-focus-within/tab:ml-1.5 group-focus-within/tab:max-w-14 group-focus-within/tab:opacity-100 group-hover/tab:-mr-1.5 group-hover/tab:ml-1.5 group-hover/tab:max-w-14 group-hover/tab:opacity-100" : ""
-                    }`}
-                  >
-                    <button type="button" tabIndex={tools ? 0 : -1} onClick={() => setRenaming(true)} aria-label={`Rename ${b.name}`} className="grid size-6 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-foreground">
-                      <Pencil size={12} />
-                    </button>
-                    <button type="button" tabIndex={tools ? 0 : -1} onClick={() => setDeleting(true)} aria-label={`Delete ${b.name}`} className="grid size-6 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-red-300">
-                      <Trash2 size={12} />
-                    </button>
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {canBuild && (
-          <button type="button" onClick={() => setCreating(true)} aria-label="New board" title="New board" className="chip grid size-9 shrink-0 place-items-center rounded-full">
-            <Plus size={15} />
-          </button>
-        )}
-        </div>
-      )}
+      <BoardTabs
+        teamId={teamId}
+        portalId={portal.id}
+        boards={boards}
+        active={going ?? board.slug}
+        current={{ id: board.id, name: board.name }}
+        loading={!!going}
+        canBuild={canBuild}
+        canAdd={canAdd}
+        onSwitch={switchTo}
+        templates={boardTemplates ?? boards}
+        deleteHint="Its stages, properties and messages go with it, kept with what was deleted. A board still holding leads can't be deleted."
+      />
 
       {/* reaching out, in numbers: one panel, its platform tabs on top and
           the three numbers under them for whichever is picked (all, or one);
@@ -384,26 +352,7 @@ export function PortalView({
         )}
       </div>
 
-      <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} onClose={() => open(null)} onTrack={track} />
-      <NewSpaceDialog open={creating} onClose={() => setCreating(false)} teamId={teamId} parentId={portal.id} kind="board" base={pathname} siblings={boardTemplates ?? boards} />
-      <ReasonDialog
-        open={deleting}
-        danger
-        title={`Delete ${board.name}?`}
-        hint="Its stages, properties and messages go with it, kept with what was deleted. A board still holding leads can't be deleted."
-        confirm="Delete board"
-        onCancel={() => setDeleting(false)}
-        onConfirm={async (reason) => {
-          const res = await deleteSpace(board.id, reason);
-          if (res.error) return res.error;
-          setDeleting(false);
-          // on to another board, or the portal's empty page
-          const next = boards.find((b) => b.id !== board.id);
-          if (next) switchTo(next.slug);
-          else router.replace(pathname);
-          router.refresh();
-        }}
-      />
+      <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} targets={targets.filter((t) => t.id !== board.id)} onClose={() => open(null)} onTrack={track} />
     </div>
     </CanBuild.Provider>
   );

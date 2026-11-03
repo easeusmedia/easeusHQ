@@ -2,10 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import { syncSalesInboxIfDue } from "@/lib/mailSync";
 import { getViewer } from "@/lib/viewer";
-import { buildsDepartment } from "@/lib/scope";
+import { prisma } from "@/lib/prisma";
+import { addsPages, buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../../departments";
 import { DepartmentHead } from "../../DepartmentHead";
-import { boardsOf, childCards, loadBoard, peopleOf, resolvePath, templatesOf } from "../../space/data";
+import { boardsOf, childCards, loadBoard, loadSheet, moveTargets, peopleOf, resolvePath, templatesOf } from "../../space/data";
+import { LeadsView } from "../../space/LeadsView";
 import { SpaceGrid, SpaceTitle } from "../../space/SpaceGrid";
 import { PortalView } from "../../space/PortalView";
 
@@ -35,11 +37,14 @@ export default async function SpacePage({
   if (slug === "sales") after(() => syncSalesInboxIfDue());
   const nodes = await resolvePath(team.id, path);
   if (!nodes) {
-    // an old link through a section that's gone (Sales > Outreach > Podcast): the portal moved up
-    const moved = path.length === 2 && (await resolvePath(team.id, path.slice(1)));
-    if (!moved) notFound();
+    // an old link through a section that's gone: the portal moved up; an
+    // old link to a portal since put in a section (Sales > Podcast, now in
+    // Outreach: 3 Nov 2026): the portal moved down
+    const up = path.length === 2 && (await resolvePath(team.id, path.slice(1)));
+    const down = path.length === 1 && (await prisma.space.findFirst({ where: { teamId: team.id, slug: path[0], kind: "portal", parent: { kind: "section", parentId: null } }, select: { parent: { select: { slug: true } } } }));
+    if (!up && !down) notFound();
     const keep = new URLSearchParams(Object.entries(query).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : [])));
-    redirect(`/org/${slug}/${path[1]}${keep.size ? `?${keep}` : ""}`);
+    redirect(`/org/${slug}/${down ? `${down.parent!.slug}/${path[0]}` : path[1]}${keep.size ? `?${keep}` : ""}`);
   }
 
   const node = nodes[nodes.length - 1];
@@ -48,6 +53,8 @@ export default async function SpacePage({
   // the steps above this page: the department, then any section it's in
   const parents = [{ name: team.name, href: home }, ...nodes.slice(0, -1).map((n, i) => ({ name: n.name, href: href(i) }))];
   const canBuild = buildsDepartment(viewer, team.id);
+  // a new portal, board or Leads tab: Sales' Level 2 too
+  const canAdd = addsPages(viewer, team.id);
   const here = href(nodes.length - 1);
 
   if (node.kind === "section") {
@@ -58,7 +65,7 @@ export default async function SpacePage({
         <DepartmentHead parents={parents} aside={cards.length > 0 && `${plural(cards.length, "portal")} holding ${plural(leads, "lead")}`}>
           <SpaceTitle id={node.id} name={node.name} canRename={canBuild} />
         </DepartmentHead>
-        <SpaceGrid teamId={team.id} parentId={node.id} kind="portal" base={here} cards={cards} canBuild={canBuild} templates={templates} />
+        <SpaceGrid teamId={team.id} parentId={node.id} kind="portal" base={here} cards={cards} canBuild={canBuild} canAdd={canAdd} templates={templates} />
       </>
     );
   }
@@ -67,7 +74,20 @@ export default async function SpacePage({
   const boards = await boardsOf(node.id);
   const pick = typeof query.board === "string" ? query.board : undefined;
   const active = boards.find((b) => b.slug === pick) ?? boards[0];
-  const [board, people, boardTemplates] = await Promise.all([active ? loadBoard(active.id) : null, peopleOf(team.id), templatesOf(team.id, "board")]);
+
+  // Sales > Leads: each tab a spreadsheet of the leads found
+  if (node.leadBank) {
+    const [sheet, targets] = await Promise.all([active ? loadSheet(active.id) : null, moveTargets(team.id)]);
+    return (
+      <>
+        <DepartmentHead parents={parents}>
+          <SpaceTitle id={node.id} name={node.name} canRename={canBuild} />
+        </DepartmentHead>
+        <LeadsView teamId={team.id} portal={{ id: node.id, name: node.name }} boards={boards} sheet={sheet} targets={targets} canBuild={canBuild} canAdd={canAdd} initialLeadId={typeof query.lead === "string" ? query.lead : null} />
+      </>
+    );
+  }
+  const [board, people, boardTemplates, targets] = await Promise.all([active ? loadBoard(active.id) : null, peopleOf(team.id), templatesOf(team.id, "board"), moveTargets(team.id)]);
   return (
     <>
       <DepartmentHead parents={parents}>
@@ -80,7 +100,9 @@ export default async function SpacePage({
         board={board}
         people={people}
         canBuild={canBuild}
+        canAdd={canAdd}
         boardTemplates={boardTemplates}
+        targets={targets}
         initialLeadId={typeof query.lead === "string" ? query.lead : null}
       />
     </>

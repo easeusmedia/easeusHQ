@@ -2,8 +2,9 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, Maximize2, Minimize2, Plus, Trash2, User } from "lucide-react";
-import { assignLead, deleteLead, getLeadDetails, moveLead, renameField, renameLead, setLeadValue } from "./actions";
+import { ArrowRightLeft, Check, ChevronRight, Maximize2, Minimize2, Plus, Trash2, User } from "lucide-react";
+import { assignLead, deleteLead, getLeadDetails, moveLead, moveLeadTo, renameField, renameLead, setFieldFlags, setLeadValue } from "./actions";
+import type { OutreachBoard } from "@/lib/leadSheet";
 import { StagePill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
 import { Warning } from "./Warning";
@@ -31,7 +32,7 @@ type Status = "saving" | "saved" | { error: string } | null;
 // contacts), and last its messages, day by day; along the bottom, delete,
 // who added it, and Close. History slides open beside it. Open while `lead`
 // is set; closing calls onClose. Every change saves as it's made.
-export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; onClose: () => void; onTrack: (id: string, change: MarkChange) => void }) {
+export function LeadPeek({ lead, board, people, targets = [], onClose, onTrack }: { lead: LeadData | null; board: BoardData; people: Person[]; canBuild: boolean; targets?: OutreachBoard[]; onClose: () => void; onTrack: (id: string, change: MarkChange) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   // the last lead stays drawn while the window fades out
   const [shown, setShown] = useState(lead);
@@ -73,7 +74,7 @@ export function LeadPeek({ lead, board, people, onClose, onTrack }: { lead: Lead
       }`}
     >
       {shown && (
-        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} history={history} onHistory={() => setHistory((h) => !h)} full={full} onFull={() => setFull((f) => !f)} close={() => ref.current?.close()} onDeleted={onClose} onTrack={onTrack} />
+        <LeadPage key={`${shown.id}:${opens}`} lead={shown} open={open} board={board} people={people} targets={targets} history={history} onHistory={() => setHistory((h) => !h)} full={full} onFull={() => setFull((f) => !f)} close={() => ref.current?.close()} onDeleted={onClose} onTrack={onTrack} />
       )}
     </dialog>
   );
@@ -84,6 +85,7 @@ function LeadPage({
   open,
   board,
   people,
+  targets,
   history,
   onHistory,
   full,
@@ -96,6 +98,7 @@ function LeadPage({
   open: boolean;
   board: BoardData;
   people: Person[];
+  targets: OutreachBoard[];
   history: boolean;
   onHistory: () => void;
   full: boolean;
@@ -279,6 +282,15 @@ function LeadPage({
       }}
     />
   );
+
+  // pins tapped here show at once, ahead of the board's refresh
+  const [pins, setPins] = useState<Record<string, boolean>>({});
+  const fields = board.fields.map((f) => (f.id in pins ? { ...f, onCard: pins[f.id] } : f));
+  function pin(f: FieldData) {
+    const on = !f.onCard;
+    setPins((p) => ({ ...p, [f.id]: on }));
+    run(setFieldFlags(f.id, { onCard: on }), () => setPins((p) => ({ ...p, [f.id]: !on })));
+  }
 
   // its properties to edit, and its people
   const contactField = board.fields.find((f) => f.kind === "contacts");
@@ -487,7 +499,7 @@ function LeadPage({
             aside={
               <LeadProfile
                 title={title || lead.title}
-                fields={board.fields}
+                fields={fields}
                 values={values}
                 person={person}
                 channel={channel}
@@ -499,6 +511,7 @@ function LeadPage({
                 onCancelAdd={() => setAdding(false)}
                 onSavePerson={savePerson}
                 onRemovePerson={removePerson}
+                onPin={canBuild ? pin : undefined}
               />
             }
           />
@@ -550,6 +563,48 @@ function LeadPage({
           </button>
         )}
         <Warning text={warning && leftLines.length ? `Before ${ready?.name ?? "Ready to reach out"}:` : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={dismissWarning} />
+        {/* to another board, or a Leads tab (Abhishek, 3 Nov 2026) */}
+        {targets.length > 0 && (
+          <Menu
+            height={320}
+            width={260}
+            align="end"
+            popup="menu"
+            buttonClassName="btn btn-ghost shrink-0"
+            button={
+              <>
+                <ArrowRightLeft size={14} /> Move to board
+              </>
+            }
+          >
+            {(closeMenu) => (
+              <div className="max-h-72 overflow-y-auto">
+                {[...new Set(targets.map((t) => t.portal))].map((portal) => (
+                  <div key={portal} role="group" aria-label={portal}>
+                    <p className="px-2.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-muted uppercase">{portal}</p>
+                    {targets
+                      .filter((t) => t.portal === portal)
+                      .map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          role="menuitem"
+                          onClick={async () => {
+                            closeMenu();
+                            const res = await run(moveLeadTo(id, t.id));
+                            if (!res.error) onDeleted();
+                          }}
+                          className="menu-item px-2.5 py-1.5 text-sm"
+                        >
+                          <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                        </button>
+                      ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Menu>
+        )}
         <button type="button" onClick={close} className="btn btn-ghost shrink-0">
           Close
         </button>

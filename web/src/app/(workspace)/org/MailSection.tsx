@@ -1,9 +1,8 @@
-import { LayoutDashboard, MailOpen, Percent, Reply, Send, Target } from "lucide-react";
+import { MailOpen, Percent, Reply, Send, Target } from "lucide-react";
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { dayOf } from "@/lib/editorKpi";
 import { salesSummary } from "@/lib/mailReport";
 import { StatTile } from "../StatTile";
-import { TrackerChip } from "../TrackerChip";
 
 const RANGES = [
   { key: "today", label: "Today" },
@@ -18,29 +17,22 @@ const pct = (part: number, of: number) => (of ? `${Math.round((part / of) * 100)
 // Sales' email numbers: what was sent and the replies, from the sales inbox
 // (every email, whichever computer sent it), and the open and click rates
 // of the emails the tracker saw (lib/mailReport.ts); overall and per alias.
-// Its header leads to the mail tracker (set up, or on) and the Email
-// dashboard, which aren't in the sidebar.
+// At the top of the Email dashboard's Home (Abhishek, 3 Nov 2026: Email is its
+// own dashboard, not part of the Sales page).
 export async function MailSection({ base, range }: { base: string; range?: string }) {
   const key = RANGES.some((r) => r.key === range) ? range! : "7";
   const s = await salesSummary(sinceFor(key));
   const trackedNote = (n: number) => <p className="text-xs text-muted">{s.inboxOn ? `${n} of ${s.sent} emails tracked` : `${n} tracked`}</p>;
 
   return (
-    <section className="mt-10">
+    <section className="mb-5">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">Email</h2>
         <div role="tablist" className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
           {RANGES.map((r) => (
             <Link key={r.key} role="tab" aria-selected={r.key === key} href={`${base}?mail=${r.key}`} scroll={false} className="seg rounded-full px-2.5 py-0.5 text-xs font-medium">
               {r.label}
             </Link>
           ))}
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <TrackerChip />
-          <Link href="/email" className="btn btn-sm btn-glow inline-flex items-center gap-2">
-            <LayoutDashboard size={14} className="text-sky-400" /> Email dashboard
-          </Link>
         </div>
       </div>
 

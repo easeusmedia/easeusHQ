@@ -11,6 +11,8 @@ import {
   runsClients,
   runsProduction,
   seesClients,
+  sidesOf,
+  addsPages,
   seesEveryTeam,
   visibleClientWhere,
   visibleTagWhere,
@@ -109,4 +111,22 @@ test("the Clients area: hidden only from those whose one department is Sales", (
   assert.equal(seesClients({ ...ashmit, departments: [SALES] }), true);
   assert.equal(seesClients(sparsh), true);
   assert.equal(seesClients(unplaced), true);
+});
+
+test("the two sides: Sales for Sales alone, Operations for the rest, both for Level 1, the developer and anyone in both", () => {
+  assert.deepEqual(sidesOf(pankaj), ["sales"]);
+  assert.deepEqual(sidesOf(jyotsna), ["ops"]);
+  assert.deepEqual(sidesOf(sparsh), ["ops"]);
+  assert.deepEqual(sidesOf(unplaced), ["ops"]);
+  assert.deepEqual(sidesOf(ashmit), ["ops", "sales"]);
+  assert.deepEqual(sidesOf({ ...jyotsna, email: "abhishek@easeus.media" }), ["ops", "sales"]);
+  assert.deepEqual(sidesOf({ ...pankaj, departments: [SALES, CS] }), ["ops", "sales"]);
+});
+
+test("adding a portal, board or Leads tab: whoever builds, and Sales' Level 2 in Sales only", () => {
+  assert.equal(addsPages(ashmit, SALES.id), true);
+  assert.equal(addsPages(pankaj, SALES.id), true);
+  assert.equal(addsPages({ ...pankaj, role: "employee" }, SALES.id), false);
+  assert.equal(addsPages(pankaj, PROD.id), false);
+  assert.equal(addsPages(jyotsna, SALES.id), false);
 });

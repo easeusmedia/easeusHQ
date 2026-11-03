@@ -1150,6 +1150,9 @@ model Space {
   children    Space[]      @relation("SpaceTree")
   // "section" | "portal" | "board"
   kind        String
+  // Sales > Leads (Abhishek, 3 Nov 2026): a portal whose boards are the leads
+  // the team finds, one spreadsheet per type (Podcast, Doctors)
+  leadBank    Boolean      @default(false)
   name        String
   // its address under its parent: /org/sales/outreach/podcast
   slug        String

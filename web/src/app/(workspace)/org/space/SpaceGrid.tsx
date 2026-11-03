@@ -70,6 +70,7 @@ export function SpaceGrid({
   base,
   cards,
   canBuild,
+  canAdd = canBuild,
   templates,
 }: {
   teamId: string;
@@ -79,6 +80,8 @@ export function SpaceGrid({
   base: string;
   cards: SpaceCard[];
   canBuild: boolean;
+  // may add one (Sales' Level 2 too: lib/scope addsPages)
+  canAdd?: boolean;
   // what a new one can start as a copy of: every one of its kind in the department
   templates?: { id: string; name: string }[];
 }) {
@@ -86,7 +89,7 @@ export function SpaceGrid({
   const label = KIND_LABEL[kind].toLowerCase();
   const Icon = ICON[kind];
 
-  const dialog = canBuild && (
+  const dialog = canAdd && (
     <NewSpaceDialog open={adding} onClose={() => setAdding(false)} teamId={teamId} parentId={parentId} kind={kind} base={base} siblings={templates ?? cards.map((c) => ({ id: c.id, name: c.name }))} />
   );
 
@@ -99,7 +102,7 @@ export function SpaceGrid({
           </span>
           <p className="mt-1 text-sm font-medium">No {label}s yet</p>
           <p className="max-w-md text-xs leading-5 text-muted">{ABOUT[kind]}</p>
-          {canBuild ? (
+          {canAdd ? (
             <button type="button" onClick={() => setAdding(true)} className="btn btn-sm btn-glow mt-2">
               New {label}
             </button>
@@ -118,7 +121,7 @@ export function SpaceGrid({
       {cards.map((c) => (
         <Card key={c.id} card={c} kind={kind} teamId={teamId} parentId={parentId} canBuild={canBuild} taken={cards.map((s) => s.name.toLowerCase())} />
       ))}
-      {canBuild && (
+      {canAdd && (
         <button type="button" onClick={() => setAdding(true)} className={`${ADD_CARD} min-h-[9.5rem] rounded-2xl`}>
           <PlusBadge large />
           New {label}
@@ -136,9 +139,11 @@ function Card({ card, kind, teamId, parentId, canBuild, taken }: { card: SpaceCa
   const [deleting, setDeleting] = useState(false);
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const Icon = ICON[kind];
-  const label = KIND_LABEL[kind].toLowerCase();
-  const inside = KIND_LABEL[CHILD_OF[kind]].toLowerCase();
+  // its own kind: a section can sit among portals (Sales > Outreach)
+  const own: Kind = card.kind === "section" ? "section" : kind;
+  const Icon = ICON[own];
+  const label = KIND_LABEL[own].toLowerCase();
+  const inside = KIND_LABEL[CHILD_OF[own]].toLowerCase();
 
   // a copy beside it: "Podcast copy", or "Podcast copy 2" if that's taken
   async function copy() {

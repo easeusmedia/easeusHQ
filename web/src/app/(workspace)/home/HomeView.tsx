@@ -150,13 +150,14 @@ function Section({
   // a bigger share for now (a form open in it), so the form and the list
   // under it both fit rather than being cut off; the rest give way
   roomy?: boolean;
-  drag: Drag;
+  // moved by hand on Home; elsewhere (the Sales home's notices) it stays put
+  drag?: Drag;
   children: React.ReactNode;
 }) {
-  const lifted = drag.dragging === id;
+  const lifted = drag?.dragging === id;
   return (
     <section
-      ref={drag.mount(id)}
+      ref={drag?.mount(id)}
       data-section={id}
       // folding changes only its share of the column (the basis stays 0), so it
       // eases between sizes; switching to a content-sized basis made it jump
@@ -171,15 +172,17 @@ function Section({
       {/* the panel itself, last: it's what the pointer carries (HomeView) */}
       <div className={`panel relative flex min-h-0 flex-1 flex-col rounded-2xl transition-[box-shadow] duration-300 ease-out ${lifted ? "shadow-[0_30px_60px_-20px_rgba(0,0,0,0.85)]" : ""}`}>
       <header className="flex shrink-0 items-center gap-2 px-4 py-3 sm:px-5">
-        <button
-          type="button"
-          onPointerDown={(e) => drag.start(id, e)}
-          aria-label={`Move ${title}`}
-          title="Drag to move"
-          className="-ml-1.5 cursor-grab touch-none rounded-md p-1 text-muted/50 transition-colors hover:text-foreground active:cursor-grabbing"
-        >
-          <GripVertical size={14} />
-        </button>
+        {drag && (
+          <button
+            type="button"
+            onPointerDown={(e) => drag.start(id, e)}
+            aria-label={`Move ${title}`}
+            title="Drag to move"
+            className="-ml-1.5 cursor-grab touch-none rounded-md p-1 text-muted/50 transition-colors hover:text-foreground active:cursor-grabbing"
+          >
+            <GripVertical size={14} />
+          </button>
+        )}
         <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.05] text-foreground/80 ring-1 ring-white/[0.08]">{icon}</span>
         <h2 className="mr-auto flex min-w-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
           <span className="truncate">{title}</span>
@@ -907,8 +910,9 @@ const NOTICE_ICON: Record<Notice["kind"], React.ReactNode> = {
 };
 
 // What needs this person: their overdue tasks, tasks they've been added to,
-// and (Level 1) invoices, contracts, client messages and their own notes
-function NoticesSection({
+// and (Level 1) invoices, contracts, client messages and their own notes.
+// On Home, and on the Sales home for Sales alone (Abhishek, 3 Nov 2026).
+export function NoticesSection({
   notices,
   canNote,
   canForward,
@@ -925,7 +929,7 @@ function NoticesSection({
   onOpen: (key: string) => void;
   collapsed: boolean;
   onCollapse: () => void;
-  drag: Drag;
+  drag?: Drag;
 }) {
   const router = useRouter();
   const [writing, setWriting] = useState(false);

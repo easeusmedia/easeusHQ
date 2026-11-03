@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Plus, Quote, SquareCheck, Tags, Trash2, Type, Users, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Pin, Plus, Quote, SquareCheck, Tags, Trash2, Type, Users, X, type LucideIcon } from "lucide-react";
 import { handleOf, isFilled, linkName, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue } from "@/lib/space";
 import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, NotionIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -124,6 +124,7 @@ export function LeadProfile({
   onCancelAdd,
   onSavePerson,
   onRemovePerson,
+  onPin,
 }: {
   title: string;
   fields: FieldData[];
@@ -138,6 +139,9 @@ export function LeadProfile({
   onCancelAdd: () => void;
   onSavePerson: (c: Contact) => Promise<boolean>;
   onRemovePerson: (id: string) => void;
+  // pins a detail to the board's cards, or unpins it (whoever sets the app up);
+  // the country is always on them
+  onPin?: (f: FieldData) => void;
 }) {
   // the person's details open as a form (theirs: switching person closes it)
   const [editing, setEditing] = useState<string | null>(null);
@@ -196,13 +200,13 @@ export function LeadProfile({
           (numbers.length > 0 || pages.length > 0 || rest.length > 0) && (
             <div className="-my-1 flex flex-col">
               {numbers.map((f) => (
-                <FactRow key={f.id} field={f} value={values[f.id]} />
+                <FactRow key={f.id} field={f} value={values[f.id]} onPin={onPin && !named(f, /^country$/i) ? () => onPin(f) : undefined} />
               ))}
               {pages.map((l, i) => (
                 <LinkRow key={`page-${i}`} href={l.href} name={l.name} sub={handleOf(l.href)} platform={l.platform} />
               ))}
               {rest.map((f) => (
-                <FactRow key={f.id} field={f} value={values[f.id]} />
+                <FactRow key={f.id} field={f} value={values[f.id]} onPin={onPin && !named(f, /^country$/i) ? () => onPin(f) : undefined} />
               ))}
             </div>
           )
@@ -283,7 +287,7 @@ function pagesOf(c: Contact): { kind: ChannelKind; href: string; name: string }[
 }
 
 // the working tags that drive the sequence, not anything to read when writing
-const WORKING = /^(opener|version|meme board)$/i;
+export const WORKING = /^(opener|version|meme board)$/i;
 const CIRCLE = "grid size-8 shrink-0 place-items-center rounded-full";
 // a detail's icon by what it is, else by its kind
 const FIELD_ICON: [RegExp, LucideIcon, string][] = [
@@ -366,11 +370,11 @@ function LinkRow({ href, name, sub, platform }: { href: string; name: string; su
 // a detail as a row the size of a page's: its icon, its name, its value in
 // grey (a number as "20,400", a choice by name). A long value wraps under,
 // the icon staying by its first line.
-function FactRow({ field, value }: { field: FieldData; value: unknown }) {
+function FactRow({ field, value, onPin }: { field: FieldData; value: unknown; onPin?: () => void }) {
   const { Icon, tone } = iconOf(field);
   const remark = field.kind === "count" ? (value as { remark?: string }).remark?.trim() : "";
   return (
-    <div className="-mx-1.5 flex min-w-0 items-start gap-2.5 px-1.5 py-1 text-[13px] text-foreground/85">
+    <div className="group/fact -mx-1.5 flex min-w-0 items-start gap-2.5 px-1.5 py-1 text-[13px] text-foreground/85">
       <span className={`${CIRCLE} ${tone}`}>
         <Icon size={14} />
       </span>
@@ -383,6 +387,21 @@ function FactRow({ field, value }: { field: FieldData; value: unknown }) {
           </span>
         </span>
       </span>
+      {/* pinned, it shows on the lead's card on the board (Abhishek, 3 Nov 2026) */}
+      {onPin && (
+        <button
+          type="button"
+          onClick={onPin}
+          aria-pressed={field.onCard}
+          aria-label={field.onCard ? `Unpin ${field.name} from the cards` : `Pin ${field.name} to the cards`}
+          title={field.onCard ? "Unpin from the cards" : "Pin to the cards"}
+          className={`grid size-8 shrink-0 place-items-center rounded-lg transition-[opacity,color,background-color] duration-150 hover:bg-white/[0.06] focus-visible:opacity-100 ${
+            field.onCard ? "text-accent" : "text-muted opacity-0 group-hover/fact:opacity-100 hover:text-foreground"
+          }`}
+        >
+          <Pin size={14} className={field.onCard ? "fill-current" : ""} />
+        </button>
+      )}
     </div>
   );
 }

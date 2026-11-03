@@ -5,6 +5,7 @@ import { DEPT, DEVELOPER, setsUp, worksDepartment, type Viewer } from "@/lib/sco
 import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
 import { addOption, assignLead, moveLead, renameLead, setLeadDraft, setLeadNotes, setLeadValue, setLeadVar } from "@/app/(workspace)/org/space/actions";
 import type { ChannelStats } from "@/lib/channelStats";
+import { channelsIn } from "@/lib/leadSheet";
 import { ToolError, type ServerInfo, type Tool } from "./protocol";
 
 // What someone's Claude can do on the Sales dashboard through its
@@ -21,8 +22,9 @@ export const INFO: ServerInfo = {
   version: "1",
   instructions: [
     "Easeus HQ's Sales dashboard: boards of leads (doctors, podcasts). Each lead sits on a stage (Dream list, Ready to reach out, Day 1 to Day 8, Replied...) and has fields, the people to write to, links, and the emails written for it.",
+    "Two kinds of board (list_boards says which): lead databases (Leads › Podcast, Leads › Doctors...), where the leads the team finds are collected, each with its people (name, designation, their links, emails and numbers), its own links and notes; and outreach boards (Outreach › Podcast › Amplifier...), where leads are reached out to day by day. New leads found go into a lead database with add_leads; the team moves them on to outreach from there.",
     "Start with list_boards: each board's id, stages, fields with their tags, message templates (by id) and the people leads can be assigned to. Then find_leads and get_lead to read, add_leads to put prepared leads on a board (up to 50 a call; they land in the first stage, Dream list, and the team moves them on; none can start in Ready to reach out or later, only before it or in Dead, since a lead goes into Ready to reach out once every message is approved), update_lead to change one, move_lead to move one.",
-    "Values go by field name (or id). Tags by name. People as { name, role, email, linkedin, instagram, youtube, phone }. A lead's opener emails as [{ label, drafts: { <message id or name>: { subject, body } } }], the main opener first, backups after.",
+    "Values go by field name (or id). Tags by name. People as { name, role, email, linkedin, instagram, facebook, youtube, x, website, phone }, or any of their links and handles in links (each filed by what it is). role is their designation (CEO, Founder, Host...). A lead's opener emails as [{ label, drafts: { <message id or name>: { subject, body } } }], the main opener first, backups after.",
     "Nothing here deletes, and a lead is never moved unless asked.",
   ].join("\n"),
 };
@@ -63,6 +65,8 @@ type Board = {
   teamId: string;
   path: string;
   url: string;
+  // a lead database (Sales > Leads), else an outreach board
+  database: boolean;
   stages: { id: string; name: string; day: number | null }[];
   fields: Field[];
   messages: Msg[];
@@ -89,6 +93,7 @@ async function salesBoards(acting: Acting, origin: string): Promise<Board[]> {
       slug: true,
       kind: true,
       parentId: true,
+      leadBank: true,
       stages: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -139,6 +144,7 @@ async function salesBoards(acting: Acting, origin: string): Promise<Board[]> {
         teamId: team.id,
         path: [...up.map((x) => x.name), s.name].join(" › "),
         url: `${origin}/org/${team.slug}/${up.map((x) => x.slug).join("/")}?board=${s.slug}`,
+        database: up.some((x) => x.leadBank),
         stages: s.stages.map((st) => ({
           id: st.id,
           name: st.name,
@@ -224,7 +230,9 @@ const contactIn = z
     instagram: oneOrMore(300).optional().describe("Their Instagram page or @handle"),
     youtube: oneOrMore(300).optional().describe("Their YouTube channel"),
     x: oneOrMore(300).optional(),
+    facebook: oneOrMore(300).optional().describe("Their Facebook page"),
     website: oneOrMore(300).optional().describe("Any other page of theirs"),
+    links: z.array(z.string().max(300)).max(30).optional().describe("Any of their links, handles, emails or numbers, each filed by what it is (Instagram, LinkedIn, Facebook, a website, an email, a phone)"),
   })
   .describe("A person on the lead");
 type ContactIn = z.infer<typeof contactIn>;
@@ -251,9 +259,12 @@ function toContact(raw: unknown, i: number): Contact {
     ["instagram", "instagram"],
     ["youtube", "youtube"],
     ["x", "x"],
+    ["facebook", "other"],
     ["website", "other"],
   ];
   for (const [key, kind] of pages) for (const v of many(d[key])) if (v.trim()) channels.push({ kind, value: v });
+  // any link at all, filed by what it is, once each
+  for (const c of channelsIn((d.links ?? []).join("\n")).found) if (!channels.some((x) => x.kind === c.kind && x.value.toLowerCase() === c.value.toLowerCase())) channels.push(c);
   return {
     id: d.id ?? crypto.randomUUID(),
     name: d.name ?? "",
@@ -453,7 +464,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
   });
 
   return [
-    tool("list_boards", "The Sales boards: each one's id, stages (in order, with how many leads on each), fields with their tags, message templates (id, stage, name, channel) and the people leads can be assigned to. Call this first.", z.object({}), async () => {
+    tool("list_boards", "The Sales boards: each one's id, type (a lead database, where found leads are collected, or an outreach board), stages (in order, with how many leads on each), fields with their tags, message templates (id, stage, name, channel) and the people leads can be assigned to. Call this first.", z.object({}), async () => {
       const boards = await salesBoards(acting, origin);
       const [counts, people] = await Promise.all([
         prisma.lead.groupBy({
@@ -469,6 +480,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
           id: b.id,
           name: b.name,
           path: b.path,
+          type: b.database ? "lead database" : "outreach",
           url: b.url,
           stages: b.stages.map((s) => ({
             id: s.id,
@@ -630,7 +642,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
 
     tool(
       "add_leads",
-      "Put prepared leads on a board, up to 50 a call, each with its fields, people, links, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is filled in and approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
+      "Put prepared leads on a board, up to 50 a call: a lead database (Leads › Podcast...) to collect them, or an outreach board, each with its fields, people (with their designation and links), its own links, notes, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is filled in and approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
       z.object({
         board_id: z.string().describe("The board's id or name"),
         leads: z.array(leadIn).min(1).max(50),

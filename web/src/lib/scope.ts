@@ -57,6 +57,15 @@ export function seesClients(user: Pick<Viewer, "role" | "email" | "departments">
   return isFounder(user) || !user.departments.length || user.departments.some((d) => d.slug !== DEPT.sales);
 }
 
+// The two sides of the app (Abhishek, 3 Nov 2026): Operations (clients,
+// production, the team's work) and Sales (its leads and outreach), from
+// their departments, which stay as they are. Level 1 and the developer have
+// both, in one sidebar; so does anyone in Sales and another department.
+export type Side = "ops" | "sales";
+export function sidesOf(user: Pick<Viewer, "role" | "email" | "departments">): Side[] {
+  return [...(seesClients(user) ? (["ops"] as const) : []), ...(isFounder(user) || inDepartment(user, DEPT.sales) ? (["sales"] as const) : [])];
+}
+
 // Who may connect their Claude to the Sales dashboard (MCP, lib/mcp): Level 1,
 // and Level 2 in Sales (Abhishek, 19 Oct 2026)
 export function connectsClaude(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
@@ -93,6 +102,13 @@ export function setsUp(user: Pick<Viewer, "role" | "email" | "departments">): bo
 // portals, boards, stages, properties, tags and messages.
 export function worksDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return isFounder(user) || user.departments.some((d) => d.id === teamId);
+}
+// Adding a page (a portal, a board, a Leads tab): whoever builds the
+// department, and in Sales its Level 2 too (Abhishek, 3 Nov 2026: Sales makes
+// its own outreach portals and lead databases). Renaming, deleting and setting
+// one up stay with whoever builds.
+export function addsPages(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
+  return buildsDepartment(user, teamId) || (isLead(user) && user.departments.some((d) => d.id === teamId && d.slug === DEPT.sales));
 }
 export function buildsDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return worksDepartment(user, teamId) && setsUp(user);

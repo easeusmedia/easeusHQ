@@ -21,8 +21,9 @@ const BLANK: Record<SpaceKind, string> = {
 const EXAMPLE: Record<SpaceKind, string> = { section: "Outreach", portal: "Podcast", board: "Dream 156" };
 
 // A new section, portal or board: a name, and where it starts from (blank,
-// or a copy of a sibling's structure). Opens on `open`; on success it goes
-// to the new page (a board opens as the portal's ?board=).
+// or a copy of a sibling's structure). A Leads tab (`tab`) takes only its
+// name. Opens on `open`; on success it goes to the new page (a board opens
+// as the portal's ?board=).
 export function NewSpaceDialog({
   open,
   onClose,
@@ -31,6 +32,7 @@ export function NewSpaceDialog({
   kind,
   base,
   siblings,
+  tab = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -40,6 +42,7 @@ export function NewSpaceDialog({
   // the parent page's address; the new page lives under it
   base: string;
   siblings: { id: string; name: string }[];
+  tab?: boolean;
 }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
@@ -75,7 +78,7 @@ export function NewSpaceDialog({
     router.push(kind === "board" ? `${base}?board=${res.slug}` : `${base}/${res.slug}`);
   }
 
-  const label = KIND_LABEL[kind].toLowerCase();
+  const label = tab ? "tab" : KIND_LABEL[kind].toLowerCase();
   const source = siblings.find((s) => s.id === from);
 
   return (
@@ -95,7 +98,7 @@ export function NewSpaceDialog({
       >
         <div>
           <h2 className="text-base font-semibold">New {label}</h2>
-          <p className="mt-1 text-xs text-muted">Give it a name, then start blank or from a copy of one you already have.</p>
+          {!tab && <p className="mt-1 text-xs text-muted">Give it a name, then start blank or from a copy of one you already have.</p>}
         </div>
 
         <label className="flex flex-col gap-1.5 text-xs text-muted">
@@ -106,29 +109,31 @@ export function NewSpaceDialog({
             value={name}
             disabled={busy}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`e.g. ${EXAMPLE[kind]}`}
+            placeholder={`e.g. ${tab ? "Doctors" : EXAMPLE[kind]}`}
             className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-hover disabled:opacity-60"
           />
         </label>
 
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted">Start from</p>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" aria-pressed={!from} onClick={() => setFrom(null)} className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-              <FilePlus2 size={12} strokeWidth={1.5} /> Blank
-            </button>
-            {siblings.map((s) => (
-              <button key={s.id} type="button" aria-pressed={from === s.id} onClick={() => setFrom(s.id)} className="chip flex max-w-full min-w-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                <Copy size={12} strokeWidth={1.5} className="shrink-0" />
-                <span className="truncate">Copy of {s.name}</span>
+        {!tab && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted">Start from</p>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" aria-pressed={!from} onClick={() => setFrom(null)} className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                <FilePlus2 size={12} strokeWidth={1.5} /> Blank
               </button>
-            ))}
+              {siblings.map((s) => (
+                <button key={s.id} type="button" aria-pressed={from === s.id} onClick={() => setFrom(s.id)} className="chip flex max-w-full min-w-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                  <Copy size={12} strokeWidth={1.5} className="shrink-0" />
+                  <span className="truncate">Copy of {s.name}</span>
+                </button>
+              ))}
+            </div>
+            {/* keyed so it eases in afresh with each pick */}
+            <p key={from ?? "blank"} className="fade-in text-xs text-muted/80">
+              {source ? `Copies ${COPIES[kind]} from ${source.name}. Leads are never copied.` : BLANK[kind]}
+            </p>
           </div>
-          {/* keyed so it eases in afresh with each pick */}
-          <p key={from ?? "blank"} className="fade-in text-xs text-muted/80">
-            {source ? `Copies ${COPIES[kind]} from ${source.name}. Leads are never copied.` : BLANK[kind]}
-          </p>
-        </div>
+        )}
 
         {error && (
           <p role="alert" className="fade-in text-xs text-red-300">

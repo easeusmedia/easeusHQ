@@ -4,8 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname } from "next/navigation";
 import { createElement, useEffect, useRef, useState } from "react";
-import { CloudFog, Eye, House, Network, BriefcaseBusiness, ListChecks, MessagesSquare, UsersRound, Building2, CalendarDays, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, UserCog, type LucideIcon } from "lucide-react";
-import { markOf } from "./org/marks";
+import { Clapperboard, CloudFog, Eye, House, BriefcaseBusiness, ListChecks, UsersRound, Building2, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, Magnet, Mail, Mic, Send, Stethoscope, TrendingUp, UserCog, type LucideIcon } from "lucide-react";
 import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./TaskCard";
 import { viewAs } from "./viewAs";
@@ -16,6 +15,7 @@ import { isActive } from "./sidebarActive";
 import { CLIENTS_SECTION, useActiveClient } from "./clients/clientsPanel";
 import { clientHref } from "@/lib/slug";
 import { readConsent, saveTheme } from "@/lib/consent";
+import type { Side } from "@/lib/scope";
 
 // logo: the logo's own address (see clientLogoSrc), not the image itself
 export type SidebarClient = { id: string; slug: string; name: string; logo: string | null };
@@ -34,16 +34,25 @@ const MAIN = [
   // isn't privileged information inside the agency
   { href: "/clients", label: "Clients", hint: "All clients and their projects", Icon: Building2 },
   // a kanban board, because that is literally what it is
-  // the departments, each with its own page (Production's is its board)
-  { href: "/org", label: "Organization", hint: "Departments and their boards", Icon: Network },
+  // Operations' one department page (Abhishek, 3 Nov 2026): Production's
+  // board, not every department; the rest stay in Settings for the logic
+  { href: "/org/production", label: "Production", hint: "Video and design queues", Icon: Clapperboard },
   // your own tasks only — the whole team's work is on the Board
   { href: "/my-tasks", label: "My tasks", hint: "Everything assigned to you", Icon: ListChecks },
   // everyone's current and finished work, a person at a time (History until 26 Oct 2026)
   { href: "/team-work", label: "Team work", hint: "Everyone's current and past work", Icon: BriefcaseBusiness },
-  // the team's own chat — a real page now, not the avatar stack that used
-  // to float over the bottom-right corner of every other page
-  { href: "/chat", label: "Chat", hint: "Message your teammates", Icon: MessagesSquare },
+  // Chat (/chat) is off the sidebar until it's built out (Abhishek, 3 Nov 2026)
 ];
+
+// Sales' own pages, by what they hold: the leads sheet, outreach, podcasts, doctors
+const PORTAL_MARKS: [RegExp, LucideIcon][] = [
+  [/outreach/i, Send],
+  [/lead/i, Magnet],
+  [/podcast/i, Mic],
+  [/doctor/i, Stethoscope],
+];
+const portalMark = (name: string, other: LucideIcon = LayoutGrid): LucideIcon => PORTAL_MARKS.find(([key]) => key.test(name))?.[1] ?? other;
+const SALES_HOME = "/org/sales";
 
 // the rows' own shape; `selected` (globals.css) is the dark gradient pill.
 // Every row carries the same transparent 1px border the pill has, so the
@@ -98,13 +107,11 @@ const NESTED_ICON = [null, Layers, LayoutGrid];
 function ClientTree({
   clients,
   current,
-  hrefOf = clientHref,
   pathname = "",
   depth = 0,
 }: {
   clients: TreeItem[];
   current: string | null;
-  hrefOf?: (c: TreeItem) => string;
   pathname?: string;
   depth?: number;
 }) {
@@ -149,7 +156,7 @@ function ClientTree({
               <span className={`absolute bottom-0 left-0 top-4 w-px transition-colors duration-300 ${at > i ? "bg-accent/70" : "bg-white/10"}`} />
             )}
             <PrefetchLink
-              href={c.href ?? hrefOf(c)}
+              href={c.href ?? clientHref(c)}
               onClick={(e) => e.stopPropagation()}
               className={`ml-4 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 ${kids.length ? "pr-8" : ""} ${ROW} ${
                 on ? (inner ? "font-medium text-foreground hover:bg-white/[0.04]" : "selected font-medium") : IDLE
@@ -217,13 +224,13 @@ export function Sidebar({
   account = null,
   fullAccess,
   isEditor = false,
-  unreadBySender,
   contractsWaiting = 0,
   noticesWaiting = 0,
   theme = "dark",
   clients = [],
   logout,
   initialOpen,
+  sides = ["ops"],
 }: {
   isOps?: boolean;
   // a Founder: Home, and Performance (grading is theirs)
@@ -246,7 +253,6 @@ export function Sidebar({
   fullAccess: boolean;
   // an editor's work is the Board's editing queue: no My tasks
   isEditor?: boolean;
-  unreadBySender: Record<string, number>;
   // contracts whose client has sent the form, waiting on ops
   contractsWaiting?: number;
   // notices they haven't seen yet, on Home
@@ -260,6 +266,8 @@ export function Sidebar({
   // already matches the saved preference, so there's nothing to correct
   // after mount and nothing to flicker
   initialOpen: boolean;
+  // which parts of the app are theirs (Operations, Sales, or both)
+  sides?: Side[];
 }) {
   const pathname = usePathname();
   // click-only — no hover peek. Opens/closes only via the toggle button.
@@ -276,7 +284,6 @@ export function Sidebar({
     setTheme(t);
   }
   const profileRef = useRef<HTMLDivElement>(null);
-  const unreadCount = Object.values(unreadBySender).reduce((a, b) => a + b, 0);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -313,33 +320,52 @@ export function Sidebar({
   // the clients area, and by its chevron any time
   const inClients = CLIENTS_SECTION.test(pathname);
   const [clientsOpen, setClientsOpen] = useState(inClients);
-  // Organization unfolds its departments the same way
-  const inOrg = pathname.startsWith("/org");
-  const [orgOpen, setOrgOpen] = useState(inOrg);
-  const currentDepartment = pathname.match(/^\/org\/([^/?#]+)/)?.[1] ?? null;
+  // Sales' pages unfolded or folded by hand, by address (until you go into
+  // one again, which unfolds it as Clients does)
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
   const [seenPath, setSeenPath] = useState(pathname);
   if (pathname !== seenPath) {
     setSeenPath(pathname);
     if (inClients) setClientsOpen(true);
-    if (inOrg) setOrgOpen(true);
+    setUnfolded((u) => Object.fromEntries(Object.entries(u).filter(([href]) => pathname !== href && !pathname.startsWith(`${href}/`))));
   }
-  // the two items that unfold a tree beneath them
-  const trees: Record<string, { items: TreeItem[]; current: string | null; open: boolean; setOpen: (f: (v: boolean) => boolean) => void; all: string; AllIcon: typeof Building2; hrefOf?: (c: TreeItem) => string }> = {
+  // Operations never shows Sales; Sales shows its own pages
+  const opsDepartments = departments.filter((d) => d.slug !== "sales");
+  const salesPortals = departments.find((d) => d.slug === "sales")?.children ?? [];
+  // the item that unfolds a tree beneath it
+  const trees: Record<string, { items: TreeItem[]; current: string | null; open: boolean; setOpen: (f: (v: boolean) => boolean) => void; all: string; AllIcon: typeof Building2 }> = {
     "/clients": { items: clients, current: currentClient, open: clientsOpen, setOpen: setClientsOpen, all: "All clients", AllIcon: Building2 },
-    "/org": {
-      items: departments.map((d) => ({ ...d, logo: null, icon: markOf(d.name) })),
-      current: currentDepartment,
-      open: orgOpen,
-      setOpen: setOrgOpen,
-      all: "Organization",
-      AllIcon: Network,
-      hrefOf: (c) => `/org/${c.slug}`,
-    },
   };
+  // a Sales page holding portals (Outreach: Podcast, Doctors) unfolds them
+  // the same way, by itself while you're inside it
+  for (const p of salesPortals.filter((x) => x.children?.length)) {
+    const inside = pathname === p.href || pathname.startsWith(`${p.href}/`);
+    trees[p.href] = {
+      items: p.children!.map((c) => ({ id: c.id, slug: c.slug, name: c.name, href: c.href, icon: portalMark(c.name) })),
+      current: pathname.startsWith(`${p.href}/`) ? pathname.slice(p.href.length + 1).split("/")[0] : null,
+      open: unfolded[p.href] ?? inside,
+      setOpen: (f) => setUnfolded((u) => ({ ...u, [p.href]: f(u[p.href] ?? inside) })),
+      all: p.name,
+      AllIcon: Layers,
+    };
+  }
 
   // Team work is Level 1's; Organization only with a department to open; Clients not for Sales alone
-  const main = MAIN.filter((i) => (departments.length > 0 || i.href !== "/org") && (isFounder || i.href !== "/team-work") && (showClients || i.href !== "/clients"));
-  const groups = [
+  const main = MAIN.filter((i) => (opsDepartments.some((d) => d.slug === "production") || i.href !== "/org/production") && (isFounder || i.href !== "/team-work") && (showClients || i.href !== "/clients"));
+  // Sales (Abhishek, 3 Nov 2026): its dashboard, each of its pages (Leads,
+  // Outreach), Email; for Sales alone, My tasks with them
+  const salesGroup = {
+    label: "Sales",
+    items: [
+      // Sales alone: their notices are on it, so their count is too
+      { href: SALES_HOME, label: "Sales", hint: "Leads, outreach and email at a glance", Icon: TrendingUp, exact: true, count: sides.includes("ops") ? 0 : noticesWaiting },
+      ...salesPortals.map((p) => ({ href: p.href, label: p.name, hint: undefined, Icon: portalMark(p.name, p.children?.length ? Layers : LayoutGrid) })),
+      // the mail tracker's dashboard: sent, opens, replies, clicks, PDFs
+      { href: "/email", label: "Email", hint: "Sent, opens, replies and clicks", Icon: Mail },
+      ...(sides.includes("ops") ? [] : [{ href: "/my-tasks", label: "My tasks", hint: "Everything assigned to you", Icon: ListChecks }]),
+    ],
+  };
+  const opsGroups = [
     // an editor sees their own numbers, read-only (the page takes them there)
     {
       label: "Main",
@@ -355,7 +381,7 @@ export function Sidebar({
       label: "Manage",
       items: isOps
         ? [
-            { href: "/calendar", label: "Calendar", hint: "The team's workload, day by day", Icon: CalendarDays },
+            // Calendar (/calendar) is off the sidebar for now (Abhishek, 3 Nov 2026)
             // every client's YouTube and Instagram views in one place: Level 1's
             ...(isFounder ? [{ href: "/analytics", label: "Analytics", hint: "Performance across every client", Icon: ChartColumn }] : []),
           ]
@@ -378,6 +404,9 @@ export function Sidebar({
         : [],
     },
   ];
+  // Operations' groups, Sales' after Main; Level 1 and the developer see both
+  // in one sidebar, Sales alone only Sales
+  const groups = sides.includes("ops") ? [opsGroups[0], ...(sides.includes("sales") ? [salesGroup] : []), ...opsGroups.slice(1)] : [salesGroup];
 
   return (
     <>
@@ -493,10 +522,10 @@ export function Sidebar({
         // Clients (and Organization) is lit on its own page; further in, the tree says which
         const tree = trees[item.href];
         const isClients = !!tree;
-        const active = isClients ? pathname === item.href : isActive(item.href, pathname);
-        // what's waiting behind this item: unread chat, contracts to finish
-        const count = item.href === "/chat" ? unreadCount : "count" in item ? (item.count ?? 0) : 0;
-        const waiting = item.href === "/chat" ? `${unreadCount} unread` : item.href === "/home" ? `${count} new ${count === 1 ? "notice" : "notices"}` : `${count} waiting on you`;
+        const active = isClients || ("exact" in item && item.exact) ? pathname === item.href : isActive(item.href, pathname);
+        // what's waiting behind this item: notices, contracts to finish
+        const count = "count" in item ? (item.count ?? 0) : 0;
+        const waiting = item.href === "/home" || item.href === SALES_HOME ? `${count} new ${count === 1 ? "notice" : "notices"}` : `${count} waiting on you`;
         const row = (
           <PrefetchLink
             key={item.href}
@@ -513,7 +542,7 @@ export function Sidebar({
             {/* fixed-size slot, same position whether collapsed or open */}
             <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
               <item.Icon size={18} className={active ? "icon-glow" : ""} />
-              {/* unread count rides the Chat icon itself, so it's visible
+              {/* the count rides the icon itself, so it's visible
                   collapsed (where there's no label to put it beside) too */}
               {count > 0 && !open && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[11px] leading-none font-semibold text-white tabular-nums ring-2 ring-surface">
@@ -555,15 +584,17 @@ export function Sidebar({
                   <ChevronDown size={15} className={`transition-transform duration-200 ${tree.open ? "" : "-rotate-90"}`} />
                 </button>
               )}
-              {open && (
-                <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${tree.open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                  <div className="overflow-hidden">
-                    <div className="ml-[18px] pb-1 pt-1">
-                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} pathname={pathname} />
-                    </div>
+              {/* always mounted, so folding the rail folds it too rather than snapping it away */}
+              <div
+                inert={!open || !tree.open}
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open && tree.open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+              >
+                <div className="overflow-hidden">
+                  <div className="ml-[18px] pb-1 pt-1">
+                    <ClientTree clients={tree.items} current={tree.current} pathname={pathname} />
                   </div>
                 </div>
-              )}
+              </div>
               {/* collapsed: hovering the icon shows them in a card beside it */}
               {!open && tree.items.length > 0 && (
                 <div className="pointer-events-none absolute left-full top-0 z-40 -translate-x-1 pl-4 opacity-0 transition-[opacity,translate] duration-200 ease-out group-hover/fly:pointer-events-auto group-hover/fly:translate-x-0 group-hover/fly:opacity-100">
@@ -575,7 +606,7 @@ export function Sidebar({
                       <tree.AllIcon size={15} /> {tree.all}
                     </PrefetchLink>
                     <div className="ml-[13px]">
-                      <ClientTree clients={tree.items} current={tree.current} hrefOf={tree.hrefOf} pathname={pathname} />
+                      <ClientTree clients={tree.items} current={tree.current} pathname={pathname} />
                     </div>
                   </div>
                 </div>

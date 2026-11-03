@@ -11,12 +11,11 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients, connectsClaude } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients, connectsClaude, sidesOf } from "@/lib/scope";
 import { ViewAsBanner } from "./ViewAsBanner";
 import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { Assistant } from "./assistant/Assistant";
-import { getUnreadBySender } from "./presence/actions";
 import { MainScroll } from "./MainScroll";
 import { ClientDock } from "./clients/ClientDock";
 import { PeopleProvider } from "./photos";
@@ -39,12 +38,11 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // page and every live refresh, so its queries running one after another
   // was a fixed cost on every click. Two rounds to the database now: who's
   // signed in, then all of the rest side by side.
-  const [realUserId, sessionUserId, viewer, users, unreadBySender, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos] = await Promise.all([
+  const [realUserId, sessionUserId, viewer, users, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos] = await Promise.all([
     getRealUserId(),
     getSessionUserId(),
     getViewer(),
     getAllUsers().catch(() => []),
-    getUnreadBySender().catch(() => ({})),
     // the current clients: the sidebar's tree and the client bar — everyone sees them
     prisma.client.findMany({
       where: { status: "current" },
@@ -147,7 +145,6 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         account={viewingAs ? null : { id: sessionUser.id, name: sessionUser.name, email: sessionUser.email, claude: connectsClaude(viewer) }}
         fullAccess={isAbhishekOrAdmin(sessionUser)}
         isEditor={editor}
-        unreadBySender={unreadBySender}
         contractsWaiting={contractsWaiting}
         noticesWaiting={noticesWaiting}
         theme={realUser?.theme === "mist" ? "mist" : "dark"}
@@ -155,6 +152,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         showClients={seesClients(viewer)}
         logout={logout}
         initialOpen={sidebarOpen}
+        sides={sidesOf(viewer)}
       />
       {/* the page scrolls; the client bar floats over its foot, and the page
           makes room for it whenever it's there */}

@@ -10,6 +10,7 @@ import { docDetail, docs } from "@/lib/docTrack";
 import { PrefetchLink as Link } from "@/app/(workspace)/PrefetchLink";
 import { AliasPicker, PdfUpload } from "./controls";
 import { TrackerChip } from "../TrackerChip";
+import { MailSection } from "../org/MailSection";
 import { ActivityView, EmailsView, HomeView, LinksView, MailView, PdfDetail, PdfsView, PerformanceView } from "./views";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,12 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
   let body: React.ReactNode;
   if (tab === "home") {
     const [items, report] = await Promise.all([activity(alias, 8), performance(alias, "day")]);
-    body = <HomeView items={items} report={report} now={now} query={query} />;
+    body = (
+      <>
+        <MailSection base="/email" range={sp.mail} />
+        <HomeView items={items} report={report} now={now} query={query} />
+      </>
+    );
   } else if (tab === "activity") {
     const show: ActivityTab = sp.show && sp.show in ACTIVITY_TABS ? (sp.show as ActivityTab) : "all";
     const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? new Date(sp.before) : undefined;

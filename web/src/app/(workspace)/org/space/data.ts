@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { DEAD_STAGE, type OutreachBoard, type SheetData, type SheetLead } from "@/lib/leadSheet";
 import { dayOf, emailStarts, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, reachOutDays, type Approval, type BoardData, type Contact, type FieldKind, type Mark, type Person, type Platform, type SpaceCard, type SpaceKind, readMarks, NO_CONTACT } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
 // (org/[slug] and org/[slug]/[...path]). Access is checked by the pages.
 
-export type SpaceNode = { id: string; teamId: string; parentId: string | null; kind: SpaceKind; name: string; slug: string };
+export type SpaceNode = { id: string; teamId: string; parentId: string | null; kind: SpaceKind; name: string; slug: string; leadBank: boolean };
 
-const NODE = { id: true, teamId: true, parentId: true, kind: true, name: true, slug: true } as const;
+const NODE = { id: true, teamId: true, parentId: true, kind: true, name: true, slug: true, leadBank: true } as const;
 
 // The pages a path names under a department: ["podcast"] →
 // [Podcast]. null if any step doesn't exist, or it goes past a
@@ -29,7 +30,7 @@ export async function childCards(teamId: string, parentId: string | null, base: 
   const rows = await prisma.space.findMany({
     where: { teamId, parentId, kind: { in: ["section", "portal"] } },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, kind: true, name: true, slug: true, _count: { select: { children: true } }, children: { select: { _count: { select: { leads: true } } } } },
+    select: { id: true, kind: true, name: true, slug: true, _count: { select: { children: true } }, children: { select: { _count: { select: { leads: true } }, children: { select: { _count: { select: { leads: true } } } } } } },
   });
   return rows.map((r) => ({
     id: r.id,
@@ -38,7 +39,8 @@ export async function childCards(teamId: string, parentId: string | null, base: 
     slug: r.slug,
     href: `${base}/${r.slug}`,
     children: r._count.children,
-    leads: r.children.reduce((n, c) => n + c._count.leads, 0),
+    // a portal's boards' leads; a section's, its portals' boards'
+    leads: r.children.reduce((n, c) => n + c._count.leads + c.children.reduce((m, b) => m + b._count.leads, 0), 0),
   }));
 }
 
@@ -206,12 +208,77 @@ export async function spaceTree(teamIds: string[]) {
 }
 
 // Every page of a kind in the department, to start a new one as a copy of:
-// "Podcast (Outreach)", "Dream 156 Podcasts (Core Offer) (Podcast)"
+// "Podcast (Outreach)", "Dream 156 Podcasts (Core Offer) (Podcast)". Never
+// Sales > Leads or its tabs: a copy of one would be neither.
 export async function templatesOf(teamId: string, kind: SpaceKind) {
   const rows = await prisma.space.findMany({
     where: { teamId, kind },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, name: true, parent: { select: { name: true } } },
+    select: { id: true, name: true, leadBank: true, parent: { select: { name: true, leadBank: true } } },
   });
-  return rows.map((r) => ({ id: r.id, name: r.parent ? `${r.name} (${r.parent.name})` : r.name }));
+  return rows.filter((r) => !r.leadBank && !r.parent?.leadBank).map((r) => ({ id: r.id, name: r.parent ? `${r.name} (${r.parent.name})` : r.name }));
+}
+
+// A Leads tab as its spreadsheet (Sales > Leads, 3 Nov 2026): the leads still
+// on it, newest first.
+export async function loadSheet(boardId: string): Promise<SheetData | null> {
+  const board = await prisma.space.findFirst({
+    where: { id: boardId, kind: "board", parent: { leadBank: true } },
+    select: { id: true, name: true, slug: true, fields: { where: { kind: { in: ["contacts", "links"] } }, orderBy: { sortOrder: "asc" }, select: { id: true, kind: true } } },
+  });
+  if (!board) return null;
+  const leads = await prisma.lead.findMany({
+    where: { boardId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      values: true,
+      notes: true,
+      createdAt: true,
+      editedByName: true,
+      editedAt: true,
+      createdBy: { select: { id: true, name: true } },
+      stage: { select: { name: true } },
+    },
+  });
+  const of = (values: unknown, ids: string[]) => ids.flatMap((id) => {
+    const v = (values as Record<string, unknown> | null)?.[id];
+    return Array.isArray(v) ? v : [];
+  });
+  const ids = (kind: string) => board.fields.filter((f) => f.kind === kind).map((f) => f.id);
+  const rows: SheetLead[] = leads.map((l) => ({
+      id: l.id,
+      title: l.title,
+      contacts: of(l.values, ids("contacts")),
+      links: of(l.values, ids("links")),
+      notes: l.notes,
+      createdBy: l.createdBy,
+      createdAt: l.createdAt.toISOString(),
+      editedByName: l.editedByName,
+      editedAt: l.editedAt?.toISOString() ?? null,
+      dead: l.stage.name === DEAD_STAGE,
+  }));
+  return {
+    id: board.id,
+    name: board.name,
+    slug: board.slug,
+    contactsField: board.fields.find((f) => f.kind === "contacts")?.id ?? null,
+    linksField: board.fields.find((f) => f.kind === "links")?.id ?? null,
+    leads: rows,
+  };
+}
+
+// Where a lead can be moved (Abhishek, 3 Nov 2026): every board of the
+// department with a stage to land in, under its portal (Podcast, Doctors),
+// the Leads tabs under "Leads"
+export async function moveTargets(teamId: string): Promise<OutreachBoard[]> {
+  const rows = await prisma.space.findMany({
+    where: { teamId, kind: "board" },
+    orderBy: [{ parent: { sortOrder: "asc" } }, { sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, parent: { select: { name: true, leadBank: true } }, stages: { take: 1, select: { id: true } } },
+  });
+  const all = rows.filter((r) => r.stages.length).map((r) => ({ id: r.id, name: r.name, portal: r.parent?.leadBank ? "Leads" : (r.parent?.name ?? "") }));
+  // the outreach portals first, then Leads
+  return [...all.filter((b) => b.portal !== "Leads"), ...all.filter((b) => b.portal === "Leads")];
 }
