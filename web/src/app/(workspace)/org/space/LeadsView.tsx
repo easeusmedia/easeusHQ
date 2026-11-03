@@ -167,9 +167,9 @@ export function LeadsView({
       <div className={`min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {shown.length ? (
           dead ? (
-            <LeadSheet key="dead" leads={shown} filterKey={JSON.stringify([sheet.id, q, "dead"])} actions={deadActions} />
+            <LeadSheet key="dead" tab={sheet.id} leads={shown} filterKey={JSON.stringify([sheet.id, q, "dead"])} actions={deadActions} />
           ) : (
-            <LeadSheet key="leads" leads={shown} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
+            <LeadSheet key="leads" tab={sheet.id} leads={shown} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
           )
         ) : (
           <p className="fade-in rounded-2xl border border-dashed border-border px-5 py-12 text-center text-sm text-muted">{q ? "No leads match this search." : dead ? "No dead leads." : "No leads yet."}</p>
