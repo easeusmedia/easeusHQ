@@ -161,6 +161,8 @@ export function ProjectFiles({
   const visible = shown === "all" ? rows : rows.filter((r) => r.kinds.includes(shown));
   // a draft column only where some file shown has a draft date
   const anyDraft = visible.some((r) => r.draft);
+  // and a delivery column only where some file shown has a delivery date
+  const anyDue = visible.some((r) => r.due);
 
   async function remove(id: string) {
     const res = await deleteProjectAsset(id);
@@ -278,26 +280,29 @@ export function ProjectFiles({
                   </span>
                   {/* its two dates, each named (Abhishek, 2 Nov 2026): the first
                       draft's in yellow, for the clients who approve one, and
-                      delivery in green. Each in a slot of its own width, and
-                      the arrow's place kept, so they line up row under row */}
+                      delivery in green. Each on one line in a slot wide enough
+                      for it, and the arrow's place kept, so they line up row
+                      under row; a column no file shown has stays out */}
                   {anyDraft && (
-                    <span className="flex shrink-0 justify-end sm:w-40">
+                    <span className="flex shrink-0 justify-end sm:w-[11.5rem]">
                       {r.draft && (
-                        <span className="flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-amber-300">
-                          <PenLine size={12} />
+                        <span className="flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-amber-300">
+                          <PenLine size={11} className="shrink-0" />
                           Draft: {formatDate(`${r.draft}T00:00:00Z`)}
                         </span>
                       )}
                     </span>
                   )}
-                  <span className="flex shrink-0 justify-end sm:w-44">
-                    {r.due && (
-                      <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2.5 py-1 text-xs font-medium tabular-nums text-emerald-300">
-                        <CalendarCheck size={12} />
-                        Delivery: {formatDate(`${r.due}T00:00:00Z`)}
-                      </span>
-                    )}
-                  </span>
+                  {anyDue && (
+                    <span className="flex shrink-0 justify-end sm:w-[12.5rem]">
+                      {r.due && (
+                        <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-emerald-300">
+                          <CalendarCheck size={11} className="shrink-0" />
+                          Delivery: {formatDate(`${r.due}T00:00:00Z`)}
+                        </span>
+                      )}
+                    </span>
+                  )}
                   <span className="flex w-[15px] shrink-0">
                     {r.link && <ArrowUpRight size={15} className="text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100" />}
                   </span>
