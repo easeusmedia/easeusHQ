@@ -407,7 +407,6 @@ function LeadPage({
             placeholder="Assignee"
             onChange={assign}
             options={[
-              { value: "", label: "Unassigned" },
               ...people.map((p) => ({ value: p.id, label: p.name })),
               ...(lead.assignedTo && !people.some((p) => p.id === lead.assignedTo!.id) ? [{ value: lead.assignedTo.id, label: lead.assignedTo.name }] : []),
             ]}

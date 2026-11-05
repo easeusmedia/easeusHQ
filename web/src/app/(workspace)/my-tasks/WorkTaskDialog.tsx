@@ -258,7 +258,6 @@ export const WorkTaskDialog = forwardRef<
               value={clientId}
               placeholder="Client"
               options={[
-                ...(clientId ? [{ value: "", label: "Not client work", pinned: true }] : []),
                 ...clients.map((c) => ({ value: c.id, label: c.name })),
               ]}
               onChange={(id) => {

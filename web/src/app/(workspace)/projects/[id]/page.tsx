@@ -75,7 +75,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const nextKey = newBatchKey(batches, rule);
   const monthly = rule.cadence === "monthly_date";
   const invoiceOptions = [
-    { value: "none", label: "No invoice" },
     ...(nextKey && !batches.some((b) => b.key === nextKey)
       ? [{ value: nextKey, label: monthly ? "New invoice" : `Invoice ${nextKey.replace("batch-", "")} (next)` }]
       : []),

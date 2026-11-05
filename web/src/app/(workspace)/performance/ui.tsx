@@ -329,9 +329,6 @@ const KINDS: { key: Kind; label: string; Icon: LucideIcon; placeholder: string }
   { key: "creative", label: "Creative", Icon: Palette, placeholder: "What change was asked for this video?" },
 ];
 
-// a chip's way back to nothing, offered once something's picked (so an
-// empty chip shows its own name, not "No video")
-const clearable = (value: string, label: string) => (value ? [{ value: "", label }] : []);
 
 // − 1 + : a number stepped by `step`
 function StepChip({ value, onChange, step, min, max, show, tone }: { value: number; onChange: (n: number) => void; step: number; min: number; max: number; show: string; tone?: string }) {
@@ -472,7 +469,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
           placeholder="Video"
           search={{ recent: 8, placeholder: "Find a video…" }}
           onChange={(v) => set({ taskId: v })}
-          options={[...clearable(f.taskId, "No video"), ...tasks.map((t) => ({ value: t.id, label: t.title }))]}
+          options={tasks.map((t) => ({ value: t.id, label: t.title }))}
         />
         {clients.length > 0 && (
           <Dropdown
@@ -481,7 +478,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
             placeholder="Client"
             search={{ recent: 8, placeholder: "Find a client…" }}
             onChange={(v) => set({ clientId: v, projectId: "" })}
-            options={[...clearable(f.clientId, "No client"), ...clients.map((c) => ({ value: c.id, label: c.name }))]}
+            options={clients.map((c) => ({ value: c.id, label: c.name }))}
           />
         )}
         {client && (
@@ -490,7 +487,7 @@ function EntryDialog({ open, onClose, entry, editorId, tasks, clients, categorie
             value={f.projectId}
             placeholder="Project"
             onChange={(v) => set({ projectId: v })}
-            options={[...clearable(f.projectId, "No project"), ...client.projects.map((p) => ({ value: p.id, label: p.name }))]}
+            options={client.projects.map((p) => ({ value: p.id, label: p.name }))}
           />
         )}
       </div>
@@ -660,7 +657,7 @@ export function MistakeList({ entries, canEdit, initialType = "", ...dialog }: L
           )}
           {used.length > 1 && filter !== "creative" && (
             <div className="w-44">
-              <Dropdown value={type} placeholder="Every type" onChange={setType} options={[{ value: "", label: "Every type" }, ...used.map((c) => ({ value: c, label: c }))]} />
+              <Dropdown value={type} placeholder="Every type" onChange={setType} options={used.map((c) => ({ value: c, label: c }))} />
             </div>
           )}
         </div>

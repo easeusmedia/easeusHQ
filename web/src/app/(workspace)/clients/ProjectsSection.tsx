@@ -444,7 +444,6 @@ export function ProjectsSection({
                       placeholder="Any invoice"
                       onChange={(v) => (v ? selectBatch(v) : setBatchKey(null))}
                       options={[
-                        { value: "", label: "Any invoice" },
                         ...batches.map((b) => ({ value: b.key, label: `${b.label} · ${b.detail}` })),
                       ]}
                     />

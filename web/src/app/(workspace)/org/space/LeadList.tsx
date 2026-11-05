@@ -59,7 +59,8 @@ export function LeadList({ board, leads, filtered, filterKey, onOpen }: { board:
           size="sm"
           value={stageId}
           onChange={setStageId}
-          options={[{ value: "", label: "Any stage" }, ...board.stages.map((s) => ({ value: s.id, label: s.name }))]}
+          placeholder="Any stage"
+          options={board.stages.map((s) => ({ value: s.id, label: s.name }))}
         />
       </div>
 

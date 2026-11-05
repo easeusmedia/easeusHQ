@@ -242,7 +242,7 @@ export function ClauseForm({
           size="sm"
           value={when}
           placeholder="Always"
-          options={CONDITIONS.map((c) => ({ value: c.value, label: `Include: ${c.label}` }))}
+          options={CONDITIONS.filter((c) => c.value).map((c) => ({ value: c.value, label: `Include: ${c.label}` }))}
           onChange={setWhen}
         />
         <span className="flex-1" />

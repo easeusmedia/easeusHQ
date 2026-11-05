@@ -18,7 +18,7 @@ export function AliasPicker({ aliases, value }: { aliases: string[]; value: stri
         value={value}
         size="sm"
         placeholder="All aliases"
-        options={[{ value: "", label: "All aliases" }, ...aliases.map((a) => ({ value: a, label: a }))]}
+        options={aliases.map((a) => ({ value: a, label: a }))}
         onChange={(v) => {
           const next = new URLSearchParams(params);
           if (v) next.set("alias", v);
