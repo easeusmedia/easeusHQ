@@ -1160,12 +1160,13 @@ function TemplateEditor({
             </span>
           )
         ) : (
-          <Dropdown pill={{ icon: stage ? <Dot color={stage.color} /> : null }} value={stageId} placeholder="Stage" options={stages.map((s) => ({ value: s.id, label: s.name }))} onChange={setStageId} />
+          <Dropdown pill={{ icon: stage ? <Dot color={stage.color} /> : null }} value={stageId} placeholder="Stage" clearable={false} options={stages.map((s) => ({ value: s.id, label: s.name }))} onChange={setStageId} />
         )}
         <Dropdown
           pill={{ icon: CHANNEL_ICON[channel] ?? CHANNEL_ICON.other }}
           value={channel}
           placeholder="Sent by"
+          clearable={false}
           options={MESSAGE_CHANNELS.map((c) => ({
             value: c.kind,
             label: c.label,

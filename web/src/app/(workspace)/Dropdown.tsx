@@ -25,12 +25,13 @@ export function Dropdown({
   defaultValue = "",
   value: controlled,
   options,
-  placeholder = "Select…",
+  placeholder,
   onChange,
   size = "md",
   pill,
   search,
   create = false,
+  clearable = placeholder !== undefined,
 }: {
   name?: string;
   defaultValue?: string;
@@ -59,6 +60,10 @@ export function Dropdown({
   // that isn't already an option can be picked as a new one, and onChange
   // gets the typed text as the value.
   create?: boolean;
+  // The picked option, picked again, clears it (Abhishek, 5 Nov 2026): on
+  // wherever there's an empty state to go back to (a placeholder), off where
+  // a value is needed
+  clearable?: boolean;
 }) {
   const s = SIZES[size];
   const [own, setOwn] = useState(defaultValue);
@@ -130,7 +135,7 @@ export function Dropdown({
           className={`max-w-56 ${chip(!!current)}`}
         >
           <span className="flex shrink-0">{pill.icon}</span>
-          <span className="min-w-0 truncate">{current?.label ?? placeholder}</span>
+          <span className="min-w-0 truncate">{current?.label ?? placeholder ?? "Select…"}</span>
         </button>
       ) : (
         <button
@@ -142,7 +147,7 @@ export function Dropdown({
           className={`flex w-full items-center justify-between border border-border bg-surface-2 text-left ${s.trigger}`}
         >
           <span className={`min-w-0 truncate ${current ? "text-foreground" : "text-muted"}`}>
-            {current?.label ?? placeholder}
+            {current?.label ?? placeholder ?? "Select…"}
           </span>
           <ChevronDown size={s.chevron} className="ml-2 shrink-0 text-muted" />
         </button>
@@ -188,7 +193,7 @@ export function Dropdown({
               {o.group && o.group !== shown[i - 1]?.group && (
                 <p className="px-2.5 pt-2.5 pb-1 text-[12px] font-medium text-muted/70">{o.group}</p>
               )}
-              <button type="button" onClick={() => pick(o.value)} className={`menu-item ${s.option}`}>
+              <button type="button" onClick={() => pick(clearable && o.value === value ? "" : o.value)} className={`menu-item ${s.option}`}>
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {o.value === value && o.value !== "" && <Check size={13} className="shrink-0 text-accent" />}
               </button>

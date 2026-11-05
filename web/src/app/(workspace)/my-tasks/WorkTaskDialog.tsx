@@ -283,6 +283,7 @@ export const WorkTaskDialog = forwardRef<
                 pill={{ icon: <User size={12} className="text-emerald-400" /> }}
                 value={assignedToId}
                 placeholder="Assignee"
+                clearable={false}
                 onChange={setAssignedToId}
                 options={[
                   ...assignees.map((a) => ({ value: a.id, label: a.name })),

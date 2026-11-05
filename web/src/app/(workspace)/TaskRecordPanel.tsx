@@ -148,6 +148,7 @@ export function TaskRecordPanel({
             pill={{ icon: <Layers size={12} className="text-sky-400" /> }}
             value={record.teamId ?? ""}
             placeholder="Department"
+            clearable={false}
             onChange={async (teamId) => {
               setRecord((r) => r && { ...r, teamId });
               const res = await setTaskDepartment(task, teamId);
