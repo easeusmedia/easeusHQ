@@ -93,6 +93,18 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
   }
 }
 
+// The project a client's task goes on when none is picked (Abhishek, 5 Nov
+// 2026): the client's catch-all ("project-client-…"), made if it has none,
+// and never one laid out in placeholders, so the task keeps its own name and
+// fills no deliverable. Null for a client that isn't there.
+export async function looseProject(clientId: string): Promise<string | null> {
+  const found = await prisma.project.findFirst({ where: { clientId, id: { startsWith: "project-client-" } }, select: { id: true } });
+  if (found) return found.id;
+  if (!(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) return null;
+  const id = `project-client-${clientId}`;
+  return (await prisma.project.upsert({ where: { id }, create: { id, clientId, name: "General", type: "General" }, update: {}, select: { id: true } })).id;
+}
+
 // The task and the placeholder it fills are one piece of work under one
 // name, the placeholder's (Abhishek, 27 Oct 2026); renaming either one
 // renames the other (updateTask, updateProjectAsset). The name it was made

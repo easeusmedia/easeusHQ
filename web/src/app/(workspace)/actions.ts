@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_STATUSES, ALL_STATUSES, WORKFLOW_STAGES, canTransition, workflowOf, type Role, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
-import { linkDeliverables } from "@/lib/deliverableLink";
+import { linkDeliverables, looseProject } from "@/lib/deliverableLink";
 import { destroySession, getRealViewer, getSessionUserId, requireOps } from "@/lib/auth";
 import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder, setsUp } from "@/lib/scope";
@@ -69,14 +69,9 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   const assignedToId = String(formData.get("assignedToId") ?? "");
   // A task can start as just a client and a title — everything else gets
   // filled in later, from the task itself. With no project picked it goes on
-  // that client's own catch-all project, where their loose work already lives.
+  // that client's own catch-all project (lib/deliverableLink looseProject).
   let projectId = String(formData.get("projectId") ?? "");
-  if (!projectId && clientId) {
-    const fallback =
-      (await prisma.project.findFirst({ where: { clientId, id: { startsWith: "project-client-" } }, select: { id: true } })) ??
-      (await prisma.project.findFirst({ where: { clientId }, orderBy: { createdAt: "desc" }, select: { id: true } }));
-    projectId = fallback?.id ?? "";
-  }
+  if (!projectId && clientId) projectId = (await looseProject(clientId)) ?? "";
   let rawLink: string | null;
   let referenceLink: string | null;
   try {

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { looseProject } from "@/lib/deliverableLink";
 import { getSessionUserId } from "@/lib/auth";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { assigneeWhere, canAssign, isFounder, type Viewer } from "@/lib/scope";
@@ -62,15 +63,11 @@ async function departmentOf(tagIds: string[], assignedToId: string, title = ""):
 
 // Which project a task hangs off, from what the person actually chose.
 // Picking a client without naming a project is the common case — "something
-// for Dr Tego" — and every client has a catch-all project for exactly that,
-// the same one the editing board falls back to.
+// for Dr Tego" — and it goes on the client's catch-all project for exactly
+// that (lib/deliverableLink looseProject).
 async function projectFor(input: { clientId?: string; projectId?: string }): Promise<string | null> {
   if (input.projectId) return input.projectId;
-  if (!input.clientId) return null;
-  const fallback =
-    (await prisma.project.findFirst({ where: { clientId: input.clientId, id: { startsWith: "project-client-" } }, select: { id: true } })) ??
-    (await prisma.project.findFirst({ where: { clientId: input.clientId }, orderBy: { createdAt: "desc" }, select: { id: true } }));
-  return fallback?.id ?? null;
+  return input.clientId ? looseProject(input.clientId) : null;
 }
 
 export async function createWorkTask(input: {

@@ -26,6 +26,11 @@ test("a task's kind comes from its tags, else its title", () => {
   assert.deepEqual(typesOf([], "Elle Sera x Melissa Levison Trailer"), ["Reel Trailer"]);
   assert.deepEqual(typesOf(["Colour correction"], "Grade the episode"), []);
   assert.deepEqual(typesOf([], "Record Loom"), []);
+  // a fix or an update to work already done fills none, tagged or not (5 Nov 2026)
+  assert.deepEqual(typesOf(["Thumbnail"], "CL Thumbnail Rectification"), []);
+  assert.deepEqual(typesOf(["Reel"], "Update Reel 3 captions"), []);
+  assert.deepEqual(typesOf(["Trailer"], "Trailer revisions"), []);
+  assert.deepEqual(typesOf(["Trailer"], "CL Trailer Edit"), ["Reel Trailer"]);
 });
 
 test("the number in a name", () => {

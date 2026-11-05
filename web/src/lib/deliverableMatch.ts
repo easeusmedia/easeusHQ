@@ -40,7 +40,12 @@ const TITLE_TYPES: [RegExp, string][] = [
 // says "reel" ("Reel Cover For Pip Episode", "Amends to be done (Reels)").
 const AROUND = /\b(post(s|ing|ed)?|schedul\w*|captions?|copy|covers?|upload(s|ing)?|social|story|stories|amends?|amendments?|corrections?|rectif\w*|fix(es|ing)?|review(s|ing)?|analysis|feedback|meeting|research|scripts?|brief|ideas?|planning|plan|report)\b/i;
 
+// A fix or an update to work already done (Abhishek, 5 Nov 2026): it fills
+// no placeholder and keeps its own name, whatever kind of work it's tagged
+const FIX = /\b(fix(es|ed|ing)?|rectif\w*|correct(ions?|ed|ing)?|amend(s|ed|ing|ments?)?|updat(e|es|ed|ing)|revis(e|ed|ing|ions?)|redo|re-do|rework)\b/i;
+
 export function typesOf(tags: string[], title: string): string[] {
+  if (FIX.test(title)) return [];
   // tagged with other kinds of work only (Reel curation, a post): none
   if (tags.length) {
     const bonus = /bonus/i.test(title);
