@@ -12,6 +12,17 @@ export function overdueAudience(strike: number, level: string): { leads: boolean
   return { leads: false, levelOne: false };
 }
 
+// A new task's grace (Abhishek, 5 Nov 2026): it isn't locked or counted
+// late until 3 PM (IST) the day after it was made. Tasks made before the
+// moment this gives are past it: today's midnight from 3 PM on, and
+// yesterday's before then.
+export function graceCutoff(now: Date): Date {
+  const IST = 5.5 * 3_600_000;
+  const ist = new Date(now.getTime() + IST);
+  const midnight = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) - IST;
+  return new Date(ist.getUTCHours() >= 15 ? midnight : midnight - 86_400_000);
+}
+
 // "1st", "2nd", "3rd", "4th"
 export const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 

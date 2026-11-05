@@ -96,7 +96,8 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
 
 // One date, any day, and a reason (Abhishek, 24 Oct 2026): today or later is
 // its new due date; an earlier day is the day it was finished, only not
-// ticked off then, and it's done (where that tick would go through)
+// ticked off then, and it's done (where that tick would go through), else
+// that day is its due date and it's open again (5 Nov 2026)
 function Answer({ t, onDone }: { t: ToAnswer; onDone: () => void }) {
   const router = useRouter();
   const [day, setDay] = useState("");

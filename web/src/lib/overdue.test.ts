@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ordinal, overdueAudience, overdueText } from "./overdue.ts";
+import { graceCutoff, ordinal, overdueAudience, overdueText } from "./overdue.ts";
 
 test("Level 3: their Level 2 hears every time; Level 1 from the third", () => {
   assert.deepEqual(overdueAudience(1, "employee"), { leads: true, levelOne: false });
@@ -29,3 +29,12 @@ test("overdue notices: clear, firmer as they repeat, always courteous", () => {
   assert.equal(overdueText({ title: "X", due: null, strike: 1, owner: null, toOwner: false }), 'A task "X" was due and isn\'t finished yet. Please check in and help get it back on track.');
 });
 
+
+test("a new task's grace lasts until 3 PM (IST) the day after it was made", () => {
+  // 5 Nov, 2:59 PM IST: a task made on 4 Nov is still in its grace (made since 4 Nov midnight)
+  assert.equal(graceCutoff(new Date("2026-11-05T09:29:00Z")).toISOString(), "2026-11-03T18:30:00.000Z");
+  // 5 Nov, 3 PM IST: it's past it (made before 5 Nov midnight)
+  assert.equal(graceCutoff(new Date("2026-11-05T09:30:00Z")).toISOString(), "2026-11-04T18:30:00.000Z");
+  // 5 Nov, 1 AM IST (4 Nov in UTC): yesterday's midnight in India
+  assert.equal(graceCutoff(new Date("2026-11-04T19:30:00Z")).toISOString(), "2026-11-03T18:30:00.000Z");
+});

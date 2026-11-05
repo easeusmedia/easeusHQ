@@ -3,7 +3,7 @@ import { dayOf, shortDay } from "./editorKpi";
 import { effectiveRole, isFounder, isLead, type Viewer } from "./scope";
 import { ACTIVE_STATUSES, canTransition, workflowOf, type Role } from "./workflow";
 import { needsGrade } from "./videoScore";
-import { overdueAudience, overdueText } from "./overdue.ts";
+import { graceCutoff, overdueAudience, overdueText } from "./overdue.ts";
 import { departmentFromTitle } from "./department.ts";
 
 // The record every task keeps, whichever kind it is (a client Task or a
@@ -82,14 +82,16 @@ function toldAbout(strike: number, owner: Person | undefined, teamId: string | n
 export async function sweepOverdue(now = new Date()): Promise<number> {
   const today = dayOf(now);
   const before = new Date(`${today}T00:00:00+05:30`);
+  // a task made since is still in its grace
+  const made = { lt: graceCutoff(now) };
   const [tasks, todos, people] = await Promise.all([
     // a client task is done with, for its deadline, once it reaches the client
     prisma.task.findMany({
-      where: { status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } },
+      where: { status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, createdAt: made, project: { client: { status: "current" } } },
       select: { id: true, title: true, dueDate: true, strikes: true, overdueFor: true, teamId: true, assignedToId: true, createdById: true },
     }),
     prisma.workTask.findMany({
-      where: { status: { not: "done" }, dueDate: { lt: before } },
+      where: { status: { not: "done" }, dueDate: { lt: before }, createdAt: made },
       select: { id: true, title: true, dueDate: true, strikes: true, overdueFor: true, teamId: true, assignedToId: true, createdById: true },
     }),
     prisma.user.findMany({ where: { employment: { not: "former" } }, select: PERSON }),
@@ -116,12 +118,14 @@ export async function sweepOverdue(now = new Date()): Promise<number> {
     }
     counted++;
   }
-  await prisma.appSetting.upsert({ where: { key: SWEPT }, create: { key: SWEPT, value: today }, update: { value: today } });
+  await prisma.appSetting.upsert({ where: { key: SWEPT }, create: { key: SWEPT, value: sweptMark(now) }, update: { value: sweptMark(now) } });
   return counted;
 }
 
 // Unfinished tasks whose due date is before today (IST): locked until each
-// has a new date and a reason (FrozenTasks). From the day after the date,
+// has a new date and a reason (FrozenTasks), any day since 5 Nov 2026. A
+// task made yesterday or today has until 3 PM the day after it was made
+// (graceCutoff). From the day after the date,
 // whether or not the night's check has counted it yet (17 Oct 2026: a task
 // that came down from Notion after the check could be ticked off late). Client work, as it shows on Production: Level 1 every
 // overdue task, a Lead theirs and their departments', everyone else their
@@ -150,15 +154,21 @@ export async function overdueToAnswer(user: Answerer, now = new Date()): Promise
   const own = [{ assignedToId: userId }, { assignedToId: null, createdById: userId }];
   const tasksOf = isFounder(user) ? {} : { OR: [...own, ...(leads.length ? [{ teamId: { in: leads } }] : [])] };
   const todosOf = { OR: [{ assignedToId: userId }, ...(leads.length ? [{ teamId: { in: leads }, assignedTo: { role: "employee" as const } }] : [])] };
-  const select = { id: true, title: true, dueDate: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } as const;
+  // its last date change: answered with an earlier day, that day is its due date and it's open again (answerOverdue)
+  const select = { id: true, title: true, dueDate: true, strikes: true, assignedToId: true, createdById: true, assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } }, dateChanges: { orderBy: { createdAt: "desc" }, take: 1, select: { to: true, createdAt: true } } } as const;
+  const answered = (t: { dueDate: Date | null; dateChanges: { to: Date | null; createdAt: Date }[] }) => {
+    const c = t.dateChanges[0];
+    return !!c?.to && c.to.getTime() === t.dueDate?.getTime() && dayOf(c.to) < dayOf(c.createdAt);
+  };
+  const made = { lt: graceCutoff(now) };
   const role = effectiveRole(user) as Role;
   // this runs on every page: one round to the database
   const [tasks, todos] = await Promise.all([
     prisma.task.findMany({
-      where: { ...tasksOf, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, project: { client: { status: "current" } } },
+      where: { ...tasksOf, status: { in: ACTIVE_STATUSES }, handedOffAt: null, dueDate: { lt: before }, createdAt: made, project: { client: { status: "current" } } },
       select: { ...select, status: true, workflow: true, internal: true, driveLink: true, inspectionGrade: true, shares: { where: { userId }, select: { userId: true } } },
     }),
-    prisma.workTask.findMany({ where: { ...todosOf, status: { not: "done" }, dueDate: { lt: before } }, select }),
+    prisma.workTask.findMany({ where: { ...todosOf, status: { not: "done" }, dueDate: { lt: before }, createdAt: made }, select }),
   ]);
   const finishable = (t: (typeof tasks)[number]) => {
     const isAssignee = t.assignedToId === userId || t.shares.length > 0;
@@ -169,7 +179,7 @@ export async function overdueToAnswer(user: Answerer, now = new Date()): Promise
       (ownTick || !needsGrade(t, "delivered_and_uploaded", role))
     );
   };
-  return [...tasks.map((t) => ({ ...t, kind: "task" as const, finishable: finishable(t) })), ...todos.map((t) => ({ ...t, kind: "work" as const, finishable: true }))]
+  return [...tasks.filter((t) => !answered(t)).map((t) => ({ ...t, kind: "task" as const, finishable: finishable(t) })), ...todos.filter((t) => !answered(t)).map((t) => ({ ...t, kind: "work" as const, finishable: true }))]
     .map((t) => ({ kind: t.kind, id: t.id, title: t.title, due: dayOf(t.dueDate!), strikes: t.strikes, client: t.project?.client.name ?? null, owner: (t.assignedToId ?? t.createdById) === userId ? null : (t.assignedTo?.name ?? null), finishable: t.finishable }));
 }
 
@@ -180,10 +190,12 @@ export async function frozenFor(user: Answerer, taskId: string): Promise<boolean
 }
 
 const SWEPT = "overdue.sweptOn";
-// the sweep, unless it's already run today
+// the day, and whether it's past 3 PM: once more then, for the tasks whose grace has just ended
+const sweptMark = (now: Date) => `${dayOf(now)}${graceCutoff(now) >= new Date(`${dayOf(now)}T00:00:00+05:30`) ? " 3pm" : ""}`;
+// the sweep, unless it's already run this morning, or this afternoon after 3 PM
 export async function sweepIfDue(now = new Date()) {
   const last = await prisma.appSetting.findUnique({ where: { key: SWEPT } });
-  if (last?.value !== dayOf(now)) await sweepOverdue(now).catch(() => 0);
+  if (last?.value !== sweptMark(now)) await sweepOverdue(now).catch(() => 0);
 }
 
 // ---------- deleting ----------

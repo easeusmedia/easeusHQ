@@ -1003,16 +1003,20 @@ async function overdueTask(kind: "task" | "work", id: string) {
   return { me, row, owner };
 }
 
+// Any day, with a reason (Abhishek, 5 Nov 2026): an earlier day becomes its
+// due date as it is, counted late for that date only once (overdueFor), and
+// the task is open again (lib/taskTrack overdueToAnswer)
 export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
   const why = reason.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day < dayOf(new Date())) return { error: "Pick today or a later day." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Pick a day." };
   if (!why) return { error: "Add a short reason." };
   const found = await overdueTask(kind, id);
   if ("error" in found) return { error: found.error };
   const { me, row, owner } = found;
   const due = new Date(day);
-  if (kind === "task") await prisma.task.update({ where: { id }, data: { dueDate: due } });
-  else await prisma.workTask.update({ where: { id }, data: { dueDate: due } });
+  const data = { dueDate: due, ...(day < dayOf(new Date()) && { overdueFor: due }) };
+  if (kind === "task") await prisma.task.update({ where: { id }, data });
+  else await prisma.workTask.update({ where: { id }, data });
   await Promise.all([
     recordDateChange({ kind, id }, row.dueDate, due, why, me.id, row.strikes),
     prisma.notice.updateMany({ where: { forId: owner, kind: "overdue", readAt: null, ...(kind === "task" ? { taskId: id } : { workTaskId: id }) }, data: { readAt: new Date() } }),
