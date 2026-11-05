@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, FolderOpen, Hash, Inbox, List, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
+import { Building2, CalendarDays, Check, ChevronDown, CircleAlert, CircleCheck, CircleDashed, Columns3, FileText, Hash, Inbox, List, Plus, Rows3, Search, Sun, Sunrise, Trash2, Type, User } from "lucide-react";
 import { Dropdown } from "../Dropdown";
+import { ProjectChip } from "../composer";
+import { useNewProject } from "../useNewProject";
 import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
@@ -723,7 +725,6 @@ const QUICK_DAYS: [string, (weekdayToday: number) => number][] = [
 ];
 
 // the option that clears a chip, offered only once it holds something
-const NONE = "__none";
 const blank = { title: "", notes: "", due: "", kindId: "", clientId: "", projectId: "", assignedToId: "" };
 
 // "Add task", the way a to-do app does it: a title, a note, and chips you
@@ -736,6 +737,7 @@ export function Composer({
   projects,
   assignees,
   actingUserId,
+  actingRole,
   startOpen = false,
   onClose,
 }: {
@@ -743,6 +745,8 @@ export function Composer({
   projects: Project[];
   assignees: { id: string; name: string }[];
   actingUserId: string;
+  // Level 1 and 2 can start a project from here (clients/actions createProject)
+  actingRole?: Role;
   // Home opens it from its New task button, and hides it again on Cancel
   startOpen?: boolean;
   onClose?: () => void;
@@ -786,7 +790,10 @@ export function Composer({
   // is always for a client; a plain to-do (no kind) needn't have one
   const needsClient = !!kind;
   const clients = useMemo(() => [...new Map(projects.map((p) => [p.client.id, p.client])).values()], [projects]);
-  const clientProjects = projects.filter((p) => p.client.id === f.clientId);
+  // a project started from the Project chip (Abhishek, 5 Nov 2026), picked at once
+  const newProject = useNewProject(f.clientId, (id) => set({ projectId: id }));
+  const canCreateProject = !!actingRole && actingRole !== "employee";
+  const clientProjects = newProject.withMade(projects).filter((p) => p.client.id === f.clientId);
 
   async function add() {
     if (!f.title.trim()) return;
@@ -872,8 +879,8 @@ export function Composer({
             pill={{ icon: <Hash size={12} className="text-amber-400" /> }}
             value={f.kindId}
             placeholder="Kind of work"
-            onChange={(v) => set({ kindId: v === NONE ? "" : v })}
-            options={[...(f.kindId ? [{ value: NONE, label: "No kind" }] : []), ...kinds.map((k) => ({ value: k.id, label: k.name, group: k.department ?? undefined }))]}
+            onChange={(v) => set({ kindId: v })}
+            options={kinds.map((k) => ({ value: k.id, label: k.name, group: k.department ?? undefined }))}
           />
         )}
         <Dropdown
@@ -881,17 +888,14 @@ export function Composer({
           value={f.clientId}
           placeholder={needsClient ? "Client (needed)" : "Client"}
           search={{ recent: 6, placeholder: "Find a client…" }}
-          onChange={(v) => set({ clientId: v === NONE ? "" : v, projectId: "" })}
-          options={[...(f.clientId ? [{ value: NONE, label: "No client" }] : []), ...clients.map((c) => ({ value: c.id, label: c.name }))]}
+          onChange={(v) => {
+            set({ clientId: v, projectId: "" });
+            newProject.cancel();
+          }}
+          options={clients.map((c) => ({ value: c.id, label: c.name }))}
         />
-        {f.clientId && clientProjects.length > 1 && (
-          <Dropdown
-            pill={{ icon: <FolderOpen size={12} className="text-violet-400" /> }}
-            value={f.projectId}
-            placeholder="Project"
-            onChange={(v) => set({ projectId: v })}
-            options={clientProjects.map((p) => ({ value: p.id, label: p.name }))}
-          />
+        {f.clientId && (canCreateProject || clientProjects.length > 1) && (
+          <ProjectChip value={f.projectId} onChange={(id) => set({ projectId: id })} projects={clientProjects} newProject={newProject} canCreate={canCreateProject} />
         )}
         {assignees.length > 1 && (
           <Dropdown
@@ -902,7 +906,7 @@ export function Composer({
           />
         )}
       </div>
-      {error && <p className="fade-in mt-2 text-xs text-red-300">{error}</p>}
+      {(error ?? newProject.error) && <p className="fade-in mt-2 text-xs text-red-300">{error ?? newProject.error}</p>}
       <div className="mt-4 flex items-center justify-end gap-3 border-t border-border/60 pt-3">
         <div className="flex gap-2">
           <button type="button" onClick={() => setOpen(false)} className="btn btn-sm btn-ghost">

@@ -637,7 +637,7 @@ export function HomeView({
       >
         {adding && (
           <div className="mb-3">
-            <Composer kinds={composer.kinds} projects={composer.projects} assignees={composer.assignees} actingUserId={meId} startOpen onClose={() => setAdding(false)} />
+            <Composer kinds={composer.kinds} projects={composer.projects} assignees={composer.assignees} actingUserId={meId} actingRole={env.actingRole} startOpen onClose={() => setAdding(false)} />
           </div>
         )}
         {mine.length === 0 ? (
