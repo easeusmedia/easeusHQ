@@ -604,6 +604,7 @@ export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name"
 // needsContact: the board keeps people on its leads (a contacts property), so a
 // lead with nobody on it, or someone with no handle the messages go to, can't
 // go on to Ready to reach out: approving nothing would pass (Abhishek, 23 Oct 2026)
+// fromDay: only that day's messages and the ones after (a lead going on to a day)
 export function approvalsMissing(
   board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel" | "subject" | "body">[] },
   lead: LeadState,
@@ -611,8 +612,9 @@ export function approvalsMissing(
   contacts: Contact[],
   opened = false,
   needsContact = false,
+  fromDay = 0,
 ): Unapproved[] {
-  const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null && d >= fromDay))].sort((a, b) => a - b);
   const fills: Unapproved[] = [];
   const missing: Unapproved[] = [];
   if (needsContact && !contacts.length && days.length) return [{ day: 0, message: null, contact: null }];
@@ -627,6 +629,20 @@ export function approvalsMissing(
     }
   }
   return [...fills, ...missing];
+}
+// What a move waits on (Abhishek, 9 Nov 2026: every message approved before a
+// lead goes on), as the first day whose messages must be approved: 0, every
+// one, going into Ready to reach out or into the sequence from before it; N,
+// going on to Day N, that day's and the ones after (days it has passed are
+// done); null, nothing: Dead, the stages before Ready, and the ones after the
+// sequence (Replied, Audit sent…), where nothing more goes out
+export function gateDay(stages: Pick<StageData, "id" | "name">[], fromId: string, toId: string): number | null {
+  const start = outreachStart(stages);
+  const to = stages.findIndex((s) => s.id === toId);
+  if (start < 0 || to < start || isDead(stages[to].name)) return null;
+  const from = stages.findIndex((s) => s.id === fromId);
+  if (to === start || (from >= 0 && from < start)) return 0;
+  return dayOf(stages[to].name);
 }
 // Everything it still needs before Ready to reach out, one line each, in day
 // order (the lead window's warning lists them all, so nothing is guessed)
@@ -928,8 +944,8 @@ export function pinnedPages(pins: string[], urls: string[], channel: string | nu
 // "channel" when it's the lead's channel), on pins its platform
 export function togglePagePin(pins: string[], url: string, channel: string | null): string[] {
   const p = pagePlatform(url);
-  if (!pagePinned(pins, url, channel)) return [...pins, p];
   const isChannel = !!channel && sameUrl(url) === sameUrl(channel);
+  if (!pagePinned(pins, url, channel)) return [...pins, isChannel ? "channel" : p];
   return pins.filter((x) => x !== p && !(isChannel && x === "channel"));
 }
 

@@ -37,12 +37,11 @@ import {
   type MarkChange,
   approvalKeys,
   approvalsMissing,
-  isDead,
+  gateDay,
   emailStarts,
   leadPeople,
   stampEmails,
   type Contact,
-  outreachStart,
   PAGE_PINS,
   unapprovedText,
   type Approval,
@@ -806,9 +805,9 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
 // Into another stage. One step forward needs nothing; going back, or
 // skipping ahead, needs a reason, which stays on the lead's record. Without
 // one, the answer says so ({ needsReason }) and nothing moves. Into Ready to
-// reach out or any stage after it (from day to day too, Abhishek 9 Nov 2026)
-// only once every message is approved and its fill-ins filled (lib/space
-// approvalsMissing), reason or not; Dead and the stages before stay open.
+// reach out, and on to each day (Abhishek, 9 Nov 2026), only once the
+// messages still to go out are approved and their fill-ins filled (lib/space
+// gateDay, approvalsMissing), reason or not.
 export async function moveLead(id: string, toStageId: string, sortOrder: number, reason?: string): Promise<Done & { needsReason?: boolean }> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
@@ -823,8 +822,8 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
     const stages = await prisma.boardStage.findMany({ where: { boardId: lead.boardId }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } });
     const to = stages.find((s) => s.id === toStageId);
     if (!to) return { error: "That stage no longer exists. Refresh and try again." };
-    const start = outreachStart(stages);
-    if (start >= 0 && stages.indexOf(to) >= start && !isDead(to.name)) {
+    const fromDay = gateDay(stages, lead.stageId, toStageId);
+    if (fromDay != null) {
       const [full, messages, fields] = await Promise.all([
         prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, vars: true, drafts: true, openers: true, createdAt: true } }),
         prisma.stageMessage.findMany({ where: { stage: { boardId: lead.boardId } }, select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true }, orderBy: [{ stage: { sortOrder: "asc" } }, { sortOrder: "asc" }] }),
@@ -847,6 +846,7 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
         leadPeople(values, contactFields),
         opened,
         fields.length > 0,
+        fromDay,
       );
       if (missing.length) return { error: unapprovedText(missing) };
     }

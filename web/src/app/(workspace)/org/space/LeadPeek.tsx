@@ -19,7 +19,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, togglePagePin, unapprovedLines, isDead, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, gateDay, togglePagePin, unapprovedLines, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData, type StageData, type Unapproved } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -305,31 +305,45 @@ function LeadPage({
   // the people on it, one picked at a time for the whole window
   const contactList = leadPeople(values, board.fields);
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
-  // Ready to reach out (by place: the stage before Day 1) and every stage
-  // after it, day to day too, only once every message is approved and filled
-  // in, as moveLead checks; Dead and the stages before stay open
+  // Ready to reach out (by place: the stage before Day 1), and on to each
+  // day, only once the messages still to go out are approved and filled in,
+  // as moveLead checks (lib/space gateDay)
   const start = outreachStart(board.stages);
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
-  const gated = start >= 0;
   // typed in the Fill in form (Messages), ahead of its save: filling the last one and moving goes straight on (the save lands first, server actions run one at a time)
   const [typed, setTyped] = useState<Record<string, string>>({});
-  const left = gated ? approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts")) : [];
+  // what a move there still waits on; null, nothing
+  const missingFor = (toId: string) => {
+    const fromDay = gateDay(board.stages, stageId, toId);
+    if (fromDay == null) return null;
+    return approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts"), fromDay);
+  };
   // (until its openers and record load, what's approved for each can't be read)
-  const blocked = gated && (!prepared || left.length > 0);
-  const blockedWhy = left.length ? unapprovedText(left) : "This lead's messages are still loading. Try again in a moment.";
-  // a move held back says why, as the board does when a card is dropped there
+  const left = ready ? (missingFor(ready.id) ?? []) : [];
+  const blocked = !!ready && (!prepared || left.length > 0);
+  // a move held back says why, as the board does when a card is dropped
+  // there, with everything it waits on, one per line
   const [warning, setWarning] = useState<string | null>(null);
-  // shown with the warning: everything left, one per line
-  const leftLines = left.length ? unapprovedLines(left) : [];
+  const [held, setHeld] = useState<{ to: string; missing: Unapproved[] }>({ to: "", missing: [] });
+  const leftLines = held.missing.length ? unapprovedLines(held.missing) : [];
   // held back for empty fill-ins: once the warning is dismissed, the Fill in form shows them (Messages)
   const [nudge, setNudge] = useState(0);
   function dismissWarning() {
     setWarning(null);
-    if (left.some((m) => m.fill)) setNudge((n) => n + 1);
+    if (held.missing.some((m) => m.fill)) setNudge((n) => n + 1);
+  }
+  // whether a move there can go now; if not, the warning says why
+  function canGo(to: StageData) {
+    const missing = missingFor(to.id);
+    if (missing == null || (prepared && !missing.length)) return true;
+    const shown = prepared ? missing : [];
+    setHeld({ to: to.name, missing: shown });
+    setWarning(shown.length ? unapprovedText(shown) : "This lead's messages are still loading. Try again in a moment.");
+    return false;
   }
   function moveToReady() {
     if (!ready) return;
-    if (blocked) return setWarning(blockedWhy);
+    if (!canGo(ready)) return;
     const from = stageId;
     setStageId(ready.id);
     run(moveLead(id, ready.id, lastInStage(), moveNeedsReason(order, from, ready.id) ? "Every message approved." : undefined), () => setStageId(from));
@@ -395,8 +409,8 @@ function LeadPage({
                       type="button"
                       onClick={() => {
                         closeMenu();
-                        // Ready to reach out and on: not until every message is approved
-                        if (blocked && i >= start && !isDead(s.name)) return setWarning(blockedWhy);
+                        // Ready to reach out and each day: not until what's still to go out is approved
+                        if (!canGo(s)) return;
                         pickStage(s.id);
                       }}
                       className="menu-item px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
@@ -570,7 +584,7 @@ function LeadPage({
             <span className="truncate">Move to {ready.name}</span>
           </button>
         )}
-        <Warning text={warning && leftLines.length ? (ready ? `Before ${ready.name}:` : "Before it moves on:") : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={dismissWarning} />
+        <Warning text={warning && leftLines.length ? `Before ${held.to}:` : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={dismissWarning} />
         {/* to another board, or a Leads tab (Abhishek, 3 Nov 2026) */}
         {targets.length > 0 && (
           <Menu

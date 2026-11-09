@@ -63,7 +63,7 @@ const STAGES: { name: string; color: ColorName }[] = [
 type FieldSpec = { name: string; kind: FieldKind; onCard?: boolean; required?: boolean; options?: { name: string; color: ColorName }[] };
 const opts = (names: string[], colors: ColorName[]) => names.map((name, i) => ({ name, color: colors[i % colors.length] }));
 const MEME = { name: "Meme board", kind: "select", options: opts(["1", "2", "3"], ["blue", "purple", "pink"]) } as const;
-const COUNTRY = { name: "Country", kind: "select", options: opts(["USA", "UK", "UAE"], ["blue", "red", "green"]) } as const;
+const COUNTRY = { name: "Country", kind: "select", onCard: true, options: opts(["USA", "UK", "UAE"], ["blue", "red", "green"]) } as const;
 const BOARDS: { key: "yt" | "ig"; name: string; fields: FieldSpec[] }[] = [
   {
     key: "yt",

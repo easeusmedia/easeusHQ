@@ -55,7 +55,9 @@ export function LeadCard({
   const countryField = board.fields.find((f) => f.kind === "select" && /^country$/i.test(f.name.trim()) && f.onCard);
   const country = countryField && (Array.isArray(lead.values[countryField.id]) ? (lead.values[countryField.id] as string[]) : []).flatMap((id) => countryField.options.filter((o) => o.id === id).map((o) => o.name)).join(", ");
   const pinned = board.fields.filter((f) => f.onCard && f !== countryField && f.kind !== "links" && f.kind !== "contacts" && !WORKING.test(f.name.trim()) && isFilled(f.kind, lead.values[f.id]));
-  const channel = channelOf(lead.values, board.fields)?.url ?? instagramOf(lead.values, board.fields);
+  // written as an address that opens (a channel kept as "youtube.com/@show")
+  const found = channelOf(lead.values, board.fields)?.url ?? instagramOf(lead.values, board.fields);
+  const channel = found ? hrefOf("other", found) : null;
   const pages: { url: string; label: string }[] = [];
   for (const f of board.fields) {
     if (f.kind !== "links" || !f.pins?.length) continue;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, gateDay, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -619,4 +619,20 @@ test("a card pins the lead's channel by default; any page can be pinned or unpin
   assert.deepEqual(togglePagePin(["channel", "youtube"], yt, yt), []);
   // Instagram beside a YouTube channel isn't the channel: tapping pins Instagram itself
   assert.deepEqual(togglePagePin(["channel"], ig, yt), ["channel", "instagram"]);
+  // the channel's page pinned again brings back the channel, not every YouTube page
+  assert.deepEqual(togglePagePin([], yt, yt), ["channel"]);
+});
+
+test("a move waits on the messages still to go out", () => {
+  const st = ["List", "Write-up done", "Ready to reach out", "Day 1", "Day 2 · Instagram 1", "Day 3 · Email 2", "Replied", "Dead"].map((name, i) => ({ id: `s${i}`, name }));
+  // into Ready, or into the sequence from before it: every message
+  assert.equal(gateDay(st, "s1", "s2"), 0);
+  assert.equal(gateDay(st, "s0", "s4"), 0);
+  // on to a day: that day's and the ones after; back to a day too
+  assert.equal(gateDay(st, "s3", "s4"), 2);
+  assert.equal(gateDay(st, "s5", "s3"), 1);
+  // after the sequence, Dead, and the stages before: nothing
+  assert.equal(gateDay(st, "s4", "s6"), null);
+  assert.equal(gateDay(st, "s4", "s7"), null);
+  assert.equal(gateDay(st, "s4", "s1"), null);
 });
