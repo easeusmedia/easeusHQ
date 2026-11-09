@@ -19,7 +19,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, gateDay, togglePagePin, unapprovedLines, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData, type StageData, type Unapproved } from "@/lib/space";
+import { approvalsMissing, needsApprovals, togglePagePin, unapprovedLines, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData, type StageData, type Unapproved } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -305,19 +305,18 @@ function LeadPage({
   // the people on it, one picked at a time for the whole window
   const contactList = leadPeople(values, board.fields);
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
-  // Ready to reach out (by place: the stage before Day 1), and on to each
-  // day, only once the messages still to go out are approved and filled in,
-  // as moveLead checks (lib/space gateDay)
+  // Ready to reach out (by place: the stage before Day 1) and every stage
+  // after it only once every message is approved and filled in, as moveLead
+  // checks (lib/space needsApprovals)
   const start = outreachStart(board.stages);
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
   // typed in the Fill in form (Messages), ahead of its save: filling the last one and moving goes straight on (the save lands first, server actions run one at a time)
   const [typed, setTyped] = useState<Record<string, string>>({});
   // what a move there still waits on; null, nothing
-  const missingFor = (toId: string) => {
-    const fromDay = gateDay(board.stages, stageId, toId);
-    if (fromDay == null) return null;
-    return approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts"), fromDay);
-  };
+  const missingFor = (toId: string) =>
+    needsApprovals(board.stages, toId)
+      ? approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts"))
+      : null;
   // (until its openers and record load, what's approved for each can't be read)
   const left = ready ? (missingFor(ready.id) ?? []) : [];
   const blocked = !!ready && (!prepared || left.length > 0);

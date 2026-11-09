@@ -837,7 +837,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
 
     tool(
       "move_lead",
-      "Move one lead to another stage. One step forward needs nothing; going back or skipping ahead needs a reason, which stays on the lead's record.",
+      "Move one lead to another stage. One step forward needs nothing; going back or skipping ahead needs a reason, which stays on the lead's record. Into Ready to reach out or any later stage (not Dead) only once every message is approved and filled in; otherwise it says what's left.",
       z.object({
         lead_id: z.string(),
         stage: z.string().describe("A stage id or name"),
