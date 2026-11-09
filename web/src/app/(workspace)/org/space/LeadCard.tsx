@@ -2,8 +2,7 @@
 
 import { Mail, MapPin } from "lucide-react";
 import { handleOf, isFilled, leadContacts, linkName, MARKED, NO_CONTACT, pagePlatform, pinnedPages, PLATFORM_NAME, sameUrl, type BoardData, type Contact, type LeadData, type LinkValue, type Marked, type MarkChange } from "@/lib/space";
-import { channelOf, instagramOf } from "@/lib/channelStats";
-import { hrefOf, ValueView } from "./values";
+import { channelHref, hrefOf, ValueView } from "./values";
 import { ChipIcon, WORKING } from "./LeadFacts";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -55,17 +54,15 @@ export function LeadCard({
   const countryField = board.fields.find((f) => f.kind === "select" && /^country$/i.test(f.name.trim()) && f.onCard);
   const country = countryField && (Array.isArray(lead.values[countryField.id]) ? (lead.values[countryField.id] as string[]) : []).flatMap((id) => countryField.options.filter((o) => o.id === id).map((o) => o.name)).join(", ");
   const pinned = board.fields.filter((f) => f.onCard && f !== countryField && f.kind !== "links" && f.kind !== "contacts" && !WORKING.test(f.name.trim()) && isFilled(f.kind, lead.values[f.id]));
-  // written as an address that opens (a channel kept as "youtube.com/@show")
-  const found = channelOf(lead.values, board.fields)?.url ?? instagramOf(lead.values, board.fields);
-  const channel = found ? hrefOf("other", found) : null;
+  const channel = channelHref(lead.values, board.fields);
   const pages: { url: string; label: string }[] = [];
   for (const f of board.fields) {
     if (f.kind !== "links" || !f.pins?.length) continue;
     const links = Array.isArray(lead.values[f.id]) ? (lead.values[f.id] as LinkValue[]) : [];
-    const hrefOfLink = (l: LinkValue) => hrefOf("other", l.url) ?? l.url.trim();
-    const urls = links.flatMap((l) => (l.url.trim() ? [hrefOfLink(l)] : []));
+    // only links that open: words kept as a link stay in the lead window
+    const urls = links.flatMap((l) => hrefOf("other", l.url) ?? []);
     for (const url of pinnedPages(f.pins, urls, channel))
-      if (!pages.some((p) => sameUrl(p.url) === sameUrl(url))) pages.push({ url, label: links.find((l) => sameUrl(hrefOfLink(l)) === sameUrl(url))?.label ?? "" });
+      if (!pages.some((p) => sameUrl(p.url) === sameUrl(url))) pages.push({ url, label: links.find((l) => sameUrl(hrefOf("other", l.url) ?? "") === sameUrl(url))?.label ?? "" });
   }
 
   return (

@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Pin, Plus, Quote, SquareCheck, Tags, Trash2, Type, Users, X, type LucideIcon } from "lucide-react";
 import { handleOf, isFilled, linkName, pagePinned, pagePlatform, sameUrl, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue, type PagePlatform } from "@/lib/space";
-import { channelOf, instagramOf, type ChannelStats } from "@/lib/channelStats";
+import type { ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, NotionIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
-import { CheckboxEditor, CountEditor, DateEditor, dayLabel, hrefOf, TagEditor } from "./values";
+import { channelHref, CheckboxEditor, CountEditor, DateEditor, dayLabel, hrefOf, TagEditor } from "./values";
 
 // What's known about a lead, read at a glance (Abhishek, 17 Oct 2026: minimal,
 // balanced, no boxes): who it is (their picture, name, where, and their
@@ -172,8 +172,13 @@ export function LeadProfile({
       seenName.set(l.base, n);
       return { field: l.field, href: l.href, name: n > 1 ? `${l.base} · ${n}` : l.base, platform: pagePlatform(l.href) };
     });
-  // the lead's channel: its YouTube channel, else its Instagram, as the cards read it
-  const channelUrl = channelOf(values, fields)?.url ?? instagramOf(values, fields);
+  // the lead's channel: its YouTube channel, else its Instagram, as the cards
+  // read it; one kept only on a contact (an Instagram) gets a row here too,
+  // under the board's links property, so its pin is in reach
+  const channelUrl = channelHref(values, fields);
+  const linksField = fields.find((f) => f.kind === "links");
+  if (channelUrl && linksField && !pages.some((p) => sameUrl(p.href) === sameUrl(channelUrl)))
+    pages.unshift({ field: linksField, href: channelUrl, name: linkName("", channelUrl), platform: pagePlatform(channelUrl) });
   const channelUrls = new Set(pages.map((l) => sameUrl(l.href)));
   // the picked person as the tabs at the top call them (a number when two share a name)
   const whoName = (() => {
@@ -214,7 +219,7 @@ export function LeadProfile({
                   name={l.name}
                   sub={handleOf(l.href)}
                   platform={l.platform}
-                  pin={onPinPage ? { on: pagePinned(l.field.pins, l.href, channelUrl), toggle: () => onPinPage(l.field, l.href, channelUrl) } : undefined}
+                  pin={onPinPage && /^(https?:|mailto:|tel:)/i.test(l.href) ? { on: pagePinned(l.field.pins, l.href, channelUrl), toggle: () => onPinPage(l.field, l.href, channelUrl) } : undefined}
                 />
               ))}
               {rest.map((f) => (

@@ -18,6 +18,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { channelOf, instagramOf } from "@/lib/channelStats";
 import { addOption, deleteOption, renameOption } from "./actions";
 import { TagPill } from "./pills";
 import { ReasonDialog } from "./ReasonDialog";
@@ -57,6 +58,13 @@ export const dateOf = (iso: string) => dayLabel(dayOf(new Date(iso)));
 
 const site = (v: string) => (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(v) ? `https://${v}` : null);
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// the lead's channel as an address that opens: its YouTube channel, else its
+// Instagram (a link, or a contact's); the cards and the lead window read it alike
+export function channelHref(values: Record<string, unknown>, fields: { id: string; kind: string }[]): string | null {
+  const c = channelOf(values, fields);
+  return (c && hrefOf("other", c.url)) ?? instagramOf(values, fields);
+}
 
 // Where a typed address opens, or null when it isn't one. Only web, mail
 // and phone links are ever built, so nothing typed can run as a script.
