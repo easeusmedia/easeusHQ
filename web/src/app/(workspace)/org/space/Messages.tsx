@@ -9,6 +9,7 @@ import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
 import { CanBuild } from "./values";
+import { copyMessage, emailHtml, marks, plainText } from "@/lib/emailCopy";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -804,7 +805,7 @@ function MessageForm({
   }
   // the subject and the words each copy on their own
   async function copy(what: "subject" | "body") {
-    await navigator.clipboard.writeText(what === "subject" ? shownSubject : shownBody);
+    await (what === "subject" ? navigator.clipboard.writeText(shownSubject) : copyMessage(shownBody, isEmail));
     setCopied(what);
     setTimeout(() => setCopied(null), 1500);
   }
@@ -913,7 +914,7 @@ function MessageForm({
           )}
         </div>
       ) : (
-        <div className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+        <div onCopy={isEmail ? copyClean : undefined} className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
           {isEmail && shownSubject && (
             <p className="mb-3 flex items-start gap-1.5 text-foreground">
               <span className="min-w-0">
@@ -925,7 +926,7 @@ function MessageForm({
               </button>
             </p>
           )}
-          {sent ? shownBody : <Filled text={source.body} vars={vars} />}
+          <Filled text={sent ? shownBody : source.body} vars={vars} />
         </div>
       )}
 
@@ -972,7 +973,7 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
           <button
             type="button"
             onClick={async () => {
-              await navigator.clipboard.writeText(message.channel === "email" && message.subject ? `Subject: ${message.subject}\n\n${message.body}` : message.body);
+              await copyMessage(message.channel === "email" && message.subject ? `Subject: ${message.subject}\n\n${message.body}` : message.body, message.channel === "email");
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             }}
@@ -997,7 +998,7 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
             </span>
           </p>
         )}
-        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+        <div onCopy={message.channel === "email" ? copyClean : undefined} className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
           <Filled text={message.body} vars={{}} template />
         </div>
       </div>
@@ -1008,7 +1009,23 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
 // A message's text with its variables lit: filled ones in blue, missing
 // ones in red, so what still needs typing stands out (in a bare template,
 // where nothing is filled yet, every variable is simply blue)
+// (its **bold** bold and its [links](https://…) links)
 function Filled({ text, vars, template = false }: { text: string; vars: Record<string, string>; template?: boolean }) {
+  return marks(text).map((r, j) => {
+    const words = <Parts text={r.text} vars={vars} template={template} />;
+    return r.bold ? (
+      <strong key={j}>{words}</strong>
+    ) : r.href ? (
+      <a key={j} href={r.href} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-2">
+        {words}
+      </a>
+    ) : (
+      <Fragment key={j}>{words}</Fragment>
+    );
+  });
+}
+
+function Parts({ text, vars, template }: { text: string; vars: Record<string, string>; template: boolean }) {
   return (
     <>
       {fillParts(text, vars).map((p, i) =>
@@ -1026,6 +1043,24 @@ function Filled({ text, vars, template = false }: { text: string; vars: Record<s
       )}
     </>
   );
+}
+
+// an email's words selected and copied by hand: the same clean email as Copy
+// gives, not the app's font and colours
+function copyClean(e: React.ClipboardEvent) {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount || sel.isCollapsed) return;
+  const walk = (n: Node): string => {
+    const inner = () => [...n.childNodes].map(walk).join("");
+    if (n.nodeType === Node.TEXT_NODE) return n.textContent ?? "";
+    if (n instanceof HTMLAnchorElement) return `[${inner()}](${n.href})`;
+    if (n instanceof HTMLElement && n.tagName === "STRONG") return `**${inner()}**`;
+    return inner();
+  };
+  const text = walk(sel.getRangeAt(0).cloneContents());
+  e.preventDefault();
+  e.clipboardData.setData("text/plain", plainText(text));
+  e.clipboardData.setData("text/html", emailHtml(text));
 }
 
 function SentRow({ sent }: { sent: SentData }) {
@@ -1049,7 +1084,7 @@ function SentRow({ sent }: { sent: SentData }) {
               {sent.subject}
             </p>
           )}
-          {sent.body}
+          <Filled text={sent.body} vars={{}} />
         </div>
       </Reveal>
     </li>

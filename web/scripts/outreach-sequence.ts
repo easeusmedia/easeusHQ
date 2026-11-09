@@ -37,14 +37,14 @@ Watched your {{Guest}} episode - love the sharp questions and production quality
 That's why this stood out: {{Gap}}
 
 Context, In the last 6 months we helped a client's podcast:
-• Drive ~1M total YouTube views
+• Drive **~1M total YouTube views**
 • Engineer their most-viewed episode & YouTube Short.
 
-No increase in recording. No change in guests.
+**No increase in recording. No change in guests.**
 
-It came from fixing packaging, distribution, and building an audience capture system. You can check our work here!
+It came from fixing packaging, distribution, and building an audience capture system. You can [check our work here!](https://easeus.media/)
 
-I recorded a 5-minute audit showing exactly what I would change for {{Podcast}} & some low hanging fruits that'd help with visibility.
+I recorded a **5-minute audit** showing exactly what I would change for {{Podcast}} & some low hanging fruits that'd help with visibility.
 
 Should I send it over?
 
