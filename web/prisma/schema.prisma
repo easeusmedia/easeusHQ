@@ -1212,6 +1212,10 @@ model BoardField {
   kind      String
   // shown on the board's cards
   onCard    Boolean       @default(false)
+  // a links property's pages pinned to the cards, by platform ("youtube",
+  // "instagram", "notion"…), or "channel": the lead's YouTube, else its
+  // Instagram (Abhishek, 9 Nov 2026)
+  pins      String[]      @default(["channel"])
   // one of a lead's basic details: a card says what's still missing
   required  Boolean       @default(false)
   sortOrder Float         @default(0)

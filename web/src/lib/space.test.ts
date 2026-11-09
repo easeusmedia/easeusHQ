@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -601,4 +601,22 @@ test("a lead's email counts from when each address was put on it", () => {
   const starts = emailStarts({ f: saved }, added);
   assert.equal(starts.get("old@x.com"), added.getTime() - 3_600_000);
   assert.equal(starts.get("new@x.com"), Date.parse("2026-10-26T07:48:00Z") - 3_600_000);
+});
+
+test("a card pins the lead's channel by default; any page can be pinned or unpinned", () => {
+  const yt = "https://www.youtube.com/@show";
+  const ig = "https://instagram.com/show";
+  const notion = "https://app.notion.com/p/abc";
+  // the channel (as channelOf / instagramOf read it) comes first, written as it's found
+  assert.deepEqual(pinnedPages(["channel"], [notion, ig, yt], yt), [yt]);
+  assert.deepEqual(pinnedPages(["channel"], [notion], "https://www.instagram.com/show/"), ["https://www.instagram.com/show/"]);
+  assert.deepEqual(pinnedPages(["channel"], [notion], null), []);
+  assert.deepEqual(pinnedPages(["channel", "notion"], [notion, yt], "https://youtube.com/@show/"), ["https://youtube.com/@show/", notion]);
+  // pinning Notion adds it; unpinning the channel's YouTube takes "channel" off
+  assert.deepEqual(togglePagePin(["channel"], notion, yt), ["channel", "notion"]);
+  assert.deepEqual(togglePagePin(["channel", "notion"], yt, yt), ["notion"]);
+  // pinned by its platform and as the channel: off takes off both
+  assert.deepEqual(togglePagePin(["channel", "youtube"], yt, yt), []);
+  // Instagram beside a YouTube channel isn't the channel: tapping pins Instagram itself
+  assert.deepEqual(togglePagePin(["channel"], ig, yt), ["channel", "instagram"]);
 });

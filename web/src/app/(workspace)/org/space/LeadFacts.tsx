@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { AlertTriangle, ArrowUpRight, CalendarDays, Check, CircleChevronDown, Copy, Eye, Globe, Hash, Link2, Mail, MapPin, Pencil, Phone, Pin, Plus, Quote, SquareCheck, Tags, Trash2, Type, Users, X, type LucideIcon } from "lucide-react";
-import { handleOf, isFilled, linkName, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue } from "@/lib/space";
-import type { ChannelStats } from "@/lib/channelStats";
+import { handleOf, isFilled, linkName, pagePinned, pagePlatform, sameUrl, type ChannelKind, type Contact, type FieldData, type FieldKind, type LinkValue, type PagePlatform } from "@/lib/space";
+import { channelOf, instagramOf, type ChannelStats } from "@/lib/channelStats";
 import { InstagramIcon, LinkedinIcon, NotionIcon, XIcon, YoutubeIcon } from "../../PlatformIcon";
 import { CheckboxEditor, CountEditor, DateEditor, dayLabel, hrefOf, TagEditor } from "./values";
 
@@ -125,6 +125,7 @@ export function LeadProfile({
   onSavePerson,
   onRemovePerson,
   onPin,
+  onPinPage,
 }: {
   title: string;
   fields: FieldData[];
@@ -139,9 +140,11 @@ export function LeadProfile({
   onCancelAdd: () => void;
   onSavePerson: (c: Contact) => Promise<boolean>;
   onRemovePerson: (id: string) => void;
-  // pins a detail to the board's cards, or unpins it (whoever sets the app up);
-  // the country is always on them
+  // pins a detail to the board's cards, or unpins it (whoever sets the app
+  // up), the country too; a page, by its links property's pins (`channel`:
+  // the lead's channel's page, pinned by default)
   onPin?: (f: FieldData) => void;
+  onPinPage?: (f: FieldData, url: string, channel: string | null) => void;
 }) {
   // the person's details open as a form (theirs: switching person closes it)
   const [editing, setEditing] = useState<string | null>(null);
@@ -162,13 +165,15 @@ export function LeadProfile({
   const seenUrl = new Set<string>();
   const seenName = new Map<string, number>();
   const pages = linkFields
-    .flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => (l.url.trim() || l.label.trim() ? [{ href: hrefOf("other", l.url) ?? l.url.trim(), base: linkName(l.label, l.url) || l.url.trim() }] : [])))
+    .flatMap((f) => (values[f.id] as LinkValue[]).flatMap((l) => (l.url.trim() || l.label.trim() ? [{ field: f, href: hrefOf("other", l.url) ?? l.url.trim(), base: linkName(l.label, l.url) || l.url.trim() }] : [])))
     .filter((l) => !seenUrl.has(sameUrl(l.href)) && seenUrl.add(sameUrl(l.href)))
     .map((l) => {
       const n = (seenName.get(l.base) ?? 0) + 1;
       seenName.set(l.base, n);
-      return { href: l.href, name: n > 1 ? `${l.base} · ${n}` : l.base, platform: platformOf(l.href) };
+      return { field: l.field, href: l.href, name: n > 1 ? `${l.base} · ${n}` : l.base, platform: pagePlatform(l.href) };
     });
+  // the lead's channel: its YouTube channel, else its Instagram, as the cards read it
+  const channelUrl = channelOf(values, fields)?.url ?? instagramOf(values, fields);
   const channelUrls = new Set(pages.map((l) => sameUrl(l.href)));
   // the picked person as the tabs at the top call them (a number when two share a name)
   const whoName = (() => {
@@ -200,13 +205,20 @@ export function LeadProfile({
           (numbers.length > 0 || pages.length > 0 || rest.length > 0) && (
             <div className="-my-1 flex flex-col">
               {numbers.map((f) => (
-                <FactRow key={f.id} field={f} value={values[f.id]} onPin={onPin && !named(f, /^country$/i) ? () => onPin(f) : undefined} />
+                <FactRow key={f.id} field={f} value={values[f.id]} onPin={onPin ? () => onPin(f) : undefined} />
               ))}
               {pages.map((l, i) => (
-                <LinkRow key={`page-${i}`} href={l.href} name={l.name} sub={handleOf(l.href)} platform={l.platform} />
+                <LinkRow
+                  key={`page-${i}`}
+                  href={l.href}
+                  name={l.name}
+                  sub={handleOf(l.href)}
+                  platform={l.platform}
+                  pin={onPinPage ? { on: pagePinned(l.field.pins, l.href, channelUrl), toggle: () => onPinPage(l.field, l.href, channelUrl) } : undefined}
+                />
               ))}
               {rest.map((f) => (
-                <FactRow key={f.id} field={f} value={values[f.id]} onPin={onPin && !named(f, /^country$/i) ? () => onPin(f) : undefined} />
+                <FactRow key={f.id} field={f} value={values[f.id]} onPin={onPin ? () => onPin(f) : undefined} />
               ))}
             </div>
           )
@@ -303,20 +315,7 @@ function iconOf(f: FieldData): { Icon: LucideIcon; tone: string } {
   return hit ? { Icon: hit[1], tone: hit[2] } : { Icon: KIND_ICON[f.kind], tone: "bg-white/[0.06] text-foreground/70" };
 }
 
-// a page's platform, from its address
-type Platform = "youtube" | "instagram" | "linkedin" | "x" | "notion" | "phone" | "email" | "other";
-function platformOf(url: string): Platform {
-  if (/^mailto:/i.test(url)) return "email";
-  if (/^tel:/i.test(url)) return "phone";
-  const host = /^(?:https?:\/\/)?(?:www\.)?([^/?#]+)/i.exec(url.trim())?.[1]?.toLowerCase() ?? "";
-  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return "youtube";
-  if (/(^|\.)instagram\.com$/.test(host)) return "instagram";
-  if (/(^|\.)linkedin\.com$/.test(host)) return "linkedin";
-  if (/(^|\.)(x\.com|twitter\.com)$/.test(host)) return "x";
-  if (/(^|\.)notion\.(so|site|com)$/.test(host)) return "notion";
-  return "other";
-}
-const sameUrl = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\/(www\.|m\.)?/, "").replace(/\/+$/, "");
+type Platform = PagePlatform;
 const PLATFORM_TONE: Record<Platform, string> = {
   youtube: "bg-red-500/10 text-red-400",
   instagram: "bg-pink-500/10 text-pink-400",
@@ -337,7 +336,7 @@ function PlatformIcon({ platform, size = 14 }: { platform: Platform; size?: numb
 }
 // a platform's icon on its own, in its colour
 const ICON_TONE: Record<Platform, string> = { youtube: "text-red-400", instagram: "text-pink-400", linkedin: "text-sky-400", x: "text-foreground/80", notion: "", phone: "text-emerald-300", email: "text-sky-300", other: "text-muted" };
-function ChipIcon({ platform, size = 13 }: { platform: Platform; size?: number }) {
+export function ChipIcon({ platform, size = 13 }: { platform: Platform; size?: number }) {
   if (platform === "notion") return <NotionIcon size={size} className="text-foreground" />;
   const Icon = { youtube: YoutubeIcon, instagram: InstagramIcon, linkedin: LinkedinIcon, x: XIcon, phone: Phone, email: Mail, other: Globe }[platform];
   return <Icon size={size} className={`shrink-0 ${ICON_TONE[platform]}`} />;
@@ -348,7 +347,7 @@ function ChipIcon({ platform, size = 13 }: { platform: Platform; size?: number }
 // address isn't a web address)
 const CHIP = "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-xs text-foreground/85";
 const ROW = "group/link -mx-1.5 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 text-[13px] text-foreground/85";
-function LinkRow({ href, name, sub, platform }: { href: string; name: string; sub?: string | null; platform: Platform }) {
+function LinkRow({ href, name, sub, platform, pin }: { href: string; name: string; sub?: string | null; platform: Platform; pin?: { on: boolean; toggle: () => void } }) {
   const inner = (
     <>
       <PlatformIcon platform={platform} />
@@ -358,12 +357,20 @@ function LinkRow({ href, name, sub, platform }: { href: string; name: string; su
       </span>
     </>
   );
-  if (!/^(https?:|mailto:|tel:)/i.test(href)) return <span className={ROW}>{inner}</span>;
-  return (
-    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className={`${ROW} transition-colors hover:bg-white/[0.04] hover:text-foreground`}>
+  const row = !/^(https?:|mailto:|tel:)/i.test(href) ? (
+    <span className={`${ROW} min-w-0 flex-1`}>{inner}</span>
+  ) : (
+    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className={`${ROW} min-w-0 flex-1 transition-colors hover:bg-white/[0.04] hover:text-foreground`}>
       {inner}
       <ArrowUpRight size={13} className="shrink-0 text-muted opacity-0 transition-opacity group-hover/link:opacity-100" />
     </a>
+  );
+  if (!pin) return row;
+  return (
+    <div className="group/fact flex min-w-0 items-center gap-1">
+      {row}
+      <PinButton name={name} on={pin.on} onClick={pin.toggle} />
+    </div>
   );
 }
 
@@ -387,22 +394,27 @@ function FactRow({ field, value, onPin }: { field: FieldData; value: unknown; on
           </span>
         </span>
       </span>
-      {/* pinned, it shows on the lead's card on the board (Abhishek, 3 Nov 2026) */}
-      {onPin && (
-        <button
-          type="button"
-          onClick={onPin}
-          aria-pressed={field.onCard}
-          aria-label={field.onCard ? `Unpin ${field.name} from the cards` : `Pin ${field.name} to the cards`}
-          title={field.onCard ? "Unpin from the cards" : "Pin to the cards"}
-          className={`grid size-8 shrink-0 place-items-center rounded-lg transition-[opacity,color,background-color] duration-150 hover:bg-white/[0.06] focus-visible:opacity-100 ${
-            field.onCard ? "text-accent" : "text-muted opacity-0 group-hover/fact:opacity-100 hover:text-foreground"
-          }`}
-        >
-          <Pin size={14} className={field.onCard ? "fill-current" : ""} />
-        </button>
-      )}
+      {onPin && <PinButton name={field.name} on={field.onCard} onClick={onPin} />}
     </div>
+  );
+}
+
+// pinned, it shows on the lead's card on the board (Abhishek, 3 Nov 2026);
+// unpinned, the pin shows on hover
+function PinButton({ name, on, onClick }: { name: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      aria-label={on ? `Unpin ${name} from the cards` : `Pin ${name} to the cards`}
+      title={on ? "Unpin from the cards" : "Pin to the cards"}
+      className={`grid size-8 shrink-0 place-items-center rounded-lg transition-[opacity,color,background-color] duration-150 hover:bg-white/[0.06] focus-visible:opacity-100 ${
+        on ? "text-accent" : "text-muted opacity-0 group-hover/fact:opacity-100 hover:text-foreground"
+      }`}
+    >
+      <Pin size={14} className={on ? "fill-current" : ""} />
+    </button>
   );
 }
 
@@ -440,7 +452,7 @@ function PersonBlock({ person, name, named, channelUrls }: { person: Contact; na
             <LinkRow key={`tel-${i}`} href={p.href} name={p.name} platform="phone" />
           ))}
           {pages.map((p, i) => (
-            <LinkRow key={i} href={p.href} name={p.name} sub={handleOf(p.href)} platform={p.kind === "other" ? platformOf(p.href) : (p.kind as Platform)} />
+            <LinkRow key={i} href={p.href} name={p.name} sub={handleOf(p.href)} platform={p.kind === "other" ? pagePlatform(p.href) : (p.kind as Platform)} />
           ))}
         </div>
       )}
@@ -581,7 +593,7 @@ function LinksInput({ value, save }: { value: unknown; save: (v: LinkValue[] | n
     <div className="flex flex-col gap-2">
       {links.map((l, i) => (
         <div key={i} className="flex min-w-0 items-center gap-2.5">
-          <PlatformIcon platform={platformOf(l.url)} />
+          <PlatformIcon platform={pagePlatform(l.url)} />
           <div className="flex min-w-0 flex-1 flex-col rounded-lg border border-white/[0.08] bg-white/[0.02] transition-colors focus-within:border-accent/40">
             <input value={l.typed ?? (l.label.trim() ? linkName(l.label, l.url) : "")} onChange={(e) => set(i, { typed: e.target.value })} onBlur={() => commit(links)} placeholder={l.url.trim() ? linkName("", l.url) : "Name"} aria-label="Name" className="bg-transparent px-3 pt-1.5 text-[13px] text-foreground outline-none! placeholder:text-muted/60" />
             <input autoFocus={focus === i} value={l.url} onChange={(e) => set(i, { url: e.target.value })} onBlur={() => commit(links)} placeholder="https://…" aria-label="Address" className="bg-transparent px-3 pb-1.5 text-xs text-muted outline-none! placeholder:text-muted/45 focus:text-foreground/80" />
@@ -666,7 +678,7 @@ export function ContactForm({ initial, onSave, onCancel, onRemove }: { initial: 
         <div className="flex flex-wrap gap-1.5">
           {more.map((c, i) => (
             <span key={i} className={`${CHIP} pr-1`}>
-              <ChipIcon platform={c.kind === "phone" ? "phone" : c.kind === "other" ? platformOf(hrefOf("other", c.value) ?? c.value) : (c.kind as Platform)} />
+              <ChipIcon platform={c.kind === "phone" ? "phone" : c.kind === "other" ? pagePlatform(hrefOf("other", c.value) ?? c.value) : (c.kind as Platform)} />
               <span className="truncate">{c.value}</span>
               <button type="button" onClick={() => setMore((m) => m.filter((x) => x !== c))} aria-label={`Remove ${c.value}`} title="Remove" className="grid size-5 shrink-0 place-items-center rounded text-muted transition-colors hover:bg-white/[0.08] hover:text-rose-300">
                 <X size={11} />

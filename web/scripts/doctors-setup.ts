@@ -71,8 +71,8 @@ const BOARDS: { key: "yt" | "ig"; name: string; fields: FieldSpec[] }[] = [
     fields: [
       { name: "Contacts", kind: "contacts", required: true },
       { name: "Links", kind: "links" },
-      { name: "Subscribers", kind: "text", onCard: true },
-      { name: "Typical views", kind: "text", onCard: true },
+      { name: "Subscribers", kind: "text" },
+      { name: "Typical views", kind: "text" },
       { name: "Opener", kind: "select", onCard: true, options: opts(["D1 · Old hit still on top", "D2 · View swing", "D3 · Real hit", "D4 · Shorts beat long videos", "D5 · New or small channel", "D6 · Steady poster", "D7 · Gone quiet"], ["green", "blue", "purple", "pink", "orange", "yellow", "gray"]) },
       MEME,
       COUNTRY,
@@ -85,7 +85,7 @@ const BOARDS: { key: "yt" | "ig"; name: string; fields: FieldSpec[] }[] = [
     fields: [
       { name: "Contacts", kind: "contacts", required: true },
       { name: "Links", kind: "links" },
-      { name: "Followers", kind: "text", onCard: true },
+      { name: "Followers", kind: "text" },
       { name: "Usual views", kind: "text" },
       { name: "Version", kind: "select", onCard: true, options: opts(["A · A reel took off", "B · Capture in place", "C · No reel took off", "No data yet"], ["green", "blue", "purple", "gray"]) },
       MEME,

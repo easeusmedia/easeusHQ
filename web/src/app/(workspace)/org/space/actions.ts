@@ -43,6 +43,7 @@ import {
   stampEmails,
   type Contact,
   outreachStart,
+  PAGE_PINS,
   unapprovedText,
   type Approval,
   type Opener,
@@ -140,7 +141,7 @@ async function copyStructure(tx: Prisma.TransactionClient, fromId: string, into:
     select: {
       kind: true,
       stages: { select: { name: true, color: true, sortOrder: true, messages: { select: { name: true, channel: true, subject: true, body: true, note: true, sortOrder: true } } } },
-      fields: { select: { name: true, kind: true, onCard: true, required: true, sortOrder: true, options: { select: { name: true, color: true, sortOrder: true } } } },
+      fields: { select: { name: true, kind: true, onCard: true, pins: true, required: true, sortOrder: true, options: { select: { name: true, color: true, sortOrder: true } } } },
       children: { select: { id: true, name: true, slug: true, sortOrder: true } },
     },
   });
@@ -150,7 +151,7 @@ async function copyStructure(tx: Prisma.TransactionClient, fromId: string, into:
     if (messages.length) await tx.stageMessage.createMany({ data: messages.map((m) => ({ ...m, stageId: stage.id })) });
   }
   for (const f of from.fields) {
-    const field = await tx.boardField.create({ data: { boardId: made.id, name: f.name, kind: f.kind, onCard: f.onCard, required: f.required, sortOrder: f.sortOrder } });
+    const field = await tx.boardField.create({ data: { boardId: made.id, name: f.name, kind: f.kind, onCard: f.onCard, pins: f.pins, required: f.required, sortOrder: f.sortOrder } });
     if (f.options.length) await tx.fieldOption.createMany({ data: f.options.map((o) => ({ ...o, fieldId: field.id })) });
   }
   for (const child of from.children) await copyStructure(tx, child.id, { teamId: into.teamId, parentId: made.id, name: child.name, slug: child.slug, sortOrder: child.sortOrder }, byId);
@@ -411,7 +412,8 @@ export async function createField(boardId: string, name: string, kind: string): 
     const fields = await prisma.boardField.findMany({ where: { boardId }, select: { name: true, sortOrder: true } });
     if (fields.some((f) => f.name.toLowerCase() === n.toLowerCase())) return { error: `"${n}" already exists on this board.` };
     const sortOrder = Math.max(0, ...fields.map((f) => f.sortOrder)) + 1;
-    const field = await prisma.boardField.create({ data: { boardId, name: n, kind, sortOrder }, select: { id: true, name: true, kind: true, onCard: true, required: true } });
+    // a Country starts pinned to the cards, the one property that does (Abhishek, 9 Nov 2026)
+    const field = await prisma.boardField.create({ data: { boardId, name: n, kind, sortOrder, onCard: /^country$/i.test(n) }, select: { id: true, name: true, kind: true, onCard: true, pins: true, required: true } });
     return { field: { ...field, kind: field.kind as FieldKind, options: [] } };
   } catch (err) {
     return failed(err, "That property couldn't be added.");
@@ -435,14 +437,16 @@ export async function renameField(id: string, name: string): Promise<Done> {
   }
 }
 
-export async function setFieldFlags(id: string, flags: { onCard?: boolean; required?: boolean }): Promise<Done> {
+// pins: a links property's pages pinned to the cards (lib/space PAGE_PINS)
+export async function setFieldFlags(id: string, flags: { onCard?: boolean; required?: boolean; pins?: string[] }): Promise<Done> {
   const field = await boardOfField(id);
   if (!field) return { error: "That property no longer exists." };
   const who = await whoFor(field.board.teamId, true);
   if ("error" in who) return who;
-  const data: { onCard?: boolean; required?: boolean } = {};
+  const data: { onCard?: boolean; required?: boolean; pins?: string[] } = {};
   if (typeof flags.onCard === "boolean") data.onCard = flags.onCard;
   if (typeof flags.required === "boolean") data.required = flags.required;
+  if (Array.isArray(flags.pins)) data.pins = [...new Set(flags.pins.filter((p) => PAGE_PINS.includes(p)))];
   try {
     await prisma.boardField.update({ where: { id }, data });
     return {};

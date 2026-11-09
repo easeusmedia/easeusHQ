@@ -94,7 +94,7 @@ export type FieldValue = string[] | CountValue | Contact[] | LinkValue[] | boole
 
 // ---- What travels to the client ----
 export type OptionData = { id: string; name: string; color: string };
-export type FieldData = { id: string; name: string; kind: FieldKind; onCard: boolean; required: boolean; options: OptionData[] };
+export type FieldData = { id: string; name: string; kind: FieldKind; onCard: boolean; required: boolean; options: OptionData[]; pins: string[] };
 export type StageData = { id: string; name: string; color: string };
 export type Person = { id: string; name: string };
 export type LeadData = {
@@ -894,6 +894,45 @@ function siteName(url: string): string {
 // The handle a page is known by, shown small beside its name ("@drtimpearce",
 // "in/drtimpearce", a website's host); nothing for a single video, reel or
 // post, a Notion page, or a channel id.
+// a page's platform, from its address
+export type PagePlatform = "youtube" | "instagram" | "linkedin" | "x" | "notion" | "phone" | "email" | "other";
+export function pagePlatform(url: string): PagePlatform {
+  if (/^mailto:/i.test(url)) return "email";
+  if (/^tel:/i.test(url)) return "phone";
+  const host = /^(?:https?:\/\/)?(?:www\.)?([^/?#]+)/i.exec(url.trim())?.[1]?.toLowerCase() ?? "";
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return "youtube";
+  if (/(^|\.)instagram\.com$/.test(host)) return "instagram";
+  if (/(^|\.)linkedin\.com$/.test(host)) return "linkedin";
+  if (/(^|\.)(x\.com|twitter\.com)$/.test(host)) return "x";
+  if (/(^|\.)notion\.(so|site|com)$/.test(host)) return "notion";
+  return "other";
+}
+
+// one page however it's written (http or https, www or m., a closing /)
+export const sameUrl = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\/(www\.|m\.)?/, "").replace(/\/+$/, "");
+
+// A links property's pages pinned to the cards (Abhishek, 9 Nov 2026): by
+// platform ("youtube", "notion"…), and "channel", the default: the lead's
+// channel, its YouTube channel else its Instagram (lib/channelStats channelOf,
+// instagramOf), which the caller reads. `urls`: the lead's pages, each once.
+export const PAGE_PINS = ["channel", "youtube", "instagram", "linkedin", "x", "notion", "phone", "email", "other"];
+export const pagePinned = (pins: string[], url: string, channel: string | null) =>
+  pins.includes(pagePlatform(url)) || (pins.includes("channel") && !!channel && sameUrl(url) === sameUrl(channel));
+// the channel first, then the pages pinned by platform, each once
+export function pinnedPages(pins: string[], urls: string[], channel: string | null): string[] {
+  const out = pins.includes("channel") && channel ? [channel] : [];
+  for (const u of urls) if (pins.includes(pagePlatform(u)) && !out.some((o) => sameUrl(o) === sameUrl(u))) out.push(u);
+  return out;
+}
+// a page's pin tapped: off takes off whatever pinned it (its platform, and
+// "channel" when it's the lead's channel), on pins its platform
+export function togglePagePin(pins: string[], url: string, channel: string | null): string[] {
+  const p = pagePlatform(url);
+  if (!pagePinned(pins, url, channel)) return [...pins, p];
+  const isChannel = !!channel && sameUrl(url) === sameUrl(channel);
+  return pins.filter((x) => x !== p && !(isChannel && x === "channel"));
+}
+
 export function handleOf(url: string): string | null {
   const u = url.trim();
   if (!u) return null;
@@ -1124,7 +1163,6 @@ export const DREAM_156: BoardTemplate = {
     {
       name: "Trailer",
       kind: "select",
-      onCard: true,
       required: true,
       options: [
         { name: "Yes", color: "blue" },
@@ -1135,18 +1173,16 @@ export const DREAM_156: BoardTemplate = {
     {
       name: "Community capture",
       kind: "select",
-      onCard: true,
       required: true,
       options: [
         { name: "Yes", color: "orange" },
         { name: "No", color: "green" },
       ],
     },
-    { name: "Short-form quantity", kind: "count", onCard: true, required: true },
+    { name: "Short-form quantity", kind: "count", required: true },
     {
       name: "Podcast cadence",
       kind: "select",
-      onCard: true,
       required: true,
       options: [
         { name: "More than 5 episodes a month", color: "green" },

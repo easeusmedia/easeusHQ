@@ -1,9 +1,10 @@
 "use client";
 
 import { Mail, MapPin } from "lucide-react";
-import { isFilled, leadContacts, MARKED, NO_CONTACT, PLATFORM_NAME, type BoardData, type Contact, type LeadData, type Marked, type MarkChange } from "@/lib/space";
-import { ValueView } from "./values";
-import { WORKING } from "./LeadFacts";
+import { handleOf, isFilled, leadContacts, linkName, MARKED, NO_CONTACT, pagePlatform, pinnedPages, PLATFORM_NAME, sameUrl, type BoardData, type Contact, type LeadData, type LinkValue, type Marked, type MarkChange } from "@/lib/space";
+import { channelOf, instagramOf } from "@/lib/channelStats";
+import { hrefOf, ValueView } from "./values";
+import { ChipIcon, WORKING } from "./LeadFacts";
 import { Avatar } from "../../TaskCard";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 
@@ -12,9 +13,9 @@ const ICON: Record<Marked, React.ReactNode> = {
   linkedin: <LinkedinIcon size={11} className="text-blue-400" />,
 };
 
-// One lead on the board: its name, its country and the properties pinned to
-// the cards (Abhishek, 3 Nov 2026: not who added it, which the lead window
-// says), whoever it's given to when that's someone else, and from Day 1 how
+// One lead on the board: its name and what's pinned to the cards in the lead
+// window (Abhishek, 9 Nov 2026: any property, its country and its channel's
+// page by default; not who added it, which the lead window says), whoever it's given to when that's someone else, and from Day 1 how
 // it's going, as a status only: email (opened, replied,
 // bounced: from the sales inbox and the mail tracker) and, for Instagram and
 // LinkedIn, the furthest thing that happened (replied, seen, accepted). No
@@ -48,11 +49,22 @@ export function LeadCard({
   };
   const statuses = tracks ? MARKED.flatMap((p) => { const s = statusOf(p); return s ? [{ p, s }] : []; }) : [];
   const mail = tracks && (lead.email.sent || lead.email.bounced || !!lead.email.replied);
-  // where the lead is, always; then whatever is pinned (the lead window's
-  // pins), never the working tags, whose onCard only names the List's tabs
-  const countryField = board.fields.find((f) => f.kind === "select" && /^country$/i.test(f.name.trim()));
+  // where the lead is, when pinned; then whatever else is pinned (the lead
+  // window's pins), never the working tags, whose onCard only names the List's
+  // tabs; then the pages pinned, its channel's by default
+  const countryField = board.fields.find((f) => f.kind === "select" && /^country$/i.test(f.name.trim()) && f.onCard);
   const country = countryField && (Array.isArray(lead.values[countryField.id]) ? (lead.values[countryField.id] as string[]) : []).flatMap((id) => countryField.options.filter((o) => o.id === id).map((o) => o.name)).join(", ");
-  const pinned = board.fields.filter((f) => f.onCard && f !== countryField && !WORKING.test(f.name.trim()) && isFilled(f.kind, lead.values[f.id]));
+  const pinned = board.fields.filter((f) => f.onCard && f !== countryField && f.kind !== "links" && f.kind !== "contacts" && !WORKING.test(f.name.trim()) && isFilled(f.kind, lead.values[f.id]));
+  const channel = channelOf(lead.values, board.fields)?.url ?? instagramOf(lead.values, board.fields);
+  const pages: { url: string; label: string }[] = [];
+  for (const f of board.fields) {
+    if (f.kind !== "links" || !f.pins?.length) continue;
+    const links = Array.isArray(lead.values[f.id]) ? (lead.values[f.id] as LinkValue[]) : [];
+    const hrefOfLink = (l: LinkValue) => hrefOf("other", l.url) ?? l.url.trim();
+    const urls = links.flatMap((l) => (l.url.trim() ? [hrefOfLink(l)] : []));
+    for (const url of pinnedPages(f.pins, urls, channel))
+      if (!pages.some((p) => sameUrl(p.url) === sameUrl(url))) pages.push({ url, label: links.find((l) => sameUrl(hrefOfLink(l)) === sameUrl(url))?.label ?? "" });
+  }
 
   return (
     <div
@@ -68,7 +80,7 @@ export function LeadCard({
       className="card-surface card-interactive group relative flex cursor-pointer flex-col gap-1.5 rounded-xl px-3 py-2.5 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
     >
       <p className="line-clamp-2 text-sm leading-snug font-medium break-words">{lead.title}</p>
-      {(country || pinned.length > 0) && (
+      {(country || pinned.length > 0 || pages.length > 0) && (
         <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted">
           {country && (
             <span className="flex min-w-0 items-center gap-1" title="Country">
@@ -81,6 +93,23 @@ export function LeadCard({
               <span className="shrink-0">{f.name}</span>
               <ValueView field={f} value={lead.values[f.id]} compact />
             </span>
+          ))}
+          {/* a page opens itself, not the lead */}
+          {pages.map(({ url, label }) => (
+            <a
+              key={url}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              title={url}
+              className="flex min-w-0 items-center gap-1 transition-colors hover:text-foreground"
+            >
+              <ChipIcon platform={pagePlatform(url)} size={12} />
+              <span className="truncate">{handleOf(url) ?? (linkName(label, url) || url)}</span>
+            </a>
           ))}
         </div>
       )}

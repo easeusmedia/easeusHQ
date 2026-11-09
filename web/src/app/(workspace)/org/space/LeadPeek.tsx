@@ -19,7 +19,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, unapprovedLines, isDead, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, togglePagePin, unapprovedLines, isDead, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -283,13 +283,21 @@ function LeadPage({
     />
   );
 
-  // pins tapped here show at once, ahead of the board's refresh
+  // pins tapped here show at once, ahead of the board's refresh: a detail's,
+  // and a links property's pages
   const [pins, setPins] = useState<Record<string, boolean>>({});
-  const fields = board.fields.map((f) => (f.id in pins ? { ...f, onCard: pins[f.id] } : f));
+  const [pagePins, setPagePins] = useState<Record<string, string[]>>({});
+  const fields = board.fields.map((f) => ({ ...f, onCard: f.id in pins ? pins[f.id] : f.onCard, pins: pagePins[f.id] ?? f.pins }));
   function pin(f: FieldData) {
     const on = !f.onCard;
     setPins((p) => ({ ...p, [f.id]: on }));
     run(setFieldFlags(f.id, { onCard: on }), () => setPins((p) => ({ ...p, [f.id]: !on })));
+  }
+  function pinPage(f: FieldData, url: string, channel: string | null) {
+    const before = f.pins;
+    const next = togglePagePin(before, url, channel);
+    setPagePins((p) => ({ ...p, [f.id]: next }));
+    run(setFieldFlags(f.id, { pins: next }), () => setPagePins((p) => ({ ...p, [f.id]: before })));
   }
 
   // its properties to edit, and its people
@@ -511,6 +519,7 @@ function LeadPage({
                 onSavePerson={savePerson}
                 onRemovePerson={removePerson}
                 onPin={canBuild ? pin : undefined}
+                onPinPage={canBuild ? pinPage : undefined}
               />
             }
           />

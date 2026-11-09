@@ -18,8 +18,10 @@ const BAR = "flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-
 // and its stage, tags and email as chips. A row opens the lead. Each stage
 // shows ten rows at a time, ten more on each Show more.
 export function LeadList({ board, leads, filtered, filterKey, onOpen }: { board: BoardData; leads: LeadData[]; filtered: boolean; filterKey: string; onOpen: (id: string) => void }) {
-  // the tabs: the first tag shown on the card, else none
-  const group = board.fields.find((f) => f.onCard && f.kind === "select" && f.options.length);
+  // the tabs: the first tag shown on the card, else none (never the country,
+  // pinned by default)
+  const isCountry = (f: FieldData) => /^country$/i.test(f.name.trim());
+  const group = board.fields.find((f) => f.onCard && f.kind === "select" && f.options.length && !isCountry(f));
   const [tab, setTab] = useState<string>("all");
   const [stageId, setStageId] = useState("");
   // back to the first 10 with each new search, filter, tab or stage
@@ -27,7 +29,7 @@ export function LeadList({ board, leads, filtered, filterKey, onOpen }: { board:
   const contactsField = board.fields.find((f) => f.kind === "contacts");
   // the numbers on a row: the card's other properties that aren't tags
   const facts = board.fields.filter((f) => f.onCard && f.kind !== "select" && f.kind !== "multi" && f.kind !== "contacts");
-  const tags = board.fields.filter((f) => f.kind === "multi" || (f.kind === "select" && f !== group && f.onCard));
+  const tags = board.fields.filter((f) => f.kind === "multi" || (f.kind === "select" && f !== group && f.onCard && !isCountry(f)));
 
   const stageAt = new Map(board.stages.map((s, i) => [s.id, i]));
   const tabOf = (l: LeadData) => (group ? ((l.values[group.id] as string[] | undefined)?.[0] ?? "") : "");

@@ -4,7 +4,7 @@ import { autoMap, buildLeads, cellText, columnsOf, decode, flatten, halves, isGr
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
-const field = (id: string, name: string, kind: FieldData["kind"], options = tags(), required = false): FieldData => ({ id, name, kind, onCard: false, required, options });
+const field = (id: string, name: string, kind: FieldData["kind"], options = tags(), required = false): FieldData => ({ id, name, kind, onCard: false, required, options, pins: [] });
 const message = (id: string, name: string, channel: string, body: string, subject = ""): MessageData => ({ id, stageId: "s1", name, channel, subject, body, note: "" });
 const board = {
   fields: [

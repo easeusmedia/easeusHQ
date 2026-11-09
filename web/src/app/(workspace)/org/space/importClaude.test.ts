@@ -4,7 +4,7 @@ import { agreed, askMap, askTags, describe, mappingOf, rowsOf, toldTags } from "
 import type { FieldData, MessageData } from "../../../../lib/space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
-const field = (name: string, kind: FieldData["kind"], options = tags()): FieldData => ({ id: name, name, kind, onCard: false, required: false, options });
+const field = (name: string, kind: FieldData["kind"], options = tags()): FieldData => ({ id: name, name, kind, onCard: false, required: false, options, pins: [] });
 
 test("Claude sees every tag, so the 11th country is never answered with the nearest listed one", () => {
   const countries = ["USA", "UK", "India", "UAE", "Canada", "Australia", "Germany", "France", "Spain", "Italy", "South Korea", "Japan", "Brazil", "Malaysia", "Colombia"];
