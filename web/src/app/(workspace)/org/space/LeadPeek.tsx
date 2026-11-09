@@ -19,7 +19,7 @@ import { formatDateTime } from "../../TaskCard";
 import { Dropdown } from "../../Dropdown";
 import { chip } from "../../chip";
 import { closeOnBackdrop } from "../../dialog";
-import { approvalsMissing, unapprovedLines, beforeReady, isDead, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
+import { approvalsMissing, unapprovedLines, isDead, leadPeople, leadVars, moveNeedsReason, outreachStart, toneOf, unapprovedText, type BoardData, type Contact, type FieldData, type LeadData, type LeadEventData, type MarkChange, type Person, type Prepared, type SentData } from "@/lib/space";
 
 // a lead moved into a stage goes to the end of it
 const lastInStage = () => Date.now();
@@ -297,12 +297,12 @@ function LeadPage({
   // the people on it, one picked at a time for the whole window
   const contactList = leadPeople(values, board.fields);
   const person = contactList.find((c) => c.id === who) ?? contactList[0] ?? null;
-  // Ready to reach out (by place: the stage before Day 1), reached from before
-  // it only once every message is approved and filled in, as moveLead checks; Dead stays
-  // open, and moving on from it waits too until its record has it there
+  // Ready to reach out (by place: the stage before Day 1) and every stage
+  // after it, day to day too, only once every message is approved and filled
+  // in, as moveLead checks; Dead and the stages before stay open
   const start = outreachStart(board.stages);
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
-  const gated = beforeReady(board.stages, stageId, (events ?? []).filter((e) => e.kind === "created" || e.kind === "moved").map((e) => e.toStage));
+  const gated = start >= 0;
   // typed in the Fill in form (Messages), ahead of its save: filling the last one and moving goes straight on (the save lands first, server actions run one at a time)
   const [typed, setTyped] = useState<Record<string, string>>({});
   const left = gated ? approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts")) : [];
@@ -561,7 +561,7 @@ function LeadPage({
             <span className="truncate">Move to {ready.name}</span>
           </button>
         )}
-        <Warning text={warning && leftLines.length ? `Before ${ready?.name ?? "Ready to reach out"}:` : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={dismissWarning} />
+        <Warning text={warning && leftLines.length ? (ready ? `Before ${ready.name}:` : "Before it moves on:") : warning} lines={warning ? leftLines : undefined} label="Not yet" onClose={dismissWarning} />
         {/* to another board, or a Leads tab (Abhishek, 3 Nov 2026) */}
         {targets.length > 0 && (
           <Menu

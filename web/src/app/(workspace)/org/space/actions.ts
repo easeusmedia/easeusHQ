@@ -37,7 +37,6 @@ import {
   type MarkChange,
   approvalKeys,
   approvalsMissing,
-  beforeReady,
   isDead,
   emailStarts,
   leadPeople,
@@ -803,10 +802,9 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
 // Into another stage. One step forward needs nothing; going back, or
 // skipping ahead, needs a reason, which stays on the lead's record. Without
 // one, the answer says so ({ needsReason }) and nothing moves. Into Ready to
-// reach out (or past it) from before it only once every message is approved
-// and its fill-ins filled (lib/space approvalsMissing), reason or not; Dead stays open, and a lead
-// already past it moves freely (from Dead too, once its record has it there:
-// lib/space beforeReady).
+// reach out or any stage after it (from day to day too, Abhishek 9 Nov 2026)
+// only once every message is approved and its fill-ins filled (lib/space
+// approvalsMissing), reason or not; Dead and the stages before stay open.
 export async function moveLead(id: string, toStageId: string, sortOrder: number, reason?: string): Promise<Done & { needsReason?: boolean }> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
@@ -822,33 +820,31 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
     const to = stages.find((s) => s.id === toStageId);
     if (!to) return { error: "That stage no longer exists. Refresh and try again." };
     const start = outreachStart(stages);
-    if (start >= 0 && (stages.findIndex((s) => s.id === lead.stageId) < start || isDead(lead.stage.name)) && stages.indexOf(to) >= start && !isDead(to.name)) {
+    if (start >= 0 && stages.indexOf(to) >= start && !isDead(to.name)) {
       const [full, messages, fields] = await Promise.all([
-        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, vars: true, drafts: true, openers: true, createdAt: true, events: { where: { kind: { in: ["created", "moved"] } }, select: { toStage: true } } } }),
+        prisma.lead.findUnique({ where: { id }, select: { picks: true, approvals: true, vars: true, drafts: true, openers: true, createdAt: true } }),
         prisma.stageMessage.findMany({ where: { stage: { boardId: lead.boardId } }, select: { id: true, stageId: true, name: true, channel: true, subject: true, body: true }, orderBy: [{ stage: { sortOrder: "asc" } }, { sortOrder: "asc" }] }),
         prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
       ]);
-      if (beforeReady(stages, lead.stageId, full?.events.map((e) => e.toStage) ?? [])) {
-        // opened as the lead window has it: each address's tracked emails since it was put on the lead (org/space/data.ts)
-        const starts = [...emailStarts(lead.values, full?.createdAt ?? new Date(0))];
-        const opened = starts.length > 0 && (await prisma.trackedMail.count({ where: { OR: starts.map(([to, at]) => ({ to, sentAt: { gte: new Date(at) } })), opens: { gt: 0 } } })) > 0;
-        const values = (lead.values ?? {}) as Record<string, unknown>;
-        const contactFields = fields as Pick<FieldData, "id" | "kind">[];
-        const missing = approvalsMissing(
-          { stages, messages },
-          {
-            picks: (full?.picks ?? {}) as Record<string, string>,
-            approvals: (full?.approvals ?? {}) as Record<string, Approval>,
-            // the values the Fill in form shows: typed, else known (Name, Podcast)
-            vars: leadVars({ title: lead.title, values, vars: (full?.vars ?? {}) as Record<string, string> }, contactFields),
-          },
-          { drafts: (full?.drafts ?? {}) as Prepared["drafts"], openers: (Array.isArray(full?.openers) ? full.openers : []) as Opener[] },
-          leadPeople(values, contactFields),
-          opened,
-          fields.length > 0,
-        );
-        if (missing.length) return { error: unapprovedText(missing) };
-      }
+      // opened as the lead window has it: each address's tracked emails since it was put on the lead (org/space/data.ts)
+      const starts = [...emailStarts(lead.values, full?.createdAt ?? new Date(0))];
+      const opened = starts.length > 0 && (await prisma.trackedMail.count({ where: { OR: starts.map(([to, at]) => ({ to, sentAt: { gte: new Date(at) } })), opens: { gt: 0 } } })) > 0;
+      const values = (lead.values ?? {}) as Record<string, unknown>;
+      const contactFields = fields as Pick<FieldData, "id" | "kind">[];
+      const missing = approvalsMissing(
+        { stages, messages },
+        {
+          picks: (full?.picks ?? {}) as Record<string, string>,
+          approvals: (full?.approvals ?? {}) as Record<string, Approval>,
+          // the values the Fill in form shows: typed, else known (Name, Podcast)
+          vars: leadVars({ title: lead.title, values, vars: (full?.vars ?? {}) as Record<string, string> }, contactFields),
+        },
+        { drafts: (full?.drafts ?? {}) as Prepared["drafts"], openers: (Array.isArray(full?.openers) ? full.openers : []) as Opener[] },
+        leadPeople(values, contactFields),
+        opened,
+        fields.length > 0,
+      );
+      if (missing.length) return { error: unapprovedText(missing) };
     }
     const needs = moveNeedsReason(stages.map((s) => s.id), lead.stageId, toStageId);
     const why = (reason ?? "").trim().slice(0, 2000);

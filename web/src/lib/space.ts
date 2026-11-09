@@ -628,18 +628,6 @@ export function approvalsMissing(
   }
   return [...fills, ...missing];
 }
-// Before Ready to reach out, where going on waits for every message to be
-// approved: a stage before it, or Dead when the lead's record (the stages it
-// was made or moved into) never had it in Ready to reach out or later, so
-// Dead is no way round the approvals
-export function beforeReady(stages: Pick<StageData, "id" | "name">[], stageId: string, record: (string | null)[]): boolean {
-  const start = outreachStart(stages);
-  if (start < 0) return false;
-  const i = stages.findIndex((s) => s.id === stageId);
-  if (i < start) return true;
-  const later = new Set(stages.slice(start).filter((s) => !isDead(s.name)).map((s) => s.name));
-  return isDead(stages[i].name) && !record.some((n) => !!n && (later.has(n) || dayOf(n) != null));
-}
 // Everything it still needs before Ready to reach out, one line each, in day
 // order (the lead window's warning lists them all, so nothing is guessed)
 export function unapprovedLines(missing: Unapproved[], most = 10): string[] {

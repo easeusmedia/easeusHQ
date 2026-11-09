@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, beforeReady, dayLeft, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -578,21 +578,6 @@ test("a day is done, and a lead goes on, only once the fill-ins its messages use
   assert.deepEqual(unapprovedLines(both), ["Fill in Link", "Fill in Peak views", "Approve Day 1 · e1 for bo"]);
   assert.equal(unapprovedText(both), "Fill in Link and Peak views first.");
   assert.equal(unapprovedText(approvalsMissing(board, lead({}), none, [person("cy", "email", "instagram")])), "Fill in Link, Reel and Peak views first.");
-});
-
-test("Dead is before Ready to reach out until the lead's record has it there or later", () => {
-  const stages = [...days.stages, { id: "dead", name: "Dead", color: "red" }];
-  assert.equal(beforeReady(stages, "d0", []), false);
-  assert.equal(beforeReady(stages, "d1", []), false);
-  // made in Dead, or moved there from before: going on still waits for the approvals
-  assert.equal(beforeReady(stages, "dead", ["Dead"]), true);
-  assert.equal(beforeReady([{ id: "list", name: "Dream list" }, ...stages], "list", []), true);
-  // it has been in Ready to reach out, a day or a stage after them: free
-  assert.equal(beforeReady(stages, "dead", ["Dead", "Ready to reach out", "Dead"]), false);
-  assert.equal(beforeReady(stages, "dead", ["Day 1"]), false);
-  assert.equal(beforeReady(stages, "dead", ["Replied"]), false);
-  // a board with no day sequence has no gate
-  assert.equal(beforeReady([{ id: "a", name: "Dead" }], "a", []), false);
 });
 
 test("Opener and Country lead the filters, read without their codes", () => {
