@@ -29,7 +29,10 @@ const inline = (line: string) => marks(line).map((r) => (r.bold ? `<b>${esc(r.te
 // as a written email reads: words between blank lines a paragraph, a line
 // break inside one a <br>, bullet lines a list. The gap between paragraphs is
 // a margin on each, never an empty line, so it pastes with no extra space;
-// no font or colour, so it takes the email's own
+// no font, so it takes the email's own. One wrapper with Gmail's own size and
+// colour: Safari (the Dock app) stamps its page's size and colour (white in
+// dark mode) on whatever is outermost, and the wrapper's own win
+const WRAP = '<div dir="ltr" style="font-size:small;color:#222222">';
 const GAP = 'style="margin:0 0 1em"';
 export function emailHtml(text: string): string {
   const out: string[] = [];
@@ -52,7 +55,7 @@ export function emailHtml(text: string): string {
     }
     close();
   }
-  return out.join("");
+  return `${WRAP}${out.join("")}</div>`;
 }
 
 // onto the clipboard: an email with its formatting and the plain words
