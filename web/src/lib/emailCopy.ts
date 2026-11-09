@@ -26,24 +26,32 @@ export const plainText = (text: string) => marks(text).map((r) => r.text).join("
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const inline = (line: string) => marks(line).map((r) => (r.bold ? `<b>${esc(r.text)}</b>` : r.href ? `<a href="${esc(r.href)}">${esc(r.text)}</a>` : esc(r.text))).join("");
 
-// as Gmail writes it: a line to a <div>, a blank line an empty one, bullet
-// lines a list; no font or colour, so it takes the email's own
+// as a written email reads: words between blank lines a paragraph, a line
+// break inside one a <br>, bullet lines a list. The gap between paragraphs is
+// a margin on each, never an empty line, so it pastes with no extra space;
+// no font or colour, so it takes the email's own
+const GAP = 'style="margin:0 0 1em"';
 export function emailHtml(text: string): string {
   const out: string[] = [];
-  let list: string[] = [];
-  const close = () => {
-    if (list.length) out.push(`<ul>${list.join("")}</ul>`);
-    list = [];
-  };
-  for (const line of text.split(/\r?\n/)) {
-    if (BULLET.test(line)) {
-      list.push(`<li>${inline(line.replace(BULLET, ""))}</li>`);
-      continue;
+  for (const block of text.split(/\r?\n\s*\r?\n/)) {
+    let lines: string[] = [];
+    let list: string[] = [];
+    const close = () => {
+      if (lines.length) out.push(`<p ${GAP}>${lines.join("<br>")}</p>`);
+      if (list.length) out.push(`<ul ${GAP}>${list.join("")}</ul>`);
+      lines = [];
+      list = [];
+    };
+    for (const line of block.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const bullet = BULLET.test(line);
+      // from words to bullets, or back: the one before ends
+      if (bullet ? lines.length : list.length) close();
+      if (bullet) list.push(`<li>${inline(line.replace(BULLET, ""))}</li>`);
+      else lines.push(inline(line));
     }
     close();
-    out.push(line.trim() ? `<div>${inline(line)}</div>` : "<div><br></div>");
   }
-  close();
   return out.join("");
 }
 
