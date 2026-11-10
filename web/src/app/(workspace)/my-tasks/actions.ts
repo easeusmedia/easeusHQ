@@ -7,6 +7,8 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { assigneeWhere, canAssign, isFounder, type Viewer } from "@/lib/scope";
 import { pullWorkbook, pushWorkTaskToNotion, pushesToNotion } from "@/lib/notionPush";
 import { normalizeUrl } from "@/lib/links";
+import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
+import { WORK_TASK_INCLUDE, workTaskCard } from "../workData";
 import { revalidatePath } from "next/cache";
 import { deleteForGood, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
 import type { WorkTaskStatus } from "@prisma/client";
@@ -323,4 +325,23 @@ export async function deleteWorkTask(taskId: string): Promise<WorkTaskFormState>
   revalidatePath("/my-tasks");
   revalidatePath("/team-work");
   return { success: true };
+}
+
+// A finished task as its window shows it (Abhishek, 10 Nov 2026: a ticked
+// task still opens from Completed): one of yours, shared with you, made by
+// you, or one you may see on the Board
+export async function getFinished(kind: "todo" | "task", id: string) {
+  const me = await requireRealUser().catch(() => null);
+  if (!me || typeof id !== "string" || !id) return null;
+  const seen = (own: object[]) => (isFounder(me) ? { id } : { AND: [{ id }, { OR: [...own, assigneeWhere(me)] }] });
+  if (kind === "todo") {
+    const todo = await prisma.workTask.findFirst({ where: seen([{ assignedToId: me.id }, { shares: { some: { userId: me.id } } }, { createdById: me.id }]), include: WORK_TASK_INCLUDE });
+    return todo ? { todo: workTaskCard(todo) } : null;
+  }
+  // as My tasks loads its client work
+  const task = await prisma.task.findFirst({
+    where: seen([{ assignedToId: me.id }, { shares: { some: { userId: me.id } } }]),
+    include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
+  });
+  return task ? { task } : null;
 }

@@ -11,7 +11,7 @@ import { StatusSelect } from "../StatusSelect";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
 import { createTask, deleteTask, moveTask, tickTask } from "../actions";
-import { createWorkTask, deleteWorkTask, moveWorkTask } from "./actions";
+import { createWorkTask, deleteWorkTask, getFinished, moveWorkTask } from "./actions";
 import { ConfirmButton } from "../ConfirmButton";
 import { addDays, dayOf, daysBetween, mondayOf, shortDay, weekday } from "@/lib/editorKpi";
 import { availableStatuses, workflowOf, type Role } from "@/lib/workflow";
@@ -551,17 +551,9 @@ export function TodoList({
                     <p className="px-3 pt-1 pb-1 text-[12px] font-medium tracking-wide text-muted uppercase">
                       {MONTHS[Number(m.slice(5, 7)) - 1]} {m.slice(0, 4)} <span className="text-muted/60 tabular-nums">· {list.length}</span>
                     </p>
-                    {list.map((d) => {
-                      // any of it ticks back on, client work too (it's ticked off in one tap)
-                      return (
-                        <div key={`${d.kind}${d.id}`} className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.03]">
-                          <Tick state="done" label="Mark not done" onClick={() => reopen(d)} />
-                          <span className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-white/20">{d.title}</span>
-                          {d.client && <span className="hidden shrink-0 text-xs text-muted/70 sm:block">{d.client}</span>}
-                          <span className="w-14 shrink-0 text-right text-xs text-muted/70 tabular-nums">{shortDay(dayOf(new Date(d.at)))}</span>
-                        </div>
-                      );
-                    })}
+                    {list.map((d) => (
+                      <DoneRow key={`${d.kind}${d.id}`} done={d} onReopen={() => reopen(d)} {...env} />
+                    ))}
                   </div>
                 ))
               )}
@@ -588,6 +580,62 @@ export function TodoList({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// A finished task: it ticks back on (client work too, it's ticked off in one
+// tap), and opens its window like any other (Abhishek, 10 Nov 2026), loaded
+// when it's opened (Completed holds everything ever finished)
+function DoneRow({ done: d, onReopen, projects, assignees, editors, taskTags, actingUserId, actingRole }: Env & { done: Done; onReopen: () => void }) {
+  const ref = useRef<{ open: () => void } | null>(null);
+  const [full, setFull] = useState<Awaited<ReturnType<typeof getFinished>>>(null);
+  const [opening, setOpening] = useState(false);
+  // loaded: its window opens the moment it's there
+  const wanted = useRef(false);
+  const attach = (h: { open: () => void } | null) => {
+    ref.current = h;
+    if (h && wanted.current) {
+      wanted.current = false;
+      h.open();
+    }
+  };
+  async function show() {
+    if (full) return ref.current?.open();
+    if (opening) return;
+    setOpening(true);
+    wanted.current = true;
+    const got = await getFinished(d.kind, d.id).catch(() => null);
+    setOpening(false);
+    if (got) setFull(got);
+    else wanted.current = false;
+  }
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={show}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          show();
+        }
+      }}
+      onPointerEnter={() => warmTask({ kind: d.kind === "todo" ? "work" : "task", id: d.id })}
+      className={`flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors outline-none hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-accent/40 ${opening ? "opacity-70" : ""}`}
+    >
+      <span onClick={(e) => e.stopPropagation()} className="contents">
+        <Tick state="done" label="Mark not done" onClick={onReopen} />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-white/20">{d.title}</span>
+      {d.client && <span className="hidden shrink-0 text-xs text-muted/70 sm:block">{d.client}</span>}
+      <span className="w-14 shrink-0 text-right text-xs text-muted/70 tabular-nums">{shortDay(dayOf(new Date(d.at)))}</span>
+      <span onClick={(e) => e.stopPropagation()} className="contents">
+        {full && "todo" in full && full.todo && <WorkTaskDialog ref={attach} mode="edit" task={full.todo} projects={projects} actingUserId={actingUserId} assignees={assignees} taskTags={taskTags} />}
+        {full && "task" in full && full.task && (
+          <TaskDetailsDialog ref={attach} task={full.task} clientName={full.task.project.client.name} editors={editors} projects={projects} actingUserId={actingUserId} actingRole={actingRole} taskTags={taskTags} />
+        )}
+      </span>
     </div>
   );
 }

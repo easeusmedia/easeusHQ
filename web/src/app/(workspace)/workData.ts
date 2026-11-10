@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
 import { assigneeWhere, isFounder, isLead, peopleWhere, visibleTagWhere, type Viewer } from "@/lib/scope";
@@ -25,6 +26,33 @@ type Assignee = { id: string; name: string; role: string; team: { slug: string; 
 // shown under the department they belong to
 const person = (u: Assignee) => ({ id: u.id, name: u.name, team: displayTeam(u) });
 
+// a to-do as its card and window have it
+export const WORK_TASK_INCLUDE = { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, team: { select: { slug: true } } } satisfies Prisma.WorkTaskInclude;
+export function workTaskCard(t: Prisma.WorkTaskGetPayload<{ include: typeof WORK_TASK_INCLUDE }>) {
+  return {
+    id: t.id,
+    title: t.title,
+    notes: t.notes,
+    status: t.status,
+    category: t.category,
+    tags: t.tags.map((tag) => ({ id: tag.id, name: tag.name })),
+    dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+    sortOrder: t.sortOrder,
+    links: (t.links as WorkTaskLink[]) ?? [],
+    attachments: (t.attachments as WorkTaskAttachment[]) ?? [],
+    projectId: t.projectId,
+    project: t.project ? { name: t.project.name || t.project.type, client: { name: t.project.client.name } } : null,
+    assignedTo: person(t.assignedTo),
+    createdBy: { id: t.createdBy.id, name: t.createdBy.name },
+    // its department, which the Board's department views split by
+    teamSlug: t.team?.slug ?? t.assignedTo.team?.slug ?? null,
+    // the one it's filed under, for its window's department pill
+    teamId: t.teamId,
+    createdAt: t.createdAt.toISOString(),
+    strikes: t.strikes,
+  };
+}
+
 export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: { withQueue: boolean }) {
   // one filter for both kinds of task: yours (and those you've been brought
   // onto), or all you may see
@@ -42,7 +70,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
     prisma.workTask.findMany({
       // finished work belongs to History, not to a board
       where: { AND: [where, LIVE_WORK_TASK] },
-      include: { assignedTo: assignee, createdBy: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } }, team: { select: { slug: true } } },
+      include: WORK_TASK_INCLUDE,
       orderBy: { sortOrder: "asc" },
     }),
     withQueue
@@ -67,28 +95,7 @@ export async function loadWork(viewer: Viewer, scope: WorkScope, { withQueue }: 
 
   return {
     projects: projects.map((p) => ({ id: p.id, name: p.name || p.type, client: { id: p.client.id, name: p.client.name } })),
-    tasks: workTasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      notes: t.notes,
-      status: t.status,
-      category: t.category,
-      tags: t.tags.map((tag) => ({ id: tag.id, name: tag.name })),
-      dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
-      sortOrder: t.sortOrder,
-      links: (t.links as WorkTaskLink[]) ?? [],
-      attachments: (t.attachments as WorkTaskAttachment[]) ?? [],
-      projectId: t.projectId,
-      project: t.project ? { name: t.project.name || t.project.type, client: { name: t.project.client.name } } : null,
-      assignedTo: person(t.assignedTo),
-      createdBy: { id: t.createdBy.id, name: t.createdBy.name },
-      // its department, which the Board's department views split by
-      teamSlug: t.team?.slug ?? t.assignedTo.team?.slug ?? null,
-      // the one it's filed under, for its window's department pill
-      teamId: t.teamId,
-      createdAt: t.createdAt.toISOString(),
-      strikes: t.strikes,
-    })),
+    tasks: workTasks.map(workTaskCard),
     // whole rows: they render as the editing board's own cards, which open
     // the task and move its stage under the editing queue's rules
     queueTasks: queueTasks.map(({ team, ...t }) => ({ ...t, teamSlug: team?.slug ?? t.assignedTo?.team?.slug ?? null, assignedTo: t.assignedTo && person(t.assignedTo) })),
