@@ -234,6 +234,8 @@ export function ImportLeads({ board }: { board: BoardData }) {
       );
       if (gone()) return;
       const { rows: table, loose } = together(reads);
+      // the files' links and bold, kept on each message's words (lib/leadImport htmlMarks)
+      const marks = reads.flatMap((r) => r.marks ?? []);
       const found = loose ? await readParts(partsOf(loose), (p) => extractLeads(board.id, p).catch(() => ({ error: OFFLINE })), gone, (at, of) => setBusy({ step: "extract", at, of })) : [];
       if (gone()) return;
       const rows = [...table, ...found];
@@ -264,10 +266,10 @@ export function ImportLeads({ board }: { board: BoardData }) {
       if (gone()) return;
       // Claude couldn't match them: they'd go in empty, so the person says whether to import
       const untagged = told.error ? leftOut(told.error, asks.map((a) => a.column)) : null;
-      let built = buildLeads(rows, placed, board, told.tags ?? {});
+      let built = buildLeads(rows, placed, board, told.tags ?? {}, marks);
       // a column put on a variable that the file's own messages have other words in the place of isn't that variable
       const wrong = misplacedVars([...built.leads, ...built.duplicates], board.messages);
-      if (wrong.length) built = buildLeads(rows, Object.fromEntries(Object.entries(placed).map(([p, t]) => [p, wrong.includes(t.slice(4)) && t.startsWith("var:") ? "ignore" : t])), board, told.tags ?? {});
+      if (wrong.length) built = buildLeads(rows, Object.fromEntries(Object.entries(placed).map(([p, t]) => [p, wrong.includes(t.slice(4)) && t.startsWith("var:") ? "ignore" : t])), board, told.tags ?? {}, marks);
       if (!built.leads.length && !built.duplicates.length) throw new Unreadable(unplaced ?? (built.incomplete.length ? "None of the leads in that file have a name." : "There are no leads in that file to import."));
       // messages written out for each lead come in as fill-in-the-blank
       // templates with the lead's values (lib/leadTemplates); unnamed by

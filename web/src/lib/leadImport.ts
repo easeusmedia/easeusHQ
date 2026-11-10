@@ -8,6 +8,7 @@
 // only when a file needs them.
 import { fillText, firstName, handleOf, variablesIn, type BoardData, type FieldData, type LeadData, type OptionData } from "./space.ts";
 import type { PickOption } from "./pickList.ts";
+import { withRules, type Rule } from "./emailCopy.ts";
 
 // ---- Which files ----
 
@@ -62,7 +63,8 @@ export type Row = Record<string, unknown>;
 // Its values by path: "docs[].em[]" is every email of every doctor in it
 export type Flat = Record<string, string[]>;
 // a file is rows to place, or words and pictures for Claude to read
-export type Read = { rows: Row[] } | { text: string; images: string[] };
+// marks: the links and bold the file puts on its messages (htmlMarks)
+export type Read = ({ rows: Row[] } | { text: string; images: string[] }) & { marks?: Rule[] };
 
 // a cell that only says there's nothing there ("N/A", "-", "#N/A"), kept out
 // of everything; not "x", a ticked checkbox
@@ -913,7 +915,8 @@ const greetName = (text: string, first?: string) =>
 // add_leads dedupes, or by an email or handle a lead there has), those
 // without a name, tags not found (told: the ones Claude matched). A lead the
 // file has twice (by name, email or handle) is one lead with everything from both.
-export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields"> & Partial<Pick<BoardData, "messages">> & { leads: BoardLead[] }, told: ToldTags = {}): Preview {
+// marks: the file's links and bold (htmlMarks), kept on each message's words
+export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: Pick<BoardData, "fields"> & Partial<Pick<BoardData, "messages">> & { leads: BoardLead[] }, told: ToldTags = {}, marks: Rule[] = []): Preview {
   const paths = Object.keys(mapping).filter((p) => mapping[p] !== "ignore");
   const to = (prefix: string) => paths.filter((p) => mapping[p].startsWith(prefix));
   const contactPaths = to("contact.");
@@ -971,8 +974,9 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
     for (const p of among) {
       const v = flat[p]?.join("\n\n");
       if (!v) continue;
-      // "[link]" left in a sequence page's wording is the {{Link}} fill-in (Abhishek, 23 Oct 2026)
-      const text = asVars(greetName(braced(v.replaceAll("[link]", "{{Link}}"), named), first), vars);
+      // "[link]" left in a sequence page's wording is the {{Link}} fill-in (Abhishek, 23 Oct 2026);
+      // the file's links and bold kept on the words (Abhishek, 10 Nov 2026)
+      const text = withRules(asVars(greetName(braced(v.replaceAll("[link]", "{{Link}}"), named), first), vars), marks);
       for (const t of targetsIn(mapping[p])) {
         const [, id, part, of = ""] = t.split(":");
         if (version !== undefined && of && of !== version) continue;
@@ -1446,8 +1450,61 @@ function readHtml(html: string): Read {
   const joined = tables.filter((t) => t.length && keys(t) === keys(biggest)).flat();
   const script = htmlScriptRows(html);
   const rows = script.length >= joined.length ? script : joined;
-  if (rows.length) return { rows };
-  return { text: doc.body?.textContent?.replace(/\n\s*\n+/g, "\n").trim() ?? "", images: [] };
+  const marks = htmlMarks(html, doc);
+  if (rows.length) return { rows, marks };
+  return { text: doc.body?.textContent?.replace(/\n\s*\n+/g, "\n").trim() ?? "", images: [], marks };
+}
+
+// The links and bold a page puts on its messages, as rules their words keep
+// when they're imported (Abhishek, 10 Nov 2026): written in the page (an
+// <a href> or <b> around words in its text), or put on by its own code as it
+// draws them, as the sequence pages do (.replace('You can check our work
+// here!', 'You can <a href="…">check our work here!</a>'), a line that is only
+// 'LinkedIn' drawn as a link). Words a page links to more than one place
+// (each lead's "open", "YouTube") are each lead's own, never a rule.
+// a call that puts marks on words, .replace('words', 'words with marks'), and a
+// line drawn with marks when it's only those words, === 'words' ? '<a …>words</a>'
+// (each string's words are m[2] and m[4])
+const REPLACE_CALL = /\.replace\(\s*(['"])((?:\\.|(?!\1)[^\\\n])*)\1\s*,\s*(['"])((?:\\.|(?!\3)[^\\\n])*)\3\s*\)/g;
+const LINE_IS = /===?\s*(['"])((?:\\.|(?!\1)[^\\\n])*)\1\s*\?\s*(['"])((?:\\.|(?!\3)[^\\\n])*)\3/g;
+const unJs = (s: string) => s.replace(/\\(.)/g, (_, c: string) => (c === "n" ? "\n" : c));
+const unHtml = (s: string) => s.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, e: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " " })[e] ?? _);
+const untagged = (s: string) => unHtml(s.replace(/<[^>]*>/g, ""));
+function marksIn(markup: string, line = false): Rule[] {
+  const out: Rule[] = [];
+  for (const m of markup.matchAll(/<a\b[^>]*\bhref\s*=\s*["'](https?:\/\/[^"'<>\s]+)["'][^>]*>([\s\S]*?)<\/a>/gi)) out.push({ words: untagged(m[2]).trim(), href: unHtml(m[1]), ...(line ? { line: true as const } : {}) });
+  for (const m of markup.matchAll(/<(b|strong)\b[^>]*>([\s\S]*?)<\/\1>/gi)) out.push({ words: untagged(m[2]).trim(), bold: true, ...(line ? { line: true as const } : {}) });
+  return out.filter((r) => r.words && !r.words.includes("${"));
+}
+export function htmlMarks(html: string, doc?: Document): Rule[] {
+  const found: Rule[] = [];
+  const code = [...html.matchAll(/<script\b(?![^>]*\btype\s*=\s*["']?(?:application|text)\/(?:ld\+)?json)[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1]).join("\n");
+  for (const m of code.matchAll(REPLACE_CALL)) {
+    const [from, to] = [unJs(m[2]), unJs(m[4])];
+    if (from.trim() && untagged(to) === from) found.push(...marksIn(to));
+  }
+  for (const m of code.matchAll(LINE_IS)) {
+    const [words, to] = [unJs(m[2]).trim(), unJs(m[4])];
+    if (words && untagged(to).trim() === words) found.push(...marksIn(to, true).filter((r) => r.words === words));
+  }
+  // written in the page itself: a link alone on its line is that line's
+  if (doc?.body)
+    for (const el of doc.body.querySelectorAll("a[href], b, strong")) {
+      const block = el.closest("p, div, li, td, h1, h2, h3, h4, h5, h6");
+      const line = !!block && (block.textContent ?? "").trim() === (el.textContent ?? "").trim();
+      found.push(...marksIn(el.outerHTML, line));
+    }
+  // each once; words with two links, or a few letters (a "here"), are no rule
+  const seen = new Map<string, Rule>();
+  const clash = new Set<string>();
+  for (const r of found) {
+    if (r.words.length < (r.line ? 2 : 6) || r.words.length > 200) continue;
+    const key = `${r.bold ? "b" : "a"}:${r.words}`;
+    const was = seen.get(key);
+    if (was && (was.href !== r.href || !!was.line !== !!r.line)) clash.add(key);
+    else seen.set(key, r);
+  }
+  return [...seen].filter(([k]) => !clash.has(k)).map(([, r]) => r);
 }
 
 // Where a picture is cut so Claude can read it: a tall one (a scrolling

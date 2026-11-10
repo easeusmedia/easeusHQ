@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoMap, buildLeads, cellText, columnsOf, decode, flatten, halves, isGreeting, jsonFileRows, oneEach, placeable, postLink, reachable, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, tagsToAsk, targetsOf, textRows, unreachable } from "./leadImport.ts";
+import { htmlMarks, autoMap, buildLeads, cellText, columnsOf, decode, flatten, halves, isGreeting, jsonFileRows, oneEach, placeable, postLink, reachable, samePeople, slices, htmlScriptRows, jsonRows, matchOption, countryName, parseCsv, partsOf, placeExtracted, tableRows, tagsToAsk, targetsOf, textRows, unreachable } from "./leadImport.ts";
 import type { FieldData, MessageData } from "./space.ts";
 
 const tags = (...names: string[]) => names.map((name, i) => ({ id: `o${i + 1}`, name, color: "blue" }));
@@ -815,4 +815,16 @@ test("a table cell keeps its line breaks; its spaces run together", () => {
   assert.equal(cellText("  Hey {First name},\n\n\n\n  I know   you're busy.\nBest,\n"), "Hey {First name},\n\nI know you're busy.\nBest,");
   // a heading is one line
   assert.deepEqual(Object.keys(tableRows([["Opening\nemail", "Name"], ["Hi", "Jo"]])[0]), ["Opening email", "Name"]);
+});
+
+test("a page's links and bold, put on its messages by its own code, are kept as rules", () => {
+  const html = `<script id="data" type="application/json">{"leads":[]}</script><script>
+  const fmt=ln=>ln.replace('~1M total YouTube views','<b>~1M total YouTube views</b>').replace('You can check our work here!','You can <a href="https://easeus.media/">check our work here!</a>');
+  const row=(ln,l)=>ln.trim()==='LinkedIn'?'<div><a href="https://www.linkedin.com/in/ashmitshahi/">LinkedIn</a></div>':'<a href="'+l.yt+'">open</a>';
+  const ui=l=>\`<a href="\${l.yt}">YouTube</a>\`;</script>`;
+  assert.deepEqual(htmlMarks(html), [
+    { words: "~1M total YouTube views", bold: true },
+    { words: "check our work here!", href: "https://easeus.media/" },
+    { words: "LinkedIn", href: "https://www.linkedin.com/in/ashmitshahi/", line: true },
+  ]);
 });

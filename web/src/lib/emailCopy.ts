@@ -24,8 +24,8 @@ export function marks(text: string): Run[] {
 const written = (runs: Run[]) => runs.map((r) => (r.bold ? `**${r.text}**` : r.href ? `[${r.text}](${r.href})` : r.text)).join("");
 // a mark put on words wherever they stand unmarked: in a phrase, or as a
 // whole line (a signature's "LinkedIn", never the word inside a sentence)
-type Rule = { words: string; bold?: true; href?: string; line?: true };
-function withRules(text: string, rules: Rule[]): string {
+export type Rule = { words: string; bold?: true; href?: string; line?: true };
+export function withRules(text: string, rules: Rule[]): string {
   if (!rules.length) return text;
   const lines = text.split("\n").map((l) => {
     const r = rules.find((x) => x.line && l.trim() === x.words);
