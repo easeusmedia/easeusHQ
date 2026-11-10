@@ -137,11 +137,62 @@ export type LeadData = {
 };
 export type Draft = { subject: string; body: string };
 export type Approval = { by: string; at: string };
-export type Opener = { label: string; drafts: Record<string, Draft> };
+// person: whose words they are, when they're one of the lead's people's own (an import's co-host)
+export type Opener = { label: string; drafts: Record<string, Draft>; person?: string };
 // A lead's own wording, loaded when it's opened (a board of 300 doesn't
 // carry every lead's messages): messages rewritten for it alone, by message
 // id, and the messages written for it ahead, by opener (main, then backups)
 export type Prepared = { drafts: Record<string, Draft>; openers: Opener[] };
+// A lead's openers written for one of its people (an import's co-host:
+// "Carter · Community", their words where they differ from the first
+// person's) made that person's own copies, under the opener of the same
+// version (draftKey's "msgId#0@c2"), so each person's tab shows their own
+// words and the openers left are the versions to pick from (Abhishek, 10 Nov
+// 2026). Whose: the opener's person, else its label's first part, by a
+// person's name or first name; a version: another opener's label.
+export function personOpeners(openers: Opener[], contacts: Contact[]): { openers: Opener[]; drafts: Record<string, Draft>; from: number[] } {
+  const norm = (s: string) => s.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+  // by their whole name, their first name (a "Dr." aside), else one going by a
+  // short form of it ("Jeff" for Jeffrey, "Vic" for Victor) when only one does
+  const first = (c: Contact) => norm(firstName(c.name));
+  const whoIs = (name: string) => {
+    const n = norm(name);
+    const one = (hits: Contact[]) => (hits.length === 1 ? hits[0] : undefined);
+    return (
+      contacts.find((c) => norm(c.name) === n) ??
+      one(contacts.filter((c) => first(c) === n)) ??
+      one(contacts.filter((c) => first(c).length >= 3 && n.length >= 3 && (first(c).startsWith(n) || n.startsWith(first(c)))))
+    );
+  };
+  const split = (o: Opener) => {
+    const at = o.label.indexOf(" · ");
+    const name = o.person ?? (at > 0 ? o.label.slice(0, at) : "");
+    const version = o.person && at < 0 ? "" : at > 0 ? o.label.slice(at + 3) : "";
+    const contact = name ? whoIs(name) : undefined;
+    // the name the file greets them by, when it isn't the one their contact gives ("Victor" for Dr. Vic St. John)
+    const goesBy = name.includes(" ") ? firstName(name) : name;
+    return { contact, version, greet: contact && goesBy && norm(goesBy) !== first(contact) ? goesBy : null };
+  };
+  const theirs = openers.map((o) => {
+    const s = split(o);
+    return s.contact && (s.version === "" || openers.some((b) => b !== o && b.label === s.version)) ? s : null;
+  });
+  const base = openers.filter((_, i) => !theirs[i]);
+  const drafts: Record<string, Draft> = {};
+  for (const [i, o] of openers.entries()) {
+    const t = theirs[i];
+    if (!t?.contact) continue;
+    const at = Math.max(0, base.findIndex((b) => b.label === t.version));
+    for (const [id, words] of Object.entries(o.drafts)) {
+      const d = t.greet ? { subject: words.subject.replaceAll("{{Name}}", t.greet), body: words.body.replaceAll("{{Name}}", t.greet) } : words;
+      // the same words as the version's own (the name aside, a {{Name}}) need no copy
+      if (JSON.stringify(base[at]?.drafts[id]) === JSON.stringify(d)) continue;
+      drafts[forContact(base.length > 1 ? `${id}#${at}` : id, t.contact)] = d;
+    }
+  }
+  // each opener left, by the index it had
+  return { openers: base, drafts, from: openers.flatMap((o, i) => (theirs[i] ? [] : [i])) };
+}
 // The opener a lead's messages use: the one picked, else its main one
 export const openerIndex = (p: Pick<Prepared, "openers">, picks: Record<string, string>): number => (p.openers[Number(picks.opener)] ? Number(picks.opener) : 0);
 export const openerOf = (p: Pick<Prepared, "openers">, picks: Record<string, string>): Opener | undefined => p.openers[openerIndex(p, picks)];

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -644,4 +644,32 @@ test("each person on a lead has their own copy of a message; the lead's copy sta
   assert.equal(shownDraftKey(p, {}, "m1", b), "m1");
   assert.equal(draftKey(p, {}, "m1", b), "m1@c2");
   assert.equal(shownDraftKey({ drafts: {}, openers: [] }, {}, "m1", a), null);
+});
+
+test("an import's openers for one of the lead's people become that person's own copies", () => {
+  const michelle = { id: "c1", name: "Michelle Maiman", role: "", channels: [] };
+  const carter = { id: "c2", name: "Carter Crowley", role: "", channels: [] };
+  const d = (body: string) => ({ subject: "", body });
+  const openers = [
+    { label: "Community", drafts: { e1: d("Hey {{Name}}, with Carter"), e3: d("Community 3") } },
+    { label: "Asset", drafts: { e1: d("Hey {{Name}}, with Carter"), e3: d("Asset 3") } },
+    { label: "Carter · Community", drafts: { e1: d("Hey {{Name}}, with Michelle"), e3: d("Community 3") } },
+    { label: "Carter · Asset", drafts: { e1: d("Hey {{Name}}, with Michelle"), e3: d("Asset 3 for Carter") } },
+  ];
+  const out = personOpeners(openers, [michelle, carter]);
+  assert.deepEqual(out.openers.map((o) => o.label), ["Community", "Asset"]);
+  assert.deepEqual(out.from, [0, 1]);
+  // only where Carter's words differ, under the version they belong to
+  assert.deepEqual(out.drafts, { "e1#0@c2": d("Hey {{Name}}, with Michelle"), "e1#1@c2": d("Hey {{Name}}, with Michelle"), "e3#1@c2": d("Asset 3 for Carter") });
+  // a short form of their name, and a "Dr." before it
+  const vic = { id: "c3", name: "Dr. Vic St. John", role: "", channels: [] };
+  const jeffrey = { id: "c4", name: "Jeffrey Kruger", role: "", channels: [] };
+  const named = (who: string) => personOpeners([openers[0], { label: `${who} · Community`, drafts: { e1: d("theirs") } }], [michelle, vic, jeffrey]).drafts;
+  assert.deepEqual(named("Victor"), { "e1@c3": d("theirs") });
+  // greeted as the file greets them, not by their contact's first name
+  assert.deepEqual(personOpeners([openers[0], { label: "Victor · Community", drafts: { e1: d("Hey {{Name}},") } }], [michelle, vic]).drafts, { "e1@c3": d("Hey Victor,") });
+  assert.deepEqual(named("Jeff"), { "e1@c4": d("theirs") });
+  // a doctor board's "Main · D1…" and "Backup · D2…" are versions, not people
+  const doc = [{ label: "Main · D1 Old hit", drafts: { e1: d("a") } }, { label: "Backup · D2 Swing", drafts: { e1: d("b") } }];
+  assert.equal(personOpeners(doc, [michelle]).openers.length, 2);
 });

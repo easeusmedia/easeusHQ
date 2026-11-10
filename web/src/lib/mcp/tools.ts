@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEPT, DEVELOPER, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
-import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
+import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, personOpeners, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
 import { addOption, assignLead, moveLead, renameLead, setLeadDraft, setLeadNotes, setLeadValue, setLeadVar } from "@/app/(workspace)/org/space/actions";
 import type { ChannelStats } from "@/lib/channelStats";
 import { channelsIn } from "@/lib/leadSheet";
@@ -244,6 +244,7 @@ const draftIn = z.object({
 const openerIn = z.object({
   label: z.string().max(80).default("").describe('"Main · D1 Old hit still on top", "Backup · D2 View swing"'),
   drafts: z.record(z.string(), draftIn).describe("By message id or name (from list_boards), the wording written for this lead"),
+  person: z.string().max(200).optional().describe("When these are one of the lead's people's own words (a co-host's): their name. They become that person's copies, not an opener"),
 });
 
 function toContact(raw: unknown, i: number): Contact {
@@ -288,7 +289,13 @@ const toOpeners = (board: Board, raw: z.infer<typeof openerIn>[]): Opener[] =>
   raw.map((o) => ({
     label: o.label,
     drafts: Object.fromEntries(Object.entries(o.drafts).map(([k, d]) => [messageOf(board, k).id, { subject: d.subject, body: d.body }])),
+    ...(o.person?.trim() ? { person: o.person.trim() } : {}),
   }));
+// the lead's people, as stored
+const peopleIn = (board: Board, values: Record<string, unknown>) => {
+  const f = board.fields.find((x) => x.kind === "contacts");
+  return f && Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : [];
+};
 
 // a field's value as the app stores it, from what Claude sends: tags by
 // name (made on the spot by someone who sets the app up), people and links
@@ -691,7 +698,9 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
             }
             const missing = board.fields.filter((f) => f.required && values[f.id] == null);
             if (missing.length && !imported) throw new ToolError(`${missing.map((f) => f.name).join(", ")} ${missing.length === 1 ? "is" : "are"} required on ${board.name}.`);
-            const openers = lead.openers ? toOpeners(board, lead.openers) : [];
+            // a co-host's own words become their copies (lib/space personOpeners)
+            const split = personOpeners(lead.openers ? toOpeners(board, lead.openers) : [], peopleIn(board, values));
+            const openers = split.openers;
             const vars = Object.fromEntries(
               Object.entries(lead.vars ?? {})
                 .map(([k, v]) => [k.trim().slice(0, 60), v.trim().slice(0, 2000)])
@@ -716,6 +725,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
                   vars,
                   notes: lead.notes ?? "",
                   openers: openers as unknown as Prisma.InputJsonValue,
+                  ...(Object.keys(split.drafts).length ? { drafts: split.drafts as unknown as Prisma.InputJsonValue } : {}),
                   sortOrder: Date.now(),
                   createdById: acting.id,
                   assignedToId: to.id,
@@ -804,11 +814,14 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
             check(await assignLead(row.id, to?.id ?? null), to ? `given to ${to.name}` : "unassigned");
           }
           if (a.openers) {
-            const openers = toOpeners(board, a.openers);
+            // a co-host's own words become their copies, with the people as they are now (lib/space personOpeners)
+            const now = await prisma.lead.findUniqueOrThrow({ where: { id: row.id }, select: { values: true, drafts: true } });
+            const split = personOpeners(toOpeners(board, a.openers), peopleIn(board, (now.values ?? {}) as Record<string, unknown>));
             await prisma.lead.update({
               where: { id: row.id },
               data: {
-                openers: openers as unknown as Prisma.InputJsonValue,
+                openers: split.openers as unknown as Prisma.InputJsonValue,
+                ...(Object.keys(split.drafts).length ? { drafts: { ...((now.drafts ?? {}) as object), ...split.drafts } as unknown as Prisma.InputJsonValue } : {}),
                 editedByName: acting.name,
                 editedAt: new Date(),
               },

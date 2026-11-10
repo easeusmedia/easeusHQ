@@ -715,8 +715,10 @@ export type LeadIn = {
   links?: { label: string; url: string }[];
   vars?: Record<string, string>;
   notes?: string;
-  // the main opener first, then one per element of a list of them ("alt[]")
-  openers?: { label: string; drafts: Record<string, DraftIn> }[];
+  // the main opener first, then one per element of a list of them ("alt[]");
+  // person: one of the lead's people's own words (a co-host's), saved as
+  // that person's copies (lib/space personOpeners)
+  openers?: { label: string; drafts: Record<string, DraftIn>; person?: string }[];
 };
 export type Preview = {
   leads: LeadIn[];
@@ -1112,10 +1114,13 @@ export function buildLeads(rows: Row[], mapping: Record<string, Target>, board: 
       const words = wordsOf(k);
       const first = firstOf(speakers[0]?.[k]);
       const who = (label: string) => (k ? [first ?? `Person ${k + 1}`, label].filter(Boolean).join(" · ") : label);
+      // whose they are, by the name the person comes in with, so they're saved as that person's own
+      const full = k ? fullest(contactPaths.filter((p) => mapping[p] === "contact.name").flatMap((p) => speakers[0]?.[k]?.[p] ?? [])) || first : undefined;
+      const person = full ? { person: full } : {};
       const present = versions.filter((v) => mainMessages.some((p) => words[p]?.length && targetsIn(mapping[p]).some((t) => versionOf(t) === v)));
       return present.length
-        ? [...present].sort((a, b) => Number(b === chosen) - Number(a === chosen)).map((v) => ({ label: who(v), drafts: draftsOf(words, mainMessages, {}, v, first, vars) }))
-        : [{ label: who(labelOf(flat, mainPaths)), drafts: draftsOf(words, mainMessages, {}, undefined, first, vars) }];
+        ? [...present].sort((a, b) => Number(b === chosen) - Number(a === chosen)).map((v) => ({ label: who(v), drafts: draftsOf(words, mainMessages, {}, v, first, vars), ...person }))
+        : [{ label: who(labelOf(flat, mainPaths)), drafts: draftsOf(words, mainMessages, {}, undefined, first, vars), ...person }];
     };
     const firsts = openersOf(0);
     const said = (os: { drafts: Record<string, DraftIn> }[]) => JSON.stringify(os.map((o) => o.drafts));
