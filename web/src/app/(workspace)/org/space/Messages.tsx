@@ -9,7 +9,7 @@ import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
 import { CanBuild } from "./values";
-import { copyMessage, emailHtml, marks, plainText } from "@/lib/emailCopy";
+import { copyMessage, emailHtml, marked, marks, plainText } from "@/lib/emailCopy";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
@@ -748,8 +748,12 @@ function MessageForm({
   onVar: (name: string, value: string) => Promise<string | undefined>;
 }) {
   const canBuild = useContext(CanBuild);
-  const source = own ?? message;
   const isEmail = message.channel === "email";
+  // an email as it goes out: the lead's copy (else the template) with the
+  // house's links and bold and the template's own (lib/emailCopy marked), so a
+  // copy brought in as plain words still carries them
+  const words = own ?? message;
+  const source = isEmail ? { ...words, body: marked(words.body, message.body) } : words;
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -986,7 +990,7 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
           <button
             type="button"
             onClick={async () => {
-              await copyMessage(message.channel === "email" && message.subject ? `Subject: ${message.subject}\n\n${message.body}` : message.body, message.channel === "email");
+              await copyMessage(message.channel === "email" ? `${message.subject ? `Subject: ${message.subject}\n\n` : ""}${marked(message.body)}` : message.body, message.channel === "email");
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             }}
@@ -1012,7 +1016,7 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
           </p>
         )}
         <div onCopy={message.channel === "email" ? copyClean : undefined} className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-          <Filled text={message.body} vars={{}} template />
+          <Filled text={message.channel === "email" ? marked(message.body) : message.body} vars={{}} template />
         </div>
       </div>
     </div>
