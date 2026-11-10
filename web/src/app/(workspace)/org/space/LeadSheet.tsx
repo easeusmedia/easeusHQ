@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { CalendarPlus, Globe, Link2, Mail, NotebookText, Phone, UserRound, Users, BriefcaseBusiness, type LucideIcon } from "lucide-react";
-import { columnOf, SHEET_COLUMNS, shownAs, type SheetColumn, type SheetLead } from "@/lib/leadSheet";
+import { arrange, columnOf, SHEET_COLUMNS, shownAs, type SheetColumn, type SheetLead } from "@/lib/leadSheet";
 import { linkName, type Contact } from "@/lib/space";
 import { Avatar, formatDate } from "../../TaskCard";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -20,6 +21,7 @@ const MIN = 80;
 const MAX = 640;
 const clamp = (n: number) => Math.min(MAX, Math.max(MIN, Math.round(n)));
 const widthsKey = (tab: string) => `leads:widths:${tab}`;
+const orderKey = (tab: string) => `leads:order:${tab}`;
 
 // The edge of a column's heading: drag it (or the arrow keys) to widen or
 // narrow the column; a double click puts it back
@@ -60,13 +62,18 @@ const COLUMN_ICON: Record<SheetColumn, React.ComponentType<{ size?: number; clas
   youtube: YoutubeIcon,
 };
 
-function Head({ icon: Icon, children, className = "", resize }: { icon: React.ComponentType<{ size?: number; className?: string }> | LucideIcon; children: React.ReactNode; className?: string; resize: React.ReactNode }) {
+type Icon = React.ComponentType<{ size?: number; className?: string }> | LucideIcon;
+// A column's heading: its label drags the column to another place (dropped
+// on a heading, it lands on that side of it, a line showing where), its edge
+// resizes it
+function Head({ icon: Icon, children, resize, grip, drop, mark }: { icon: Icon; children: React.ReactNode; resize: React.ReactNode; grip: React.HTMLAttributes<HTMLSpanElement>; drop: React.HTMLAttributes<HTMLTableCellElement>; mark: "left" | "right" | null }) {
   return (
     // relative: its edge's resizer sits in it (the frozen Name heading is sticky, which does the same)
-    <th className={`${HEAD} relative ${className}`}>
-      <span className="flex min-w-0 items-center gap-1.5">
+    <th className={`${HEAD} relative`} {...drop}>
+      <span draggable {...grip} className="flex min-w-0 cursor-grab items-center gap-1.5 active:cursor-grabbing">
         <Icon size={13} className="shrink-0" /> <span className="truncate">{children}</span>
       </span>
+      <span className={`pointer-events-none absolute inset-y-0 w-0.5 bg-accent transition-opacity ${mark === "left" ? "left-0" : "right-0"} ${mark ? "opacity-100" : "opacity-0"}`} />
       {resize}
     </th>
   );
@@ -110,8 +117,72 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
   const shown = leads.slice(0, paging.limit());
   // X and YouTube only when some lead here has one
   const columns = SHEET_COLUMNS.filter((c) => c.always || leads.some((l) => l.contacts.some((p) => p.channels?.some((ch) => ch.value.trim() && columnOf(ch) === c.key))));
-  const keys = ["name", "contact", "designation", ...columns.map((c) => c.key), "links", "notes", "by", "on", ...(actions ? ["actions"] : [])];
+  // every column after the frozen Name: a person's (a cell each) or the lead's (one cell down its people)
+  const all: { key: string; label: string; icon: Icon; lead?: true; className?: string; cell: (p: Contact | undefined, lead: SheetLead) => React.ReactNode }[] = [
+    { key: "contact", label: "Contact", icon: Users, cell: (p) => <span className="block truncate">{p?.name}</span> },
+    { key: "designation", label: "Designation", icon: BriefcaseBusiness, className: "text-foreground/80", cell: (p) => <span className="block truncate">{p?.role}</span> },
+    ...columns.map((c) => ({ key: c.key, label: c.label, icon: COLUMN_ICON[c.key], cell: (p: Contact | undefined) => <Details person={p} column={c.key} /> })),
+    {
+      key: "links",
+      label: "Links",
+      icon: Link2,
+      lead: true,
+      cell: (_, lead) => (
+        <div className="flex flex-col gap-1">
+          {lead.links.map((l, j) => (
+            <span key={j} className="flex min-w-0 items-center gap-1.5">
+              <PlatformMark url={l.url} size={12} className="shrink-0 text-muted" />
+              <Out href={hrefOf("other", l.url)}>{l.label.trim() ? linkName(l.label, l.url) : shownAs({ kind: "other", value: l.url })}</Out>
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    { key: "notes", label: "Notes", icon: NotebookText, lead: true, className: "whitespace-normal", cell: (_, lead) => <p className="line-clamp-3 text-xs leading-relaxed text-foreground/80">{lead.notes}</p> },
+    {
+      key: "by",
+      label: "Added by",
+      icon: UserRound,
+      lead: true,
+      cell: (_, lead) => (
+        <span className="flex min-w-0 items-center gap-2 text-xs">
+          <Avatar name={lead.createdBy.name} size={18} />
+          <span className="truncate">{lead.createdBy.name}</span>
+        </span>
+      ),
+    },
+    { key: "on", label: "Added on", icon: CalendarPlus, lead: true, className: "text-xs text-muted tabular-nums", cell: (_, lead) => formatDate(lead.createdAt) },
+  ];
+
+  // the order the headings were dragged into for this tab, kept in this browser like the widths
+  const [saved, setSaved] = useState<string[]>([]);
+  const order = arrange(
+    all.map((c) => c.key),
+    saved,
+  );
+  const cols = order.map((k) => all.find((c) => c.key === k)!);
+  const keys = ["name", ...order, ...(actions ? ["actions"] : [])];
   const width = keys.length;
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  // dropped on a heading: to its right when coming from the left, else its left
+  function moveTo(from: string, to: string) {
+    if (from === to) return;
+    const next = order.filter((k) => k !== from);
+    next.splice(next.indexOf(to) + (order.indexOf(from) < order.indexOf(to) ? 1 : 0), 0, from);
+    try {
+      localStorage.setItem(orderKey(tab), JSON.stringify(next));
+    } catch {}
+    // the columns ease into their places, never snap (where the browser can)
+    const go = () => flushSync(() => setSaved(next));
+    if (document.startViewTransition) document.startViewTransition(go);
+    else go();
+  }
+  const markOf = (key: string) => (dragging && over === key && dragging !== key ? (order.indexOf(dragging) < order.indexOf(key) ? "right" : "left") : null);
+  const end = () => {
+    setDragging(null);
+    setOver(null);
+  };
 
   // the widths dragged for this tab, once in the browser (localStorage only exists after mount)
   const [widths, setWidths] = useState<Record<string, number>>({});
@@ -120,6 +191,11 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
       setWidths(JSON.parse(localStorage.getItem(widthsKey(tab)) ?? "{}") as Record<string, number>); // eslint-disable-line react-hooks/set-state-in-effect
     } catch {
       setWidths({});
+    }
+    try {
+      setSaved(JSON.parse(localStorage.getItem(orderKey(tab)) ?? "[]") as string[]);
+    } catch {
+      setSaved([]);
     }
   }, [tab]);
   const save = (next: Record<string, number>) => {
@@ -176,29 +252,38 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
               Name
               {resize("name", "Name")}
             </th>
-            <Head icon={Users} resize={resize("contact", "Contact")}>
-              Contact
-            </Head>
-            <Head icon={BriefcaseBusiness} resize={resize("designation", "Designation")}>
-              Designation
-            </Head>
-            {columns.map((c) => (
-              <Head key={c.key} icon={COLUMN_ICON[c.key]} resize={resize(c.key, c.label)}>
+            {cols.map((c) => (
+              <Head
+                key={c.key}
+                icon={c.icon}
+                resize={resize(c.key, c.label)}
+                mark={markOf(c.key)}
+                grip={{
+                  onDragStart: (e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", c.key);
+                    setDragging(c.key);
+                  },
+                  onDragEnd: end,
+                }}
+                drop={{
+                  onDragOver: (e) => {
+                    if (!dragging) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (over !== c.key) setOver(c.key);
+                  },
+                  onDrop: (e) => {
+                    if (!dragging) return;
+                    e.preventDefault();
+                    moveTo(dragging, c.key);
+                    end();
+                  },
+                }}
+              >
                 {c.label}
               </Head>
             ))}
-            <Head icon={Link2} resize={resize("links", "Links")}>
-              Links
-            </Head>
-            <Head icon={NotebookText} resize={resize("notes", "Notes")}>
-              Notes
-            </Head>
-            <Head icon={UserRound} resize={resize("by", "Added by")}>
-              Added by
-            </Head>
-            <Head icon={CalendarPlus} resize={resize("on", "Added on")}>
-              Added on
-            </Head>
             {actions && <th className={HEAD} aria-label="Restore or delete" />}
           </tr>
         </thead>
@@ -228,47 +313,24 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
                       )}
                     </td>
                   )}
-                  <td className={CELL}>
-                    <span className="block truncate">{p?.name}</span>
-                  </td>
-                  <td className={`${CELL} text-foreground/80`}>
-                    <span className="block truncate">{p?.role}</span>
-                  </td>
-                  {columns.map((c) => (
-                    <td key={c.key} className={CELL}>
-                      <Details person={p} column={c.key} />
-                    </td>
-                  ))}
-                  {i === 0 && (
-                    <>
-                      <td rowSpan={span} className={CELL}>
-                        <div className="flex flex-col gap-1">
-                          {lead.links.map((l, j) => (
-                            <span key={j} className="flex min-w-0 items-center gap-1.5">
-                              <PlatformMark url={l.url} size={12} className="shrink-0 text-muted" />
-                              <Out href={hrefOf("other", l.url)}>{l.label.trim() ? linkName(l.label, l.url) : shownAs({ kind: "other", value: l.url })}</Out>
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td rowSpan={span} className={`${CELL} whitespace-normal`}>
-                        <p className="line-clamp-3 text-xs leading-relaxed text-foreground/80">{lead.notes}</p>
-                      </td>
-                      <td rowSpan={span} className={CELL}>
-                        <span className="flex min-w-0 items-center gap-2 text-xs">
-                          <Avatar name={lead.createdBy.name} size={18} />
-                          <span className="truncate">{lead.createdBy.name}</span>
-                        </span>
-                      </td>
-                      <td rowSpan={span} className={`${CELL} text-xs text-muted tabular-nums`}>
-                        {formatDate(lead.createdAt)}
-                      </td>
-                      {actions && (
-                        <td rowSpan={span} className={CELL}>
-                          <div className="flex items-center gap-1.5">{actions(lead)}</div>
+                  {/* a lead's own cell spans its people: the rows under it skip that place */}
+                  {cols.map((c) =>
+                    c.lead ? (
+                      i === 0 && (
+                        <td key={c.key} rowSpan={span} className={`${CELL} ${c.className ?? ""}`}>
+                          {c.cell(p, lead)}
                         </td>
-                      )}
-                    </>
+                      )
+                    ) : (
+                      <td key={c.key} className={`${CELL} ${c.className ?? ""}`}>
+                        {c.cell(p, lead)}
+                      </td>
+                    ),
+                  )}
+                  {i === 0 && actions && (
+                    <td rowSpan={span} className={CELL}>
+                      <div className="flex items-center gap-1.5">{actions(lead)}</div>
+                    </td>
                   )}
                 </tr>
               ))}

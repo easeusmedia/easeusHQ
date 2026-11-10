@@ -100,6 +100,16 @@ export const SHEET_COLUMNS: { key: SheetColumn; label: string; always: boolean }
   { key: "x", label: "X", always: false },
   { key: "youtube", label: "YouTube", always: false },
 ];
+// The columns in the order a tab's headings were dragged into (Abhishek,
+// 10 Nov 2026). A column not in that order yet (X or YouTube, once a lead has
+// one) goes after the one it follows by default; one gone stays out.
+export function arrange(keys: string[], saved: string[]): string[] {
+  const out = saved.filter((k) => keys.includes(k));
+  keys.forEach((k, i) => {
+    if (!out.includes(k)) out.splice(i ? out.indexOf(keys[i - 1]) + 1 : 0, 0, k);
+  });
+  return out;
+}
 export function columnOf(c: { kind: ChannelKind; value: string }): SheetColumn {
   if (c.kind !== "other") return c.kind;
   return isFacebook(hostOf(c.value)) ? "facebook" : "website";

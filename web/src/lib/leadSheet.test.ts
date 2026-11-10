@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelOf, channelsIn, columnOf, movedValues, shownAs } from "./leadSheet.ts";
+import { arrange, channelOf, channelsIn, columnOf, movedValues, shownAs } from "./leadSheet.ts";
 
 test("a pasted detail is told by what it is", () => {
   assert.deepEqual(channelOf("mehta@clinic.in"), { kind: "email", value: "mehta@clinic.in" });
@@ -87,4 +87,13 @@ test("moved on, each property lands on the one there with its name, and nothing 
   assert.deepEqual(movedValues({ fields: from, values: { t: ["y"], s: "12K" }, notes: "" }, to), { values: { t2: ["y2"] }, notes: "Subscribers: 12K" });
   // no links property there: they go to the notes
   assert.equal(movedValues({ fields: sheet, values: { l: links }, notes: "" }, [{ id: "pc", name: "Contacts", kind: "contacts" }]).notes, "Links: https://drmehta.com");
+});
+
+test("columns keep the order they were dragged into", () => {
+  const keys = ["contact", "email", "phone", "x", "notes"];
+  assert.deepEqual(arrange(keys, []), keys);
+  // X is new to the tab: after Phone, where it sits by default; a gone column drops out
+  assert.deepEqual(arrange(keys, ["notes", "phone", "contact", "email", "youtube"]), ["notes", "phone", "x", "contact", "email"]);
+  // a new first column stays first
+  assert.deepEqual(arrange(["a", "b"], ["b"]), ["a", "b"]);
 });
