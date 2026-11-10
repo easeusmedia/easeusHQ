@@ -630,3 +630,18 @@ test("no lead goes into Ready to reach out or on from it until every message is 
   assert.equal(needsApprovals(st, "s6"), false);
   assert.equal(needsApprovals([{ id: "a", name: "Dead" }], "a"), false);
 });
+
+test("each person on a lead has their own copy of a message; the lead's copy stands for the rest", () => {
+  const a = { id: "c1", name: "Michelle", role: "", channels: [] };
+  const b = { id: "c2", name: "Carter", role: "", channels: [] };
+  const shared = { subject: "", body: "Lead's copy" };
+  const mine = { subject: "", body: "Michelle's copy" };
+  const p = { drafts: { m1: shared, "m1@c1": mine }, openers: [] };
+  assert.equal(preparedFor(p, {}, "m1", a)?.body, "Michelle's copy");
+  assert.equal(preparedFor(p, {}, "m1", b)?.body, "Lead's copy");
+  assert.equal(preparedFor(p, {}, "m1")?.body, "Lead's copy");
+  assert.equal(shownDraftKey(p, {}, "m1", a), "m1@c1");
+  assert.equal(shownDraftKey(p, {}, "m1", b), "m1");
+  assert.equal(draftKey(p, {}, "m1", b), "m1@c2");
+  assert.equal(shownDraftKey({ drafts: {}, openers: [] }, {}, "m1", a), null);
+});

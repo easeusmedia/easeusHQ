@@ -93,7 +93,10 @@ export function Messages({
   const picks = { ...(lead.picks ?? {}), ...Object.fromEntries(Object.entries(picked).filter((e): e is [string, string] => !!e[1])) };
   // the lead's own wording with what's been saved here since it loaded (null: put back)
   const merged: Prepared | null = prepared ? { ...prepared, drafts: Object.fromEntries(Object.entries({ ...prepared.drafts, ...mine }).filter((e): e is [string, Draft] => !!e[1])) } : null;
-  const own = (id: string): Draft | undefined => (merged ? preparedFor(merged, picks, id) : undefined);
+  // a lead with more than one person: each has their own copy of a message, an
+  // edit for one leaving the others' as they were (Abhishek, 10 Nov 2026)
+  const apart = people.length > 1;
+  const own = (id: string, c: Contact | null): Draft | undefined => (merged ? preparedFor(merged, picks, id, c) : undefined);
   // approved as ready to send, by message and person, ahead of the save
   const [approved, setApproved] = useState<Record<string, Approval | null>>({});
   const approvals = { ...lead.approvals, ...approved };
@@ -117,7 +120,7 @@ export function Messages({
   const canBuild = useContext(CanBuild);
   const router = useRouter();
   // rewritten here (not just written ahead): "This lead's copy"
-  const rewritten = (id: string) => !!merged && shownDraftKey(merged, picks, id) !== null;
+  const rewritten = (id: string, c: Contact | null) => !!merged && shownDraftKey(merged, picks, id, c) !== null;
   async function pick(key: string, messageId: string) {
     const before = pickOf(key);
     setError(null);
@@ -174,13 +177,18 @@ export function Messages({
     if (res.error) return res.error;
     onSaved();
   }
-  async function saveMine(messageId: string, draft: Draft | null) {
+  async function saveMine(messageId: string, draft: Draft | null, c: Contact | null) {
     setError(null);
-    // a new edit goes under the opener in use (when it wrote this message); putting back takes off the one shown
-    const key = !merged ? messageId : draft ? draftKey(merged, picks, messageId) : (shownDraftKey(merged, picks, messageId) ?? messageId);
-    const res = await setLeadDraft(lead.id, key, draft).catch(() => ({ error: OFFLINE }));
+    // a new edit goes under the opener in use (when it wrote this message), and
+    // the person when the lead has more than one; putting back takes off the one shown
+    const whose = apart ? c : null;
+    const key = !merged ? forContact(messageId, whose) : draft ? draftKey(merged, picks, messageId, whose) : (shownDraftKey(merged, picks, messageId, whose) ?? forContact(messageId, whose));
+    // putting back, for one person, a copy the lead's people share: the others keep it as their own
+    const shared = !draft && whose && merged && !key.includes("@") ? merged.drafts[key] : undefined;
+    const keep = shared && merged ? people.filter((o) => o && idOf(o) !== idOf(whose) && !shownDraftKey(merged, picks, messageId, o)?.includes("@")).map((o) => draftKey(merged, picks, messageId, o)) : [];
+    const res = await setLeadDraft(lead.id, key, draft, keep).catch(() => ({ error: OFFLINE }));
     if (res.error) return res.error;
-    setMine((d) => ({ ...d, [key]: draft }));
+    setMine((d) => ({ ...d, [key]: draft, ...Object.fromEntries(keep.map((k) => [k, shared ?? null])) }));
     onSaved();
   }
 
@@ -222,7 +230,7 @@ export function Messages({
   // the wording each message shows (lib/space wordingOf), and the lead as this window has it, ahead of the saves
   const wording = merged ?? { drafts: {}, openers: [] };
   const state = { picks, approvals, vars };
-  const used = variablesIn(allMessages.flatMap((m) => Object.values(wordingOf(wording, picks, m))));
+  const used = variablesIn(allMessages.flatMap((m) => people.flatMap((c) => Object.values(wordingOf(wording, picks, m, c)))));
   // only the ones a day's tick waits on (dayLeft) for anyone on the lead, as a move does: these are ringed, counted and pulsed
   // (none until the lead's own wording loads: the board's templates can use fill-ins its wording doesn't)
   const waiting = new Set(merged ? people.flatMap((c) => tabs.flatMap((x) => dayLeft(x.messages, x.key, state, wording, c, lead.email.opens > 0).fill)) : []);
@@ -313,16 +321,17 @@ export function Messages({
           leadId={lead.id}
           vars={rowVars}
           names={names}
-          own={own(chosen.id)}
-          rewritten={rewritten(chosen.id)}
+          own={own(chosen.id, c)}
+          rewritten={rewritten(chosen.id, c)}
+          apart={apart}
           written={!!(prepared && openerOf(prepared, picks)?.drafts[chosen.id])}
           approval={{ at: approvalOf(keyOf(chosen.id, c)), set: (on) => approve(keyOf(chosen.id, c), on) }}
-          thread={firstEmail && firstEmail.id !== chosen.id ? own(firstEmail.id)?.subject.trim() || firstEmail.subject : ""}
+          thread={firstEmail && firstEmail.id !== chosen.id ? own(firstEmail.id, c)?.subject.trim() || firstEmail.subject : ""}
           sent={sent?.find((x) => x.messageId === chosen.id) ?? null}
           extra={/meme/i.test(chosen.name) && memeBoard ? `Image: meme board ${memeBoard}.` : null}
           cant={can ? null : (chosen.channel as "email" | "linkedin" | "instagram" | "other")}
           onAddChannel={(value) => addChannel(c, chosen.channel, value)}
-          onMine={(d) => saveMine(chosen.id, d)}
+          onMine={(d) => saveMine(chosen.id, d, c)}
           onVar={saveVar}
         />
         {can && reached && (chosen.channel === "email" ? lead.email.sent || lead.email.bounced : !!platform) && (
@@ -706,6 +715,7 @@ function MessageForm({
   names,
   own,
   rewritten,
+  apart = false,
   written,
   approval,
   thread,
@@ -723,6 +733,8 @@ function MessageForm({
   names: string[];
   own: Draft | undefined;
   rewritten: boolean;
+  // one of the lead's people: an edit is theirs alone, never a fill-in's value for everyone
+  apart?: boolean;
   written: boolean;
   approval: { at: Approval | null; set: (on: boolean) => void };
   // the subject of the sequence's first email, as this lead has it (none: this is it)
@@ -789,12 +801,13 @@ function MessageForm({
       // Fill in (and every message); other changes keep their variables. A
       // reply's subject reads against the "Re: " it shows, so left as it was
       // it still follows the thread
-      let subject = readEdit(subjectText, base, draft.subject, ["Name"]);
-      let body = readEdit(source.body, base, draft.body, ["Name"]);
+      const fixed = apart ? ["Name", ...names] : ["Name"];
+      let subject = readEdit(subjectText, base, draft.subject, fixed);
+      let body = readEdit(source.body, base, draft.body, fixed);
       // one value changed two ways: each part keeps its own wording instead
       if ("name" in subject && "name" in body && subject.name === body.name && subject.value !== body.value) {
-        subject = readEdit(subjectText, base, draft.subject, ["Name", subject.name]);
-        body = readEdit(source.body, base, draft.body, ["Name", body.name]);
+        subject = readEdit(subjectText, base, draft.subject, [...fixed, subject.name]);
+        body = readEdit(source.body, base, draft.body, [...fixed, body.name]);
       }
       for (const r of [subject, body]) if ("name" in r) err ??= await onVar(r.name, r.value);
       if (!err && ("text" in subject || "text" in body)) err = await onMine({ subject: "text" in subject ? subject.text : source.subject, body: "text" in body ? body.text : source.body });

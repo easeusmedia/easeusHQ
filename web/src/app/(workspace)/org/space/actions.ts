@@ -1084,17 +1084,30 @@ export async function setLeadVar(id: string, name: string, value: string): Promi
   }
 }
 
-// One message rewritten for this lead alone; null goes back to the template.
-// The stage's template changing later leaves this copy as it is.
-export async function setLeadDraft(id: string, messageId: string, draft: { subject: string; body: string } | null): Promise<Done> {
+// One message rewritten for this lead alone (or one person on it: "msgId@c2");
+// null goes back to the template. `keep`: when the copy taken off was the
+// lead's, shared by its people, the other people's keys, which keep it as
+// their own (one person put back, the others unchanged). The stage's
+// template changing later leaves a copy as it is.
+export async function setLeadDraft(id: string, messageId: string, draft: { subject: string; body: string } | null, keep: string[] = []): Promise<Done> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
   const who = await whoFor(lead.board.teamId);
   if ("error" in who) return who;
   const key = String(messageId ?? "");
   if (!key) return { error: "That message no longer exists." };
+  // only the same message's keys, for its people
+  const message = key.split(/[#@]/)[0];
+  const others = (Array.isArray(keep) ? keep : []).map(String).filter((k) => k.includes("@") && k.split(/[#@]/)[0] === message).slice(0, 50);
   try {
-    if (!draft) await prisma.$executeRaw`UPDATE "Lead" SET "drafts" = "drafts" - ${key}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    if (!draft && others.length) {
+      const row = await prisma.lead.findUnique({ where: { id }, select: { drafts: true } });
+      const drafts = { ...((row?.drafts ?? {}) as Record<string, Prisma.InputJsonValue>) };
+      const was = drafts[key];
+      if (was) for (const k of others) drafts[k] ??= was;
+      delete drafts[key];
+      await prisma.lead.update({ where: { id }, data: { drafts, editedByName: who.name, editedAt: new Date() } });
+    } else if (!draft) await prisma.$executeRaw`UPDATE "Lead" SET "drafts" = "drafts" - ${key}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     else {
       const body = String(draft.body ?? "").slice(0, 20_000);
       if (!body.trim()) return { error: "The message can't be empty." };

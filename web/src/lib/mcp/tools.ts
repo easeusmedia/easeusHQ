@@ -606,11 +606,16 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
           },
         }),
       ]);
-      // a rewrite kept per opener ("msgId#1") is named with its opener
+      // a rewrite kept per opener ("msgId#1") is named with its opener, one for
+      // one person on the lead ("msgId@c2") with them
+      const values = (row.values ?? {}) as Record<string, unknown>;
+      const people = board.fields.filter((f) => f.kind === "contacts").flatMap((f) => (Array.isArray(values[f.id]) ? (values[f.id] as Contact[]) : []));
       const nameOf = (key: string) => {
-        const [id, n] = key.split("#");
+        const [base, person] = key.split("@");
+        const [id, n] = base.split("#");
         const name = board.messages.find((m) => m.id === id)?.name ?? id;
-        return n ? `${name} (opener ${Number(n) + 1})` : name;
+        const who = person ? people.find((c) => c.id === person)?.name.trim() || "one of its people" : "";
+        return `${name}${n ? ` (opener ${Number(n) + 1})` : ""}${who ? ` (for ${who})` : ""}`;
       };
       const openers = (Array.isArray(full.openers) ? (full.openers as Opener[]) : []).map((o) => ({
         label: o.label,

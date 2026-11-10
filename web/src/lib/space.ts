@@ -147,16 +147,22 @@ export const openerIndex = (p: Pick<Prepared, "openers">, picks: Record<string, 
 export const openerOf = (p: Pick<Prepared, "openers">, picks: Record<string, string>): Opener | undefined => p.openers[openerIndex(p, picks)];
 // Where a message rewritten for this lead is kept: under the opener in use
 // when that opener wrote it ("msgId#1"), so each opener keeps its own edit
-// and Days 1 and 2 still change with the opener; else under the message alone
-export const draftKey = (p: Prepared, picks: Record<string, string>, messageId: string): string => (p.openers.length > 1 && openerOf(p, picks)?.drafts[messageId] ? `${messageId}#${openerIndex(p, picks)}` : messageId);
-// A message as this lead has it: rewritten for it (for the opener in use,
-// then on its own), else written for it ahead (by the opener in use), else the template
-export const preparedFor = (p: Prepared, picks: Record<string, string>, messageId: string): Draft | undefined => p.drafts[draftKey(p, picks, messageId)] ?? p.drafts[messageId] ?? openerOf(p, picks)?.drafts[messageId];
-// The key of the rewrite shown for a message (the opener's own, else the message's), if any
-export const shownDraftKey = (p: Prepared, picks: Record<string, string>, messageId: string): string | null => {
-  const k = draftKey(p, picks, messageId);
-  return p.drafts[k] ? k : p.drafts[messageId] ? messageId : null;
-};
+// and Days 1 and 2 still change with the opener; else under the message
+// alone. Rewritten for one person on the lead, under them too ("msgId@c2"),
+// so the others keep theirs (Abhishek, 10 Nov 2026).
+export const draftKey = (p: Prepared, picks: Record<string, string>, messageId: string, contact: Contact | null = null): string =>
+  forContact(p.openers.length > 1 && openerOf(p, picks)?.drafts[messageId] ? `${messageId}#${openerIndex(p, picks)}` : messageId, contact);
+// The keys a message's rewrite is read from, first found wins: the person's
+// own (for the opener in use, then on its own), then the lead's
+const draftKeys = (p: Prepared, picks: Record<string, string>, messageId: string, contact: Contact | null) =>
+  [...(contact ? [draftKey(p, picks, messageId, contact), forContact(messageId, contact)] : []), draftKey(p, picks, messageId), messageId];
+// A message as this lead (and person) has it: rewritten, else written for it
+// ahead (by the opener in use), else the template
+export const preparedFor = (p: Prepared, picks: Record<string, string>, messageId: string, contact: Contact | null = null): Draft | undefined =>
+  draftKeys(p, picks, messageId, contact).map((k) => p.drafts[k]).find((d) => !!d) ?? openerOf(p, picks)?.drafts[messageId];
+// The key of the rewrite shown for a message, if any
+export const shownDraftKey = (p: Prepared, picks: Record<string, string>, messageId: string, contact: Contact | null = null): string | null =>
+  draftKeys(p, picks, messageId, contact).find((k) => !!p.drafts[k]) ?? null;
 export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string; note: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
 export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };
@@ -560,15 +566,15 @@ export const approvalIn = (approvals: Record<string, Approval | null | undefined
 // A message's words as the lead window shows them: the lead's own wording
 // (preparedFor) else the template, the board's subject where its own has none
 // ponytail: a reply's "Re:" subject (the first email's) isn't counted here, only on that email's day
-export function wordingOf(p: Prepared, picks: Record<string, string>, m: Pick<MessageData, "id" | "subject" | "body">): Draft {
-  const own = preparedFor(p, picks, m.id);
+export function wordingOf(p: Prepared, picks: Record<string, string>, m: Pick<MessageData, "id" | "subject" | "body">, contact: Contact | null = null): Draft {
+  const own = preparedFor(p, picks, m.id, contact);
   return { subject: own?.subject.trim() ? own.subject : m.subject, body: own?.body ?? m.body };
 }
 // a lead's variables for one person on it: Name is their own first name
 export const varsFor = (vars: Record<string, string>, c: Contact | null): Record<string, string> => (c && firstName(c.name) ? { ...vars, Name: firstName(c.name) } : vars);
 // the {{Variables}} these messages use, as this lead words them, with no value yet
-export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body">[], p: Prepared, picks: Record<string, string>, vars: Record<string, string>): string[] {
-  return variablesIn(messages.flatMap((m) => Object.values(wordingOf(p, picks, m)))).filter((n) => !vars[n]);
+export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body">[], p: Prepared, picks: Record<string, string>, vars: Record<string, string>, contact: Contact | null = null): string[] {
+  return variablesIn(messages.flatMap((m) => Object.values(wordingOf(p, picks, m, contact)))).filter((n) => !vars[n]);
 }
 
 // What's left of one day for one person (Abhishek, 23 Oct 2026): its
@@ -590,7 +596,7 @@ export function dayLeft<M extends Pick<MessageData, "id" | "name" | "channel" | 
   return {
     due,
     approve: due.filter((m) => !approvalIn(lead.approvals, approvalKey(p, lead.picks, m.id, contact))),
-    fill: emptyFills(sendable, p, lead.picks, varsFor(lead.vars, contact)),
+    fill: emptyFills(sendable, p, lead.picks, varsFor(lead.vars, contact), contact),
   };
 }
 
