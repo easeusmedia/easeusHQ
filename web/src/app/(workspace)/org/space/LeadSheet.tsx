@@ -11,8 +11,12 @@ import { hrefOf } from "./values";
 import { ShowMore } from "./LeadBoard";
 import { PAGE, usePaging } from "./paging";
 
-const HEAD = "overflow-hidden border-l border-white/[0.06] px-3 py-2.5 text-left text-xs font-medium whitespace-nowrap text-muted first:border-l-0";
-const CELL = "overflow-hidden border-l border-white/[0.06] px-3 py-2 align-top whitespace-nowrap first:border-l-0 group-hover:bg-surface-2 transition-colors";
+const HEAD = "overflow-hidden border-l border-border px-3 py-2.5 text-left text-xs font-medium whitespace-nowrap text-muted first:border-l-0";
+// a cell; every one but the Name has a line on its left. Not "first:": a
+// lead's second and later people have no Name cell in their row, so their
+// first cell is a person's, and it needs that line too (Abhishek, 11 Nov 2026)
+const PAD = "overflow-hidden px-3 py-2 align-top whitespace-nowrap group-hover:bg-surface-2 transition-colors";
+const CELL = `${PAD} border-l border-border`;
 
 // Each column's width, in px, until it's dragged (Abhishek, 3 Nov 2026: the
 // columns resize); dragged, kept for that tab in this browser
@@ -294,9 +298,9 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
             // one body per lead, so the whole block lights on hover and opens as one
             <tbody key={lead.id} onClick={onOpen && (() => onOpen(lead))} className={`group border-b border-border last:border-b-0 ${onOpen ? "cursor-pointer" : ""} ${n >= PAGE ? "fade-in" : ""}`}>
               {people.map((p, i) => (
-                <tr key={p?.id ?? "none"} className={i < span - 1 ? "border-b border-white/[0.04]" : ""}>
+                <tr key={p?.id ?? "none"} className={i < span - 1 ? "border-b border-border" : ""}>
                   {i === 0 && (
-                    <td rowSpan={span} className={`${CELL} ${FROZEN}`}>
+                    <td rowSpan={span} className={`${PAD} ${FROZEN}`}>
                       {onOpen ? (
                         <button
                           type="button"
