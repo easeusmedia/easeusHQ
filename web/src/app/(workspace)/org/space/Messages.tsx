@@ -4,7 +4,7 @@ import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
 import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, varsFor, wordingOf } from "@/lib/space";
-import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, updateMessage } from "./actions";
+import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
@@ -177,6 +177,26 @@ export function Messages({
     if (res.error) return res.error;
     onSaved();
   }
+  // where each person's emails go out from: set here, ahead of the save (null: back to the tracker's)
+  const [fromSet, setFromSet] = useState<Record<string, string | null>>({});
+  const fromOf = (c: Contact | null) => {
+    const key = idOf(c);
+    if (!(key in fromSet)) return lead.sentFrom?.[key] ?? null;
+    const set = fromSet[key];
+    return set ? { email: set, auto: false } : lead.sentFrom?.[key]?.auto ? lead.sentFrom[key] : null;
+  };
+  async function saveFrom(c: Contact | null, email: string | null) {
+    const key = idOf(c);
+    const before = fromSet;
+    setError(null);
+    setFromSet((f) => ({ ...f, [key]: email }));
+    const res = await setSentFrom(lead.id, key, email).catch(() => ({ error: OFFLINE }));
+    if (res.error) {
+      setFromSet(before);
+      return setError(res.error);
+    }
+    onSaved();
+  }
   async function saveMine(messageId: string, draft: Draft | null, c: Contact | null) {
     setError(null);
     // a new edit goes under the opener in use (when it wrote this message), and
@@ -324,6 +344,7 @@ export function Messages({
           own={own(chosen.id, c)}
           rewritten={rewritten(chosen.id, c)}
           apart={apart}
+          from={chosen.channel === "email" ? { at: fromOf(c), senders: board.senders ?? [], set: (v) => saveFrom(c, v) } : undefined}
           written={!!(prepared && openerOf(prepared, picks)?.drafts[chosen.id])}
           approval={{ at: approvalOf(keyOf(chosen.id, c)), set: (on) => approve(keyOf(chosen.id, c), on) }}
           thread={firstEmail && firstEmail.id !== chosen.id ? own(firstEmail.id, c)?.subject.trim() || firstEmail.subject : ""}
@@ -716,6 +737,7 @@ function MessageForm({
   own,
   rewritten,
   apart = false,
+  from,
   written,
   approval,
   thread,
@@ -735,6 +757,8 @@ function MessageForm({
   rewritten: boolean;
   // one of the lead's people: an edit is theirs alone, never a fill-in's value for everyone
   apart?: boolean;
+  // an email's: the address it goes out from (the tracker's, else set by hand), the ones to pick from, and setting it
+  from?: { at: { email: string; auto: boolean } | null; senders: string[]; set: (email: string | null) => void };
   written: boolean;
   approval: { at: Approval | null; set: (on: boolean) => void };
   // the subject of the sequence's first email, as this lead has it (none: this is it)
@@ -932,6 +956,20 @@ function MessageForm({
         </div>
       ) : (
         <div onCopy={isEmail ? copyClean : undefined} className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          {/* where it goes out from: the mail tracker's, or picked or typed here (Abhishek, 10 Nov 2026) */}
+          {from && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5 whitespace-normal text-foreground">
+              <span className="text-muted">From</span>
+              <Dropdown
+                size="sm"
+                value={from.at?.email ?? ""}
+                placeholder="Pick an address"
+                create
+                options={[...new Set([...(from.at ? [from.at.email] : []), ...from.senders])].map((e) => ({ value: e, label: e }))}
+                onChange={(v) => from.set(v.trim() || null)}
+              />
+            </div>
+          )}
           {isEmail && shownSubject && (
             <p className="mb-3 flex items-start gap-1.5 text-foreground">
               <span className="min-w-0">

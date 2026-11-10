@@ -1273,6 +1273,9 @@ model Lead {
   // messages approved as ready to send (Abhishek, 17 Oct 2026), by message
   // and person on the lead ("msgId@c2", as picks): { by, at }
   approvals      Json          @default("{}")
+  // the address its emails went out from, set by hand, by person ("c2", or
+  // "_" for the lead itself); otherwise the mail tracker's (Abhishek, 10 Nov 2026)
+  sentFrom       Json          @default("{}")
   // the channel's own numbers, read by Apify when the lead is opened and
   // they're more than a day old (lib/leadChannel.ts, 17 Oct 2026):
   // { platform, followers, typicalViews, recent: [{ title, views, at, url }],

@@ -75,6 +75,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
           marks: true,
           picks: true,
           approvals: true,
+          sentFrom: true,
           assignedByName: true,
           assignedAt: true,
           stageSince: true,
@@ -98,10 +99,12 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
   // 2026). Emails from before aren't its outreach.
   const leadAddresses = new Map(board.leads.map((l) => [l.id, leadEmails(l.values)]));
   const all = [...new Set([...leadAddresses.values()].flat())];
-  const [sentTo, tracked, heard] = await Promise.all([
-    prisma.mailMessage.findMany({ where: { outgoing: true, to: { in: all } }, select: { to: true, at: true, threadId: true } }),
-    prisma.trackedMail.findMany({ where: { to: { in: all } }, select: { to: true, sentAt: true, opens: true, bouncedAt: true } }),
+  const [sentTo, tracked, heard, aliases] = await Promise.all([
+    prisma.mailMessage.findMany({ where: { outgoing: true, to: { in: all } }, select: { to: true, from: true, at: true, threadId: true } }),
+    prisma.trackedMail.findMany({ where: { to: { in: all } }, select: { to: true, from: true, sentAt: true, opens: true, bouncedAt: true } }),
     prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true, threadId: true }, orderBy: { at: "asc" } }),
+    // the addresses emails go out from, latest first: what "From" offers
+    prisma.trackedMail.findMany({ distinct: ["from"], orderBy: { sentAt: "desc" }, take: 30, select: { from: true } }),
   ]);
   const contactFields = board.fields.filter((f) => f.kind === "contacts").map((f) => f.id);
   const contactsOf = (values: unknown) => contactFields.flatMap((id) => {
@@ -127,8 +130,24 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     // from the lead's contacts, else the address
     const repliers = [...new Set(heard.filter(answers).map((h) => h.from))];
     const nameOf = (address: string) => contactsOf(l.values).find((c) => c.channels?.some((ch) => ch.value?.trim().toLowerCase() === address))?.name?.trim() || address;
+    // where each person's emails went out from (Abhishek, 10 Nov 2026): set by
+    // hand, else the address the latest one to them was sent from, as the
+    // mail tracker and the sales inbox saw it
+    const set = (l.sentFrom ?? {}) as Record<string, string>;
+    const latestFrom = (to: string[]) =>
+      [...mails.map((t) => ({ to: t.to, from: t.from, at: t.sentAt })), ...ours.map((m) => ({ to: m.to, from: m.from, at: m.at }))]
+        .filter((m) => to.includes(m.to) && m.from)
+        .sort((a, b) => +b.at - +a.at)[0]?.from ?? null;
+    const people = contactsOf(l.values);
+    const sentFrom = Object.fromEntries(
+      [...people.map((c) => [c.id, (c.channels ?? []).filter((ch) => ch.kind === "email").map((ch) => ch.value.trim().toLowerCase())] as const), [NO_CONTACT, mine] as const].flatMap(([key, to]) => {
+        const email = set[key] || latestFrom(to);
+        return email ? [[key, { email, auto: !set[key] }]] : [];
+      }),
+    );
     return {
       sent: !!first,
+      sentFrom,
       email: {
         sent: !!first,
         tracked: mails.length > 0,
@@ -157,8 +176,10 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     stages: board.stages.map((s) => ({ id: s.id, name: s.name, color: s.color })),
     messages,
     fields: board.fields.map((f) => ({ ...f, kind: f.kind as FieldKind })),
+    // the tracker's sending addresses, then any typed in by hand
+    senders: [...new Set([...aliases.map((a) => a.from), ...board.leads.flatMap((l) => Object.values((l.sentFrom ?? {}) as Record<string, string>))].filter(Boolean))],
     leads: board.leads.map((l) => {
-      const { sent, email } = emailOf(l);
+      const { sent, email, sentFrom } = emailOf(l);
       const stageName = board.stages.find((s) => s.id === l.stageId)?.name ?? null;
       return {
       id: l.id,
@@ -177,6 +198,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       reachedOn: [...(start >= 0 && sent ? (["email"] as Platform[]) : []), ...reachedByDay({ stages: board.stages, messages }, [stageName, ...l.events.map((e) => e.toStage)])],
       picks: (l.picks ?? {}) as Record<string, string>,
       approvals: (l.approvals ?? {}) as Record<string, Approval>,
+      sentFrom,
       reachOuts: reachOutDays(l.events, stageName),
       reached: reached([stageName, ...l.events.map((e) => e.toStage)]) || (start >= 0 && sent),
       stageSince: l.stageSince.toISOString(),

@@ -127,6 +127,9 @@ export type LeadData = {
   picks: Record<string, string>;
   // messages approved as ready to send, by message and person ("msgId@c2")
   approvals: Record<string, Approval>;
+  // the address each person's emails go out from, by person ("_": the lead
+  // itself): set by hand, else the mail tracker's (auto)
+  sentFrom?: Record<string, { email: string; auto: boolean }>;
   // it has been in Ready to reach out or later, by its record, or emailed
   reached: boolean;
   stageSince: string;
@@ -216,7 +219,8 @@ export const shownDraftKey = (p: Prepared, picks: Record<string, string>, messag
   draftKeys(p, picks, messageId, contact).find((k) => !!p.drafts[k]) ?? null;
 export type MessageData = { id: string; stageId: string; name: string; channel: string; subject: string; body: string; note: string };
 export type SentData = { id: string; messageId: string | null; stageName: string; name: string; channel: string; subject: string; body: string; byName: string; sentAt: string };
-export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[] };
+// senders: the addresses emails go out from, for a lead's "From"
+export type BoardData = { id: string; name: string; slug: string; stages: StageData[]; fields: FieldData[]; leads: LeadData[]; messages: MessageData[]; senders?: string[] };
 export type LeadEventData = {
   id: string;
   kind: string;

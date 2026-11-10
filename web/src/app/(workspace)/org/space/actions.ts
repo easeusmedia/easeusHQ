@@ -717,6 +717,27 @@ export async function pickMessage(id: string, key: string, messageId: string | n
   }
 }
 
+// The address a person's emails go out from, set by hand (Abhishek, 10 Nov
+// 2026): for when the mail tracker didn't see it, or another one was used.
+// null goes back to the tracker's. person: a contact's id, or "_" for the lead.
+export async function setSentFrom(id: string, person: string, email: string | null): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  const key = String(person ?? "").slice(0, 64);
+  if (!key) return { error: "That person is no longer on the lead." };
+  const address = (email ?? "").trim().toLowerCase();
+  if (address && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) return { error: "That isn't an email address." };
+  try {
+    if (!address) await prisma.$executeRaw`UPDATE "Lead" SET "sentFrom" = "sentFrom" - ${key}::text WHERE id = ${id}`;
+    else await prisma.$executeRaw`UPDATE "Lead" SET "sentFrom" = jsonb_set(coalesce("sentFrom", '{}'::jsonb), ARRAY[${key}::text], to_jsonb(${address.slice(0, 254)}::text), true) WHERE id = ${id}`;
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
 // A message approved as ready to send, for one person on the lead ("msgId@c2";
 // an opener's own message for that opener, "msgId#1@c2"), or no longer (on:
 // false, which takes off the one standing for it too: lib/space approvalKeys). Written
