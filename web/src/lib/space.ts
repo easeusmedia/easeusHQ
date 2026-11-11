@@ -625,8 +625,16 @@ export function wordingOf(p: Prepared, picks: Record<string, string>, m: Pick<Me
   const own = preparedFor(p, picks, m.id, contact);
   return { subject: own?.subject.trim() ? own.subject : m.subject, body: own?.body ?? m.body };
 }
-// a lead's variables for one person on it: Name is their own first name
-export const varsFor = (vars: Record<string, string>, c: Contact | null): Record<string, string> => (c && firstName(c.name) ? { ...vars, Name: firstName(c.name) } : vars);
+// Where a person's Name is typed in a lead's Fill in ("Name@c2"): each person
+// on it keeps their own, so "Christopher" typed for Chris Mediate greets him
+// as that, and never his co-host (Abhishek, 11 Nov 2026)
+export const nameKey = (c: Contact | null) => (c ? `Name@${c.id}` : "Name");
+// a lead's variables for one person on it: Name is the one typed for them,
+// else their own first name
+export const varsFor = (vars: Record<string, string>, c: Contact | null): Record<string, string> => {
+  const name = c && (vars[nameKey(c)]?.trim() || firstName(c.name));
+  return name ? { ...vars, Name: name } : vars;
+};
 // the {{Variables}} these messages use, as this lead words them, with no value yet
 export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body">[], p: Prepared, picks: Record<string, string>, vars: Record<string, string>, contact: Contact | null = null): string[] {
   return variablesIn(messages.flatMap((m) => Object.values(wordingOf(p, picks, m, contact)))).filter((n) => !vars[n]);

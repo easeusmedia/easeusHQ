@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, varsFor, wordingOf } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -395,20 +395,25 @@ export function Messages({
               </div>
               <div className="flex flex-col gap-3">
                 {/* an empty one a message uses: a thin red ring, the red of its {{Variable}} in the messages, gone once filled */}
-                {used.map((name) => (
-                  <label key={name} className="flex min-w-0 flex-col gap-1">
-                    <span className="text-xs text-muted">{name}</span>
-                    <input
-                      value={typed[name] ?? lead.vars[name] ?? ""}
-                      onChange={(e) => setTyped((x) => ({ ...x, [name]: e.target.value }))}
-                      onBlur={(e) => saveVar(name, e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                      placeholder={auto[name] ? `${auto[name]} (filled in for you)` : `Type the ${name.toLowerCase()}`}
-                      data-empty={blanks.includes(name) || undefined}
-                      className={`${INPUT} ${blanks.includes(name) ? "border-red-300/50" : ""}`}
-                    />
-                  </label>
-                ))}
+                {used.map((name) => {
+                  // Name: the picked person's own (lib/space nameKey), their first name until one's typed
+                  const key = name === "Name" ? nameKey(person) : name;
+                  const given = name === "Name" && person ? varsFor({}, person).Name : auto[name];
+                  return (
+                    <label key={name} className="flex min-w-0 flex-col gap-1">
+                      <span className="text-xs text-muted">{name}</span>
+                      <input
+                        value={typed[key] ?? lead.vars[key] ?? ""}
+                        onChange={(e) => setTyped((x) => ({ ...x, [key]: e.target.value }))}
+                        onBlur={(e) => saveVar(key, e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        placeholder={given ? `${given} (filled in for you)` : `Type the ${name.toLowerCase()}`}
+                        data-empty={blanks.includes(name) || undefined}
+                        className={`${INPUT} ${blanks.includes(name) ? "border-red-300/50" : ""}`}
+                      />
+                    </label>
+                  );
+                })}
               </div>
             </section>
           )}

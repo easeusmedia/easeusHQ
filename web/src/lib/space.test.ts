@@ -144,6 +144,10 @@ test("a lead's Name and Podcast fill themselves; typed values win", () => {
   assert.equal(leadVars(dr, fields).Name, "Kristopher");
   assert.equal(varsFor({}, { id: "2", name: "Dr Simon Chard", role: "", channels: [] }).Name, "Simon");
   assert.deepEqual(varsFor({ A: "1" }, { id: "3", name: "Dr.", role: "", channels: [] }), { A: "1" });
+  // typed for one person in the Fill in: theirs alone, over their first name
+  const typed = { Name: "Lead", "Name@4": "Christopher" };
+  assert.equal(varsFor(typed, { id: "4", name: "Chris Mediate", role: "", channels: [] }).Name, "Christopher");
+  assert.equal(varsFor(typed, { id: "5", name: "Ann Lee", role: "", channels: [] }).Name, "Ann");
 });
 
 test("messages group by day, then by stage", () => {
