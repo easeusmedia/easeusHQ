@@ -568,11 +568,10 @@ export function sendsOn(picks: Record<string, string>, c: Contact | null, platfo
   return set ? set === "on" : hasChannel(c, platform);
 }
 // A day none of whose messages go to this person (Day 2's Instagram for
-// someone with no Instagram, or with it turned off): off for them, nothing in
-// it to approve or fill. Someone with no email, Instagram or LinkedIn at all
-// keeps every day, to be reached once one is added, unless it's turned off.
-export const dayOff = (on: Pick<MessageData, "channel">[], c: Contact | null, picks: Record<string, string> = {}) =>
-  !on.some((m) => sendsOn(picks, c, m.channel)) && (["email", "instagram", "linkedin"].some((p) => hasChannel(c, p)) || on.some((m) => picks[sendKey(m.channel, c)] === "off"));
+// someone with no Instagram, or with it switched off): off for them, nothing
+// in it to approve or fill. A platform with no handle added is off until one
+// is (Abhishek, 12 Nov 2026), so someone with none has every day off.
+export const dayOff = (on: Pick<MessageData, "channel">[], c: Contact | null, picks: Record<string, string> = {}) => !on.some((m) => sendsOn(picks, c, m.channel));
 
 // A pick (or anything kept per day) belongs to one contact: "day-1@c2"
 export const forContact = (key: string, contact: Contact | null) => (contact ? `${key}@${contact.id}` : key);

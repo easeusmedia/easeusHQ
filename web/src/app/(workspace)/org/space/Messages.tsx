@@ -406,28 +406,6 @@ export function Messages({
         {/* side by side, as tall as the emails beside it (Abhishek: the panels equal); stacked, as tall as what's in it */}
         <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto @3xl:self-stretch`}>
           {aside}
-          {/* the platforms the person is reached on, each switched on or off
-              (Abhishek, 12 Nov 2026): a LinkedIn that won't accept, an
-              Instagram not used; a day with nothing switched on goes off */}
-          {platforms.length > 0 && (
-            <section className="border-t border-white/[0.06] px-5 py-5">
-              <p className="mb-2 text-[11px] font-medium tracking-wide text-muted uppercase">Reach out on</p>
-              <div className="flex flex-col">
-                {platforms.map((p) => {
-                  const on = sendsOn(picks, person, p);
-                  return (
-                    <button key={p} type="button" role="switch" aria-checked={on} onClick={() => toggleSend(p)} className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left text-[13px] transition-colors hover:bg-white/[0.04]">
-                      <span className={`grid size-7 shrink-0 place-items-center rounded-full bg-white/[0.05] transition-opacity duration-200 ${on ? "" : "opacity-40"}`}>{CHANNEL_ICON[p]}</span>
-                      <span className={`flex-1 transition-colors duration-200 ${on ? "text-foreground/85" : "text-muted"}`}>{PLATFORM_NAME[p]}</span>
-                      <span className={`flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-200 ${on ? "bg-accent" : "bg-white/15"}`}>
-                        <span className={`size-3 rounded-full bg-white transition-transform duration-200 ${on ? "translate-x-3" : ""}`} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
           {/* the form, under the lead's details (Abhishek, 23 Oct 2026): the words that change per lead, typed once, filling every message that uses them */}
           {prepared && used.length > 0 && (
             <section ref={fillForm} className="border-t border-white/[0.06] px-5 py-5">
@@ -468,6 +446,8 @@ export function Messages({
           <div className="flex shrink-0 flex-col gap-2.5 border-b border-white/[0.07] px-4 py-3">
             {/* the opener, as on the Dream 300 pages: the first email written
                 for this lead, main or a backup; Days 1 and 2 change with it */}
+            {(openers.length > 1 || platforms.length > 0) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {openers.length > 1 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted">Opener</span>
@@ -491,6 +471,28 @@ export function Messages({
                     );
                   })}
                 </div>
+              </div>
+            )}
+                {/* the platforms the person is reached on, each switched on or off
+                    (Abhishek, 12 Nov 2026): a LinkedIn that won't accept, an
+                    Instagram not used; a day with nothing switched on goes off */}
+                {platforms.length > 0 && (
+                  <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span className="text-xs text-muted">Reach out on</span>
+                    {platforms.map((p) => {
+                      const on = sendsOn(picks, person, p);
+                      return (
+                        <button key={p} type="button" role="switch" aria-checked={on} onClick={() => toggleSend(p)} className="flex items-center gap-1.5 rounded-full py-1 pr-1 pl-1.5 text-xs transition-colors hover:bg-white/[0.04]">
+                          <span className={`flex shrink-0 transition-opacity duration-200 ${on ? "" : "opacity-40"}`}>{CHANNEL_ICON[p]}</span>
+                          <span className={`transition-colors duration-200 ${on ? "text-foreground/85" : "text-muted"}`}>{PLATFORM_NAME[p]}</span>
+                          <span className={`flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-200 ${on ? "bg-accent" : "bg-white/15"}`}>
+                            <span className={`size-3 rounded-full bg-white transition-transform duration-200 ${on ? "translate-x-3" : ""}`} />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             <div className="flex items-center gap-2">
