@@ -19,6 +19,12 @@ import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
 
 export const dynamic = "force-dynamic";
 
+// A file delivered and uploaded: its task marked so; with no task (one
+// brought in from Notion), its own final link in. A Frame.io link is only for
+// review. ponytail: by the link's host; a task on every file would settle it
+const fileIn = (a: { link: string | null; task: { status: string } | null }) =>
+  a.task ? a.task.status === "delivered_and_uploaded" : !!a.link && !/^https?:\/\/(?:[^/]*\.)?(?:f\.io|frame\.io)(?:[/?#]|$)/i.test(a.link);
+
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // one round: none of these needs another's answer
@@ -129,7 +135,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         // file, the ones delivered and uploaded, the rest still to deliver
         stats={{
           files: project.assets.length + deliveredFiles.length,
-          delivered: project.assets.filter((a) => a.task?.status === "delivered_and_uploaded").length + deliveredFiles.length,
+          delivered: project.assets.filter(fileIn).length + deliveredFiles.length,
         }}
         invoice={
           <InvoicePicker
