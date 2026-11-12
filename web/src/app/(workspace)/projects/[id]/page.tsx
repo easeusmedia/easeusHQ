@@ -83,7 +83,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const types = typeCounts.map((r) => r.type);
 
-  const active = project.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as TaskStatus));
   const done = project.tasks.filter((t) => !ACTIVE_STATUSES.includes(t.status as TaskStatus));
   // a delivered task that fills a placeholder is shown as that placeholder,
   // not a second time (lib/deliverableLink). A project laid out in
@@ -125,10 +124,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         completedOn={project.completedAt ? project.completedAt.toISOString().slice(0, 10) : ""}
         canDelete={project.tasks.length === 0}
         types={types}
+        // counted in files, as Files lists them (Abhishek, 12 Nov 2026: "In
+        // flight" counted tasks being worked on, and didn't add up): every
+        // file, the ones delivered and uploaded, the rest still to deliver
         stats={{
-          active: active.length,
-          delivered: done.filter((t) => t.status === "delivered_and_uploaded").length,
-          files: project.assets.length,
+          files: project.assets.length + deliveredFiles.length,
+          delivered: project.assets.filter((a) => a.task?.status === "delivered_and_uploaded").length + deliveredFiles.length,
         }}
         invoice={
           <InvoicePicker

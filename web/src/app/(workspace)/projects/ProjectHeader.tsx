@@ -48,7 +48,7 @@ export function ProjectHeader({
   // every project type in use, most used first — the Type picker's list
   types: string[];
   // what's in it, for the three numbers under the facts
-  stats: { active: number; delivered: number; files: number };
+  stats: { delivered: number; files: number };
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -281,9 +281,9 @@ export function ProjectHeader({
             <div className="mt-auto grid grid-cols-3 gap-2 pt-6">
               {(
                 [
-                  ["In flight", stats.active],
-                  ["Delivered", stats.delivered],
                   ["Files", stats.files],
+                  ["Delivered", stats.delivered],
+                  ["Pending", stats.files - stats.delivered],
                 ] as const
               ).map(([label, n]) => (
                 <div key={label} className="rounded-xl bg-foreground/[0.03] px-4 py-3">
