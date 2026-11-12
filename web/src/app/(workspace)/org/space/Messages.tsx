@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff } from "@/lib/space";
 import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -241,7 +241,9 @@ export function Messages({
     const el = strip.current;
     if (el && fit < 3 && el.scrollWidth > el.clientWidth + 1) setFit((f) => f + 1);
   }, [fit, fitFor]);
-  const shownTab = tabs.find((t) => t.key === tab) ?? tabs.find((t) => t.when === "now") ?? tabs[0];
+  // a day nothing on it reaches the person on is off for them (lib/space dayOff): never the one shown
+  const offFor = (x: SequenceTab) => x.day != null && dayOff(x.messages, person);
+  const shownTab = [tabs.find((t) => t.key === tab), tabs.find((t) => t.when === "now"), tabs.find((t) => t.when === "next"), ...tabs].find((x) => x && !offFor(x)) ?? tabs[0];
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
   const sentIds = new Set((sent ?? []).map((x) => x.messageId ?? ""));
@@ -462,6 +464,7 @@ export function Messages({
                   const tone = x.when === "now" ? "emerald" : x.when === "next" ? "accent" : null;
                   // the open one always says its name; the others, when it's tight, a number (a stage: its first letter)
                   const short = fit > 0 && !on;
+                  const off = offFor(x);
                   return (
                     <Fragment key={x.key}>
                       {i > 0 && fit < 2 && <span aria-hidden className={`h-px shrink-0 ${fit === 0 ? "w-5" : "w-2"} ${dayApproved(tabs[i - 1]) ? "bg-emerald-400/35" : "bg-white/[0.09]"}`} />}
@@ -469,10 +472,11 @@ export function Messages({
                         type="button"
                         role="tab"
                         aria-selected={on}
+                        disabled={off}
                         onClick={() => setTab(x.key)}
-                        title={ready ? `${x.title}: approved` : progress.done < progress.due ? `${x.title}: ${todo(progress.fill, progress.approve)}` : x.sub}
-                        className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] duration-200 ${short ? (fit >= 2 ? "p-0.5" : "p-1") : "py-1 pr-3.5 pl-1.5"} ${
-                          on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
+                        title={off ? `${x.title}: no ${listed([...new Set(x.messages.map((m) => PLATFORM_NAME[m.channel as Marked] ?? m.channel))])} for ${person?.name}` : ready ? `${x.title}: approved` : progress.done < progress.due ? `${x.title}: ${todo(progress.fill, progress.approve)}` : x.sub}
+                        className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow,opacity] duration-200 ${short ? (fit >= 2 ? "p-0.5" : "p-1") : "py-1 pr-3.5 pl-1.5"} ${
+                          off ? "cursor-not-allowed text-muted opacity-40" : on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                         }`}
                       >
                         {replied || ready ? (

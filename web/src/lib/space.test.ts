@@ -523,13 +523,13 @@ test("a lead goes into Ready to reach out only once every message it can be sent
   // no contacts: the lead itself, every day's message on every platform
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: {} }, none, []).map((m) => [m.day, m.message?.id, m.contact]), [[1, "e1", null], [1, "l1", null], [2, "i1", null], [3, "e2", null]]);
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: { e1: at, l1: at, i1: at, e2: at } }, none, []), []);
-  // a day they can't be reached on counts as the day's tick does: approving its message completes it
+  // a day they can't be reached on (Day 2's Instagram) is off for them: nothing to approve
   const ann = person("ann", "email", "linkedin");
-  assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "e2") }, none, [ann]).map((m) => m.message?.id), ["i1"]);
+  assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "e2") }, none, [ann]), []);
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "i1", "e2") }, none, [ann]), []);
   // everyone on the lead, each on their own
   const bo = person("bo", "email");
-  assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "e2") }, none, [ann, bo]).map((m) => `${m.message?.id}@${m.contact?.id}`), ["i1@ann", "e1@bo", "i1@bo", "e2@bo"]);
+  assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "e2") }, none, [ann, bo]).map((m) => `${m.message?.id}@${m.contact?.id}`), ["e1@bo", "e2@bo"]);
   // the opener in use: its own message under it, or approved before openers had their own
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: { opener: "1" }, approvals: { ...all("bo", "e2", "i1"), "e1#0@bo": at } }, { drafts: {}, openers }, [bo]).map((m) => m.message?.id), ["e1"]);
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: { opener: "1" }, approvals: { ...all("bo", "e2", "i1"), "e1#1@bo": at } }, { drafts: {}, openers }, [bo]), []);
@@ -566,7 +566,7 @@ test("a day is done, and a lead goes on, only once the fill-ins its messages use
   assert.deepEqual(dayLeft(board.messages.filter((m) => m.stageId === "d1"), "day-1", lead({}), none, bo, false), { due: [board.messages[0]], approve: [], fill: ["Link"] });
   assert.deepEqual(dayLeft(board.messages.filter((m) => m.stageId === "d1"), "day-1", lead({ Link: "x.com" }), none, bo, false).fill, []);
   // each empty fill-in once for the lead, first, and only from what they're sent: LinkedIn's {{Note}}
-  // isn't one, nor Day 2's {{Reel}} (nothing reaches bo that day; approving it still completes it)
+  // isn't one, nor Day 2's {{Reel}} (nothing reaches bo that day: it's off for him)
   const left = approvalsMissing(board, lead({}), none, [bo]);
   assert.deepEqual(left.map((m) => m.fill), ["Link", "Peak views"]);
   assert.deepEqual(approvalsMissing(board, lead({ Link: "x.com", "Peak views": "9K" }), none, [bo]), []);
