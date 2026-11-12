@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"];
 
@@ -526,6 +526,12 @@ test("a lead goes into Ready to reach out only once every message it can be sent
   // a day they can't be reached on (Day 2's Instagram) is off for them: nothing to approve
   const ann = person("ann", "email", "linkedin");
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "e2") }, none, [ann]), []);
+  // turned on by hand (the podcast's own Instagram), it's due; LinkedIn turned off, Day 1's note isn't
+  assert.deepEqual(approvalsMissing(days, { vars: {}, picks: { "send:instagram@ann": "on", "send:linkedin@ann": "off" }, approvals: all("ann", "e1", "e2") }, none, [ann]).map((m) => m.message?.id), ["i1"]);
+  // every platform of a day turned off: off, even for someone with no handles at all
+  assert.equal(dayOff([{ channel: "instagram" }], person("nb"), {}), false);
+  assert.equal(dayOff([{ channel: "instagram" }], person("nb"), { "send:instagram@nb": "off" }), true);
+  assert.equal(dayOff([{ channel: "email" }], null, { "send:email": "off" }), true);
   assert.deepEqual(approvalsMissing(days, { vars: {}, picks: {}, approvals: all("ann", "e1", "l1", "i1", "e2") }, none, [ann]), []);
   // everyone on the lead, each on their own
   const bo = person("bo", "email");

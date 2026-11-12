@@ -717,6 +717,25 @@ export async function pickMessage(id: string, key: string, messageId: string | n
   }
 }
 
+// A platform turned on or off by hand for one person on a lead (lib/space
+// sendsOn), kept in its picks; null goes back to whether they have the handle
+export async function setSendOn(id: string, platform: string, person: string | null, value: "on" | "off" | null): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  if (!["email", "instagram", "linkedin"].includes(platform) || (person != null && (typeof person !== "string" || !person || person.length > 60))) return { error: "That couldn't be found." };
+  const key = `send:${platform}${person ? `@${person}` : ""}`;
+  try {
+    if (value == null) await prisma.$executeRaw`UPDATE "Lead" SET "picks" = "picks" - ${key}::text WHERE id = ${id}`;
+    else if (value === "on" || value === "off") await prisma.$executeRaw`UPDATE "Lead" SET "picks" = jsonb_set(coalesce("picks", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(value)}::jsonb, true) WHERE id = ${id}`;
+    else return { error: "That couldn't be saved." };
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
 // The address a person's emails go out from, set by hand (Abhishek, 10 Nov
 // 2026): for when the mail tracker didn't see it, or another one was used.
 // null goes back to the tracker's. person: a contact's id, or "_" for the lead.

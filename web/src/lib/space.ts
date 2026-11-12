@@ -557,12 +557,22 @@ export const leadPeople = (values: Record<string, unknown>, fields: Pick<FieldDa
 // greyed, with nothing to tap (Abhishek, 17 Oct 2026). No contact: open.
 export const hasChannel = (c: Contact | null, platform: string) => !c || c.channels.some((ch) => ch.kind === platform && !!ch.value.trim());
 
-// A day none of whose messages can go to this person (Day 2's Instagram for
-// someone with no Instagram): off for them, nothing in it to approve or fill
-// (Abhishek, 12 Nov 2026). Someone with no email, Instagram or LinkedIn at
-// all keeps every day, to be reached once one is added.
-export const dayOff = (on: Pick<MessageData, "channel">[], c: Contact | null) =>
-  !!c && ["email", "instagram", "linkedin"].some((p) => hasChannel(c, p)) && !on.some((m) => hasChannel(c, m.channel));
+// Whether a person's messages on a platform go out (Abhishek, 12 Nov 2026):
+// turned on or off by hand on the lead (a LinkedIn that won't accept, an
+// Instagram the team isn't using, or a podcast's own Instagram for someone
+// with none), kept in its picks as "send:instagram@c2"; else whether they
+// have that handle
+export const sendKey = (platform: string, c: Contact | null) => forContact(`send:${platform}`, c);
+export function sendsOn(picks: Record<string, string>, c: Contact | null, platform: string): boolean {
+  const set = picks[sendKey(platform, c)];
+  return set ? set === "on" : hasChannel(c, platform);
+}
+// A day none of whose messages go to this person (Day 2's Instagram for
+// someone with no Instagram, or with it turned off): off for them, nothing in
+// it to approve or fill. Someone with no email, Instagram or LinkedIn at all
+// keeps every day, to be reached once one is added, unless it's turned off.
+export const dayOff = (on: Pick<MessageData, "channel">[], c: Contact | null, picks: Record<string, string> = {}) =>
+  !on.some((m) => sendsOn(picks, c, m.channel)) && (["email", "instagram", "linkedin"].some((p) => hasChannel(c, p)) || on.some((m) => picks[sendKey(m.channel, c)] === "off"));
 
 // A pick (or anything kept per day) belongs to one contact: "day-1@c2"
 export const forContact = (key: string, contact: Contact | null) => (contact ? `${key}@${contact.id}` : key);
@@ -657,12 +667,12 @@ export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body"
 // vars: the lead's values as leadVars has them (what the Fill in form shows)
 export type LeadState = { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined>; vars: Record<string, string> };
 export function dayLeft<M extends Pick<MessageData, "id" | "name" | "channel" | "subject" | "body">>(on: M[], key: string, lead: LeadState, p: Prepared, contact: Contact | null, opened: boolean) {
-  if (dayOff(on, contact)) return { due: [] as M[], approve: [] as M[], fill: [] as string[] };
+  if (dayOff(on, contact, lead.picks)) return { due: [] as M[], approve: [] as M[], fill: [] as string[] };
   const chosen = [...new Set(on.map((m) => m.channel))].map((channel) => {
     const options = on.filter((m) => m.channel === channel);
     return chosenFor(options, lead.picks, key, contact, opened) ?? options[0];
   });
-  const sendable = chosen.filter((m) => hasChannel(contact, m.channel));
+  const sendable = chosen.filter((m) => sendsOn(lead.picks, contact, m.channel));
   const due = sendable.length ? sendable : chosen;
   return {
     due,

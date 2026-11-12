@@ -3,8 +3,8 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff } from "@/lib/space";
-import { approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn } from "@/lib/space";
+import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
@@ -90,7 +90,8 @@ export function Messages({
   // a day's message (or the opener) picked here, ahead of the save
   const [picked, setPicked] = useState<Record<string, string | null>>({});
   const pickOf = (key: string) => (key in picked ? picked[key] : (lead.picks?.[key] ?? null));
-  const picks = { ...(lead.picks ?? {}), ...Object.fromEntries(Object.entries(picked).filter((e): e is [string, string] => !!e[1])) };
+  // a pick taken off here (null) is gone, as pickOf has it
+  const picks = Object.fromEntries(Object.entries({ ...(lead.picks ?? {}), ...picked }).filter((e): e is [string, string] => !!e[1]));
   // the lead's own wording with what's been saved here since it loaded (null: put back)
   const merged: Prepared | null = prepared ? { ...prepared, drafts: Object.fromEntries(Object.entries({ ...prepared.drafts, ...mine }).filter((e): e is [string, Draft] => !!e[1])) } : null;
   // a lead with more than one person: each has their own copy of a message, an
@@ -126,6 +127,21 @@ export function Messages({
     setError(null);
     setPicked((p) => ({ ...p, [key]: messageId }));
     const res = await pickMessage(lead.id, key, messageId).catch(() => ({ error: OFFLINE }));
+    if (res.error) {
+      setPicked((p) => ({ ...p, [key]: before }));
+      return setError(res.error);
+    }
+    onSaved();
+  }
+  // a platform turned on or off for the person (lib/space sendsOn); back to as their handles have it, it's taken off
+  async function toggleSend(platform: string) {
+    const key = sendKey(platform, person);
+    const next = !sendsOn(picks, person, platform);
+    const value = next === hasChannel(person, platform) ? null : next ? "on" : "off";
+    const before = pickOf(key);
+    setError(null);
+    setPicked((p) => ({ ...p, [key]: value }));
+    const res = await setSendOn(lead.id, platform, person?.id ?? null, value).catch(() => ({ error: OFFLINE }));
     if (res.error) {
       setPicked((p) => ({ ...p, [key]: before }));
       return setError(res.error);
@@ -242,7 +258,9 @@ export function Messages({
     if (el && fit < 3 && el.scrollWidth > el.clientWidth + 1) setFit((f) => f + 1);
   }, [fit, fitFor]);
   // a day nothing on it reaches the person on is off for them (lib/space dayOff): never the one shown
-  const offFor = (x: SequenceTab) => x.day != null && dayOff(x.messages, person);
+  const offFor = (x: SequenceTab) => x.day != null && dayOff(x.messages, person, picks);
+  // the platforms the days go out on, each turned on or off for the person above the days
+  const platforms = (["email", "instagram", "linkedin"] as const).filter((p) => tabs.some((x) => x.day != null && x.messages.some((m) => m.channel === p)));
   const shownTab = [tabs.find((t) => t.key === tab), tabs.find((t) => t.when === "now"), tabs.find((t) => t.when === "next"), ...tabs].find((x) => x && !offFor(x)) ?? tabs[0];
   // sent from a template since deleted: nowhere else to show them
   const orphans = (sent ?? []).filter((x) => !board.messages.some((m) => m.id === x.messageId));
@@ -284,7 +302,7 @@ export function Messages({
   // and the fill-ins its wording of them uses are filled
   const openerMessages = prepared ? openerOwn(prepared.openers) : new Set<string>();
   const openersOwn = tabs.flatMap((x) => chosenOn(x, person)).filter((m) => openerMessages.has(m.id));
-  const openersSendable = openersOwn.filter((m) => hasChannel(person, m.channel));
+  const openersSendable = openersOwn.filter((m) => sendsOn(picks, person, m.channel));
   const openersDue = openersSendable.length ? openersSendable : openersOwn;
   const openerLeft = (i: number) => openersDue.filter((m) => !approvalOf(keyOf(m.id, person, i)));
   const openerFills = (i: number) => emptyFills(openersSendable, wording, { ...picks, opener: String(i) }, varsFor(vars, person));
@@ -453,6 +471,23 @@ export function Messages({
                 </div>
               </div>
             )}
+            {/* each platform on or off for the person (Abhishek, 12 Nov 2026): a day with nothing on goes off */}
+            {platforms.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted">Send on</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {platforms.map((p) => {
+                    const on = sendsOn(picks, person, p);
+                    return (
+                      <button key={p} type="button" aria-pressed={on} onClick={() => toggleSend(p)} className={`chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-[color,background-color,border-color] duration-200 ${on ? "" : "text-muted"}`}>
+                        <span className="flex shrink-0">{CHANNEL_ICON[p]}</span>
+                        {PLATFORM_NAME[p]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               {/* a little room around the strip, so the lit day's ring is never clipped */}
               <div ref={strip} role="tablist" aria-label="Days" className={`-m-1 flex min-w-0 flex-1 items-center p-1 ${fit === 3 ? "flex-wrap gap-1" : "overflow-hidden"}`}>
@@ -474,7 +509,7 @@ export function Messages({
                         aria-selected={on}
                         disabled={off}
                         onClick={() => setTab(x.key)}
-                        title={off ? `${x.title}: no ${listed([...new Set(x.messages.map((m) => PLATFORM_NAME[m.channel as Marked] ?? m.channel))])} for ${person?.name}` : ready ? `${x.title}: approved` : progress.done < progress.due ? `${x.title}: ${todo(progress.fill, progress.approve)}` : x.sub}
+                        title={off ? `${x.title}: off for ${person?.name ?? "this lead"}` : ready ? `${x.title}: approved` : progress.done < progress.due ? `${x.title}: ${todo(progress.fill, progress.approve)}` : x.sub}
                         className={`flex shrink-0 items-center gap-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow,opacity] duration-200 ${short ? (fit >= 2 ? "p-0.5" : "p-1") : "py-1 pr-3.5 pl-1.5"} ${
                           off ? "cursor-not-allowed text-muted opacity-40" : on ? "bg-accent/[0.14] text-foreground ring-1 ring-accent/40" : `hover:bg-white/[0.04] hover:text-foreground ${x.when === "done" && !ready ? "text-muted/70" : "text-muted"}`
                         }`}
