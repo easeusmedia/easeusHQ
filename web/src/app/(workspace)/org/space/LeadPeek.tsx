@@ -435,10 +435,10 @@ function LeadPage({
           {/* who handed it to whom is in History, with every hand-off (not repeated up here) */}
         </span>
         </div>
-        <span className="flex shrink-0 items-center gap-1.5">
-          {/* the same pill as the stage and assignee beside it, lit while open, on their line */}
-          <button type="button" onClick={onHistory} aria-expanded={history} className={chip(history)}>
-            <ChevronRight size={13} className={`shrink-0 transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
+        {/* as tall as the stage and assignee beside it, so History sits on their line */}
+        <span className="flex h-[30px] shrink-0 items-center gap-1">
+          <button type="button" onClick={onHistory} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-foreground">
+            <ChevronRight size={13} className={`transition-transform duration-300 ${history ? "rotate-90" : ""}`} />
             History
           </button>
           <button
@@ -446,7 +446,7 @@ function LeadPage({
             onClick={onFull}
             aria-label={full ? "Exit full screen" : "Full screen"}
             title={full ? "Exit full screen" : "Full screen"}
-            className="grid size-[30px] shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            className="shrink-0 rounded-md p-1.5 text-muted hover:bg-hover hover:text-foreground"
           >
             {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
