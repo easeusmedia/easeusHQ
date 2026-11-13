@@ -119,6 +119,9 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   }
   // its kind of work decides how it moves and whose department it's in
   const { workflow, teamId } = await placeTask(tagIds, assignedToId || null, String(formData.get("roleId") ?? "") || undefined, title.trim());
+  // a to-do (no Type) with nobody picked is its maker's own: on no board and
+  // in nobody's My tasks it was made and never seen (Abhishek, 13 Nov 2026)
+  const owner = assignedToId || (workflow === "todo" ? viewer.id : null);
 
   const task = await prisma.task.create({
     // sortOrder: Date.now() puts new cards after every existing one (which
@@ -134,7 +137,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       postDate: postDateInput && !internal ? new Date(postDateInput) : null,
       // hidden from the assigned editor until this date — see the schema comment
       scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
-      assignedToId: assignedToId || null,
+      assignedToId: owner,
       rawLink,
       referenceLink,
       editingNotes,
