@@ -115,7 +115,7 @@ export function NewTaskRow({
     dialogRef.current?.close();
   }
   const [more, setMore] = useState(false);
-  const [problem, setProblem] = useState<"title" | "client" | null>(null);
+  const [problem, setProblem] = useState<"title" | "client" | "type" | null>(null);
 
   const clients = useMemo(() => {
     const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
@@ -147,6 +147,9 @@ export function NewTaskRow({
       return;
     }
     if (!f.clientId) return setProblem("client");
+    // the Production board's work has a Type, which puts it in Queued: with
+    // none it was a to-do, on no board (Abhishek, 13 Nov 2026)
+    if (taskTags.length && !f.tagIds.length) return setProblem("type");
     setProblem(null);
     const data = new FormData();
     data.set("title", f.title);
@@ -169,6 +172,8 @@ export function NewTaskRow({
       ? "Please give it a title."
       : problem === "client"
         ? "Pick the client it's for."
+        : problem === "type"
+          ? "Pick the type of work (Reel, Trailer, Thumbnail…)."
         : newProject.error ?? state.error ?? null;
   const hidden = [f.rawLink, f.scheduledFor, f.internal].filter(Boolean).length;
 
@@ -294,13 +299,18 @@ export function NewTaskRow({
               />
             )}
             {taskTags.length > 0 && (
-              <TagPill
-                tags={taskTags}
-                picked={f.tagIds}
-                onChange={(ids) => set({ tagIds: ids })}
-                internal={f.internal}
-                onInternalHint={(v) => set({ internal: v })}
-              />
+              <span className={`rounded-full ${problem === "type" ? "ring-1 ring-red-400/60" : ""}`}>
+                <TagPill
+                  tags={taskTags}
+                  picked={f.tagIds}
+                  onChange={(ids) => {
+                    set({ tagIds: ids });
+                    if (problem === "type" && ids.length) setProblem(null);
+                  }}
+                  internal={f.internal}
+                  onInternalHint={(v) => set({ internal: v })}
+                />
+              </span>
             )}
             <button
               type="button"
