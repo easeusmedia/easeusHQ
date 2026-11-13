@@ -58,6 +58,7 @@ function friendlyError(message: string): string {
 export function Board({
   tasks,
   projects,
+  clients,
   editors,
   actingUserId,
   actingRole,
@@ -68,6 +69,8 @@ export function Board({
 }: {
   tasks: TaskCardData[];
   projects: Project[];
+  // a new task's clients, when every current one is offered
+  clients?: { id: string; name: string }[];
   editors: Editor[];
   actingUserId: string;
   actingRole: Role;
@@ -344,7 +347,7 @@ export function Board({
         }}
       >
         {addRow && (
-          <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" />
+          <NewTaskRow projects={projects} clients={clients} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} trigger="row" />
         )}
         {columnTasks.map((task) => (
           <Fragment key={task.id}>
@@ -519,7 +522,7 @@ export function Board({
             header: stageHeader(col),
             body: (
               <section className="flex min-w-0 flex-1 flex-col gap-3">
-                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
+                {col.status === "queued" && canCreate && <NewTaskRow projects={projects} clients={clients} editors={editors} taskTags={taskTags} canCreateProject={actingRole !== "employee"} />}
                 {dropZone(col)}
               </section>
             ),

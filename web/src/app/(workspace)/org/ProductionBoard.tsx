@@ -5,7 +5,7 @@ import { isAbhishekOrAdmin } from "@/lib/actingUser";
 // one shared definition of "not delivered yet" — this page used to keep
 // its own copy, which silently dropped a new status from the board
 import { LIVE_TASK, type Role } from "@/lib/workflow";
-import { assigneeWhere, buildsDepartment, effectiveRole, isFounder, isMember, runsProduction, visibleClientWhere, visibleTagWhere } from "@/lib/scope";
+import { assigneeWhere, buildsDepartment, effectiveRole, isFounder, isMember, runsProduction, visibleTagWhere } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { BoardViews } from "../BoardViews";
@@ -19,10 +19,12 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
   if (!viewer) redirect("/login");
   const member = isMember(viewer);
 
-  const [users, rawProjects, tasks, kinds, held] = await Promise.all([
+  const [users, rawProjects, tasks, kinds, held, clients] = await Promise.all([
     getAllUsers(),
+    // a new task can be for any current client, an editor's too (Abhishek,
+    // 13 Nov 2026); their Clients section still shows only theirs
     prisma.project.findMany({
-      where: { client: { status: "current", ...visibleClientWhere(viewer) } },
+      where: { client: { status: "current" } },
       // only what a task form's project list shows
       select: { id: true, name: true, type: true, client: { select: PUBLIC_CLIENT_SELECT } },
       // newest first within each client: a task form lists a client's
@@ -43,6 +45,8 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
     prisma.taskTag.findMany({ where: visibleTagWhere(viewer), orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     // how the roles this person holds move: which queues are theirs
     prisma.jobTitle.findMany({ where: { holders: { some: { id: viewer.id } } }, select: { workflow: true } }),
+    // every current client, one with no project yet too (its task goes on its catch-all)
+    prisma.client.findMany({ where: { status: "current" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   // a project set up before names were required can still have "" — fall
   // back to its type so the new/reassign-task dropdown never shows a blank
@@ -83,7 +87,7 @@ export async function ProductionBoard({ scope, id, name }: { scope?: string; id:
 
   const canSyncNotion = isAbhishekOrAdmin(actingUser);
   const tagOptions = kinds.map((k) => ({ id: k.id, name: k.name, clientFacing: k.clientFacing, workflow: k.workflow }));
-  const env = { projects, editors, actingUserId: actingUser.id, actingRole: effectiveRole(actingUser) as Role };
+  const env = { projects, clients, editors, actingUserId: actingUser.id, actingRole: effectiveRole(actingUser) as Role };
 
   return (
     <>

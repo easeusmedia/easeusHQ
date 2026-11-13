@@ -10,6 +10,8 @@ import type { Role } from "@/lib/workflow";
 type Props = {
   tasks: TaskCardData[];
   projects: { id: string; name: string; client: { id: string; name: string } }[];
+  // a new task's clients: every current one
+  clients?: { id: string; name: string }[];
   editors: { id: string; name: string }[];
   actingUserId: string;
   actingRole: Role;

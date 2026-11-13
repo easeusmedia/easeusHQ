@@ -29,6 +29,7 @@ const initialState: TaskFormState = {};
 // this client, this editor".
 export function NewTaskRow({
   projects,
+  clients: allClients,
   editors,
   defaultProjectId,
   taskTags = [],
@@ -38,6 +39,8 @@ export function NewTaskRow({
   // the board column's button, or a list's first row
   trigger?: "button" | "row";
   projects: Project[];
+  // every client a task can be for, one with no project yet too; else the projects' clients
+  clients?: { id: string; name: string }[];
   editors: Editor[];
   taskTags?: TaskTagOption[];
   // only ops can make a project; an editor isn't offered what would refuse them
@@ -118,9 +121,10 @@ export function NewTaskRow({
   const [problem, setProblem] = useState<"title" | "client" | "type" | null>(null);
 
   const clients = useMemo(() => {
+    if (allClients) return allClients;
     const byId = new Map(projects.map((p) => [p.client.id, p.client.name]));
     return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [projects]);
+  }, [projects, allClients]);
   const newProject = useNewProject(f.clientId, (id) => set({ projectId: id }));
   const clientProjects = newProject.withMade(projects).filter((p) => p.client.id === f.clientId);
 
