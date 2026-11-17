@@ -11,7 +11,7 @@ import { Pulse } from "./Pulse";
 import { Spotlight } from "./Spotlight";
 import { ApprovalWatcher } from "./ApprovalWatcher";
 import { FeedbackWatcher } from "./FeedbackWatcher";
-import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients, connectsClaude, sidesOf } from "@/lib/scope";
+import { canEditPeople, isFounder, isMember, LEVEL_LABEL, runsClients, worksTheBoard, seesClient, seesClients, connectsClaude, sidesOf, seesTeamWork } from "@/lib/scope";
 import { ViewAsBanner } from "./ViewAsBanner";
 import { getViewer } from "@/lib/viewer";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -136,6 +136,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       <Sidebar
         isOps={isOps}
         isFounder={isFounder(viewer)}
+        seesTeamWork={seesTeamWork(viewer)}
         // the departments they may open under Organization: Level 1 all, others their own
         departments={departmentTree}
         viewAsPeople={viewAsPeople}

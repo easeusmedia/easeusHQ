@@ -1,13 +1,13 @@
 "use server";
 
 import { getViewer } from "@/lib/viewer";
-import { isFounder } from "@/lib/scope";
+import { seesTeamWork } from "@/lib/scope";
 import { completedPage, overview } from "./data";
 
-// Team work is Level 1's, as History was: every call checks again
+// Team work is Level 1's and Admin & Technical's: every call checks again
 async function levelOne() {
   const viewer = await getViewer();
-  return viewer && isFounder(viewer) ? viewer : null;
+  return viewer && seesTeamWork(viewer) ? viewer : null;
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;

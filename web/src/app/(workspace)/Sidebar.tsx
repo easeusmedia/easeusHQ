@@ -216,6 +216,7 @@ export function ClientFace({ client, size }: { client: { name: string; logo?: st
 export function Sidebar({
   isOps = false,
   isFounder = false,
+  seesTeamWork = false,
   showClients = true,
   departments = [],
   viewAsPeople = null,
@@ -235,6 +236,8 @@ export function Sidebar({
   isOps?: boolean;
   // a Founder: Home, and Performance (grading is theirs)
   isFounder?: boolean;
+  // Team work: Level 1 and Admin & Technical
+  seesTeamWork?: boolean;
   // the Clients item (not for Sales alone)
   showClients?: boolean;
   // whether the Board (Production's queues) is theirs to see
@@ -350,8 +353,8 @@ export function Sidebar({
     };
   }
 
-  // Team work is Level 1's; Organization only with a department to open; Clients not for Sales alone
-  const main = MAIN.filter((i) => (opsDepartments.some((d) => d.slug === "production") || i.href !== "/org/production") && (isFounder || i.href !== "/team-work") && (showClients || i.href !== "/clients"));
+  // Team work is Level 1's and Admin & Technical's; Organization only with a department to open; Clients not for Sales alone
+  const main = MAIN.filter((i) => (opsDepartments.some((d) => d.slug === "production") || i.href !== "/org/production") && (seesTeamWork || i.href !== "/team-work") && (showClients || i.href !== "/clients"));
   // Sales (Abhishek, 3 Nov 2026): its dashboard, each of its pages (Leads,
   // Outreach), Email; for Sales alone, My tasks with them
   const salesGroup = {

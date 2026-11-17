@@ -14,6 +14,7 @@ import {
   sidesOf,
   addsPages,
   seesEveryTeam,
+  seesTeamWork,
   visibleClientWhere,
   visibleTagWhere,
   worksTheBoard,
@@ -129,4 +130,15 @@ test("adding a portal, board or Leads tab: whoever builds, and Sales' Level 2 in
   assert.equal(addsPages({ ...pankaj, role: "employee" }, SALES.id), false);
   assert.equal(addsPages(pankaj, PROD.id), false);
   assert.equal(addsPages(jyotsna, SALES.id), false);
+});
+
+test("Team work: Level 1 and anyone in Admin & Technical", () => {
+  const AT = { id: "t-at", slug: "admin-technical" };
+  assert.equal(seesTeamWork(ashmit), true);
+  assert.equal(seesTeamWork(abhishek), true);
+  assert.equal(seesTeamWork({ ...jyotsna, departments: [CS, AT] }), true);
+  assert.equal(seesTeamWork({ ...sparsh, departments: [AT] }), true);
+  assert.equal(seesTeamWork(jyotsna), false);
+  assert.equal(seesTeamWork(pankaj), false);
+  assert.equal(seesTeamWork(sparsh), false);
 });

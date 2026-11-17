@@ -96,6 +96,12 @@ export function setsUp(user: Pick<Viewer, "role" | "email" | "departments">): bo
   return isFounder(user) || (isLead(user) && inDepartment(user, DEPT.adminTechnical));
 }
 
+// Team work (everyone's current and past work): Level 1, and anyone in
+// Admin & Technical (Abhishek, 17 Nov 2026)
+export function seesTeamWork(user: Pick<Viewer, "role" | "email" | "departments">): boolean {
+  return isFounder(user) || inDepartment(user, DEPT.adminTechnical);
+}
+
 // A department's own pages (lib/space.ts): everyone in the department works
 // them (adds, moves and deletes leads, with a reason); only whoever sets the
 // app up (setsUp) builds them: names and adds or deletes their sections,

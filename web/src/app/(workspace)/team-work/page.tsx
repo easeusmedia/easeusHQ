@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { getAllUsers, onStaff } from "@/lib/users";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
-import { isFounder } from "@/lib/scope";
+import { seesTeamWork } from "@/lib/scope";
 import { dayOf } from "@/lib/editorKpi";
 import { completedCount, currentWork, currentWorkOf } from "./data";
 import { PeopleWork, PersonWork } from "./PersonWork";
@@ -14,12 +14,12 @@ export const dynamic = "force-dynamic";
 // person once, whatever departments they're in, with the tasks they're on
 // now by name (Abhishek, 26 Oct 2026: a count said too little). Opening
 // someone (?person=) shows what they're working on and everything they've
-// finished. Level 1's, as History was.
+// finished. Level 1's and Admin & Technical's (scope seesTeamWork).
 export default async function TeamWorkPage({ searchParams }: { searchParams: Promise<{ person?: string }> }) {
   const { person: personId } = await searchParams;
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
-  if (!isFounder(viewer)) redirect("/home");
+  if (!seesTeamWork(viewer)) redirect("/home");
 
   const [users, titles] = await Promise.all([getAllUsers(), prisma.jobTitle.findMany({ select: { id: true, name: true } })]);
   // the title everyone sees, else their role's name, as People shows it
