@@ -257,7 +257,7 @@ function LeadPage({
   }
   async function pickStage(to: string) {
     if (to === stageId) return;
-    if (moveNeedsReason(order, stageId, to)) return ask(to);
+    if (moveNeedsReason(board.stages, stageId, to)) return ask(to);
     const from = stageId;
     setStageId(to);
     const res = await run(moveLead(id, to, lastInStage()), () => setStageId(from));
@@ -345,7 +345,7 @@ function LeadPage({
     if (!canGo(ready)) return;
     const from = stageId;
     setStageId(ready.id);
-    run(moveLead(id, ready.id, lastInStage(), moveNeedsReason(order, from, ready.id) ? "Every message approved." : undefined), () => setStageId(from));
+    run(moveLead(id, ready.id, lastInStage(), moveNeedsReason(board.stages, from, ready.id) ? "Every message approved." : undefined), () => setStageId(from));
   }
   // what each tab says: the name (else the first address), and a number when two share one
   const seenNames = new Map<string, number>();

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff } from "./space.ts";
 
-const order = ["shortlist", "day1", "day2", "day3", "dead"];
+const order = ["shortlist", "day1", "day2", "day3", "dead"].map((id) => ({ id, name: id }));
 
 test("one step forward is free", () => {
   assert.equal(moveNeedsReason(order, "day1", "day2"), false);
@@ -21,6 +21,14 @@ test("skipping ahead needs a reason", () => {
 test("going back needs a reason, even one step", () => {
   assert.equal(moveNeedsReason(order, "day2", "day1"), true);
   assert.equal(moveNeedsReason(order, "dead", "shortlist"), true);
+});
+
+test("the last day into Dead is free; Dead from an earlier day still asks", () => {
+  const amp = ["Write-up done", "Day 1", "Day 7", "Day 8 · Email 4", "Audit sent", "Replied", "Parked for later", "Dead"].map((name) => ({ id: name, name }));
+  assert.equal(moveNeedsReason(amp, "Day 8 · Email 4", "Dead"), false);
+  assert.equal(moveNeedsReason(amp, "Day 7", "Dead"), true);
+  assert.equal(moveNeedsReason(amp, "Replied", "Dead"), true);
+  assert.equal(moveNeedsReason(amp, "Day 8 · Email 4", "Replied"), true);
 });
 
 test("an unknown stage needs a reason", () => {

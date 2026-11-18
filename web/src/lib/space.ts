@@ -237,12 +237,15 @@ export type SpaceCard = { id: string; name: string; slug: string; kind: SpaceKin
 
 // ---- The move rule ----
 // One step forward is free. Going back, or jumping ahead past a stage,
-// needs a reason (it stays on the lead's record).
-export function moveNeedsReason(order: string[], from: string, to: string): boolean {
+// needs a reason (it stays on the lead's record). The sequence's last day
+// into Dead is where it ends, not a skip (Abhishek, 18 Nov 2026).
+export function moveNeedsReason(stages: Pick<StageData, "id" | "name">[], from: string, to: string): boolean {
   if (from === to) return false;
-  const a = order.indexOf(from);
-  const b = order.indexOf(to);
+  const a = stages.findIndex((s) => s.id === from);
+  const b = stages.findIndex((s) => s.id === to);
   if (a < 0 || b < 0) return true;
+  const last = Math.max(...stages.map((s) => dayOf(s.name) ?? -1));
+  if (isDead(stages[b].name) && last > 0 && dayOf(stages[a].name) === last) return false;
   return b !== a + 1;
 }
 

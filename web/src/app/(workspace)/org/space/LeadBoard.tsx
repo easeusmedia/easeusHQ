@@ -246,7 +246,7 @@ export function LeadBoard({
       return;
     }
     const from = stages.find((s) => s.id === lead.stageId);
-    if (from && moveNeedsReason(order, lead.stageId, stage.id)) return setAsking({ open: true, lead, from, to: stage, sortOrder, at: index });
+    if (from && moveNeedsReason(stages, lead.stageId, stage.id)) return setAsking({ open: true, lead, from, to: stage, sortOrder, at: index });
     move(id, stage.id, sortOrder, index).then((res) => {
       // the stages changed under us and this now skips one: ask after all
       if (res.needsReason && from) setAsking({ open: true, lead, from, to: stage, sortOrder, at: index });

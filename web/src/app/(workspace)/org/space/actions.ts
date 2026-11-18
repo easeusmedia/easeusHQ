@@ -888,7 +888,7 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
       );
       if (missing.length) return { error: unapprovedText(missing) };
     }
-    const needs = moveNeedsReason(stages.map((s) => s.id), lead.stageId, toStageId);
+    const needs = moveNeedsReason(stages, lead.stageId, toStageId);
     const why = (reason ?? "").trim().slice(0, 2000);
     if (needs && !why) return { needsReason: true, error: "Say why it's skipping ahead or going back." };
     await prisma.$transaction(async (tx) => {
