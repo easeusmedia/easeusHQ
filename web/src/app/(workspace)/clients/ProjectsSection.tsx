@@ -507,7 +507,8 @@ export function ProjectsSection({
                     }
                   }}
                   aria-expanded={isOpen}
-                  className="group/inv flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60"
+                  // focus shows as the hover wash: a square outline is cut off by the card's rounded corner
+                  className="group/inv flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60 focus-visible:bg-surface-2/60 focus-visible:outline-none!"
                 >
                   <ChevronRight
                     size={14}
