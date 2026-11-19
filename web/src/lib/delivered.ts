@@ -6,13 +6,28 @@ import { parseStageChange } from "./stages";
 // means no move was ever recorded here (it arrived from Notion already
 // delivered); each caller decides what that means for it.
 export async function deliveredAt(taskIds: string[]): Promise<Map<string, Date>> {
-  if (!taskIds.length) return new Map();
+  return (await lastMoves(taskIds)).get("delivered_and_uploaded") ?? new Map();
+}
+
+// When the editor's part was done (Team work, Abhishek, 19 Nov 2026): its
+// last move into Final export ready, else into Delivered
+export async function finishedAt(taskIds: string[]): Promise<Map<string, Date>> {
+  const moves = await lastMoves(taskIds);
+  return new Map([...(moves.get("delivered_and_uploaded") ?? []), ...(moves.get("final_export_ready") ?? [])]);
+}
+
+// each task's last move into each stage, by stage
+async function lastMoves(taskIds: string[]): Promise<Map<string, Map<string, Date>>> {
+  const by = new Map<string, Map<string, Date>>();
+  if (!taskIds.length) return by;
   const logs = await prisma.activityLog.findMany({
     where: { entity: "Task", entityId: { in: taskIds } },
     select: { entityId: true, action: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
-  const at = new Map<string, Date>();
-  for (const l of logs) if (parseStageChange(l.action)?.to === "delivered_and_uploaded") at.set(l.entityId, l.createdAt);
-  return at;
+  for (const l of logs) {
+    const to = parseStageChange(l.action)?.to;
+    if (to) by.set(to, (by.get(to) ?? new Map()).set(l.entityId, l.createdAt));
+  }
+  return by;
 }

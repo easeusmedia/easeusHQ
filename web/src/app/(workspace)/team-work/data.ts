@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { DEPT, isMember } from "@/lib/scope";
 import { LIVE_TASK, LIVE_WORK_TASK, workflowOf, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { STAGE, stageLabel } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { currentStatuses, inHand, pageOfDone, stagePhases, startOf } from "@/lib/history";
+import { CURRENT_STATUSES, FINISHED_STATUSES, pageOfDone, stagePhases, startOf } from "@/lib/history";
 import { taskRecord } from "@/lib/taskTrack";
-import { deliveredAt } from "@/lib/delivered";
+import { finishedAt } from "@/lib/delivered";
 import { dayOf } from "@/lib/editorKpi";
 import { handoffUnknown } from "@/lib/due";
 
@@ -90,29 +89,20 @@ const todoCard = (t: TodoRow, done: boolean): WorkCard => ({
   late: done && !!t.dueDate && dayOf(t.completedAt ?? t.updatedAt) > t.dueDate.toISOString().slice(0, 10),
 });
 
-// What each of these people is on now, as Home shows it, all of them in one
-// pass: the live client work and open to-dos are read once and shared out
-// to whoever holds each (its assignee and anyone brought onto it, each once),
-// so the people list and a person's page can't disagree. Client work counts
-// at the stages that go by whose task it is, as Home's onHome does: a Level
-// 3's only while it's with them, anyone else's until Final export ready. A
-// Level 3 in Production: only what's in hand (lib/history inHand), to-dos
-// too. Soonest due first.
+// What each of these people is on now, all of them in one pass: the live
+// client work short of Final export ready (lib/history CURRENT_STATUSES) and
+// open to-dos, read once and shared out to whoever holds each (its assignee
+// and anyone brought onto it, each once), so the people list and a person's
+// page can't disagree. Every level alike (Abhishek, 19 Nov 2026): an
+// editor's work waiting on approval, or set for a later day, is theirs too.
+// Soonest due first.
 export async function currentWorkOf(ids: string[]): Promise<Map<string, WorkCard[]>> {
   const holder = { OR: [{ assignedToId: { in: ids } }, { shares: { some: { userId: { in: ids } } } }] };
   const holders = { assignedToId: true, shares: { select: { userId: true } } } as const;
-  const [held, open, productionLevel3] = await Promise.all([
-    prisma.task.findMany({ where: { AND: [LIVE_TASK, holder] }, select: { ...TASK, ...holders, assignedTo: { select: { role: true } } } }),
+  const [tasks, open] = await Promise.all([
+    prisma.task.findMany({ where: { AND: [LIVE_TASK, holder, { status: { in: CURRENT_STATUSES } }] }, select: { ...TASK, ...holders } }),
     prisma.workTask.findMany({ where: { AND: [LIVE_WORK_TASK, holder] }, select: { ...TODO, ...holders } }),
-    prisma.user.findMany({ where: { role: "employee", departments: { some: { slug: DEPT.production } } }, select: { id: true } }),
   ]);
-  const editors = new Set(productionLevel3.map((u) => u.id));
-  const today = dayOf(new Date());
-  const tasks = held.filter((t) =>
-    t.assignedToId && editors.has(t.assignedToId)
-      ? inHand({ kind: "task", status: t.status, due: t.dueDate && !t.handedOffAt ? dayOf(t.dueDate) : null }, today)
-      : currentStatuses(!!t.assignedTo && isMember(t.assignedTo)).includes(t.status),
-  );
   const trail = await trails(tasks.map((t) => t.id));
   const by = new Map(ids.map((id) => [id, [] as WorkCard[]]));
   const holdersOf = (t: { assignedToId: string | null; shares: { userId: string }[] }) => new Set([t.assignedToId, ...t.shares.map((s) => s.userId)]);
@@ -122,8 +112,7 @@ export async function currentWorkOf(ids: string[]): Promise<Map<string, WorkCard
   }
   for (const t of open) {
     const card = todoCard(t, false);
-    const now = inHand({ kind: "work", status: t.status, due: card.due }, today);
-    for (const id of holdersOf(t)) if (id && (now || !editors.has(id))) by.get(id)?.push(card);
+    for (const id of holdersOf(t)) if (id) by.get(id)?.push(card);
   }
   for (const list of by.values()) list.sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.start.localeCompare(b.start));
   return by;
@@ -134,10 +123,11 @@ export async function currentWork(person: { id: string }): Promise<WorkCard[]> {
   return (await currentWorkOf([person.id])).get(person.id) ?? [];
 }
 
-// What counts as someone's finished work: all their delivered client work,
-// a paused or past client's too, since finished work is their record, and
-// to-dos made here (not Notion's)
-const doneTasks = (personId: string) => ({ assignedToId: personId, status: "delivered_and_uploaded" as const });
+// What counts as someone's finished work: their client work from Final
+// export ready on (their part done; Abhishek, 19 Nov 2026), a paused or past
+// client's too, since finished work is their record, and to-dos made here
+// (not Notion's)
+const doneTasks = (personId: string) => ({ assignedToId: personId, status: { in: FINISHED_STATUSES } });
 const doneTodos = (personId: string) => ({ assignedToId: personId, status: "done" as const, fromNotion: false });
 
 // How many they've finished in all, for the Completed tab before it's opened
@@ -154,9 +144,10 @@ export async function completedPage(personId: string, range: { from?: string; to
     prisma.task.findMany({ where: doneTasks(personId), select: { id: true, updatedAt: true } }),
     prisma.workTask.findMany({ where: doneTodos(personId), select: { id: true, completedAt: true, updatedAt: true } }),
   ]);
-  // finished when it was moved to Delivered, not at its last edit (a Drive
-  // link added a week later); its last edit only where no move was logged
-  const delivered = await deliveredAt(tasks.map((t) => t.id));
+  // finished when it was last moved to Final export ready (else Delivered),
+  // not at its last edit (a Drive link added a week later); its last edit
+  // only where no move was logged
+  const delivered = await finishedAt(tasks.map((t) => t.id));
   const { total, page } = pageOfDone(
     [...tasks.map((t) => ({ kind: "task" as const, id: t.id, at: delivered.get(t.id) ?? t.updatedAt })), ...todos.map((t) => ({ kind: "work" as const, id: t.id, at: t.completedAt ?? t.updatedAt }))],
     { ...range, offset, limit }
