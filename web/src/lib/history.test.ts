@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inHand, activeHours, CURRENT_STATUSES, FINISHED_STATUSES, filterHistory, median, onTime, pageOfDone, spanLabel, stagePhases, startOf, summarize, totals, turnaroundHours, windowful, type HistoryItem } from "./history.ts";
+import { inHand, activeHours, filterHistory, median, onTime, pageOfDone, spanLabel, stagePhases, startOf, summarize, totals, turnaroundHours, windowful, type HistoryItem } from "./history.ts";
 
 const h = (n: number) => new Date(Date.UTC(2026, 8, 1, 0, 0) + n * 3_600_000);
 const item = (over: Partial<HistoryItem> = {}): HistoryItem => ({
@@ -97,12 +97,6 @@ test("client work is on time if it reached the client by the due date, however l
 test("an import that arrived already with the client isn't scored either way", () => {
   // stamped with its own creation instant: nobody saw it reach the client
   assert.equal(onTime(item({ dueDate: h(10), createdAt: h(50), handedOffAt: h(50), completedAt: h(60) })), null);
-});
-
-test("Team work: current is open work short of Final export ready; finished is from there on", () => {
-  assert.ok(["queued", "editing", "sent_for_approval", "revision_requested", "sent_for_client_approval"].every((s) => CURRENT_STATUSES.includes(s as never)));
-  assert.ok(!CURRENT_STATUSES.includes("final_export_ready") && !CURRENT_STATUSES.includes("delivered_and_uploaded"));
-  assert.deepEqual(FINISHED_STATUSES, ["final_export_ready", "delivered_and_uploaded"]);
 });
 
 test("Team work: work starts at its first move into Editing, else its first move, else when it was made", () => {

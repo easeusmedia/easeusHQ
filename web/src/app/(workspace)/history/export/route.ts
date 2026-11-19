@@ -3,6 +3,7 @@ import { getSessionUserId } from "@/lib/auth";
 import { assigneeWhere, isFounder } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { STAGE, parseStageChange } from "@/lib/stages";
+import { PART_DONE } from "@/lib/workflow";
 import { displayTeam } from "@/lib/teams";
 import { exportRow, toCsv, unionRows, type ExportEvent } from "@/lib/taskExport";
 import {
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 
   const [tasks, workTasks, logs] = await Promise.all([
     prisma.task.findMany({
-      where: { ...scope, status: "delivered_and_uploaded" },
+      where: { ...scope, status: { in: PART_DONE } },
       orderBy: { updatedAt: "desc" },
       include: { assignedTo: person, tags: { select: { name: true } }, project },
     }),

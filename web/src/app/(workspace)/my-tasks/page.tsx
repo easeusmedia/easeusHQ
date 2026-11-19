@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getAllUsers, assignOptionsFor } from "@/lib/users";
 import { getViewer } from "@/lib/viewer";
 import { effectiveRole, worksTheBoard } from "@/lib/scope";
-import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { IN_PROGRESS, PART_DONE } from "@/lib/workflow";
+import { finishedAt } from "@/lib/delivered";
 import { dayOf } from "@/lib/editorKpi";
 import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { loadWork, ROLE_KINDS_SELECT, roleKinds } from "../workData";
@@ -27,14 +28,14 @@ export default async function MyTasksPage() {
     // open. Final export ready is your part done: it stays on the board's
     // queue for the upload (Abhishek, 23 Oct 2026)
     prisma.task.findMany({
-      where: { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }], status: { in: ACTIVE_STATUSES.filter((s) => s !== "final_export_ready") }, project: { client: { status: "current" } } },
+      where: { OR: [{ assignedToId: viewer.id }, { shares: { some: { userId: viewer.id } } }], status: { in: IN_PROGRESS }, project: { client: { status: "current" } } },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     }),
     // and everything they've ever finished, to look back over (and tick back if it was a slip)
     prisma.workTask.findMany({ where: { assignedToId: viewer.id, status: "done" }, select: { id: true, title: true, completedAt: true, updatedAt: true }, orderBy: { completedAt: "desc" } }),
     prisma.task.findMany({
-      where: { assignedToId: viewer.id, status: "delivered_and_uploaded" },
+      where: { assignedToId: viewer.id, status: { in: PART_DONE } },
       select: { id: true, title: true, updatedAt: true, workflow: true, project: { select: { client: { select: { name: true } } } } },
       orderBy: { updatedAt: "desc" },
     }),
@@ -47,6 +48,8 @@ export default async function MyTasksPage() {
     }),
     prisma.user.findUnique({ where: { id: viewer.id }, select: { notionWorkbookDbId: true, team: { select: { slug: true } } } }),
   ]);
+  // finished when their part was done (lib/workflow PART_DONE), not at the task's last edit
+  const finished = await finishedAt(doneTasks.map((t) => t.id));
 
   return (
     // TodoList sets its own width: narrow (compact) or across the page (full)
@@ -57,7 +60,7 @@ export default async function MyTasksPage() {
         tasks={tasks}
         done={[
           ...done.map((t) => ({ id: t.id, title: t.title, kind: "todo" as const, at: (t.completedAt ?? t.updatedAt).toISOString(), client: null })),
-          ...doneTasks.map((t) => ({ id: t.id, title: t.title, kind: "task" as const, workflow: t.workflow, at: t.updatedAt.toISOString(), client: t.project.client.name })),
+          ...doneTasks.map((t) => ({ id: t.id, title: t.title, kind: "task" as const, workflow: t.workflow, at: (finished.get(t.id) ?? t.updatedAt).toISOString(), client: t.project.client.name })),
         ].sort((a, b) => b.at.localeCompare(a.at))}
         // each role's kinds of work (workData.ts roleKinds)
         kinds={roleKinds(kinds)}

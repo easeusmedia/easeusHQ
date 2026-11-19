@@ -9,7 +9,8 @@ import { getViewer } from "@/lib/viewer";
 import { PeopleDirectory, type PersonRecord, type TaskEntry } from "./PeopleDirectory";
 import { totals, type HistoryItem } from "@/lib/history";
 import { indiaDay } from "@/lib/due";
-import { LIVE_TASK, LIVE_WORK_TASK } from "@/lib/workflow";
+import { LIVE_TASK, LIVE_WORK_TASK, PART_DONE } from "@/lib/workflow";
+import { finishedAt } from "@/lib/delivered";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { displayTeam } from "@/lib/teams";
@@ -86,8 +87,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
       select: { assignedToId: true, createdAt: true, completedAt: true, updatedAt: true, dueDate: true },
     }),
     prisma.task.findMany({
-      where: { assignedToId: { in: ids }, status: "delivered_and_uploaded", updatedAt: { gte: since } },
-      select: { assignedToId: true, createdAt: true, updatedAt: true, dueDate: true, handedOffAt: true, revisionCount: true },
+      // a move into it always updates the task, so nothing finished since is older than this
+      where: { assignedToId: { in: ids }, status: { in: PART_DONE }, updatedAt: { gte: since } },
+      select: { id: true, assignedToId: true, createdAt: true, updatedAt: true, dueDate: true, handedOffAt: true, revisionCount: true },
     }),
   ]);
 
@@ -136,13 +138,16 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
       })),
   ];
 
+  // finished when their part was done (lib/workflow PART_DONE), within the 30 days
+  const finished = await finishedAt(deliveredClient.map((t) => t.id));
+  const doneClient = deliveredClient.map((t) => ({ ...t, at: finished.get(t.id) ?? t.updatedAt })).filter((t) => t.at >= since);
   // the last 30 days, scored the way History scores them (lib/history.ts)
   const performanceFor = (id: string) => {
     const base = { id, kind: "client" as const, title: "", personId: id, person: "", team: null, client: null, project: null, tags: [], startedAt: null };
     const items: HistoryItem[] = [
-      ...deliveredClient
+      ...doneClient
         .filter((t) => t.assignedToId === id)
-        .map((t) => ({ ...base, createdAt: t.createdAt, completedAt: t.updatedAt, dueDate: t.dueDate, handedOffAt: t.handedOffAt, revisions: t.revisionCount })),
+        .map((t) => ({ ...base, createdAt: t.createdAt, completedAt: t.at, dueDate: t.dueDate, handedOffAt: t.handedOffAt, revisions: t.revisionCount })),
       ...finishedWork
         .filter((t) => t.assignedToId === id)
         .map((t) => ({ ...base, kind: "internal" as const, createdAt: t.createdAt, completedAt: t.completedAt ?? t.updatedAt, dueDate: t.dueDate, handedOffAt: null, revisions: 0 })),

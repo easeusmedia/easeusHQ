@@ -60,6 +60,15 @@ export const ALL_STATUSES: TaskStatus[] = [
 // "active tasks" means the same number wherever it's shown
 export const ACTIVE_STATUSES: TaskStatus[] = ALL_STATUSES.filter((s) => s !== "delivered_and_uploaded");
 
+// Someone's part done (Abhishek, 23 Oct and 19 Nov 2026): Final export
+// ready, or Delivered. Their finished work counts from here wherever it's
+// counted (Team work, My tasks, Employees, the History export, Nyra), dated
+// by the move into it (lib/delivered finishedAt), never by the task's last
+// edit. Delivered alone is the client's side: what has reached them.
+export const PART_DONE: TaskStatus[] = ["final_export_ready", "delivered_and_uploaded"];
+// What someone is still working on: open work short of their part done
+export const IN_PROGRESS: TaskStatus[] = ACTIVE_STATUSES.filter((s) => !PART_DONE.includes(s));
+
 // Live work, wherever it's listed: not shipped, and for a current client. A
 // client put on hold takes its unfinished tasks off every board and profile
 // with it. Someone's own work with no project is always theirs to finish.

@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { indiaDay } from "@/lib/due";
 import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
-import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, type TaskStatus } from "@/lib/workflow";
+import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, PART_DONE, type TaskStatus } from "@/lib/workflow";
+import { finishedAt } from "@/lib/delivered";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { ENTRY_KINDS, periodFrom } from "@/lib/editorKpi";
@@ -187,11 +188,15 @@ async function editorLine(id: string, name: string, month: string) {
 async function person({ who }: { who: string }) {
   const p = await findPerson(who);
   if (!("id" in p)) return notFound("person", p);
-  const [open, work, done30] = await Promise.all([
+  const since = new Date(Date.now() - 30 * 86_400_000);
+  const [open, work, recent] = await Promise.all([
     prisma.task.findMany({ where: { assignedToId: p.id, ...LIVE_TASK }, include: TASK_INCLUDE, orderBy: { dueDate: "asc" } }),
     prisma.workTask.findMany({ where: { assignedToId: p.id, ...LIVE_WORK_TASK }, include: { assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } } }),
-    prisma.task.count({ where: { assignedToId: p.id, status: "delivered_and_uploaded", updatedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } }),
+    // their part done (lib/workflow PART_DONE); a move into it always updates the task
+    prisma.task.findMany({ where: { assignedToId: p.id, status: { in: PART_DONE }, updatedAt: { gte: since } }, select: { id: true, updatedAt: true } }),
   ]);
+  const finished = await finishedAt(recent.map((t) => t.id));
+  const done30 = recent.filter((t) => (finished.get(t.id) ?? t.updatedAt) >= since).length;
   const record = [
     `${ref(p.id)} · ${p.name} · ${p.jobTitle?.name ?? "no position"} · ${displayTeam(p)?.name ?? "no department"} · access ${p.role} · ${p.employment}`,
     [
@@ -210,7 +215,7 @@ async function person({ who }: { who: string }) {
   return [
     ...record.filter(Boolean),
     `Open now (${now.length}): ${now.length ? `\n${now.slice(0, 12).join("\n")}` : "nothing"}${more(now.length - 12)}`,
-    `Client videos delivered in the last 30 days: ${done30}`,
+    `Client videos finished (Final export ready or delivered) in the last 30 days: ${done30}`,
     kpi ?? "",
   ]
     .filter(Boolean)
@@ -238,13 +243,19 @@ async function tasks(input: { state?: string; person?: string; client?: string; 
 
   if (state === "done") {
     const [t, w] = await Promise.all([
-      prisma.task.findMany({ where: { ...who, ...inClient, status: "delivered_and_uploaded", ...(range ? { updatedAt: range } : {}) }, include: TASK_INCLUDE, orderBy: { updatedAt: "desc" }, take: 60 }),
+      // their part done (lib/workflow PART_DONE); a move into it always updates the task, so the range's start holds
+      prisma.task.findMany({ where: { ...who, ...inClient, status: { in: PART_DONE }, ...(range?.gte ? { updatedAt: { gte: range.gte } } : {}) }, include: TASK_INCLUDE, orderBy: { updatedAt: "desc" }, take: 120 }),
       clientId
         ? Promise.resolve([])
         : prisma.workTask.findMany({ where: { ...who, status: "done", ...(range ? { completedAt: range } : {}) }, include: { assignedTo: { select: { name: true } }, project: { select: { client: { select: { name: true } } } } }, orderBy: { completedAt: "desc" }, take: 60 }),
     ]);
+    const finished = await finishedAt(t.map((x) => x.id));
+    const inRange = (at: Date) => (!range?.gte || at >= range.gte) && (!range?.lte || at <= range.lte);
     const rows = [
-      ...t.map((x) => ({ at: x.updatedAt, line: `${ref(x.id)} · ${x.title} · ${x.project.client.name} · ${x.assignedTo?.name ?? "unassigned"} · delivered ${d(x.updatedAt)}` })),
+      ...t.flatMap((x) => {
+        const at = finished.get(x.id) ?? x.updatedAt;
+        return inRange(at) ? [{ at, line: `${ref(x.id)} · ${x.title} · ${x.project.client.name} · ${x.assignedTo?.name ?? "unassigned"} · ${x.status === "delivered_and_uploaded" ? "delivered" : "final export ready"} ${d(at)}` }] : [];
+      }),
       ...w.map((x) => ({ at: x.completedAt ?? x.updatedAt, line: `${ref(x.id)} · ${x.title} · ${x.project?.client.name ?? "own work"} · ${x.assignedTo.name} · done ${d(x.completedAt ?? x.updatedAt)}` })),
     ].sort((a, b) => b.at.getTime() - a.at.getTime());
     return rows.length ? `${rows.length} finished:\n${rows.slice(0, MAX_ROWS).map((r) => r.line).join("\n")}${more(rows.length - MAX_ROWS)}` : "Nothing finished matches.";

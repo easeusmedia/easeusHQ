@@ -1,4 +1,4 @@
-import type { TaskStatus } from "./workflow";
+import { PART_DONE, type TaskStatus } from "./workflow.ts";
 import { parseStageChange } from "./stages.ts";
 
 // The editor work export: one spreadsheet row per task, with the timings and
@@ -102,7 +102,7 @@ export function exportRow(
     Tags: t.tags.join(", "),
     "Internal (not a client deliverable)": t.internal ? "yes" : "no",
     "Current status": labels[t.status],
-    Finished: t.status === "delivered_and_uploaded" ? "yes" : "no",
+    Finished: PART_DONE.includes(t.status) ? "yes" : "no",
     "Created (IST)": ist(t.createdAt),
     "Due (IST)": ist(t.dueDate),
     "Editing started (IST)": ist(first("editing")),

@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { LIVE_TASK, LIVE_WORK_TASK, workflowOf, type TaskStatus, type Workflow } from "@/lib/workflow";
+import { IN_PROGRESS, LIVE_TASK, LIVE_WORK_TASK, PART_DONE, workflowOf, type TaskStatus, type Workflow } from "@/lib/workflow";
 import { STAGE, stageLabel } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
-import { CURRENT_STATUSES, FINISHED_STATUSES, pageOfDone, stagePhases, startOf } from "@/lib/history";
+import { pageOfDone, stagePhases, startOf } from "@/lib/history";
 import { taskRecord } from "@/lib/taskTrack";
 import { finishedAt } from "@/lib/delivered";
 import { dayOf } from "@/lib/editorKpi";
@@ -90,7 +90,7 @@ const todoCard = (t: TodoRow, done: boolean): WorkCard => ({
 });
 
 // What each of these people is on now, all of them in one pass: the live
-// client work short of Final export ready (lib/history CURRENT_STATUSES) and
+// client work short of Final export ready (lib/workflow IN_PROGRESS) and
 // open to-dos, read once and shared out to whoever holds each (its assignee
 // and anyone brought onto it, each once), so the people list and a person's
 // page can't disagree. Every level alike (Abhishek, 19 Nov 2026): an
@@ -100,7 +100,7 @@ export async function currentWorkOf(ids: string[]): Promise<Map<string, WorkCard
   const holder = { OR: [{ assignedToId: { in: ids } }, { shares: { some: { userId: { in: ids } } } }] };
   const holders = { assignedToId: true, shares: { select: { userId: true } } } as const;
   const [tasks, open] = await Promise.all([
-    prisma.task.findMany({ where: { AND: [LIVE_TASK, holder, { status: { in: CURRENT_STATUSES } }] }, select: { ...TASK, ...holders } }),
+    prisma.task.findMany({ where: { AND: [LIVE_TASK, holder, { status: { in: IN_PROGRESS } }] }, select: { ...TASK, ...holders } }),
     prisma.workTask.findMany({ where: { AND: [LIVE_WORK_TASK, holder] }, select: { ...TODO, ...holders } }),
   ]);
   const trail = await trails(tasks.map((t) => t.id));
@@ -127,7 +127,7 @@ export async function currentWork(person: { id: string }): Promise<WorkCard[]> {
 // export ready on (their part done; Abhishek, 19 Nov 2026), a paused or past
 // client's too, since finished work is their record, and to-dos made here
 // (not Notion's)
-const doneTasks = (personId: string) => ({ assignedToId: personId, status: { in: FINISHED_STATUSES } });
+const doneTasks = (personId: string) => ({ assignedToId: personId, status: { in: PART_DONE } });
 const doneTodos = (personId: string) => ({ assignedToId: personId, status: "done" as const, fromNotion: false });
 
 // How many they've finished in all, for the Completed tab before it's opened

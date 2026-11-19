@@ -11,7 +11,6 @@
 // per-person numbers) is arithmetic that can be tested on its own.
 
 import { handoffUnknown } from "./due.ts";
-import { ACTIVE_STATUSES, type TaskStatus } from "./workflow.ts";
 import { parseStageChange } from "./stages.ts";
 
 export type HistoryItem = {
@@ -197,14 +196,6 @@ export function totals(items: HistoryItem[]) {
 //
 // Everyone's work in one place, a person at a time: what they're on now and
 // everything they've finished, a window's worth at a time.
-
-// What someone is working on now, on Team work: every level's open client
-// work but Final export ready, which is their part done (23 Oct 2026). A
-// Level 3's too, waiting on approval or set for a later day (Abhishek, 19
-// Nov 2026: Narendra's work in production wasn't showing)
-export const CURRENT_STATUSES: TaskStatus[] = ACTIVE_STATUSES.filter((s) => s !== "final_export_ready");
-// Their part done, so finished on Team work: Final export ready, or Delivered
-export const FINISHED_STATUSES: TaskStatus[] = ["final_export_ready", "delivered_and_uploaded"];
 
 // What a Level 3 in Production is on right now (Abhishek, 26 Oct 2026):
 // work still with them (a video queued, being edited or back for a revision;

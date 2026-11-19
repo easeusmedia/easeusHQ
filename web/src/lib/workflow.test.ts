@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ALL_STATUSES, availableStatuses, canTransition, nextStatuses } from "./workflow.ts";
+import { ALL_STATUSES, IN_PROGRESS, PART_DONE, availableStatuses, canTransition, nextStatuses } from "./workflow.ts";
 import { stageLabel } from "./stages.ts";
 
 test("the assigned editor can carry their own task through their 3 stages", () => {
@@ -80,4 +80,12 @@ test("a design moves through its own five stages, and a to-do through two", () =
   assert.equal(stageLabel("delivered_and_uploaded", "design"), "Final export ready");
   assert.equal(stageLabel("queued", "todo"), "To do");
   assert.equal(stageLabel("editing", "video"), "Editing");
+});
+
+// every stage is either still being worked on or someone's part done, never
+// both and never neither: a new stage has to be placed, or work in it would
+// vanish from every list (Narendra's approved reels, 19 Nov 2026)
+test("every stage is in progress or part done, exactly one", () => {
+  for (const s of ALL_STATUSES) assert.equal(Number(IN_PROGRESS.includes(s)) + Number(PART_DONE.includes(s)), 1, s);
+  assert.deepEqual(PART_DONE, ["final_export_ready", "delivered_and_uploaded"]);
 });
