@@ -241,6 +241,33 @@ async function closeInvoiceGaps(clientId: string): Promise<void> {
 // that back.
 export async function renameInvoice(clientId: string, key: string, name: string): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can rename an invoice." };
+  const found = await invoiceOf(clientId, key);
+  if ("error" in found) return found;
+  const { c, batch } = found;
+  const names = { ...((c.invoiceNames ?? {}) as Record<string, string>) };
+  const trimmed = name.trim().slice(0, 60);
+  if (trimmed && trimmed !== batch.label) names[key] = trimmed;
+  else delete names[key];
+  await prisma.client.update({ where: { id: clientId }, data: { invoiceNames: names }, select: { id: true } });
+  revalidatePath("/clients/[slug]", "page");
+  revalidatePath("/projects/[id]", "page");
+  return {};
+}
+
+// An invoice marked paid or unpaid by hand (Abhishek, 19 Nov 2026): every
+// project in it, as the Notion import marks them
+export async function setInvoicePayment(clientId: string, key: string, status: string): Promise<{ error?: string }> {
+  if (!(await requireOps())) return { error: "Only the operations team can mark an invoice paid." };
+  if (status !== "paid" && status !== "unpaid") return { error: "Pick Paid or Unpaid." };
+  const found = await invoiceOf(clientId, key);
+  if ("error" in found) return found;
+  await prisma.project.updateMany({ where: { clientId, id: { in: found.batch.ids } }, data: { invoiceStatus: status } });
+  revalidatePath("/clients/[slug]", "page");
+  return {};
+}
+
+// One of a client's invoices, worked out from what's saved
+async function invoiceOf(clientId: string, key: string) {
   const c = await prisma.client.findUnique({
     where: { id: clientId },
     select: {
@@ -255,14 +282,7 @@ export async function renameInvoice(clientId: string, key: string, name: string)
   const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
   const batch = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })).find((b) => b.key === key);
   if (!batch) return { error: "That invoice no longer exists. Refresh the page and try again." };
-  const names = { ...((c.invoiceNames ?? {}) as Record<string, string>) };
-  const trimmed = name.trim().slice(0, 60);
-  if (trimmed && trimmed !== batch.label) names[key] = trimmed;
-  else delete names[key];
-  await prisma.client.update({ where: { id: clientId }, data: { invoiceNames: names }, select: { id: true } });
-  revalidatePath("/clients/[slug]", "page");
-  revalidatePath("/projects/[id]", "page");
-  return {};
+  return { c, batch };
 }
 
 export async function createInvoice(

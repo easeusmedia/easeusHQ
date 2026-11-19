@@ -1,13 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { ChevronRight, Filter, LayoutGrid, List, Pencil, Receipt } from "lucide-react";
+import { Fragment, useCallback, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { Check, ChevronDown, ChevronRight, Filter, LayoutGrid, List, Pencil, Receipt } from "lucide-react";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
 import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
 import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule, type Payment } from "@/lib/invoiceBatches";
-import { arrangeProject, moveProjectToInvoice, renameInvoice } from "./actions";
+import { arrangeProject, moveProjectToInvoice, renameInvoice, setInvoicePayment } from "./actions";
+import { topLayer, usePopover, useCloseOnScroll } from "../popover";
 import { moveTo as moveInOrder } from "@/lib/reorder";
 import { DropSlot, landingIndex, useEaseAside } from "../DropSlot";
 import { EditableName } from "../EditableName";
@@ -559,7 +560,9 @@ export function ProjectsSection({
                       ))}
                     </span>
                   )}
-                  {g.payment ? (
+                  {g.payment && canMove ? (
+                    <PaymentPill payment={g.payment} className={covers.length ? "" : "ml-auto"} onPick={(s) => setInvoicePayment(clientId, g.key, s)} />
+                  ) : g.payment ? (
                     <span
                       className={`${covers.length ? "" : "ml-auto"} shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${PAYMENT[g.payment].className}`}
                     >
@@ -722,5 +725,58 @@ function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: str
       </div>
       </span>
     </button>
+  );
+}
+
+// An invoice's payment pill, for the operations team: Paid or Unpaid, for
+// every project in it (Abhishek, 19 Nov 2026), as the client's status pill works
+function PaymentPill({ payment, className, onPick }: { payment: Payment; className: string; onPick: (status: string) => Promise<{ error?: string }> }) {
+  const [open, setOpen] = useState(false);
+  const [pending, startPending] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const { position, place } = usePopover(2 * 32 + 8);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
+  useEffect(() => {
+    const out = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", out);
+    return () => document.removeEventListener("mousedown", out);
+  }, []);
+  const pick = (s: "paid" | "unpaid") => {
+    setOpen(false);
+    if (s === payment) return;
+    startPending(async () => setError((await onPick(s)).error ?? null));
+  };
+  return (
+    // inside the invoice's row, which opens and closes on a click
+    <div ref={ref} className={`relative shrink-0 ${className}`} onClick={(e) => e.stopPropagation()} title={error ?? undefined}>
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={pending}
+        onClick={() => {
+          if (!open) place(trigger.current, { width: 128, align: "end" });
+          setOpen((v) => !v);
+        }}
+        className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium disabled:opacity-60 ${error ? PAYMENT.unpaid.className : PAYMENT[payment].className}`}
+      >
+        {error ? "Not saved" : PAYMENT[payment].label}
+        <ChevronDown size={11} />
+      </button>
+      {open && position && (
+        <div {...topLayer} style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }} className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg">
+          {(["paid", "unpaid"] as const).map((s) => (
+            <button key={s} type="button" onClick={() => pick(s)} className="menu-item justify-between px-2.5 py-1.5 text-xs">
+              {PAYMENT[s].label}
+              {s === payment && <Check size={13} className="text-accent" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
