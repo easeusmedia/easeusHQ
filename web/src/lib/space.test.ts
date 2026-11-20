@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions, dueReminders, isParts } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"].map((id) => ({ id, name: id }));
 
@@ -27,7 +27,8 @@ test("the last day into Dead is free; Dead from an earlier day still asks", () =
   const amp = ["Write-up done", "Day 1", "Day 7", "Day 8 · Email 4", "Audit sent", "Replied", "Parked for later", "Dead"].map((name) => ({ id: name, name }));
   assert.equal(moveNeedsReason(amp, "Day 8 · Email 4", "Dead"), false);
   assert.equal(moveNeedsReason(amp, "Day 7", "Dead"), true);
-  assert.equal(moveNeedsReason(amp, "Replied", "Dead"), true);
+  // after a reply, any move forward is free (20 Nov 2026)
+  assert.equal(moveNeedsReason(amp, "Replied", "Dead"), false);
   assert.equal(moveNeedsReason(amp, "Day 8 · Email 4", "Replied"), true);
 });
 
@@ -722,4 +723,33 @@ test("an import's openers for one of the lead's people become that person's own 
   // a doctor board's "Main · D1…" and "Backup · D2…" are versions, not people
   const doc = [{ label: "Main · D1 Old hit", drafts: { e1: d("a") } }, { label: "Backup · D2 Swing", drafts: { e1: d("b") } }];
   assert.equal(personOpeners(doc, [michelle]).openers.length, 2);
+});
+
+test("a parked lead is reminded once, on or after its day, while still parked", () => {
+  const lead = (stage: string, vars: Record<string, string>) => ({ stage: { name: stage }, vars });
+  const leads = [
+    lead("Parked for later", { "parked:until": "2026-12-01" }),
+    lead("Parked for later", { "parked:until": "2026-12-02" }),
+    lead("Parked for later", { "parked:until": "2026-11-30", "parked:told": "2026-11-30" }),
+    lead("Parked for later", { "parked:until": "2026-11-30", "parked:told": "2026-11-10" }),
+    lead("Call booked", { "parked:until": "2026-11-30" }),
+    lead("Parked for later", {}),
+  ];
+  assert.deepEqual(dueReminders(leads, "2026-12-01").map((l) => leads.indexOf(l)), [0, 3]);
+});
+
+test("after a reply any move forward is free; back still asks why", () => {
+  const names = ["Ready to reach out", "Day 1", "Day 2", "Replied", "Audit sent", "Call booked", "Audit follow-up 1", "Parked for later", "Dead"];
+  const stages = names.map((name, i) => ({ id: `s${i}`, name }));
+  assert.equal(moveNeedsReason(stages, "s4", "s6"), false);
+  assert.equal(moveNeedsReason(stages, "s4", "s8"), false);
+  assert.equal(moveNeedsReason(stages, "s6", "s5"), true);
+  assert.equal(moveNeedsReason(stages, "s1", "s3"), true);
+});
+
+test("a platform's numbered messages go together, not one picked", () => {
+  const m = (name: string) => ({ name });
+  assert.equal(isParts([m("Audit · LinkedIn · Message 1"), m("Audit · LinkedIn · Message 2")]), true);
+  assert.equal(isParts([m("Loom follow-up 1 · Loom seen"), m("Loom follow-up 1 · Loom not seen")]), false);
+  assert.equal(isParts([m("Audit · LinkedIn · Message 1")]), false);
 });

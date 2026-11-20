@@ -3,8 +3,8 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions } from "@/lib/space";
-import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions, isParts, isReplied, isParked, AFTER } from "@/lib/space";
+import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setLeadAfter, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
@@ -12,6 +12,7 @@ import { CanBuild } from "./values";
 import { copyMessage, emailHtml, marked, marks, plainText } from "@/lib/emailCopy";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
+import { DatePicker } from "../../DatePicker";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 import { formatDateTime } from "../../TaskCard";
 import { closeOnBackdrop } from "../../dialog";
@@ -178,6 +179,19 @@ export function Messages({
     setTyped((t) => Object.fromEntries(Object.entries(t).filter(([k]) => k !== name)));
     setError(res.error);
     return res.error;
+  }
+  // after a reply (lib/space AFTER): their reply and where, the day to reach out again; ahead of the save
+  const [after, setAfter] = useState<Record<string, string>>({});
+  const afterOf = (key: string) => after[key] ?? lead.vars[key] ?? "";
+  async function saveAfter(key: string, value: string) {
+    const before = afterOf(key);
+    if (before === value.trim()) return;
+    setError(null);
+    setAfter((a) => ({ ...a, [key]: value.trim() }));
+    const res = await setLeadAfter(lead.id, key, value).catch(() => ({ error: OFFLINE }));
+    if (!res.error) return onSaved();
+    setAfter((a) => ({ ...a, [key]: before }));
+    setError(res.error);
   }
   async function addChannel(c: Contact | null, channel: string, typed: string): Promise<string | undefined> {
     const field = board.fields.find((f) => f.kind === "contacts");
@@ -606,8 +620,48 @@ export function Messages({
                 })}
               </div>
             )}
+            {/* Replied: what they wrote back, pasted in, and where (Abhishek, 20 Nov 2026) */}
+            {isReplied(t.stage.name) && (
+              <div className="flex flex-col gap-2.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-xs text-muted">Replied on</span>
+                  {(["email", "instagram", "linkedin"] as const).map((p) => {
+                    const on = afterOf(AFTER.replyOn) === p;
+                    return (
+                      <button key={p} type="button" aria-pressed={on} onClick={() => saveAfter(AFTER.replyOn, on ? "" : p)} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+                        <span className="flex shrink-0">{CHANNEL_ICON[p]}</span>
+                        {PLATFORM_NAME[p]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  key={lead.id}
+                  defaultValue={afterOf(AFTER.reply)}
+                  onBlur={(e) => saveAfter(AFTER.reply, e.target.value)}
+                  placeholder="Paste their reply"
+                  rows={7}
+                  className={`${INPUT} min-h-32 resize-y leading-relaxed`}
+                />
+              </div>
+            )}
+            {/* Parked for later: the day to reach out again; a reminder goes out that day */}
+            {isParked(t.stage.name) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted">Reach out again on</span>
+                <div className="w-52">
+                  <DatePicker size="sm" value={afterOf(AFTER.until)} onChange={(v) => saveAfter(AFTER.until, v)} />
+                </div>
+              </div>
+            )}
             {prepared ? (
-              <div className="flex flex-col gap-4">{byPlatform.map((options) => platformRow(t, options, person, versions.length > 0))}</div>
+              <div className="flex flex-col gap-4">
+                {byPlatform
+                  .flatMap((options) => (isParts(options) ? options.map((o) => [o]) : [options]))
+                  .map((options) => (
+                    <Fragment key={options[0].id}>{platformRow(t, options, person, versions.length > 0)}</Fragment>
+                  ))}
+              </div>
             ) : (
               <p className="px-1 pt-3 text-xs text-muted">Loading its messages…</p>
             )}

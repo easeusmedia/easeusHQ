@@ -6,6 +6,7 @@ import { syncFrameioFeedback } from "@/lib/frameioFeedback";
 import { clearOldSnapshots } from "@/lib/snapshots";
 import { sweepOverdue } from "@/lib/taskTrack";
 import { syncSalesInbox } from "@/lib/mailSync";
+import { sweepParked } from "@/lib/parkedReminders";
 
 // The daily refresh of every client's public YouTube and Instagram numbers
 // (vercel.json runs it at 2am India time). Safe to call any time by anyone:
@@ -20,6 +21,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not allowed." }, { status: 401 });
   }
   const origin = new URL(request.url).origin;
+  // leads parked for later whose day to reach out again has come: a notice each (quick, so first)
+  await sweepParked().catch(() => 0);
   // anything left over from before first; a hiccup there mustn't stop tonight's refresh
   await collect().catch(() => {});
   // and catch up on contracts out for signature (Adobe's emails in Gmail)

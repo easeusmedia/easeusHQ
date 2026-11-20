@@ -7,6 +7,7 @@ import { getViewer } from "@/lib/viewer";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
 import { addsPages, addsStages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
+  AFTER,
   CHILD_OF,
   cleanValue,
   COLOR_NAMES,
@@ -1120,6 +1121,28 @@ export async function setLeadVar(id: string, name: string, value: string): Promi
     if (!v) await prisma.$executeRaw`UPDATE "Lead" SET "vars" = "vars" - ${key}::text, "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     else
       await prisma.$executeRaw`UPDATE "Lead" SET "vars" = jsonb_set(coalesce("vars", '{}'::jsonb), ARRAY[${key}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    return {};
+  } catch (err) {
+    return failed(err, "That couldn't be saved.");
+  }
+}
+
+// After a reply (lib/space AFTER): what they wrote back and where, or the day
+// to reach out again once parked. A new day is reminded of afresh.
+export async function setLeadAfter(id: string, key: string, value: string): Promise<Done> {
+  const lead = await leadWithBoard(id);
+  if (!lead) return { error: "That lead no longer exists." };
+  const who = await whoFor(lead.board.teamId);
+  if ("error" in who) return who;
+  const v = String(value ?? "").trim();
+  const ok =
+    key === AFTER.reply ? v.length <= 20000 : key === AFTER.replyOn ? ["", "email", "instagram", "linkedin"].includes(v) : key === AFTER.until ? v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v) : false;
+  if (!ok) return { error: "That couldn't be saved." };
+  const drop = key === AFTER.until ? [key, AFTER.told] : [key];
+  try {
+    if (!v) await prisma.$executeRaw`UPDATE "Lead" SET "vars" = "vars" - ${drop}::text[], "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
+    else
+      await prisma.$executeRaw`UPDATE "Lead" SET "vars" = jsonb_set(coalesce("vars", '{}'::jsonb) - ${drop}::text[], ARRAY[${key}::text], ${JSON.stringify(v)}::jsonb, true), "updatedAt" = now(), "editedByName" = ${who.name}, "editedAt" = now() WHERE id = ${id}`;
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");

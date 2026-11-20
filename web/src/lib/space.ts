@@ -238,7 +238,10 @@ export type SpaceCard = { id: string; name: string; slug: string; kind: SpaceKin
 // ---- The move rule ----
 // One step forward is free. Going back, or jumping ahead past a stage,
 // needs a reason (it stays on the lead's record). The sequence's last day
-// into Dead is where it ends, not a skip (Abhishek, 18 Nov 2026).
+// into Dead is where it ends, not a skip (Abhishek, 18 Nov 2026). After a
+// reply the way branches (Audit sent to Call booked, a follow-up, Parked
+// for later or Dead), so from the Replied row any move forward is free
+// (Abhishek, 20 Nov 2026).
 export function moveNeedsReason(stages: Pick<StageData, "id" | "name">[], from: string, to: string): boolean {
   if (from === to) return false;
   const a = stages.findIndex((s) => s.id === from);
@@ -246,6 +249,7 @@ export function moveNeedsReason(stages: Pick<StageData, "id" | "name">[], from: 
   if (a < 0 || b < 0) return true;
   const last = Math.max(...stages.map((s) => dayOf(s.name) ?? -1));
   if (isDead(stages[b].name) && last > 0 && dayOf(stages[a].name) === last) return false;
+  if (b > a && stageSections(stages)?.[a] === "replied") return false;
   return b !== a + 1;
 }
 
@@ -479,6 +483,21 @@ export function outreachStart(stages: Pick<StageData, "name">[]): number {
 }
 export const isDead = (stageName: string) => /^dead\b/i.test(stageName.trim());
 export const isReplied = (stageName: string) => /^replied\b/i.test(stageName.trim());
+export const isParked = (stageName: string) => /^parked\b/i.test(stageName.trim());
+
+// After a reply (Abhishek, 20 Nov 2026), kept with a lead's fill-ins (vars)
+// under names no {{Variable}} can have: what they wrote back, pasted in, and
+// where; and, parked for later, the day to reach out again (a reminder goes
+// to whoever has the lead that day: lib/parkedReminders) and the day it went.
+export const AFTER = { reply: "reply:text", replyOn: "reply:on", until: "parked:until", told: "parked:told" } as const;
+// the parked leads due a reminder: still parked, their day come, not yet reminded of that day
+export function dueReminders<L extends { vars: unknown; stage: { name: string } }>(leads: L[], today: string): L[] {
+  return leads.filter((l) => {
+    const v = (l.vars ?? {}) as Record<string, unknown>;
+    const until = v[AFTER.until];
+    return isParked(l.stage.name) && typeof until === "string" && until <= today && v[AFTER.told] !== until;
+  });
+}
 
 // The board in sections, a row of stages each (Abhishek, 9 and 12 Oct
 // 2026): In process, from the first stage to the sequence's last day, and
@@ -619,6 +638,11 @@ export function chosenFor<T extends Pick<MessageData, "id" | "name" | "channel">
   return match(picks[forContact(key, contact)]) ?? (contact ? match(picks[key]) : undefined) ?? defaultFor(options, contact, opened);
 }
 
+// A platform's messages that all go together, one after another ("Message
+// 1", "Message 2": LinkedIn's audit, the Loom alone first so its GIF plays),
+// rather than one picked from them
+export const isParts = (options: Pick<MessageData, "name">[]) => options.length > 1 && options.every((m) => /^message \d+$/i.test(versionOf(m)));
+
 // The versions a stage offers on every platform alike (Stage 1: "Loom not
 // seen", "Loom seen"), to switch between once for all of them; none when its
 // platforms don't share them
@@ -692,9 +716,9 @@ export function emptyFills(messages: Pick<MessageData, "id" | "subject" | "body"
 export type LeadState = { picks: Record<string, string>; approvals: Record<string, Approval | null | undefined>; vars: Record<string, string> };
 export function dayLeft<M extends Pick<MessageData, "id" | "name" | "channel" | "subject" | "body">>(on: M[], key: string, lead: LeadState, p: Prepared, contact: Contact | null, opened: boolean) {
   if (dayOff(on, contact, lead.picks)) return { due: [] as M[], approve: [] as M[], fill: [] as string[] };
-  const chosen = [...new Set(on.map((m) => m.channel))].map((channel) => {
+  const chosen = [...new Set(on.map((m) => m.channel))].flatMap((channel) => {
     const options = on.filter((m) => m.channel === channel);
-    return chosenFor(options, lead.picks, key, contact, opened, on) ?? options[0];
+    return isParts(options) ? options : [chosenFor(options, lead.picks, key, contact, opened, on) ?? options[0]];
   });
   const sendable = chosen.filter((m) => sendsOn(lead.picks, contact, m.channel));
   const due = sendable.length ? sendable : chosen;
