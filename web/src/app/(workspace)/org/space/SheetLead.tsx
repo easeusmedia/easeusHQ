@@ -7,7 +7,6 @@ import { channelsIn, columnOf, shownAs, type OutreachBoard, type SheetColumn, ty
 import { CONTACT_ROLES, hexOf, type Contact, type LinkValue } from "@/lib/space";
 import { moveLeadTo, renameLead, setLeadDead, setLeadNotes, setLeadValue } from "./actions";
 import { Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, dateOf, hrefOf, useDebounced } from "./values";
-import { TagPill } from "../../clients/TagPill";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -338,14 +337,27 @@ function Page({
 // One person on the lead: their name and designation, then each detail
 // pasted for them, marked with what it is
 // (a new one starts in its name box, unless `focus` says otherwise)
-// A lead's tags as pills, then a + that opens the tag list to pick or type one
+// A lead's tags as pills, each with an × that takes it off the lead, then a
+// + that opens the tag list to pick or type one
 export function LeadTags({ field, value, save }: { field: NonNullable<SheetData["tagsField"]>; value: string[]; save: (ids: string[]) => void }) {
   const picked = value.flatMap((t) => field.options.filter((o) => o.id === t));
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {picked.map((o) => (
-        <TagPill key={o.id} name={o.name} color={hexOf(o.color)} />
-      ))}
+      {picked.map((o) => {
+        const color = hexOf(o.color);
+        return (
+          <span
+            key={o.id}
+            className="tag-pill fade-in inline-flex items-center gap-1 rounded-full border py-0.5 pr-1 pl-2 text-xs font-medium"
+            style={{ backgroundColor: `${color}26`, borderColor: `${color}4d`, "--tag": color } as React.CSSProperties}
+          >
+            {o.name}
+            <button type="button" onClick={() => save(value.filter((x) => x !== o.id))} aria-label={`Remove ${o.name}`} title="Remove" className="grid size-4 place-items-center rounded-full opacity-60 transition-opacity hover:bg-white/10 hover:opacity-100">
+              <X size={10} />
+            </button>
+          </span>
+        );
+      })}
       <TagEditor
         field={field}
         value={value}

@@ -35,8 +35,11 @@ export async function makeSheet(tx: Prisma.TransactionClient, boardId: string) {
     data: [
       { boardId, name: "Contacts", kind: "contacts", sortOrder: 1 },
       { boardId, name: "Links", kind: "links", sortOrder: 2 },
-      { boardId, name: TAGS, kind: "multi", sortOrder: 3 },
     ],
+  });
+  // its Tags, Core and Amplifier ready to pick (more are typed in)
+  await tx.boardField.create({
+    data: { boardId, name: TAGS, kind: "multi", sortOrder: 3, options: { create: Object.entries(TAB_TAG_COLOR).map(([name, color], i) => ({ name, color, sortOrder: i + 1 })) } },
   });
 }
 
