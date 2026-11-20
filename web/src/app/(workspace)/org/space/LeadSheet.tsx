@@ -382,7 +382,7 @@ export function LeadSheet({
                       {/* its tags right under its name, in their colours, then when it was added (Abhishek, 20 Nov 2026) */}
                       <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted">
                         {lead.tags.flatMap((t) => tags.filter((o) => o.id === t)).map((o) => (
-                          <TagPill key={o.id} name={o.name} color={hexOf(o.color)} size="xs" />
+                          <TagPill key={o.id} name={o.name} color={hexOf(o.color)} size="mini" />
                         ))}
                         {/* a tag picked or typed here, without opening the lead */}
                         {tagsField && onTags && (
@@ -393,7 +393,7 @@ export function LeadSheet({
                               save={(ids) => onTags(lead, ids ?? [])}
                               trigger={{
                                 label: `Tags for ${lead.title}`,
-                                className: "flex h-5 items-center gap-1 rounded-full border border-dashed border-white/15 px-1.5 text-[11px] text-muted transition-colors hover:border-white/30 hover:text-foreground",
+                                className: "flex h-[18px] items-center gap-1 rounded-full border border-dashed border-white/15 px-1.5 text-[10.5px] text-muted transition-colors hover:border-white/30 hover:text-foreground",
                                 button: (
                                   <>
                                     <Plus size={10} />

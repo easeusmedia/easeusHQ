@@ -3,8 +3,9 @@ import type { CSSProperties } from "react";
 // A soft tint of the tag's color, not a solid fill — a label, not a
 // button. This is the original treatment; the solid-white-text version
 // tried in between read as too loud/oversized and got reverted.
-export function TagPill({ name, color, size = "sm" }: { name: string; color: string; size?: "sm" | "xs" }) {
-  const pad = size === "sm" ? "px-2 py-0.5 text-xs" : "px-1.5 py-0.5 text-xs";
+// "mini": a row of a list (Leadwell's names), smaller, with room either side
+export function TagPill({ name, color, size = "sm" }: { name: string; color: string; size?: "sm" | "xs" | "mini" }) {
+  const pad = size === "sm" ? "px-2 py-0.5 text-xs" : size === "mini" ? "px-2 text-[10.5px] leading-[18px] tracking-[0.01em]" : "px-1.5 py-0.5 text-xs";
   return (
     <span
       className={`tag-pill inline-flex items-center rounded-full border font-medium ${pad}`}
