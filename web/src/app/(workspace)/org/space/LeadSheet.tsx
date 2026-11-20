@@ -89,15 +89,14 @@ function reachOf(people: Contact[]) {
   return { email: first("email"), phone: first("phone") };
 }
 
-// Every page a lead has, its people's (Instagram, LinkedIn, a website…) and
-// its own links, once each
+// The lead's own links (its channel, its website…), once each: its people's
+// pages stay in its window (Abhishek, 20 Nov 2026: "only the main links")
 function pagesOf(lead: SheetLead): { url: string; label: string }[] {
   const out: { url: string; label: string }[] = [];
-  const add = (url: string | null, label: string) => {
-    if (url && /^https?:/i.test(url) && !out.some((x) => sameUrl(x.url) === sameUrl(url))) out.push({ url, label });
-  };
-  for (const p of lead.contacts) for (const c of p.channels ?? []) if (c.kind !== "email" && c.kind !== "phone" && c.value.trim()) add(hrefOf(c.kind, c.value), shownAs(c));
-  for (const l of lead.links) add(hrefOf("other", l.url), l.label.trim() ? linkName(l.label, l.url) : shownAs({ kind: "other", value: l.url }));
+  for (const l of lead.links) {
+    const url = hrefOf("other", l.url);
+    if (url && /^https?:/i.test(url) && !out.some((x) => sameUrl(x.url) === sameUrl(url))) out.push({ url, label: l.label.trim() ? linkName(l.label, l.url) : shownAs({ kind: "other", value: l.url }) });
+  }
   return out;
 }
 
