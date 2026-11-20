@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
-import { addsPages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
+import { addsPages, addsStages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   CHILD_OF,
   cleanValue,
@@ -327,8 +327,10 @@ export async function deleteSpace(id: string, reason: string): Promise<Done> {
 export async function createStage(boardId: string, name: string, color?: string, afterId?: string | null): Promise<Done & { stage?: StageData }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
-  const who = await whoFor(board.teamId, true);
+  const who = await whoFor(board.teamId);
   if ("error" in who) return who;
+  const viewer = await getViewer();
+  if (!viewer || !addsStages(viewer, board.teamId)) return { error: BUILDERS_ONLY };
   const n = cleanName(name);
   if (typeof n !== "string") return n;
   try {

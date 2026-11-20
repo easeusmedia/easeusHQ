@@ -13,6 +13,7 @@ import {
   seesClients,
   sidesOf,
   addsPages,
+  addsStages,
   seesEveryTeam,
   seesTeamWork,
   visibleClientWhere,
@@ -130,6 +131,14 @@ test("adding a portal, board or Leads tab: whoever builds, and Sales' Level 2 in
   assert.equal(addsPages({ ...pankaj, role: "employee" }, SALES.id), false);
   assert.equal(addsPages(pankaj, PROD.id), false);
   assert.equal(addsPages(jyotsna, SALES.id), false);
+});
+
+test("adding a stage: builders, and everyone in Sales at any level", () => {
+  assert.equal(addsStages(ashmit, SALES.id), true);
+  assert.equal(addsStages(pankaj, SALES.id), true);
+  assert.equal(addsStages({ ...pankaj, role: "employee" }, SALES.id), true);
+  assert.equal(addsStages({ ...pankaj, role: "employee" }, PROD.id), false);
+  assert.equal(addsStages(jyotsna, SALES.id), false);
 });
 
 test("Team work: Level 1 and anyone in Admin & Technical", () => {

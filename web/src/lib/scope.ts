@@ -116,6 +116,12 @@ export function worksDepartment(user: Pick<Viewer, "role" | "email" | "departmen
 export function addsPages(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return buildsDepartment(user, teamId) || (isLead(user) && user.departments.some((d) => d.id === teamId && d.slug === DEPT.sales));
 }
+// Adding a stage to a board: whoever builds the department, and in Sales
+// everyone in it, any level (Abhishek, 20 Nov 2026). Renaming, moving and
+// deleting stages stay with whoever builds.
+export function addsStages(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
+  return buildsDepartment(user, teamId) || user.departments.some((d) => d.id === teamId && d.slug === DEPT.sales);
+}
 export function buildsDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return worksDepartment(user, teamId) && setsUp(user);
 }

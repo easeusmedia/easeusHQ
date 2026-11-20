@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { syncSalesInboxIfDue } from "@/lib/mailSync";
 import { getViewer } from "@/lib/viewer";
 import { prisma } from "@/lib/prisma";
-import { addsPages, buildsDepartment } from "@/lib/scope";
+import { addsPages, addsStages, buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../../departments";
 import { DepartmentHead } from "../../DepartmentHead";
 import { boardsOf, childCards, loadBoard, loadSheet, moveTargets, peopleOf, resolvePath, templatesOf } from "../../space/data";
@@ -101,6 +101,7 @@ export default async function SpacePage({
         people={people}
         canBuild={canBuild}
         canAdd={canAdd}
+        canAddStage={addsStages(viewer, team.id)}
         boardTemplates={boardTemplates}
         targets={targets}
         initialLeadId={typeof query.lead === "string" ? query.lead : null}

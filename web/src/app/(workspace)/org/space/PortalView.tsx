@@ -53,6 +53,7 @@ export function PortalView({
   people,
   canBuild,
   canAdd = canBuild,
+  canAddStage = canBuild,
   initialLeadId,
   boardTemplates,
   targets = [],
@@ -65,6 +66,8 @@ export function PortalView({
   canBuild: boolean;
   // may add a board (Sales' Level 2 too)
   canAdd?: boolean;
+  // may add a stage (everyone in Sales: lib/scope addsStages)
+  canAddStage?: boolean;
   initialLeadId: string | null;
   // every board in the department, for "Start from a copy of"
   boardTemplates?: { id: string; name: string }[];
@@ -344,7 +347,7 @@ export function PortalView({
       {/* keyed by view so a switch eases in; dimmed while another board loads */}
       <div key={prefs.view} className={`fade-in min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {prefs.view === "board" ? (
-          <LeadBoard board={board} leads={shown} filterKey={filterKey} canBuild={canBuild} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} onTrack={track} />
+          <LeadBoard board={board} leads={shown} filterKey={filterKey} canBuild={canBuild} canAddStage={canAddStage} hideEmpty={prefs.hideEmpty} onShowEmpty={() => savePrefs({ hideEmpty: false })} onOpen={open} onTrack={track} />
         ) : prefs.view === "list" ? (
           <LeadList board={board} leads={shown} filtered={filtered} filterKey={filterKey} onOpen={open} />
         ) : (

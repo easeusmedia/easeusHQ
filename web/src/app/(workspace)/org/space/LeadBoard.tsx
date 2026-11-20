@@ -138,6 +138,7 @@ export function LeadBoard({
   board,
   leads,
   canBuild,
+  canAddStage,
   filterKey,
   hideEmpty,
   onShowEmpty,
@@ -150,6 +151,8 @@ export function LeadBoard({
   // changes with the search and filters, taking each column back to its first 10
   filterKey: string;
   canBuild: boolean;
+  // the "Add a stage" button: everyone in Sales too (lib/scope addsStages)
+  canAddStage: boolean;
   hideEmpty: boolean;
   onShowEmpty: () => void;
   onOpen: (id: string) => void;
@@ -543,9 +546,9 @@ export function LeadBoard({
           );
         })}
         {end && newStageAt === stages.length && stageInput(stages.length)}
-        {end && (canBuild || hidden > 0) && newStageAt === null && (
+        {end && (canAddStage || hidden > 0) && newStageAt === null && (
           <div className="flex w-44 shrink-0 flex-col gap-2">
-            {canBuild && (
+            {canAddStage && (
               <button
                 type="button"
                 onClick={() => {
