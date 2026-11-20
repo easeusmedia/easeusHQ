@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { arrange, channelOf, channelsIn, columnOf, movedValues, shownAs, passesSheetFilter, NO_FILTER, type SheetLead } from "./leadSheet.ts";
+import { arrange, channelOf, channelsIn, columnOf, movedValues, shownAs, passesSheetFilter, NO_FILTER, tabTag, type SheetLead } from "./leadSheet.ts";
 
 test("a pasted detail is told by what it is", () => {
   assert.deepEqual(channelOf("mehta@clinic.in"), { kind: "email", value: "mehta@clinic.in" });
@@ -126,4 +126,17 @@ test("Leadwell's filter: when it was added, who added it, what it can be reached
   assert.deepEqual(pass({ has: ["instagram"] }), [b.id]);
   assert.deepEqual(pass({ has: ["phone", "instagram"], by: ["u2"] }), [b.id]);
   assert.deepEqual(pass({ has: ["email", "phone"] }), []);
+  // tags: any of those picked
+  const tagged = { ...a, tags: ["t1"] };
+  assert.equal(passesSheetFilter(tagged, { ...NO_FILTER, tags: ["t1", "t2"] }, now), true);
+  assert.equal(passesSheetFilter(b, { ...NO_FILTER, tags: ["t1"] }, now), false);
+});
+
+test("a Leads tab's own tag: the core database Core, the amplifier one Amplifier", () => {
+  assert.equal(tabTag("POD-CORE"), "Core");
+  assert.equal(tabTag("POD-AMP"), "Amplifier");
+  assert.equal(tabTag("Amplifier"), "Amplifier");
+  assert.equal(tabTag("Podcast"), null);
+  assert.equal(tabTag("Champions"), null);
+  assert.equal(tabTag("Scorecard"), null);
 });

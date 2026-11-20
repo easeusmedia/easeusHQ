@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { Clock3, Mail, Phone } from "lucide-react";
 import { arrange, shownAs, type SheetLead } from "@/lib/leadSheet";
-import { linkName, sameUrl, type Contact, type OptionData } from "@/lib/space";
-import { TagPill } from "./pills";
+import { hexOf, linkName, sameUrl, type Contact, type OptionData } from "@/lib/space";
+import { TagPill } from "../../clients/TagPill";
 import { Avatar, formatDate } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
 import { hrefOf } from "./values";
@@ -361,15 +361,15 @@ export function LeadSheet({ tab, leads, tags = [], filterKey, onOpen, actions }:
                       ) : (
                         <span className="block truncate font-medium">{lead.title}</span>
                       )}
-                      {/* when it was added, then its tags */}
-                      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                      {/* its tags right under its name, in their colours, then when it was added (Abhishek, 20 Nov 2026) */}
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted">
+                        {lead.tags.flatMap((t) => tags.filter((o) => o.id === t)).map((o) => (
+                          <TagPill key={o.id} name={o.name} color={hexOf(o.color)} size="xs" />
+                        ))}
                         <span title={`Added ${formatDate(lead.createdAt)} by ${lead.createdBy.name}`} className="flex shrink-0 items-center gap-1">
                           <Clock3 size={11} className="shrink-0" />
                           {addedWhen(lead.createdAt)}
                         </span>
-                        {lead.tags.flatMap((t) => tags.filter((o) => o.id === t)).map((o) => (
-                          <TagPill key={o.id} name={o.name} className="shrink text-[11px] leading-[18px]" />
-                        ))}
                       </div>
                     </div>
                   </div>

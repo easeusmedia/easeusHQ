@@ -4,10 +4,10 @@ import { useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Filter, Plus, Search, Table2, Trash2, Undo2, X } from "lucide-react";
 import { ADDED, NO_FILTER, passesSheetFilter, REACH, hasReach, sheetText, shownAs, type OutreachBoard, type SheetData, type SheetFilter, type SheetLead } from "@/lib/leadSheet";
-import { CONTACT_ROLES, type Contact, type LinkValue } from "@/lib/space";
+import { CONTACT_ROLES, hexOf, type Contact, type LinkValue, type OptionData } from "@/lib/space";
 import { BoardTabs, SEG_ROW } from "./BoardTabs";
 import { LeadSheet } from "./LeadSheet";
-import { LeadTags, Paste, Person, SheetLeadWindow } from "./SheetLead";
+import { Paste, Person, SheetLeadWindow } from "./SheetLead";
 import { CanBuild, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, hrefOf } from "./values";
 import { chip } from "../../chip";
 import { Avatar } from "../../TaskCard";
@@ -106,6 +106,7 @@ export function LeadsView({
     ...ADDED.filter((a) => a.key === filter.added).map((a) => ({ key: `added:${a.key}`, label: a.label, off: () => setFilter((f) => ({ ...f, added: null })) })),
     ...filter.by.map((id) => ({ key: `by:${id}`, label: `Added by ${sheet.leads.find((l) => l.createdBy.id === id)?.createdBy.name ?? "someone"}`, off: () => setFilter((f) => ({ ...f, by: f.by.filter((x) => x !== id) })) })),
     ...REACH.filter((r) => filter.has.includes(r.key)).map((r) => ({ key: `has:${r.key}`, label: `Has ${r.label === "Email" || r.label === "Phone" ? r.label.toLowerCase() : r.label}`, off: () => setFilter((f) => ({ ...f, has: f.has.filter((x) => x !== r.key) })) })),
+    ...(sheet.tagsField?.options ?? []).filter((o) => filter.tags.includes(o.id)).map((o) => ({ key: `tag:${o.id}`, label: `Tag: ${o.name}`, off: () => setFilter((f) => ({ ...f, tags: f.tags.filter((x) => x !== o.id) })) })),
   ];
   const lead = openId ? (sheet.leads.find((l) => l.id === openId && !l.dead) ?? null) : null;
   async function act(work: Promise<{ error?: string }>) {
@@ -174,7 +175,7 @@ export function LeadsView({
               </>
             }
           >
-            {() => <LeadsFilter leads={found} filter={filter} onChange={setFilter} />}
+            {() => <LeadsFilter leads={found} tags={sheet.tagsField?.options ?? []} filter={filter} onChange={setFilter} />}
           </Menu>
         ) : null}
         {picked.map((p) => (
@@ -202,7 +203,7 @@ export function LeadsView({
             ))}
           </div>
         )}
-        <AddLead boardId={sheet.id} roles={roles} tagsField={sheet.tagsField} onAdded={() => setDead(false)} />
+        <AddLead boardId={sheet.id} roles={roles} onAdded={() => setDead(false)} />
       </div>
       {failed && (
         <p role="alert" className="fade-in text-xs text-red-300">
@@ -231,11 +232,13 @@ export function LeadsView({
 // Leadwell's Filter menu (Abhishek, 20 Nov 2026), in the look of the
 // outreach boards' own: when it was added, who added it, and what it can be
 // reached on, each a row of chips with how many leads have it
-function LeadsFilter({ leads, filter, onChange }: { leads: SheetLead[]; filter: SheetFilter; onChange: (f: SheetFilter) => void }) {
+function LeadsFilter({ leads, tags, filter, onChange }: { leads: SheetLead[]; tags: OptionData[]; filter: SheetFilter; onChange: (f: SheetFilter) => void }) {
   // the menu's moment: it's drawn afresh each time it opens
   const [now] = useState(() => Date.now());
   const people = [...Map.groupBy(leads, (l) => l.createdBy.id).values()].map((ls) => ({ ...ls[0].createdBy, count: ls.length })).sort((a, b) => b.count - a.count);
-  const any = filter.added || filter.by.length || filter.has.length;
+  const any = filter.added || filter.by.length || filter.has.length || filter.tags.length;
+  // only the tags some lead here has (or one ticked)
+  const tagCounts = tags.map((o) => ({ ...o, count: leads.filter((l) => l.tags.includes(o.id)).length })).filter((o) => o.count || filter.tags.includes(o.id));
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   return (
     <div className="flex max-h-[min(26rem,70vh)] flex-col overflow-y-auto p-1.5">
@@ -252,6 +255,16 @@ function LeadsFilter({ leads, filter, onChange }: { leads: SheetLead[]; filter: 
             <Pick key={p.id} on={filter.by.includes(p.id)} count={p.count} onClick={() => onChange({ ...filter, by: toggle(filter.by, p.id) })}>
               <Avatar name={p.name} size={16} presence={false} />
               {p.name}
+            </Pick>
+          ))}
+        </Group>
+      )}
+      {tagCounts.length > 0 && (
+        <Group label="Tags">
+          {tagCounts.map((o) => (
+            <Pick key={o.id} on={filter.tags.includes(o.id)} count={o.count} onClick={() => onChange({ ...filter, tags: toggle(filter.tags, o.id) })}>
+              <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: hexOf(o.color) }} />
+              {o.name}
             </Pick>
           ))}
         </Group>
@@ -304,14 +317,13 @@ function Pick({ on, count, onClick, children }: { on: boolean; count: number; on
 // them), its own links and notes. A lead needs a name and at least one way
 // to reach it. Added from Dead leads, it shows the leads, where it went.
 const blankPerson = (): Contact => ({ id: crypto.randomUUID(), name: "", role: "", channels: [] });
-function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; roles: string[]; tagsField: SheetData["tagsField"]; onAdded: () => void }) {
+function AddLead({ boardId, roles, onAdded }: { boardId: string; roles: string[]; onAdded: () => void }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [title, setTitle] = useState("");
   const [people, setPeople] = useState<Contact[]>([]);
   const [links, setLinks] = useState<LinkValue[]>([]);
   const [notes, setNotes] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
   // the person it opens with: typing starts in the lead's own name, not theirs
   const [firstId, setFirstId] = useState("");
   // the form drawn afresh each time it opens (the paste boxes empty too)
@@ -327,7 +339,6 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
     setPeople([first]);
     setLinks([]);
     setNotes("");
-    setTags([]);
     setError(null);
     setOpens((n) => n + 1);
     ref.current?.showModal();
@@ -340,7 +351,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
     if (!links.length && !kept.some((p) => p.channels.some((c) => c.value.trim()))) return setError("Add at least one link, email or phone number.");
     setBusy(true);
     setError(null);
-    const res = await createLead(boardId, title, links, { contacts: kept.map((p) => ({ ...p, name: p.name.trim() })), notes, tags }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again.", id: undefined }));
+    const res = await createLead(boardId, title, links, { contacts: kept.map((p) => ({ ...p, name: p.name.trim() })), notes }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again.", id: undefined }));
     setBusy(false);
     if (res.error || !res.id) return setError(res.error ?? "That couldn't be saved.");
     ref.current?.close();
@@ -371,11 +382,6 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
           </div>
           <div className="shrink-0 px-5 pt-2 pb-4">
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Name" aria-label="Name" autoFocus className="w-full bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60" />
-            {tagsField && (
-              <div className="mt-2">
-                <LeadTags field={tagsField} value={tags} save={setTags} />
-              </div>
-            )}
           </div>
 
           <div className="flex min-h-0 flex-auto flex-col gap-3 overflow-y-auto px-5 pb-5">

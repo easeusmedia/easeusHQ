@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
+import { withTabTag } from "@/lib/leadTags";
 import { addsPages, addsStages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   AFTER,
@@ -607,7 +608,8 @@ export async function createLead(boardId: string, title: string, links: { label:
         if (field && clean && "value" in clean && clean.value) values[field.id] = clean.value;
       }
       const notes = String(more.notes ?? "").slice(0, 100_000);
-      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values: values as Prisma.InputJsonValue, notes, sortOrder: Date.now(), createdById: who.id, assignedToId: who.id, assignedByName: who.name, assignedAt: new Date() }, select: { id: true } });
+      const tagged = await withTabTag(tx, board, values);
+      const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values: tagged as Prisma.InputJsonValue, notes, sortOrder: Date.now(), createdById: who.id, assignedToId: who.id, assignedByName: who.name, assignedAt: new Date() }, select: { id: true } });
       await record(tx, lead.id, who, { kind: "created", summary: `Created in ${stage.name}`, toStage: stage.name });
       return lead.id;
     });
@@ -1022,9 +1024,10 @@ export async function moveLeadTo(id: string, toBoardId: string): Promise<Done> {
     if (!first) return { error: `${to.name} has no stages yet.` };
     const moved = movedValues({ fields: lead.board.fields, values: (lead.values ?? {}) as Record<string, unknown>, notes: lead.notes }, to.fields);
     const done = await prisma.$transaction(async (tx) => {
+      const values = await withTabTag(tx, to, moved.values);
       const { count } = await tx.lead.updateMany({
         where: { id, boardId: lead.boardId, updatedAt: lead.updatedAt },
-        data: { boardId: to.id, stageId: first.id, values: moved.values as Prisma.InputJsonValue, notes: moved.notes, sortOrder: Date.now(), stageSince: new Date(), ...edited(who) },
+        data: { boardId: to.id, stageId: first.id, values: values as Prisma.InputJsonValue, notes: moved.notes, sortOrder: Date.now(), stageSince: new Date(), ...edited(who) },
       });
       const named = (b: { name: string; parent: { leadBank: boolean } | null }) => (b.parent?.leadBank ? `Leads › ${b.name}` : b.name);
       if (count) await record(tx, id, who, { kind: "moved", summary: `Moved from ${named(lead.board)} to ${named(to)}`, fromStage: lead.stage.name, toStage: first.name });

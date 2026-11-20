@@ -6,6 +6,7 @@ import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, personOpeners, t
 import { addOption, assignLead, moveLead, renameLead, setLeadDraft, setLeadNotes, setLeadValue, setLeadVar } from "@/app/(workspace)/org/space/actions";
 import type { ChannelStats } from "@/lib/channelStats";
 import { channelsIn } from "@/lib/leadSheet";
+import { withTabTag } from "@/lib/leadTags";
 import { ToolError, type ServerInfo, type Tool } from "./protocol";
 
 // What someone's Claude can do on the Sales dashboard through its
@@ -721,7 +722,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
                   boardId: board.id,
                   stageId: stage.id,
                   title,
-                  values: values as Prisma.InputJsonValue,
+                  values: (await withTabTag(tx, board, values)) as Prisma.InputJsonValue,
                   vars,
                   notes: lead.notes ?? "",
                   openers: openers as unknown as Prisma.InputJsonValue,

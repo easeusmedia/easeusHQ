@@ -10,6 +10,16 @@ import { handleOf, type ChannelKind, type Contact, type FieldData, type LinkValu
 export const SHEET_STAGE = "Leads";
 // its tags, any the team types (Core, Amplifier…): Abhishek, 20 Nov 2026
 export const TAGS = "Tags";
+// A tab's own tag, which every lead on it gets (Abhishek, 20 Nov 2026): the
+// core database (POD-CORE) Core, the amplifier one (POD-AMP) Amplifier
+// their colours (Abhishek, 20 Nov 2026): Core yellow, Amplifier green
+export const TAB_TAG_COLOR: Record<string, string> = { Core: "yellow", Amplifier: "green" };
+export function tabTag(tabName: string): string | null {
+  const n = tabName.toLowerCase();
+  if (/(^|[^a-z])core([^a-z]|$)/.test(n)) return "Core";
+  if (/(^|[^a-z])amp(lifier)?([^a-z]|$)/.test(n)) return "Amplifier";
+  return null;
+}
 export const DEAD_STAGE = "Dead";
 
 // A Leads tab's own make-up: its two stages and the two properties its
@@ -158,11 +168,11 @@ export type SheetData = {
 export type OutreachBoard = { id: string; name: string; portal: string };
 
 // Leadwell's Filter (Abhishek, 20 Nov 2026): when a lead was added, who
-// added it, and what it can be reached on; a tick within a group is any of
-// them (Added by), across groups every one (Has: each of those)
+// added it, what it can be reached on, its tags; a tick within a group is
+// any of them (Added by, Tags), across groups every one (Has: each of those)
 export type SheetReach = "email" | "phone" | "instagram" | "linkedin";
-export type SheetFilter = { added: "day" | "week" | "month" | null; by: string[]; has: SheetReach[] };
-export const NO_FILTER: SheetFilter = { added: null, by: [], has: [] };
+export type SheetFilter = { added: "day" | "week" | "month" | null; by: string[]; has: SheetReach[]; tags: string[] };
+export const NO_FILTER: SheetFilter = { added: null, by: [], has: [], tags: [] };
 const DAY = 86_400_000;
 export const ADDED: { key: NonNullable<SheetFilter["added"]>; label: string; ms: number }[] = [
   { key: "day", label: "Last 24 hours", ms: DAY },
@@ -180,7 +190,7 @@ export const hasReach = (l: SheetLead, k: SheetReach) =>
   l.contacts.some((p) => (p.channels ?? []).some((c) => c.kind === k && c.value.trim())) || l.links.some((x) => channelOf(x.url)?.kind === k);
 export function passesSheetFilter(l: SheetLead, f: SheetFilter, now = Date.now()): boolean {
   const added = ADDED.find((a) => a.key === f.added);
-  return (!added || now - Date.parse(l.createdAt) <= added.ms) && (!f.by.length || f.by.includes(l.createdBy.id)) && f.has.every((k) => hasReach(l, k));
+  return (!added || now - Date.parse(l.createdAt) <= added.ms) && (!f.by.length || f.by.includes(l.createdBy.id)) && f.has.every((k) => hasReach(l, k)) && (!f.tags.length || f.tags.some((t) => l.tags.includes(t)));
 }
 
 // Everything a search can find on a row

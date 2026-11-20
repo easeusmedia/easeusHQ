@@ -4,10 +4,10 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, BriefcaseBusiness, Check, Globe, Mail, Phone, Plus, Trash2, X } from "lucide-react";
 import { channelsIn, columnOf, shownAs, type OutreachBoard, type SheetColumn, type SheetData, type SheetLead } from "@/lib/leadSheet";
-import { CONTACT_ROLES, type Contact, type LinkValue } from "@/lib/space";
+import { CONTACT_ROLES, hexOf, type Contact, type LinkValue } from "@/lib/space";
 import { moveLeadTo, renameLead, setLeadDead, setLeadNotes, setLeadValue } from "./actions";
 import { Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, dateOf, hrefOf, useDebounced } from "./values";
-import { TagPill } from "./pills";
+import { TagPill } from "../../clients/TagPill";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -344,7 +344,7 @@ export function LeadTags({ field, value, save }: { field: NonNullable<SheetData[
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {picked.map((o) => (
-        <TagPill key={o.id} name={o.name} />
+        <TagPill key={o.id} name={o.name} color={hexOf(o.color)} />
       ))}
       <TagEditor
         field={field}
