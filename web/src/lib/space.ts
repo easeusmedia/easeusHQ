@@ -601,10 +601,32 @@ export function defaultFor<T extends Pick<MessageData, "name" | "channel">>(opti
   return defaultMessage(can.length ? can : options, opened);
 }
 
+// A message's version, the last part of its name: on a stage with the same
+// versions on every platform (Stage 1: "Loom not seen", "Loom seen"), picking
+// one picks it on them all (Abhishek, 20 Nov 2026)
+export const versionOf = (m: Pick<MessageData, "name">) => m.name.split("·").pop()!.trim();
+const sameVersion = (a: Pick<MessageData, "name">, b: Pick<MessageData, "name">) => versionOf(a).toLowerCase() === versionOf(b).toLowerCase();
+
 // The message a contact's day goes out with: the one picked for them, else
-// the lead's, else their default
-export function chosenFor<T extends Pick<MessageData, "id" | "name" | "channel">>(options: T[], picks: Record<string, string>, key: string, contact: Contact | null, opened: boolean): T | undefined {
-  return options.find((m) => m.id === picks[forContact(key, contact)]) ?? (contact ? options.find((m) => m.id === picks[key]) : undefined) ?? defaultFor(options, contact, opened);
+// the lead's, else their default. A pick on another platform of the day
+// (all: the day's messages) takes this platform's message of the same version.
+export function chosenFor<T extends Pick<MessageData, "id" | "name" | "channel">>(options: T[], picks: Record<string, string>, key: string, contact: Contact | null, opened: boolean, all: T[] = options): T | undefined {
+  const match = (id: string | undefined) => {
+    if (!id) return undefined;
+    const picked = all.find((m) => m.id === id);
+    return options.find((m) => m.id === id) ?? (picked ? options.find((m) => sameVersion(m, picked)) : undefined);
+  };
+  return match(picks[forContact(key, contact)]) ?? (contact ? match(picks[key]) : undefined) ?? defaultFor(options, contact, opened);
+}
+
+// The versions a stage offers on every platform alike (Stage 1: "Loom not
+// seen", "Loom seen"), to switch between once for all of them; none when its
+// platforms don't share them
+export function stageVersions(byPlatform: Pick<MessageData, "name">[][]): string[] {
+  if (byPlatform.length < 2) return [];
+  const versions = byPlatform[0].map(versionOf);
+  const alike = (o: Pick<MessageData, "name">[]) => o.length === versions.length && o.every((m) => versions.some((v) => v.toLowerCase() === versionOf(m).toLowerCase()));
+  return versions.length > 1 && new Set(versions.map((v) => v.toLowerCase())).size === versions.length && byPlatform.every(alike) ? versions : [];
 }
 
 // The platform a contact's day goes out on, so the card shows only that
@@ -672,7 +694,7 @@ export function dayLeft<M extends Pick<MessageData, "id" | "name" | "channel" | 
   if (dayOff(on, contact, lead.picks)) return { due: [] as M[], approve: [] as M[], fill: [] as string[] };
   const chosen = [...new Set(on.map((m) => m.channel))].map((channel) => {
     const options = on.filter((m) => m.channel === channel);
-    return chosenFor(options, lead.picks, key, contact, opened) ?? options[0];
+    return chosenFor(options, lead.picks, key, contact, opened, on) ?? options[0];
   });
   const sendable = chosen.filter((m) => sendsOn(lead.picks, contact, m.channel));
   const due = sendable.length ? sendable : chosen;
@@ -936,7 +958,10 @@ export function messagePhases(board: Pick<BoardData, "stages" | "messages">, sta
 // tab. Before Ready to reach out every day shows too, nothing marked yet, so
 // a lead's messages can be read from the start (Abhishek, 17 Oct 2026). A
 // board with no days: its stage's own messages, if any.
-export type SequenceTab = { key: string; title: string; sub: string; stage: StageData; day: number | null; when: "done" | "now" | "next" | null; messages: MessageData[] };
+// After a reply (Abhishek, 20 Nov 2026): no days. The tabs are the Replied
+// row's stages (Replied, Stage 1, Stage 2…) as steps, numbered, each done,
+// now or next by where the lead is in the row, whatever they're named.
+export type SequenceTab = { key: string; title: string; sub: string; stage: StageData; day: number | null; step?: number; when: "done" | "now" | "next" | null; messages: MessageData[] };
 const CHANNEL_WORD: Record<string, string> = { email: "Email", linkedin: "LinkedIn", instagram: "Instagram", other: "Other" };
 export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stageId: string): SequenceTab[] {
   const { stages } = board;
@@ -948,6 +973,12 @@ export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stag
   };
   const first = stages.findIndex((s) => dayOf(s.name) != null);
   if (first < 0) return own(stages[i]);
+  const sections = stageSections(stages);
+  const row = stages.filter((_, j) => sections?.[j] === "replied");
+  const at = row.findIndex((s) => s.id === stageId);
+  // a board whose Replied row has no messages yet keeps the days
+  if (at >= 0 && board.messages.some((m) => row.some((s) => s.id === m.stageId)))
+    return row.map((st, n) => ({ key: st.id, title: st.name, sub: st.name, stage: st, day: null, step: n + 1, when: n < at ? "done" : n === at ? "now" : n === at + 1 ? "next" : null, messages: board.messages.filter((m) => m.stageId === st.id) }));
   const before = i < first - 1;
   const here = dayOf(stages[i].name);
   const past = here == null && i > first;

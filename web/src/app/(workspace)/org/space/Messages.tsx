@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions } from "@/lib/space";
 import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -279,7 +279,7 @@ export function Messages({
   // which meme board image goes with Day 6's email, from the lead's property
   const memeField = board.fields.find((f) => /^meme board$/i.test(f.name.trim()));
   const memeBoard = memeField ? memeField.options.find((o) => (lead.values[memeField.id] as string[] | undefined)?.includes(o.id))?.name : undefined;
-  const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0) ?? options[0]);
+  const chosenOn = (x: SequenceTab, c: Contact | null) => [...new Set(x.messages.map((m) => m.channel))].map((ch) => x.messages.filter((m) => m.channel === ch)).map((options) => chosenFor(options, picks, x.key, c, lead.email.opens > 0, x.messages) ?? options[0]);
   // a day is done once the person's messages on it are approved and every
   // fill-in they use is filled (lib/space dayLeft, as the move into Ready to
   // reach out has it); the ring fills with the approvals, an empty fill-in
@@ -307,8 +307,9 @@ export function Messages({
   const openerLeft = (i: number) => openersDue.filter((m) => !approvalOf(keyOf(m.id, person, i)));
   const openerFills = (i: number) => emptyFills(openersSendable, wording, { ...picks, opener: String(i) }, varsFor(vars, person));
   const openerApproved = (i: number) => openersDue.length > 0 && openerLeft(i).length === 0 && openerFills(i).length === 0;
-  // the sequence's first email: one after it with no subject of its own is a reply in its thread
-  const firstEmail = tabs.filter((x) => x.day != null).flatMap((x) => x.messages).find((m) => m.channel === "email");
+  // the sequence's first email: one after it with no subject of its own is a
+  // reply in its thread (after a reply too, when the days aren't shown)
+  const firstEmail = board.stages.filter((s) => dayOf(s.name) != null).flatMap((s) => board.messages.filter((m) => m.stageId === s.id)).find((m) => m.channel === "email");
 
   // a move held back for empty fill-ins (LeadPeek): the form comes into view, its empty fields pulse once
   const fillForm = useRef<HTMLElement>(null);
@@ -326,9 +327,10 @@ export function Messages({
 
   // one platform's message on the day for the person: picked between when
   // there are two, then the message, then how it went (from the day on)
-  const platformRow = (t: SequenceTab, options: MessageData[], c: Contact | null) => {
+  // oneSwitch: the stage switches its versions for every platform at once, above
+  const platformRow = (t: SequenceTab, options: MessageData[], c: Contact | null, oneSwitch = false) => {
     const key = forContact(t.key, c);
-    const chosen = chosenFor(options, picks, t.key, c, lead.email.opens > 0) ?? options[0];
+    const chosen = chosenFor(options, picks, t.key, c, lead.email.opens > 0, t.messages) ?? options[0];
     const can = hasChannel(c, chosen.channel);
     // the day has come, or gone (a lead past the days, in Replied, can still untap)
     const reached = t.when === "done" || (t.day != null && today != null && t.day <= today);
@@ -342,6 +344,7 @@ export function Messages({
       // one they can't be sent stays readable, its header saying why (Abhishek: greyed read as switched off)
       <div key={chosen.channel} className="flex flex-col gap-2.5">
         {options.length > 1 &&
+          !oneSwitch &&
           (options.length <= 4 ? (
             <div className="flex flex-wrap gap-1.5">
               {options.map((o) => (
@@ -398,6 +401,9 @@ export function Messages({
   const t = shownTab;
   // its messages, one platform at a time, in the day's own order
   const byPlatform = [...new Set(t.messages.map((m) => m.channel))].map((ch) => t.messages.filter((m) => m.channel === ch));
+  // the same versions on every platform (Stage 1: Loom not seen, Loom seen): one switch for all of them
+  const versions = stageVersions(byPlatform);
+  const version = versions.length ? versionOf(chosenFor(byPlatform[0], picks, t.key, person, lead.email.opens > 0, t.messages) ?? byPlatform[0][0]) : null;
 
   return (
     <div className="@container min-h-0 flex-1">
@@ -533,7 +539,7 @@ export function Messages({
                                 <circle cx="10" cy="10" r="9.5" fill="none" stroke="rgb(52 211 153 / 0.8)" strokeWidth="1.5" pathLength="100" strokeDasharray={`${(progress.done / progress.due) * 100} 100`} className="transition-[stroke-dasharray] duration-300" />
                               </svg>
                             )}
-                            {short ? (x.day ?? x.title.charAt(0)) : tone && <span className={`size-1.5 rounded-full ${tone === "emerald" ? "bg-emerald-400" : "bg-accent"}`} />}
+                            {short ? (x.day ?? x.step ?? x.title.charAt(0)) : tone && <span className={`size-1.5 rounded-full ${tone === "emerald" ? "bg-emerald-400" : "bg-accent"}`} />}
                           </span>
                         )}
                         {!short && <span>{x.title}</span>}
@@ -587,8 +593,21 @@ export function Messages({
                 </span>
               )}
             </p>
+            {versions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {versions.map((v) => {
+                  const on = v.toLowerCase() === version?.toLowerCase();
+                  const m = byPlatform[0].find((x) => versionOf(x).toLowerCase() === v.toLowerCase())!;
+                  return (
+                    <button key={v} type="button" aria-pressed={on} onClick={() => !on && pick(forContact(t.key, person), m.id)} className="chip flex w-fit items-center rounded-full px-3 py-1 text-xs">
+                      {v.charAt(0).toUpperCase() + v.slice(1)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {prepared ? (
-              <div className="flex flex-col gap-4">{byPlatform.map((options) => platformRow(t, options, person))}</div>
+              <div className="flex flex-col gap-4">{byPlatform.map((options) => platformRow(t, options, person, versions.length > 0))}</div>
             ) : (
               <p className="px-1 pt-3 text-xs text-muted">Loading its messages…</p>
             )}

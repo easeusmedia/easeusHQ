@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"].map((id) => ({ id, name: id }));
 
@@ -364,8 +364,40 @@ test("a lead's window shows every day as a tab, done, today and next", () => {
   assert.equal(fromReady[0].sub, "Day 1 · Email + LinkedIn");
   assert.equal(fromReady[1].sub, "Day 2 · Instagram 1");
   assert.deepEqual(sequenceTabs(ready, "d2").map((t) => t.when), ["done", "now", "next"]);
-  // past the sequence: every day done, and the stage's own messages as a tab
-  assert.deepEqual(sequenceTabs(ready, "d4").map((t) => [t.title, t.when]), [["Day 1", "done"], ["Day 2", "done"], ["Day 3", "done"], ["Replied", "now"]]);
+  // after a reply: no days, the Replied row's stages
+  assert.deepEqual(sequenceTabs(ready, "d4").map((t) => [t.title, t.when]), [["Replied", "now"]]);
+});
+
+test("after a reply the window steps through the Replied row, not the days", () => {
+  const names = ["Ready to reach out", "Day 1", "Day 2", "Replied", "Stage 1", "Loom follow-up 2", "Stage 3", "Parked for later", "Dead"];
+  const stages = names.map((name, i) => ({ id: `s${i}`, name, color: "default" }));
+  const msg = (stageId: string, channel: string, name: string) => ({ id: `${stageId}-${channel}-${name}`, stageId, channel, name, subject: "", body: "", note: "" });
+  const board = { stages, messages: [msg("s1", "email", "Day 1"), msg("s2", "instagram", "Day 2"), msg("s3", "email", "Reply"), msg("s4", "email", "Loom follow-up 1 · Loom not seen"), msg("s5", "email", "Loom follow-up 2")] };
+  const tabs = (at: string) => sequenceTabs(board, at).map((t) => `${t.step}:${t.title}:${t.when ?? "-"}`);
+  // renamed or empty, every stage in the row is a step
+  assert.deepEqual(tabs("s3"), ["1:Replied:now", "2:Stage 1:next", "3:Loom follow-up 2:-", "4:Stage 3:-", "5:Parked for later:-"]);
+  assert.deepEqual(tabs("s5"), ["1:Replied:done", "2:Stage 1:done", "3:Loom follow-up 2:now", "4:Stage 3:next", "5:Parked for later:-"]);
+  // In process (and Dead) keep the days
+  assert.deepEqual(sequenceTabs(board, "s2").map((t) => t.title), ["Day 1", "Day 2"]);
+  assert.deepEqual(sequenceTabs(board, "s8").map((t) => t.title), ["Day 1", "Day 2"]);
+  // a Replied row with no messages anywhere: the days, as before
+  const bare = { stages, messages: board.messages.slice(0, 2) };
+  assert.deepEqual(sequenceTabs(bare, "s3").map((t) => t.title), ["Day 1", "Day 2"]);
+});
+
+test("a stage's version picked once is picked on every platform", () => {
+  const m = (id: string, channel: string, version: string) => ({ id, channel, name: `Loom follow-up 1 · ${version}` });
+  const all = [m("en", "email", "Loom not seen"), m("es", "email", "Loom seen"), m("ln", "linkedin", "Loom not seen"), m("ls", "linkedin", "Loom seen")];
+  const email = all.filter((x) => x.channel === "email");
+  const linkedin = all.filter((x) => x.channel === "linkedin");
+  assert.deepEqual(stageVersions([email, linkedin]), ["Loom not seen", "Loom seen"]);
+  // nothing picked: the first; the email's version picked: LinkedIn follows
+  assert.equal(chosenFor(linkedin, {}, "k", null, false, all)?.id, "ln");
+  assert.equal(chosenFor(linkedin, { k: "es" }, "k", null, false, all)?.id, "ls");
+  assert.equal(chosenFor(email, { k: "ls" }, "k", null, false, all)?.id, "es");
+  // platforms that don't share versions get no stage switch
+  assert.deepEqual(stageVersions([email, [m("x", "linkedin", "Other")]]), []);
+  assert.deepEqual(stageVersions([email]), []);
 });
 
 test("a day's stage keeps its day number whatever it's renamed to", () => {
