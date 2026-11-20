@@ -103,12 +103,18 @@ export function useCloseOnScroll(open: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return;
     // capture phase: the scroll happens on some inner container, and
-    // neither scroll nor a dialog's close event bubbles
-    window.addEventListener("scroll", close, true);
+    // neither scroll nor a dialog's close event bubbles. A menu's own list
+    // scrolling is no reason to shut it (Abhishek, 20 Nov 2026: a long list of
+    // designations shut the moment it was scrolled, so it read as cut off).
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest("[popover], .popover")) return;
+      close();
+    };
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("close", close, true);
     window.addEventListener("resize", close);
     return () => {
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("close", close, true);
       window.removeEventListener("resize", close);
     };

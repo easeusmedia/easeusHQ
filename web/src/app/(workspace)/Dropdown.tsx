@@ -163,7 +163,7 @@ export function Dropdown({
             left: position.left,
             width: position.width,
           }}
-          className="pop-in fixed z-50 max-h-80 overflow-y-auto rounded-xl popover p-1 shadow-lg"
+          className="pop-in fixed z-50 max-h-80 overflow-y-auto overscroll-contain rounded-xl popover p-1 shadow-lg"
         >
           {searching && (
             <div className="px-1 pt-1 pb-1.5">

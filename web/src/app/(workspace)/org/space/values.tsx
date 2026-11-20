@@ -542,7 +542,7 @@ export function TagEditor({ field, value, save, trigger }: { field: FieldData; v
               />
             </div>
             <p className="px-2.5 pt-0.5 pb-1 text-[12px] text-muted/80">{multi ? "Pick any number, or create one" : "Pick one, or create one"}</p>
-            <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-64 overflow-y-auto overscroll-contain">
               {shown.map((o) => (
                 <div key={o.id}>
                   <div className="group/opt flex items-center gap-0.5 rounded-lg transition-colors hover:bg-white/[0.06]">
