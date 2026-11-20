@@ -32,7 +32,9 @@ const widthsKey = (tab: string) => `leads:widths:v2:${tab}`;
 const orderKey = (tab: string) => `leads:order:v2:${tab}`;
 
 // The edge of a column's heading: drag it (or the arrow keys) to widen or
-// narrow the column; a double click puts it back
+// narrow the column; a double click puts it back. A faint line always marks
+// it, so the headings read as columns and the edge is easy to find
+// (Abhishek, 20 Nov 2026); it lights in blue under the pointer.
 function Resizer({ label, onDrag, onStep, onReset }: { label: string; onDrag: (e: React.PointerEvent<HTMLSpanElement>) => void; onStep: (by: number) => void; onReset: () => void }) {
   return (
     <span
@@ -51,7 +53,7 @@ function Resizer({ label, onDrag, onStep, onReset }: { label: string; onDrag: (e
       }}
       className="group/resize absolute inset-y-0 right-0 z-20 flex w-2 cursor-col-resize touch-none justify-end outline-none"
     >
-      <span className="my-2.5 w-px bg-white/0 transition-colors group-hover/resize:bg-accent/60 group-focus-visible/resize:bg-accent/60" />
+      <span className="my-3 w-px bg-white/[0.08] transition-colors group-hover/resize:bg-accent/70 group-focus-visible/resize:bg-accent/70" />
     </span>
   );
 }
