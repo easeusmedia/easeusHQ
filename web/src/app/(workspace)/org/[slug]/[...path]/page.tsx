@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { addsPages, addsStages, buildsDepartment } from "@/lib/scope";
 import { visibleDepartments } from "../../departments";
 import { DepartmentHead } from "../../DepartmentHead";
-import { boardsOf, childCards, loadBoard, loadSheet, moveTargets, peopleOf, resolvePath, templatesOf } from "../../space/data";
+import { boardsOf, childCards, loadBoard, loadSheet, moveTargets, peopleOf, resolvePath, sheetCounts, templatesOf } from "../../space/data";
 import { LeadsView } from "../../space/LeadsView";
 import { SpaceGrid, SpaceTitle } from "../../space/SpaceGrid";
 import { PortalView } from "../../space/PortalView";
@@ -79,7 +79,7 @@ export default async function SpacePage({
 
   // Sales > Leads: each tab a spreadsheet of the leads found
   if (node.leadBank) {
-    const [sheet, targets] = await Promise.all([active ? loadSheet(active.id) : null, moveTargets(team.id)]);
+    const [sheet, targets, counts] = await Promise.all([active ? loadSheet(active.id) : null, moveTargets(team.id), sheetCounts(boards.map((b) => b.id))]);
     // the pictures still missing, a few more each time the tab is opened (lib/leadChannel)
     if (active && sheet?.leads.some((l) => !l.picture)) {
       const h = await headers();
@@ -92,7 +92,7 @@ export default async function SpacePage({
         <DepartmentHead parents={parents}>
           <SpaceTitle id={node.id} name={node.name} canRename={canBuild} />
         </DepartmentHead>
-        <LeadsView teamId={team.id} portal={{ id: node.id, name: node.name }} boards={boards} sheet={sheet} targets={targets} canBuild={canBuild} canAdd={canAdd} initialLeadId={typeof query.lead === "string" ? query.lead : null} />
+        <LeadsView teamId={team.id} portal={{ id: node.id, name: node.name }} boards={boards} counts={counts} sheet={sheet} targets={targets} canBuild={canBuild} canAdd={canAdd} initialLeadId={typeof query.lead === "string" ? query.lead : null} />
       </>
     );
   }

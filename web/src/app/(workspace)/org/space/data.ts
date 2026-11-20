@@ -45,6 +45,12 @@ export async function childCards(teamId: string, parentId: string | null, base: 
 }
 
 // A portal's boards, for its tabs
+// How many leads each Leads tab has collected, the dead ones apart (Abhishek, 20 Nov 2026)
+export async function sheetCounts(boardIds: string[]): Promise<Record<string, number>> {
+  const rows = await prisma.lead.groupBy({ by: ["boardId"], where: { boardId: { in: boardIds }, stage: { name: { not: DEAD_STAGE } } }, _count: { _all: true } });
+  return Object.fromEntries(rows.map((r) => [r.boardId, r._count._all]));
+}
+
 export async function boardsOf(portalId: string) {
   return prisma.space.findMany({ where: { parentId: portalId, kind: "board" }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { id: true, name: true, slug: true } });
 }

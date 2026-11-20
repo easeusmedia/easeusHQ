@@ -18,6 +18,7 @@ export function BoardTabs({
   teamId,
   portalId,
   boards,
+  counts,
   active,
   current,
   loading,
@@ -31,6 +32,8 @@ export function BoardTabs({
   teamId: string;
   portalId: string;
   boards: { id: string; name: string; slug: string }[];
+  // how many leads each has, quietly beside its name (Leads' tabs)
+  counts?: Record<string, number>;
   active: string;
   // the board open now, to rename or delete
   current: { id: string; name: string };
@@ -69,10 +72,14 @@ export function BoardTabs({
               return (
                 <div key={b.id} role="tab" aria-selected={on} className="seg group/tab flex max-w-[18rem] shrink-0 items-center rounded-full px-3.5 py-1.5 text-sm font-medium">
                   {on && !loading ? (
-                    canBuild ? <EditableName name={b.name} onSave={rename(b.id)} pencil="none" editing={renaming} onEditingChange={setRenaming} /> : <span className="truncate">{b.name}</span>
+                    <>
+                      {canBuild ? <EditableName name={b.name} onSave={rename(b.id)} pencil="none" editing={renaming} onEditingChange={setRenaming} /> : <span className="truncate">{b.name}</span>}
+                      {counts && !renaming && <span className="ml-2 shrink-0 text-xs font-normal text-muted tabular-nums">{counts[b.id] ?? 0}</span>}
+                    </>
                   ) : (
-                    <button type="button" onClick={() => onSwitch(b.slug)} className="-mx-3.5 -my-1.5 truncate px-3.5 py-1.5">
-                      {b.name}
+                    <button type="button" onClick={() => onSwitch(b.slug)} className="-mx-3.5 -my-1.5 flex min-w-0 items-center px-3.5 py-1.5">
+                      <span className="truncate">{b.name}</span>
+                      {counts && <span className="ml-2 shrink-0 text-xs font-normal text-muted tabular-nums">{counts[b.id] ?? 0}</span>}
                     </button>
                   )}
                   {/* rename and delete, sliding out of the open tab on hover */}

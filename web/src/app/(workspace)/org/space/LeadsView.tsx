@@ -25,6 +25,7 @@ export function LeadsView({
   teamId,
   portal,
   boards,
+  counts,
   sheet,
   targets,
   canBuild,
@@ -34,6 +35,8 @@ export function LeadsView({
   teamId: string;
   portal: { id: string; name: string };
   boards: { id: string; name: string; slug: string }[];
+  // how many leads each tab has collected, by its id
+  counts?: Record<string, number>;
   sheet: SheetData | null;
   // the outreach boards a lead can move to
   targets: OutreachBoard[];
@@ -134,6 +137,7 @@ export function LeadsView({
         teamId={teamId}
         portalId={portal.id}
         boards={boards}
+        counts={counts}
         active={going ?? sheet.slug}
         current={{ id: sheet.id, name: sheet.name }}
         loading={!!going}
