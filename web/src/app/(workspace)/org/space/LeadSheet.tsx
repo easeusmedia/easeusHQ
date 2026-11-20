@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { Clock3, Mail, Phone, Plus } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 import { arrange, shownAs, type SheetLead } from "@/lib/leadSheet";
 import { hexOf, linkName, sameUrl, type Contact, type FieldData } from "@/lib/space";
 import { TagPill } from "../../clients/TagPill";
 import { Avatar, formatDate } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
-import { TagEditor, hrefOf } from "./values";
+import { hrefOf } from "./values";
 import { ShowMore } from "./LeadBoard";
 import { PAGE, usePaging } from "./paging";
 
@@ -24,7 +24,7 @@ const PIN_RIGHT = `${SOLID} sticky right-0 z-10 shadow-[-1px_0_0_var(--border)]`
 // Each column's width, in px, until it's dragged; dragged, kept for that tab
 // in this browser (Abhishek, 3 Nov 2026). New keys for the 20 Nov layout, so
 // widths and orders kept for the old columns don't carry over.
-const WIDTH: Record<string, number> = { name: 270, contact: 220, reach: 250, links: 190, notes: 280, by: 170, actions: 96 };
+const WIDTH: Record<string, number> = { name: 300, contact: 220, reach: 250, links: 190, notes: 280, by: 170, actions: 96 };
 const MIN = 80;
 const MAX = 640;
 const clamp = (n: number) => Math.min(MAX, Math.max(MIN, Math.round(n)));
@@ -123,12 +123,11 @@ const ROUND = "grid size-7 shrink-0 place-items-center rounded-full bg-white/[0.
 // leads don't open; each has `actions` pinned on the right (Restore,
 // Delete). Every column resizes from its heading's edge and moves by its
 // heading, kept per tab (`tab`) in this browser.
-// tagsField and onTags: the tab's Tags, picked or typed right under each name
+// tagsField: the tab's Tags, for each lead's under its name
 export function LeadSheet({
   tab,
   leads,
   tagsField = null,
-  onTags,
   filterKey,
   onOpen,
   actions,
@@ -136,7 +135,6 @@ export function LeadSheet({
   tab: string;
   leads: SheetLead[];
   tagsField?: FieldData | null;
-  onTags?: (lead: SheetLead, ids: string[]) => void;
   filterKey: string;
   onOpen?: (lead: SheetLead) => void;
   actions?: (lead: SheetLead) => React.ReactNode;
@@ -379,33 +377,14 @@ export function LeadSheet({
                       ) : (
                         <span className="block truncate font-medium">{lead.title}</span>
                       )}
-                      {/* its tags right under its name, in their colours, then when it was added (Abhishek, 20 Nov 2026) */}
-                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted">
+                      {/* its tags right under its name, in their colours, then when it
+                          was added, quietly (Abhishek, 20 Nov 2026); tags are picked in
+                          the lead's window */}
+                      <div className="mt-1.5 flex min-w-0 items-center gap-2">
                         {lead.tags.flatMap((t) => tags.filter((o) => o.id === t)).map((o) => (
                           <TagPill key={o.id} name={o.name} color={hexOf(o.color)} size="mini" />
                         ))}
-                        {/* a tag picked or typed here, without opening the lead */}
-                        {tagsField && onTags && (
-                          <span onClick={(e) => e.stopPropagation()} className="flex">
-                            <TagEditor
-                              field={tagsField}
-                              value={lead.tags}
-                              save={(ids) => onTags(lead, ids ?? [])}
-                              trigger={{
-                                label: `Tags for ${lead.title}`,
-                                className: "flex h-[18px] items-center gap-1 rounded-full border border-dashed border-white/15 px-1.5 text-[10.5px] text-muted transition-colors hover:border-white/30 hover:text-foreground",
-                                button: (
-                                  <>
-                                    <Plus size={10} />
-                                    {lead.tags.length ? "" : "Tag"}
-                                  </>
-                                ),
-                              }}
-                            />
-                          </span>
-                        )}
-                        <span title={`Added ${formatDate(lead.createdAt)} by ${lead.createdBy.name}`} className="flex shrink-0 items-center gap-1">
-                          <Clock3 size={11} className="shrink-0" />
+                        <span title={`Added ${formatDate(lead.createdAt)} by ${lead.createdBy.name}`} className="shrink-0 text-[11.5px] text-muted/80">
                           {addedWhen(lead.createdAt)}
                         </span>
                       </div>
