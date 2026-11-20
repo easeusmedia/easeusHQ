@@ -27,8 +27,8 @@ async function shift(lead: { id: string; stageId: string; stageName: string }, t
 export async function moveToReplied(leadId: string, by: By, reason: string): Promise<boolean> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, boardId: true, stageId: true, stage: { select: { name: true } } } });
   if (!lead || dayOf(lead.stage.name) == null) return false;
-  const stages = await prisma.boardStage.findMany({ where: { boardId: lead.boardId }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } });
-  const to = stages.find((s) => isReplied(s.name));
+  const stages = await prisma.boardStage.findMany({ where: { boardId: lead.boardId }, select: { id: true, name: true, role: true }, orderBy: { sortOrder: "asc" } });
+  const to = stages.find((s) => isReplied(s));
   return !!to && shift({ ...lead, stageName: lead.stage.name }, to, by, reason);
 }
 

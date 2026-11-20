@@ -621,7 +621,7 @@ export function Messages({
               </div>
             )}
             {/* Replied: what they wrote back, pasted in, and where (Abhishek, 20 Nov 2026) */}
-            {isReplied(t.stage.name) && (
+            {isReplied(t.stage) && (
               <div className="flex flex-col gap-2.5">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="mr-1 text-xs text-muted">Replied on</span>
@@ -646,7 +646,7 @@ export function Messages({
               </div>
             )}
             {/* Parked for later: the day to reach out again; a reminder goes out that day */}
-            {isParked(t.stage.name) && (
+            {isParked(t.stage) && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted">Reach out again on</span>
                 <div className="w-52">

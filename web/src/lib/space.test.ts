@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions, dueReminders, isParts } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions, dueReminders, isParts, roleOf } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"].map((id) => ({ id, name: id }));
 
@@ -752,4 +752,15 @@ test("a platform's numbered messages go together, not one picked", () => {
   assert.equal(isParts([m("Audit · LinkedIn · Message 1"), m("Audit · LinkedIn · Message 2")]), true);
   assert.equal(isParts([m("Loom follow-up 1 · Loom seen"), m("Loom follow-up 1 · Loom not seen")]), false);
   assert.equal(isParts([m("Audit · LinkedIn · Message 1")]), false);
+});
+
+test("a stage keeps what it's for whatever it's renamed to", () => {
+  assert.equal(roleOf({ name: "Replied" }), "replied");
+  assert.equal(roleOf({ name: "Parked for later" }), "parked");
+  assert.equal(roleOf({ name: "Audit sent" }), null);
+  // renamed: its role, kept on it, still says
+  assert.equal(roleOf({ name: "They wrote back", role: "replied" }), "replied");
+  assert.equal(roleOf({ name: "Future", role: "parked" }), "parked");
+  const lead = { stage: { name: "Future", role: "parked" }, vars: { "parked:until": "2026-12-01" } };
+  assert.equal(dueReminders([lead], "2026-12-01").length, 1);
 });

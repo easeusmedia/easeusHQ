@@ -9,8 +9,8 @@ import { AFTER, dueReminders } from "./space.ts";
 
 export async function sweepParked(now = new Date()): Promise<number> {
   const leads = await prisma.lead.findMany({
-    where: { stage: { name: { startsWith: "parked", mode: "insensitive" } } },
-    select: { id: true, title: true, vars: true, assignedToId: true, createdById: true, stage: { select: { name: true } }, board: { select: { name: true } } },
+    where: { stage: { OR: [{ role: "parked" }, { role: null, name: { startsWith: "parked", mode: "insensitive" } }] } },
+    select: { id: true, title: true, vars: true, assignedToId: true, createdById: true, stage: { select: { name: true, role: true } }, board: { select: { name: true } } },
   });
   const due = dueReminders(leads, dayOf(now));
   for (const l of due) {

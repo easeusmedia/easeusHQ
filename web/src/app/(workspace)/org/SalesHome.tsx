@@ -76,7 +76,7 @@ export async function SalesHome({ teamId, team, notices }: { teamId: string; tea
       const d = dayOf(st.name);
       return d != null ? [column(st)] : [];
     });
-    const repliedStages = new Set(board.stages.filter((st) => isReplied(st.name)).map((st) => st.id));
+    const repliedStages = new Set(board.stages.filter((st) => isReplied(st)).map((st) => st.id));
     return [
       {
         id: board.id,

@@ -1175,6 +1175,10 @@ model BoardStage {
   // a Notion colour name (lib/space.ts COLORS)
   color     String         @default("default")
   sortOrder Float          @default(0)
+  // what it's for, whatever it's called (Abhishek, 20 Nov 2026): "replied"
+  // (where a reply lands, its box to paste it in) or "parked" (a day to
+  // reach out again, and its reminder). Null: by its name (lib/space roleOf)
+  role      String?
   leads     Lead[]
   messages  StageMessage[]
 

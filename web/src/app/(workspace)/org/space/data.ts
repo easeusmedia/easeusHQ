@@ -60,7 +60,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
       slug: true,
       stages: {
         orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true, color: true, messages: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, channel: true, subject: true, body: true, note: true } } },
+        select: { id: true, name: true, color: true, role: true, messages: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, channel: true, subject: true, body: true, note: true } } },
       },
       fields: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, kind: true, onCard: true, pins: true, required: true, options: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } } } },
       leads: {
@@ -173,7 +173,7 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     id: board.id,
     name: board.name,
     slug: board.slug,
-    stages: board.stages.map((s) => ({ id: s.id, name: s.name, color: s.color })),
+    stages: board.stages.map((s) => ({ id: s.id, name: s.name, color: s.color, role: s.role })),
     messages,
     fields: board.fields.map((f) => ({ ...f, kind: f.kind as FieldKind })),
     // the tracker's sending addresses, then any typed in by hand

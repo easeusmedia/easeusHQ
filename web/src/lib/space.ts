@@ -95,7 +95,7 @@ export type FieldValue = string[] | CountValue | Contact[] | LinkValue[] | boole
 // ---- What travels to the client ----
 export type OptionData = { id: string; name: string; color: string };
 export type FieldData = { id: string; name: string; kind: FieldKind; onCard: boolean; required: boolean; options: OptionData[]; pins: string[] };
-export type StageData = { id: string; name: string; color: string };
+export type StageData = { id: string; name: string; color: string; role?: string | null };
 export type Person = { id: string; name: string };
 export type LeadData = {
   id: string;
@@ -482,8 +482,16 @@ export function outreachStart(stages: Pick<StageData, "name">[]): number {
   return first - 1;
 }
 export const isDead = (stageName: string) => /^dead\b/i.test(stageName.trim());
-export const isReplied = (stageName: string) => /^replied\b/i.test(stageName.trim());
-export const isParked = (stageName: string) => /^parked\b/i.test(stageName.trim());
+// What a stage is for, kept on it so a rename never changes it (BoardStage.role);
+// one that's never had it set goes by its name
+export type StageRole = "replied" | "parked";
+export function roleOf(stage: { name: string; role?: string | null }): StageRole | null {
+  if (stage.role === "replied" || stage.role === "parked") return stage.role;
+  const n = stage.name.trim();
+  return /^replied\b/i.test(n) ? "replied" : /^parked\b/i.test(n) ? "parked" : null;
+}
+export const isReplied = (stage: { name: string; role?: string | null }) => roleOf(stage) === "replied";
+export const isParked = (stage: { name: string; role?: string | null }) => roleOf(stage) === "parked";
 
 // After a reply (Abhishek, 20 Nov 2026), kept with a lead's fill-ins (vars)
 // under names no {{Variable}} can have: what they wrote back, pasted in, and
@@ -491,11 +499,11 @@ export const isParked = (stageName: string) => /^parked\b/i.test(stageName.trim(
 // to whoever has the lead that day: lib/parkedReminders) and the day it went.
 export const AFTER = { reply: "reply:text", replyOn: "reply:on", until: "parked:until", told: "parked:told" } as const;
 // the parked leads due a reminder: still parked, their day come, not yet reminded of that day
-export function dueReminders<L extends { vars: unknown; stage: { name: string } }>(leads: L[], today: string): L[] {
+export function dueReminders<L extends { vars: unknown; stage: { name: string; role?: string | null } }>(leads: L[], today: string): L[] {
   return leads.filter((l) => {
     const v = (l.vars ?? {}) as Record<string, unknown>;
     const until = v[AFTER.until];
-    return isParked(l.stage.name) && typeof until === "string" && until <= today && v[AFTER.told] !== until;
+    return isParked(l.stage) && typeof until === "string" && until <= today && v[AFTER.told] !== until;
   });
 }
 

@@ -8,6 +8,7 @@ import { moveToReplied, undoReplied } from "@/lib/leadMoves";
 import { addsPages, addsStages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   AFTER,
+  roleOf,
   CHILD_OF,
   cleanValue,
   COLOR_NAMES,
@@ -96,7 +97,7 @@ async function spaceOf(id: string) {
   return prisma.space.findUnique({ where: { id }, select: { id: true, teamId: true, parentId: true, kind: true, name: true, slug: true } });
 }
 async function boardOfStage(id: string) {
-  return prisma.boardStage.findUnique({ where: { id }, select: { id: true, name: true, color: true, sortOrder: true, boardId: true, board: { select: { teamId: true, name: true } } } });
+  return prisma.boardStage.findUnique({ where: { id }, select: { id: true, name: true, color: true, role: true, sortOrder: true, boardId: true, board: { select: { teamId: true, name: true } } } });
 }
 async function boardOfField(id: string) {
   return prisma.boardField.findUnique({
@@ -140,7 +141,7 @@ async function copyStructure(tx: Prisma.TransactionClient, fromId: string, into:
     where: { id: fromId },
     select: {
       kind: true,
-      stages: { select: { name: true, color: true, sortOrder: true, messages: { select: { name: true, channel: true, subject: true, body: true, note: true, sortOrder: true } } } },
+      stages: { select: { name: true, color: true, sortOrder: true, role: true, messages: { select: { name: true, channel: true, subject: true, body: true, note: true, sortOrder: true } } } },
       fields: { select: { name: true, kind: true, onCard: true, pins: true, required: true, sortOrder: true, options: { select: { name: true, color: true, sortOrder: true } } } },
       children: { select: { id: true, name: true, slug: true, sortOrder: true } },
     },
@@ -355,7 +356,8 @@ export async function renameStage(id: string, name: string): Promise<Done> {
   const n = cleanName(name);
   if (typeof n !== "string") return n;
   try {
-    await prisma.boardStage.update({ where: { id }, data: { name: keepDay(stage.name, n) } });
+    // what it's for stays with it under its new name (lib/space roleOf)
+    await prisma.boardStage.update({ where: { id }, data: { name: keepDay(stage.name, n), role: roleOf(stage) } });
     return {};
   } catch (err) {
     return failed(err, "That name couldn't be saved.");
