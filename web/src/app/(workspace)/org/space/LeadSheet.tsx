@@ -2,30 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { CalendarPlus, Globe, Link2, Mail, NotebookText, Phone, UserRound, Users, BriefcaseBusiness, type LucideIcon } from "lucide-react";
-import { arrange, columnOf, SHEET_COLUMNS, shownAs, type SheetColumn, type SheetLead } from "@/lib/leadSheet";
-import { linkName, type Contact } from "@/lib/space";
+import { Clock3, Mail, Phone } from "lucide-react";
+import { arrange, shownAs, type SheetLead } from "@/lib/leadSheet";
+import { linkName, sameUrl, type Contact } from "@/lib/space";
 import { Avatar, formatDate } from "../../TaskCard";
-import { FacebookIcon, InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
+import { PlatformMark } from "../../PlatformIcon";
 import { hrefOf } from "./values";
 import { ShowMore } from "./LeadBoard";
 import { PAGE, usePaging } from "./paging";
 
-const HEAD = "overflow-hidden border-l border-border px-3 py-2.5 text-left text-xs font-medium whitespace-nowrap text-muted first:border-l-0";
-// a cell; every one but the Name has a line on its left. Not "first:": a
-// lead's second and later people have no Name cell in their row, so their
-// first cell is a person's, and it needs that line too (Abhishek, 11 Nov 2026)
-const PAD = "overflow-hidden px-3 py-2 align-top whitespace-nowrap group-hover:bg-surface-2 transition-colors";
-const CELL = `${PAD} border-l border-border`;
+// a heading: small, quiet capitals, nothing between the columns
+const HEAD = "relative overflow-hidden px-4 py-3 text-left text-[11px] font-medium tracking-[0.06em] whitespace-nowrap text-muted uppercase";
+const CELL = "overflow-hidden px-4 py-3.5 align-middle whitespace-nowrap transition-colors group-hover:bg-white/[0.025]";
+// pinned to the left (the lead) or the right (Restore, Delete): solid, so
+// what scrolls under it doesn't show through, a hairline on its inner edge
+const SOLID = "mist-pin bg-surface group-hover:bg-[linear-gradient(rgb(255_255_255/0.025),rgb(255_255_255/0.025)),linear-gradient(var(--surface),var(--surface))]";
+const PIN_LEFT = `${SOLID} sticky left-0 z-10 shadow-[1px_0_0_var(--border)]`;
+const PIN_RIGHT = `${SOLID} sticky right-0 z-10 shadow-[-1px_0_0_var(--border)]`;
 
-// Each column's width, in px, until it's dragged (Abhishek, 3 Nov 2026: the
-// columns resize); dragged, kept for that tab in this browser
-const WIDTH: Record<string, number> = { name: 220, contact: 160, designation: 140, email: 210, phone: 150, instagram: 160, linkedin: 170, facebook: 160, website: 180, x: 140, youtube: 160, links: 200, notes: 280, by: 160, on: 120, actions: 190 };
+// Each column's width, in px, until it's dragged; dragged, kept for that tab
+// in this browser (Abhishek, 3 Nov 2026). New keys for the 20 Nov layout, so
+// widths and orders kept for the old columns don't carry over.
+const WIDTH: Record<string, number> = { name: 270, contact: 220, reach: 250, links: 190, notes: 280, by: 170, actions: 96 };
 const MIN = 80;
 const MAX = 640;
 const clamp = (n: number) => Math.min(MAX, Math.max(MIN, Math.round(n)));
-const widthsKey = (tab: string) => `leads:widths:${tab}`;
-const orderKey = (tab: string) => `leads:order:${tab}`;
+const widthsKey = (tab: string) => `leads:widths:v2:${tab}`;
+const orderKey = (tab: string) => `leads:order:v2:${tab}`;
 
 // The edge of a column's heading: drag it (or the arrow keys) to widen or
 // narrow the column; a double click puts it back
@@ -47,115 +50,151 @@ function Resizer({ label, onDrag, onStep, onReset }: { label: string; onDrag: (e
       }}
       className="group/resize absolute inset-y-0 right-0 z-20 flex w-2 cursor-col-resize touch-none justify-end outline-none"
     >
-      <span className="h-full w-0.5 bg-accent/0 transition-colors group-hover/resize:bg-accent/60 group-focus-visible/resize:bg-accent/60" />
+      <span className="my-2.5 w-px bg-white/0 transition-colors group-hover/resize:bg-accent/60 group-focus-visible/resize:bg-accent/60" />
     </span>
   );
 }
-// the frozen name column: solid enough that rows scrolled under it don't
-// show through, with a hairline on its right edge
-const FROZEN = "mist-pin sticky left-0 z-10 bg-surface shadow-[1px_0_0_var(--border)] group-hover:bg-[linear-gradient(var(--surface-2),var(--surface-2))]";
 
-const COLUMN_ICON: Record<SheetColumn, React.ComponentType<{ size?: number; className?: string }>> = {
-  email: Mail,
-  phone: Phone,
-  instagram: InstagramIcon,
-  linkedin: LinkedinIcon,
-  facebook: FacebookIcon,
-  website: Globe,
-  x: XIcon,
-  youtube: YoutubeIcon,
-};
-
-type Icon = React.ComponentType<{ size?: number; className?: string }> | LucideIcon;
 // A column's heading: its label drags the column to another place (dropped
 // on a heading, it lands on that side of it, a line showing where), its edge
 // resizes it
-function Head({ icon: Icon, children, resize, grip, drop, mark }: { icon: Icon; children: React.ReactNode; resize: React.ReactNode; grip: React.HTMLAttributes<HTMLSpanElement>; drop: React.HTMLAttributes<HTMLTableCellElement>; mark: "left" | "right" | null }) {
+function Head({ children, resize, grip, drop, mark }: { children: React.ReactNode; resize: React.ReactNode; grip: React.HTMLAttributes<HTMLSpanElement>; drop: React.HTMLAttributes<HTMLTableCellElement>; mark: "left" | "right" | null }) {
   return (
-    // relative: its edge's resizer sits in it (the frozen Name heading is sticky, which does the same)
-    <th className={`${HEAD} relative`} {...drop}>
-      <span draggable {...grip} className="flex min-w-0 cursor-grab items-center gap-1.5 active:cursor-grabbing">
-        <Icon size={13} className="shrink-0" /> <span className="truncate">{children}</span>
+    <th className={HEAD} {...drop}>
+      <span draggable {...grip} className="block min-w-0 cursor-grab truncate active:cursor-grabbing">
+        {children}
       </span>
-      <span className={`pointer-events-none absolute inset-y-0 w-0.5 bg-accent transition-opacity ${mark === "left" ? "left-0" : "right-0"} ${mark ? "opacity-100" : "opacity-0"}`} />
+      <span className={`pointer-events-none absolute inset-y-2 w-0.5 rounded-full bg-accent transition-opacity ${mark === "left" ? "left-0" : "right-0"} ${mark ? "opacity-100" : "opacity-0"}`} />
       {resize}
     </th>
   );
 }
 
-// A link in a cell: opens in a new tab, never the lead
-function Out({ href, children }: { href: string | null; children: React.ReactNode }) {
-  if (!href || /^(mailto|tel):/i.test(href)) return <span className="block min-w-0 truncate">{children}</span>;
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="block min-w-0 truncate text-foreground/90 underline-offset-2 hover:text-accent hover:underline">
-      {children}
-    </a>
-  );
+// When a lead was added, as a glance reads it: Today, Yesterday, 12 Nov (with
+// the year when it isn't this one)
+const IST = 5.5 * 3600_000;
+function addedWhen(iso: string, now = Date.now()): string {
+  const day = (t: number) => Math.floor((t + IST) / 86_400_000);
+  const ago = day(now) - day(Date.parse(iso));
+  if (ago === 0) return "Today";
+  if (ago === 1) return "Yesterday";
+  const d = new Date(Date.parse(iso) + IST);
+  const year = new Date(now + IST).getUTCFullYear() === d.getUTCFullYear() ? "" : ` ${d.getUTCFullYear()}`;
+  return `${d.getUTCDate()} ${d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })}${year}`;
 }
 
-// A person's details for one column, one a line
-function Details({ person, column }: { person: Contact | undefined; column: SheetColumn }) {
-  const mine = (person?.channels ?? []).filter((c) => c.value.trim() && columnOf(c) === column);
-  if (!mine.length) return null;
-  return (
-    <div className="flex flex-col gap-1">
-      {mine.map((c, i) => (
-        <Out key={i} href={hrefOf(c.kind, c.value)}>
-          {shownAs(c)}
-        </Out>
-      ))}
-    </div>
-  );
+// A lead's first email and first phone, its first person's where they have one
+function reachOf(people: Contact[]) {
+  const first = (kind: "email" | "phone") => people.flatMap((p) => (p.channels ?? []).filter((c) => c.kind === kind && c.value.trim()))[0]?.value.trim() ?? null;
+  return { email: first("email"), phone: first("phone") };
 }
 
-// Sales > Leads as a spreadsheet (Abhishek, 3 Nov 2026): a lead to a block
-// of rows, one row per person on it, each of their details in its own
-// column (Email, Phone, Instagram, LinkedIn, Facebook, Website), so anyone
-// can skim what's been collected. The lead's own cells (its name, links,
-// notes, who added it, when) span its people. Newest first, ten
-// leads at a time. Dead leads don't open; each has `actions` at its end
-// (Restore, Delete). Every column resizes from its heading's edge, kept per
-// tab (`tab`) in this browser.
+// Every page a lead has, its people's (Instagram, LinkedIn, a website…) and
+// its own links, once each
+function pagesOf(lead: SheetLead): { url: string; label: string }[] {
+  const out: { url: string; label: string }[] = [];
+  const add = (url: string | null, label: string) => {
+    if (url && /^https?:/i.test(url) && !out.some((x) => sameUrl(x.url) === sameUrl(url))) out.push({ url, label });
+  };
+  for (const p of lead.contacts) for (const c of p.channels ?? []) if (c.kind !== "email" && c.kind !== "phone" && c.value.trim()) add(hrefOf(c.kind, c.value), shownAs(c));
+  for (const l of lead.links) add(hrefOf("other", l.url), l.label.trim() ? linkName(l.label, l.url) : shownAs({ kind: "other", value: l.url }));
+  return out;
+}
+
+const PAGES_SHOWN = 5;
+const ROUND = "grid size-7 shrink-0 place-items-center rounded-full bg-white/[0.04] ring-1 ring-white/[0.07] transition-colors";
+
+// Sales > Leads (Leadwell) as a list (Abhishek, 3 Nov 2026; laid out again,
+// quieter, after a CRM leads table he sent on 20 Nov): a row per lead, the
+// lead pinned on the left with when it was added; its first person and
+// their designation; their email and phone; every page as a small round
+// mark; its notes; who added it. Newest first, ten leads at a time. Dead
+// leads don't open; each has `actions` pinned on the right (Restore,
+// Delete). Every column resizes from its heading's edge and moves by its
+// heading, kept per tab (`tab`) in this browser.
 export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: string; leads: SheetLead[]; filterKey: string; onOpen?: (lead: SheetLead) => void; actions?: (lead: SheetLead) => React.ReactNode }) {
   const paging = usePaging(filterKey);
   const shown = leads.slice(0, paging.limit());
-  // X and YouTube only when some lead here has one
-  const columns = SHEET_COLUMNS.filter((c) => c.always || leads.some((l) => l.contacts.some((p) => p.channels?.some((ch) => ch.value.trim() && columnOf(ch) === c.key))));
-  // every column after the frozen Name: a person's (a cell each) or the lead's (one cell down its people)
-  const all: { key: string; label: string; icon: Icon; lead?: true; className?: string; cell: (p: Contact | undefined, lead: SheetLead) => React.ReactNode }[] = [
-    { key: "contact", label: "Contact", icon: Users, cell: (p) => <span className="block truncate">{p?.name}</span> },
-    { key: "designation", label: "Designation", icon: BriefcaseBusiness, className: "text-foreground/80", cell: (p) => <span className="block truncate">{p?.role}</span> },
-    ...columns.map((c) => ({ key: c.key, label: c.label, icon: COLUMN_ICON[c.key], cell: (p: Contact | undefined) => <Details person={p} column={c.key} /> })),
+  // every column after the pinned lead
+  const all: { key: string; label: string; cell: (lead: SheetLead) => React.ReactNode }[] = [
+    {
+      key: "contact",
+      label: "Contact",
+      cell: (lead) => {
+        const [first, ...rest] = lead.contacts.filter((p) => p.name.trim() || p.role.trim());
+        if (!first) return null;
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-foreground/90">{first.name.trim() || first.role}</p>
+              {first.name.trim() && first.role.trim() && <p className="truncate text-xs text-muted">{first.role}</p>}
+            </div>
+            {rest.length > 0 && (
+              <span title={rest.map((p) => [p.name, p.role].filter((x) => x.trim()).join(", ")).join("\n")} className="shrink-0 rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[11px] text-muted tabular-nums">
+                +{rest.length}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "reach",
+      label: "Email & phone",
+      cell: (lead) => {
+        const { email, phone } = reachOf(lead.contacts);
+        if (!email && !phone) return null;
+        return (
+          <div className="flex min-w-0 flex-col gap-1 text-[13px] text-foreground/85">
+            {email && (
+              <span className="flex min-w-0 items-center gap-2">
+                <Mail size={13} className="shrink-0 text-muted" />
+                <span className="truncate">{email}</span>
+              </span>
+            )}
+            {phone && (
+              <span className="flex min-w-0 items-center gap-2 tabular-nums">
+                <Phone size={13} className="shrink-0 text-muted" />
+                <span className="truncate">{phone}</span>
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
     {
       key: "links",
       label: "Links",
-      icon: Link2,
-      lead: true,
-      cell: (_, lead) => (
-        <div className="flex flex-col gap-1">
-          {lead.links.map((l, j) => (
-            <span key={j} className="flex min-w-0 items-center gap-1.5">
-              <PlatformMark url={l.url} size={12} className="shrink-0 text-muted" />
-              <Out href={hrefOf("other", l.url)}>{l.label.trim() ? linkName(l.label, l.url) : shownAs({ kind: "other", value: l.url })}</Out>
-            </span>
-          ))}
-        </div>
-      ),
+      cell: (lead) => {
+        const pages = pagesOf(lead);
+        const more = pages.length - PAGES_SHOWN;
+        return (
+          <div className="flex items-center gap-1.5">
+            {pages.slice(0, PAGES_SHOWN).map((p) => (
+              <a key={p.url} href={p.url} target="_blank" rel="noopener noreferrer" title={p.label} aria-label={p.label} onClick={(e) => e.stopPropagation()} className={`${ROUND} text-muted hover:bg-white/[0.08] hover:text-foreground hover:ring-white/15`}>
+                <PlatformMark url={p.url} size={13} />
+              </a>
+            ))}
+            {more > 0 && (
+              <span title={pages.slice(PAGES_SHOWN).map((p) => p.label).join("\n")} className="pl-0.5 text-[11px] text-muted tabular-nums">
+                +{more}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
-    { key: "notes", label: "Notes", icon: NotebookText, lead: true, className: "whitespace-normal", cell: (_, lead) => <p className="line-clamp-3 text-xs leading-relaxed text-foreground/80">{lead.notes}</p> },
+    { key: "notes", label: "Notes", cell: (lead) => <p title={lead.notes} className="truncate text-[13px] text-muted">{lead.notes}</p> },
     {
       key: "by",
       label: "Added by",
-      icon: UserRound,
-      lead: true,
-      cell: (_, lead) => (
-        <span className="flex min-w-0 items-center gap-2 text-xs">
-          <Avatar name={lead.createdBy.name} size={18} />
+      cell: (lead) => (
+        <span className="flex min-w-0 items-center gap-2 text-[13px] text-foreground/85">
+          <Avatar name={lead.createdBy.name} size={22} />
           <span className="truncate">{lead.createdBy.name}</span>
         </span>
       ),
     },
-    { key: "on", label: "Added on", icon: CalendarPlus, lead: true, className: "text-xs text-muted tabular-nums", cell: (_, lead) => formatDate(lead.createdAt) },
   ];
 
   // the order the headings were dragged into for this tab, kept in this browser like the widths
@@ -166,7 +205,6 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
   );
   const cols = order.map((k) => all.find((c) => c.key === k)!);
   const keys = ["name", ...order, ...(actions ? ["actions"] : [])];
-  const width = keys.length;
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   // dropped on a heading: to its right when coming from the left, else its left
@@ -207,7 +245,7 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
       localStorage.setItem(widthsKey(tab), JSON.stringify(next));
     } catch {}
   };
-  const w = (key: string) => widths[key] ?? WIDTH[key] ?? 160;
+  const w = (key: string) => widths[key] ?? WIDTH[key] ?? 180;
   const set = (key: string, n: number | null) =>
     setWidths((cur) => {
       const next = { ...cur };
@@ -242,65 +280,62 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
 
   return (
     // isolate: rows easing in can't paint past the rounded corners in Safari
-    <div className="fade-in isolate overflow-x-auto rounded-2xl border border-border bg-surface">
-      {/* fixed layout: each column as wide as it's set, its contents cut short to fit */}
-      <table className="min-w-full table-fixed border-collapse text-sm" style={{ width: keys.reduce((n, k) => n + w(k), 0) }}>
-        <colgroup>
-          {keys.map((k) => (
-            <col key={k} style={{ width: w(k) }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr className="border-b border-border">
-            <th className={`${HEAD} ${FROZEN}`}>
-              Name
-              {resize("name", "Name")}
-            </th>
-            {cols.map((c) => (
-              <Head
-                key={c.key}
-                icon={c.icon}
-                resize={resize(c.key, c.label)}
-                mark={markOf(c.key)}
-                grip={{
-                  onDragStart: (e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", c.key);
-                    setDragging(c.key);
-                  },
-                  onDragEnd: end,
-                }}
-                drop={{
-                  onDragOver: (e) => {
-                    if (!dragging) return;
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                    if (over !== c.key) setOver(c.key);
-                  },
-                  onDrop: (e) => {
-                    if (!dragging) return;
-                    e.preventDefault();
-                    moveTo(dragging, c.key);
-                    end();
-                  },
-                }}
-              >
-                {c.label}
-              </Head>
+    <div className="fade-in isolate overflow-hidden rounded-2xl border border-border bg-surface">
+      <div className="overflow-x-auto">
+        {/* fixed layout: each column as wide as it's set, its contents cut short to fit */}
+        <table className="min-w-full table-fixed border-collapse text-sm" style={{ width: keys.reduce((n, k) => n + w(k), 0) }}>
+          <colgroup>
+            {keys.map((k) => (
+              <col key={k} style={{ width: w(k) }} />
             ))}
-            {actions && <th className={HEAD} aria-label="Restore or delete" />}
-          </tr>
-        </thead>
-        {shown.map((lead, n) => {
-          const people: (Contact | undefined)[] = lead.contacts.length ? lead.contacts : [undefined];
-          const span = people.length;
-          return (
-            // one body per lead, so the whole block lights on hover and opens as one
-            <tbody key={lead.id} onClick={onOpen && (() => onOpen(lead))} className={`group border-b border-border last:border-b-0 ${onOpen ? "cursor-pointer" : ""} ${n >= PAGE ? "fade-in" : ""}`}>
-              {people.map((p, i) => (
-                <tr key={p?.id ?? "none"} className={i < span - 1 ? "border-b border-border" : ""}>
-                  {i === 0 && (
-                    <td rowSpan={span} className={`${PAD} ${FROZEN}`}>
+          </colgroup>
+          <thead>
+            <tr className="bg-white/[0.02]">
+              <th className={`${HEAD} ${PIN_LEFT} bg-[linear-gradient(rgb(255_255_255/0.02),rgb(255_255_255/0.02)),linear-gradient(var(--surface),var(--surface))]`}>
+                Lead
+                {resize("name", "Lead")}
+              </th>
+              {cols.map((c) => (
+                <Head
+                  key={c.key}
+                  resize={resize(c.key, c.label)}
+                  mark={markOf(c.key)}
+                  grip={{
+                    onDragStart: (e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", c.key);
+                      setDragging(c.key);
+                    },
+                    onDragEnd: end,
+                  }}
+                  drop={{
+                    onDragOver: (e) => {
+                      if (!dragging) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (over !== c.key) setOver(c.key);
+                    },
+                    onDrop: (e) => {
+                      if (!dragging) return;
+                      e.preventDefault();
+                      moveTo(dragging, c.key);
+                      end();
+                    },
+                  }}
+                >
+                  {c.label}
+                </Head>
+              ))}
+              {actions && <th className={`${HEAD} ${PIN_RIGHT}`} aria-label="Restore or delete" />}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((lead, n) => (
+              <tr key={lead.id} onClick={onOpen && (() => onOpen(lead))} className={`group border-t border-white/[0.06] ${onOpen ? "cursor-pointer" : ""} ${n >= PAGE ? "fade-in" : ""}`}>
+                <td className={`${CELL} ${PIN_LEFT}`}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar name={lead.title} size={34} presence={false} />
+                    <div className="min-w-0">
                       {onOpen ? (
                         <button
                           type="button"
@@ -315,45 +350,39 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
                       ) : (
                         <span className="block truncate font-medium">{lead.title}</span>
                       )}
-                    </td>
-                  )}
-                  {/* a lead's own cell spans its people: the rows under it skip that place */}
-                  {cols.map((c) =>
-                    c.lead ? (
-                      i === 0 && (
-                        <td key={c.key} rowSpan={span} className={`${CELL} ${c.className ?? ""}`}>
-                          {c.cell(p, lead)}
-                        </td>
-                      )
-                    ) : (
-                      <td key={c.key} className={`${CELL} ${c.className ?? ""}`}>
-                        {c.cell(p, lead)}
-                      </td>
-                    ),
-                  )}
-                  {i === 0 && actions && (
-                    <td rowSpan={span} className={CELL}>
-                      <div className="flex items-center gap-1.5">{actions(lead)}</div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          );
-        })}
-        {leads.length > shown.length && (
-          <tbody>
-            {/* held under the names while the table scrolls sideways */}
-            <tr>
-              <td colSpan={width} className="p-1">
-                <div className="sticky left-1 w-56">
-                  <ShowMore onMore={() => paging.more()} />
-                </div>
-              </td>
-            </tr>
+                      <p title={`Added ${formatDate(lead.createdAt)} by ${lead.createdBy.name}`} className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                        <Clock3 size={11} className="shrink-0" />
+                        {addedWhen(lead.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+                {cols.map((c) => (
+                  <td key={c.key} className={CELL}>
+                    {c.cell(lead)}
+                  </td>
+                ))}
+                {actions && (
+                  <td className={`${CELL} ${PIN_RIGHT}`}>
+                    <div className="flex items-center justify-end gap-1.5">{actions(lead)}</div>
+                  </td>
+                )}
+              </tr>
+            ))}
           </tbody>
+        </table>
+      </div>
+      {/* how many of them show, and the next ten */}
+      <div className="flex items-center gap-3 border-t border-white/[0.06] px-4 py-2.5">
+        <p className="text-xs text-muted tabular-nums">
+          Showing {shown.length} of {leads.length}
+        </p>
+        {leads.length > shown.length && (
+          <div className="ml-auto w-44">
+            <ShowMore onMore={() => paging.more()} />
+          </div>
         )}
-      </table>
+      </div>
     </div>
   );
 }

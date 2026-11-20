@@ -98,14 +98,19 @@ export function LeadsView({
     if (res.error) setFailed(res.error);
     else router.refresh();
   }
+  // round and quiet at the row's end, as the list's links are
+  const ROUND = "grid size-8 place-items-center rounded-full bg-white/[0.04] text-muted ring-1 ring-white/[0.07] transition-colors hover:bg-white/[0.08]";
   const deadActions = (l: SheetLead) => (
     <>
-      <button type="button" onClick={() => act(setLeadDead(l.id, false))} className="btn btn-xs btn-ghost">
-        <Undo2 size={13} /> Restore
+      <button type="button" onClick={() => act(setLeadDead(l.id, false))} title="Restore" aria-label={`Restore ${l.title}`} className={`${ROUND} hover:text-foreground`}>
+        <Undo2 size={14} />
       </button>
-      <ConfirmButton message={`Delete “${l.title}” for good? This can't be undone.`} onConfirm={() => act(deleteLeadForever(l.id))} className="btn btn-xs btn-ghost hover:text-red-300">
-        <Trash2 size={13} /> Delete
-      </ConfirmButton>
+      <span title="Delete for good" className="flex">
+        <ConfirmButton message={`Delete “${l.title}” for good? This can't be undone.`} onConfirm={() => act(deleteLeadForever(l.id))} className={`${ROUND} hover:text-red-300`}>
+          <Trash2 size={14} />
+          <span className="sr-only">Delete {l.title} for good</span>
+        </ConfirmButton>
+      </span>
     </>
   );
   const roles = [...new Set(sheet.leads.flatMap((l) => l.contacts.map((p) => p.role).filter(Boolean)))];

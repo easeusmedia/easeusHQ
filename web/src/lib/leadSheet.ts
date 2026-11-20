@@ -87,22 +87,11 @@ export function channelsIn(text: string): { found: { kind: ChannelKind; value: s
   return { found, left };
 }
 
-// The spreadsheet's columns for a person's details, in order
+// What a person's detail is, for its icon in the lead's window
 export type SheetColumn = "email" | "phone" | "instagram" | "linkedin" | "facebook" | "website" | "x" | "youtube";
-export const SHEET_COLUMNS: { key: SheetColumn; label: string; always: boolean }[] = [
-  { key: "email", label: "Email", always: true },
-  { key: "phone", label: "Phone", always: true },
-  { key: "instagram", label: "Instagram", always: true },
-  { key: "linkedin", label: "LinkedIn", always: true },
-  { key: "facebook", label: "Facebook", always: true },
-  { key: "website", label: "Website", always: true },
-  // only when some lead on the tab has one
-  { key: "x", label: "X", always: false },
-  { key: "youtube", label: "YouTube", always: false },
-];
 // The columns in the order a tab's headings were dragged into (Abhishek,
-// 10 Nov 2026). A column not in that order yet (X or YouTube, once a lead has
-// one) goes after the one it follows by default; one gone stays out.
+// 10 Nov 2026). A column not in that order yet goes after the one it follows
+// by default; one gone stays out.
 export function arrange(keys: string[], saved: string[]): string[] {
   const out = saved.filter((k) => keys.includes(k));
   keys.forEach((k, i) => {
