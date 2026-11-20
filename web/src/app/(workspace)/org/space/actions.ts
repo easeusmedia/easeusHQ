@@ -578,7 +578,7 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
 // (with the podcast's links, when given, on the board's links property, and
 // a Leads tab's people and notes: Abhishek, 3 Nov 2026), given to whoever
 // added it until someone hands it on
-export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = [], more: { contacts?: Contact[]; notes?: string } = {}): Promise<Done & { id?: string }> {
+export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = [], more: { contacts?: Contact[]; notes?: string; tags?: string[] } = {}): Promise<Done & { id?: string }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
   const who = await whoFor(board.teamId);
@@ -599,6 +599,12 @@ export async function createLead(boardId: string, title: string, links: { label:
         if (!field || !clean || !("value" in clean) || !clean.value) continue;
         // a contact's email is stamped with when it was put on the lead (lib/space stampEmails)
         values[field.id] = kind === "contacts" ? stampEmails(clean.value as Contact[], {}, new Date().toISOString()) : clean.value;
+      }
+      // Leadwell's tags (lib/leadSheet TAGS): only the property's own
+      if (more.tags?.length) {
+        const field = await tx.boardField.findFirst({ where: { boardId, kind: "multi", name: { equals: "Tags", mode: "insensitive" } }, select: { id: true, options: { select: { id: true } } } });
+        const clean = field ? cleanValue("multi", more.tags, field.options.map((o) => o.id)) : null;
+        if (field && clean && "value" in clean && clean.value) values[field.id] = clean.value;
       }
       const notes = String(more.notes ?? "").slice(0, 100_000);
       const lead = await tx.lead.create({ data: { boardId, stageId, title: n, values: values as Prisma.InputJsonValue, notes, sortOrder: Date.now(), createdById: who.id, assignedToId: who.id, assignedByName: who.name, assignedAt: new Date() }, select: { id: true } });

@@ -3,11 +3,13 @@
 // board under the Leads portal (Space.leadBank), its people and links on that
 // board's Contacts and Links properties.
 import type { Prisma } from "@prisma/client";
-import { handleOf, type ChannelKind, type Contact, type LinkValue } from "./space.ts";
+import { handleOf, type ChannelKind, type Contact, type FieldData, type LinkValue } from "./space.ts";
 
 // A Leads tab's two stages, never shown as stages: its leads, and the ones
 // deleted (Dead leads, to restore or delete for good: Abhishek, 3 Nov 2026)
 export const SHEET_STAGE = "Leads";
+// its tags, any the team types (Core, Amplifier…): Abhishek, 20 Nov 2026
+export const TAGS = "Tags";
 export const DEAD_STAGE = "Dead";
 
 // A Leads tab's own make-up: its two stages and the two properties its
@@ -23,6 +25,7 @@ export async function makeSheet(tx: Prisma.TransactionClient, boardId: string) {
     data: [
       { boardId, name: "Contacts", kind: "contacts", sortOrder: 1 },
       { boardId, name: "Links", kind: "links", sortOrder: 2 },
+      { boardId, name: TAGS, kind: "multi", sortOrder: 3 },
     ],
   });
 }
@@ -135,6 +138,8 @@ export type SheetLead = {
   dead: boolean;
   // its picture: its YouTube channel's, else its Instagram's (lib/leadChannel fillLeadPictures)
   picture: string | null;
+  // its tags, by the Tags property's tag ids
+  tags: string[];
 };
 export type SheetData = {
   id: string;
@@ -143,6 +148,8 @@ export type SheetData = {
   // the tab's own Contacts and Links properties, which its leads' window saves to
   contactsField: string | null;
   linksField: string | null;
+  // the tab's Tags property, with its tags
+  tagsField: FieldData | null;
   leads: SheetLead[];
 };
 

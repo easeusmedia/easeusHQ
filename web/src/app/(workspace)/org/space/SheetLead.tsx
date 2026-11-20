@@ -6,7 +6,8 @@ import { ArrowRight, BriefcaseBusiness, Check, Globe, Mail, Phone, Plus, Trash2,
 import { channelsIn, columnOf, shownAs, type OutreachBoard, type SheetColumn, type SheetData, type SheetLead } from "@/lib/leadSheet";
 import { CONTACT_ROLES, type Contact, type LinkValue } from "@/lib/space";
 import { moveLeadTo, renameLead, setLeadDead, setLeadNotes, setLeadValue } from "./actions";
-import { Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, dateOf, hrefOf, useDebounced } from "./values";
+import { Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, TagEditor, dateOf, hrefOf, useDebounced } from "./values";
+import { TagPill } from "./pills";
 import { EditableName } from "../../EditableName";
 import { Dropdown } from "../../Dropdown";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, PlatformMark, XIcon, YoutubeIcon } from "../../PlatformIcon";
@@ -111,6 +112,7 @@ function Page({
   const [people, setPeople] = useState<Contact[]>(lead.contacts);
   const [links, setLinks] = useState<LinkValue[]>(lead.links);
   const [notes, setNotes] = useState(lead.notes);
+  const [tags, setTags] = useState<string[]>(lead.tags);
   const [status, setStatus] = useState<Status>(null);
   const statusTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -171,16 +173,29 @@ function Page({
 
   return (
     <>
-      <div className="mb-4 flex shrink-0 items-start gap-2 px-1 text-lg font-semibold tracking-tight">
-        <EditableName
-          name={lead.title}
-          pencil="hover"
-          wrap
-          onSave={async (name) => {
-            const res = await run(renameLead(id, name));
-            return res.error;
-          }}
-        />
+      <div className="mb-4 flex shrink-0 flex-col gap-2 px-1">
+        <div className="flex items-start gap-2 text-lg font-semibold tracking-tight">
+          <EditableName
+            name={lead.title}
+            pencil="hover"
+            wrap
+            onSave={async (name) => {
+              const res = await run(renameLead(id, name));
+              return res.error;
+            }}
+          />
+        </div>
+        {/* its tags (Core, Amplifier…), any the team types */}
+        {sheet.tagsField && (
+          <LeadTags
+            field={sheet.tagsField}
+            value={tags}
+            save={(next) => {
+              setTags(next);
+              run(setLeadValue(id, sheet.tagsField!.id, next.length ? next : null));
+            }}
+          />
+        )}
       </div>
 
       <div className="-mx-1 flex min-h-0 flex-auto flex-col gap-3 overflow-y-auto px-1 pb-1">
@@ -323,6 +338,32 @@ function Page({
 // One person on the lead: their name and designation, then each detail
 // pasted for them, marked with what it is
 // (a new one starts in its name box, unless `focus` says otherwise)
+// A lead's tags as pills, then a + that opens the tag list to pick or type one
+export function LeadTags({ field, value, save }: { field: NonNullable<SheetData["tagsField"]>; value: string[]; save: (ids: string[]) => void }) {
+  const picked = value.flatMap((t) => field.options.filter((o) => o.id === t));
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {picked.map((o) => (
+        <TagPill key={o.id} name={o.name} />
+      ))}
+      <TagEditor
+        field={field}
+        value={value}
+        save={(ids) => save(ids ?? [])}
+        trigger={{
+          label: "Tags",
+          className: "flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground",
+          button: (
+            <>
+              <Plus size={12} /> {picked.length ? "" : "Add tag"}
+            </>
+          ),
+        }}
+      />
+    </div>
+  );
+}
+
 export function Person({ person, roles, focus, onChange, onBlur, onRemove }: { person: Contact; roles: string[]; focus?: boolean; onChange: (change: (p: Contact) => Contact, now?: boolean) => void; onBlur: () => void; onRemove: () => void }) {
   // removing someone filled in takes a second click
   const [sure, setSure] = useState(false);

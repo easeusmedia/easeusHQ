@@ -112,6 +112,7 @@ test("Leadwell's filter: when it was added, who added it, what it can be reached
     editedAt: null,
     dead: false,
     picture: null,
+    tags: [],
   });
   const a = lead(2, "u1", [{ kind: "email", value: "a@b.co" }]);
   const b = lead(30, "u2", [{ kind: "phone", value: "+91 98765 43210" }], ["https://instagram.com/show"]);

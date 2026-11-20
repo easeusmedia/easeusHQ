@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { DEAD_STAGE, type OutreachBoard, type SheetData, type SheetLead } from "@/lib/leadSheet";
+import { DEAD_STAGE, TAGS, type OutreachBoard, type SheetData, type SheetLead } from "@/lib/leadSheet";
 import { dayOf, emailStarts, isDead, leadEmails, outreachStart, phaseKey, reachedByDay, reachOutDays, type Approval, type BoardData, type Contact, type FieldKind, type Mark, type Person, type Platform, type SpaceCard, type SpaceKind, readMarks, NO_CONTACT } from "@/lib/space";
 
 // Reading a department's pages for the server components that show them
@@ -252,7 +252,16 @@ export async function templatesOf(teamId: string, kind: SpaceKind) {
 export async function loadSheet(boardId: string): Promise<SheetData | null> {
   const board = await prisma.space.findFirst({
     where: { id: boardId, kind: "board", parent: { leadBank: true } },
-    select: { id: true, name: true, slug: true, fields: { where: { kind: { in: ["contacts", "links"] } }, orderBy: { sortOrder: "asc" }, select: { id: true, kind: true } } },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      fields: {
+        where: { OR: [{ kind: { in: ["contacts", "links"] } }, { kind: "multi", name: { equals: TAGS, mode: "insensitive" } }] },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, kind: true, onCard: true, required: true, pins: true, options: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } } },
+      },
+    },
   });
   if (!board) return null;
   const [leads, pictures] = await Promise.all([
@@ -281,6 +290,7 @@ export async function loadSheet(boardId: string): Promise<SheetData | null> {
     return Array.isArray(v) ? v : [];
   });
   const ids = (kind: string) => board.fields.filter((f) => f.kind === kind).map((f) => f.id);
+  const tagsField = board.fields.find((f) => f.kind === "multi") ?? null;
   const rows: SheetLead[] = leads.map((l) => ({
       id: l.id,
       title: l.title,
@@ -293,6 +303,7 @@ export async function loadSheet(boardId: string): Promise<SheetData | null> {
       editedAt: l.editedAt?.toISOString() ?? null,
       dead: l.stage.name === DEAD_STAGE,
       picture: pictureOf.get(l.id) ?? null,
+      tags: tagsField ? ((l.values as Record<string, unknown> | null)?.[tagsField.id] as string[] | undefined)?.filter((t) => typeof t === "string") ?? [] : [],
   }));
   return {
     id: board.id,
@@ -300,6 +311,7 @@ export async function loadSheet(boardId: string): Promise<SheetData | null> {
     slug: board.slug,
     contactsField: board.fields.find((f) => f.kind === "contacts")?.id ?? null,
     linksField: board.fields.find((f) => f.kind === "links")?.id ?? null,
+    tagsField: tagsField ? { ...tagsField, kind: "multi" } : null,
     leads: rows,
   };
 }

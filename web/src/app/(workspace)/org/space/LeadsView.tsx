@@ -7,8 +7,8 @@ import { ADDED, NO_FILTER, passesSheetFilter, REACH, hasReach, sheetText, shownA
 import { CONTACT_ROLES, type Contact, type LinkValue } from "@/lib/space";
 import { BoardTabs, SEG_ROW } from "./BoardTabs";
 import { LeadSheet } from "./LeadSheet";
-import { Paste, Person, SheetLeadWindow } from "./SheetLead";
-import { Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, hrefOf } from "./values";
+import { LeadTags, Paste, Person, SheetLeadWindow } from "./SheetLead";
+import { CanBuild, Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, hrefOf } from "./values";
 import { chip } from "../../chip";
 import { Avatar } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
@@ -132,6 +132,8 @@ export function LeadsView({
   const roles = [...new Set(sheet.leads.flatMap((l) => l.contacts.map((p) => p.role).filter(Boolean)))];
 
   return (
+    // whoever builds renames and deletes the tags too (TagEditor)
+    <CanBuild.Provider value={canBuild}>
     <div className="flex min-w-0 flex-col gap-4">
       <BoardTabs
         teamId={teamId}
@@ -200,7 +202,7 @@ export function LeadsView({
             ))}
           </div>
         )}
-        <AddLead boardId={sheet.id} roles={roles} onAdded={() => setDead(false)} />
+        <AddLead boardId={sheet.id} roles={roles} tagsField={sheet.tagsField} onAdded={() => setDead(false)} />
       </div>
       {failed && (
         <p role="alert" className="fade-in text-xs text-red-300">
@@ -211,9 +213,9 @@ export function LeadsView({
       <div className={`min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {shown.length ? (
           dead ? (
-            <LeadSheet key="dead" tab={sheet.id} leads={shown} filterKey={JSON.stringify([sheet.id, q, "dead"])} actions={deadActions} />
+            <LeadSheet key="dead" tab={sheet.id} leads={shown} tags={sheet.tagsField?.options ?? []} filterKey={JSON.stringify([sheet.id, q, "dead"])} actions={deadActions} />
           ) : (
-            <LeadSheet key="leads" tab={sheet.id} leads={shown} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
+            <LeadSheet key="leads" tab={sheet.id} leads={shown} tags={sheet.tagsField?.options ?? []} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
           )
         ) : (
           <p className="fade-in rounded-2xl border border-dashed border-border px-5 py-12 text-center text-sm text-muted">{picked.length ? "No leads match these filters." : q ? "No leads match this search." : dead ? "No dead leads." : "No leads yet."}</p>
@@ -222,6 +224,7 @@ export function LeadsView({
 
       <SheetLeadWindow lead={lead} sheet={sheet} targets={targets} roles={roles} onClose={() => open(null)} />
     </div>
+    </CanBuild.Provider>
   );
 }
 
@@ -301,13 +304,14 @@ function Pick({ on, count, onClick, children }: { on: boolean; count: number; on
 // them), its own links and notes. A lead needs a name and at least one way
 // to reach it. Added from Dead leads, it shows the leads, where it went.
 const blankPerson = (): Contact => ({ id: crypto.randomUUID(), name: "", role: "", channels: [] });
-function AddLead({ boardId, roles, onAdded }: { boardId: string; roles: string[]; onAdded: () => void }) {
+function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; roles: string[]; tagsField: SheetData["tagsField"]; onAdded: () => void }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [title, setTitle] = useState("");
   const [people, setPeople] = useState<Contact[]>([]);
   const [links, setLinks] = useState<LinkValue[]>([]);
   const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   // the person it opens with: typing starts in the lead's own name, not theirs
   const [firstId, setFirstId] = useState("");
   // the form drawn afresh each time it opens (the paste boxes empty too)
@@ -323,6 +327,7 @@ function AddLead({ boardId, roles, onAdded }: { boardId: string; roles: string[]
     setPeople([first]);
     setLinks([]);
     setNotes("");
+    setTags([]);
     setError(null);
     setOpens((n) => n + 1);
     ref.current?.showModal();
@@ -335,7 +340,7 @@ function AddLead({ boardId, roles, onAdded }: { boardId: string; roles: string[]
     if (!links.length && !kept.some((p) => p.channels.some((c) => c.value.trim()))) return setError("Add at least one link, email or phone number.");
     setBusy(true);
     setError(null);
-    const res = await createLead(boardId, title, links, { contacts: kept.map((p) => ({ ...p, name: p.name.trim() })), notes }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again.", id: undefined }));
+    const res = await createLead(boardId, title, links, { contacts: kept.map((p) => ({ ...p, name: p.name.trim() })), notes, tags }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again.", id: undefined }));
     setBusy(false);
     if (res.error || !res.id) return setError(res.error ?? "That couldn't be saved.");
     ref.current?.close();
@@ -366,6 +371,11 @@ function AddLead({ boardId, roles, onAdded }: { boardId: string; roles: string[]
           </div>
           <div className="shrink-0 px-5 pt-2 pb-4">
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Name" aria-label="Name" autoFocus className="w-full bg-transparent text-lg font-medium text-foreground outline-none! placeholder:text-muted/60" />
+            {tagsField && (
+              <div className="mt-2">
+                <LeadTags field={tagsField} value={tags} save={setTags} />
+              </div>
+            )}
           </div>
 
           <div className="flex min-h-0 flex-auto flex-col gap-3 overflow-y-auto px-5 pb-5">
