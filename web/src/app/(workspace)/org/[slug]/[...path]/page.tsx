@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { after } from "next/server";
+import { fillLeadPictures } from "@/lib/leadChannel";
 import { syncSalesInboxIfDue } from "@/lib/mailSync";
 import { getViewer } from "@/lib/viewer";
 import { prisma } from "@/lib/prisma";
@@ -78,6 +80,13 @@ export default async function SpacePage({
   // Sales > Leads: each tab a spreadsheet of the leads found
   if (node.leadBank) {
     const [sheet, targets] = await Promise.all([active ? loadSheet(active.id) : null, moveTargets(team.id)]);
+    // the pictures still missing, a few more each time the tab is opened (lib/leadChannel)
+    if (active && sheet?.leads.some((l) => !l.picture)) {
+      const h = await headers();
+      const host = h.get("x-forwarded-host") ?? h.get("host");
+      const origin = host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : undefined;
+      after(() => fillLeadPictures(active.id, origin).catch(() => 0));
+    }
     return (
       <>
         <DepartmentHead parents={parents}>

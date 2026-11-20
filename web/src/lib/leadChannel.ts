@@ -113,6 +113,47 @@ export async function saveLeadRun(run: { platform: string; targets: unknown }, i
   }
 }
 
+// Leadwell's leads (Abhishek, 20 Nov 2026): each one's picture, from its
+// YouTube page first (free, on any site), else its Instagram profile (one
+// light Apify read, live only, through the same call-back as the lead
+// window's: saveLeadRun's "avatar" role). A few at a time, as the list is
+// opened, newest first; a lead tried today isn't asked again till tomorrow,
+// and Instagram reads stop at PICTURES_A_DAY across every lead.
+const PICTURES_A_DAY = 30;
+export async function fillLeadPictures(boardId: string, origin?: string, most = 12): Promise<number> {
+  const board = await prisma.space.findUnique({ where: { id: boardId }, select: { fields: { select: { id: true, kind: true } } } });
+  if (!board) return 0;
+  const leads = await prisma.lead.findMany({ where: { boardId }, orderBy: { createdAt: "desc" }, select: { id: true, values: true, channel: true } });
+  const todo = leads
+    .filter((l) => {
+      const c = l.channel as ChannelStats | null;
+      return !c?.avatars?.youtube && !c?.avatars?.instagram && !(c?.pictureTriedAt && Date.now() - Date.parse(c.pictureTriedAt) < DAY);
+    })
+    .slice(0, most);
+  let found = 0;
+  const callback = origin && !/localhost|127\.0\.0\.1/.test(origin) ? `${origin}/api/analytics/collect?key=${await callbackKey()}` : undefined;
+  // four at a time: each is one page fetch
+  for (let i = 0; i < todo.length; i += 4) {
+    await Promise.all(
+      todo.slice(i, i + 4).map(async (l) => {
+        const values = l.values as Record<string, unknown>;
+        const channel = (l.channel as ChannelStats | null) ?? null;
+        const yt = channelOf(values, board.fields);
+        if (yt?.platform === "youtube" && (await withYoutubePicture(l.id, channel, yt.url))?.avatars?.youtube) return void found++;
+        const ig = instagramOf(values, board.fields);
+        const tried: ChannelStats = { ...(channel ?? { platform: "instagram", followers: null, typicalViews: null, recent: [], lastUploadAt: null, avatar: null }), pictureTriedAt: new Date().toISOString() };
+        if (ig && (await prisma.scrapeRun.count({ where: { kind: "lead", platform: "instagram", startedAt: { gt: new Date(Date.now() - DAY) }, targets: { path: ["role"], equals: "avatar" } } })) < PICTURES_A_DAY) {
+          const run = await startRun(IG_ACTOR, { directUrls: [ig], resultsType: "details", resultsLimit: 1 }, callback).catch(() => null);
+          if (run) await prisma.scrapeRun.create({ data: { id: run.id, platform: "instagram", kind: "lead", account: run.account, targets: { lead: l.id, url: ig, role: "avatar" }, since: new Date() } });
+        }
+        // asked today, whatever came of it (YouTube marks its own)
+        if (!yt || yt.platform !== "youtube") await prisma.lead.update({ where: { id: l.id }, data: { channel: tried as unknown as Prisma.InputJsonObject }, select: { id: true } }).catch(() => {});
+      }),
+    );
+  }
+  return found;
+}
+
 // The channel's picture from its own YouTube page (Abhishek, 19 Oct 2026:
 // "fetch the YouTube profile picture"): free and on any site, not an Apify
 // read, so the lead window shows it on localhost too. Kept as its link

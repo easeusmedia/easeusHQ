@@ -249,21 +249,27 @@ export async function loadSheet(boardId: string): Promise<SheetData | null> {
     select: { id: true, name: true, slug: true, fields: { where: { kind: { in: ["contacts", "links"] } }, orderBy: { sortOrder: "asc" }, select: { id: true, kind: true } } },
   });
   if (!board) return null;
-  const leads = await prisma.lead.findMany({
-    where: { boardId },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      values: true,
-      notes: true,
-      createdAt: true,
-      editedByName: true,
-      editedAt: true,
-      createdBy: { select: { id: true, name: true } },
-      stage: { select: { name: true } },
-    },
-  });
+  const [leads, pictures] = await Promise.all([
+    prisma.lead.findMany({
+      where: { boardId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        values: true,
+        notes: true,
+        createdAt: true,
+        editedByName: true,
+        editedAt: true,
+        createdBy: { select: { id: true, name: true } },
+        stage: { select: { name: true } },
+      },
+    }),
+    // each lead's picture alone, never the rest of its channel (YouTube's is a
+    // link; an Instagram one is kept small): lib/leadChannel fillLeadPictures
+    prisma.$queryRaw<{ id: string; pic: string | null }[]>`SELECT id, coalesce(channel->'avatars'->>'youtube', channel->'avatars'->>'instagram', channel->>'avatar') AS pic FROM "Lead" WHERE "boardId" = ${boardId} AND channel IS NOT NULL`,
+  ]);
+  const pictureOf = new Map(pictures.map((p) => [p.id, p.pic]));
   const of = (values: unknown, ids: string[]) => ids.flatMap((id) => {
     const v = (values as Record<string, unknown> | null)?.[id];
     return Array.isArray(v) ? v : [];
@@ -280,6 +286,7 @@ export async function loadSheet(boardId: string): Promise<SheetData | null> {
       editedByName: l.editedByName,
       editedAt: l.editedAt?.toISOString() ?? null,
       dead: l.stage.name === DEAD_STAGE,
+      picture: pictureOf.get(l.id) ?? null,
   }));
   return {
     id: board.id,

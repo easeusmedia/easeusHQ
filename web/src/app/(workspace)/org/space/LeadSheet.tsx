@@ -101,6 +101,17 @@ function pagesOf(lead: SheetLead): { url: string; label: string }[] {
   return out;
 }
 
+// The lead's own picture (its YouTube channel's, else its Instagram's), else
+// its initials; one that won't load falls back to the initials too
+function LeadFace({ lead }: { lead: SheetLead }) {
+  const [broken, setBroken] = useState(false);
+  if (!lead.picture || broken) return <Avatar name={lead.title} size={34} presence={false} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- YouTube's own small picture, or a small kept copy
+    <img src={lead.picture} alt="" width={34} height={34} loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="photo size-[34px] shrink-0 rounded-full object-cover" />
+  );
+}
+
 const PAGES_SHOWN = 5;
 const ROUND = "grid size-7 shrink-0 place-items-center rounded-full bg-white/[0.04] ring-1 ring-white/[0.07] transition-colors";
 
@@ -334,7 +345,7 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
               <tr key={lead.id} onClick={onOpen && (() => onOpen(lead))} className={`group border-t border-white/[0.06] ${onOpen ? "cursor-pointer" : ""} ${n >= PAGE ? "fade-in" : ""}`}>
                 <td className={`${CELL} ${PIN_LEFT}`}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={lead.title} size={34} presence={false} />
+                    <LeadFace lead={lead} />
                     <div className="min-w-0">
                       {onOpen ? (
                         <button
@@ -372,16 +383,16 @@ export function LeadSheet({ tab, leads, filterKey, onOpen, actions }: { tab: str
           </tbody>
         </table>
       </div>
-      {/* how many of them show, and the next ten */}
+      {/* the next ten, then how many show: on the left, clear of Nyra's button (Abhishek, 20 Nov 2026) */}
       <div className="flex items-center gap-3 border-t border-white/[0.06] px-4 py-2.5">
-        <p className="text-xs text-muted tabular-nums">
-          Showing {shown.length} of {leads.length}
-        </p>
         {leads.length > shown.length && (
-          <div className="ml-auto w-44">
+          <div className="w-40">
             <ShowMore onMore={() => paging.more()} />
           </div>
         )}
+        <p className="text-xs text-muted tabular-nums">
+          Showing {shown.length} of {leads.length}
+        </p>
       </div>
     </div>
   );

@@ -133,6 +133,8 @@ export type SheetLead = {
   editedAt: string | null;
   // in Dead leads
   dead: boolean;
+  // its picture: its YouTube channel's, else its Instagram's (lib/leadChannel fillLeadPictures)
+  picture: string | null;
 };
 export type SheetData = {
   id: string;
