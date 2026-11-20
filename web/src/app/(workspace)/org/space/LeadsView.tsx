@@ -13,7 +13,7 @@ import { chip } from "../../chip";
 import { Avatar } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { createLead, deleteLeadForever, setLeadDead } from "./actions";
+import { createLead, deleteLeadForever, setLeadDead, setLeadValue } from "./actions";
 import { ConfirmButton } from "../../ConfirmButton";
 import { setParam } from "../../urlState";
 import { closeOnBackdrop } from "../../dialog";
@@ -53,6 +53,8 @@ export function LeadsView({
   const [dead, setDead] = useState(false);
   // the Filter menu's picks (lib/leadSheet passesSheetFilter)
   const [filter, setFilter] = useState<SheetFilter>(NO_FILTER);
+  // a lead's tags picked under its name in the list: shown at once, then saved
+  const [tagged, setTagged] = useState<Record<string, string[]>>({});
   // a restore or a delete that didn't go through
   const [failed, setFailed] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -99,7 +101,7 @@ export function LeadsView({
   const q = query.trim().toLowerCase();
   const deadCount = sheet.leads.filter((l) => l.dead).length;
   // the tab's leads (or dead ones) the search finds, then the ones the filter keeps
-  const found = sheet.leads.filter((l) => l.dead === dead && (!q || sheetText(l).includes(q)));
+  const found = sheet.leads.map((l) => (tagged[l.id] ? { ...l, tags: tagged[l.id] } : l)).filter((l) => l.dead === dead && (!q || sheetText(l).includes(q)));
   const shown = found.filter((l) => passesSheetFilter(l, filter));
   // what's picked, each to take off on its own
   const picked = [
@@ -114,6 +116,11 @@ export function LeadsView({
     const res = await work.catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
     if (res.error) setFailed(res.error);
     else router.refresh();
+  }
+  function saveTags(l: SheetLead, ids: string[]) {
+    if (!sheet?.tagsField) return;
+    setTagged((t) => ({ ...t, [l.id]: ids }));
+    act(setLeadValue(l.id, sheet.tagsField.id, ids.length ? ids : null));
   }
   // round and quiet at the row's end, as the list's links are
   const ROUND = "grid size-8 place-items-center rounded-full bg-white/[0.04] text-muted ring-1 ring-white/[0.07] transition-colors hover:bg-white/[0.08]";
@@ -214,9 +221,9 @@ export function LeadsView({
       <div className={`min-w-0 transition-opacity duration-200 ${switching ? "opacity-50" : ""}`}>
         {shown.length ? (
           dead ? (
-            <LeadSheet key="dead" tab={sheet.id} leads={shown} tags={sheet.tagsField?.options ?? []} filterKey={JSON.stringify([sheet.id, q, "dead"])} actions={deadActions} />
+            <LeadSheet key="dead" tab={sheet.id} leads={shown} tagsField={sheet.tagsField} filterKey={JSON.stringify([sheet.id, q, "dead"])} actions={deadActions} />
           ) : (
-            <LeadSheet key="leads" tab={sheet.id} leads={shown} tags={sheet.tagsField?.options ?? []} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
+            <LeadSheet key="leads" tab={sheet.id} leads={shown} tagsField={sheet.tagsField} onTags={saveTags} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
           )
         ) : (
           <p className="fade-in rounded-2xl border border-dashed border-border px-5 py-12 text-center text-sm text-muted">{picked.length ? "No leads match these filters." : q ? "No leads match this search." : dead ? "No dead leads." : "No leads yet."}</p>

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { Clock3, Mail, Phone } from "lucide-react";
+import { Clock3, Mail, Phone, Plus } from "lucide-react";
 import { arrange, shownAs, type SheetLead } from "@/lib/leadSheet";
-import { hexOf, linkName, sameUrl, type Contact, type OptionData } from "@/lib/space";
+import { hexOf, linkName, sameUrl, type Contact, type FieldData } from "@/lib/space";
 import { TagPill } from "../../clients/TagPill";
 import { Avatar, formatDate } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
-import { hrefOf } from "./values";
+import { TagEditor, hrefOf } from "./values";
 import { ShowMore } from "./LeadBoard";
 import { PAGE, usePaging } from "./paging";
 
@@ -123,7 +123,25 @@ const ROUND = "grid size-7 shrink-0 place-items-center rounded-full bg-white/[0.
 // leads don't open; each has `actions` pinned on the right (Restore,
 // Delete). Every column resizes from its heading's edge and moves by its
 // heading, kept per tab (`tab`) in this browser.
-export function LeadSheet({ tab, leads, tags = [], filterKey, onOpen, actions }: { tab: string; leads: SheetLead[]; tags?: OptionData[]; filterKey: string; onOpen?: (lead: SheetLead) => void; actions?: (lead: SheetLead) => React.ReactNode }) {
+// tagsField and onTags: the tab's Tags, picked or typed right under each name
+export function LeadSheet({
+  tab,
+  leads,
+  tagsField = null,
+  onTags,
+  filterKey,
+  onOpen,
+  actions,
+}: {
+  tab: string;
+  leads: SheetLead[];
+  tagsField?: FieldData | null;
+  onTags?: (lead: SheetLead, ids: string[]) => void;
+  filterKey: string;
+  onOpen?: (lead: SheetLead) => void;
+  actions?: (lead: SheetLead) => React.ReactNode;
+}) {
+  const tags = tagsField?.options ?? [];
   const paging = usePaging(filterKey);
   const shown = leads.slice(0, paging.limit());
   // every column after the pinned lead
@@ -366,6 +384,26 @@ export function LeadSheet({ tab, leads, tags = [], filterKey, onOpen, actions }:
                         {lead.tags.flatMap((t) => tags.filter((o) => o.id === t)).map((o) => (
                           <TagPill key={o.id} name={o.name} color={hexOf(o.color)} size="xs" />
                         ))}
+                        {/* a tag picked or typed here, without opening the lead */}
+                        {tagsField && onTags && (
+                          <span onClick={(e) => e.stopPropagation()} className="flex">
+                            <TagEditor
+                              field={tagsField}
+                              value={lead.tags}
+                              save={(ids) => onTags(lead, ids ?? [])}
+                              trigger={{
+                                label: `Tags for ${lead.title}`,
+                                className: "flex h-5 items-center gap-1 rounded-full border border-dashed border-white/15 px-1.5 text-[11px] text-muted transition-colors hover:border-white/30 hover:text-foreground",
+                                button: (
+                                  <>
+                                    <Plus size={10} />
+                                    {lead.tags.length ? "" : "Tag"}
+                                  </>
+                                ),
+                              }}
+                            />
+                          </span>
+                        )}
                         <span title={`Added ${formatDate(lead.createdAt)} by ${lead.createdBy.name}`} className="flex shrink-0 items-center gap-1">
                           <Clock3 size={11} className="shrink-0" />
                           {addedWhen(lead.createdAt)}
