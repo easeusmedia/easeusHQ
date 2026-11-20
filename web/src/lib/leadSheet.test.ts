@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { arrange, channelOf, channelsIn, columnOf, movedValues, shownAs } from "./leadSheet.ts";
+import { arrange, channelOf, channelsIn, columnOf, movedValues, shownAs, passesSheetFilter, NO_FILTER, type SheetLead } from "./leadSheet.ts";
 
 test("a pasted detail is told by what it is", () => {
   assert.deepEqual(channelOf("mehta@clinic.in"), { kind: "email", value: "mehta@clinic.in" });
@@ -96,4 +96,32 @@ test("columns keep the order they were dragged into", () => {
   assert.deepEqual(arrange(keys, ["notes", "phone", "contact", "email", "youtube"]), ["notes", "phone", "x", "contact", "email"]);
   // a new first column stays first
   assert.deepEqual(arrange(["a", "b"], ["b"]), ["a", "b"]);
+});
+
+test("Leadwell's filter: when it was added, who added it, what it can be reached on", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const lead = (hoursAgo: number, by: string, channels: { kind: "email" | "phone" | "instagram"; value: string }[], links: string[] = []): SheetLead => ({
+    id: `${hoursAgo}${by}`,
+    title: "X",
+    contacts: [{ id: "c1", name: "A", role: "", channels }],
+    links: links.map((url) => ({ label: "", url })),
+    notes: "",
+    createdBy: { id: by, name: by },
+    createdAt: new Date(now - hoursAgo * 3_600_000).toISOString(),
+    editedByName: null,
+    editedAt: null,
+    dead: false,
+  });
+  const a = lead(2, "u1", [{ kind: "email", value: "a@b.co" }]);
+  const b = lead(30, "u2", [{ kind: "phone", value: "+91 98765 43210" }], ["https://instagram.com/show"]);
+  const c = lead(24 * 20, "u1", []);
+  const pass = (f: Partial<typeof NO_FILTER>) => [a, b, c].filter((l) => passesSheetFilter(l, { ...NO_FILTER, ...f }, now)).map((l) => l.id);
+  assert.deepEqual(pass({}), [a.id, b.id, c.id]);
+  assert.deepEqual(pass({ added: "day" }), [a.id]);
+  assert.deepEqual(pass({ added: "week" }), [a.id, b.id]);
+  assert.deepEqual(pass({ by: ["u1"] }), [a.id, c.id]);
+  // the lead's own Instagram page counts
+  assert.deepEqual(pass({ has: ["instagram"] }), [b.id]);
+  assert.deepEqual(pass({ has: ["phone", "instagram"], by: ["u2"] }), [b.id]);
+  assert.deepEqual(pass({ has: ["email", "phone"] }), []);
 });

@@ -148,6 +148,32 @@ export type SheetData = {
 // not under Leads), with its portal
 export type OutreachBoard = { id: string; name: string; portal: string };
 
+// Leadwell's Filter (Abhishek, 20 Nov 2026): when a lead was added, who
+// added it, and what it can be reached on; a tick within a group is any of
+// them (Added by), across groups every one (Has: each of those)
+export type SheetReach = "email" | "phone" | "instagram" | "linkedin";
+export type SheetFilter = { added: "day" | "week" | "month" | null; by: string[]; has: SheetReach[] };
+export const NO_FILTER: SheetFilter = { added: null, by: [], has: [] };
+const DAY = 86_400_000;
+export const ADDED: { key: NonNullable<SheetFilter["added"]>; label: string; ms: number }[] = [
+  { key: "day", label: "Last 24 hours", ms: DAY },
+  { key: "week", label: "Last 7 days", ms: 7 * DAY },
+  { key: "month", label: "Last 30 days", ms: 30 * DAY },
+];
+export const REACH: { key: SheetReach; label: string }[] = [
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "instagram", label: "Instagram" },
+  { key: "linkedin", label: "LinkedIn" },
+];
+// a person's detail or one of the lead's own links (its Instagram page)
+export const hasReach = (l: SheetLead, k: SheetReach) =>
+  l.contacts.some((p) => (p.channels ?? []).some((c) => c.kind === k && c.value.trim())) || l.links.some((x) => channelOf(x.url)?.kind === k);
+export function passesSheetFilter(l: SheetLead, f: SheetFilter, now = Date.now()): boolean {
+  const added = ADDED.find((a) => a.key === f.added);
+  return (!added || now - Date.parse(l.createdAt) <= added.ms) && (!f.by.length || f.by.includes(l.createdBy.id)) && f.has.every((k) => hasReach(l, k));
+}
+
 // Everything a search can find on a row
 export function sheetText(l: SheetLead): string {
   return [l.title, l.notes, ...l.contacts.flatMap((p) => [p.name, p.role, ...(p.channels ?? []).map((c) => c.value)]), ...l.links.map((x) => x.url)].join(" ").toLowerCase();

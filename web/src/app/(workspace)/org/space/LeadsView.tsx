@@ -2,13 +2,15 @@
 
 import { useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Plus, Search, Table2, Trash2, Undo2, X } from "lucide-react";
-import { sheetText, shownAs, type OutreachBoard, type SheetData, type SheetLead } from "@/lib/leadSheet";
+import { Check, Filter, Plus, Search, Table2, Trash2, Undo2, X } from "lucide-react";
+import { ADDED, NO_FILTER, passesSheetFilter, REACH, hasReach, sheetText, shownAs, type OutreachBoard, type SheetData, type SheetFilter, type SheetLead } from "@/lib/leadSheet";
 import { CONTACT_ROLES, type Contact, type LinkValue } from "@/lib/space";
 import { BoardTabs, SEG_ROW } from "./BoardTabs";
 import { LeadSheet } from "./LeadSheet";
 import { Paste, Person, SheetLeadWindow } from "./SheetLead";
-import { SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, hrefOf } from "./values";
+import { Menu, SECTION, SECTION_BODY, SECTION_HEAD, SECTION_TITLE, hrefOf } from "./values";
+import { chip } from "../../chip";
+import { Avatar } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
 import { NewSpaceDialog } from "./NewSpaceDialog";
 import { createLead, deleteLeadForever, setLeadDead } from "./actions";
@@ -46,6 +48,8 @@ export function LeadsView({
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
   const [query, setQuery] = useState("");
   const [dead, setDead] = useState(false);
+  // the Filter menu's picks (lib/leadSheet passesSheetFilter)
+  const [filter, setFilter] = useState<SheetFilter>(NO_FILTER);
   // a restore or a delete that didn't go through
   const [failed, setFailed] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -65,6 +69,7 @@ export function LeadsView({
     setOpenId(null);
     setQuery("");
     setDead(false);
+    setFilter(NO_FILTER);
     setGoing(slug);
     startSwitch(() => router.push(`${url.pathname}${url.search}`, { scroll: false }));
   }
@@ -90,7 +95,15 @@ export function LeadsView({
 
   const q = query.trim().toLowerCase();
   const deadCount = sheet.leads.filter((l) => l.dead).length;
-  const shown = sheet.leads.filter((l) => l.dead === dead && (!q || sheetText(l).includes(q)));
+  // the tab's leads (or dead ones) the search finds, then the ones the filter keeps
+  const found = sheet.leads.filter((l) => l.dead === dead && (!q || sheetText(l).includes(q)));
+  const shown = found.filter((l) => passesSheetFilter(l, filter));
+  // what's picked, each to take off on its own
+  const picked = [
+    ...ADDED.filter((a) => a.key === filter.added).map((a) => ({ key: `added:${a.key}`, label: a.label, off: () => setFilter((f) => ({ ...f, added: null })) })),
+    ...filter.by.map((id) => ({ key: `by:${id}`, label: `Added by ${sheet.leads.find((l) => l.createdBy.id === id)?.createdBy.name ?? "someone"}`, off: () => setFilter((f) => ({ ...f, by: f.by.filter((x) => x !== id) })) })),
+    ...REACH.filter((r) => filter.has.includes(r.key)).map((r) => ({ key: `has:${r.key}`, label: `Has ${r.label === "Email" || r.label === "Phone" ? r.label.toLowerCase() : r.label}`, off: () => setFilter((f) => ({ ...f, has: f.has.filter((x) => x !== r.key) })) })),
+  ];
   const lead = openId ? (sheet.leads.find((l) => l.id === openId && !l.dead) ?? null) : null;
   async function act(work: Promise<{ error?: string }>) {
     setFailed(null);
@@ -144,6 +157,28 @@ export function LeadsView({
             className="min-w-0 flex-1 bg-transparent text-sm outline-none! placeholder:text-muted/60"
           />
         </label>
+        {found.length > 0 || picked.length ? (
+          <Menu
+            height={440}
+            width={340}
+            buttonClassName={chip(picked.length > 0)}
+            button={
+              <>
+                <Filter size={13} className="text-accent" /> {picked.length ? `${picked.length} ${picked.length === 1 ? "filter" : "filters"}` : "Filter"}
+              </>
+            }
+          >
+            {() => <LeadsFilter leads={found} filter={filter} onChange={setFilter} />}
+          </Menu>
+        ) : null}
+        {picked.map((p) => (
+          <span key={p.key} className={`fade-in ${chip(true)} pr-1.5`}>
+            <span className="min-w-0 truncate">{p.label}</span>
+            <button type="button" onClick={p.off} aria-label={`Remove ${p.label}`} title="Remove" className="grid size-5 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.08] hover:text-foreground">
+              <X size={11} />
+            </button>
+          </span>
+        ))}
         {/* the tab's leads, or the ones deleted */}
         {(deadCount > 0 || dead) && (
           <div className={SEG_ROW}>
@@ -177,12 +212,83 @@ export function LeadsView({
             <LeadSheet key="leads" tab={sheet.id} leads={shown} filterKey={JSON.stringify([sheet.id, q])} onOpen={(l) => open(l.id)} />
           )
         ) : (
-          <p className="fade-in rounded-2xl border border-dashed border-border px-5 py-12 text-center text-sm text-muted">{q ? "No leads match this search." : dead ? "No dead leads." : "No leads yet."}</p>
+          <p className="fade-in rounded-2xl border border-dashed border-border px-5 py-12 text-center text-sm text-muted">{picked.length ? "No leads match these filters." : q ? "No leads match this search." : dead ? "No dead leads." : "No leads yet."}</p>
         )}
       </div>
 
       <SheetLeadWindow lead={lead} sheet={sheet} targets={targets} roles={roles} onClose={() => open(null)} />
     </div>
+  );
+}
+
+// Leadwell's Filter menu (Abhishek, 20 Nov 2026), in the look of the
+// outreach boards' own: when it was added, who added it, and what it can be
+// reached on, each a row of chips with how many leads have it
+function LeadsFilter({ leads, filter, onChange }: { leads: SheetLead[]; filter: SheetFilter; onChange: (f: SheetFilter) => void }) {
+  // the menu's moment: it's drawn afresh each time it opens
+  const [now] = useState(() => Date.now());
+  const people = [...Map.groupBy(leads, (l) => l.createdBy.id).values()].map((ls) => ({ ...ls[0].createdBy, count: ls.length })).sort((a, b) => b.count - a.count);
+  const any = filter.added || filter.by.length || filter.has.length;
+  const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  return (
+    <div className="flex max-h-[min(26rem,70vh)] flex-col overflow-y-auto p-1.5">
+      <Group label="Added">
+        {ADDED.map((a) => (
+          <Pick key={a.key} on={filter.added === a.key} count={leads.filter((l) => now - Date.parse(l.createdAt) <= a.ms).length} onClick={() => onChange({ ...filter, added: filter.added === a.key ? null : a.key })}>
+            {a.label}
+          </Pick>
+        ))}
+      </Group>
+      {people.length > 1 && (
+        <Group label="Added by">
+          {people.map((p) => (
+            <Pick key={p.id} on={filter.by.includes(p.id)} count={p.count} onClick={() => onChange({ ...filter, by: toggle(filter.by, p.id) })}>
+              <Avatar name={p.name} size={16} presence={false} />
+              {p.name}
+            </Pick>
+          ))}
+        </Group>
+      )}
+      <Group label="Has">
+        {REACH.map((r) => (
+          <Pick key={r.key} on={filter.has.includes(r.key)} count={leads.filter((l) => hasReach(l, r.key)).length} onClick={() => onChange({ ...filter, has: toggle(filter.has, r.key) })}>
+            {r.label}
+          </Pick>
+        ))}
+      </Group>
+      {any ? (
+        <div className="fade-in mt-1 flex justify-end border-t border-white/[0.06] px-1.5 pt-2 pb-0.5">
+          <button type="button" onClick={() => onChange(NO_FILTER)} className="btn btn-xs btn-ghost">
+            Clear all
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-col gap-2 px-1.5 pt-1.5 pb-3">
+      <p className="text-[11px] font-medium tracking-wide text-muted uppercase">{label}</p>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+function Pick({ on, count, onClick, children }: { on: boolean; count: number; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      disabled={!count && !on}
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 disabled:opacity-40 ${
+        on ? "border-accent/50 bg-accent/15 text-foreground" : "border-white/[0.09] bg-white/[0.03] text-foreground/85 enabled:hover:border-white/20 enabled:hover:bg-white/[0.06]"
+      }`}
+    >
+      {on && <Check size={11} strokeWidth={3} className="pop-in text-accent" />}
+      {children}
+      <span className={`tabular-nums ${on ? "text-accent" : "text-muted"}`}>{count}</span>
+    </button>
   );
 }
 
