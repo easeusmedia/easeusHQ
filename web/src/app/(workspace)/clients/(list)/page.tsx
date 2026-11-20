@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { getAllUsers } from "@/lib/users";
-import { ACTIVE_STATUSES } from "@/lib/workflow";
+import { IN_PROGRESS } from "@/lib/workflow";
 import { visibleClientWhere } from "@/lib/scope";
 import { ClientsSyncButton } from "../ClientsSyncButton";
 import { ClientsBoard } from "../ClientsBoard";
@@ -31,7 +31,7 @@ export default async function ClientsPage() {
         // when they all wrapped months ago is worse than no number
         projects: {
           where: { status: { not: "completed" } },
-          include: { _count: { select: { tasks: { where: { status: { in: ACTIVE_STATUSES }, ...(editor ? { assignedToId: me.id } : {}) } } } } },
+          include: { _count: { select: { tasks: { where: { status: { in: IN_PROGRESS }, ...(editor ? { assignedToId: me.id } : {}) } } } } },
         },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],

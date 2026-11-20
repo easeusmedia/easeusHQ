@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { indiaDay } from "@/lib/due";
 import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
-import { ACTIVE_STATUSES, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, PART_DONE, type TaskStatus } from "@/lib/workflow";
+import { IN_PROGRESS, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, PART_DONE, type TaskStatus } from "@/lib/workflow";
 import { finishedAt } from "@/lib/delivered";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
@@ -317,7 +317,7 @@ async function client({ who }: { who: string }) {
   if (!("id" in c)) return notFound("client", c);
   const [projects, open, delivered, invoices] = await Promise.all([
     prisma.project.findMany({ where: { clientId: c.id, status: "in_progress" }, orderBy: { createdAt: "desc" }, take: 8 }),
-    prisma.task.count({ where: { project: { clientId: c.id }, status: { in: ACTIVE_STATUSES } } }),
+    prisma.task.count({ where: { project: { clientId: c.id }, status: { in: IN_PROGRESS } } }),
     prisma.task.count({ where: { project: { clientId: c.id }, status: "delivered_and_uploaded", updatedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } }),
     prisma.invoice.findMany({ where: { clientId: c.id }, orderBy: { createdAt: "desc" }, take: 6 }),
   ]);
@@ -388,7 +388,7 @@ async function overview({ topic }: { topic: string }) {
       include: { _count: { select: { projects: { where: { status: "in_progress" } } } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
-    const open = await prisma.task.groupBy({ by: ["projectId"], where: LIVE_TASK, _count: true });
+    const open = await prisma.task.groupBy({ by: ["projectId"], where: { ...LIVE_TASK, status: { in: IN_PROGRESS } }, _count: true });
     const projectClient = new Map((await prisma.project.findMany({ where: { id: { in: open.map((o) => o.projectId) } }, select: { id: true, clientId: true } })).map((p) => [p.id, p.clientId]));
     const openBy = new Map<string, number>();
     for (const o of open) openBy.set(projectClient.get(o.projectId)!, (openBy.get(projectClient.get(o.projectId)!) ?? 0) + o._count);

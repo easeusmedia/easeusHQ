@@ -56,8 +56,7 @@ export const ALL_STATUSES: TaskStatus[] = [
   "delivered_and_uploaded",
 ];
 
-// everything that hasn't shipped yet — the cutoff every live board uses, so
-// "active tasks" means the same number wherever it's shown
+// everything that hasn't shipped yet: the cutoff every live board uses
 export const ACTIVE_STATUSES: TaskStatus[] = ALL_STATUSES.filter((s) => s !== "delivered_and_uploaded");
 
 // Someone's part done (Abhishek, 23 Oct and 19 Nov 2026): Final export
@@ -66,7 +65,9 @@ export const ACTIVE_STATUSES: TaskStatus[] = ALL_STATUSES.filter((s) => s !== "d
 // by the move into it (lib/delivered finishedAt), never by the task's last
 // edit. Delivered alone is the client's side: what has reached them.
 export const PART_DONE: TaskStatus[] = ["final_export_ready", "delivered_and_uploaded"];
-// What someone is still working on: open work short of their part done
+// What someone is still working on: open work short of their part done.
+// Every "active" or "open tasks" count uses this, so work waiting at Final
+// export ready never reads as active (Abhishek, 20 Nov 2026)
 export const IN_PROGRESS: TaskStatus[] = ACTIVE_STATUSES.filter((s) => !PART_DONE.includes(s));
 
 // Live work, wherever it's listed: not shipped, and for a current client. A

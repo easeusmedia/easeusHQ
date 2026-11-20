@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { assignOptionsFor, getAllUsers } from "@/lib/users";
-import { ACTIVE_STATUSES, type Role } from "@/lib/workflow";
+import { ACTIVE_STATUSES, IN_PROGRESS, type Role, type TaskStatus } from "@/lib/workflow";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
 import { assigneeWhere, effectiveRole, runsClients, visibleTagWhere, type Viewer, seesClient, isFounder, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
@@ -53,7 +53,7 @@ function loadClient(slug: string) {
         // as dragged into place, else the order they always had
         orderBy: PROJECT_ORDER,
         include: {
-          _count: { select: { assets: true, tasks: { where: { status: { in: ACTIVE_STATUSES } } } } },
+          _count: { select: { assets: true, tasks: { where: { status: { in: IN_PROGRESS } } } } },
         },
       },
       invoices: { orderBy: { createdAt: "desc" } },
@@ -218,7 +218,7 @@ export default async function ClientDetailPage({
 
       <div className="mb-10">
         <ClientStats
-          activeTasks={tasks.length}
+          activeTasks={tasks.filter((t) => IN_PROGRESS.includes(t.status as TaskStatus)).length}
           inProgress={live.length}
           completed={completed.length}
           unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
