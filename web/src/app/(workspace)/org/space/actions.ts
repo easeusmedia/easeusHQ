@@ -364,11 +364,14 @@ export async function renameStage(id: string, name: string): Promise<Done> {
   }
 }
 
+// whoever adds stages puts them in order too (lib/scope addsStages): Sales as well
 export async function orderStages(boardId: string, ids: string[]): Promise<Done> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
-  const who = await whoFor(board.teamId, true);
+  const who = await whoFor(board.teamId);
   if ("error" in who) return who;
+  const viewer = await getViewer();
+  if (!viewer || !addsStages(viewer, board.teamId)) return { error: BUILDERS_ONLY };
   try {
     const stages = await prisma.boardStage.findMany({ where: { boardId }, select: { id: true } });
     if (ids.length !== stages.length || new Set(ids).size !== ids.length || !stages.every((st) => ids.includes(st.id)))

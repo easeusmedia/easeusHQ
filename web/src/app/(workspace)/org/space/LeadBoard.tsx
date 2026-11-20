@@ -174,6 +174,8 @@ export function LeadBoard({
   // a stage being dragged to a new place, and the column it's over
   const [dragStage, setDragStage] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
+  // the dragged stage's column height, for the shadow that shows where it will land
+  const [stageHeight, setStageHeight] = useState(0);
   // the dragged card's height, for the slot that shows where it will land
   const [dragHeight, setDragHeight] = useState(0);
   const [over, setOver] = useState<{ stageId: string; index: number } | null>(null);
@@ -379,6 +381,13 @@ export function LeadBoard({
     ids.splice(ids.indexOf(target.id) + (to > from ? 1 : 0), 0, id);
     renumber(ids);
   }
+  // While a stage is dragged, a shadow its size shows where it will land:
+  // before the column it's over when moving left, after it moving right
+  const shadowAt = (id: string): "before" | "after" | null => {
+    if (!dragStage || overStage !== id || dragStage === id) return null;
+    return order.indexOf(id) < order.indexOf(dragStage) ? "before" : "after";
+  };
+  const stageShadow = <div key="stage-shadow" aria-hidden style={{ height: stageHeight || 96 }} className={`${COLUMN} fade-in rounded-xl border border-dashed border-white/15 bg-white/[0.03]`} />;
   // a stage being dragged can land on another's header or its cards
   const stageDrop = (stage: StageData) => ({
     onDragOver: (e: React.DragEvent) => {
@@ -402,21 +411,22 @@ export function LeadBoard({
     return (
       <div
         {...stageDrop(stage)}
-        draggable={canBuild}
+        draggable={canAddStage}
         onDragStart={(e) => {
-          if (!canBuild) return;
+          if (!canAddStage) return;
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", stage.id);
+          setStageHeight(Math.min(e.currentTarget.parentElement?.offsetHeight ?? 0, 420));
           setDragStage(stage.id);
         }}
         onDragEnd={() => {
           setDragStage(null);
           setOverStage(null);
         }}
-        title={canBuild ? "Drag to move this stage" : stage.name}
-        className={`mist-tint flex h-8 min-w-0 items-center gap-2 rounded-full border pr-1 pl-2.5 text-xs font-medium transition-[opacity,box-shadow] ${tone.pill} ${canBuild ? "cursor-grab active:cursor-grabbing" : ""} ${
+        title={canAddStage ? "Drag to move this stage" : stage.name}
+        className={`mist-tint flex h-8 min-w-0 items-center gap-2 rounded-full border pr-1 pl-2.5 text-xs font-medium transition-[opacity,box-shadow] ${tone.pill} ${canAddStage ? "cursor-grab active:cursor-grabbing" : ""} ${
           target ? "ring-2 ring-accent/60" : ""
-        } ${dragStage === stage.id ? "opacity-40" : ""}`}
+        }`}
       >
         <span className={`size-1.5 shrink-0 rounded-full ${tone.dot}`} />
         <span className="flex min-w-0 flex-1" title={stage.name}>
@@ -515,7 +525,15 @@ export function LeadBoard({
   // the card's own edges.
   const row = (at: number[], end: boolean, inCard: boolean) => (
     <div
+      // a stage let go anywhere in the row (a gap, the shadow) lands where the shadow shows
+      onDrop={(e) => {
+        const target = dragStage && stages.find((s) => s.id === overStage);
+        if (!target) return;
+        e.preventDefault();
+        dropStage(target);
+      }}
       onDragOver={(e) => {
+        if (dragStage && overStage) e.preventDefault();
         if (!drag && !dragStage) return;
         // follow a dragged card to a stage off to the side, or down the page
         const r = e.currentTarget.getBoundingClientRect();
@@ -536,12 +554,14 @@ export function LeadBoard({
           return (
             <Fragment key={stage.id}>
               {newStageAt === i && stageInput(i)}
+              {shadowAt(stage.id) === "before" && stageShadow}
               {showsStage(i) && (
-                <div className={`${COLUMN} flex flex-col gap-2`}>
+                <div className={`${COLUMN} flex flex-col gap-2 transition-opacity duration-200 ${dragStage === stage.id ? "opacity-35" : ""}`}>
                   {header(stage, i, col.length)}
                   {body(stage, i, col, !!sectionOf)}
                 </div>
               )}
+              {shadowAt(stage.id) === "after" && stageShadow}
             </Fragment>
           );
         })}
