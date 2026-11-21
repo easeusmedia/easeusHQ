@@ -705,7 +705,7 @@ function Row({
     ) : null;
   const del = onDelete ? (
     <span onClick={(e) => e.stopPropagation()} className="opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
-      <ConfirmButton message={`Delete "${item.title}"? This can't be undone.`} onConfirm={onDelete} className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300">
+      <ConfirmButton message={`Delete "${item.title}"? This can't be undone.`} onConfirm={onDelete} className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-400">
         <Trash2 size={13} aria-label="Delete task" />
       </ConfirmButton>
     </span>

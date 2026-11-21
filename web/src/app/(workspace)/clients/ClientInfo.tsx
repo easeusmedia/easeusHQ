@@ -348,7 +348,7 @@ export function ClientInfo({
         <button
           type="button"
           onClick={openDelete}
-          className="btn btn-sm flex items-center gap-1.5 text-muted hover:bg-red-500/10 hover:text-red-300"
+          className="btn btn-sm flex items-center gap-1.5 text-muted hover:bg-red-500/10 hover:text-red-400"
         >
           <Trash2 size={13} /> Delete client
         </button>
@@ -416,7 +416,7 @@ function CustomDocSection({ doc }: { doc: CustomDoc }) {
               <div className="flex justify-between gap-2">
                 <ConfirmButton
                   message={`Delete "${doc.title}"? This can't be undone.`}
-                  className="btn btn-xs flex items-center gap-1 text-red-300 hover:bg-red-500/10"
+                  className="btn btn-xs flex items-center gap-1 text-red-400 hover:bg-red-500/10"
                   onConfirm={remove}
                 >
                   <Trash2 size={13} /> Delete

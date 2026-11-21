@@ -279,7 +279,7 @@ function Tools({ onEdit, onUp, onDown, onRemove }: { onEdit: () => void; onUp?: 
           <ArrowDown size={13} />
         </button>
       )}
-      <button type="button" onClick={onRemove} aria-label="Remove clause" className={`${b} hover:text-red-600`}>
+      <button type="button" onClick={onRemove} aria-label="Remove clause" className={`${b} hover:text-red-400`}>
         <Trash2 size={13} />
       </button>
     </div>

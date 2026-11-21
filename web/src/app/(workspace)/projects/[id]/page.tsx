@@ -16,14 +16,10 @@ import { stageLabel } from "@/lib/stages";
 import { InvoicePicker } from "../InvoicePicker";
 import { ActiveClient } from "../../clients/ActiveClient";
 import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
+import { fileIn } from "@/lib/delivered";
 
 export const dynamic = "force-dynamic";
 
-// A file delivered and uploaded: its task marked so; with no task (one
-// brought in from Notion), its own final link in. A Frame.io link is only for
-// review. ponytail: by the link's host; a task on every file would settle it
-const fileIn = (a: { link: string | null; task: { status: string } | null }) =>
-  a.task ? a.task.status === "delivered_and_uploaded" : !!a.link && !/^https?:\/\/(?:[^/]*\.)?(?:f\.io|frame\.io)(?:[/?#]|$)/i.test(a.link);
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

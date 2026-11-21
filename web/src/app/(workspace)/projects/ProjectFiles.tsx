@@ -172,7 +172,7 @@ export function ProjectFiles({
 
   return (
     // read-only, it sits under a heading of the client page's own
-    <section className={readOnly ? undefined : "mt-12"}>
+    <section className={readOnly ? undefined : "mt-6"}>
       {!readOnly && (
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium">
@@ -330,7 +330,7 @@ export function ProjectFiles({
                         confirm="Remove"
                         message={`Remove "${r.name}" from this project? Only the link is removed; the file itself stays where it's stored.`}
                         onConfirm={() => remove(r.id)}
-                        className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-white/[0.06] hover:text-red-300"
+                        className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-white/[0.06] hover:text-red-400"
                       >
                         <Trash2 size={14} aria-label={`Remove ${r.name}`} />
                       </ConfirmButton>

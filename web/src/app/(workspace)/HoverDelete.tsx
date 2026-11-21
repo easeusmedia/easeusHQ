@@ -19,7 +19,7 @@ export function HoverDelete({ title, onDelete }: { title: string; onDelete: () =
       <ConfirmButton
         message={`Delete "${title}"? This can't be undone.`}
         onConfirm={onDelete}
-        className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-300"
+        className="flex size-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/[0.08] hover:text-red-400"
       >
         <Trash2 size={13} aria-label="Delete task" />
       </ConfirmButton>

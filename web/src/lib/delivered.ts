@@ -37,3 +37,9 @@ async function lastMoves(taskIds: string[]): Promise<Map<string, Map<string, Dat
   }
   return by;
 }
+
+// A file delivered and uploaded: its task marked so; with no task (one
+// brought in from Notion), its own final link in. A Frame.io link is only for
+// review. ponytail: by the link's host; a task on every file would settle it
+export const fileIn = (a: { link: string | null; task: { status: string } | null }) =>
+  a.task ? a.task.status === "delivered_and_uploaded" : !!a.link && !/^https?:\/\/(?:[^/]*\.)?(?:f\.io|frame\.io)(?:[/?#]|$)/i.test(a.link);

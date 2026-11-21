@@ -33,7 +33,7 @@ export function PhotoEdit({
     setPending(true);
     setError(null);
     try {
-      const res = await save(file ? await resizeToJpeg(file, 160, 160) : null);
+      const res = await save(file ? await resizeToJpeg(file, 480, 480) : null);
       if (res.error) setError(res.error);
       else router.refresh();
     } catch (err) {

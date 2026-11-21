@@ -244,7 +244,7 @@ function WorkCard({ item, today, sub, onOpen, avatar = true }: { item: HomeItem;
       data-frozen-plain
       onPointerEnter={() => warmTask({ kind: item.source, id: item.id })}
       onClick={onOpen}
-      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+      className="panel-soft panel-hover flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.title}</p>
@@ -588,10 +588,10 @@ export function HomeView({
                   <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs font-medium tabular-nums text-muted">{g.items.length}</span>
                   <ChevronDown size={15} className={`ml-auto shrink-0 text-muted transition-transform duration-300 ${isOpen ? "" : "-rotate-90"}`} />
                 </button>
-                {/* its work as one list, row under row */}
+                {/* its work, card under card, as in My tasks */}
                 <Fold open={isOpen}>
                   <div className="pt-1.5">
-                    <div className="panel-soft flex flex-col divide-y divide-white/[0.06] overflow-hidden rounded-2xl">
+                    <div className="flex flex-col gap-2">
                       {g.items.map((i) => (
                         <WorkCard key={i.key} item={i} today={today} sub={subOf(i)} onOpen={() => open(i.key)} avatar={!person} />
                       ))}
@@ -714,14 +714,6 @@ export function HomeView({
     // the page's own height: everything below the top bar fills the screen,
     // and each section scrolls inside itself
     <div className="relative isolate flex flex-col gap-4 lg:h-[calc(100dvh-2*var(--page-pad))]">
-      {/* the theme's blue, washing down from the top right; faded to nothing
-          well before the page's left edge, so it never stops in a line
-          against the sidebar */}
-      <div
-        aria-hidden
-        className="home-glow pointer-events-none absolute -inset-x-(--page-pad) -top-(--page-pad) -z-10 h-[36rem]"
-      />
-
       <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-4 pt-1">
         <div className="mr-auto min-w-0">
           <p className="greet-in text-sm text-muted">

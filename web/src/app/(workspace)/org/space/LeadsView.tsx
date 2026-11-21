@@ -123,7 +123,7 @@ export function LeadsView({
         <Undo2 size={14} />
       </button>
       <span title="Delete for good" className="flex">
-        <ConfirmButton message={`Delete “${l.title}” for good? This can't be undone.`} onConfirm={() => act(deleteLeadForever(l.id))} className={`${ROUND} hover:text-red-300`}>
+        <ConfirmButton message={`Delete “${l.title}” for good? This can't be undone.`} onConfirm={() => act(deleteLeadForever(l.id))} className={`${ROUND} hover:text-red-400`}>
           <Trash2 size={14} />
           <span className="sr-only">Delete {l.title} for good</span>
         </ConfirmButton>

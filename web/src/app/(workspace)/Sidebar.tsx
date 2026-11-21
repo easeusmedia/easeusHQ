@@ -309,9 +309,22 @@ export function Sidebar({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  // Folding the rail: the list keeps clipping until its labels and the
+  // clients tree have folded away (300ms). Collapsed, it stops clipping so
+  // the hover labels can stick out past the rail, and switching that at
+  // once let the still-tall list spill out of the panel mid-fold.
+  const [folding, setFolding] = useState(false);
+  const foldTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(foldTimer.current), []);
+
   function toggle() {
     // the drawer's logo and close button shut it; the desktop rail keeps its own setting
     if (small) return setDrawer(false);
+    clearTimeout(foldTimer.current);
+    if (railOpen) {
+      setFolding(true);
+      foldTimer.current = setTimeout(() => setFolding(false), 300);
+    }
     setOpen((v) => {
       const next = !v;
       // a cookie, not localStorage — the server needs to read this on the
@@ -525,7 +538,7 @@ export function Sidebar({
         </span>
       </div>
 
-      <div className={`flex min-h-0 w-full flex-1 flex-col items-start gap-1 ${open ? "overflow-y-auto" : ""}`}>
+      <div className={`flex min-h-0 w-full flex-1 flex-col items-start gap-1 ${open ? "overflow-y-auto" : folding ? "overflow-hidden" : ""}`}>
       {groups.filter((g) => g.items.length).map((g) => (
         <div key={g.label} className="flex w-full flex-col items-start gap-1">
           {/* the group's name, folding away with the rail rather than

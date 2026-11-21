@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Building2, CalendarDays, ExternalLink, Inbox, ListChecks, ListTodo } from "lucide-react";
+import { ArrowLeft, Clapperboard, ExternalLink, ListTodo, Palette } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
 import { Avatar } from "../TaskCard";
 import { DatePicker } from "../DatePicker";
@@ -32,31 +32,28 @@ const day = (iso: string) => dayLabel(dayOf(new Date(iso)));
 // "3 Oct, 11:30 AM", in India
 const when = (iso: string) => `${day(iso)}, ${new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).toUpperCase()}`;
 
-// how many of someone's tasks their card shows, the rest as "+N more"
-const SHOWN = 5;
-
 // Turnaround: start to finish, for finished work only (Abhishek, 26 Oct
 // 2026: a running count on open work read as a meaningless number)
 const turnaround = (card: WorkCard) => (card.end ? spanLabel(Date.parse(card.end) - Date.parse(card.start)) : "–");
 
-// "2 days late" in rose, "Today", or the day; nothing when there's no date
-function Due({ due, today }: { due: string | null; today: string }) {
+// Everyone as a card (Abhishek, 21 Nov 2026: "a cleaner card with the
+// tasks mentioned"; then "enhance the task list"): who they are and how
+// many tasks they're on, then those tasks as rows: an icon for the kind of
+// work (video, design, to-do), tinted red when it's late; its name and
+// where it's for; and how it stands on time as a small tag. A task opens
+// its overview right here; the rest of the card opens their page.
+const SHOWN_TASKS = 4;
+const KIND_ICON = { video: Clapperboard, design: Palette, todo: ListTodo } as const;
+function DueTag({ due, today }: { due: string | null; today: string }) {
   if (!due) return null;
   const late = due < today ? daysBetween(due, today) : 0;
-  return (
-    <span className={`flex shrink-0 items-center gap-1 text-xs tabular-nums ${late ? "text-rose-300" : due === today ? "text-foreground" : "text-muted"}`}>
-      <CalendarDays size={12} aria-hidden />
-      {late ? `${late} ${late === 1 ? "day" : "days"} late` : due === today ? "Today" : dayLabel(due)}
-    </span>
-  );
+  const [text, tone] = late
+    ? [`${late}d late`, "bg-rose-400/12 text-rose-300"]
+    : due === today
+      ? ["Today", "bg-white/[0.1] text-foreground"]
+      : [dayLabel(due), "bg-white/[0.05] text-muted"];
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${tone}`}>{text}</span>;
 }
-
-// Everyone as a card again, with icons (Abhishek, 26 Oct 2026: the table
-// read badly; "the icons and the card thing was better"): who they are, how
-// many tasks they're on, and those tasks as rows. The card opens their page;
-// a task opens its overview right here. The header link stretches over the
-// whole card, so it's one link for a keyboard too, and the task rows sit
-// above it as their own buttons.
 export function PeopleWork({ people, today }: { people: { id: string; name: string; title: string | null; now: WorkCard[] }[]; today: string }) {
   const [open, setOpen] = useState<WorkCard | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -69,63 +66,51 @@ export function PeopleWork({ people, today }: { people: { id: string; name: stri
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {people.map((p) => {
           const n = p.now.length;
-          const count = `${n} current ${n === 1 ? "task" : "tasks"}`;
+          const isLate = (c: WorkCard) => !!c.due && c.due < today;
+          // the late ones first, then the soonest due
+          const tasks = [...p.now].sort((x, y) => Number(isLate(y)) - Number(isLate(x)) || (x.due ?? "9").localeCompare(y.due ?? "9"));
           return (
-            <div
-              key={p.id}
-              className={`relative flex min-w-0 flex-col gap-4 rounded-2xl panel-soft panel-hover p-4 motion-safe:hover:-translate-y-0.5 ${ARRIVE}`}
-            >
-              <PrefetchLink
-                href={`/team-work?person=${p.id}`}
-                className="flex min-w-0 items-center gap-3 outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-accent/60"
-              >
-                <Avatar name={p.name} size={36} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium leading-6">{p.name}</span>
-                  {p.title && <span className="block truncate text-xs text-muted">{p.title}</span>}
-                </span>
-                <span title={count} className={`relative z-[1] flex shrink-0 items-center gap-1.5 text-sm tabular-nums ${n ? "text-foreground" : "text-muted"}`}>
-                  <ListChecks size={15} aria-hidden className={n ? "text-accent" : "text-muted"} />
-                  {n}
-                  <span className="sr-only"> current {n === 1 ? "task" : "tasks"}</span>
-                </span>
-              </PrefetchLink>
-
-              {n === 0 ? (
-                <p className="flex items-center gap-2 text-sm text-muted">
-                  <Inbox size={14} aria-hidden /> Nothing on now
-                </p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                    <ListTodo size={13} aria-hidden /> Current tasks
-                  </p>
-                  <ul className="divide-y divide-border">
-                    {p.now.slice(0, SHOWN).map((c) => (
-                      <li key={c.kind + c.id}>
-                        <button
-                          type="button"
-                          onClick={() => show(c)}
-                          className="relative z-[1] -mx-2 flex w-[calc(100%+1rem)] min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/[0.05]"
-                        >
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm">{c.title}</span>
-                            {/* the client it's for; nothing for anything else (Abhishek, 26 Oct 2026) */}
-                            {c.client && (
-                              <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted">
-                                <Building2 size={11} aria-hidden className="shrink-0" />
-                                <span className="truncate">{c.client}</span>
-                              </span>
-                            )}
-                          </span>
-                          <Due due={c.due} today={today} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {n > SHOWN && <p className="text-xs text-muted">+{n - SHOWN} more</p>}
+            <div key={p.id} className={`relative flex min-w-0 flex-col rounded-2xl panel-soft panel-hover p-4 ${ARRIVE}`}>
+              <div className="flex items-center gap-3 px-1">
+                <Avatar name={p.name} size={40} />
+                <div className="min-w-0 flex-1">
+                  <PrefetchLink
+                    href={`/team-work?person=${p.id}`}
+                    className="block truncate font-medium outline-none after:absolute after:inset-0 after:rounded-2xl focus-visible:after:ring-2 focus-visible:after:ring-accent/60"
+                  >
+                    {p.name}
+                  </PrefetchLink>
+                  {p.title && <p className="truncate text-xs text-muted">{p.title}</p>}
                 </div>
-              )}
+                {n > 0 && <span className="shrink-0 rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs font-medium tabular-nums text-muted">{n}</span>}
+              </div>
+              <div className="mt-3.5 flex flex-col">
+                {n === 0 && <p className="rounded-xl bg-white/[0.025] px-3 py-3 text-sm text-muted">Nothing on now</p>}
+                {/* a hairline between the tasks (21 Nov 2026) */}
+                <div className="flex flex-col divide-y divide-white/[0.06]">
+                {tasks.slice(0, SHOWN_TASKS).map((c) => {
+                  const Icon = KIND_ICON[c.workflow] ?? ListTodo;
+                  return (
+                    <button
+                      key={c.kind + c.id}
+                      type="button"
+                      onClick={() => show(c)}
+                      className="relative z-[1] flex min-w-0 items-center gap-3 px-2 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+                    >
+                      <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${isLate(c) ? "bg-rose-400/10 text-rose-300" : "bg-accent/10 text-accent"}`}>
+                        <Icon size={15} aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm">{c.title}</span>
+                        <span className="block truncate text-xs text-muted">{c.where}</span>
+                      </span>
+                      <DueTag due={c.due} today={today} />
+                    </button>
+                  );
+                })}
+                </div>
+                {n > SHOWN_TASKS && <p className="px-2 pt-1 text-xs text-muted">+{n - SHOWN_TASKS} more</p>}
+              </div>
             </div>
           );
         })}

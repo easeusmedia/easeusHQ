@@ -355,7 +355,7 @@ export function LeadBoard({
             <button
               type="button"
               role="menuitem"
-              className={`${MENU_ITEM} text-red-300! hover:text-red-200!`}
+              className={`${MENU_ITEM} text-red-400!`}
               onClick={() => {
                 close();
                 setRemoving({ open: true, stage });

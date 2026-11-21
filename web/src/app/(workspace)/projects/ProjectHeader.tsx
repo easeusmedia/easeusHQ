@@ -179,7 +179,7 @@ export function ProjectHeader({
                   onClick={() => saveNow({ coverUrl: null })}
                   title="Remove cover"
                   aria-label="Remove cover"
-                  className={`${COVER_BASE} size-8 hover:text-red-300`}
+                  className={`${COVER_BASE} size-8 hover:text-red-400`}
                 >
                   <Trash2 size={13} />
                 </button>
@@ -225,7 +225,7 @@ export function ProjectHeader({
                   onClick={() => deleteRef.current?.showModal()}
                   title="Delete project"
                   aria-label="Delete project"
-                  className="btn btn-sm btn-ghost flex items-center text-muted hover:bg-red-500/10 hover:text-red-300"
+                  className="btn btn-sm btn-ghost flex items-center text-muted hover:bg-red-500/10 hover:text-red-400"
                 >
                   <Trash2 size={14} />
                 </button>

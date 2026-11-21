@@ -256,7 +256,7 @@ function CardMenu({ copying, onCopy, onDelete }: { copying: boolean; onCopy: () 
           <button type="button" role="menuitem" disabled={copying} onClick={item(onCopy)} className="menu-item px-2.5 py-1.5 text-sm disabled:opacity-50">
             <Copy size={14} strokeWidth={1.5} className="text-muted" /> Make a copy
           </button>
-          <button type="button" role="menuitem" onClick={item(onDelete)} className="menu-item px-2.5 py-1.5 text-sm text-rose-300 hover:text-rose-200">
+          <button type="button" role="menuitem" onClick={item(onDelete)} className="menu-item px-2.5 py-1.5 text-sm text-red-400">
             <Trash2 size={14} strokeWidth={1.5} /> Delete
           </button>
         </div>

@@ -14,7 +14,8 @@ import { PAGE, usePaging } from "./paging";
 
 // a heading: small, quiet capitals, nothing between the columns
 const HEAD = "relative overflow-hidden px-4 py-3 text-left text-[11px] font-medium tracking-[0.06em] whitespace-nowrap text-muted uppercase";
-const CELL = "overflow-hidden px-4 py-3.5 align-middle whitespace-nowrap transition-colors group-hover:bg-white/[0.025]";
+// the row lights up at once on hover, no fade (21 Nov 2026)
+const CELL = "overflow-hidden px-4 py-3.5 align-middle whitespace-nowrap group-hover:bg-white/[0.025]";
 // pinned to the left (the lead) or the right (Restore, Delete): solid, so
 // what scrolls under it doesn't show through, a hairline on its inner edge
 const SOLID = "mist-pin bg-surface group-hover:bg-[linear-gradient(rgb(255_255_255/0.025),rgb(255_255_255/0.025)),linear-gradient(var(--surface),var(--surface))]";

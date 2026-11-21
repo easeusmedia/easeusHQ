@@ -81,7 +81,7 @@ export function ConfirmButton({
           // a delete that asks why: the reason stays with the task in History
           <div className="flex flex-col gap-4 p-5">
             <div className="flex items-start gap-3">
-              <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${danger ? "bg-rose-400/10 text-rose-300" : "bg-accent/10 text-accent"}`}>
+              <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${danger ? "bg-red-400/10 text-red-400" : "bg-accent/10 text-accent"}`}>
                 <Trash2 size={16} />
               </span>
               <p className="min-w-0 pt-1.5 text-sm font-medium">{message}</p>

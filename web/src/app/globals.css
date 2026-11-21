@@ -108,7 +108,8 @@ body {
 }
 .panel,
 .panel-soft,
-.card-surface {
+.card-surface,
+.card-interactive {
   --spot-face: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgb(75 149 230 / calc(var(--spot) * 0.12)), transparent 65%) padding-box;
   --spot-edge: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), rgb(125 180 245 / calc(var(--spot) * 0.75)), transparent 75%) border-box;
 }
@@ -370,6 +371,138 @@ dialog[open]::backdrop {
 .fade-in {
   animation: fade-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* The dark theme's backdrop (Abhishek, 21 Nov 2026, after a dashboard he
+   liked): a dark wash of the accent blue rising from the foot of the window,
+   behind the sidebar and every page alike, and a faint glow drifting along
+   the bottom edge (Home's own wash is gone). It moves by transform only
+   (no repaint), sits under everything (z-index -1 in the root's own
+   stacking context), and keeps still for reduced motion. It fades out on
+   an eased curve, so no ring or edge of it shows.
+   (A fine grain to dither them was tried and dropped: it showed as
+   speckle.) */
+.app-root[data-theme="dark"] {
+  isolation: isolate;
+  background:
+    linear-gradient(to top, rgba(24, 52, 98, 0.12), transparent 38%),
+    var(--background);
+  /* the wash stays at the foot of the window on a page that scrolls (a
+     client's shared page) */
+  background-attachment: fixed;
+}
+/* One glow, along the foot of the window only (Abhishek, 21 Nov 2026: "no
+   need to add glow on both sides, remove the upper one, just keep the
+   bottom one"): centred on the bottom edge, drifting slowly from one side
+   to the other and back. */
+.app-root[data-theme="dark"]::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  left: -40vmin;
+  top: calc(100vh - 28vmin);
+  width: 80vmin;
+  height: 56vmin;
+  background: radial-gradient(
+    closest-side,
+    rgba(75, 149, 230, 0.13),
+    rgba(75, 149, 230, 0.1118) 18%,
+    rgba(75, 149, 230, 0.078) 36%,
+    rgba(75, 149, 230, 0.0429) 54%,
+    rgba(75, 149, 230, 0.0169) 72%,
+    rgba(75, 149, 230, 0.0052) 86%,
+    transparent
+  );
+  animation: edge-glow 40s ease-in-out infinite alternate;
+}
+@keyframes edge-glow {
+  from {
+    transform: translate3d(12vw, 0, 0);
+  }
+  to {
+    transform: translate3d(88vw, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-root[data-theme="dark"]::before {
+    animation: none;
+    transform: translate3d(50vw, 0, 0);
+  }
+}
+/* Glass cards (Abhishek, 21 Nov 2026): on that backdrop every card, panel
+   and row is a pane of glass, a flat see-through face near black and one
+   even hairline, so the glow tints whatever it passes behind. No gradient
+   on the face, no corner glow. Glass inside glass adds no tint of its own
+   (stacked, the faces summed to grey). What floats over the page
+   (tooltips, the fixed bars, the client dock), the sidebar and the A+ and
+   S cards keep their solid faces. No backdrop blur: behind a card there's only the soft
+   backdrop, which blurring wouldn't change, and a blur on every card would
+   cost a pass each frame the glow moves. */
+.app-root[data-theme="dark"] .glass-glow {
+  display: none;
+}
+.app-root[data-theme="dark"] :is(.panel, .panel-soft, .card-surface):not(.fixed, .absolute, .sticky, .float-panel, .sidebar-panel, .tier-aplus, .tier-s, :where([data-dock]) .panel) {
+  --edge: rgba(255, 255, 255, 0.085);
+  border-color: var(--edge);
+  background: var(--spot-face), rgba(255, 255, 255, 0.025) padding-box;
+}
+.app-root[data-theme="dark"] :is(.panel-soft, .card-surface):not(.fixed, .absolute, .sticky, .float-panel, .tier-aplus, .tier-s) {
+  --edge: rgba(255, 255, 255, 0.07);
+  background: var(--spot-face), rgba(255, 255, 255, 0.018) padding-box;
+}
+.app-root[data-theme="dark"] :is(.panel, .panel-soft, .card-surface) :is(.panel, .panel-soft, .card-surface):not(.fixed, .absolute, .sticky, .float-panel, .tier-aplus, .tier-s) {
+  background: var(--spot-face);
+}
+/* What you can click lights up under the pointer: a soft blue glow on the
+   face, and the edge brightening nearest it (Spotlight.tsx sets --mx/--my).
+   That edge light under a see-through face would light the whole card, so
+   the edge is drawn as a ring of its own, the hairline and the light
+   together, and the border itself goes clear: one line, never two. The
+   ring sits inside the padding box, so a card that clips its content
+   (overflow-hidden) keeps it too. Something clickable with no edge of its
+   own lights up in its face only. The face's light is tighter than
+   on the old solid cards and fades on a curve: spread 420px wide, a light
+   this faint showed in stripes (8-bit banding) across a wide row. */
+.app-root[data-theme="dark"] :is(.panel, .panel-soft, .card-surface, .card-interactive) {
+  --spot-face: radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 50%),
+      rgb(75 149 230 / calc(var(--spot) * 0.16)),
+      rgb(75 149 230 / calc(var(--spot) * 0.075)) 40%,
+      rgb(75 149 230 / calc(var(--spot) * 0.02)) 65%,
+      transparent 80%
+    )
+    padding-box;
+}
+/* the hover lights at once: easing the face and the light in over 0.15 to
+   0.35s read as the hover lagging behind the pointer ("on hover is not
+   appearing instantly"). Only a card's lift still eases. */
+.app-root[data-theme="dark"] :is(.panel-hover, .card-interactive) {
+  transition: transform 0.2s ease;
+}
+.app-root[data-theme="dark"] :is(.panel, .panel-soft, .card-surface):is(.panel-hover, .card-interactive):not(.fixed, .absolute, .sticky, .float-panel, .tier-aplus, .tier-s) {
+  position: relative;
+  border-color: transparent;
+}
+.app-root[data-theme="dark"] :is(.panel, .panel-soft, .card-surface):is(.panel-hover, .card-interactive):not(.fixed, .absolute, .sticky, .float-panel, .tier-aplus, .tier-s)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--spot-edge), linear-gradient(var(--edge) 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  /* over what the card holds, so a cover picture running to its edge
+     still has the line round it */
+  z-index: 1;
+}
+.app-root[data-theme="dark"] :is(.panel-hover, .card-interactive):hover:not(.fixed, .absolute, .sticky, .float-panel, .tier-aplus, .tier-s) {
+  --edge: rgba(255, 255, 255, 0.14);
+  background: var(--spot-face), rgba(255, 255, 255, 0.045) padding-box;
+}
+.app-root[data-theme="dark"] :is(.panel, .panel-soft, .card-surface) :is(.panel-hover, .card-interactive):hover:not(.fixed, .absolute, .sticky, .float-panel, .tier-aplus, .tier-s) {
+  background: var(--spot-face), rgba(255, 255, 255, 0.03) padding-box;
+}
+
 /* the way out of .fade-in: a card leaving a list that's folding away */
 .fade-out {
   animation: fade-out 0.16s ease-in forwards;
@@ -711,32 +844,6 @@ dialog[open]::backdrop {
   caret-color: var(--foreground);
   transition: background-color 9999s;
 }
-/* Home's blue wash from the top right. Eased stops, so it fades with no
-   edge; a fine grain over it (strongest where the wash is), so the dark
-   steps between shades never show as bands. Faded out to the left, so it
-   never stops in a line against the sidebar. */
-.home-glow {
-  background: radial-gradient(
-    55% 75% at 82% 0%,
-    rgb(75 149 230 / 0.24) 0%,
-    rgb(75 149 230 / 0.2) 14%,
-    rgb(75 149 230 / 0.145) 28%,
-    rgb(75 149 230 / 0.09) 42%,
-    rgb(75 149 230 / 0.045) 56%,
-    rgb(75 149 230 / 0.016) 68%,
-    transparent 80%
-  );
-  mask-image: linear-gradient(to right, transparent, black 30%);
-}
-.home-glow::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.045;
-  mask-image: radial-gradient(55% 75% at 82% 0%, black, transparent 80%);
-}
-
 /* a lead's message timeline: today's step green, breathing softly; the
    next one ringed in blue; the line between them a feathered green-to-blue
    glow with a soft bead of light drifting down it */

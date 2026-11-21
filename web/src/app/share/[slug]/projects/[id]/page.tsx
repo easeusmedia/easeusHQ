@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
+import { fileIn } from "@/lib/delivered";
 import { sharedClient } from "../../shared";
 
 // One project on a client's shared page — the team's project page, read-only:
@@ -37,7 +38,7 @@ export default async function SharedProjectPage({
     ? await prisma.project.findFirst({
         where: { id, clientId: client.id },
         include: {
-          assets: { orderBy: { sortOrder: "asc" }, include: { tags: { where: { clientFacing: true }, select: { id: true, name: true } } } },
+          assets: { orderBy: { sortOrder: "asc" }, include: { tags: { where: { clientFacing: true }, select: { id: true, name: true } }, task: { select: { status: true } } } },
         },
       })
     : null;
@@ -59,6 +60,9 @@ export default async function SharedProjectPage({
 
   const folder = project.driveLink ? normalizeUrl(project.driveLink) : null;
   const name = project.name || project.type;
+  // counted as the team's page counts them: every file, those delivered
+  const files = project.assets.length + delivered.length;
+  const done = project.assets.filter(fileIn).length + delivered.length;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -66,8 +70,12 @@ export default async function SharedProjectPage({
         <ArrowLeft size={14} /> {client.name}
       </Link>
 
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div className="aspect-video w-full shrink-0 overflow-hidden rounded-xl bg-surface-2 sm:w-80">
+      {/* the project at a glance, laid out as the team's own project page
+          (Abhishek, 21 Nov 2026: "too much bigger text and negative space"):
+          its cover, its name, where it stands and its folder, and what's in
+          it counted, as Files lists it */}
+      <div className="card-surface flex flex-col gap-6 rounded-2xl p-5 md:flex-row">
+        <div className="aspect-video w-full shrink-0 overflow-hidden rounded-xl bg-surface-2 md:w-80">
           {project.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
             <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
@@ -75,9 +83,9 @@ export default async function SharedProjectPage({
             <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
           )}
         </div>
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-1 flex-col">
           <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {project.status === "completed" ? (
               <span className="rounded-full border border-green-400/30 bg-green-400/15 px-2 py-0.5 text-xs font-medium text-green-300">
                 Delivered{project.completedAt ? ` · ${project.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
@@ -86,15 +94,29 @@ export default async function SharedProjectPage({
               <span className="rounded-full border border-blue-400/30 bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-300">In progress</span>
             )}
             {folder && (
-              <a href={folder} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-400 hover:underline">
+              <a href={folder} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted hover:text-foreground">
                 Open folder <ExternalLink size={11} />
               </a>
             )}
           </div>
+          <div className="mt-auto grid grid-cols-3 gap-2 pt-6">
+            {(
+              [
+                ["Files", files],
+                ["Delivered", done],
+                ["Pending", files - done],
+              ] as const
+            ).map(([label, n]) => (
+              <div key={label} className="rounded-xl bg-foreground/[0.03] px-4 py-3">
+                <p className={`text-xl font-semibold tabular-nums ${n ? "text-foreground" : "text-muted"}`}>{n}</p>
+                <p className="text-xs text-muted">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <section className="mt-10">
+      <section className="mt-6">
         <h2 className="mb-4 text-sm font-medium">
           Files <span className="font-normal text-muted">{project.assets.length + delivered.length}</span>
         </h2>

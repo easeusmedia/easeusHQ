@@ -380,7 +380,7 @@ export const WorkTaskDialog = forwardRef<
               <ConfirmButton
                 message="Delete this task? This can't be undone."
                 onConfirm={remove}
-                className="btn btn-sm btn-ghost px-2 hover:text-red-300"
+                className="btn btn-sm btn-ghost px-2 hover:text-red-400"
               >
                 <Trash2 size={13} aria-label="Delete task" />
               </ConfirmButton>

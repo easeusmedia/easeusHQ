@@ -1533,7 +1533,7 @@ function TemplateEditor({
       )}
       <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2.5">
         {message ? (
-          <button type="button" onClick={() => setDeleting(true)} className={`${SMALL_BTN} hover:text-red-300`}>
+          <button type="button" onClick={() => setDeleting(true)} className={`${SMALL_BTN} hover:text-red-400`}>
             <Trash2 size={12} /> Delete template
           </button>
         ) : (

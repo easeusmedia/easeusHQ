@@ -44,7 +44,7 @@ export function AccountDialog({ open, onClose, account }: { open: boolean; onClo
   async function setPhoto(file: File | null) {
     setPhotoState("Saving…");
     try {
-      const res = await updatePersonPhoto(account.id, file ? await resizeToJpeg(file, 160, 160) : null);
+      const res = await updatePersonPhoto(account.id, file ? await resizeToJpeg(file, 480, 480) : null);
       setPhotoState(res.error ?? null);
       if (!res.error) router.refresh();
     } catch {
