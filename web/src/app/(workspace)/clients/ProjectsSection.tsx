@@ -20,7 +20,8 @@ import { Reveal } from "../Reveal";
 import { DatePicker } from "../DatePicker";
 
 // the latest few, before "+N more"
-const LATEST = 4;
+// 5 projects before "+N more", by invoice or not (Abhishek, 21 Nov 2026)
+const LATEST = 5;
 // by invoice, or the latest; "-all" once "+N more" is pressed
 const VIEWS = ["invoice", "invoice-all", "latest", "all"] as const;
 type View = (typeof VIEWS)[number];
@@ -219,10 +220,15 @@ export function ProjectsSection({
     counted += g.items.length;
     return true;
   });
-  // filtered: every match, no "+N more"
-  // and the last of those cut to 3, the "+N more" card after them (Abhishek, 21 Nov 2026)
-  // (its heading still counts every project in it: `total`)
-  const collapsed = firstGroups.map((g, i) => (i === firstGroups.length - 1 && g.items.length > 3 ? { ...g, items: g.items.slice(0, 3), total: g.items.length } : g));
+  // 5 projects in all, the last invoice cut where they run out, the "+N
+  // more" card after them (Abhishek, 21 Nov 2026); its heading still counts
+  // every project in it (`total`). Filtered: every match, no "+N more".
+  let room = LATEST;
+  const collapsed = firstGroups.map((g) => {
+    const take = Math.max(0, Math.min(room, g.items.length));
+    room -= take;
+    return take < g.items.length ? { ...g, items: g.items.slice(0, take), total: g.items.length } : g;
+  });
   const collapsedIds = new Set(collapsed.flatMap((g) => g.items.map((p) => p.id)));
   const shownGroups = preset === "invoice" && !filtering ? collapsed : groups;
   // the list eases in when you change the view, not when the page arrives
