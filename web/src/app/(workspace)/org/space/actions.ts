@@ -16,20 +16,16 @@ import {
   CHILD_OF,
   cleanValue,
   COLOR_NAMES,
-  fillText,
   isColor,
   isFieldKind,
   leadVars,
-  LINKEDIN_LIMIT,
   MARKED,
   MESSAGE_CHANNELS,
-  overLimit,
   moveNeedsReason,
   keepDay,
   PLATFORM_NAME,
   uniqueSlug,
   type FieldData,
-  type FieldKind,
   type LeadEventData,
   type MessageData,
   type SentData,
@@ -288,21 +284,6 @@ export async function renameSpace(id: string, name: string): Promise<Done> {
   }
 }
 
-export async function reorderSpace(id: string, sortOrder: number): Promise<Done> {
-  const space = await spaceOf(id);
-  if (!space) return { error: "That page no longer exists." };
-  const who = await whoFor(space.teamId, true);
-  if ("error" in who) return who;
-  if (!Number.isFinite(sortOrder)) return { error: "That order couldn't be saved." };
-  try {
-    await prisma.space.update({ where: { id }, data: { sortOrder } });
-    refreshTree();
-    return {};
-  } catch (err) {
-    return failed(err, "That order couldn't be saved.");
-  }
-}
-
 // Only an empty page goes: a section without portals, a portal without
 // boards, a board without leads (its stages and properties go with it). A
 // Leads tab also keeps the leads sent on from it, which its rows still show.
@@ -431,30 +412,6 @@ export async function deleteStage(id: string, reason: string): Promise<Done> {
 
 // ================= Properties and their tags =================
 
-export async function createField(boardId: string, name: string, kind: string): Promise<Done & { field?: FieldData }> {
-  const board = await spaceOf(boardId);
-  if (!board || board.kind !== "board") return { error: "That board no longer exists." };
-  const who = await whoFor(board.teamId, true);
-  if ("error" in who) return who;
-  const n = cleanName(name);
-  if (typeof n !== "string") return n;
-  if (!isFieldKind(kind)) return { error: "Pick a kind of property." };
-  try {
-    const fields = await prisma.boardField.findMany({ where: { boardId }, select: { name: true, sortOrder: true } });
-    if (fields.some((f) => f.name.toLowerCase() === n.toLowerCase())) return { error: `"${n}" already exists on this board.` };
-    const sortOrder = Math.max(0, ...fields.map((f) => f.sortOrder)) + 1;
-    // a Country starts pinned to the cards, the one property that does (Abhishek, 9 Nov 2026)
-    const field = await withUndo(
-      (made) => [{ table: "BoardField", id: made.id }],
-      () => prisma.boardField.create({ data: { boardId, name: n, kind, sortOrder, onCard: /^country$/i.test(n) }, select: { id: true, name: true, kind: true, onCard: true, pins: true, required: true } }),
-      { label: `Added property "${n}"` },
-    );
-    return { field: { ...field, kind: field.kind as FieldKind, options: [] } };
-  } catch (err) {
-    return failed(err, "That property couldn't be added.");
-  }
-}
-
 export async function renameField(id: string, name: string): Promise<Done> {
   const field = await boardOfField(id);
   if (!field) return { error: "That property no longer exists." };
@@ -487,54 +444,6 @@ export async function setFieldFlags(id: string, flags: { onCard?: boolean; requi
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");
-  }
-}
-
-export async function reorderField(id: string, sortOrder: number): Promise<Done> {
-  const field = await boardOfField(id);
-  if (!field) return { error: "That property no longer exists." };
-  const who = await whoFor(field.board.teamId, true);
-  if ("error" in who) return who;
-  if (!Number.isFinite(sortOrder)) return { error: "That order couldn't be saved." };
-  try {
-    await prisma.boardField.update({ where: { id }, data: { sortOrder } });
-    return {};
-  } catch (err) {
-    return failed(err, "That order couldn't be saved.");
-  }
-}
-
-// The property goes, and its value comes off every lead; both are kept in
-// the bin's record of it.
-export async function deleteField(id: string, reason: string): Promise<Done> {
-  const field = await boardOfField(id);
-  if (!field) return { error: "That property no longer exists." };
-  const who = await whoFor(field.board.teamId, true);
-  if ("error" in who) return who;
-  const r = cleanReason(reason);
-  if (typeof r !== "string") return r;
-  try {
-    const leads = await prisma.lead.findMany({ where: { boardId: field.boardId }, select: { id: true, values: true } });
-    const values: Record<string, unknown> = {};
-    for (const l of leads) {
-      const v = (l.values as Record<string, unknown> | null)?.[id];
-      if (v != null) values[l.id] = v;
-    }
-    const bin = randomUUID();
-    // the property with its tags, its bin line, and its value on each lead
-    await withUndo(
-      [{ table: "BoardField", id }, { table: "SpaceTrash", id: bin }, ...Object.keys(values).map((l) => ({ table: "Lead", id: l }))],
-      () =>
-        prisma.$transaction(async (tx) => {
-          await trash(tx, who, { id: bin, teamId: field.board.teamId, spaceId: field.boardId, kind: "field", title: field.name, data: { field, values }, reason: r });
-          await tx.$executeRaw`UPDATE "Lead" SET "values" = "values" - ${id}::text WHERE "boardId" = ${field.boardId} AND "values" ? ${id}::text`;
-          await tx.boardField.delete({ where: { id } });
-        }),
-      { only: ["FieldOption"], label: `Deleted property "${field.name}"` },
-    );
-    return {};
-  } catch (err) {
-    return failed(err, "That property couldn't be deleted.");
   }
 }
 
@@ -1302,48 +1211,6 @@ export async function setLeadDraft(id: string, messageId: string, draft: { subje
     return {};
   } catch (err) {
     return failed(err, "That couldn't be saved.");
-  }
-}
-
-// A stage's message as it goes out to this lead, frozen once marked sent:
-// later edits to the stage's wording never change it
-export async function markSent(leadId: string, messageId: string): Promise<Done & { sent?: SentData }> {
-  const [lead, m] = await Promise.all([leadWithBoard(leadId), messageWithBoard(messageId)]);
-  if (!lead) return { error: "That lead no longer exists." };
-  if (!m || m.stage.boardId !== lead.boardId) return { error: "That message no longer exists. Refresh and try again." };
-  const who = await whoFor(lead.board.teamId);
-  if ("error" in who) return who;
-  try {
-    const [full, fields] = await Promise.all([
-      prisma.lead.findUniqueOrThrow({ where: { id: leadId }, select: { title: true, values: true, vars: true, drafts: true } }),
-      prisma.boardField.findMany({ where: { boardId: lead.boardId, kind: "contacts" }, select: { id: true, kind: true } }),
-    ]);
-    const vars = leadVars({ title: full.title, values: (full.values ?? {}) as Record<string, unknown>, vars: (full.vars ?? {}) as Record<string, string> }, fields as { id: string; kind: "contacts" }[]);
-    // this lead's own copy, if it has one, else the template filled in
-    const own = ((full.drafts ?? {}) as Record<string, { subject: string; body: string }>)[messageId];
-    const subject = fillText(own ? own.subject : m.subject, vars);
-    const body = fillText(own ? own.body : m.body, vars);
-    const missing = [...new Set([...`${subject}\n${body}`.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)].map((x) => x[1]))];
-    if (missing.length) return { error: `Fill in ${missing.join(", ")} first.` };
-    if (overLimit(m.channel, body)) return { error: `LinkedIn allows ${LINKEDIN_LIMIT} characters, and this is ${body.length}. Shorten it first.` };
-    const sent = await withUndo((made) => [{ table: "SentMessage", id: made.id }], () => prisma.sentMessage.create({ data: { leadId, messageId, stageName: m.stage.name, name: m.name, channel: m.channel, subject, body, byId: who.id, byName: who.name } }), { label: `Marked "${m.name}" as sent` });
-    return { sent: { id: sent.id, messageId, stageName: sent.stageName, name: sent.name, channel: sent.channel, subject, body, byName: sent.byName, sentAt: sent.sentAt.toISOString() } };
-  } catch (err) {
-    return failed(err, "That couldn't be saved.");
-  }
-}
-
-// Marked sent by mistake: back to the stage's own wording
-export async function unmarkSent(sentId: string): Promise<Done> {
-  const sent = await prisma.sentMessage.findUnique({ where: { id: sentId }, select: { id: true, leadId: true, name: true, stageName: true, lead: { select: { board: { select: { teamId: true } } } } } });
-  if (!sent) return { error: "That's already undone." };
-  const who = await whoFor(sent.lead.board.teamId);
-  if ("error" in who) return who;
-  try {
-    await withUndo([{ table: "SentMessage", id: sentId }], () => prisma.sentMessage.delete({ where: { id: sentId } }), { depth: 0, label: `Marked "${sent.name}" as not sent` });
-    return {};
-  } catch (err) {
-    return failed(err, "That couldn't be undone.");
   }
 }
 

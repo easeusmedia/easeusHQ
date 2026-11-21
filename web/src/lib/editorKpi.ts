@@ -61,13 +61,6 @@ export function settle(moves: Move[]): Move[] {
   return kept;
 }
 
-// times it was sent back: by our review, or after it had gone to the client
-export function sentBack(moves: Move[]) {
-  const back = moves.filter((m) => m.to === "revision_requested");
-  const internal = back.filter((m) => m.from === "sent_for_approval").length;
-  return { internal, client: back.length - internal };
-}
-
 // ---------- repeated mistakes ----------
 
 export const REPEAT_DAYS = 90;

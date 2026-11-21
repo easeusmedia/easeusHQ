@@ -275,12 +275,13 @@ export default async function ClientDetailPage({
                 </section>
 
                 <ProjectsSection
+                  key={client.id}
                   clientId={client.id}
                   projects={projectCards}
                   billingOrder={billingOrder(client.projects)}
                   initialShow={show}
                   initialLayout={layout}
-                  billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
+                  billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount, sizes: client.billingSizes }}
                   invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   canMoveInvoices
                   // Batches or Monthly, set beside the Projects title (no Billing tab, 21 Nov 2026)

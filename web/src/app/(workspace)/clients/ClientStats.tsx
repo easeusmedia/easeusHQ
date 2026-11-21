@@ -40,13 +40,38 @@ function OpeningTile({ label, Icon, tone, items }: { label: string; Icon: Lucide
           setOpen(true);
           dialog.current?.showModal();
         }}
-        className="block w-full rounded-2xl text-left outline-none! transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 motion-safe:hover:-translate-y-0.5"
+        className="block w-full cursor-pointer rounded-2xl text-left outline-none! transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 motion-safe:hover:-translate-y-0.5"
       >
-        <StatTile label={label} value={items.length} Icon={Icon} tone={tone} />
+        <StatTile label={label} value={items.length} Icon={Icon} tone={tone} clickable />
       </button>
+      <ItemsDialog dialog={dialog} open={open} onClose={() => setOpen(false)} label={label} Icon={Icon} tone={tone} items={items} />
+    </>
+  );
+}
+
+// The window a tile (or a batch card, ProjectsSection) opens: what it counts,
+// each one a link straight to it
+export function ItemsDialog({
+  dialog,
+  open,
+  onClose,
+  label,
+  Icon,
+  tone,
+  items,
+}: {
+  dialog: React.RefObject<HTMLDialogElement | null>;
+  open: boolean;
+  onClose: () => void;
+  label: string;
+  Icon: LucideIcon;
+  tone?: "emerald";
+  items: StatItem[];
+}) {
+  return (
       <dialog
         ref={dialog}
-        onClose={() => setOpen(false)}
+        onClose={onClose}
         {...closeOnBackdrop}
         aria-label={label}
         className="glass fixed top-1/2 left-1/2 m-0 flex max-h-[min(36rem,calc(100vh-4rem))] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl p-0 text-foreground"
@@ -93,6 +118,5 @@ function OpeningTile({ label, Icon, tone, items }: { label: string; Icon: Lucide
           </div>
         )}
       </dialog>
-    </>
   );
 }

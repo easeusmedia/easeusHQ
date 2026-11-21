@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { ChevronUp, Filter, LayoutGrid, Layers, List, Plus, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Filter, LayoutGrid, Layers, List, Plus, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Checkbox } from "../Checkbox";
 import { closeOnBackdrop } from "../dialog";
@@ -22,9 +22,16 @@ import { DatePicker } from "../DatePicker";
 // the latest few, before "+N more"
 // 5 projects before "+N more", by invoice or not (Abhishek, 21 Nov 2026)
 const LATEST = 5;
-// by invoice, or the latest; "-all" once "+N more" is pressed
-const VIEWS = ["invoice", "invoice-all", "latest", "all"] as const;
+// by invoice, or the latest; "all" once "+N more" is pressed
+const VIEWS = ["invoice", "latest", "all"] as const;
 type View = (typeof VIEWS)[number];
+// By default a batch of more than this many shows as rows, a smaller one as
+// covers (Abhishek, 21 Nov 2026: Dr Tego's batches of 16 read badly as a grid)
+const AUTO_ROWS = 6;
+// The batches opened with "Show more", kept while you open a project and
+// come back; a refresh or another client starts folded again (Abhishek,
+// 21 Nov 2026). In memory on purpose: not the URL, which a refresh keeps.
+let opened: { clientId: string; steps: number } | null = null;
 
 // Projects already come in most-recent-first. Default view is just the
 // last few — a client with a year of episodes shouldn't dump all of them
@@ -76,8 +83,8 @@ export function ProjectsSection({
   // Level 1: how the projects are grouped, set here (GroupingSetting)
   canSetGrouping?: boolean;
 }) {
-  // "invoice": every project, in sections, one per invoice ("invoice-all"
-  // once "+N more" is pressed); "latest": the last few; "all": every one.
+  // "invoice": every project, in sections, one per invoice, 3 more batches
+  // each "Show more"; "latest": the last few; "all": every one.
   // Null: the default, worked out below once the invoices are known.
   const [picked, setPreset] = useState<View | null>(() => {
     const show = paramOrProp("show", initialShow);
@@ -91,8 +98,18 @@ export function ProjectsSection({
   // and from when to when (yyyy-mm-dd, on the day it was finished, else made)
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  // covers in a grid, or one project a row (?layout=list)
-  const [list, setList] = useState(() => paramOrProp("layout", initialLayout) === "list");
+  // rows or covers by each batch's size ("auto", the default), covers in a
+  // grid (?layout=grid), or one project a row (?layout=list); pressing the
+  // one that's on goes back to the default
+  const [layout, setLayout] = useState(() => paramOrProp("layout", initialLayout) ?? "auto");
+  // not by invoice, Auto is the grid
+  const list = layout === "list";
+  // how many times "Show more" was pressed in By invoice
+  const [steps, setSteps] = useState(() => (opened?.clientId === clientId ? opened.steps : 0));
+  // remembered for this client only: another client's page forgets it
+  useEffect(() => {
+    opened = { clientId, steps };
+  }, [clientId, steps]);
   // "+N more" pressed here: the projects it adds ease in, and only they
   // (Abhishek, 21 Nov 2026: the whole list flickered)
   const [grew, setGrew] = useState(false);
@@ -195,7 +212,7 @@ export function ProjectsSection({
     (status === "all" || (status === "done") === (p.status === "completed")) &&
     (!from || p.date >= from) &&
     (!to || p.date <= to);
-  const grouped = !q && (preset === "invoice" || preset === "invoice-all") && batches.length > 0;
+  const grouped = !q && preset === "invoice" && batches.length > 0;
   // what isn't finished yet belongs to no invoice, so it leads, on its own
   const unfinished = projects.filter((p) => !finished(p) && !batches.some((b) => b.ids.includes(p.id)));
   const allGroups = grouped
@@ -211,30 +228,29 @@ export function ProjectsSection({
     : [];
   // filtered, an invoice keeps only what matches, and goes if nothing does
   const groups = filtering ? allGroups.map((g) => ({ ...g, items: g.items.filter(matches) })).filter((g) => g.items.length) : allGroups;
-  // the latest invoices, whole, until there are a few projects on show,
-  // then "+N more" below them all (Abhishek, 21 Nov 2026: a card cut out of
-  // an invoice read as part of it)
-  let counted = 0;
-  const firstGroups = groups.filter((g) => {
-    if (counted >= LATEST) return false;
-    counted += g.items.length;
-    return true;
-  });
-  // 5 projects in all, the last invoice cut where they run out, the "+N
-  // more" card after them (Abhishek, 21 Nov 2026); its heading still counts
-  // every project in it (`total`). Filtered: every match, no "+N more".
-  let room = LATEST;
-  const collapsed = firstGroups.map((g) => {
-    const take = Math.max(0, Math.min(room, g.items.length));
-    room -= take;
-    return take < g.items.length ? { ...g, items: g.items.slice(0, take), total: g.items.length } : g;
-  });
-  const collapsedIds = new Set(collapsed.flatMap((g) => g.items.map((p) => p.id)));
-  const shownGroups = preset === "invoice" && !filtering ? collapsed : groups;
+  // folded: the current batch whole, then the first 3 of the one before it,
+  // then "+N more"; each press opens 3 more batches, whole (Abhishek, 21 Nov
+  // 2026). A cut batch's heading still counts every project in it (`total`).
+  // Filtered: every match, no "+N more".
+  const PREVIOUS = 3;
+  const current = groups.findIndex((g) => g.key !== "unfinished");
+  const shownAt = (s: number) =>
+    filtering || current < 0
+      ? groups
+      : s > 0
+        ? groups.slice(0, current + 1 + 3 * s)
+        : groups.slice(0, current + 2).map((g, i) => (i > current && g.items.length > PREVIOUS ? { ...g, items: g.items.slice(0, PREVIOUS), total: g.items.length } : g));
+  const shownGroups = shownAt(steps);
+  // what was on show before the last "+N more", so only what it added eases in
+  const earlier = grew && steps > 0 ? shownAt(steps - 1) : shownGroups;
+  const earlierKeys = new Set(earlier.map((g) => g.key));
+  const earlierIds = new Set(earlier.flatMap((g) => g.items.map((p) => p.id)));
+  // every project in a batch, not just those shown before "+N more"
+  const sizeOf = (g: (typeof shownGroups)[number]) => ("total" in g && typeof g.total === "number" ? g.total : g.items.length);
   // the list eases in when you change the view, not when the page arrives
   // (moving from one client to the next keeps everything still), nor when
   // it only grows
-  const view = `${list}-${grouped}-${!!q}`;
+  const view = `${layout}-${grouped}-${!!q}`;
   const [firstView] = useState(view);
   const shownIds = new Set(shownGroups.flatMap((g) => g.items.map((p) => p.id)));
   const hiddenItems = groups.flatMap((g) => g.items).filter((p) => !shownIds.has(p.id));
@@ -248,27 +264,27 @@ export function ProjectsSection({
         : ordered;
   const hiddenCount = q || filtering ? 0 : projects.length - visible.length;
   const fresh = new Set(
-    grew ? (grouped ? groups.flatMap((g) => g.items).filter((p) => !collapsedIds.has(p.id)) : visible.slice(LATEST)).map((p) => p.id) : [],
+    grew ? (grouped ? shownGroups.flatMap((g) => g.items).filter((p) => !earlierIds.has(p.id)) : visible.slice(LATEST)).map((p) => p.id) : [],
   );
   // Everything moves (Abhishek, 21 Nov 2026: "should appear smoothly, not
   // instantly"): the "+N more" card fades, then the list grows, its height
   // easing (AutoHeight) and the new cards fading in; folding is the same
   // backwards, the cards going first
   const STEP = 160;
-  const more = (to: View) => {
+  const more = (grow: () => void) => {
     if (phase) return;
     setPhase("growing");
     setTimeout(() => {
       setPhase(null);
       setFolded(false);
       setGrew(true);
-      selectPreset(to);
+      grow();
     }, STEP);
   };
   // everything shown after "+N more": folds back to the first few (Abhishek,
   // 21 Nov 2026: "can't it be collapsible?"), the list's top back in view
   const top = useRef<HTMLDivElement>(null);
-  const canFold = !q && !filtering && (grouped ? preset === "invoice-all" && groups.some((g) => g.items.some((p) => !collapsedIds.has(p.id))) : preset === "all" && projects.length > LATEST);
+  const canFold = !q && !filtering && (grouped ? steps > 0 : preset === "all" && projects.length > LATEST);
   // Folding is at once (Abhishek, 21 Nov 2026: fading everything first, then
   // scrolling, then folding left the "+N more" card coming far too late):
   // the list folds, and before it's painted the page is moved so the card
@@ -279,7 +295,8 @@ export function ProjectsSection({
     folding.current = true;
     setGrew(false);
     setFolded(true);
-    selectPreset(preset === "invoice-all" ? "invoice" : "latest");
+    if (grouped) setSteps(0);
+    else selectPreset("latest");
   }
   useLayoutEffect(() => {
     if (!folding.current) return;
@@ -287,7 +304,7 @@ export function ProjectsSection({
     const card = top.current?.querySelector<HTMLElement>("[data-more]");
     const r = card?.getBoundingClientRect();
     if (card && r && (r.top < 0 || r.bottom > window.innerHeight)) card.scrollIntoView({ block: "center" });
-  }, [preset]);
+  }, [preset, steps]);
   // a card's way in or out
   const motion = (id: string) => (fresh.has(id) ? "fade-in" : "");
   const moreMotion = phase === "growing" ? "fade-out" : folded ? "fade-in" : "";
@@ -412,17 +429,18 @@ export function ProjectsSection({
           <div className="flex h-8 shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5">
             {(
               [
-                [false, LayoutGrid, "Grid"],
-                [true, List, "List"],
+                ["grid", LayoutGrid, "Grid"],
+                ["list", List, "List"],
               ] as const
             ).map(([on, Icon, label]) => (
               <button
                 key={label}
                 onClick={() => {
-                  setList(on);
-                  setParam("layout", on ? "list" : null);
+                  const next = layout === on ? "auto" : on;
+                  setLayout(next);
+                  setParam("layout", next === "auto" ? null : next);
                 }}
-                aria-pressed={list === on}
+                aria-pressed={layout === on}
                 aria-label={label}
                 title={label}
                 className="seg flex h-full items-center gap-1.5 rounded-md px-2.5 text-xs"
@@ -481,7 +499,7 @@ export function ProjectsSection({
               }}
               onDragEnd={endDrag}
               className={`-mx-2 flex flex-col gap-3 rounded-xl p-2 transition-colors duration-150 ${over === g.key ? "bg-blue-400/[0.06] ring-1 ring-blue-400/50" : ""} ${
-                firstGroups.includes(g) ? "" : grew ? "fade-in" : ""
+                earlierKeys.has(g.key) ? "" : grew ? "fade-in" : ""
               }`}
             >
               {/* The invoice's own line (Abhishek, 21 Nov 2026: "more modern"):
@@ -518,24 +536,18 @@ export function ProjectsSection({
                     // its dates and size, said once
                     <span className="truncate text-xs text-muted tabular-nums">
                       {g.detail}
-                      {!/project|done/.test(g.detail) && (() => {
-                        // every project in the invoice, not just those shown before "+N more"
-                        const n = "total" in g && typeof g.total === "number" ? g.total : g.items.length;
-                        return ` · ${n} project${n === 1 ? "" : "s"}`;
-                      })()}
+                      {!/project|done/.test(g.detail) && ` · ${sizeOf(g)} project${sizeOf(g) === 1 ? "" : "s"}`}
                     </span>
                   );
                 })()}
                 <span aria-hidden className="h-px min-w-8 flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
               </div>
-              {list ? (
+              {list || (layout === "auto" && sizeOf(g) > AUTO_ROWS) ? (
                 <div className="flex flex-col gap-3">
                   {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
                   <ProjectRows projects={g.items} projectBase={projectBase} motion={motion} />
                   {i === shownGroups.length - 1 && groupedHidden > 0 && (
-                    <button data-more onClick={() => more("invoice-all")} className={`self-start text-xs text-muted hover:text-foreground ${moreMotion}`}>
-                      Show {groupedHidden} more
-                    </button>
+                    <MoreProjectsRow count={groupedHidden} cover={hiddenItems[0]?.coverUrl ?? null} onClick={() => more(() => setSteps(steps + 1))} className={moreMotion} />
                   )}
                 </div>
               ) : (
@@ -546,7 +558,7 @@ export function ProjectsSection({
                   ))}
                   {/* the older invoices, right after the last one shown (Abhishek, 21 Nov 2026) */}
                   {i === shownGroups.length - 1 && groupedHidden > 0 && (
-                    <MoreProjectsCard count={groupedHidden} cover={hiddenItems[0]?.coverUrl ?? null} onClick={() => more("invoice-all")} className={moreMotion} />
+                    <MoreProjectsCard count={groupedHidden} cover={hiddenItems[0]?.coverUrl ?? null} onClick={() => more(() => setSteps(steps + 1))} className={moreMotion} />
                   )}
                 </div>
               )}
@@ -558,9 +570,7 @@ export function ProjectsSection({
           {!projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
           <ProjectRows ref={arrangeRef} projects={visible} projectBase={projectBase} slot={{ at: slotAt, height: dragHeight, dragId }} motion={motion} />
           {hiddenCount > 0 && (
-            <button data-more onClick={() => more("all")} className={`self-start text-xs text-muted hover:text-foreground ${moreMotion}`}>
-              Show {hiddenCount} more
-            </button>
+            <MoreProjectsRow count={hiddenCount} cover={ordered[visible.length]?.coverUrl ?? null} onClick={() => more(() => selectPreset("all"))} className={moreMotion} />
           )}
           {(q || filtering) && visible.length === 0 && <p className="text-sm text-muted">{q ? <>No projects match &ldquo;{query.trim()}&rdquo;.</> : "No projects match these filters."}</p>}
         </div>
@@ -584,7 +594,7 @@ export function ProjectsSection({
             <MoreProjectsCard
               count={hiddenCount}
               cover={ordered[visible.length]?.coverUrl ?? null}
-              onClick={() => more("all")}
+              onClick={() => more(() => selectPreset("all"))}
               className={moreMotion}
             />
           )}
@@ -909,6 +919,35 @@ function ProjectRows({
       ))}
       {at >= 0 && at >= rest.length && <DropSlot height={slot!.height} row />}
     </ul>
+  );
+}
+
+// The list's way to the projects still hidden: a row like the projects'
+// own, its cover a faded one of theirs with another stacked behind, as the
+// grid's card is (Abhishek, 21 Nov 2026: a plain "Show 115 more" wasn't seen)
+function MoreProjectsRow({ count, cover, onClick, className = "" }: { count: number; cover: string | null; onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      data-more
+      onClick={onClick}
+      className={`group panel-soft panel-hover flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left ${className}`}
+    >
+      <span className="relative aspect-video w-20 shrink-0">
+        <span aria-hidden className="absolute inset-0 translate-x-1.5 -translate-y-1.5 rounded-md border border-border/60 bg-surface-2/50" />
+        <span className="relative block h-full w-full overflow-hidden rounded-md bg-surface-2">
+          {cover && (
+            // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
+            <img src={cover} alt="" className="h-full w-full object-cover opacity-40 grayscale transition-opacity group-hover:opacity-60" />
+          )}
+        </span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">More projects</span>
+        <span className="block text-xs text-muted tabular-nums">+{count} more</span>
+      </span>
+      <ChevronDown size={16} className="shrink-0 text-muted transition-colors group-hover:text-foreground" />
+    </button>
   );
 }
 

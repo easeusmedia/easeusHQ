@@ -89,8 +89,6 @@ export const LIVE_WORK_TASK = {
 // Done is always delivered_and_uploaded, so History and every "finished"
 // count mean the same thing for all three.
 export type Workflow = "video" | "design" | "todo";
-export const WORKFLOWS: Workflow[] = ["video", "design", "todo"];
-export const WORKFLOW_LABEL: Record<Workflow, string> = { video: "Video", design: "Design", todo: "To-do" };
 export const WORKFLOW_STAGES: Record<Workflow, TaskStatus[]> = {
   video: ALL_STATUSES,
   design: ["queued", "editing", "sent_for_approval", "revision_requested", "delivered_and_uploaded"],

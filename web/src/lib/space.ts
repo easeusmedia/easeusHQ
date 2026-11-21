@@ -231,7 +231,6 @@ export type LeadEventData = {
   byName: string;
   createdAt: string;
 };
-export type TrashItem = { id: string; kind: string; title: string; reason: string; byName: string; deletedAt: string; restoredAt: string | null };
 // a section or portal shown as a card on its parent's page
 export type SpaceCard = { id: string; name: string; slug: string; kind: SpaceKind; href: string; children: number; leads: number };
 
@@ -427,7 +426,6 @@ export function passesFacets(values: Record<string, unknown>, picks: FacetPicks,
 // "Hey {{Name}}, watched your {{Guest}} episode".
 // LinkedIn takes at most 300 characters a message
 export const LINKEDIN_LIMIT = 300;
-export const overLimit = (channel: string, text: string) => channel === "linkedin" && text.length > LINKEDIN_LIMIT;
 
 export const MESSAGE_CHANNELS = [
   { kind: "email", label: "Email" },
@@ -1313,11 +1311,6 @@ export function uniqueSlug(name: string, taken: string[]): string {
   const base = slugify(name);
   if (!taken.includes(base)) return base;
   for (let i = 2; ; i++) if (!taken.includes(`${base}-${i}`)) return `${base}-${i}`;
-}
-
-// "3 days" since a moment, for "3 days in Day 2"
-export function daysSince(iso: string, now: Date = new Date()): number {
-  return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000));
 }
 
 // ---- The Podcast portal's first board, as it stands in Notion (Dream 156

@@ -104,7 +104,6 @@ export const PROVIDER = {
   email: "easeus.media@gmail.com",
 };
 
-export const CONTENT_UNITS = ["episode", "YouTube video", "piece of content"];
 export const PLATFORMS = ["YouTube", "Instagram", "TikTok", "LinkedIn", "X", "Facebook", "Spotify", "Apple Podcasts"];
 // How a client can pay us, as they pick it on the form; or, under Other,
 // in their own words

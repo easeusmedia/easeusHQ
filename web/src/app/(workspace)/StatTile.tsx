@@ -11,6 +11,7 @@ export function StatTile({
   tone = "accent",
   note,
   bare = false,
+  clickable = false,
 }: {
   label: string;
   value: number | string;
@@ -21,9 +22,11 @@ export function StatTile({
   note?: React.ReactNode;
   // one of a row inside a shared panel: no card of its own
   bare?: boolean;
+  // it opens something: it lights up under the pointer, as a card you can click does
+  clickable?: boolean;
 }) {
   return (
-    <div className={`relative px-5 py-4 ${bare ? "" : "overflow-hidden panel rounded-2xl"}`}>
+    <div className={`relative px-5 py-4 ${bare ? "" : `overflow-hidden panel rounded-2xl ${clickable ? "panel-hover" : ""}`}`}>
       {lit && !bare && <div className={`glass-glow ${tone === "emerald" ? "emerald" : ""}`} />}
       <span
         className={`absolute right-4 top-4 flex size-7 items-center justify-center rounded-lg ${

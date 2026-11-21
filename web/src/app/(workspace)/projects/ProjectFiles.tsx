@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, AudioLines, CalendarCheck, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Pencil, PenLine, Plus, Trash2, X } from "lucide-react";
+import { ArrowUpRight, AudioLines, CalendarCheck, Check, File as FileIcon, FileText, Film, History, Image as ImageIcon, Pencil, PenLine, Plus, Trash2, X } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
 import { Dropdown } from "../Dropdown";
 import { addProjectAsset, updateProjectAsset, deleteProjectAsset } from "../clients/actions";
@@ -90,7 +90,7 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null };
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null; review?: string | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -123,6 +123,8 @@ export function ProjectFiles({
   // who made it, each stage and who moved it; the file is a button away in it
   const [task, setTask] = useState<{ card: WorkCard; data: Overview } | null>(null);
   const taskDialog = useRef<HTMLDialogElement>(null);
+  // the task behind a row: a delivered task is its own row; a file, the task filling it
+  const taskOf = (r: Row) => (r.type === "delivered" ? r.id : (r.asset?.task?.id ?? null));
   async function openTaskOf(taskId: string) {
     const res = await openFileTask(taskId).catch(() => null);
     if (!res) return setError("That task couldn't be opened.");
@@ -154,6 +156,9 @@ export function ProjectFiles({
       // where it lives; the task's stage is in its window, not here
       // (Abhishek, 27 Oct 2026); when it's due sits on the right
       sub: source(a.link ?? a.task?.review ?? null),
+      // delivered, the file is on Drive; its Frame.io review stays a click
+      // away beside it (Abhishek, 21 Nov 2026)
+      review: a.link && a.task?.review ? a.task.review : null,
       due: a.dueDate ?? null,
       draft: a.draftDate ?? null,
       asset: a,
@@ -277,20 +282,19 @@ export function ProjectFiles({
                     <Icon size={16} />
                   </span>
                   <span className={`min-w-0 flex-1 ${dim}`}>
-                    {!readOnly ? (
-                      // our side: the whole row opens the task behind it, if
-                      // there is one; the buttons sit above it
-                      (r.type === "delivered" ? r.id : r.asset?.task?.id) ? (
-                        <button
-                          type="button"
-                          onClick={() => openTaskOf((r.type === "delivered" ? r.id : r.asset?.task?.id)!)}
-                          className="block w-full truncate text-left text-sm text-foreground after:absolute after:inset-0"
-                        >
-                          {r.name}
-                        </button>
-                      ) : (
-                        <span className="block truncate text-sm text-foreground">{r.name}</span>
-                      )
+                    {/* the whole row opens the video (Abhishek, 21 Nov 2026:
+                        "when we click it should open the videos"); on our
+                        side a file with a task but no link yet opens the
+                        task's history, which the clock beside the buttons
+                        opens for any file with a task */}
+                    {!readOnly && !r.link && taskOf(r) ? (
+                      <button
+                        type="button"
+                        onClick={() => openTaskOf(taskOf(r)!)}
+                        className="block w-full truncate text-left text-sm text-foreground after:absolute after:inset-0"
+                      >
+                        {r.name}
+                      </button>
                     ) : r.link ? (
                       // the whole row opens the file; the buttons sit above it
                       <a
@@ -307,6 +311,11 @@ export function ProjectFiles({
                     <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                       {r.tagged ? r.kinds.map((k) => <TaskTagChip key={k} name={k} />) : <span className="shrink-0">{r.kinds[0]}</span>}
                       <span className="truncate">· {r.sub}</span>
+                      {r.review && (
+                        <a href={r.review} target="_blank" rel="noopener noreferrer" className="relative z-[1] flex shrink-0 items-center gap-0.5 hover:text-foreground">
+                          · Frame.io <ArrowUpRight size={11} />
+                        </a>
+                      )}
                     </span>
                   </span>
                   {/* its two dates, each named (Abhishek, 2 Nov 2026): the first
@@ -343,6 +352,17 @@ export function ProjectFiles({
                   </span>
                   {/* Always there, at full strength (Abhishek, 21 Nov 2026): a
                       touchscreen never hovers, and faint read as off. */}
+                  {!readOnly && taskOf(r) && (
+                    <button
+                      type="button"
+                      onClick={() => openTaskOf(taskOf(r)!)}
+                      title="The task's history"
+                      aria-label={`The history of ${r.name}`}
+                      className="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-white/[0.06] hover:text-foreground"
+                    >
+                      <History size={14} />
+                    </button>
+                  )}
                   {!readOnly && r.asset && (
                     <span className="relative z-10 flex shrink-0 items-center gap-0.5">
                       <button

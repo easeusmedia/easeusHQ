@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { batchPayment, clientBatches, closeGaps, invoiceBatches, newBatchKey, pinsAfterMove } from "./invoiceBatches.ts";
+import { batchPayment, clientBatches, closeGaps, invoiceBatches, newBatchKey, pinsAfterMove, sizesAfterChange } from "./invoiceBatches.ts";
 
 const p = (id: string, date: string) => ({ id, date });
 
@@ -133,4 +133,22 @@ test("work still being made fills the open invoice, and only finished work count
   assert.equal(second.detail, "1 of 4 done");
   assert.deepEqual(third.ids, ["i"]);
   assert.equal(third.detail, "0 of 4 done");
+});
+
+test("a new number per batch: earlier batches keep their size, the open one and later take the new one", () => {
+  // ten projects in batches of 4: 4, 4, and 2 in the open third
+  const items = Array.from({ length: 10 }, (_, i) => p(`p${i + 1}`, `2026-05-${String(i + 1).padStart(2, "0")}`));
+  const four = { cadence: "milestone" as const, dayOfMonth: null, every: 4 };
+  const before = invoiceBatches(items, four, "2026-09-17");
+  // raised to 6 while batch 3 is open
+  const sizes = sizesAfterChange(four, before, 6);
+  assert.deepEqual(sizes, [[1, 4], [3, 6]]);
+  const six = { ...four, every: 6, sizes };
+  // six more come in: batch 3 fills to 6, the rest start batch 4
+  const after = invoiceBatches([...items, ...Array.from({ length: 6 }, (_, i) => p(`n${i + 1}`, `2026-06-${String(i + 1).padStart(2, "0")}`))], six, "2026-09-17");
+  assert.deepEqual(after.map((b) => [b.key, b.ids.length]), [["batch-4", 2], ["batch-3", 6], ["batch-2", 4], ["batch-1", 4]]);
+  assert.deepEqual(after.at(-1)!.ids, ["p1", "p2", "p3", "p4"]);
+  assert.equal(after[0].detail, "2 of 6 done");
+  // lowered again later: what was made stays, only the open batch on changes
+  assert.deepEqual(sizesAfterChange(six, after, 3), [[1, 4], [3, 6], [4, 3]]);
 });

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { indiaDay } from "@/lib/due";
 import { displayTeam, EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
-import { IN_PROGRESS, LIVE_TASK, LIVE_WORK_TASK, ALL_STATUSES, PART_DONE, type TaskStatus } from "@/lib/workflow";
+import { IN_PROGRESS, LIVE_TASK, LIVE_WORK_TASK, PART_DONE, type TaskStatus } from "@/lib/workflow";
 import { finishedAt } from "@/lib/delivered";
 import { STAGE } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
@@ -470,4 +470,3 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
 }
 
 export { person as personSummary, client as clientSummary, overview as overviewOf, performance as performanceOf, feedback as feedbackOf };
-export const VALID = { taskStatuses: ALL_STATUSES, kinds: Object.keys(ENTRY_KINDS) };

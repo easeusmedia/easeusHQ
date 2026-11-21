@@ -53,12 +53,6 @@ export function onStaff(u: { employment: string }): boolean {
   return u.employment !== "former";
 }
 
-// Who new editing work can go to. A former employee keeps their history and
-// any task still on them, but never shows up to be handed anything new.
-export function assignableEditors<T extends { role: string; employment: string }>(users: T[]): T[] {
-  return users.filter((u) => u.role === "employee" && onStaff(u));
-}
-
 // Who a person may hand work to, down the levels (lib/scope canAssign): a
 // Member only to themselves; a Founder to any Member still on the team, or
 // themselves; a Lead to the Members in their departments, or themselves.

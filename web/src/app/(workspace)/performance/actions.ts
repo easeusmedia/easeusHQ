@@ -12,7 +12,6 @@ async function requireFounder() {
 import { canEditPeople, isFounder } from "@/lib/scope";
 import { isLetter, LETTERS, VIDEO_SCORING_KEY, withVideoScoringDefaults, type VideoScoring } from "@/lib/videoScore";
 import { refreshAllVideoScores, refreshVideoScores } from "@/lib/videoScores";
-import { linkDeliverables } from "@/lib/deliverableLink";
 import { aiSortEntries, syncFrameioFeedback } from "@/lib/frameioFeedback";
 import { withUndo } from "@/lib/undo";
 
@@ -321,33 +320,3 @@ export async function syncFeedback(): Promise<Result & { added?: number; mistake
 
 // ---------- videos ----------
 
-// A video left out of (or put back into) the editor's numbers.
-export async function setTaskExcluded(taskId: string, excluded: boolean): Promise<Result> {
-  if (!(await requireFounder())) return { error: "Only a Founder can change what counts." };
-  // raw, so the task's updatedAt stays put: History and these numbers read
-  // it as when the work was delivered, where the stage log doesn't say
-  await withUndo([{ kind: "task", id: taskId }], () => prisma.$executeRaw`UPDATE "Task" SET "kpiExcluded" = ${excluded} WHERE id = ${taskId}`);
-  done();
-  return {};
-}
-
-// A video's type, put right: it sets the standard its speed is judged by and
-// what it counts for in output.
-export async function setTaskType(taskId: string, type: string): Promise<Result> {
-  if (!(await requireFounder())) return { error: "Only a Founder can change a video's type." };
-  const tag = await prisma.taskTag.findUnique({ where: { name: type }, select: { id: true } });
-  if (!tag) return { error: "That type doesn't exist." };
-  const before = await prisma.task.findUnique({ where: { id: taskId }, select: { updatedAt: true } });
-  if (!before) return { error: "That video is gone." };
-  await withUndo([{ kind: "task", id: taskId }], async () => {
-    await prisma.task.update({ where: { id: taskId }, data: { tags: { set: [{ id: tag.id }] } } });
-    // keep updatedAt where it was: History and these numbers read it as when
-    // the work last moved
-    await prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${before.updatedAt} WHERE id = ${taskId}`;
-    await refreshVideoScores([taskId]);
-    // a new kind may mean another placeholder (lib/deliverableLink)
-    await linkDeliverables([taskId]);
-  });
-  done();
-  return {};
-}

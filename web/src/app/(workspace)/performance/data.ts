@@ -147,8 +147,6 @@ export async function loadPerformance({ from, editorId }: { from: string; editor
   return { editors, scoring, categories, videos, feedback, open, videosIn, summary };
 }
 
-export type PerformanceData = Awaited<ReturnType<typeof loadPerformance>>;
-
 // The first day anything was recorded about the editors (or one of them):
 // where "All time" starts.
 export async function firstDay(editorId?: string): Promise<string | undefined> {

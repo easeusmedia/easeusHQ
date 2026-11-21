@@ -318,17 +318,6 @@ async function moveWorkTaskNow(taskId: string, status: WorkTaskStatus, sortOrder
   return { success: true };
 }
 
-export async function reorderWorkTask(taskId: string, sortOrder: number): Promise<WorkTaskFormState> {
-  try {
-    await assertCanTouch(taskId);
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Couldn't reorder that task." };
-  }
-  await prisma.workTask.update({ where: { id: taskId }, data: { sortOrder } });
-  revalidatePath("/my-tasks");
-  return { success: true };
-}
-
 // Deleting is for good: nothing is kept (lib/taskTrack.ts)
 export async function deleteWorkTask(taskId: string): Promise<WorkTaskFormState> {
   try {

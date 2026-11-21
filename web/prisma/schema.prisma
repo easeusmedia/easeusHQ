@@ -320,6 +320,11 @@ model Client {
   billingCadence        BillingCadence?
   billingDayOfMonth     Int? // monthly_date: which day of the month (1-31)
   billingMilestoneCount Int? // milestone: delivered tasks per invoice
+  // milestone: the size each batch was made at, as [[from batch, size], …]
+  // (Abhishek, 21 Nov 2026: changing the number per batch changes only the
+  // batch open at the time and those after it, never the ones before).
+  // Null: every batch is billingMilestoneCount.
+  billingSizes          Json?
   // what an invoice is called when renamed, by its key ("batch-5": "INV-0042")
   invoiceNames          Json?
   // anchor for "delivered since last invoice" on milestone clients —

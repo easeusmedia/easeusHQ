@@ -66,6 +66,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     cadence: project.client.billingCadence,
     dayOfMonth: project.client.billingDayOfMonth,
     every: project.client.billingMilestoneCount,
+    sizes: project.client.billingSizes,
   };
   // each by one name: the one it was given, else "Batch 6" or its month (Abhishek, 21 Nov 2026)
   const names = (project.client.invoiceNames ?? {}) as Record<string, string>;

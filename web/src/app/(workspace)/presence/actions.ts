@@ -48,23 +48,6 @@ export async function sendMessage(toUserId: string, body: string): Promise<{ err
   return {};
 }
 
-// Unread count per sender — drives both the header's aggregate badge (sum
-// of these) and, more usefully, which specific person's row gets a badge
-// in the team roster itself: seeing "1 unread" on the stack doesn't tell
-// you who it's from without opening the panel and guessing.
-export async function getUnreadBySender(): Promise<Record<string, number>> {
-  const userId = await getSessionUserId();
-  if (!userId) return {};
-  const rows = await prisma.message.groupBy({
-    by: ["fromId"],
-    // someone who has left isn't in the chat list any more, so an unread
-    // message from them would sit in the badge with no way to open it
-    where: { toId: userId, readAt: null, from: { employment: { not: "former" } } },
-    _count: { _all: true },
-  });
-  return Object.fromEntries(rows.map((r) => [r.fromId, r._count._all]));
-}
-
 export type Conversation = {
   userId: string;
   lastBody: string;

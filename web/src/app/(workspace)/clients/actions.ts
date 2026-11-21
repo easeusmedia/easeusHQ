@@ -11,10 +11,10 @@ import { normalizeUrl } from "@/lib/links";
 import { fetchClientRows, getTitleText, getSelectName } from "@/lib/notion";
 import { TAG_PALETTE } from "./tagPalette";
 import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, type TemplateItem, type TemplateStep } from "./templateDefaults";
-import type { BillingCadence, InvoiceStatus } from "@prisma/client";
-import { clientBatches, closeGaps, pinsAfterMove } from "@/lib/invoiceBatches";
+import { Prisma, type BillingCadence, type InvoiceStatus } from "@prisma/client";
+import { clientBatches, closeGaps, pinsAfterMove, sizesAfterChange } from "@/lib/invoiceBatches";
 import { PROJECT_ORDER, placeProject } from "@/lib/projectOrder";
-import { TYPE_TAG, planDeliverables, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
+import { TYPE_TAG, planDeliverables, planFor, planTasks } from "@/lib/contentPlan";
 import { linkDeliverables } from "@/lib/deliverableLink";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
 import { withUndo } from "@/lib/undo";
@@ -123,6 +123,22 @@ export async function setBillingRule(
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit billing rules." };
 
+  // a new number per batch: the batches before the open one keep the size
+  // they were made at (lib/invoiceBatches sizesAfterChange); the same
+  // number keeps its history; monthly has none
+  const c = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { billingCadence: true, billingDayOfMonth: true, billingMilestoneCount: true, billingSizes: true, projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } } },
+  });
+  let sizes: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+  if (c && cadence === "milestone" && milestoneCount && c.billingCadence === "milestone" && c.billingMilestoneCount) {
+    const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount, sizes: c.billingSizes };
+    if (c.billingMilestoneCount !== milestoneCount) {
+      const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
+      sizes = sizesAfterChange(rule, clientBatches(c.projects, rule, today), milestoneCount);
+    } else if (c.billingSizes != null) sizes = c.billingSizes as Prisma.InputJsonValue;
+  }
+
   await withUndo(
     [{ table: "Client", id: clientId }],
     () =>
@@ -132,6 +148,7 @@ export async function setBillingRule(
           billingCadence: cadence,
           billingDayOfMonth: cadence === "monthly_date" ? dayOfMonth : null,
           billingMilestoneCount: cadence === "milestone" ? milestoneCount : null,
+          billingSizes: sizes,
         },
       }),
     { depth: 0 }
@@ -186,6 +203,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
           billingCadence: true,
           billingDayOfMonth: true,
           billingMilestoneCount: true,
+          billingSizes: true,
           projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
         },
       },
@@ -198,7 +216,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
     return {};
   }
   const c = project.client;
-  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
+  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount, sizes: c.billingSizes };
   const n = Number(key.match(/^batch-(\d+)$/)?.[1]);
   const valid = rule.cadence === "monthly_date" ? /^\d{4}-(0[1-9]|1[0-2])$/.test(key) : n >= 1 && n <= 9999;
   if (!valid) return { error: rule.cadence === "monthly_date" ? "Pick the month it goes in." : "A batch number must be a whole number, such as 7." };
@@ -229,12 +247,13 @@ async function closeInvoiceGaps(clientId: string): Promise<void> {
       billingCadence: true,
       billingDayOfMonth: true,
       billingMilestoneCount: true,
+      billingSizes: true,
       invoiceNames: true,
       projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
     },
   });
   if (!c || c.billingCadence !== "milestone") return;
-  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
+  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount, sizes: c.billingSizes };
   const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
   const moves = closeGaps(batches.map((b) => b.key));
   if (!moves.size) return;
@@ -271,23 +290,6 @@ export async function renameInvoice(clientId: string, key: string, name: string)
   return {};
 }
 
-// An invoice marked paid or unpaid by hand (Abhishek, 19 Nov 2026): every
-// project in it, as the Notion import marks them
-export async function setInvoicePayment(clientId: string, key: string, status: string): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only the operations team can mark an invoice paid." };
-  if (status !== "paid" && status !== "unpaid") return { error: "Pick Paid or Unpaid." };
-  const found = await invoiceOf(clientId, key);
-  if ("error" in found) return found;
-  const shown = ((found.c.invoiceNames ?? {}) as Record<string, string>)[key] ?? found.batch.label;
-  await withUndo(
-    found.batch.ids.map((id) => ({ table: "Project", id })),
-    () => prisma.project.updateMany({ where: { clientId, id: { in: found.batch.ids } }, data: { invoiceStatus: status } }),
-    { depth: 0, label: `Marked "${shown}" ${status}` }
-  );
-  revalidatePath("/clients/[slug]", "page");
-  return {};
-}
-
 // One of a client's invoices, worked out from what's saved
 async function invoiceOf(clientId: string, key: string) {
   const c = await prisma.client.findUnique({
@@ -296,41 +298,16 @@ async function invoiceOf(clientId: string, key: string) {
       billingCadence: true,
       billingDayOfMonth: true,
       billingMilestoneCount: true,
+      billingSizes: true,
       invoiceNames: true,
       projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
     },
   });
   if (!c) return { error: "Client not found." };
-  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
+  const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount, sizes: c.billingSizes };
   const batch = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })).find((b) => b.key === key);
   if (!batch) return { error: "That invoice no longer exists. Refresh the page and try again." };
   return { c, batch };
-}
-
-export async function createInvoice(
-  clientId: string,
-  amount: number,
-  dueDate: string | null
-): Promise<{ error?: string }> {
-  const user = await requireOps();
-  if (!user) return { error: "Only the operations team can create invoices." };
-  if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter a valid amount." };
-
-  // the client and what hangs off it: the new invoice is one of those
-  await withUndo(
-    [{ table: "Client", id: clientId }],
-    async () => {
-      await prisma.invoice.create({
-        data: { clientId, amount, dueDate: dueDate ? new Date(dueDate) : null, status: "draft" },
-      });
-      // resets the "delivered since last invoice" counter for milestone clients
-      await prisma.client.update({ where: { id: clientId }, data: { lastInvoicedAt: new Date() } });
-    },
-    { only: ["Invoice"], label: "Added an invoice" }
-  );
-  revalidatePath("/clients/[slug]", "page");
-  revalidatePath("/finance");
-  return {};
 }
 
 export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus): Promise<{ error?: string }> {
@@ -364,22 +341,6 @@ export async function updateClientStatus(clientId: string, status: string): Prom
   await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { status } }), { depth: 0 });
   revalidatePath("/clients");
   revalidatePath("/clients/[slug]", "page");
-  return {};
-}
-
-// When a delivered piece goes live on the client's channel: set from the
-// project's files once it's delivered, and planned only by Operations
-// (lib/scope seesPostings). Empty clears it.
-export async function setPostDate(taskId: string, day: string): Promise<{ error?: string }> {
-  if (!(await requireFeedbackViewer())) return { error: "Only Operations can plan postings." };
-  if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "That isn't a date." };
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true, title: true } });
-  if (!task) return { error: "That task no longer exists." };
-  if (task.status !== "delivered_and_uploaded") return { error: "A posting date comes once it's delivered." };
-  await withUndo([{ kind: "task", id: taskId }], () => prisma.task.update({ where: { id: taskId }, data: { postDate: day ? new Date(day) : null } }), {
-    depth: 0,
-    label: `Changed the posting date on "${task.title}"`,
-  });
   return {};
 }
 
@@ -424,7 +385,6 @@ export async function markClientFeedbackRead(clientId: string): Promise<{ error?
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
-
 
 // Dragging a client into place on the dashboard. One shared order for the
 // whole team — it's the agency's queue, not a personal view.
@@ -1064,14 +1024,6 @@ export async function createProject(
   return { id: project.id, planned: planned.length };
 }
 
-// The client's content blueprint, as edited from the content calendar.
-export async function saveContentPlan(clientId: string, plan: PlanItem[]): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only the operations team can change the blueprint." };
-  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { contentPlan: planFor(plan) } }), { depth: 0 });
-  revalidatePath("/clients/[slug]", "page");
-  return {};
-}
-
 export async function updateProject(
   projectId: string,
   // every field on the header is editable, not just the first three it
@@ -1336,15 +1288,3 @@ export async function markOurWork(
   return {};
 }
 
-// "Everything on this account is ours" — a channel we run — or only what's
-// matched to our tasks or marked.
-export async function setAllOurs(clientId: string, platform: "youtube" | "instagram", value: boolean): Promise<{ error?: string }> {
-  if (!(await requireOps())) return { error: "Only the operations team can change this." };
-  // a SocialAccount has no id of its own: kept as one of the client's rows (depth 1)
-  await withUndo([{ table: "Client", id: clientId }], () => prisma.socialAccount.updateMany({ where: { clientId, platform }, data: { allOurs: value } }), {
-    only: ["SocialAccount"],
-    label: value ? "Counted every post as ours" : "Counted only matched posts as ours",
-  });
-  revalidatePath("/analytics");
-  return {};
-}

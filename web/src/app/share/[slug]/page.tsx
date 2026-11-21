@@ -142,7 +142,7 @@ export default async function SharedClientPage({
                   projects={projectCards}
                   initialShow={show}
                   initialLayout={layout}
-                  billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
+                  billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount, sizes: client.billingSizes }}
                   invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   today={today}
                   projectBase={`/share/${client.slug}/projects`}

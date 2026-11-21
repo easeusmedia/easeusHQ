@@ -19,7 +19,33 @@ export type BillingRule = {
   cadence: "monthly_date" | "milestone" | null;
   dayOfMonth: number | null;
   every: number | null;
+  // milestone: the size each batch was made at, [[from batch, size], …]
+  // (Client.billingSizes), so a new number per batch leaves earlier
+  // batches as they were. Absent: every batch is `every`.
+  sizes?: unknown;
 };
+
+// How many projects batch k holds: the size in force from the latest
+// change at or before it, else the rule's number
+export function sizeOf(rule: BillingRule, k: number): number {
+  const steps = Array.isArray(rule.sizes) ? (rule.sizes as unknown[]).filter((s): s is [number, number] => Array.isArray(s) && s.length === 2 && s.every((x) => Number.isInteger(x) && x > 0)) : [];
+  let size = rule.every ?? 0;
+  for (const [from, n] of [...steps].sort((a, b) => a[0] - b[0])) if (from <= k) size = n;
+  return size;
+}
+
+// The sizes to save when the number per batch changes to `every`: earlier
+// batches keep the size they were made at, and the batch open now (the
+// newest) and every one after it take the new number
+export function sizesAfterChange(rule: BillingRule, batches: Batch[], every: number): [number, number][] {
+  const open = Math.max(1, ...batches.map((b) => Number(b.key.match(MILESTONE_KEY)?.[1] ?? 0)));
+  const before: [number, number][] = [];
+  for (let k = 1; k < open; k++) {
+    const n = sizeOf(rule, k);
+    if (n > 0 && n !== (before.at(-1)?.[1] ?? 0)) before.push([k, n]);
+  }
+  return [...before, [open, every]];
+}
 
 export type Batch = {
   key: string;
@@ -61,7 +87,7 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
   const oldestFirst = [...items].sort((a, b) => a.date.localeCompare(b.date));
 
   if (rule.cadence === "milestone" && rule.every && rule.every > 0) {
-    const n = rule.every;
+    const n = (k: number) => sizeOf(rule, k) || rule.every!;
     const thisYear = today.slice(0, 4);
     // pinned ones first, where they were put; the rest fill up from the
     // newest pinned invoice on, so new work never lands in one already sent
@@ -80,7 +106,7 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
     let k = Math.max(1, ...oldestFirst.filter((p) => !p.open && at.has(p.id)).map((p) => at.get(p.id)!));
     for (const p of oldestFirst) {
       if (at.has(p.id)) continue;
-      while ((size.get(k) ?? 0) >= n) k++;
+      while ((size.get(k) ?? 0) >= n(k)) k++;
       add(p.id, k);
     }
     const last = Math.max(0, ...size.keys());
@@ -92,13 +118,13 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
       // it is still a closed invoice; one with work still being made in it
       // isn't, and only its finished work counts as done
       const done = group.filter((p) => !p.open).length;
-      const complete = done === group.length && (group.length >= n || i < last);
+      const complete = done === group.length && (group.length >= n(i) || i < last);
       batches.push({
         key: `batch-${i}`,
         label: `Batch ${i}`,
         detail: complete
           ? `${shortDate(group[0].date, thisYear)} – ${shortDate(group.at(-1)!.date, thisYear)}`
-          : `${done} of ${n} done`,
+          : `${done} of ${n(i)} done`,
         ids: group.map((p) => p.id),
         complete,
       });

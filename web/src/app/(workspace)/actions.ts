@@ -479,13 +479,6 @@ async function saveTask(_prev: TaskFormState, formData: FormData): Promise<TaskF
   return { success: true };
 }
 
-// Every tag, for the pickers. Ordered the way taskTags.ts seeds them so the
-// list reads client-facing work first, internal work after.
-export async function listTaskTags() {
-  if (!(await getSessionUserId())) return [];
-  return prisma.taskTag.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
-}
-
 // Ops adding a kind of work that wasn't in the seed list. It lands on the
 // creator's own team, so a Sales tag stays in Sales. New tags default to
 // client-facing — the common case — and can be flipped later.
@@ -917,7 +910,6 @@ export async function pushToNotion(): Promise<NotionSyncResult> {
     };
   }
 }
-
 
 // on-demand, not preloaded onto every task in a board fetch — most cards'
 // trails never get opened, so fetching all of them up front would be pure
