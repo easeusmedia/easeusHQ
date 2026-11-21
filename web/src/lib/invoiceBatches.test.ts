@@ -8,8 +8,9 @@ test("every 4 projects: batches counted oldest first, newest shown first, last o
   const items = ["01", "02", "03", "04", "05", "06"].map((d, i) => p(`p${i + 1}`, `2026-05-${d}`)).reverse();
   const b = invoiceBatches(items, { cadence: "milestone", dayOfMonth: null, every: 4 }, "2026-09-17");
   assert.deepEqual(b.map((x) => [x.label, x.detail]), [
-    ["Invoice 2", "2 of 4 done"],
-    ["Invoice 1", "1 May – 4 May"],
+    // by quantity, batches by number (21 Nov 2026)
+    ["Batch 2", "2 of 4 done"],
+    ["Batch 1", "1 May – 4 May"],
   ]);
   assert.deepEqual(b[1].ids, ["p1", "p2", "p3", "p4"]);
   assert.equal(b[0].complete, false);
@@ -20,9 +21,9 @@ test("month end: calendar months, the 31st stays in its own month", () => {
   const items = [p("a", "2026-08-12"), p("b", "2026-08-31"), p("c", "2026-09-04"), p("d", "2026-07-18")];
   const b = invoiceBatches(items, { cadence: "monthly_date", dayOfMonth: 30, every: null }, "2026-09-17");
   assert.deepEqual(b.map((x) => [x.label, x.detail, x.ids.join()]), [
-    ["Sep 2026", "1 project, not invoiced yet", "c"],
-    ["Aug 2026", "2 projects", "a,b"],
-    ["Jul 2026", "1 project", "d"],
+    ["September", "1 project, not invoiced yet", "c"],
+    ["August", "2 projects", "a,b"],
+    ["July", "1 project", "d"],
   ]);
   assert.equal(b[0].complete, false); // September's invoice hasn't gone out yet
   assert.equal(b[1].complete, true);
@@ -32,9 +33,9 @@ test("a mid-month invoice day: anything after it rolls into next month's invoice
   const items = [p("a", "2026-08-15"), p("b", "2026-08-16"), p("c", "2026-12-20")];
   const b = invoiceBatches(items, { cadence: "monthly_date", dayOfMonth: 15, every: null }, "2026-09-17");
   assert.deepEqual(b.map((x) => [x.key, x.label, x.ids.join()]), [
-    ["2027-01", "16 Dec – 15 Jan 2027", "c"],
-    ["2026-09", "16 Aug – 15 Sep 2026", "b"],
-    ["2026-08", "16 Jul – 15 Aug 2026", "a"],
+    ["2027-01", "January 2027", "c"],
+    ["2026-09", "September", "b"],
+    ["2026-08", "August", "a"],
   ]);
 });
 
@@ -66,8 +67,8 @@ test("moving a project between counted invoices moves just that one", () => {
   const pins = pinsAfterMove(before, rule, "p4", "batch-2");
   const after = invoiceBatches(items.map((x) => ({ ...x, pin: pins[x.id] })), rule, "2026-09-17");
   assert.deepEqual(after.map((b) => [b.label, b.ids.join()]), [
-    ["Invoice 2", "p4,p5,p6,p7,p8"],
-    ["Invoice 1", "p1,p2,p3"],
+    ["Batch 2", "p4,p5,p6,p7,p8"],
+    ["Batch 1", "p1,p2,p3"],
   ]);
   assert.equal(after[1].complete, true); // short, but already closed
   // new work goes after the newest invoice, never back into Invoice 1
@@ -91,29 +92,45 @@ test("with no billing rule, the invoices are the numbers given by hand", () => {
   const rule = { cadence: null, dayOfMonth: null, every: null };
   const items = [p("a", "2026-09-01"), { ...p("b", "2026-09-05"), pin: "batch-3" }, { ...p("c", "2026-09-10"), pin: "batch-3" }, { ...p("d", "2026-09-12"), pin: "batch-4" }];
   const b = invoiceBatches(items, rule, "2026-09-17");
-  assert.deepEqual(b.map((x) => [x.label, x.ids.join()]), [["Invoice 4", "d"], ["Invoice 3", "b,c"]]);
+  assert.deepEqual(b.map((x) => [x.label, x.ids.join()]), [["Batch 4", "d"], ["Batch 3", "b,c"]]);
   assert.equal(newBatchKey(b, rule), "batch-5");
   assert.equal(newBatchKey([], rule), "batch-1");
   assert.deepEqual(pinsAfterMove(b, rule, "a", "batch-7"), { a: "batch-7" });
 });
 
-test("a project given an invoice number is in it before it's finished", () => {
+test("a project given an invoice number is in it before it's finished, and other work still being made fills the open one", () => {
   const rule = { cadence: "milestone" as const, dayOfMonth: null, every: 4 };
   const at = (d: string) => new Date(`${d}T00:00:00Z`);
   const b = clientBatches(
     [
-      { id: "done", completedAt: at("2026-09-01"), createdAt: at("2026-08-20"), invoiceBatch: null },
-      { id: "pip", completedAt: null, createdAt: at("2026-09-18"), invoiceBatch: "batch-2" },
-      { id: "later", completedAt: null, createdAt: at("2026-09-19"), invoiceBatch: null },
+      { id: "done", status: "completed", completedAt: at("2026-09-01"), createdAt: at("2026-08-20"), invoiceBatch: null },
+      { id: "pip", status: "in_progress", completedAt: null, createdAt: at("2026-09-18"), invoiceBatch: "batch-2" },
+      { id: "later", status: "in_progress", completedAt: null, createdAt: at("2026-09-19"), invoiceBatch: null },
+      // marked completed in Notion with no finish date: finished all the same
+      { id: "notion", status: "completed", completedAt: null, createdAt: at("2026-08-25"), invoiceBatch: null },
     ],
     rule,
     "2026-09-20"
   );
-  assert.deepEqual(b.map((x) => [x.key, x.ids.join()]), [["batch-2", "pip"], ["batch-1", "done"]]);
+  assert.deepEqual(b.map((x) => [x.key, x.ids.join()]), [["batch-2", "pip"], ["batch-1", "notion,done,later"]]);
+  assert.equal(b[1].detail, "2 of 4 done");
 });
 
 test("invoice numbers close up: 1, 2, 3, 4, 6 becomes 1 to 5, and months are left alone", () => {
   assert.deepEqual([...closeGaps(["batch-4", "batch-6", "batch-1", "batch-2", "batch-3", "batch-6", null])], [["batch-6", "batch-5"]]);
   assert.deepEqual([...closeGaps(["batch-3", "batch-7"])], [["batch-3", "batch-1"], ["batch-7", "batch-2"]]);
   assert.deepEqual([...closeGaps(["batch-1", "batch-2", "2026-09", null])], []);
+});
+
+test("work still being made fills the open invoice, and only finished work counts as done", () => {
+  const rule = { cadence: "milestone" as const, dayOfMonth: null, every: 4 };
+  const done = (id: string, date: string) => ({ id, date });
+  const items = [done("a", "2026-01-01"), done("b", "2026-01-02"), done("c", "2026-01-03"), done("d", "2026-01-04"), done("e", "2026-02-01"), { id: "f", date: "2026-11-21", open: true }, { id: "g", date: "2026-11-21", open: true }, { id: "h", date: "2026-11-21", open: true }, { id: "i", date: "2026-11-21", open: true }];
+  const [third, second, first] = invoiceBatches(items, rule, "2026-11-21");
+  assert.equal(first.complete, true);
+  assert.deepEqual(second.ids, ["e", "f", "g", "h"]);
+  assert.equal(second.complete, false);
+  assert.equal(second.detail, "1 of 4 done");
+  assert.deepEqual(third.ids, ["i"]);
+  assert.equal(third.detail, "0 of 4 done");
 });

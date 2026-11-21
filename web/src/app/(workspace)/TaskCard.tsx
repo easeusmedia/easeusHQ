@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { setParam } from "./urlState";
 import { HoverDelete } from "./HoverDelete";
 import { deleteTasks } from "./actions";
 import { NotesButton } from "./NotesButton";
@@ -321,6 +322,13 @@ export function TaskCard({
   const cardLinkHref = cardLinkSpec ? task[cardLinkSpec.field] : null;
   const detailsRef = useRef<{ open: () => void }>(null);
   const router = useRouter();
+  // opened from a link (?task=<id>: a client's Active tasks list), once
+  const asked = useSearchParams().get("task");
+  useEffect(() => {
+    if (asked !== task.id) return;
+    detailsRef.current?.open();
+    setParam("task", null);
+  }, [asked, task.id]);
 
   // every interactive element inside the card below stops the click from
   // bubbling here — the card itself is now one big "open the details

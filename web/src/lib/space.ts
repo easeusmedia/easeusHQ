@@ -1026,8 +1026,17 @@ export function sequenceTabs(board: Pick<BoardData, "stages" | "messages">, stag
   const row = stages.filter((_, j) => sections?.[j] === "replied");
   const at = row.findIndex((s) => s.id === stageId);
   // a board whose Replied row has no messages yet keeps the days
-  if (at >= 0 && board.messages.some((m) => row.some((s) => s.id === m.stageId)))
-    return row.map((st, n) => ({ key: st.id, title: st.name, sub: st.name, stage: st, day: null, step: n + 1, when: n < at ? "done" : n === at ? "now" : n === at + 1 ? "next" : null, messages: board.messages.filter((m) => m.stageId === st.id) }));
+  if (at >= 0 && board.messages.some((m) => row.some((s) => s.id === m.stageId))) {
+    // only the steps with something to do: messages to send, the reply to
+    // paste (Replied), or the day to come back (Parked); a stage with none
+    // (Call booked) isn't a step (Abhishek, 21 Nov 2026)
+    const steps = row.filter((s) => roleOf(s) || board.messages.some((m) => m.stageId === s.id));
+    const nextAt = row.findIndex((s, j) => j > at && steps.includes(s));
+    return steps.map((st, n) => {
+      const j = row.indexOf(st);
+      return { key: st.id, title: st.name, sub: st.name, stage: st, day: null, step: n + 1, when: j < at ? "done" : j === at ? "now" : j === nextAt ? "next" : null, messages: board.messages.filter((m) => m.stageId === st.id) };
+    });
+  }
   const before = i < first - 1;
   const here = dayOf(stages[i].name);
   const past = here == null && i > first;

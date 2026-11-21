@@ -375,9 +375,13 @@ test("after a reply the window steps through the Replied row, not the days", () 
   const msg = (stageId: string, channel: string, name: string) => ({ id: `${stageId}-${channel}-${name}`, stageId, channel, name, subject: "", body: "", note: "" });
   const board = { stages, messages: [msg("s1", "email", "Day 1"), msg("s2", "instagram", "Day 2"), msg("s3", "email", "Reply"), msg("s4", "email", "Loom follow-up 1 · Loom not seen"), msg("s5", "email", "Loom follow-up 2")] };
   const tabs = (at: string) => sequenceTabs(board, at).map((t) => `${t.step}:${t.title}:${t.when ?? "-"}`);
-  // renamed or empty, every stage in the row is a step
-  assert.deepEqual(tabs("s3"), ["1:Replied:now", "2:Stage 1:next", "3:Loom follow-up 2:-", "4:Stage 3:-", "5:Parked for later:-"]);
-  assert.deepEqual(tabs("s5"), ["1:Replied:done", "2:Stage 1:done", "3:Loom follow-up 2:now", "4:Stage 3:next", "5:Parked for later:-"]);
+  // renamed or not, a stage is a step when there's something to do on it:
+  // messages, the reply (Replied), the day to come back (Parked); Stage 3,
+  // with none, isn't one (21 Nov 2026)
+  assert.deepEqual(tabs("s3"), ["1:Replied:now", "2:Stage 1:next", "3:Loom follow-up 2:-", "4:Parked for later:-"]);
+  assert.deepEqual(tabs("s5"), ["1:Replied:done", "2:Stage 1:done", "3:Loom follow-up 2:now", "4:Parked for later:next"]);
+  // a lead sitting on the empty stage: what came before is done, the rest next
+  assert.deepEqual(tabs("s6"), ["1:Replied:done", "2:Stage 1:done", "3:Loom follow-up 2:done", "4:Parked for later:next"]);
   // In process (and Dead) keep the days
   assert.deepEqual(sequenceTabs(board, "s2").map((t) => t.title), ["Day 1", "Day 2"]);
   assert.deepEqual(sequenceTabs(board, "s8").map((t) => t.title), ["Day 1", "Day 2"]);

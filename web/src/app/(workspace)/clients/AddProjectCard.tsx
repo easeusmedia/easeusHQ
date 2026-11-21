@@ -154,7 +154,7 @@ export function AddProjectCard({
 
           <label className="flex flex-col gap-1.5 text-xs text-muted">
             <span>
-              Invoice number <span className="text-muted/70">(optional)</span>
+              Batch number <span className="text-muted/70">(optional)</span>
             </span>
             <input
               type="number"

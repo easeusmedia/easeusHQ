@@ -43,12 +43,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
     const sameAccount = account?.handle === handle;
     const covered = sameAccount && account?.coveredSince && istDay(account.coveredSince) <= since;
     let busy = await syncing(clientId, platform);
-    if (team && !busy && (!covered || url.searchParams.get("refresh") === "1")) {
-      await startSync({ clientIds: [clientId], platforms: [platform], since, origin: url.origin });
-      busy = true;
-    }
+    // A refresh that can't start (on localhost, where none run; an Apify
+    // account out of credit) never hides the numbers already kept: they're
+    // shown as they are, and the reason only when there are none
+    // (Abhishek, 21 Nov 2026)
+    let refreshFailed: string | null = null;
+    const start = async (run: () => Promise<boolean>) => {
+      try {
+        if (await run()) busy = true;
+      } catch (err) {
+        refreshFailed = err instanceof Error ? err.message : "Couldn't refresh the numbers.";
+      }
+    };
+    if (team && !busy && (!covered || url.searchParams.get("refresh") === "1"))
+      await start(async () => {
+        await startSync({ clientIds: [clientId], platforms: [platform], since, origin: url.origin });
+        return true;
+      });
     // a few hours old: a light read of their recent posts, in the background
-    if (!busy && covered && (await freshen({ platform, clientIds: [clientId], origin: url.origin })).started > 0) busy = true;
+    if (!busy && covered) await start(async () => (await freshen({ platform, clientIds: [clientId], origin: url.origin })).started > 0);
 
     const rows = await prisma.contentItem.findMany({
       where: { clientId, platform, publishedAt: { gte: new Date(`${since}T00:00:00+05:30`), lt: new Date(`${shiftDay(to, 1)}T00:00:00+05:30`) } },
@@ -102,8 +115,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ clie
             to
           )
         : undefined;
-    if (!team) return NextResponse.json({ connected: true, dashboard, syncing: busy });
-    return NextResponse.json({ connected: true, dashboard, pending: busy && !covered, syncing: busy, allOurs, review, notOurs, matched });
+    const error = dashboard ? undefined : (refreshFailed ?? undefined);
+    if (!team) return NextResponse.json({ connected: true, dashboard, syncing: busy, error });
+    return NextResponse.json({ connected: true, dashboard, pending: busy && !covered, syncing: busy, allOurs, review, notOurs, matched, error });
   } catch (err) {
     return NextResponse.json({ connected: true, error: err instanceof Error ? err.message : "Couldn't load the numbers." });
   }

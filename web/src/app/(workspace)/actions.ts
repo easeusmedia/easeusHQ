@@ -9,6 +9,7 @@ import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deleteForGood, departmentFromWords, frozenFor, recordDateChange } from "@/lib/taskTrack";
+import { withUndo } from "@/lib/taskUndo";
 import { kindInTitle } from "@/lib/department";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
@@ -270,12 +271,12 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
 // called directly (not via a form) — both the StatusSelect dropdown and
 // dragging a card call this exact same function, so they behave identically
 export async function moveTask(taskId: string, to: TaskStatus, extras: StatusChangeExtras = {}): Promise<TaskFormState> {
-  return changeStatus(taskId, to, extras);
+  return withUndo([{ kind: "task", id: taskId }], () => changeStatus(taskId, to, extras));
 }
 
 // the tick on Home and My tasks: done (Delivered) in one tap
 export async function tickTask(taskId: string): Promise<TaskFormState> {
-  return changeStatus(taskId, "delivered_and_uploaded", {}, true);
+  return withUndo([{ kind: "task", id: taskId }], () => changeStatus(taskId, "delivered_and_uploaded", {}, true));
 }
 
 // pure manual reordering within a column — no status change, no workflow
@@ -301,7 +302,12 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
 // own task's Frame.io link (everything else — title, assignee, raw footage,
 // editing notes — is ops' input, not theirs to change; they drive status,
 // not task details).
-export async function updateTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
+// kept as the person's step to undo (lib/taskUndo)
+export async function updateTask(prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
+  return withUndo([{ kind: "task", id: String(formData.get("taskId")) }], () => saveTask(prev, formData));
+}
+
+async function saveTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const taskId = String(formData.get("taskId"));
   const actor = await sessionActor();
   if (!actor) return { error: "Your session has ended. Please sign in again." };
@@ -516,7 +522,7 @@ export async function deleteTask(taskId: string): Promise<{ error?: string }> {
   const actor = await getViewer();
   if (!actor || actor.role === "employee") return { error: "Only Level 1 and 2 can delete client tasks." };
   if (!(await prisma.task.count({ where: { AND: [{ id: taskId }, assigneeWhere(actor)] } }))) return { error: "You can't delete this task." };
-  await deleteForGood({ kind: "task", id: taskId });
+  await withUndo([{ kind: "task", id: taskId }], () => deleteForGood({ kind: "task", id: taskId }));
   revalidatePath("/board");
   revalidatePath("/team-work");
   return {};
@@ -529,7 +535,12 @@ export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number
   const actor = await getViewer();
   if (!actor || actor.role === "employee") return { error: "Only Level 1 and 2 can delete client tasks." };
   const ids = (await prisma.task.findMany({ where: { AND: [{ id: { in: taskIds.filter(Boolean) } }, assigneeWhere(actor)] }, select: { id: true } })).map((t) => t.id);
-  for (const id of ids) await deleteForGood({ kind: "task", id });
+  await withUndo(
+    ids.map((id) => ({ kind: "task" as const, id })),
+    async () => {
+      for (const id of ids) await deleteForGood({ kind: "task", id });
+    },
+  );
   revalidatePath("/board");
   revalidatePath("/team-work");
   return { deleted: ids.length };
@@ -546,7 +557,8 @@ export async function deleteTasks(taskIds: string[]): Promise<{ deleted?: number
 export async function deleteTaskPermanently(taskId: string, kind: "client" | "internal"): Promise<{ error?: string }> {
   const user = await getViewer();
   if (!user || !isAbhishekOrAdmin(user)) return { error: "Only Level 1 can delete a finished task." };
-  await deleteForGood({ kind: kind === "internal" ? "work" : "task", id: taskId });
+  const ref = { kind: kind === "internal" ? ("work" as const) : ("task" as const), id: taskId };
+  await withUndo([ref], () => deleteForGood(ref));
   revalidatePath("/team-work");
   revalidatePath("/team");
   return {};
@@ -1004,7 +1016,12 @@ async function overdueTask(kind: "task" | "work", id: string) {
 // Any day, with a reason (Abhishek, 5 Nov 2026): an earlier day becomes its
 // due date as it is, counted late for that date only once (overdueFor), and
 // the task is open again (lib/taskTrack overdueToAnswer)
-export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
+// kept as the person's step to undo (lib/taskUndo)
+export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string) {
+  return withUndo([{ kind, id }], () => answerOverdueNow(kind, id, day, reason));
+}
+
+async function answerOverdueNow(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
   const why = reason.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Pick a day." };
   if (!why) return { error: "Add a short reason." };
@@ -1027,7 +1044,12 @@ export async function answerOverdue(kind: "task" | "work", id: string, day: stri
 // (Abhishek, 23 Oct 2026): done, on the day picked (any day up to today),
 // with why it wasn't ticked. History, its delivered day and its deadline
 // read that day as when it was finished.
-export async function finishOverdue(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
+// kept as the person's step to undo (lib/taskUndo)
+export async function finishOverdue(kind: "task" | "work", id: string, day: string, reason: string) {
+  return withUndo([{ kind, id }], () => finishOverdueNow(kind, id, day, reason));
+}
+
+async function finishOverdueNow(kind: "task" | "work", id: string, day: string, reason: string): Promise<{ error?: string }> {
   const why = reason.trim();
   const today = dayOf(new Date());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > today) return { error: "Pick the day it was finished: today or earlier." };

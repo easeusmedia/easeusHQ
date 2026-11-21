@@ -10,7 +10,18 @@ import { closeOnBackdrop } from "../dialog";
 // (Dr Tego) put the same brand card on everything — so the covers already
 // in use are offered as a pool. Nothing is copied: the new project simply
 // points at the same picture.
-export function CoverPicker({ clientId, onPick }: { clientId: string; onPick: (url: string) => void }) {
+// `className` and `label`: its trigger dressed to sit with others (a project's cover overlay)
+export function CoverPicker({
+  clientId,
+  onPick,
+  className = "btn btn-xs btn-ghost flex items-center gap-1.5",
+  label = "Use an existing cover",
+}: {
+  clientId: string;
+  onPick: (url: string) => void;
+  className?: string;
+  label?: string;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [covers, setCovers] = useState<{ url: string; name: string }[] | null>(null);
 
@@ -22,8 +33,8 @@ export function CoverPicker({ clientId, onPick }: { clientId: string; onPick: (u
 
   return (
     <>
-      <button type="button" onClick={open} className="btn btn-xs btn-ghost flex items-center gap-1.5">
-        <Images size={13} /> Use an existing cover
+      <button type="button" onClick={open} className={className}>
+        <Images size={13} /> {label}
       </button>
 
       <dialog

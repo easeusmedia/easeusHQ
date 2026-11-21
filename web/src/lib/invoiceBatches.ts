@@ -34,6 +34,11 @@ export type Batch = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+// What an invoice is called (Abhishek, 21 Nov 2026): by quantity, "Batch 3";
+// by month, the month simply, "September", with the year only when it
+// isn't this one
+const monthName = (y: number, m: number, thisYear: string) => `${MONTH_NAMES[m - 1]}${String(y) === thisYear ? "" : ` ${y}`}`;
 
 // "6 Jul", with the year only when it isn't this one
 function shortDate(iso: string, thisYear: string): string {
@@ -84,14 +89,16 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
       const group = oldestFirst.filter((p) => at.get(p.id) === i);
       if (!group.length) continue; // everything moved out of it
       // an earlier invoice that's short only because work was moved out of
-      // it is still a closed invoice
-      const complete = group.length >= n || i < last;
+      // it is still a closed invoice; one with work still being made in it
+      // isn't, and only its finished work counts as done
+      const done = group.filter((p) => !p.open).length;
+      const complete = done === group.length && (group.length >= n || i < last);
       batches.push({
         key: `batch-${i}`,
-        label: `Invoice ${i}`,
+        label: `Batch ${i}`,
         detail: complete
           ? `${shortDate(group[0].date, thisYear)} – ${shortDate(group.at(-1)!.date, thisYear)}`
-          : `${group.length} of ${n} done`,
+          : `${done} of ${n} done`,
         ids: group.map((p) => p.id),
         complete,
       });
@@ -119,11 +126,7 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
       .map(([key, ids]) => {
         const [y, m] = key.split("-").map(Number);
         const invoiceDay = monthEnd ? daysIn(y, m) : Math.min(day, daysIn(y, m));
-        const [py, pm] = m === 1 ? [y - 1, 12] : [y, m - 1];
-        const startDay = Math.min(day, daysIn(py, pm)) + 1;
-        const label = monthEnd
-          ? `${MONTHS[m - 1]} ${y}`
-          : `${startDay > daysIn(py, pm) ? `1 ${MONTHS[m - 1]}` : `${startDay} ${MONTHS[pm - 1]}`} – ${invoiceDay} ${MONTHS[m - 1]} ${y}`;
+        const label = monthName(y, m, today.slice(0, 4));
         const complete = `${key}-${pad(invoiceDay)}` < today;
         const count = `${ids.length} project${ids.length === 1 ? "" : "s"}`;
         return { key, label, detail: complete ? count : `${count}, not invoiced yet`, ids, complete };
@@ -142,7 +145,7 @@ export function invoiceBatches(items: Item[], rule: BillingRule, today: string):
     .sort(([a], [b]) => b - a)
     .map(([k, list]) => ({
       key: `batch-${k}`,
-      label: `Invoice ${k}`,
+      label: `Batch ${k}`,
       detail: `${shortDate(list[0].date, thisYear)} – ${shortDate(list.at(-1)!.date, thisYear)}`,
       ids: list.map((p) => p.id),
       complete: true,
@@ -166,16 +169,29 @@ export function batchPayment(statuses: (string | null)[], complete: boolean): Pa
 // A client's invoices straight from its project rows (server side): its
 // finished work, and anything someone has already put in an invoice by hand,
 // finished or not.
+// Every project into an invoice (Abhishek, 21 Nov 2026: "why Not finished
+// yet?"): finished work by its day (marked completed counts, with or
+// without a finish date: Notion's often have none), and what's still being
+// made after it, in the invoice that's open, as it will be billed. The one
+// rule for the page and for every save, so the two never disagree.
+export function batchItems(projects: { id: string; finished: boolean; date: string; pin: string | null | undefined }[], today: string): Item[] {
+  return projects.map((p) => ({ id: p.id, date: p.finished || p.pin ? p.date : today, pin: p.pin ?? null, open: !p.finished }));
+}
+
 export function clientBatches(
-  projects: { id: string; completedAt: Date | null; createdAt: Date; invoiceBatch: string | null }[],
+  projects: { id: string; status: string; completedAt: Date | null; createdAt: Date; invoiceBatch: string | null }[],
   rule: BillingRule,
   today: string
 ): Batch[] {
   return invoiceBatches(
-    projects.flatMap((p) =>
-      p.completedAt || p.invoiceBatch
-        ? [{ id: p.id, date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10), pin: p.invoiceBatch, open: !p.completedAt }]
-        : []
+    batchItems(
+      projects.map((p) => ({
+        id: p.id,
+        finished: p.status === "completed" || !!p.completedAt,
+        date: (p.completedAt ?? p.createdAt).toISOString().slice(0, 10),
+        pin: p.invoiceBatch,
+      })),
+      today
     ),
     rule,
     today

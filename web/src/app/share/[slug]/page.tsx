@@ -112,9 +112,19 @@ export default async function SharedClientPage({
 
       <div className="mb-10">
         <ClientStats
-          inProgress={client.projects.filter((p) => p.status !== "completed").length}
-          completed={client.projects.filter((p) => p.status === "completed").length}
-          unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
+          inProgress={client.projects
+            .filter((p) => p.status !== "completed")
+            .map((p) => ({ id: p.id, title: p.name || p.type, cover: p.coverUrl, href: `/share/${client.slug}/projects/${p.id}` }))}
+          delivered={client.projects
+            .filter((p) => p.status === "completed")
+            .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
+            .map((p) => ({
+              id: p.id,
+              title: p.name || p.type,
+              sub: p.completedAt ? `Delivered ${p.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : undefined,
+              cover: p.coverUrl,
+              href: `/share/${client.slug}/projects/${p.id}`,
+            }))}
         />
       </div>
 
@@ -130,10 +140,10 @@ export default async function SharedClientPage({
                 <ProjectsSection
                   clientId={client.id}
                   projects={projectCards}
-                  invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   initialShow={show}
                   initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
+                  invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   today={today}
                   projectBase={`/share/${client.slug}/projects`}
                   // invoices count projects as they always have, however they're arranged

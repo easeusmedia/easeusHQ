@@ -71,18 +71,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     dayOfMonth: project.client.billingDayOfMonth,
     every: project.client.billingMilestoneCount,
   };
+  // each by one name: the one it was given, else "Batch 6" or its month (Abhishek, 21 Nov 2026)
   const names = (project.client.invoiceNames ?? {}) as Record<string, string>;
-  const batches = clientBatches(
-    project.client.projects,
-    rule,
-    new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })
-  ).map((b) => (names[b.key] ? { ...b, label: rule.cadence === "monthly_date" ? names[b.key] : `${b.label} · ${names[b.key]}` } : b));
+  const batches = clientBatches(project.client.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })).map((b) =>
+    names[b.key] ? { ...b, label: names[b.key] } : b,
+  );
   const inBatch = batches.find((b) => b.ids.includes(project.id));
   const nextKey = newBatchKey(batches, rule);
   const monthly = rule.cadence === "monthly_date";
   const invoiceOptions = [
     ...(nextKey && !batches.some((b) => b.key === nextKey)
-      ? [{ value: nextKey, label: monthly ? "New invoice" : `Invoice ${nextKey.replace("batch-", "")} (next)` }]
+      ? [{ value: nextKey, label: monthly ? "Next month" : "New batch" }]
       : []),
     ...batches.map((b) => ({ value: b.key, label: b.label })),
   ];

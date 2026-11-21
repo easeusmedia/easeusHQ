@@ -1,346 +1,143 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, Layers, Plus, Receipt } from "lucide-react";
-import { setBillingRule, createInvoice, updateInvoiceStatus } from "./actions";
-import { DatePicker } from "../DatePicker";
-import { Reveal } from "../Reveal";
-import { Dropdown } from "../Dropdown";
+import { CalendarDays, Check, ChevronDown, Layers } from "lucide-react";
+import { setBillingRule } from "./actions";
 import { Stepper } from "../Stepper";
+import { topLayer, useCloseOnScroll, usePopover } from "../popover";
 
 type BillingCadence = "monthly_date" | "milestone";
-type InvoiceStatus = "draft" | "ready" | "sent" | "paid" | "overdue";
-type Invoice = { id: string; amount: string; status: InvoiceStatus; dueDate: Date | null; createdAt: Date };
 
-const STATUS_OPTIONS: InvoiceStatus[] = ["draft", "ready", "sent", "paid", "overdue"];
-// a coloured dot on the status chip, rather than a native <select> — its
-// options are drawn by the OS, blue hover and all
-const STATUS_DOT: Record<InvoiceStatus, string> = {
-  draft: "bg-muted",
-  ready: "bg-blue-400",
-  sent: "bg-purple-400",
-  paid: "bg-green-400",
-  overdue: "bg-red-400",
-};
-
-const ROW = "grid grid-cols-[1fr_1fr_auto] items-center gap-4 px-5 sm:grid-cols-[1.2fr_1fr_1fr_auto]";
-const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const day = (d: Date) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-
+// How this client's projects are grouped, in batches of a set number or
+// month by month: a small setting beside the Projects title, where its
+// effect shows (Abhishek, 21 Nov 2026: no Billing tab for it)
 const RULES = [
-  {
-    key: "monthly_date",
-    title: "Monthly",
-    hint: "One invoice on a fixed day each month",
-    Icon: CalendarDays,
-    tint: "bg-amber-400/15 text-amber-300",
-  },
-  {
-    key: "milestone",
-    title: "By deliverables",
-    hint: "One invoice after every few deliverables",
-    Icon: Layers,
-    tint: "bg-violet-400/15 text-violet-300",
-  },
+  { key: "milestone", title: "Batches", Icon: Layers, tint: "bg-violet-400/15 text-violet-300" },
+  { key: "monthly_date", title: "Monthly", Icon: CalendarDays, tint: "bg-amber-400/15 text-amber-300" },
 ] as const;
 
-export function BillingPanel({
+export function GroupingSetting({
   clientId,
   cadence,
   dayOfMonth,
   milestoneCount,
-  deliveredSinceInvoice,
-  invoices,
 }: {
   clientId: string;
   cadence: BillingCadence | null;
   dayOfMonth: number | null;
   milestoneCount: number | null;
-  // only meaningful when cadence === "milestone" — count of delivered
-  // tasks since lastInvoicedAt, computed server-side
-  deliveredSinceInvoice: number;
-  invoices: Invoice[];
 }) {
   const router = useRouter();
-  const [editingRule, setEditingRule] = useState(false);
-  const [ruleCadence, setRuleCadence] = useState<BillingCadence>(cadence ?? "monthly_date");
+  const [open, setOpen] = useState(false);
+  const [ruleCadence, setRuleCadence] = useState<BillingCadence | null>(cadence);
   const [ruleDay, setRuleDay] = useState(dayOfMonth ?? 30);
   const [ruleCount, setRuleCount] = useState(milestoneCount ?? 4);
-  const [savingRule, setSavingRule] = useState(false);
-
-  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const { position, place } = usePopover(250);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
+  useEffect(() => {
+    const out = (e: MouseEvent) => wrap.current && !wrap.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", out);
+    return () => document.removeEventListener("mousedown", out);
+  }, []);
 
-  async function saveRule() {
-    setSavingRule(true);
+  const label = cadence === "milestone" ? `Batches of ${milestoneCount ?? 4}` : cadence === "monthly_date" ? "Monthly" : "Group projects";
+  const Icon = cadence === "monthly_date" ? CalendarDays : Layers;
+  const changed =
+    ruleCadence !== cadence ||
+    (ruleCadence === "milestone" && ruleCount !== (milestoneCount ?? 4)) ||
+    (ruleCadence === "monthly_date" && ruleDay !== (dayOfMonth ?? 30));
+
+  async function save() {
+    if (!ruleCadence) return;
+    setSaving(true);
+    setError(null);
     const res = await setBillingRule(
       clientId,
       ruleCadence,
       ruleCadence === "monthly_date" ? ruleDay : null,
-      ruleCadence === "milestone" ? ruleCount : null
-    );
-    setSavingRule(false);
-    if (res.error) {
-      setError(res.error);
-      return;
-    }
-    setEditingRule(false);
+      ruleCadence === "milestone" ? ruleCount : null,
+    ).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+    setSaving(false);
+    if (res.error) return setError(res.error);
+    setOpen(false);
     router.refresh();
   }
-
-  function closeRule() {
-    setEditingRule(false);
-    setRuleCadence(cadence ?? "monthly_date");
-    setRuleDay(dayOfMonth ?? 30);
-    setRuleCount(milestoneCount ?? 4);
-  }
-
-  async function submitInvoice(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
-    setError(null);
-    const res = await createInvoice(clientId, Number(amount), dueDate || null);
-    setCreating(false);
-    if (res.error) {
-      setError(res.error);
-      return;
-    }
-    setAmount("");
-    setDueDate("");
-    setShowInvoiceForm(false);
-    router.refresh();
-  }
-
-  async function pickStatus(invoiceId: string, status: InvoiceStatus) {
-    await updateInvoiceStatus(invoiceId, status);
-    router.refresh();
-  }
-
-  const ready = cadence === "milestone" && milestoneCount != null && deliveredSinceInvoice >= milestoneCount;
-
-  const sum = (list: Invoice[]) => list.reduce((n, inv) => n + Number(inv.amount), 0);
-  const owed = invoices.filter((inv) => ["ready", "sent", "overdue"].includes(inv.status));
-  const overdue = invoices.filter((inv) => inv.status === "overdue").length;
-  const paid = invoices.filter((inv) => inv.status === "paid");
-  const tile = "card-surface flex flex-col gap-1 rounded-2xl px-5 py-4 shadow-sm";
 
   return (
-    // The tab's full width, like the rest of the client page: what's owed,
-    // what's been paid and the rule across the top, the invoices as a table
-    // under it — rather than one narrow card with the page empty beside it.
-    <div className="flex flex-col">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className={tile}>
-          <p className="text-xs text-muted">Outstanding</p>
-          <p className={`text-2xl font-semibold tabular-nums ${owed.length ? "text-foreground" : "text-muted"}`}>
-            {money(sum(owed))}
-          </p>
-          <p className="text-xs text-muted">
-            {owed.length ? `${owed.length} unpaid` : "Nothing owed"}
-            {overdue > 0 && <span className="text-red-300"> · {overdue} overdue</span>}
-          </p>
-        </div>
-        <div className={tile}>
-          <p className="text-xs text-muted">Paid</p>
-          <p className={`text-2xl font-semibold tabular-nums ${paid.length ? "text-foreground" : "text-muted"}`}>
-            {money(sum(paid))}
-          </p>
-          <p className="text-xs text-muted">
-            {paid.length} invoice{paid.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <div className={tile}>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted">Billing rule</p>
-            <button
-              onClick={() => (editingRule ? closeRule() : setEditingRule(true))}
-              className="btn btn-xs btn-ghost -my-1"
-            >
-              {editingRule ? "Close" : cadence ? "Edit" : "Set rule"}
-            </button>
-          </div>
-          {cadence === "milestone" && milestoneCount ? (
-            <>
-              <p className="text-2xl font-semibold tabular-nums">
-                {Math.min(deliveredSinceInvoice, milestoneCount)}
-                <span className="text-muted"> / {milestoneCount}</span>
-              </p>
-              <div className="h-1 overflow-hidden rounded-full bg-foreground/[0.06]">
-                <div
-                  className={`h-full rounded-full transition-[width] duration-300 ${ready ? "bg-emerald-400" : "bg-blue-400"}`}
-                  style={{ width: `${Math.min(100, (deliveredSinceInvoice / milestoneCount) * 100)}%` }}
-                />
-              </div>
-              <p className={`flex items-center gap-1 text-xs ${ready ? "text-emerald-300" : "text-muted"}`}>
-                {ready ? (
-                  <>
-                    <Check size={11} /> Ready to invoice
-                  </>
-                ) : (
-                  "delivered since the last invoice"
-                )}
-              </p>
-            </>
-          ) : cadence === "monthly_date" ? (
-            <>
-              <p className="text-2xl font-semibold tabular-nums">Day {dayOfMonth}</p>
-              <p className="text-xs text-muted">of every month</p>
-            </>
-          ) : (
-            <>
-              <p className="text-2xl font-semibold text-muted">Not set</p>
-              <p className="text-xs text-muted">When this client is invoiced</p>
-            </>
-          )}
-        </div>
-      </div>
-
-      <Reveal open={editingRule}>
-        {/* Two ways to bill, as two cards: pick one, and its number sits
-            right in the sentence it sets. */}
-        <div className="mt-3 card-surface rounded-2xl p-4 shadow-sm">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {RULES.map((r) => {
-              const on = ruleCadence === r.key;
-              const monthly = r.key === "monthly_date";
-              return (
-                <div
-                  key={r.key}
-                  onClick={() => setRuleCadence(r.key)}
-                  className={`flex cursor-pointer flex-col gap-4 rounded-xl p-4 transition-[background-color,box-shadow] duration-200 ${
-                    on ? "bg-foreground/[0.05] ring-1 ring-blue-400/50" : "bg-foreground/[0.02] hover:bg-foreground/[0.04]"
-                  }`}
-                >
-                  <button type="button" aria-pressed={on} className="flex items-start gap-3 text-left outline-none!">
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${r.tint}`}>
-                      <r.Icon size={16} />
-                    </span>
-                    <span className="flex-1">
-                      <span className="block text-sm font-medium">{r.title}</span>
-                      <span className="block text-xs text-muted">{r.hint}</span>
-                    </span>
-                    <span
-                      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full transition-colors duration-200 ${
-                        on ? "bg-blue-500 text-white" : "border border-border"
-                      }`}
-                    >
-                      {on && <Check size={12} strokeWidth={3} />}
-                    </span>
-                  </button>
-                  <div
-                    className={`flex flex-wrap items-center gap-2 text-sm transition-opacity duration-200 ${
-                      on ? "" : "opacity-40"
-                    }`}
-                  >
-                    <span className="text-muted">{monthly ? "On day" : "Every"}</span>
-                    <Stepper
-                      value={monthly ? ruleDay : ruleCount}
-                      max={monthly ? 31 : 99}
-                      onChange={monthly ? setRuleDay : setRuleCount}
-                    />
-                    <span className="text-muted">
-                      {monthly ? (ruleDay >= 28 ? "of each month (month end)" : "of each month") : "deliverables"}
-                    </span>
-                  </div>
+    <div ref={wrap} className="relative">
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) {
+            setRuleCadence(cadence);
+            setRuleDay(dayOfMonth ?? 30);
+            setRuleCount(milestoneCount ?? 4);
+            setError(null);
+            place(trigger.current, { width: 300 });
+          }
+          setOpen((v) => !v);
+        }}
+        className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 text-xs text-muted transition-colors hover:border-hover hover:text-foreground"
+      >
+        <Icon size={13} />
+        {label}
+        <ChevronDown size={12} className="opacity-60" />
+      </button>
+      {open && position && (
+        <div
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
+          className="pop-in fixed z-50 flex flex-col gap-1.5 rounded-xl popover p-2 shadow-lg"
+        >
+          {/* two ways: pick one, its number right in the line it sets */}
+          {RULES.map((r) => {
+            const on = ruleCadence === r.key;
+            const monthly = r.key === "monthly_date";
+            return (
+              <div
+                key={r.key}
+                onClick={() => setRuleCadence(r.key)}
+                className={`flex cursor-pointer flex-col gap-2.5 rounded-lg p-3 transition-[background-color,box-shadow] duration-200 ${
+                  on ? "bg-foreground/[0.05] ring-1 ring-blue-400/50" : "hover:bg-foreground/[0.03]"
+                }`}
+              >
+                <button type="button" aria-pressed={on} className="flex items-center gap-2.5 text-left outline-none!">
+                  <span className={`grid size-7 shrink-0 place-items-center rounded-md ${r.tint}`}>
+                    <r.Icon size={14} />
+                  </span>
+                  <span className="flex-1 text-sm font-medium">{r.title}</span>
+                  <span className={`grid size-4.5 shrink-0 place-items-center rounded-full transition-colors duration-200 ${on ? "bg-blue-500 text-white" : "border border-border"}`}>
+                    {on && <Check size={11} strokeWidth={3} />}
+                  </span>
+                </button>
+                <div className={`flex flex-wrap items-center gap-2 text-xs transition-opacity duration-200 ${on ? "" : "opacity-40"}`}>
+                  <span className="text-muted">{monthly ? "Closes on day" : "Every"}</span>
+                  <Stepper value={monthly ? ruleDay : ruleCount} max={monthly ? 31 : 99} onChange={monthly ? setRuleDay : setRuleCount} />
+                  <span className="text-muted">{monthly ? (ruleDay >= 28 ? "(month end)" : "of the month") : "projects"}</span>
                 </div>
-              );
-            })}
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <button onClick={closeRule} className="btn btn-sm btn-ghost">
+              </div>
+            );
+          })}
+          {error && <p className="px-1 text-xs text-red-300">{error}</p>}
+          <div className="flex justify-end gap-2 px-1 pt-1">
+            <button type="button" onClick={() => setOpen(false)} className="btn btn-sm btn-ghost">
               Cancel
             </button>
-            <button onClick={saveRule} disabled={savingRule} className="btn btn-sm btn-glow disabled:opacity-60">
-              {savingRule ? "Saving…" : "Save rule"}
+            <button type="button" onClick={save} disabled={saving || !ruleCadence || !changed} className="btn btn-sm btn-glow disabled:opacity-50">
+              {saving ? "Saving…" : "Save"}
             </button>
           </div>
         </div>
-      </Reveal>
-
-      <section className="mt-4 card-surface overflow-hidden rounded-2xl shadow-sm">
-        <div className="flex items-center justify-between gap-3 px-5 py-3.5">
-          <h3 className="text-sm font-medium">
-            Invoices <span className="ml-1 text-muted tabular-nums">{invoices.length || ""}</span>
-          </h3>
-          {!showInvoiceForm && (
-            <button onClick={() => setShowInvoiceForm(true)} className="btn btn-xs btn-glow flex items-center gap-1">
-              <Plus size={13} /> New invoice
-            </button>
-          )}
-        </div>
-
-        <Reveal open={showInvoiceForm}>
-          <form
-            onSubmit={submitInvoice}
-            className="flex flex-wrap items-center gap-2 border-t border-border/60 bg-surface-2/40 px-5 py-3"
-          >
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              required
-              placeholder="Amount (₹)"
-              aria-label="Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-40 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-foreground"
-            />
-            <div className="w-48">
-              <DatePicker value={dueDate} onChange={setDueDate} placeholder="Due date" />
-            </div>
-            <div className="ml-auto flex gap-2">
-              <button type="button" onClick={() => setShowInvoiceForm(false)} className="btn btn-sm btn-ghost">
-                Cancel
-              </button>
-              <button type="submit" disabled={creating} className="btn btn-sm btn-glow disabled:opacity-60">
-                {creating ? "Creating…" : "Create invoice"}
-              </button>
-            </div>
-          </form>
-        </Reveal>
-
-        {error && <p className="border-t border-border/60 px-5 py-2 text-xs text-red-300">{error}</p>}
-
-        {invoices.length === 0 ? (
-          <div className="flex flex-col items-center gap-1.5 border-t border-border/60 px-5 py-10 text-center">
-            <Receipt size={20} className="text-muted/60" />
-            <p className="text-sm text-muted">No invoices yet</p>
-          </div>
-        ) : (
-          <div className="border-t border-border/60 text-sm">
-            <div className={`${ROW} py-2 text-xs text-muted`}>
-              <span>Amount</span>
-              <span>Due</span>
-              <span className="hidden sm:block">Raised</span>
-              <span className="text-right">Status</span>
-            </div>
-            {invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className={`${ROW} border-t border-border/40 py-2.5 transition-colors duration-150 hover:bg-foreground/[0.02]`}
-              >
-                <span className="font-medium tabular-nums">{money(Number(inv.amount))}</span>
-                <span className={inv.status === "overdue" ? "text-red-300" : "text-muted"}>
-                  {inv.dueDate ? day(inv.dueDate) : "–"}
-                </span>
-                <span className="hidden text-muted sm:block">{day(inv.createdAt)}</span>
-                <span className="justify-self-end">
-                  <Dropdown
-                    value={inv.status}
-                    pill={{ icon: <span className={`size-2 rounded-full ${STATUS_DOT[inv.status]}`} /> }}
-                    options={STATUS_OPTIONS.map((st) => ({ value: st, label: st[0].toUpperCase() + st.slice(1) }))}
-                    onChange={(v) => pickStatus(inv.id, v as InvoiceStatus)}
-                  />
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      )}
     </div>
   );
 }

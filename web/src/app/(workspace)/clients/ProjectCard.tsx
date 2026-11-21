@@ -37,10 +37,10 @@ function projectLine(project: ProjectCardData) {
 
 // The same project as one row of the list view: a small cover, the name and
 // its line, and where it stands.
-export function ProjectRow({ project, href = `/projects/${project.id}` }: { project: ProjectCardData; href?: string }) {
+export function ProjectRow({ project, href = `/projects/${project.id}`, className }: { project: ProjectCardData; href?: string; className?: string }) {
   const done = project.status === "completed";
   return (
-    <li data-project={project.id}>
+    <li data-project={project.id} className={className}>
       <PrefetchLink href={href} className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-surface-2/60">
         <span className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
           {project.coverUrl && (
@@ -71,11 +71,14 @@ export function ProjectCard({
   project,
   href = `/projects/${project.id}`,
   readOnly = false,
+  className = "",
 }: {
   project: ProjectCardData;
   href?: string;
   // the client's own page: no delete
   readOnly?: boolean;
+  // "fade-in" for one just shown
+  className?: string;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -101,7 +104,7 @@ export function ProjectCard({
   }
 
   return (
-    <div data-project={project.id} className="group relative">
+    <div data-project={project.id} className={`group relative ${className}`}>
       <PrefetchLink href={href} className="card-surface card-interactive isolate flex flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {project.coverUrl ? (

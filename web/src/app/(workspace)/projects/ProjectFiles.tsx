@@ -253,13 +253,17 @@ export function ProjectFiles({
                 );
               }
               const Icon = r.type === "delivered" ? Film : iconFor(r.type, r.name);
+              // a file with nothing to open yet reads as not there yet: its
+              // icon and name faded; its dates and buttons stay as they are
+              // (Abhishek, 21 Nov 2026)
+              const dim = r.link ? "" : "opacity-80";
               // its tags as chips; a file with none says its type, quietly
               return (
                 <li key={r.id} className="group relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-white/[0.03]">
-                  <span className="badge flex size-9 shrink-0 items-center justify-center rounded-xl">
+                  <span className={`badge flex size-9 shrink-0 items-center justify-center rounded-xl ${dim}`}>
                     <Icon size={16} />
                   </span>
-                  <span className="min-w-0 flex-1">
+                  <span className={`min-w-0 flex-1 ${dim}`}>
                     {r.link ? (
                       // the whole row opens the file; the buttons sit above it
                       <a
@@ -306,11 +310,10 @@ export function ProjectFiles({
                   <span className="flex w-[15px] shrink-0">
                     {r.link && <ArrowUpRight size={15} className="text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100" />}
                   </span>
-                  {/* Always there — hidden until hovered, nobody knew a file
-                      could be edited, and a touchscreen never hovers — but
-                      faint until the row is pointed at. */}
+                  {/* Always there, at full strength (Abhishek, 21 Nov 2026): a
+                      touchscreen never hovers, and faint read as off. */}
                   {!readOnly && r.asset && (
-                    <span className="relative z-10 flex shrink-0 items-center gap-0.5 opacity-50 transition-opacity duration-200 group-hover:opacity-100">
+                    <span className="relative z-10 flex shrink-0 items-center gap-0.5">
                       <button
                         onClick={() => setEditingId(r.id)}
                         title="Edit the name, type or link"

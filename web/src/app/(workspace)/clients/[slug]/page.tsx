@@ -12,12 +12,12 @@ import { PUBLIC_CLIENT_SELECT, PUBLIC_USER_SELECT } from "@/lib/publicUser";
 import { logoSrcAt } from "@/lib/photos";
 import { logoVersions } from "@/lib/pictureVersions";
 import { Board } from "../../Board";
-import { BillingPanel } from "../BillingPanel";
 import { ClientDeliverables } from "../ClientDeliverables";
 import { ClientInfo } from "../ClientInfo";
 import { ClientOnboarding } from "../ClientOnboarding";
 import { ClientOngoing } from "../ClientOngoing";
 import { ClientStats } from "../ClientStats";
+import { STAGE, stageLabel } from "@/lib/stages";
 import { ProjectsSection } from "../ProjectsSection";
 import { ClientAnalytics } from "../ClientAnalytics";
 import { apifyTokens } from "@/lib/apify";
@@ -56,7 +56,6 @@ function loadClient(slug: string) {
           _count: { select: { assets: true, tasks: { where: { status: { in: IN_PROGRESS } } } } },
         },
       },
-      invoices: { orderBy: { createdAt: "desc" } },
       deliverables: { orderBy: { sortOrder: "asc" } },
       onboarding: { orderBy: { sortOrder: "asc" } },
       documents: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
@@ -92,9 +91,9 @@ export default async function ClientDetailPage({
   const me = users.find((u) => u.id === sessionUserId);
   if (!me || !viewer) redirect("/login");
   // Open to the whole team: everyone should be able to see what's
-  // happening for a client, whatever their role. Billing stays admin-only
-  // (see the canSeeBilling tab below) — that's the one part of a client
-  // that isn't everybody's business.
+  // happening for a client, whatever their role. How its projects are
+  // grouped (batches or monthly, beside the Projects title) is Level 1's
+  // to set.
   const canSeeBilling = isAbhishekOrAdmin(me);
   if (!client || !seesClient(viewer, client)) notFound();
 
@@ -112,7 +111,7 @@ export default async function ClientDetailPage({
   // a Lead sees the work of their departments here, never a Founder's
   const seen = assigneeWhere(viewer);
 
-  const [feedback, tasks, deliveredSinceInvoice, clientWorkTasks, taskTags, taskCounts] = await Promise.all([
+  const [feedback, tasks, clientWorkTasks, taskTags, taskCounts] = await Promise.all([
     canSeeFeedback
       ? prisma.clientFeedback.findMany({ where: { clientId: client.id }, orderBy: { createdAt: "desc" }, take: 50 })
       : Promise.resolve([]),
@@ -120,13 +119,6 @@ export default async function ClientDetailPage({
       where: { AND: [{ status: { in: ACTIVE_STATUSES }, projectId: { in: projectIds } }, seen] },
       orderBy: { createdAt: "desc" },
       include: { assignedTo: { select: PUBLIC_USER_SELECT }, tags: true, project: { include: { client: { select: PUBLIC_CLIENT_SELECT } } } },
-    }),
-    prisma.task.count({
-      where: {
-        status: "delivered_and_uploaded",
-        projectId: { in: projectIds },
-        updatedAt: { gt: client.lastInvoicedAt ?? new Date(0) },
-      },
     }),
     // work tasks sitting on one of this client's projects — a different
     // system from the editing queue, and previously invisible here
@@ -217,11 +209,27 @@ export default async function ClientDetailPage({
       </div>
 
       <div className="mb-10">
+        {/* each opens to what it counts: a task to its window on the Task board, a project to its page */}
         <ClientStats
-          activeTasks={tasks.filter((t) => IN_PROGRESS.includes(t.status as TaskStatus)).length}
-          inProgress={live.length}
-          completed={completed.length}
-          unpaid={client.projects.filter((p) => p.invoiceStatus === "unpaid").length}
+          activeTasks={tasks
+            .filter((t) => IN_PROGRESS.includes(t.status as TaskStatus))
+            .map((t) => ({
+              id: t.id,
+              title: t.title,
+              sub: [t.project.name || t.project.type, t.assignedTo?.name].filter(Boolean).join(" · "),
+              pill: { label: stageLabel(t.status as TaskStatus, t.workflow), className: STAGE[t.status as TaskStatus].pill },
+              href: `/clients/${client.slug}?tab=tasks&task=${t.id}`,
+            }))}
+          inProgress={live.map((p) => ({ id: p.id, title: p.name || p.type, sub: `${p._count.assets} files`, cover: p.coverUrl, href: `/projects/${p.id}` }))}
+          delivered={[...completed]
+            .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
+            .map((p) => ({
+              id: p.id,
+              title: p.name || p.type,
+              sub: p.completedAt ? `Delivered ${p.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : undefined,
+              cover: p.coverUrl,
+              href: `/projects/${p.id}`,
+            }))}
         />
       </div>
 
@@ -242,7 +250,7 @@ export default async function ClientDetailPage({
                 <section>
                   <h2 className="mb-4 text-sm font-medium">Ongoing work</h2>
                   <p className="-mt-3 mb-3 text-xs text-muted">
-                    Work for the client. Once delivered, it appears in their projects.
+                    Tasks we&apos;re working on for {client.name}.
                   </p>
                   {/* everything for the client in one list, internal work too
                       (Abhishek, 20 Oct 2026) */}
@@ -270,11 +278,13 @@ export default async function ClientDetailPage({
                   clientId={client.id}
                   projects={projectCards}
                   billingOrder={billingOrder(client.projects)}
-                  invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   initialShow={show}
                   initialLayout={layout}
                   billing={{ cadence: client.billingCadence, dayOfMonth: client.billingDayOfMonth, every: client.billingMilestoneCount }}
+                  invoiceNames={(client.invoiceNames ?? {}) as Record<string, string>}
                   canMoveInvoices
+                  // Batches or Monthly, set beside the Projects title (no Billing tab, 21 Nov 2026)
+                  canSetGrouping={canSeeBilling}
                   plan={plan}
                   // the studio's own calendar day, not the server's UTC one
                   today={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
@@ -325,25 +335,6 @@ export default async function ClientDetailPage({
               />
             ),
           },
-          // Billing is money: invoice amounts, the billing rule, what's owed.
-          // Every core member could open it; it's admin + Abhishek (dev)
-          // only now, the same bar permanent deletes use.
-          ...(canSeeBilling
-            ? [{
-            key: "billing",
-            label: "Billing",
-            content: (
-              <BillingPanel
-                clientId={client.id}
-                cadence={client.billingCadence}
-                dayOfMonth={client.billingDayOfMonth}
-                milestoneCount={client.billingMilestoneCount}
-                deliveredSinceInvoice={deliveredSinceInvoice}
-                invoices={client.invoices.map((inv) => ({ ...inv, amount: inv.amount.toString() }))}
-              />
-            ),
-              }]
-            : []),
           {
             key: "info",
             label: "Client info",

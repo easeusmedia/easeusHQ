@@ -12,6 +12,7 @@ import { WORK_TASK_INCLUDE, workTaskCard } from "../workData";
 import { revalidatePath } from "next/cache";
 import { deleteForGood, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
 import type { WorkTaskStatus } from "@prisma/client";
+import { withUndo } from "@/lib/taskUndo";
 
 export type WorkTaskLink = { label: string; url: string };
 export type WorkTaskAttachment = { name: string; dataUrl: string };
@@ -227,7 +228,12 @@ async function assertCanTouch(taskId: string) {
   return task;
 }
 
-export async function updateWorkTask(input: {
+// kept as the person's step to undo (lib/taskUndo)
+export async function updateWorkTask(input: Parameters<typeof saveWorkTask>[0]): Promise<WorkTaskFormState> {
+  return withUndo([{ kind: "work", id: input.id }], () => saveWorkTask(input));
+}
+
+async function saveWorkTask(input: {
   id: string;
   assignedToId?: string;
   title: string;
@@ -280,7 +286,12 @@ export async function updateWorkTask(input: {
 // drag-and-drop: status change, and/or a new sortOrder within a column —
 // no workflow graph to check against like the client Task board has, any
 // of the four columns is a valid drop target from any other
-export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortOrder: number): Promise<WorkTaskFormState> {
+// kept as the person's step to undo (lib/taskUndo)
+export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortOrder: number) {
+  return withUndo([{ kind: "work", id: taskId }], () => moveWorkTaskNow(taskId, status, sortOrder));
+}
+
+async function moveWorkTaskNow(taskId: string, status: WorkTaskStatus, sortOrder: number): Promise<WorkTaskFormState> {
   try {
     await assertCanTouch(taskId);
   } catch (err) {
@@ -321,7 +332,7 @@ export async function deleteWorkTask(taskId: string): Promise<WorkTaskFormState>
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't delete that task." };
   }
-  await deleteForGood({ kind: "work", id: taskId });
+  await withUndo([{ kind: "work", id: taskId }], () => deleteForGood({ kind: "work", id: taskId }));
   revalidatePath("/my-tasks");
   revalidatePath("/team-work");
   return { success: true };

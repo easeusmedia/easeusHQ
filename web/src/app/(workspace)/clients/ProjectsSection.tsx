@@ -1,44 +1,41 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { Check, ChevronDown, ChevronRight, Filter, LayoutGrid, List, Pencil, Receipt } from "lucide-react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { ChevronUp, Filter, LayoutGrid, Layers, List, Plus, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Checkbox } from "../Checkbox";
+import { closeOnBackdrop } from "../dialog";
+import { GroupingSetting } from "./BillingPanel";
 import { AddProjectCard } from "./AddProjectCard";
 import { ProjectCard, ProjectRow, type ProjectCardData } from "./ProjectCard";
-import { DatePicker } from "../DatePicker";
 import { paramOrProp, setParam } from "../urlState";
-import { batchPayment, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule, type Payment } from "@/lib/invoiceBatches";
-import { arrangeProject, moveProjectToInvoice, renameInvoice, setInvoicePayment } from "./actions";
+import { batchItems, invoiceBatches, newBatchKey, pinsAfterMove, type BillingRule } from "@/lib/invoiceBatches";
+import { arrangeProject, moveProjectToInvoice, renameInvoice } from "./actions";
+import { EditableName } from "../EditableName";
 import { topLayer, usePopover, useCloseOnScroll } from "../popover";
 import { moveTo as moveInOrder } from "@/lib/reorder";
 import { DropSlot, landingIndex, useEaseAside } from "../DropSlot";
-import { EditableName } from "../EditableName";
 import type { PlanItem } from "@/lib/contentPlan";
-import { Dropdown } from "../Dropdown";
 import { Reveal } from "../Reveal";
+import { DatePicker } from "../DatePicker";
 
-const PRESETS = [4, 8, 12] as const;
-
-const PAYMENT: Record<Payment, { label: string; className: string }> = {
-  paid: { label: "Paid", className: "border-green-400/30 bg-green-400/15 text-green-300" },
-  unpaid: { label: "Unpaid", className: "border-amber-400/30 bg-amber-400/15 text-amber-300" },
-  part_paid: { label: "Part paid", className: "border-amber-400/30 bg-amber-400/10 text-amber-300" },
-  not_sent: { label: "Not invoiced yet", className: "border-border bg-surface text-muted" },
-  not_marked: { label: "Payment not marked", className: "border-border bg-surface text-muted" },
-};
-const DEFAULT_PRESET: (typeof PRESETS)[number] = 4;
+// the latest few, before "+N more"
+const LATEST = 4;
+// by invoice, or the latest; "-all" once "+N more" is pressed
+const VIEWS = ["invoice", "invoice-all", "latest", "all"] as const;
+type View = (typeof VIEWS)[number];
 
 // Projects already come in most-recent-first. Default view is just the
 // last few — a client with a year of episodes shouldn't dump all of them
-// on the page at once. Every way to widen that (a bigger preset, "All", or
-// a specific date range) lives behind one Filter button instead of a row
-// of separate controls.
+// on the page at once; "+N more" shows the rest, and search and Filter
+// narrow them down.
 //
 // What's on show lives in the URL (?show=), for the same reason the open tab
 // does: expanding to all 22 projects, opening one, and pressing Back used to
 // collapse straight back to 4 — the project you'd just been looking at
 // wasn't even on the page any more. It also has to be in the URL for scroll
-// restoration to have anything to restore *to*, since the filter is what
-// decides how tall this page is (see MainScroll).
+// restoration to have anything to restore *to*, since it decides how tall
+// this page is (see MainScroll).
 export function ProjectsSection({
   clientId,
   projects,
@@ -49,8 +46,9 @@ export function ProjectsSection({
   projectBase,
   canMoveInvoices = false,
   plan,
-  invoiceNames = {},
   billingOrder,
+  invoiceNames = {},
+  canSetGrouping = false,
 }: {
   clientId: string;
   projects: ProjectCardData[];
@@ -69,56 +67,64 @@ export function ProjectsSection({
   canMoveInvoices?: boolean;
   // the client's content blueprint, for a new project's planned tasks
   plan?: PlanItem[];
-  // invoices given their own names, by key (Client.invoiceNames)
-  invoiceNames?: Record<string, string>;
   // the ids in the order invoices count them in (lib/projectOrder), so
   // dragging a card never moves it to another invoice; else as listed
   billingOrder?: string[];
+  // names given to invoices by hand (Client.invoiceNames), shown instead of "Batch 6"
+  invoiceNames?: Record<string, string>;
+  // Level 1: how the projects are grouped, set here (GroupingSetting)
+  canSetGrouping?: boolean;
 }) {
-  // "invoice": every project, in sections, one per invoice
-  const [preset, setPreset] = useState<number | "all" | "invoice">(() => {
+  // "invoice": every project, in sections, one per invoice ("invoice-all"
+  // once "+N more" is pressed); "latest": the last few; "all": every one.
+  // Null: the default, worked out below once the invoices are known.
+  const [picked, setPreset] = useState<View | null>(() => {
     const show = paramOrProp("show", initialShow);
-    if (show === "all" || show === "invoice") return show;
-    const n = Number(show);
-    return (PRESETS as readonly number[]).includes(n) ? n : DEFAULT_PRESET;
+    return (VIEWS as readonly string[]).includes(show ?? "") ? (show as View) : null;
   });
-  // covers in a grid, or one project a row (?layout=list)
-  const [list, setList] = useState(() => paramOrProp("layout", initialLayout) === "list");
-  const [batchKey, setBatchKey] = useState<string | null>(null);
+  // a project found by its name, whatever the view (Abhishek, 21 Nov 2026)
+  const [query, setQuery] = useState("");
+  // narrowed to what needs managing (Abhishek, 21 Nov 2026): where each one
+  // is, and whether it's been paid for
+  const [status, setStatus] = useState<"all" | "progress" | "done">("all");
+  // and from when to when (yyyy-mm-dd, on the day it was finished, else made)
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  // the list eases in when you change the view, not when the page arrives
-  // (moving from one client to the next keeps everything still)
-  const view = `${list}-${preset}-${batchKey}-${from}-${to}`;
-  const [firstView] = useState(view);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  // covers in a grid, or one project a row (?layout=list)
+  const [list, setList] = useState(() => paramOrProp("layout", initialLayout) === "list");
+  // "+N more" pressed here: the projects it adds ease in, and only they
+  // (Abhishek, 21 Nov 2026: the whole list flickered)
+  const [grew, setGrew] = useState(false);
+  // a moment before it grows, for the "+N more" card to fade out first
+  const [phase, setPhase] = useState<"growing" | null>(null);
+  // just folded: the "+N more" card eases back in
+  const [folded, setFolded] = useState(false);
 
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
-
-  // an invoice covers finished work, so only finished projects count — which
-  // also keeps out the catch-all project each client's tasks live in
-  //
   // A move shows at once: its pins apply here until the saved ones arrive
   // with the refreshed projects (a new `projects` array drops them).
   const [optimistic, setOptimistic] = useState<{ base: ProjectCardData[]; pins: Record<string, string> } | null>(null);
   const pins = optimistic?.base === projects ? optimistic.pins : {};
   const billed = new Map(billingOrder?.map((id, i) => [id, i]));
+  // Every project is in an invoice (Abhishek, 21 Nov 2026: "why Not finished
+  // yet?"): finished work by its day (marked Completed counts, with or
+  // without a finish date: Notion's often have none), and what's still being
+  // made after it, in the invoice that's open, as it will be billed
+  const finished = (p: ProjectCardData) => p.status === "completed" || !!p.completedAt;
   const batches = invoiceBatches(
-    // finished work, and anything already put in an invoice by hand
-    projects
-      .filter((p) => p.completedAt || pins[p.id] || p.invoiceBatch)
-      .sort((a, b) => (billed.get(a.id) ?? 0) - (billed.get(b.id) ?? 0))
-      .map((p) => ({ id: p.id, date: p.date, pin: pins[p.id] ?? p.invoiceBatch, open: !p.completedAt })),
+    batchItems(
+      [...projects]
+        .sort((a, b) => (billed.get(a.id) ?? 0) - (billed.get(b.id) ?? 0))
+        .map((p) => ({ id: p.id, finished: finished(p), date: p.date, pin: pins[p.id] ?? p.invoiceBatch })),
+      today
+    ),
     billing,
     today
   ).map((b) => (invoiceNames[b.key] ? { ...b, label: invoiceNames[b.key] } : b));
+  // Opened by invoice wherever there are invoices (Abhishek, 21 Nov 2026:
+  // "organise the projects with the invoice batching"), the client's own
+  // page too; there each invoice's paid state shows, never changed
+  const defaultView: View = batches.length ? "invoice" : "latest";
+  const preset = picked ?? defaultView;
   const nextKey = newBatchKey(batches, billing);
   const canMove = canMoveInvoices && !projectBase;
   const [dragId, setDragId] = useState<string | null>(null);
@@ -180,51 +186,105 @@ export function ProjectsSection({
           },
         }
       : {};
-  const batch = batches.find((b) => b.key === batchKey) ?? null;
-  const dateFilterActive = !!(from || to);
-  // the By invoice view (the switch beside Filter) — its own way of seeing
-  // everything, so the filters step aside while it's on
-  const grouped = preset === "invoice" && batches.length > 0;
+  // by invoice, unless a search is on
+  const q = query.trim().toLowerCase();
+  const filtering = status !== "all" || !!from || !!to;
+  // a project's date is yyyy-mm-dd, so comparing the strings compares the days
+  const matches = (p: ProjectCardData) =>
+    (status === "all" || (status === "done") === (p.status === "completed")) &&
+    (!from || p.date >= from) &&
+    (!to || p.date <= to);
+  const grouped = !q && (preset === "invoice" || preset === "invoice-all") && batches.length > 0;
   // what isn't finished yet belongs to no invoice, so it leads, on its own
-  const unfinished = projects.filter((p) => !p.completedAt && !batches.some((b) => b.ids.includes(p.id)));
-  const groups = grouped
+  const unfinished = projects.filter((p) => !finished(p) && !batches.some((b) => b.ids.includes(p.id)));
+  const allGroups = grouped
     ? [
         ...(unfinished.length
-          ? [{ key: "unfinished", label: "Not finished yet", detail: `${unfinished.length} project${unfinished.length === 1 ? "" : "s"}`, items: unfinished, payment: null }]
+          ? [{ key: "unfinished", label: "Not finished yet", detail: `${unfinished.length} project${unfinished.length === 1 ? "" : "s"}`, items: unfinished, complete: false }]
           : []),
         ...batches.map((b) => {
           const items = projects.filter((p) => b.ids.includes(p.id));
-          return { key: b.key, label: b.label, detail: b.detail, items, payment: batchPayment(items.map((p) => p.invoiceStatus), b.complete) };
+          return { key: b.key, label: b.label, detail: b.detail, items, complete: b.complete };
         }),
       ]
     : [];
-  // By invoice is a ledger, not a wall of cards: one row per invoice, closed,
-  // opened on a click. Only the first starts open — what's in hand right
-  // now (the unfinished work, else the current invoice).
-  // Stored as what's been flipped from that default rather than what's open,
-  // so switching into this view later still opens the first one.
-  const [flipped, setFlipped] = useState<Set<string>>(() => new Set());
-  // the invoice whose name is being changed (its pencil, ops only)
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const toggleGroup = (key: string) =>
-    setFlipped((cur) => {
-      const next = new Set(cur);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
+  // filtered, an invoice keeps only what matches, and goes if nothing does
+  const groups = filtering ? allGroups.map((g) => ({ ...g, items: g.items.filter(matches) })).filter((g) => g.items.length) : allGroups;
+  // the latest invoices, whole, until there are a few projects on show,
+  // then "+N more" below them all (Abhishek, 21 Nov 2026: a card cut out of
+  // an invoice read as part of it)
+  let counted = 0;
+  const firstGroups = groups.filter((g) => {
+    if (counted >= LATEST) return false;
+    counted += g.items.length;
+    return true;
+  });
+  // filtered: every match, no "+N more"
+  // and the last of those cut to 3, the "+N more" card after them (Abhishek, 21 Nov 2026)
+  // (its heading still counts every project in it: `total`)
+  const collapsed = firstGroups.map((g, i) => (i === firstGroups.length - 1 && g.items.length > 3 ? { ...g, items: g.items.slice(0, 3), total: g.items.length } : g));
+  const collapsedIds = new Set(collapsed.flatMap((g) => g.items.map((p) => p.id)));
+  const shownGroups = preset === "invoice" && !filtering ? collapsed : groups;
+  // the list eases in when you change the view, not when the page arrives
+  // (moving from one client to the next keeps everything still), nor when
+  // it only grows
+  const view = `${list}-${grouped}-${!!q}`;
+  const [firstView] = useState(view);
+  const shownIds = new Set(shownGroups.flatMap((g) => g.items.map((p) => p.id)));
+  const hiddenItems = groups.flatMap((g) => g.items).filter((p) => !shownIds.has(p.id));
+  const groupedHidden = hiddenItems.length;
 
-  // date is an ISO yyyy-mm-dd string, so a plain lexical comparison against
-  // the picker's own yyyy-mm-dd values is already a correct date compare
-  const dateFiltered = ordered.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
-  const visible = batch
-    ? ordered.filter((p) => batch.ids.includes(p.id))
-    : dateFilterActive
-      ? dateFiltered
-      : preset === "all" || preset === "invoice"
-        ? ordered
-        : ordered.slice(0, preset);
-  const hiddenCount = projects.length - visible.length;
-  const isDefault = !batch && !dateFilterActive && preset === DEFAULT_PRESET;
+  const visible =
+    q || filtering
+      ? ordered.filter((p) => (!q || p.name.toLowerCase().includes(q)) && matches(p))
+      : preset === "latest"
+        ? ordered.slice(0, LATEST)
+        : ordered;
+  const hiddenCount = q || filtering ? 0 : projects.length - visible.length;
+  const fresh = new Set(
+    grew ? (grouped ? groups.flatMap((g) => g.items).filter((p) => !collapsedIds.has(p.id)) : visible.slice(LATEST)).map((p) => p.id) : [],
+  );
+  // Everything moves (Abhishek, 21 Nov 2026: "should appear smoothly, not
+  // instantly"): the "+N more" card fades, then the list grows, its height
+  // easing (AutoHeight) and the new cards fading in; folding is the same
+  // backwards, the cards going first
+  const STEP = 160;
+  const more = (to: View) => {
+    if (phase) return;
+    setPhase("growing");
+    setTimeout(() => {
+      setPhase(null);
+      setFolded(false);
+      setGrew(true);
+      selectPreset(to);
+    }, STEP);
+  };
+  // everything shown after "+N more": folds back to the first few (Abhishek,
+  // 21 Nov 2026: "can't it be collapsible?"), the list's top back in view
+  const top = useRef<HTMLDivElement>(null);
+  const canFold = !q && !filtering && (grouped ? preset === "invoice-all" && groups.some((g) => g.items.some((p) => !collapsedIds.has(p.id))) : preset === "all" && projects.length > LATEST);
+  // Folding is at once (Abhishek, 21 Nov 2026: fading everything first, then
+  // scrolling, then folding left the "+N more" card coming far too late):
+  // the list folds, and before it's painted the page is moved so the card
+  // is in view, where the bottom of the long list was
+  const folding = useRef(false);
+  function fold() {
+    if (phase) return;
+    folding.current = true;
+    setGrew(false);
+    setFolded(true);
+    selectPreset(preset === "invoice-all" ? "invoice" : "latest");
+  }
+  useLayoutEffect(() => {
+    if (!folding.current) return;
+    folding.current = false;
+    const card = top.current?.querySelector<HTMLElement>("[data-more]");
+    const r = card?.getBoundingClientRect();
+    if (card && r && (r.top < 0 || r.bottom > window.innerHeight)) card.scrollIntoView({ block: "center" });
+  }, [preset]);
+  // a card's way in or out
+  const motion = (id: string) => (fresh.has(id) ? "fade-in" : "");
+  const moreMotion = phase === "growing" ? "fade-out" : folded ? "fade-in" : "";
 
   // the slot, unless dropping there would leave the project where it is
   const rest = visible.filter((p) => p.id !== dragId);
@@ -287,194 +347,102 @@ export function ProjectsSection({
       }
     : {};
 
-  // one filter at a time — a batch, a preset, or a date range
-  function selectBatch(key: string) {
-    setBatchKey(key);
-    setFrom("");
-    setTo("");
-    setOpen(false);
-  }
-  function pickDate(set: (v: string) => void, v: string) {
-    setBatchKey(null);
-    set(v);
-  }
-
-  function selectPreset(p: number | "all" | "invoice") {
-    setBatchKey(null);
-    setPreset(p);
-    setFrom("");
-    setTo("");
-    setOpen(false);
-    setParam("show", p === DEFAULT_PRESET ? null : String(p));
+  function selectPreset(p: View) {
+    setPreset(p === defaultView ? null : p);
+    setParam("show", p === defaultView ? null : p);
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* title · how to view, centred · what to show */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-medium">Projects</h2>
-        </div>
-        <div className="flex gap-0.5 rounded-lg panel-soft p-0.5">
-          {(
-            [
-              [false, LayoutGrid, "Grid"],
-              [true, List, "List"],
-            ] as const
-          ).map(([on, Icon, label]) => (
-            <button
-              key={label}
-              onClick={() => {
-                setList(on);
-                setParam("layout", on ? "list" : null);
-              }}
-              aria-pressed={list === on}
-              className="seg flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
-            >
-              <Icon size={12} /> {label}
-            </button>
-          ))}
-        </div>
-
-        <div ref={ref} className="relative flex items-center gap-2 justify-self-end">
-          {!isDefault && (
-            <button onClick={() => selectPreset(DEFAULT_PRESET)} className="text-xs text-muted hover:text-foreground">
-              Reset
-            </button>
-          )}
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs ${
-              isDefault
-                ? "border-border bg-surface-2 text-muted hover:text-foreground"
-                : "border-hover bg-hover text-foreground"
-            }`}
-          >
-            <Filter size={12} />
-            {isDefault
-              ? "Filter"
-              : grouped
-                ? "By invoice"
-                : batch
-                ? batch.label
-                : dateFilterActive
-                  ? "Custom range"
-                  : typeof preset === "number"
-                    ? `Last ${preset}`
-                    : "All"}
-          </button>
-
-          {open && (
-            // never wider than the screen, so it can't run off a phone's edge
-            <div className="pop-in absolute right-0 top-full z-20 mt-1 w-[min(21.5rem,calc(100vw-2rem))] rounded-lg popover p-3 shadow-xl">
-              {/* how to look at them: as a list, or split into the invoices
-                  they were billed in — only where the client has a rule */}
-              {batches.length > 0 && (
-                <>
-                  <p className="mb-1.5 text-xs font-medium text-muted">View</p>
-                  <div className="mb-3 flex gap-1.5">
-                    {(
-                      [
-                        [false, LayoutGrid, "Projects"],
-                        [true, Receipt, "By invoice"],
-                      ] as const
-                    ).map(([on, Icon, label]) => (
-                      <button
-                        key={label}
-                        onClick={() => selectPreset(on ? "invoice" : DEFAULT_PRESET)}
-                        aria-pressed={grouped === on}
-                        className="chip flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-                      >
-                        <Icon size={12} /> {label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* the by-invoice view already shows everything, so the ways of
-                  narrowing a list only apply to the list */}
-              {!grouped && (
-                <>
-                  <p className="mb-1.5 text-xs font-medium text-muted">Show</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PRESETS.map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => selectPreset(p)}
-                        aria-pressed={!batch && !dateFilterActive && preset === p}
-                        className="chip rounded-full px-2.5 py-1 text-xs"
-                      >
-                        Last {p}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => selectPreset("all")}
-                      aria-pressed={!batch && !dateFilterActive && preset === "all"}
-                      className="chip rounded-full px-2.5 py-1 text-xs"
-                    >
-                      All
-                    </button>
-                  </div>
-
-                  <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Date range</p>
-                  <div className="flex flex-col gap-2">
-                    <DatePicker value={from} onChange={(v) => pickDate(setFrom, v)} placeholder="From…" />
-                    <DatePicker value={to} onChange={(v) => pickDate(setTo, v)} placeholder="To…" />
-                  </div>
-                  {dateFilterActive && (
-                    <button
-                      onClick={() => {
-                        setFrom("");
-                        setTo("");
-                      }}
-                      className="mt-2 text-xs text-muted hover:text-foreground"
-                    >
-                      Clear dates
-                    </button>
-                  )}
-
-                  {/* One invoice's worth of work, by the client's billing rule
-                      (every N projects, or once a month). A single field like the
-                      dates above, named the way the invoice itself is. */}
-                  <p className="mb-1.5 mt-3 text-xs font-medium text-muted">Invoice</p>
-                  {batches.length > 0 ? (
-                    <Dropdown
-                      key={batchKey ?? "any"}
-                      defaultValue={batchKey ?? ""}
-                      placeholder="Any invoice"
-                      onChange={(v) => (v ? selectBatch(v) : setBatchKey(null))}
-                      options={[
-                        ...batches.map((b) => ({ value: b.key, label: `${b.label} · ${b.detail}` })),
-                      ]}
-                    />
-                  ) : (
-                    <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted">
-                      {billing.cadence ? "No finished projects to invoice yet" : "No invoicing rule set for this client"}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+    <div ref={top} className="flex flex-col gap-4 scroll-mt-4">
+      {/* the title on the left, the tools together on the right (Abhishek, 21
+          Nov 2026: "not balanced"); on a phone the tools take their own line */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* with how many, as a project's Files heading has */}
+        <h2 className="text-lg font-semibold tracking-tight">
+          Projects <span className="ml-1 text-base font-normal text-muted tabular-nums">{projects.length}</span>
+        </h2>
+        {canSetGrouping && !projectBase && (
+          <GroupingSetting clientId={clientId} cadence={billing.cadence} dayOfMonth={billing.dayOfMonth} milestoneCount={billing.every} />
+        )}
+        {/* a batch made by hand, from the projects picked for it (Abhishek,
+            21 Nov 2026); months make themselves */}
+        {canMove && billing.cadence !== "monthly_date" && nextKey?.startsWith("batch-") && (
+          <NewBatch
+            clientId={clientId}
+            nextKey={nextKey}
+            projects={projects.map((p) => ({ id: p.id, name: p.name, cover: p.coverUrl, batch: batches.find((b) => b.ids.includes(p.id))?.label ?? null }))}
+          />
+        )}
+        <div className="ml-auto flex w-full items-center gap-2 sm:w-auto">
+          {/* any project by its name, whichever view is on */}
+          <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-2.5 text-xs text-muted transition-colors focus-within:border-hover focus-within:text-foreground sm:w-72 sm:flex-none">
+            <Search size={13} className="shrink-0" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+              placeholder="Search projects"
+              aria-label="Search projects"
+              className="min-w-0 flex-1 bg-transparent text-foreground outline-none! placeholder:text-muted"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="shrink-0 hover:text-foreground">
+                <X size={12} />
+              </button>
+            )}
+          </label>
+          <ProjectFilter
+            status={status}
+            onStatus={setStatus}
+            from={from}
+            to={to}
+            today={today}
+            onDates={(f, t) => {
+              setFrom(f);
+              setTo(t);
+            }}
+          />
+          {/* the same height, edge and fill as the search and Filter beside it */}
+          <div className="flex h-8 shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5">
+            {(
+              [
+                [false, LayoutGrid, "Grid"],
+                [true, List, "List"],
+              ] as const
+            ).map(([on, Icon, label]) => (
+              <button
+                key={label}
+                onClick={() => {
+                  setList(on);
+                  setParam("layout", on ? "list" : null);
+                }}
+                aria-pressed={list === on}
+                aria-label={label}
+                title={label}
+                className="seg flex h-full items-center gap-1.5 rounded-md px-2.5 text-xs"
+              >
+                <Icon size={13} />
+                <span className="hidden md:inline">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {moveError && <p className="text-xs text-red-300">{moveError}</p>}
+      <AutoHeight>
       <div key={view} className={view !== firstView ? "fade-in" : undefined}>
       {grouped ? (
-        <div className="flex flex-col gap-2">
-          {canMove && batches.length > 0 && (
-            <p className="text-xs text-muted">
-              Drag a finished project onto another invoice to move it there.
-            </p>
-          )}
-          {/* only while dragging: somewhere to start the next invoice */}
-          {canMove && nextKey && (
-            <Reveal open={!!dragId}>
+        <div className="flex flex-col gap-8">
+          {filtering && groups.length === 0 && <p className="text-sm text-muted">No projects match these filters.</p>}
+          {/* only while dragging: somewhere to start the next invoice. In the
+              list only then, or its closed box still took a gap's room at
+              the top (Abhishek, 21 Nov 2026: "so much space") */}
+          {canMove && nextKey && dragId && (
+            <Reveal open>
               <div
                 {...dropTarget(nextKey)}
-                className={`rounded-xl border px-4 py-3 text-center text-sm transition-colors duration-150 ${
+                className={`fade-in rounded-xl border px-4 py-3 text-center text-sm transition-colors duration-150 ${
                   over === nextKey ? "border-blue-400/60 bg-blue-400/[0.08] text-foreground" : "border-border/60 bg-surface/40 text-muted"
                 }`}
               >
@@ -482,140 +450,113 @@ export function ProjectsSection({
               </div>
             </Reveal>
           )}
-          {groups.map((g, i) => {
-            const isOpen = (i === 0) !== flipped.has(g.key);
-            const covers = g.items.map((p) => p.coverUrl).filter(Boolean).slice(0, 3) as string[];
-            return (
-              <section
-                key={g.key}
-                {...(g.key === "unfinished" ? {} : dropTarget(g.key))}
-                className={`overflow-hidden rounded-xl border transition-colors duration-150 ${
-                  over === g.key ? "border-blue-400/60 bg-blue-400/[0.06]" : "border-border/60 bg-surface/40"
-                }`}
-              >
-                {/* a row, not a button, so the invoice's name can be renamed in it */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleGroup(g.key)}
-                  onKeyDown={(e) => {
-                    // the row's own keys, not its pencil's
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleGroup(g.key);
-                    }
-                  }}
-                  aria-expanded={isOpen}
-                  // focus shows as the hover wash: a square outline is cut off by the card's rounded corner
-                  className="group/inv flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60 focus-visible:bg-surface-2/60 focus-visible:outline-none!"
-                >
-                  <ChevronRight
-                    size={14}
-                    className={`shrink-0 text-muted transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+          {/* each invoice a heading, then its projects as the grid always
+              shows them (Abhishek, 21 Nov 2026: the folding rows read badly) */}
+          {shownGroups.map((g, i) => (
+            <section
+              key={g.key}
+              {...(g.key === "unfinished" ? {} : dropTarget(g.key))}
+              // cards and rows are links, which the browser already lets you
+              // drag; this just notes which project it is
+              onDragStart={(e) => {
+                const card = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-project]") : null;
+                if (!canMove || g.key === "unfinished" || !card?.dataset.project) return;
+                e.dataTransfer.effectAllowed = "move";
+                // the card itself under the pointer, cover and all, not the
+                // browser's picture of a link (Abhishek, 21 Nov 2026)
+                const r = card.getBoundingClientRect();
+                e.dataTransfer.setDragImage(card, e.clientX - r.left, e.clientY - r.top);
+                dragged.current = card;
+                setDragId(card.dataset.project);
+                // faded where it was, once the browser has its picture
+                setTimeout(() => {
+                  if (dragged.current === card) card.style.opacity = "0.4";
+                });
+              }}
+              onDragEnd={endDrag}
+              className={`-mx-2 flex flex-col gap-3 rounded-xl p-2 transition-colors duration-150 ${over === g.key ? "bg-blue-400/[0.06] ring-1 ring-blue-400/50" : ""} ${
+                firstGroups.includes(g) ? "" : grew ? "fade-in" : ""
+              }`}
+            >
+              {/* The invoice's own line (Abhishek, 21 Nov 2026: "more modern"):
+                  its name, its dates or how far along it is,
+                  then a hairline running out to the edge */}
+              <div className="group/inv flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1.5">
+                {/* "Batch 6" or the month, or the name it was given, and only
+                    the one; renamed where it reads (Abhishek, 21 Nov 2026) */}
+                {canMove && g.key !== "unfinished" ? (
+                  <EditableName
+                    name={g.label}
+                    pencil="always"
+                    onSave={async (name) => (await renameInvoice(clientId, g.key, name)).error}
+                    className="text-base font-semibold tracking-tight"
                   />
-                  <span className="min-w-0">
-                    {renaming === g.key ? (
-                      <EditableName
-                        name={g.label}
-                        editing
-                        onEditingChange={(on) => !on && setRenaming(null)}
-                        onSave={async (name) => (await renameInvoice(clientId, g.key, name)).error}
-                        className="text-sm font-medium"
-                      />
-                    ) : (
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="block truncate text-sm font-medium">{g.label}</span>
-                        {canMove && g.key !== "unfinished" && (
-                          <button
-                            type="button"
-                            title="Rename"
-                            aria-label={`Rename ${g.label}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRenaming(g.key);
-                            }}
-                            className="shrink-0 rounded text-muted opacity-0 transition-opacity duration-200 group-hover/inv:opacity-100 hover:text-foreground focus-visible:opacity-100"
-                          >
-                            <Pencil size={11} />
-                          </button>
-                        )}
+                ) : (
+                  <span className="truncate text-base font-semibold tracking-tight">{g.label}</span>
+                )}
+                {(() => {
+                  // an open invoice: how many of its projects are done, as a row of steps
+                  const open = /^(\d+) of (\d+) done$/.exec(g.detail);
+                  // one slim bar per project the invoice holds, the done ones
+                  // filled (Abhishek, 21 Nov 2026), flat: no glow, no edge
+                  return open ? (
+                    <span className="flex items-center gap-2 text-xs text-muted tabular-nums">
+                      <span className="flex items-center gap-1" aria-hidden>
+                        {Array.from({ length: Math.min(Number(open[2]), 20) }, (_, n) => (
+                          <span key={n} className={`h-1 w-4 rounded-[2px] ${n < Number(open[1]) ? "bg-accent" : "bg-white/15"}`} />
+                        ))}
                       </span>
-                    )}
-                    <span className="block truncate text-xs text-muted">
                       {g.detail}
-                      {g.key !== "unfinished" && ` · ${g.items.length} project${g.items.length === 1 ? "" : "s"}`}
-                    </span>
-                  </span>
-                  {/* a glance at what's in it, without opening it */}
-                  {covers.length > 0 && (
-                    <span className="ml-auto hidden shrink-0 -space-x-3 sm:flex">
-                      {covers.map((c, j) => (
-                        // eslint-disable-next-line @next/next/no-img-element -- small local thumbnails
-                        <img
-                          key={j}
-                          src={c}
-                          alt=""
-                          className="h-8 w-14 rounded-md border-2 border-background object-cover"
-                        />
-                      ))}
-                    </span>
-                  )}
-                  {g.payment && canMove ? (
-                    <PaymentPill payment={g.payment} className={covers.length ? "" : "ml-auto"} onPick={(s) => setInvoicePayment(clientId, g.key, s)} />
-                  ) : g.payment ? (
-                    <span
-                      className={`${covers.length ? "" : "ml-auto"} shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${PAYMENT[g.payment].className}`}
-                    >
-                      {PAYMENT[g.payment].label}
                     </span>
                   ) : (
-                    !covers.length && <span className="ml-auto" />
+                    // its dates and size, said once
+                    <span className="truncate text-xs text-muted tabular-nums">
+                      {g.detail}
+                      {!/project|done/.test(g.detail) && (() => {
+                        // every project in the invoice, not just those shown before "+N more"
+                        const n = "total" in g && typeof g.total === "number" ? g.total : g.items.length;
+                        return ` · ${n} project${n === 1 ? "" : "s"}`;
+                      })()}
+                    </span>
+                  );
+                })()}
+                <span aria-hidden className="h-px min-w-8 flex-1 bg-gradient-to-r from-white/[0.08] to-transparent" />
+              </div>
+              {list ? (
+                <div className="flex flex-col gap-3">
+                  {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
+                  <ProjectRows projects={g.items} projectBase={projectBase} motion={motion} />
+                  {i === shownGroups.length - 1 && groupedHidden > 0 && (
+                    <button data-more onClick={() => more("invoice-all")} className={`self-start text-xs text-muted hover:text-foreground ${moreMotion}`}>
+                      Show {groupedHidden} more
+                    </button>
                   )}
                 </div>
-                <Reveal open={isOpen}>
-                  <div
-                    className="border-t border-border/60 p-3"
-                    // cards and rows are links, which the browser already
-                    // lets you drag; this just notes which project it is
-                    onDragStart={(e) => {
-                      const id =
-                        e.target instanceof Element ? e.target.closest("[data-project]")?.getAttribute("data-project") : null;
-                      if (!canMove || g.key === "unfinished" || !id) return;
-                      e.dataTransfer.effectAllowed = "move";
-                      setDragId(id);
-                    }}
-                    onDragEnd={endDrag}
-                  >
-                    {list ? (
-                      <div className="flex flex-col gap-3">
-                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
-                        <ProjectRows projects={g.items} projectBase={projectBase} />
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
-                        {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
-                        {g.items.map((p) => (
-                          <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </Reveal>
-              </section>
-            );
-          })}
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+                  {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
+                  {g.items.map((p) => (
+                    <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
+                  ))}
+                  {/* the older invoices, right after the last one shown (Abhishek, 21 Nov 2026) */}
+                  {i === shownGroups.length - 1 && groupedHidden > 0 && (
+                    <MoreProjectsCard count={groupedHidden} cover={hiddenItems[0]?.coverUrl ?? null} onClick={() => more("invoice-all")} className={moreMotion} />
+                  )}
+                </div>
+              )}
+            </section>
+          ))}
         </div>
       ) : list ? (
         <div {...arrangeable} className="flex flex-col gap-3">
           {!projectBase && <AddProjectCard clientId={clientId} plan={plan} row />}
-          <ProjectRows ref={arrangeRef} projects={visible} projectBase={projectBase} slot={{ at: slotAt, height: dragHeight, dragId }} />
-          {!batch && !dateFilterActive && hiddenCount > 0 && (
-            <button onClick={() => selectPreset("all")} className="self-start text-xs text-muted hover:text-foreground">
+          <ProjectRows ref={arrangeRef} projects={visible} projectBase={projectBase} slot={{ at: slotAt, height: dragHeight, dragId }} motion={motion} />
+          {hiddenCount > 0 && (
+            <button data-more onClick={() => more("all")} className={`self-start text-xs text-muted hover:text-foreground ${moreMotion}`}>
               Show {hiddenCount} more
             </button>
           )}
-          {dateFilterActive && visible.length === 0 && <p className="text-sm text-muted">No projects in that range.</p>}
+          {(q || filtering) && visible.length === 0 && <p className="text-sm text-muted">{q ? <>No projects match &ldquo;{query.trim()}&rdquo;.</> : "No projects match these filters."}</p>}
         </div>
       ) : (
         <div
@@ -629,23 +570,301 @@ export function ProjectsSection({
           {visible.map((p) => (
             <Fragment key={p.id}>
               {slotAt >= 0 && rest[slotAt]?.id === p.id && <DropSlot height={dragHeight} />}
-              <ProjectCard project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} />
+              <ProjectCard project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
             </Fragment>
           ))}
           {slotAt >= 0 && slotAt >= rest.length && <DropSlot height={dragHeight} />}
-          {!batch && !dateFilterActive && hiddenCount > 0 && (
+          {hiddenCount > 0 && (
             <MoreProjectsCard
               count={hiddenCount}
               cover={ordered[visible.length]?.coverUrl ?? null}
-              onClick={() => selectPreset("all")}
+              onClick={() => more("all")}
+              className={moreMotion}
             />
           )}
-          {dateFilterActive && visible.length === 0 && (
-            <p className="col-span-full text-sm text-muted">No projects in that range.</p>
+          {(q || filtering) && visible.length === 0 && (
+            <p className="col-span-full text-sm text-muted">{q ? <>No projects match &ldquo;{query.trim()}&rdquo;.</> : "No projects match these filters."}</p>
           )}
         </div>
       )}
       </div>
+      </AutoHeight>
+      {canFold && (
+        <button
+          type="button"
+          onClick={fold}
+          className="fade-in flex items-center gap-1 self-center text-xs text-muted transition-colors hover:text-foreground"
+        >
+          <ChevronUp size={12} /> Show less
+        </button>
+      )}
+    </div>
+  );
+}
+
+// A new batch, from the projects ticked for it: each moved there as a drag
+// onto it would (moveProjectToInvoice), then given its name if one's typed
+function NewBatch({ clientId, nextKey, projects }: { clientId: string; nextKey: string; projects: { id: string; name: string; cover: string | null; batch: string | null }[] }) {
+  const router = useRouter();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const number = nextKey.replace("batch-", "");
+  const toggle = (id: string, on: boolean) =>
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  async function create() {
+    if (!picked.size || busy) return;
+    setBusy(true);
+    setError(null);
+    for (const id of picked) {
+      const res = await moveProjectToInvoice(id, nextKey).catch(() => ({ error: "That couldn't be saved. Check your connection and try again." }));
+      if (res.error) {
+        setBusy(false);
+        return setError(res.error);
+      }
+    }
+    if (name.trim()) await renameInvoice(clientId, nextKey, name.trim()).catch(() => null);
+    setBusy(false);
+    dialog.current?.close();
+    router.refresh();
+  }
+  return (
+    <>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => {
+          setPicked(new Set());
+          setName("");
+          setError(null);
+          dialog.current?.showModal();
+        }}
+        className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 text-xs text-muted transition-colors hover:border-hover hover:text-foreground"
+      >
+        <Plus size={13} /> New batch
+      </button>
+      <dialog
+        ref={dialog}
+        {...closeOnBackdrop}
+        aria-label="New batch"
+        className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(40rem,calc(100vh-4rem))] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground"
+      >
+        <div className="pop-in flex max-h-[min(40rem,calc(100vh-4rem))] flex-col">
+          <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-4">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-violet-400/15 text-violet-300">
+              <Layers size={15} />
+            </span>
+            <h2 className="text-base font-semibold tracking-tight">New batch</h2>
+            <button type="button" onClick={() => dialog.current?.close()} aria-label="Close" className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="px-5 pt-4">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={`Batch ${number}`}
+              aria-label="Batch name"
+              className="h-9 w-full rounded-lg border border-border bg-surface-2 px-3 text-sm text-foreground outline-none! transition-colors placeholder:text-muted focus:border-hover"
+            />
+            <p className="mt-3 text-xs text-muted">Projects in it</p>
+          </div>
+          <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2">
+            {projects.map((p) => (
+              <li key={p.id}>
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-white/[0.04]">
+                  <Checkbox checked={picked.has(p.id)} onChange={(on) => toggle(p.id, on)} label={p.name} />
+                  <span className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-surface-2">
+                    {p.cover && (
+                      // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
+                      <img src={p.cover} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
+                  {p.batch && <span className="shrink-0 text-xs text-muted">{p.batch}</span>}
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center justify-end gap-2 border-t border-white/[0.06] px-5 py-3">
+            {error && <p className="mr-auto text-xs text-red-300">{error}</p>}
+            <button type="button" onClick={() => dialog.current?.close()} className="btn btn-sm btn-ghost">
+              Cancel
+            </button>
+            <button type="button" onClick={create} disabled={!picked.size || busy} className="btn btn-sm btn-glow disabled:opacity-50">
+              {busy ? "Creating…" : picked.size ? `Create with ${picked.size} project${picked.size === 1 ? "" : "s"}` : "Create batch"}
+            </button>
+          </div>
+        </div>
+      </dialog>
+    </>
+  );
+}
+
+// What the projects can be narrowed to, in one small menu: where each one
+// is, and (once anything's been marked) whether it's paid for
+const STATUS_OPTIONS = [
+  ["all", "All"],
+  ["progress", "In progress"],
+  ["done", "Delivered"],
+] as const;
+const RECENT = [
+  [1, "Last month"],
+  [3, "Last 3 months"],
+  [6, "Last 6 months"],
+] as const;
+// the same day n months back, as yyyy-mm-dd (31 Mar less a month is 3 Mar,
+// as the calendar rolls; near enough for a filter)
+function monthsBefore(day: string, n: number): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 - n, d)).toISOString().slice(0, 10);
+}
+function ProjectFilter({
+  status,
+  onStatus,
+  from,
+  to,
+  today,
+  onDates,
+}: {
+  status: "all" | "progress" | "done";
+  onStatus: (v: "all" | "progress" | "done") => void;
+  from: string;
+  to: string;
+  // yyyy-mm-dd, the studio's day, for "Last 3 months"
+  today: string;
+  onDates: (from: string, to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const { position, place } = usePopover(250);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
+  useEffect(() => {
+    const out = (e: MouseEvent) => wrap.current && !wrap.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", out);
+    return () => document.removeEventListener("mousedown", out);
+  }, []);
+  const count = Number(status !== "all") + Number(!!(from || to));
+  const group = <V extends string>(title: string, options: readonly (readonly [V, string])[], value: V, onPick: (v: V) => void) => (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[11px] font-medium text-muted">{title}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(([v, label]) => (
+          <button key={v} type="button" onClick={() => onPick(v)} aria-pressed={value === v} className="chip rounded-full px-2.5 py-1 text-xs">
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <div ref={wrap} className="relative shrink-0">
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) place(trigger.current, { width: 288, align: "end" });
+          setOpen((v) => !v);
+        }}
+        className={`flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors ${
+          count ? "border-hover bg-hover text-foreground" : "border-border bg-surface-2 text-muted hover:text-foreground"
+        }`}
+      >
+        <Filter size={13} />
+        <span className="hidden sm:inline">Filter</span>
+        {count > 0 && <span className="rounded-full bg-accent/20 px-1.5 text-[10px] font-medium text-accent tabular-nums">{count}</span>}
+      </button>
+      {open && position && (
+        <div
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
+          className="pop-in fixed z-50 flex flex-col gap-3 rounded-xl popover p-3 shadow-lg"
+        >
+          {group("Status", STATUS_OPTIONS, status, onStatus)}
+          {/* from when to when: finished then, or made then if still going */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[11px] font-medium text-muted">Date</p>
+            {/* the usual spans in one tap (Abhishek, 21 Nov 2026), or any two days below */}
+            <div className="flex flex-wrap gap-1.5">
+              {RECENT.map(([n, label]) => {
+                const since = monthsBefore(today, n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => (from === since && !to ? onDates("", "") : onDates(since, ""))}
+                    aria-pressed={from === since && !to}
+                    className="chip rounded-full px-2.5 py-1 text-xs"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <DatePicker size="sm" value={from} onChange={(v) => onDates(v, to)} placeholder="From" />
+              <DatePicker size="sm" value={to} onChange={(v) => onDates(from, v)} placeholder="To" />
+            </div>
+          </div>
+          {count > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                onStatus("all");
+                onDates("", "");
+              }}
+              className="self-start text-xs text-muted hover:text-foreground"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The list's height eases open when it grows (more shown, a search
+// widening), rather than jumping. Clipped only while it moves, so a
+// card's shadow or a menu is never cut off otherwise.
+function AutoHeight({ children }: { children: React.ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const o = outer.current;
+    const i = inner.current;
+    if (!o || !i || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let last = i.offsetHeight;
+    const watch = new ResizeObserver(() => {
+      const next = i.offsetHeight;
+      // easing a shrink fought the page's own scroll; a fold is at once
+      if (next < last || next - last < 2) {
+        last = next;
+        return;
+      }
+      o.style.overflow = "hidden";
+      const move = o.animate([{ height: `${last}px` }, { height: `${next}px` }], { duration: 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      move.onfinish = move.oncancel = () => (o.style.overflow = "");
+      last = next;
+    });
+    watch.observe(i);
+    return () => watch.disconnect();
+  }, []);
+  // no scroll anchoring: the browser nudging the page while the height eases is a shake
+  return (
+    <div ref={outer} style={{ overflowAnchor: "none" }}>
+      <div ref={inner}>{children}</div>
     </div>
   );
 }
@@ -657,11 +876,14 @@ function ProjectRows({
   projects,
   projectBase,
   slot,
+  motion,
 }: {
   ref?: React.RefObject<HTMLElement | null>;
   projects: ProjectCardData[];
   projectBase?: string;
   slot?: { at: number; height: number; dragId: string | null };
+  // a row's way in ("fade-in" or "")
+  motion?: (id: string) => string;
 }) {
   if (projects.length === 0) return null;
   const rest = projects.filter((p) => p.id !== slot?.dragId);
@@ -676,7 +898,7 @@ function ProjectRows({
       {projects.map((p) => (
         <Fragment key={p.id}>
           {at >= 0 && rest[at]?.id === p.id && <DropSlot height={slot!.height} row />}
-          <ProjectRow project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} />
+          <ProjectRow project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} className={motion?.(p.id) || undefined} />
         </Fragment>
       ))}
       {at >= 0 && at >= rest.length && <DropSlot height={slot!.height} row />}
@@ -688,9 +910,9 @@ function ProjectRows({
 // deck of cards, instead of a plain text link below the grid. The front
 // face reuses one of the actual hidden covers (grayscale + faded) so it
 // reads as "more of this", not a generic placeholder.
-function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: string | null; onClick: () => void }) {
+function MoreProjectsCard({ count, cover, onClick, className = "" }: { count: number; cover: string | null; onClick: () => void; className?: string }) {
   return (
-    <button onClick={onClick} className="group block w-full text-left">
+    <button data-more onClick={onClick} className={`group block w-full text-left ${className}`}>
       {/* The two layers behind trace the card's own box exactly: `inset-0`
           on a wrapper that is only as tall as the card, offset by an even
           6px then 12px. They used to be sized off the grid cell, which
@@ -726,58 +948,5 @@ function MoreProjectsCard({ count, cover, onClick }: { count: number; cover: str
       </div>
       </span>
     </button>
-  );
-}
-
-// An invoice's payment pill, for the operations team: Paid or Unpaid, for
-// every project in it (Abhishek, 19 Nov 2026), as the client's status pill works
-function PaymentPill({ payment, className, onPick }: { payment: Payment; className: string; onPick: (status: string) => Promise<{ error?: string }> }) {
-  const [open, setOpen] = useState(false);
-  const [pending, startPending] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const { position, place } = usePopover(2 * 32 + 8);
-  const close = useCallback(() => setOpen(false), []);
-  useCloseOnScroll(open, close);
-  useEffect(() => {
-    const out = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", out);
-    return () => document.removeEventListener("mousedown", out);
-  }, []);
-  const pick = (s: "paid" | "unpaid") => {
-    setOpen(false);
-    if (s === payment) return;
-    startPending(async () => setError((await onPick(s)).error ?? null));
-  };
-  return (
-    // inside the invoice's row, which opens and closes on a click
-    <div ref={ref} className={`relative shrink-0 ${className}`} onClick={(e) => e.stopPropagation()} title={error ?? undefined}>
-      <button
-        ref={trigger}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={pending}
-        onClick={() => {
-          if (!open) place(trigger.current, { width: 128, align: "end" });
-          setOpen((v) => !v);
-        }}
-        className={`status-pop flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium disabled:opacity-60 ${error ? PAYMENT.unpaid.className : PAYMENT[payment].className}`}
-      >
-        {error ? "Not saved" : PAYMENT[payment].label}
-        <ChevronDown size={11} />
-      </button>
-      {open && position && (
-        <div {...topLayer} style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }} className="pop-in fixed z-50 rounded-xl popover p-1 shadow-lg">
-          {(["paid", "unpaid"] as const).map((s) => (
-            <button key={s} type="button" onClick={() => pick(s)} className="menu-item justify-between px-2.5 py-1.5 text-xs">
-              {PAYMENT[s].label}
-              {s === payment && <Check size={13} className="text-accent" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }

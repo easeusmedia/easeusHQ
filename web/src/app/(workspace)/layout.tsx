@@ -25,6 +25,8 @@ import { logoVersions } from "@/lib/pictureVersions";
 import { liveLine } from "@/lib/live";
 import { overdueToAnswer } from "@/lib/taskTrack";
 import { FrozenTasks } from "./FrozenTasks";
+import { UndoRedo } from "./UndoRedo";
+import { undoStepFor } from "@/lib/taskUndo";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   // read server-side so the very first paint already matches the user's
@@ -38,7 +40,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
   // page and every live refresh, so its queries running one after another
   // was a fixed cost on every click. Two rounds to the database now: who's
   // signed in, then all of the rest side by side.
-  const [realUserId, sessionUserId, viewer, users, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos] = await Promise.all([
+  const [realUserId, sessionUserId, viewer, users, clientRows, draftContracts, teams, spaces, noticesWaiting, toAnswer, logos, undoStep] = await Promise.all([
     getRealUserId(),
     getSessionUserId(),
     getViewer(),
@@ -70,6 +72,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       .catch(() => []),
     // each logo's version, for its address: not the logos themselves
     logoVersions().catch(() => new Map<string, string>()),
+    // their last change to a task, to undo or redo (lib/taskUndo)
+    getRealUserId()
+      .then((id) => (id ? undoStepFor(id) : null))
+      .catch(() => null),
   ]);
   if (!sessionUserId) redirect("/login");
   const sessionUser = users.find((u) => u.id === sessionUserId);
@@ -163,6 +169,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
       </div>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}
       {hearsFromClients && <FeedbackWatcher />}
+      <UndoRedo step={undoStep} />
       {/* the admin's assistant, over whatever page is open */}
       {canEditPeople(sessionUser) && <Assistant name={sessionUser.name.split(" ")[0]} />}
     </div>

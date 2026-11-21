@@ -370,6 +370,16 @@ dialog[open]::backdrop {
 .fade-in {
   animation: fade-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* the way out of .fade-in: a card leaving a list that's folding away */
+.fade-out {
+  animation: fade-out 0.16s ease-in forwards;
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
 @keyframes fade-in {
   from {
     opacity: 0;

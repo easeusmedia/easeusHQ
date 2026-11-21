@@ -173,7 +173,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
           billingCadence: true,
           billingDayOfMonth: true,
           billingMilestoneCount: true,
-          projects: { select: { id: true, completedAt: true, createdAt: true, invoiceBatch: true } },
+          projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
         },
       },
     },
@@ -188,7 +188,7 @@ async function setInvoice(projectId: string, key: string | null): Promise<{ erro
   const rule = { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount };
   const n = Number(key.match(/^batch-(\d+)$/)?.[1]);
   const valid = rule.cadence === "monthly_date" ? /^\d{4}-(0[1-9]|1[0-2])$/.test(key) : n >= 1 && n <= 9999;
-  if (!valid) return { error: rule.cadence === "monthly_date" ? "Pick the month it's invoiced in." : "An invoice number must be a whole number, such as 7." };
+  if (!valid) return { error: rule.cadence === "monthly_date" ? "Pick the month it goes in." : "A batch number must be a whole number, such as 7." };
 
   const batches = clientBatches(c.projects, rule, new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }));
   const saved = new Map(c.projects.map((p) => [p.id, p.invoiceBatch]));
@@ -217,7 +217,7 @@ async function closeInvoiceGaps(clientId: string): Promise<void> {
       billingDayOfMonth: true,
       billingMilestoneCount: true,
       invoiceNames: true,
-      projects: { select: { id: true, completedAt: true, createdAt: true, invoiceBatch: true } },
+      projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
     },
   });
   if (!c || c.billingCadence !== "milestone") return;
@@ -275,7 +275,7 @@ async function invoiceOf(clientId: string, key: string) {
       billingDayOfMonth: true,
       billingMilestoneCount: true,
       invoiceNames: true,
-      projects: { select: { id: true, completedAt: true, createdAt: true, invoiceBatch: true } },
+      projects: { select: { id: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
     },
   });
   if (!c) return { error: "Client not found." };

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { assigneeWhere, isFounder } from "@/lib/scope";
 import { bringOn, canBringOn, taskRecord, type TaskRef, type TaskRecord } from "@/lib/taskTrack";
+import { withUndo } from "@/lib/taskUndo";
 
 // whether this person may see the task: it's in their view, theirs, or
 // they've been brought onto it
@@ -49,8 +50,10 @@ export async function setTaskDepartment(ref: TaskRef, teamId: string): Promise<{
   const viewer = await getViewer();
   if (!viewer || !(await sees(ref, viewer))) return { error: "You can't change this task." };
   if (!(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
-  if (ref.kind === "task") await prisma.task.update({ where: { id: ref.id }, data: { teamId } });
-  else await prisma.workTask.update({ where: { id: ref.id }, data: { teamId } });
+  await withUndo([ref], async () => {
+    if (ref.kind === "task") await prisma.task.update({ where: { id: ref.id }, data: { teamId } });
+    else await prisma.workTask.update({ where: { id: ref.id }, data: { teamId } });
+  });
   revalidatePath("/home");
   return {};
 }
