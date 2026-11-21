@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, AudioLines, CalendarCheck, Check, File as FileIcon, FileText, Film, Image as ImageIcon, Pencil, PenLine, Plus, Trash2, X } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/deliverableTypes";
@@ -12,6 +12,9 @@ import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { formatDate } from "../TaskCard";
 import { TaskTagChip } from "../TaskTagPicker";
+import { TaskDialog } from "../team-work/PersonWork";
+import { openFileTask } from "../team-work/actions";
+import type { Overview, WorkCard } from "../team-work/data";
 
 type Tag = { id: string; name: string };
 // dueDate: yyyy-mm-dd, when it's due to the client. task: the task that
@@ -116,6 +119,16 @@ export function ProjectFiles({
 }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
+  // a file opens its task's history, never its link (Abhishek, 21 Nov 2026):
+  // who made it, each stage and who moved it; the file is a button away in it
+  const [task, setTask] = useState<{ card: WorkCard; data: Overview } | null>(null);
+  const taskDialog = useRef<HTMLDialogElement>(null);
+  async function openTaskOf(taskId: string) {
+    const res = await openFileTask(taskId).catch(() => null);
+    if (!res) return setError("That task couldn't be opened.");
+    setTask(res);
+    taskDialog.current?.showModal();
+  }
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("all");
@@ -264,7 +277,21 @@ export function ProjectFiles({
                     <Icon size={16} />
                   </span>
                   <span className={`min-w-0 flex-1 ${dim}`}>
-                    {r.link ? (
+                    {!readOnly ? (
+                      // our side: the whole row opens the task behind it, if
+                      // there is one; the buttons sit above it
+                      (r.type === "delivered" ? r.id : r.asset?.task?.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => openTaskOf((r.type === "delivered" ? r.id : r.asset?.task?.id)!)}
+                          className="block w-full truncate text-left text-sm text-foreground after:absolute after:inset-0"
+                        >
+                          {r.name}
+                        </button>
+                      ) : (
+                        <span className="block truncate text-sm text-foreground">{r.name}</span>
+                      )
+                    ) : r.link ? (
                       // the whole row opens the file; the buttons sit above it
                       <a
                         href={r.link}
@@ -342,6 +369,7 @@ export function ProjectFiles({
           </ul>
         </div>
       )}
+      {!readOnly && <TaskDialog dialog={taskDialog} card={task?.card ?? null} data={task?.data} canDelete={false} />}
     </section>
   );
 }

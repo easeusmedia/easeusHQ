@@ -177,6 +177,17 @@ export async function completedPage(personId: string, range: { from?: string; to
   return { total, cards: page.flatMap((p) => cards.get(p.id) ?? []) };
 }
 
+// A client task opened from its file on a project page (Abhishek, 21 Nov
+// 2026: a click on a file shows its task's history, not its link): its card
+// as Team work shows it, finished once delivered, and who has it
+export async function fileTaskCard(id: string) {
+  const t = await prisma.task.findUnique({ where: { id }, select: { ...TASK, assignedTo: { select: { role: true, email: true } } } });
+  if (!t) return null;
+  const done = t.status === "delivered_and_uploaded";
+  const [trail, finished] = await Promise.all([trails([t.id]), done ? finishedAt([t.id], false) : null]);
+  return { card: taskCard(t, trail.get(t.id) ?? [], done ? (finished?.get(t.id) ?? t.updatedAt) : null), assignee: t.assignedTo };
+}
+
 // One task, opened. Client work: each stage it went through, its delivered
 // file and the notes worth reading. A to-do: who made it and when, its due
 // date and each time that moved, its notes and links. No Drive link on a to-do.

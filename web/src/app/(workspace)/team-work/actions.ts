@@ -1,8 +1,8 @@
 "use server";
 
 import { getViewer } from "@/lib/viewer";
-import { seesTeamWork } from "@/lib/scope";
-import { completedPage, overview } from "./data";
+import { isFounder, isLead, seesTeamWork } from "@/lib/scope";
+import { completedPage, fileTaskCard, overview } from "./data";
 
 // Team work is Level 1's and Admin & Technical's: every call checks again
 async function levelOne() {
@@ -23,4 +23,15 @@ export async function moreCompleted(personId: string, range: { from?: string; to
 export async function openTask(ref: { kind: "task" | "work"; id: string }) {
   if (!(await levelOne()) || (ref.kind !== "task" && ref.kind !== "work")) return null;
   return overview(ref);
+}
+
+// A file's task, opened from its project page: for whoever the project page
+// lets in (not Members, and never a Founder's task for a Lead, as there)
+export async function openFileTask(taskId: string) {
+  const viewer = await getViewer();
+  if (!viewer || viewer.role === "employee" || typeof taskId !== "string") return null;
+  const found = await fileTaskCard(taskId);
+  if (!found || (isLead(viewer) && found.assignee && isFounder(found.assignee))) return null;
+  const data = await overview({ kind: "task", id: taskId });
+  return data && { card: found.card, data };
 }

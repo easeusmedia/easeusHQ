@@ -349,16 +349,19 @@ export function PersonWork({
 // The task's overview window, the same from the people list and a person's
 // page. The task stays in it after it closes, so it fades out with its
 // content in it.
-function TaskDialog({
+export function TaskDialog({
   dialog,
   card,
   canDelete,
   onDeleted,
+  data,
 }: {
   dialog: React.RefObject<HTMLDialogElement | null>;
   card: WorkCard | null;
   canDelete: boolean;
   onDeleted?: (card: WorkCard) => void;
+  // already read (a project page's file): shown as is
+  data?: Overview;
 }) {
   return (
     <dialog
@@ -371,6 +374,7 @@ function TaskDialog({
           key={card.kind + card.id}
           card={card}
           canDelete={canDelete}
+          preloaded={data}
           close={() => dialog.current?.close()}
           onDeleted={() => {
             onDeleted?.(card);
@@ -479,17 +483,18 @@ function LinkButton({ label, url }: { label: string; url: string }) {
 // file, its notes. A to-do: who made it and when, its due date and each time
 // that moved and why, its notes and links. Finished work can be deleted for
 // good by whoever could on History, with the same confirmation.
-function TaskOverview({ card, canDelete, close, onDeleted }: { card: WorkCard; canDelete: boolean; close: () => void; onDeleted: () => void }) {
+function TaskOverview({ card, canDelete, close, onDeleted, preloaded }: { card: WorkCard; canDelete: boolean; close: () => void; onDeleted: () => void; preloaded?: Overview }) {
   // undefined while it's on the way; null if it's gone
-  const [data, setData] = useState<Overview | null | undefined>(undefined);
+  const [data, setData] = useState<Overview | null | undefined>(preloaded);
   const { kind, id } = card;
   useEffect(() => {
+    if (preloaded) return;
     let live = true;
     openTask({ kind, id }).then((d) => live && setData(d));
     return () => {
       live = false;
     };
-  }, [kind, id]);
+  }, [kind, id, preloaded]);
 
   const facts =
     data?.kind === "task"
