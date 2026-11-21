@@ -109,8 +109,10 @@ export async function loadBoard(boardId: string): Promise<BoardData | null> {
     prisma.mailMessage.findMany({ where: { outgoing: true, to: { in: all } }, select: { to: true, from: true, at: true, threadId: true } }),
     prisma.trackedMail.findMany({ where: { to: { in: all } }, select: { to: true, from: true, sentAt: true, opens: true, bouncedAt: true } }),
     prisma.mailMessage.findMany({ where: { outgoing: false, auto: false, from: { in: all } }, select: { from: true, at: true, threadId: true }, orderBy: { at: "asc" } }),
-    // the addresses emails go out from, latest first: what "From" offers
-    prisma.trackedMail.findMany({ distinct: ["from"], orderBy: { sentAt: "desc" }, take: 30, select: { from: true } }),
+    // the addresses emails go out from, latest first: what "From" offers.
+    // Grouped in the database: Prisma's `distinct` read every tracked email
+    // to find them, on every board load
+    prisma.$queryRaw<{ from: string }[]>`select "from" from "TrackedMail" group by "from" order by max("sentAt") desc limit 30`,
   ]);
   const contactFields = board.fields.filter((f) => f.kind === "contacts").map((f) => f.id);
   const contactsOf = (values: unknown) => contactFields.flatMap((id) => {

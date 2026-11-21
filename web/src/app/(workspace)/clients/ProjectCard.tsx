@@ -45,7 +45,7 @@ export function ProjectRow({ project, href = `/projects/${project.id}`, classNam
         <span className="aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-2">
           {project.coverUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
-            <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+            <img src={project.coverUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
           )}
         </span>
         <span className="min-w-0 flex-1">
@@ -112,6 +112,8 @@ export function ProjectCard({
             <img
               src={project.coverUrl}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (

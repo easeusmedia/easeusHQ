@@ -382,12 +382,18 @@ dialog[open]::backdrop {
    speckle.) */
 .app-root[data-theme="dark"] {
   isolation: isolate;
-  background:
-    linear-gradient(to top, rgba(24, 52, 98, 0.12), transparent 38%),
-    var(--background);
-  /* the wash stays at the foot of the window on a page that scrolls (a
-     client's shared page) */
-  background-attachment: fixed;
+  background: var(--background);
+}
+/* the wash at the foot of the window, a layer of its own: on a page that
+   scrolls (a client's shared page) a fixed background is painted again on
+   every frame of the scroll; a fixed layer is not */
+.app-root[data-theme="dark"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(24, 52, 98, 0.12), transparent 38%);
 }
 /* One glow, along the foot of the window only (Abhishek, 21 Nov 2026: "no
    need to add glow on both sides, remove the upper one, just keep the

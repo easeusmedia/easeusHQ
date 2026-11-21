@@ -700,7 +700,7 @@ function NewBatch({ clientId, nextKey, projects }: { clientId: string; nextKey: 
                   <span className="aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-surface-2">
                     {p.cover && (
                       // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
-                      <img src={p.cover} alt="" className="h-full w-full object-cover" />
+                      <img src={p.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     )}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
@@ -938,7 +938,7 @@ function MoreProjectsRow({ count, cover, onClick, className = "" }: { count: num
         <span className="relative block h-full w-full overflow-hidden rounded-md bg-surface-2">
           {cover && (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
-            <img src={cover} alt="" className="h-full w-full object-cover opacity-40 grayscale transition-opacity group-hover:opacity-60" />
+            <img src={cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover opacity-40 grayscale transition-opacity group-hover:opacity-60" />
           )}
         </span>
       </span>
@@ -980,6 +980,8 @@ function MoreProjectsCard({ count, cover, onClick, className = "" }: { count: nu
             <img
               src={cover}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover opacity-40 grayscale transition-opacity group-hover:opacity-55"
             />
           )}
