@@ -6,7 +6,7 @@ import { DRIVE_SETTINGS, brandAssetsName, driveSettings } from "@/lib/drive";
 import { NOTION_SETTINGS, clientDatabaseId, notionSettings, taskDatabaseId } from "@/lib/notion";
 import { NotionIntegration } from "./NotionIntegration";
 import { DriveIntegration } from "./DriveIntegration";
-import { FRAMEIO_SETTINGS, frameioSettings } from "@/lib/frameio";
+import { FRAMEIO_SETTINGS, frameioAlive, frameioSettings } from "@/lib/frameio";
 import { FrameioIntegration } from "./FrameioIntegration";
 import { AnalyticsIntegration } from "./AnalyticsIntegration";
 import { apifyAccount, apifyTokens } from "@/lib/apify";
@@ -39,7 +39,8 @@ export default async function IntegrationsPage({
   // else, and the Apify accounts are a call out to Apify each
   const [settings, fio, notion, brandAssets, taskDb, clientDb, apify, claude, aiAdmin, spend, gmail, salesGmail, calendar, gmailSends, connection] = await Promise.all([
     driveSettings(),
-    frameioSettings(),
+    // Connected only while Adobe still takes it (a stored token can be dead)
+    Promise.all([frameioSettings(), frameioAlive()]).then(([s, alive]) => (alive ? s : { ...s, [FRAMEIO_SETTINGS.refreshToken]: "" })),
     notionSettings(),
     brandAssetsName(),
     taskDatabaseId(),

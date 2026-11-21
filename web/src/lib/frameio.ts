@@ -47,6 +47,18 @@ export async function frameioConnected(): Promise<boolean> {
 }
 
 let cached: { token: string; expires: number } | null = null;
+const EXPIRED = "The Frame.io connection has expired. Reconnect it under Integrations.";
+
+// Whether Adobe still takes the saved connection: false only when it refuses
+// it for good, not when it can't be reached
+export async function frameioAlive(): Promise<boolean> {
+  try {
+    await accessToken();
+    return true;
+  } catch (e) {
+    return (e as Error).message !== EXPIRED;
+  }
+}
 
 async function accessToken(): Promise<string> {
   if (cached && cached.expires > Date.now() + 60_000) return cached.token;
@@ -66,12 +78,15 @@ async function accessToken(): Promise<string> {
   const body = await res.json().catch(() => null);
   // Adobe's refresh token runs out after 14 days unused, and the one saved on
   // 25 Sep did (21 Nov 2026: "access_denied", nothing found on delivery)
-  if (!res.ok)
-    throw new Error(
-      body?.error === "access_denied" || body?.error === "invalid_grant"
-        ? "The Frame.io connection has expired. Reconnect it under Integrations."
-        : (body?.error_description ?? "Adobe wouldn't refresh the Frame.io connection.")
-    );
+  if (!res.ok) {
+    // refused for good: the dead token goes, so Integrations offers Connect
+    // again rather than saying Connected (21 Nov 2026)
+    if (body?.error === "access_denied" || body?.error === "invalid_grant") {
+      await saveFrameioSettings({ [FRAMEIO_SETTINGS.refreshToken]: null });
+      throw new Error(EXPIRED);
+    }
+    throw new Error(body?.error_description ?? "Adobe wouldn't refresh the Frame.io connection.");
+  }
   // each refresh hands back a fresh one: kept, so a connection in use (the
   // nightly feedback read) never reaches its 14 days
   if (body.refresh_token && body.refresh_token !== refresh) await saveFrameioSettings({ [FRAMEIO_SETTINGS.refreshToken]: body.refresh_token });
