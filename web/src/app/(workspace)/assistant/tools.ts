@@ -8,6 +8,7 @@ import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { ENTRY_KINDS, periodFrom } from "@/lib/editorKpi";
 import { collectedIn, isOverdue, ledger, payroll, upcoming } from "@/lib/finance";
 import { clipText } from "@/lib/assistant";
+import { leadEmails } from "@/lib/space";
 import type { Tool } from "@/lib/ai";
 import { loadPerformance, repeatedMistakes } from "../performance/data";
 import { billingCycle, loadFinance, money } from "../finance/data";
@@ -78,9 +79,14 @@ export const TOOLS: Tool[] = [
     input_schema: { type: "object", properties: { topic: { type: "string", enum: ["workload", "finance", "contracts", "clients"] } }, required: ["topic"] },
   },
   {
+    name: "records",
+    description: "Any other part of the dashboard, a table at a time, one line a row: leads (Sales; q matches a lead, board or stage), boards, stages, properties, messages (Sales templates), files, notices, documents, deliverables, onboarding, contracts, invoices, departments, roles, kinds (of work), client_tags, mistake_types, social, emails (tracked), inbox. q: words to look for.",
+    input_schema: { type: "object", properties: { table: { type: "string" }, q: { type: "string" } }, required: ["table"] },
+  },
+  {
     name: "propose",
     description:
-      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|creative (a change for that video only, not counted)|positive|negative|guidance (a tip for the future, not scored), category (a mistake's type), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}; edit {kind: client|project|department|role|board|portal|stage|tag|task|lead, and what changes: name (title for a task or lead), color (stage or tag), status or niche (client), status (project), stage or person (lead); board or client whenever the admin names one}; add {kind: todo {title, person, due}|notice {body}|lead {title, board}|department {name}|role {name, department}|stage {name, board, color}|client {name, niche}}. ref: the task's title or ref, the person's name, the invoice number, or the thing's current name (for add, the new one); no need to search first. Nothing can be deleted from here.",
+      "Propose a change. Nothing changes until the admin confirms it in the panel, so say what you proposed. action and changes: task_status {status}; task_due {due: yyyy-mm-dd}; task_assign {person}; employee {phone, email, position, department, salary, status: active|on_leave|former, joined, type: full_time|part_time|freelance|intern, notes}; feedback {kind: mistake|creative (a change for that video only, not counted)|positive|negative|guidance (a tip for the future, not scored), category (a mistake's type), body, day, points (required for positive or negative)}; invoice_status {status: draft|ready|sent|paid|overdue}; edit {kind: client|project|contract|department|role|board|portal|stage|tag|task|lead|file|property|message|deliverable|client_tag|document|step|mistake_type|kind|person, and what changes: name (title for a task, lead, document or step), color (stage or tag), status (client, project, contract), niche (client), stage or person (lead); board or client whenever the admin names one}; add {kind: todo {title, person, due}|notice {body}|lead {title, board}|department {name}|role {name, department}|stage {name, board, color}|client {name, niche}}. ref: the task's title or ref, the person's name, the invoice number, or the thing's current name (for add, the new one); no need to search first. Nothing can be deleted from here.",
     input_schema: {
       type: "object",
       properties: {
@@ -92,6 +98,50 @@ export const TOOLS: Tool[] = [
     },
   },
 ];
+
+// ---------- any table ----------
+
+// Everything else in the dashboard, a table at a time (Abhishek, 21 Nov 2026:
+// "all the access of the entire database"), one line a row. Never settings,
+// keys, sign-ins, client invites or the AI meter.
+type Has = { contains: string; mode: "insensitive" };
+const line = (...parts: (string | number | null | undefined | false)[]) => parts.filter((x) => x !== null && x !== undefined && x !== false && x !== "").join(" · ");
+const flat = (s: string, n: number) => clipText(s.replace(/\s+/g, " ").trim(), n);
+const ROWS = { take: MAX_ROWS + 1 };
+const TABLES: Record<string, (has?: Has) => Promise<string[]>> = {
+  leads: async (has) =>
+    (await prisma.lead.findMany({ where: has ? { OR: [{ title: has }, { board: { name: has } }, { stage: { name: has } }] } : {}, select: { id: true, title: true, values: true, notes: true, board: { select: { name: true } }, stage: { select: { name: true } }, assignedTo: { select: { name: true } } }, orderBy: { updatedAt: "desc" }, ...ROWS })).map((l) =>
+      line(ref(l.id), l.title, l.board.name, l.stage.name, l.assignedTo?.name ?? "no one", leadEmails(l.values).join(" "), l.notes && flat(l.notes, 120))
+    ),
+  boards: async (has) => (await prisma.space.findMany({ where: has ? { name: has } : {}, select: { id: true, name: true, kind: true, parent: { select: { name: true } }, team: { select: { name: true } }, _count: { select: { leads: true } } }, ...ROWS })).map((b) => line(ref(b.id), b.name, b.kind, b.parent?.name ?? b.team.name, b.kind === "board" && `${b._count.leads} leads`)),
+  stages: async (has) => (await prisma.boardStage.findMany({ where: has ? { OR: [{ name: has }, { board: { name: has } }] } : {}, select: { id: true, name: true, board: { select: { name: true } }, _count: { select: { leads: true } } }, orderBy: { sortOrder: "asc" }, ...ROWS })).map((x) => line(ref(x.id), x.name, x.board.name, `${x._count.leads} leads`)),
+  properties: async (has) => (await prisma.boardField.findMany({ where: has ? { OR: [{ name: has }, { board: { name: has } }] } : {}, select: { id: true, name: true, kind: true, required: true, board: { select: { name: true } } }, ...ROWS })).map((f) => line(ref(f.id), f.name, f.kind, f.board.name, f.required && "required")),
+  messages: async (has) => (await prisma.stageMessage.findMany({ where: has ? { OR: [{ name: has }, { subject: has }, { stage: { board: { name: has } } }] } : {}, select: { id: true, name: true, channel: true, subject: true, stage: { select: { name: true, board: { select: { name: true } } } } }, ...ROWS })).map((m) => line(ref(m.id), m.name, m.channel, m.stage.board.name, m.stage.name, m.subject && `subject "${m.subject}"`)),
+  files: async (has) => (await prisma.projectAsset.findMany({ where: has ? { OR: [{ name: has }, { project: { name: has } }, { project: { client: { name: has } } }] } : {}, select: { id: true, name: true, contentType: true, link: true, dueDate: true, project: { select: { name: true, type: true, client: { select: { name: true } } } } }, ...ROWS })).map((a) => line(ref(a.id), a.name, a.contentType, a.project.client.name, a.project.name || a.project.type, a.dueDate && `due ${d(a.dueDate)}`, a.link ? "linked" : "no link yet")),
+  notices: async (has) => (await prisma.notice.findMany({ where: has ? { body: has } : {}, select: { id: true, kind: true, body: true, createdAt: true, readAt: true }, orderBy: { createdAt: "desc" }, ...ROWS })).map((n) => line(ref(n.id), n.kind, flat(n.body, 140), d(n.createdAt), !n.readAt && "new")),
+  documents: async (has) => (await prisma.clientDocument.findMany({ where: has ? { OR: [{ title: has }, { client: { name: has } }] } : {}, select: { id: true, title: true, content: true, client: { select: { name: true } } }, ...ROWS })).map((x) => line(ref(x.id), x.title, x.client.name, x.content && flat(x.content, 120))),
+  deliverables: async (has) => (await prisma.deliverable.findMany({ where: has ? { OR: [{ name: has }, { client: { name: has } }] } : {}, select: { id: true, name: true, detail: true, client: { select: { name: true } } }, ...ROWS })).map((x) => line(ref(x.id), x.name, x.client.name, x.detail)),
+  onboarding: async (has) => (await prisma.onboardingStep.findMany({ where: has ? { OR: [{ title: has }, { client: { name: has } }] } : {}, select: { id: true, title: true, done: true, client: { select: { name: true } } }, orderBy: { sortOrder: "asc" }, ...ROWS })).map((x) => line(ref(x.id), x.title, x.client.name, x.done ? "done" : "to do")),
+  contracts: async (has) => (await prisma.contract.findMany({ where: has ? { name: has } : {}, select: { id: true, name: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, ...ROWS })).map((x) => line(ref(x.id), x.name ?? "Untitled", x.status, d(x.createdAt))),
+  invoices: async (has) => (await prisma.invoice.findMany({ where: has ? { OR: [{ number: has }, { client: { name: has } }] } : {}, select: { id: true, number: true, amount: true, currency: true, status: true, client: { select: { name: true } } }, orderBy: { createdAt: "desc" }, ...ROWS })).map((i) => line(ref(i.id), i.number, i.client.name, money(Number(i.amount), i.currency), i.status)),
+  departments: async (has) => (await prisma.team.findMany({ where: has ? { name: has } : {}, select: { id: true, name: true, _count: { select: { members: true } } }, orderBy: { sortOrder: "asc" }, ...ROWS })).map((t) => line(ref(t.id), t.name, `${t._count.members} people`)),
+  roles: async (has) => (await prisma.jobTitle.findMany({ where: has ? { OR: [{ name: has }, { team: { name: has } }] } : {}, select: { id: true, name: true, workflow: true, team: { select: { name: true } }, _count: { select: { holders: true } } }, ...ROWS })).map((r) => line(ref(r.id), r.name, r.team?.name, r.workflow, `${r._count.holders} people`)),
+  kinds: async (has) => (await prisma.taskTag.findMany({ where: has ? { name: has } : {}, select: { id: true, name: true, workflow: true, team: { select: { name: true } } }, orderBy: { sortOrder: "asc" }, ...ROWS })).map((k) => line(ref(k.id), k.name, k.team?.name ?? "shared", k.workflow)),
+  client_tags: async (has) => (await prisma.tag.findMany({ where: has ? { name: has } : {}, select: { id: true, name: true, color: true, _count: { select: { clients: true } } }, ...ROWS })).map((t) => line(ref(t.id), t.name, t.color, `${t._count.clients} clients`)),
+  mistake_types: async (has) => (await prisma.feedbackCategory.findMany({ where: has ? { name: has } : {}, select: { id: true, name: true, points: true }, orderBy: { sortOrder: "asc" }, ...ROWS })).map((m) => line(ref(m.id), m.name, `${m.points} points`)),
+  social: async (has) => (await prisma.socialAccount.findMany({ where: has ? { OR: [{ handle: has }, { client: { name: has } }] } : {}, select: { platform: true, handle: true, followers: true, client: { select: { name: true } } }, ...ROWS })).map((x) => line(x.client.name, x.platform, x.handle, x.followers !== null && `${x.followers} followers`)),
+  emails: async (has) => (await prisma.trackedMail.findMany({ where: has ? { OR: [{ subject: has }, { to: has }] } : {}, select: { id: true, subject: true, to: true, sentAt: true, opens: true, clicks: true, repliedAt: true, bouncedAt: true }, orderBy: { sentAt: "desc" }, ...ROWS })).map((m) => line(ref(m.id), m.subject || "(no subject)", `to ${m.to}`, d(m.sentAt), `${m.opens} opens`, m.clicks > 0 && `${m.clicks} clicks`, m.repliedAt && "replied", m.bouncedAt && "bounced")),
+  inbox: async (has) => (await prisma.mailMessage.findMany({ where: has ? { OR: [{ subject: has }, { from: has }, { to: has }] } : {}, select: { subject: true, from: true, to: true, at: true, outgoing: true }, orderBy: { at: "desc" }, ...ROWS })).map((m) => line(m.outgoing ? "sent" : "received", d(m.at), `${m.from} to ${m.to}`, m.subject || "(no subject)")),
+};
+const RECORD_TABLES = Object.keys(TABLES);
+
+async function records({ table, q }: { table: string; q?: string }) {
+  const read = TABLES[table];
+  if (!read) return `Tables: ${RECORD_TABLES.join(", ")}.`;
+  const words = (q ?? "").trim();
+  const rows = await read(words ? { contains: words, mode: "insensitive" } : undefined);
+  return rows.length ? rows.slice(0, MAX_ROWS).join("\n") + more(rows.length - MAX_ROWS) : "Nothing matches.";
+}
 
 // ---------- lookups ----------
 
@@ -405,6 +455,7 @@ const READERS: Record<string, (input: never) => Promise<string>> = {
   feedback: feedback as never,
   client: client as never,
   overview: overview as never,
+  records: records as never,
 };
 
 // one tool call, its answer clipped so a big list can't run up the bill

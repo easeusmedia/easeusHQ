@@ -4,7 +4,8 @@ import { pickByName as pick, type Named as Row } from "@/lib/assistant";
 import { findPerson, findTask } from "./tools";
 import type { Proposal } from "./proposals";
 import { createDepartment, createJobTitle, renameDepartment, renameRole } from "../team/actions";
-import { assignLead, createLead, createStage, moveLead, renameLead, renameOption, renameSpace, renameStage } from "../org/space/actions";
+import { assignLead, createLead, createStage, moveLead, renameField, renameLead, renameOption, renameSpace, renameStage, updateMessage } from "../org/space/actions";
+import { revalidatePath } from "next/cache";
 import { createClient, updateClientInfo, updateClientStatus, updateProject } from "../clients/actions";
 import { createWorkTask } from "../my-tasks/actions";
 import { addNotice } from "../home/actions";
@@ -25,6 +26,7 @@ type Changes = Record<string, unknown>;
 
 const CLIENT_STATUS = ["current", "on_hold", "previous"];
 const PROJECT_STATUS = ["in_progress", "completed"];
+const CONTRACT_STATUS = ["invited", "draft", "approved", "sent", "signed"];
 const isDay = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 const text = (v: unknown) => (v === undefined || v === null ? "" : String(v).trim().replace(/\s+/g, " "));
 // a field Claude sent, or null when it didn't
@@ -45,6 +47,65 @@ export const EDITABLE: Record<string, string> = {
   tag: `name, color (${COLOR_NAMES.join(", ")})`,
   task: "title",
   lead: "title, stage, person",
+  contract: "name, status (invited, draft, approved, sent, signed)",
+  file: "name",
+  property: "name",
+  message: "name",
+  deliverable: "name",
+  client_tag: "name",
+  document: "title",
+  step: "title",
+  mistake_type: "name",
+  kind: "name",
+  person: "name",
+};
+// the kinds whose name is a title
+const TITLED = ["task", "lead", "document", "step"];
+
+// Everything else is a name and nothing more (Abhishek, 21 Nov 2026: "the
+// name or status of anything"): looked up and saved the same way
+const named = (rows: () => Promise<Row[]>, save: (id: string, name: string) => Promise<{ error?: string } | unknown>) => ({ rows, save });
+const NAMED: Record<string, ReturnType<typeof named>> = {
+  file: named(
+    async () => (await prisma.projectAsset.findMany({ select: { id: true, name: true, project: { select: { name: true, type: true, client: { select: { name: true } } } } } })).map((a) => ({ id: a.id, name: a.name, where: `${a.project.client.name} · ${a.project.name || a.project.type}` })),
+    (id, name) => prisma.projectAsset.update({ where: { id }, data: { name }, select: { id: true } })
+  ),
+  property: named(
+    async () => (await prisma.boardField.findMany({ select: { id: true, name: true, board: { select: { name: true } } } })).map((f) => ({ id: f.id, name: f.name, where: f.board.name })),
+    (id, name) => renameField(id, name)
+  ),
+  message: named(
+    async () => (await prisma.stageMessage.findMany({ select: { id: true, name: true, stage: { select: { name: true, board: { select: { name: true } } } } } })).map((m) => ({ id: m.id, name: m.name, where: `${m.stage.board.name} · ${m.stage.name}` })),
+    (id, name) => updateMessage(id, { name })
+  ),
+  deliverable: named(
+    async () => (await prisma.deliverable.findMany({ select: { id: true, name: true, client: { select: { name: true } } } })).map((x) => ({ id: x.id, name: x.name, where: x.client.name })),
+    (id, name) => prisma.deliverable.update({ where: { id }, data: { name }, select: { id: true } })
+  ),
+  client_tag: named(
+    () => prisma.tag.findMany({ select: { id: true, name: true } }),
+    (id, name) => prisma.tag.update({ where: { id }, data: { name }, select: { id: true } })
+  ),
+  document: named(
+    async () => (await prisma.clientDocument.findMany({ select: { id: true, title: true, client: { select: { name: true } } } })).map((x) => ({ id: x.id, name: x.title, where: x.client.name })),
+    (id, name) => prisma.clientDocument.update({ where: { id }, data: { title: name }, select: { id: true } })
+  ),
+  step: named(
+    async () => (await prisma.onboardingStep.findMany({ select: { id: true, title: true, client: { select: { name: true } } } })).map((x) => ({ id: x.id, name: x.title, where: x.client.name })),
+    (id, name) => prisma.onboardingStep.update({ where: { id }, data: { title: name }, select: { id: true } })
+  ),
+  mistake_type: named(
+    () => prisma.feedbackCategory.findMany({ select: { id: true, name: true } }),
+    (id, name) => prisma.feedbackCategory.update({ where: { id }, data: { name }, select: { id: true } })
+  ),
+  kind: named(
+    async () => (await prisma.taskTag.findMany({ select: { id: true, name: true, team: { select: { name: true } } } })).map((k) => ({ id: k.id, name: k.name, where: k.team?.name })),
+    (id, name) => prisma.taskTag.update({ where: { id }, data: { name }, select: { id: true } })
+  ),
+  person: named(
+    async () => (await prisma.user.findMany({ select: { id: true, name: true, email: true } })).map((u) => ({ id: u.id, name: u.name, where: u.email })),
+    (id, name) => prisma.user.update({ where: { id }, data: { name }, select: { id: true } })
+  ),
 };
 export const ADDABLE = "todo {title, person, due}, notice {body}, lead {title, board}, department {name}, role {name, department}, stage {name, board, color}, client {name, niche}";
 
@@ -61,13 +122,13 @@ export async function prepareEdit(ref: string, c: Changes): Promise<Proposal | s
   const hint = sent(c, "board", "client", "in") ?? "";
 
   // the fields every kind shares the handling of
-  const name = sent(c, kind === "task" || kind === "lead" ? "title" : "name", "name", "title");
+  const name = sent(c, TITLED.includes(kind) ? "title" : "name", "name", "title");
   const rename = (from: string): string | null => {
     if (name === null) return null;
     if (!name) return "Give it a name.";
     if (name.length > 160) return "That name is too long.";
     if (name !== from) {
-      lines.push({ field: kind === "task" || kind === "lead" ? "Title" : "Name", from, to: name });
+      lines.push({ field: TITLED.includes(kind) ? "Title" : "Name", from, to: name });
       values.name = name;
     }
     return null;
@@ -86,7 +147,19 @@ export async function prepareEdit(ref: string, c: Changes): Promise<Proposal | s
   const done = (id: string, title: string): Proposal | string =>
     lines.length ? { action: "edit", target: "other", targetId: id, title, lines, values } : `Say what to change. A ${kind} has: ${EDITABLE[kind]}.`;
 
+  if (kind in NAMED) {
+    const hit = pick(await NAMED[kind].rows(), ref, kind.replace("_", " "), hint);
+    if (typeof hit === "string") return hit;
+    return rename(hit.name) ?? done(hit.id, hit.where ? `${hit.where} · ${hit.name}` : hit.name);
+  }
+
   switch (kind) {
+    case "contract": {
+      const rows = (await prisma.contract.findMany({ select: { id: true, name: true, status: true } })).map((x) => ({ id: x.id, name: x.name ?? "Untitled", status: x.status }));
+      const hit = pick(rows, ref, "contract");
+      if (typeof hit === "string") return hit;
+      return rename(hit.name) ?? choose("Status", "status", hit.status, CONTRACT_STATUS) ?? done(hit.id, hit.name);
+    }
     case "client": {
       const rows = await prisma.client.findMany({ select: { id: true, name: true, status: true, niche: true } });
       const hit = pick(rows, ref, "client");
@@ -195,7 +268,20 @@ export async function applyEdit(p: Proposal): Promise<string | null> {
   const id = fresh.targetId;
   const name = typeof v.name === "string" ? v.name : null;
 
+  const plain = NAMED[String(v.kind)];
+  if (plain) {
+    const res = (await plain.save(id, name!)) as { error?: string } | null;
+    if (res && typeof res === "object" && "error" in res && res.error) return res.error;
+    // a name shows all over (the sidebar's included)
+    revalidatePath("/", "layout");
+    return null;
+  }
+
   switch (v.kind) {
+    case "contract":
+      await prisma.contract.update({ where: { id }, data: { ...(name !== null ? { name } : {}), ...("status" in v ? { status: String(v.status) } : {}) }, select: { id: true } });
+      revalidatePath("/contracts");
+      return null;
     case "client": {
       if (name !== null || "niche" in v) {
         const cur = await prisma.client.findUniqueOrThrow({ where: { id }, select: { name: true, niche: true, contact: true, email: true, whatsapp: true, address: true, notes: true } });
