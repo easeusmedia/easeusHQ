@@ -188,6 +188,7 @@ export type Overview =
       drive: string | null;
       notes: string | null;
       reviewNotes: string | null;
+      createdBy: string | null;
       phases: { stage: string; at: string; by: string | null; ms: number | null }[];
     }
   | {
@@ -203,10 +204,12 @@ export type Overview =
 export async function overview(ref: { kind: "task" | "work"; id: string }, now = new Date()): Promise<Overview | null> {
   if (ref.kind === "task") {
     const [t, logs] = await Promise.all([
-      prisma.task.findUnique({ where: { id: ref.id }, select: { status: true, workflow: true, createdAt: true, dueDate: true, driveLink: true, editingNotes: true, reviewNotes: true } }),
+      prisma.task.findUnique({ where: { id: ref.id }, select: { status: true, workflow: true, createdAt: true, createdById: true, dueDate: true, driveLink: true, editingNotes: true, reviewNotes: true } }),
       prisma.activityLog.findMany({ where: { entity: "Task", entityId: ref.id, action: { contains: " → " } }, select: { action: true, createdAt: true, actor: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
     ]);
     if (!t) return null;
+    // who made it, for the first stage (Abhishek, 21 Nov 2026)
+    const creator = t.createdById ? await prisma.user.findUnique({ where: { id: t.createdById }, select: { name: true } }) : null;
     const phases = stagePhases(
       logs.map((l) => ({ action: l.action, at: l.createdAt, by: l.actor.name })),
       t.createdAt,
@@ -220,6 +223,7 @@ export async function overview(ref: { kind: "task" | "work"; id: string }, now =
       drive: t.driveLink,
       notes: t.editingNotes,
       reviewNotes: t.reviewNotes,
+      createdBy: creator?.name ?? null,
       phases: phases.map((p) => ({ ...p, at: p.at.toISOString() })),
     };
   }

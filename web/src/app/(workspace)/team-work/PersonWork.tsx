@@ -575,6 +575,12 @@ function TaskOverview({ card, canDelete, close, onDeleted }: { card: WorkCard; c
                                   {p.by !== "Notion" && <Avatar name={p.by} size={16} presence={false} />}
                                   <span className="truncate">{p.by}</span>
                                 </>
+                              ) : data.createdBy ? (
+                                <>
+                                  <span>· Created by</span>
+                                  <Avatar name={data.createdBy} size={16} presence={false} />
+                                  <span className="truncate">{data.createdBy}</span>
+                                </>
                               ) : (
                                 <span>· Created</span>
                               )}
