@@ -30,8 +30,9 @@ export function ClientDock({ clients }: { clients: SidebarClient[] }) {
   const EASE = "duration-500 ease-[cubic-bezier(0.65,0,0.35,1)]";
 
   return (
-    // data-dock: the page above makes room for it (see layout.tsx)
-    <div data-dock className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 max-md:bottom-[4.25rem]">
+    // data-dock: the page above makes room for it (see layout.tsx). Not on a
+    // phone: it wraps over the page there, and the menu's Clients does the same
+    <div data-dock className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 max-md:hidden">
       {/* ponytail: no scrolling — a scroller would clip the names above the
           faces. Fine for a couple of dozen clients; past that, scroll it */}
       <nav aria-label="Clients" className="panel pop-in pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl p-1.5">
