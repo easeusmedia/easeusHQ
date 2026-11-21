@@ -10,10 +10,16 @@ export async function deliveredAt(taskIds: string[]): Promise<Map<string, Date>>
 }
 
 // When the editor's part was done (Team work, Abhishek, 19 Nov 2026): its
-// last move into Final export ready, else into Delivered
-export async function finishedAt(taskIds: string[]): Promise<Map<string, Date>> {
+// last move into Final export ready, else into Delivered. For a Production
+// Member (`toClient`, 21 Nov 2026), its last move into Sent for client
+// approval comes first: their part ends when it goes to the client.
+export async function finishedAt(taskIds: string[], toClient = false): Promise<Map<string, Date>> {
   const moves = await lastMoves(taskIds);
-  return new Map([...(moves.get("delivered_and_uploaded") ?? []), ...(moves.get("final_export_ready") ?? [])]);
+  return new Map([
+    ...(moves.get("delivered_and_uploaded") ?? []),
+    ...(moves.get("final_export_ready") ?? []),
+    ...(toClient ? (moves.get("sent_for_client_approval") ?? []) : []),
+  ]);
 }
 
 // each task's last move into each stage, by stage

@@ -249,6 +249,8 @@ export function StatusSelect({
                 low-quality proxy — and pasting a link by hand is always
                 right there underneath. */}
             {fio.state === "loading" && <p className="text-xs text-muted">Looking on Frame.io…</p>}
+            {/* why Frame.io has nothing to offer, so a broken connection isn't silent */}
+            {fio.state === "unavailable" && fio.why && <p className="text-xs text-muted">Frame.io: {fio.why}</p>}
             {(fio.state === "ready" || fio.state === "copying" || fio.state === "copied") &&
               fio.files?.map((f) => (
                 <div key={f.id} className="flex flex-col gap-2 rounded-lg border border-border bg-surface-2/60 p-2.5">

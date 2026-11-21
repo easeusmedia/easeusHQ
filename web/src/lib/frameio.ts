@@ -63,8 +63,18 @@ async function accessToken(): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "refresh_token", client_id: id, client_secret: secret, refresh_token: refresh }),
   });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.error_description ?? "Adobe wouldn't refresh the Frame.io connection.");
+  const body = await res.json().catch(() => null);
+  // Adobe's refresh token runs out after 14 days unused, and the one saved on
+  // 25 Sep did (21 Nov 2026: "access_denied", nothing found on delivery)
+  if (!res.ok)
+    throw new Error(
+      body?.error === "access_denied" || body?.error === "invalid_grant"
+        ? "The Frame.io connection has expired. Reconnect it under Integrations."
+        : (body?.error_description ?? "Adobe wouldn't refresh the Frame.io connection.")
+    );
+  // each refresh hands back a fresh one: kept, so a connection in use (the
+  // nightly feedback read) never reaches its 14 days
+  if (body.refresh_token && body.refresh_token !== refresh) await saveFrameioSettings({ [FRAMEIO_SETTINGS.refreshToken]: body.refresh_token });
   cached = { token: body.access_token, expires: Date.now() + body.expires_in * 1000 };
   return cached.token;
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions, dueReminders, isParts, roleOf } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions, dueReminders, isParts, roleOf, replyCount, replyKeys, REPLY_KEY } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"].map((id) => ({ id, name: id }));
 
@@ -763,4 +763,12 @@ test("a stage keeps what it's for whatever it's renamed to", () => {
   assert.equal(roleOf({ name: "Future", role: "parked" }), "parked");
   const lead = { stage: { name: "Future", role: "parked" }, vars: { "parked:until": "2026-12-01" } };
   assert.equal(dueReminders([lead], "2026-12-01").length, 1);
+});
+
+test("more than one reply: the first keeps the old names, the count is the highest one filled", () => {
+  assert.deepEqual(replyKeys(1), { text: "reply:text", on: "reply:on", from: "reply:from" });
+  assert.deepEqual(replyKeys(3), { text: "reply:text:3", on: "reply:on:3", from: "reply:from:3" });
+  assert.equal(replyCount({}), 1);
+  assert.equal(replyCount({ "reply:text": "Hi", "reply:on:2": "instagram", "reply:text:3": "" }), 2);
+  assert.ok(REPLY_KEY.test("reply:from:20") && !REPLY_KEY.test("reply:text:1") && !REPLY_KEY.test("reply:text:21"));
 });

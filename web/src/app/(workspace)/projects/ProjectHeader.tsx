@@ -10,6 +10,7 @@ import { chip } from "../chip";
 import { updateProject, deleteProject } from "../clients/actions";
 import { CoverPicker } from "../clients/CoverPicker";
 import { closeOnBackdrop } from "../dialog";
+import { EditableName } from "../EditableName";
 
 // Cover left, the few facts that matter right. Editing swaps the right-hand
 // column in place rather than opening a dialog.
@@ -22,7 +23,6 @@ export function ProjectHeader({
   coverUrl,
   driveLink,
   type,
-  completedAt,
   completedOn,
   canDelete,
   invoice,
@@ -39,7 +39,6 @@ export function ProjectHeader({
   coverUrl: string | null;
   driveLink: string | null;
   type: string;
-  completedAt: string | null;
   /** yyyy-mm-dd, for the editable date field */
   completedOn: string;
   canDelete: boolean;
@@ -99,6 +98,28 @@ export function ProjectHeader({
     router.refresh();
   }
 
+  // Every fact is changed where it shows, saved as it's picked (Abhishek, 21
+  // Nov 2026: "without clicking on the edit button"); Edit is left for the
+  // cover and deleting. Shown at once, put back if it doesn't save.
+  const base = { name, status, driveLink: driveLink ?? "", type, completedAt: completedOn };
+  const [over, setOver] = useState<Partial<typeof base>>({});
+  const cur = { ...base, ...over };
+  async function saveNow(patch: Partial<typeof base>): Promise<string | undefined> {
+    setError(null);
+    setOver((o) => ({ ...o, ...patch }));
+    const next = { ...cur, ...patch };
+    // marked completed with no date: the server stamps today
+    const res = await updateProject(projectId, { ...next, completedAt: "completedAt" in patch ? next.completedAt : next.completedAt || undefined }).catch(() => ({
+      error: "That couldn't be saved. Check your connection and try again.",
+    }));
+    if (res.error) {
+      setOver((o) => Object.fromEntries(Object.entries(o).filter(([k]) => !(k in patch))));
+      setError(res.error);
+      return res.error;
+    }
+    router.refresh();
+  }
+
   async function confirmDelete() {
     const res = await deleteProject(projectId);
     if (res.error) {
@@ -112,10 +133,7 @@ export function ProjectHeader({
     router.push(clientHref);
   }
 
-  const done = status === "completed";
   const typeOptions = [...new Set([form.type, ...types].filter(Boolean))].map((t) => ({ value: t, label: t }));
-  // the same box as the invoice chip beside them (chip.ts): one height in the row
-  const fact = "flex items-center gap-1.5 rounded-full border border-transparent bg-foreground/[0.06] px-3 py-1.5 text-xs";
 
   return (
     // One card: the cover, then everything about the project beside it —
@@ -240,11 +258,13 @@ export function ProjectHeader({
         ) : (
           <div className="fade-in flex flex-1 flex-col">
             <div className="flex items-start gap-3">
-              <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">{name}</h1>
+              <h1 className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">
+                <EditableName name={cur.name} pencil="hover" wrap onSave={(n) => saveNow({ name: n })} />
+              </h1>
               <div className="flex shrink-0 gap-1.5">
-                {driveLink && (
+                {cur.driveLink && (
                   <a
-                    href={driveLink}
+                    href={cur.driveLink}
                     target="_blank"
                     rel="noreferrer"
                     className="btn btn-sm btn-ghost flex items-center gap-1.5"
@@ -258,23 +278,44 @@ export function ProjectHeader({
               </div>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span
-                className={`rounded-full border border-transparent px-3 py-1.5 text-xs font-medium ${
-                  done ? "bg-green-400/15 text-green-300" : "bg-blue-400/15 text-blue-300"
-                }`}
-              >
-                {done ? "Completed" : "In progress"}
-              </span>
-              {type && (
-                <span className={fact}>
-                  <Hash size={12} className="text-rose-400" /> {type}
-                </span>
+              <Dropdown
+                pill={{ icon: <CircleDot size={12} className={cur.status === "completed" ? "text-green-400" : "text-blue-400"} /> }}
+                value={cur.status}
+                options={[
+                  { value: "in_progress", label: "In progress" },
+                  { value: "completed", label: "Completed" },
+                ]}
+                onChange={(v) => v !== cur.status && saveNow({ status: v })}
+              />
+              <Dropdown
+                pill={{ icon: <Hash size={12} className="text-rose-400" /> }}
+                value={cur.type}
+                placeholder="Type"
+                create
+                search={{ recent: 8, placeholder: "Find or add a type…" }}
+                options={[...new Set([cur.type, ...types].filter(Boolean))].map((t) => ({ value: t, label: t }))}
+                onChange={(v) => v !== cur.type && saveNow({ type: v })}
+              />
+              {cur.status === "completed" && (
+                <DatePicker
+                  pill={{ icon: <CalendarCheck size={12} className="text-amber-400" /> }}
+                  value={cur.completedAt}
+                  onChange={(v) => v !== cur.completedAt && saveNow({ completedAt: v })}
+                  placeholder="Delivered on"
+                />
               )}
-              {completedAt && (
-                <span className={fact}>
-                  <CalendarCheck size={12} className="text-amber-400" /> {completedAt}
-                </span>
-              )}
+              <label className={`${chip(!!cur.driveLink)} min-w-0 cursor-text`}>
+                <FolderOpen size={12} className="shrink-0 text-blue-400" />
+                <input
+                  key={base.driveLink}
+                  defaultValue={cur.driveLink}
+                  onBlur={(e) => e.target.value.trim() !== cur.driveLink && saveNow({ driveLink: e.target.value.trim() })}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  placeholder="Drive folder link"
+                  aria-label="Drive folder link"
+                  className="w-48 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
+                />
+              </label>
               {invoice}
             </div>
             {/* what's in it, at a glance */}

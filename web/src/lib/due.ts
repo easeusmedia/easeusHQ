@@ -1,4 +1,5 @@
 import type { TaskStatus } from "./workflow";
+import { graceCutoff } from "./overdue.ts";
 
 // What a due date means: the editor's deadline. The day the work has to
 // *reach the client* — not the day the client signs it off.
@@ -56,6 +57,14 @@ export function dueState(
 }
 
 // Whole days past the due day that it reached the client — 0 when on time.
+// Finished after its date, and past a new task's grace (lib/overdue
+// graceCutoff): a task made yesterday or today and finished by 3 PM (IST) the
+// day after it was made isn't late, whatever its date said (Abhishek, 21 Nov
+// 2026: the same rule that keeps it from being locked)
+export function finishedLate(dueDate: Date | string, finishedAt: Date | string, createdAt: Date | string): boolean {
+  return day(finishedAt) > day(dueDate) && new Date(createdAt) < graceCutoff(new Date(finishedAt));
+}
+
 export function daysLate(dueDate: Date | string, handedOffAt: Date | string): number {
   const diff = (Date.parse(day(handedOffAt)) - Date.parse(day(dueDate))) / 86_400_000;
   return Math.max(0, Math.round(diff));

@@ -6,7 +6,8 @@ import { pageOfDone, stagePhases, startOf } from "@/lib/history";
 import { taskRecord } from "@/lib/taskTrack";
 import { finishedAt } from "@/lib/delivered";
 import { dayOf } from "@/lib/editorKpi";
-import { handoffUnknown } from "@/lib/due";
+import { finishedLate, handoffUnknown } from "@/lib/due";
+import { worksTheBoard } from "@/lib/scope";
 
 // What Team work reads: everyone's current tasks, a person's finished ones
 // a page at a time, and one task's overview when it's opened. Lean selects
@@ -72,7 +73,7 @@ const taskCard = (t: TaskRow, trail: { action: string; at: Date }[], end: Date |
   start: startOf(trail, t.createdAt).toISOString(),
   end: end ? end.toISOString() : null,
   due: !end && t.dueDate && !t.handedOffAt ? dayOf(t.dueDate) : null,
-  late: !!end && !!t.dueDate && !handoffUnknown(t.createdAt, t.handedOffAt) && dayOf(t.handedOffAt ?? end) > dayOf(t.dueDate),
+  late: !!end && !!t.dueDate && !handoffUnknown(t.createdAt, t.handedOffAt) && finishedLate(t.dueDate, t.handedOffAt ?? end, t.createdAt),
 });
 
 const todoCard = (t: TodoRow, done: boolean): WorkCard => ({
@@ -86,29 +87,39 @@ const todoCard = (t: TodoRow, done: boolean): WorkCard => ({
   start: t.createdAt.toISOString(),
   end: done ? (t.completedAt ?? t.updatedAt).toISOString() : null,
   due: !done && t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
-  late: done && !!t.dueDate && dayOf(t.completedAt ?? t.updatedAt) > t.dueDate.toISOString().slice(0, 10),
+  late: done && !!t.dueDate && finishedLate(t.dueDate, t.completedAt ?? t.updatedAt, t.createdAt),
 });
+
+// An editor's part (Abhishek, 21 Nov 2026): for a Member in Production, work
+// is theirs up to Sent for approval (a revision too); from Sent for client
+// approval on it's done, and counts as finished from that move
+const EDITOR_DONE: TaskStatus[] = ["sent_for_client_approval", ...PART_DONE];
+async function editorsOf(ids: string[]): Promise<Set<string>> {
+  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, role: true, departments: { select: { id: true, slug: true } } } });
+  return new Set(users.filter(worksTheBoard).map((u) => u.id));
+}
 
 // What each of these people is on now, all of them in one pass: the live
 // client work short of Final export ready (lib/workflow IN_PROGRESS) and
 // open to-dos, read once and shared out to whoever holds each (its assignee
 // and anyone brought onto it, each once), so the people list and a person's
-// page can't disagree. Every level alike (Abhishek, 19 Nov 2026): an
-// editor's work waiting on approval, or set for a later day, is theirs too.
+// page can't disagree. Work set for a later day is theirs too (Abhishek, 19
+// Nov 2026); an editor's stops at Sent for approval (EDITOR_DONE).
 // Soonest due first.
 export async function currentWorkOf(ids: string[]): Promise<Map<string, WorkCard[]>> {
   const holder = { OR: [{ assignedToId: { in: ids } }, { shares: { some: { userId: { in: ids } } } }] };
   const holders = { assignedToId: true, shares: { select: { userId: true } } } as const;
-  const [tasks, open] = await Promise.all([
+  const [tasks, open, editors] = await Promise.all([
     prisma.task.findMany({ where: { AND: [LIVE_TASK, holder, { status: { in: IN_PROGRESS } }] }, select: { ...TASK, ...holders } }),
     prisma.workTask.findMany({ where: { AND: [LIVE_WORK_TASK, holder] }, select: { ...TODO, ...holders } }),
+    editorsOf(ids),
   ]);
   const trail = await trails(tasks.map((t) => t.id));
   const by = new Map(ids.map((id) => [id, [] as WorkCard[]]));
   const holdersOf = (t: { assignedToId: string | null; shares: { userId: string }[] }) => new Set([t.assignedToId, ...t.shares.map((s) => s.userId)]);
   for (const t of tasks) {
     const card = taskCard(t, trail.get(t.id) ?? [], null);
-    for (const id of holdersOf(t)) if (id) by.get(id)?.push(card);
+    for (const id of holdersOf(t)) if (id && !(editors.has(id) && EDITOR_DONE.includes(t.status))) by.get(id)?.push(card);
   }
   for (const t of open) {
     const card = todoCard(t, false);
@@ -127,12 +138,13 @@ export async function currentWork(person: { id: string }): Promise<WorkCard[]> {
 // export ready on (their part done; Abhishek, 19 Nov 2026), a paused or past
 // client's too, since finished work is their record, and to-dos made here
 // (not Notion's)
-const doneTasks = (personId: string) => ({ assignedToId: personId, status: { in: PART_DONE } });
+const doneTasks = (personId: string, editor: boolean) => ({ assignedToId: personId, status: { in: editor ? EDITOR_DONE : PART_DONE } });
 const doneTodos = (personId: string) => ({ assignedToId: personId, status: "done" as const, fromNotion: false });
 
 // How many they've finished in all, for the Completed tab before it's opened
 export async function completedCount(personId: string) {
-  const [tasks, todos] = await Promise.all([prisma.task.count({ where: doneTasks(personId) }), prisma.workTask.count({ where: doneTodos(personId) })]);
+  const editor = (await editorsOf([personId])).has(personId);
+  const [tasks, todos] = await Promise.all([prisma.task.count({ where: doneTasks(personId, editor) }), prisma.workTask.count({ where: doneTodos(personId) })]);
   return tasks + todos;
 }
 
@@ -140,14 +152,15 @@ export async function completedCount(personId: string) {
 // one is set, and how many the range holds. The list itself is ids and
 // dates; only the page's tasks are read whole.
 export async function completedPage(personId: string, range: { from?: string; to?: string }, offset: number, limit: number) {
+  const editor = (await editorsOf([personId])).has(personId);
   const [tasks, todos] = await Promise.all([
-    prisma.task.findMany({ where: doneTasks(personId), select: { id: true, updatedAt: true } }),
+    prisma.task.findMany({ where: doneTasks(personId, editor), select: { id: true, updatedAt: true } }),
     prisma.workTask.findMany({ where: doneTodos(personId), select: { id: true, completedAt: true, updatedAt: true } }),
   ]);
   // finished when it was last moved to Final export ready (else Delivered),
   // not at its last edit (a Drive link added a week later); its last edit
   // only where no move was logged
-  const delivered = await finishedAt(tasks.map((t) => t.id));
+  const delivered = await finishedAt(tasks.map((t) => t.id), editor);
   const { total, page } = pageOfDone(
     [...tasks.map((t) => ({ kind: "task" as const, id: t.id, at: delivered.get(t.id) ?? t.updatedAt })), ...todos.map((t) => ({ kind: "work" as const, id: t.id, at: t.completedAt ?? t.updatedAt }))],
     { ...range, offset, limit }

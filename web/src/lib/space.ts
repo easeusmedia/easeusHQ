@@ -498,6 +498,23 @@ export const isParked = (stage: { name: string; role?: string | null }) => roleO
 // where; and, parked for later, the day to reach out again (a reminder goes
 // to whoever has the lead that day: lib/parkedReminders) and the day it went.
 export const AFTER = { reply: "reply:text", replyOn: "reply:on", until: "parked:until", told: "parked:told" } as const;
+// more than one reply, one per platform they wrote back on, each with who
+// wrote it: their email, or their Instagram or LinkedIn username (Abhishek,
+// 21 Nov 2026). The first keeps AFTER's names, the next add ":2", ":3"
+export const replyKeys = (n: number) => {
+  const at = n === 1 ? "" : `:${n}`;
+  return { text: `${AFTER.reply}${at}`, on: `${AFTER.replyOn}${at}`, from: `reply:from${at}` };
+};
+export const REPLY_KEY = /^reply:(text|on|from)(:([2-9]|1\d|20))?$/;
+// how many replies a lead has kept: the highest one with anything in it, at least one
+export function replyCount(vars: Record<string, unknown>): number {
+  let n = 1;
+  for (const [k, v] of Object.entries(vars)) {
+    const m = REPLY_KEY.exec(k);
+    if (m && v) n = Math.max(n, Number(m[3] ?? 1));
+  }
+  return n;
+}
 // the parked leads due a reminder: still parked, their day come, not yet reminded of that day
 export function dueReminders<L extends { vars: unknown; stage: { name: string; role?: string | null } }>(leads: L[], today: string): L[] {
   return leads.filter((l) => {

@@ -35,6 +35,8 @@ test("on time is judged by the day in India, and skipped without a due date", ()
   assert.equal(onTime(item({ completedAt: h(48), dueDate: h(10) })), false);
   // 20:00 UTC on the 1st is 01:30 on the 2nd in India — the due day there
   assert.equal(onTime(item({ completedAt: h(20), dueDate: h(30) })), true);
+  // made that day, due the day before, finished by 3 PM the next day: still its grace
+  assert.equal(onTime(item({ createdAt: h(0), dueDate: h(-24), completedAt: h(30) })), true);
 });
 
 test("filters narrow by date, person, kind, tag and free text", () => {
@@ -57,7 +59,7 @@ test("a summary ranks by finished work and reads the middle task, not the mean",
   const items = [
     item({ id: "a", completedAt: h(10), revisions: 1 }),
     item({ id: "b", completedAt: h(20), createdAt: h(0) }),
-    item({ id: "c", personId: "u2", person: "Sparsh", completedAt: h(30), createdAt: h(28), dueDate: h(1) }),
+    item({ id: "c", personId: "u2", person: "Sparsh", completedAt: h(30), createdAt: h(-72), dueDate: h(1) }),
   ];
   const rows = summarize(items, "person");
   assert.deepEqual(rows.map((r) => r.key), ["Narendra Mehta", "Sparsh"]);
@@ -77,7 +79,7 @@ test("a task counts under each of its tags", () => {
 
 test("totals cover the whole filtered set", () => {
   // one due tomorrow (met), one that was due the day before (missed)
-  const t = totals([item({ dueDate: h(24) }), item({ id: "b", personId: "u2", revisions: 2, dueDate: h(-24) })]);
+  const t = totals([item({ dueDate: h(24) }), item({ id: "b", personId: "u2", revisions: 2, createdAt: h(-72), dueDate: h(-24) })]);
   assert.equal(t.completed, 2);
   assert.equal(t.people, 2);
   assert.equal(t.revisionsPerTask, 1);

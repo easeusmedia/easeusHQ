@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions, isParts, isReplied, isParked, AFTER } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions, isParts, isReplied, isParked, AFTER, replyKeys, replyCount } from "@/lib/space";
 import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setLeadAfter, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -193,6 +193,11 @@ export function Messages({
     setAfter((a) => ({ ...a, [key]: before }));
     setError(res.error);
   }
+  // replies added and not yet written in (the saved ones count themselves)
+  const [adding, setAdding] = useState<{ lead: string; n: number }>({ lead: "", n: 0 });
+  const replies = Math.max(replyCount({ ...lead.vars, ...after }), adding.lead === lead.id ? adding.n : 0);
+  // the reply whose platform was just picked: its who-wrote-it box takes the cursor
+  const [typing, setTyping] = useState("");
   async function addChannel(c: Contact | null, channel: string, typed: string): Promise<string | undefined> {
     const field = board.fields.find((f) => f.kind === "contacts");
     const value = channelValue(channel, typed);
@@ -622,27 +627,66 @@ export function Messages({
             )}
             {/* Replied: what they wrote back, pasted in, and where (Abhishek, 20 Nov 2026) */}
             {isReplied(t.stage) && (
-              <div className="flex flex-col gap-2.5">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="mr-1 text-xs text-muted">Replied on</span>
-                  {(["email", "instagram", "linkedin"] as const).map((p) => {
-                    const on = afterOf(AFTER.replyOn) === p;
-                    return (
-                      <button key={p} type="button" aria-pressed={on} onClick={() => saveAfter(AFTER.replyOn, on ? "" : p)} className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs">
-                        <span className="flex shrink-0">{CHANNEL_ICON[p]}</span>
-                        {PLATFORM_NAME[p]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <textarea
-                  key={lead.id}
-                  defaultValue={afterOf(AFTER.reply)}
-                  onBlur={(e) => saveAfter(AFTER.reply, e.target.value)}
-                  placeholder="Paste their reply"
-                  rows={7}
-                  className={`${INPUT} min-h-32 resize-y leading-relaxed`}
-                />
+              <div className="flex flex-col gap-4">
+                {Array.from({ length: replies }, (_, i) => {
+                  const k = replyKeys(i + 1);
+                  return (
+                    <div key={i} className="flex flex-col gap-2.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="mr-1 text-xs text-muted">Replied on</span>
+                        {(["email", "instagram", "linkedin"] as const).map((p) => {
+                          const on = afterOf(k.on) === p;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={async () => {
+                                // an email isn't an Instagram username: a new platform starts its own
+                                if (afterOf(k.from)) await saveAfter(k.from, "");
+                                if (!on) setTyping(`${lead.id}:${i}`);
+                                await saveAfter(k.on, on ? "" : p);
+                              }}
+                              className="chip flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs"
+                            >
+                              <span className="flex shrink-0">{CHANNEL_ICON[p]}</span>
+                              {PLATFORM_NAME[p]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {afterOf(k.on) && (
+                        <input
+                          key={`${lead.id}:${i}:${afterOf(k.on)}`}
+                          type={afterOf(k.on) === "email" ? "email" : "text"}
+                          autoFocus={typing === `${lead.id}:${i}`}
+                          defaultValue={afterOf(k.from)}
+                          onBlur={(e) => saveAfter(k.from, e.target.value)}
+                          placeholder={afterOf(k.on) === "email" ? "Their email" : `Their ${PLATFORM_NAME[afterOf(k.on) as "instagram" | "linkedin"]} username`}
+                          aria-label="Who replied"
+                          className={`${INPUT} max-w-sm`}
+                        />
+                      )}
+                      <textarea
+                        key={`${lead.id}:${i}`}
+                        defaultValue={afterOf(k.text)}
+                        onBlur={(e) => saveAfter(k.text, e.target.value)}
+                        placeholder="Paste their reply"
+                        rows={7}
+                        className={`${INPUT} min-h-32 resize-y leading-relaxed`}
+                      />
+                    </div>
+                  );
+                })}
+                {replies < 20 && (
+                  <button
+                    type="button"
+                    onClick={() => setAdding({ lead: lead.id, n: replies + 1 })}
+                    className="flex h-7 w-fit items-center gap-1 rounded-md px-2 text-xs text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                  >
+                    <Plus size={12} /> Add another reply
+                  </button>
+                )}
               </div>
             )}
             {/* Parked for later: the day to reach out again; a reminder goes out that day */}

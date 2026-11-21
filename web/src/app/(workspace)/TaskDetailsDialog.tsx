@@ -12,7 +12,7 @@ import { Avatar, DueDate, STATUS_LABEL, formatDate, formatDateTime, istDay } fro
 import { ProjectChip, TagPill, pill } from "./composer";
 import { useNewProject } from "./useNewProject";
 import { Reveal } from "./Reveal";
-import { daysLate, handoffUnknown } from "@/lib/due";
+import { daysLate, finishedLate, handoffUnknown } from "@/lib/due";
 import { DatePicker } from "./DatePicker";
 import type { Role } from "@/lib/workflow";
 import { StageTrail } from "./StageTrail";
@@ -568,7 +568,7 @@ function HandoffNote({
   if (handoffUnknown(createdAt, handedOffAt)) {
     return <p className="text-xs text-muted">Already with the client when it was imported from Notion.</p>;
   }
-  const late = daysLate(dueDate, handedOffAt);
+  const late = finishedLate(dueDate, handedOffAt, createdAt) ? daysLate(dueDate, handedOffAt) : 0;
   return (
     <p className="text-xs text-muted">
       Reached the client {formatDate(handedOffAt)},{" "}

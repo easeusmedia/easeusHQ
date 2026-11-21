@@ -122,11 +122,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         coverUrl={project.coverUrl}
         driveLink={project.driveLink}
         type={project.type}
-        completedAt={
-          project.completedAt
-            ? project.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-            : null
-        }
         completedOn={project.completedAt ? project.completedAt.toISOString().slice(0, 10) : ""}
         canDelete={project.tasks.length === 0}
         types={types}

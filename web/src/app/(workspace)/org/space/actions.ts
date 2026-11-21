@@ -9,6 +9,7 @@ import { withTabTag } from "@/lib/leadTags";
 import { addsPages, addsStages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   AFTER,
+  REPLY_KEY,
   roleOf,
   CHILD_OF,
   cleanValue,
@@ -1150,7 +1151,7 @@ export async function setLeadAfter(id: string, key: string, value: string): Prom
   if ("error" in who) return who;
   const v = String(value ?? "").trim();
   const ok =
-    key === AFTER.reply ? v.length <= 20000 : key === AFTER.replyOn ? ["", "email", "instagram", "linkedin"].includes(v) : key === AFTER.until ? v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v) : false;
+    REPLY_KEY.test(key) ? (key.startsWith(AFTER.replyOn) ? ["", "email", "instagram", "linkedin"].includes(v) : v.length <= (key.startsWith("reply:from") ? 200 : 20000)) : key === AFTER.until ? v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v) : false;
   if (!ok) return { error: "That couldn't be saved." };
   const drop = key === AFTER.until ? [key, AFTER.told] : [key];
   try {

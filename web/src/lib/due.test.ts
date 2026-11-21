@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysLate, dueState, handedOffStamp, handoffUnknown, reachesClient } from "./due.ts";
+import { daysLate, finishedLate, dueState, handedOffStamp, handoffUnknown, reachesClient } from "./due.ts";
 
 // 26 September, the way a due date is stored: midnight UTC on the day
 const DUE = new Date("2026-09-26");
@@ -71,4 +71,12 @@ test("a task that arrived already with the client has an unknown handoff, not a 
   // moved to the client here, a day later: that's a real, judgeable moment
   assert.equal(handoffUnknown(created, new Date("2026-09-27T10:00:00Z")), false);
   assert.equal(handoffUnknown(created, null), false);
+});
+
+test("a new task finished by 3 PM the day after it was made isn't late", () => {
+  const made = "2026-11-20T05:24:00Z"; // 20 Nov, 10:54 IST
+  assert.equal(finishedLate("2026-11-20", "2026-11-21T06:49:00Z", made), false); // 21 Nov, 12:19 IST
+  assert.equal(finishedLate("2026-11-20", "2026-11-21T09:45:00Z", made), true); // 21 Nov, 3:15 PM IST
+  assert.equal(finishedLate("2026-11-20", "2026-11-21T06:49:00Z", "2026-11-18T05:00:00Z"), true); // an older task has no grace
+  assert.equal(finishedLate("2026-11-22", "2026-11-21T06:49:00Z", "2026-11-18T05:00:00Z"), false);
 });

@@ -10,7 +10,7 @@
 // HistoryItem and everything below (turnaround, on-time, grouping, the
 // per-person numbers) is arithmetic that can be tested on its own.
 
-import { handoffUnknown } from "./due.ts";
+import { finishedLate, handoffUnknown } from "./due.ts";
 import { parseStageChange } from "./stages.ts";
 
 export type HistoryItem = {
@@ -65,7 +65,7 @@ export function onTime(item: HistoryItem): boolean | null {
   // arrived from Notion already with the client: when it got there is
   // unknown, so it isn't scored either way
   if (handoffUnknown(item.createdAt, item.handedOffAt)) return null;
-  return istDay(item.handedOffAt ?? item.completedAt) <= istDay(item.dueDate);
+  return !finishedLate(item.dueDate, item.handedOffAt ?? item.completedAt, item.createdAt);
 }
 
 export function istDay(d: Date): string {
