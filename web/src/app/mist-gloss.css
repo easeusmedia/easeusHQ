@@ -1,0 +1,49 @@
+/* ---- Mist, frostier and glossier (Abhishek, 21 Nov 2026: "make the ui more
+   frost glassy and glossy … the dark colour isn't on the blue frost side").
+   Loaded after globals.css, so these win over its Mist rules; the dark theme
+   is untouched.
+     - the glass is a clear blue frost over the misty backdrop, not grey
+       navy: deep enough that words read over the light corner too;
+     - a gloss on every panel and card: brightest at the top, fading down,
+       with a bright hairline along the top edge, like light on glass;
+     - still no backdrop-filter on a container (globals.css, Mist notes). ---- */
+[data-theme="mist"] {
+  /* grey words on it stay above 4:1 even over the light corner */
+  --mist-glass:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.04) 40%, rgba(255, 255, 255, 0.02) 100%),
+    linear-gradient(rgba(24, 56, 104, 0.58), rgba(24, 56, 104, 0.58));
+  --mist-glass-hover:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.07) 40%, rgba(255, 255, 255, 0.05) 100%),
+    linear-gradient(rgba(24, 56, 104, 0.58), rgba(24, 56, 104, 0.58));
+  --mist-line: rgba(200, 225, 255, 0.18);
+  --mist-float: rgba(30, 58, 96, 0.72);
+  /* fills straight on the page: the same blue, not grey */
+  --surface: rgba(24, 56, 104, 0.4);
+  --surface-2: rgba(24, 56, 104, 0.34);
+}
+
+/* panels (the sidebar among them) and cards straight on the page: the gloss's
+   bright top edge */
+[data-theme="mist"] .panel,
+[data-theme="mist"] .card-surface:not(.tier-aplus):not(.tier-s) {
+  border-top-color: rgba(220, 236, 255, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+[data-theme="mist"] .panel.panel-hover:hover,
+[data-theme="mist"] .card-interactive:not(.tier-aplus):not(.tier-s):hover {
+  background: var(--mist-glass-hover);
+  border-color: rgba(200, 225, 255, 0.3);
+  border-top-color: rgba(230, 242, 255, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* rows and buttons straight on the page */
+[data-theme="mist"] .panel-soft.panel-hover:hover,
+[data-theme="mist"] .btn-glow:hover {
+  background: var(--mist-glass-hover);
+}
+
+/* a stage's heading on the page: its colour over the same blue glass */
+[data-theme="mist"] :is(.mist-pin .status-pop, .mist-tint) {
+  background-image: linear-gradient(rgba(24, 56, 104, 0.5), rgba(24, 56, 104, 0.5));
+}

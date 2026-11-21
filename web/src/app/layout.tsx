@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+// Mist's blue frost and gloss, over globals.css's Mist rules
+import "./mist-gloss.css";
 import { CookieNotice } from "./CookieNotice";
 
 const geistSans = Geist({
