@@ -153,8 +153,9 @@ export function PeopleDirectory({
   const groups = [...byGroup.entries()].sort(([a], [b]) => rank(a) - rank(b));
 
   return (
-    <div className="flex h-full gap-4">
-      <aside className="flex w-[min(20rem,40vw)] shrink-0 flex-col overflow-hidden panel rounded-2xl">
+    // a phone: the list on top, in its own short scroll, and the person below it
+    <div className="flex h-full gap-4 max-md:h-auto max-md:flex-col">
+      <aside className="flex w-[min(20rem,40vw)] shrink-0 flex-col overflow-hidden panel rounded-2xl max-md:max-h-[45vh] max-md:w-full">
         <div className="flex flex-col gap-2 border-b border-border p-3">
           <div className="flex gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
@@ -232,7 +233,7 @@ export function PeopleDirectory({
         </div>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden panel rounded-2xl">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden panel rounded-2xl max-md:min-h-[50vh] max-md:overflow-visible">
         {open ? (
           <PersonDetail
             key={open.id}

@@ -44,7 +44,7 @@ export function ClientsSyncButton() {
           onClose={() => setResult(null)}
         />
       )}
-      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 max-md:bottom-[4.25rem]">
         <button
           type="button"
           onClick={sync}

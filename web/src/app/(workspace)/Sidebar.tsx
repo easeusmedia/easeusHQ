@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname } from "next/navigation";
 import { createElement, useEffect, useRef, useState } from "react";
-import { Clapperboard, CloudFog, Eye, House, BriefcaseBusiness, ListChecks, UsersRound, Building2, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, Magnet, Mail, Mic, Send, Stethoscope, TrendingUp, UserCog, type LucideIcon } from "lucide-react";
+import { Clapperboard, CloudFog, Eye, House, BriefcaseBusiness, ListChecks, Menu, UsersRound, Building2, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, Magnet, Mail, Mic, Send, Stethoscope, TrendingUp, UserCog, type LucideIcon } from "lucide-react";
 import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./TaskCard";
 import { viewAs } from "./viewAs";
@@ -435,12 +435,16 @@ export function Sidebar({
       // would paint over the hover labels that stick out past this rail
       // floats: a stroked panel inset from the window's edges, the page's
       // own background showing round it (after the Hynex reference)
-      className={`sticky top-0 z-30 h-screen shrink-0 py-3 pl-3 transition-[width] duration-200 ease-in-out ${
+      className={`sticky top-0 z-30 h-screen shrink-0 py-3 pl-3 transition-[width,transform] duration-200 ease-in-out ${
         // collapsed: exactly one row wide inside the panel (its padding
         // and stroke, the row's 36-unit slot and 1px border each side), so
         // every icon sits dead centre. In spacing units rather than px —
         // the root font size is 87.5%, so a unit isn't the usual 4px
         open ? "w-64" : "w-[calc(var(--spacing)*17+4px)]"
+      } ${
+        // a phone: a drawer over the page, never a rail beside it (21 Nov
+        // 2026: "other devices screen friendly"), off-screen while closed
+        open ? "max-md:fixed max-md:left-0 max-md:z-50" : "max-md:fixed max-md:left-0 max-md:z-50 max-md:w-64 max-md:-translate-x-[110%]"
       }`}
     >
       <div className="panel sidebar-panel flex h-full flex-col items-start gap-1 rounded-3xl p-2.5">
@@ -739,6 +743,21 @@ export function Sidebar({
       </div>
     </nav>
     {account && <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} account={account} />}
+    {/* a phone: the page dims behind the open drawer, and a tap on it folds
+        the drawer away; folded, a round button at the bottom left opens it */}
+    <div
+      aria-hidden
+      onClick={() => setOpen(false)}
+      className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 md:hidden ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+    />
+    <button
+      type="button"
+      aria-label="Open the menu"
+      onClick={() => setOpen(true)}
+      className={`panel fixed bottom-4 left-4 z-40 flex size-11 items-center justify-center rounded-full text-foreground transition-opacity duration-200 md:hidden ${open ? "pointer-events-none opacity-0" : "opacity-100"}`}
+    >
+      <Menu size={18} />
+    </button>
 
     </>
   );

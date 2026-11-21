@@ -57,7 +57,7 @@ export function NotionSyncButton() {
       {/* fixed to the viewport, not the document flow — otherwise it lands
           wherever the tallest column's content happens to end, not
           reliably near the bottom of the screen */}
-      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 max-md:bottom-[4.25rem] max-md:w-max max-md:max-w-[calc(100vw-2rem)]">
         <div className="flex items-center gap-2">
           {(
             [

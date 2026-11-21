@@ -31,7 +31,7 @@ export function ClientDock({ clients }: { clients: SidebarClient[] }) {
 
   return (
     // data-dock: the page above makes room for it (see layout.tsx)
-    <div data-dock className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
+    <div data-dock className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 max-md:bottom-[4.25rem]">
       {/* ponytail: no scrolling — a scroller would clip the names above the
           faces. Fine for a couple of dozen clients; past that, scroll it */}
       <nav aria-label="Clients" className="panel pop-in pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl p-1.5">

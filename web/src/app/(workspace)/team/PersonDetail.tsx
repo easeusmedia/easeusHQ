@@ -362,7 +362,8 @@ export function PersonDetail({
 
   return (
     <div className="fade-in flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <header className="flex items-center gap-4 border-b border-border px-6 py-5">
+      {/* a phone: the buttons wrap under the name, so the name keeps its width */}
+      <header className="flex items-center gap-4 border-b border-border px-6 py-5 max-sm:flex-wrap max-sm:px-4">
         <ProfileHead
           photo={
             // the admin can change anyone's photo here, and you can change your own

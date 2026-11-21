@@ -102,8 +102,8 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex gap-1 rounded-xl panel-soft p-1">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl panel-soft p-1">
           {GROUPS.map((g) => (
             <button
               key={g.status}
@@ -124,7 +124,7 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
                 if (id) commitStatus(id, g.status);
               }}
               aria-pressed={activeGroup === g.status}
-              className="seg flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium"
+              className="seg flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium max-sm:px-3"
             >
               {g.label} <span className="text-muted/70">({counts[g.status]})</span>
             </button>
