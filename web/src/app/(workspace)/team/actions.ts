@@ -10,6 +10,7 @@ import type { EmploymentStatus, Role } from "@prisma/client";
 import { EMPLOYMENT_TYPE_LABEL, slugOf } from "@/lib/teams";
 import { hashPassword } from "@/lib/password";
 import { MIN_PASSWORD } from "@/lib/account";
+import { withUndo } from "@/lib/undo";
 
 export type PeopleFormState = { error?: string; success?: boolean };
 
@@ -39,7 +40,10 @@ export async function updatePersonPhoto(userId: string, dataUrl: string | null):
   }
   if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That image couldn't be used. Please try a JPEG or PNG." };
 
-  await prisma.user.update({ where: { id: userId }, data: { avatarUrl: dataUrl } });
+  await withUndo([{ table: "User", id: userId }], () => prisma.user.update({ where: { id: userId }, data: { avatarUrl: dataUrl } }), {
+    depth: 0,
+    label: userId === sessionUserId ? "Changed your photo" : undefined,
+  });
   // the photo shows everywhere, so every page's layout needs it
   revalidatePath("/", "layout");
   return { success: true };
@@ -104,7 +108,7 @@ export async function updatePerson(input: {
   const salary = input.salary.trim() ? Number(input.salary.replace(/[^0-9.]/g, "")) : null;
   if (salary !== null && !Number.isFinite(salary)) return { error: "That salary isn't a number." };
 
-  await prisma.user.update({
+  await withUndo([{ table: "User", id: input.id }], () => prisma.user.update({
     where: { id: input.id },
     data: {
       name,
@@ -120,7 +124,7 @@ export async function updatePerson(input: {
       emergencyContact: input.emergencyContact.trim() || null,
       notes: input.notes.trim() || null,
     },
-  });
+  }), { depth: 0 });
 
   revalidatePath("/team");
   revalidatePath("/finance");
@@ -134,7 +138,7 @@ export async function setPosition(personId: string, position: string): Promise<s
   if (!actor) return "Only Level 1 can change someone's title.";
   const title = position.trim().replace(/\s+/g, " ");
   if (title.length > 80) return "Keep it short: 80 characters at most.";
-  await prisma.user.update({ where: { id: personId }, data: { position: title || null } });
+  await withUndo([{ table: "User", id: personId }], () => prisma.user.update({ where: { id: personId }, data: { position: title || null } }), { depth: 0 });
   revalidatePath("/team");
   return undefined;
 }
@@ -170,10 +174,15 @@ export async function setAccess(personId: string, input: { departmentIds: string
   // the department they're shown under: the one they had, while they're still in it
   const teamId = target.teamId && departmentIds.includes(target.teamId) ? target.teamId : (departmentIds[0] ?? null);
 
-  await prisma.user.update({
-    where: { id: personId },
-    data: { teamId, departments: { set: departmentIds.map((id) => ({ id })) }, roles: { set: roleIds.map((id) => ({ id })) } },
-  });
+  await withUndo(
+    [{ table: "User", id: personId }],
+    () =>
+      prisma.user.update({
+        where: { id: personId },
+        data: { teamId, departments: { set: departmentIds.map((id) => ({ id })) }, roles: { set: roleIds.map((id) => ({ id })) } },
+      }),
+    { only: ["_UserDepartments", "_UserRoles"] }
+  );
   revalidatePath("/team");
   return { success: true };
 }
@@ -196,7 +205,7 @@ export async function createJobTitle(name: string, teamId: string | null): Promi
   if (teamId && !(await prisma.team.findUnique({ where: { id: teamId }, select: { id: true } }))) return { error: "That department no longer exists." };
 
   const last = await prisma.jobTitle.findFirst({ orderBy: { sortOrder: "desc" } });
-  const created = await prisma.jobTitle.create({ data: { name: trimmed, teamId, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  const created = await withUndo((r) => [{ table: "JobTitle", id: r.id }], () => prisma.jobTitle.create({ data: { name: trimmed, teamId, sortOrder: (last?.sortOrder ?? 0) + 1 } }));
   return { success: true, id: created.id, name: created.name, teamId: created.teamId };
 }
 
@@ -207,8 +216,10 @@ export async function deleteJobTitle(id: string): Promise<PeopleFormState> {
   // Unset it from whoever holds it rather than refusing: the title is a
   // label, and blocking the delete would mean hunting down every holder
   // first. Their access and department are untouched; only the label goes.
-  await prisma.user.updateMany({ where: { jobTitleId: id }, data: { jobTitleId: null } });
-  await prisma.jobTitle.delete({ where: { id } });
+  await withUndo([{ table: "JobTitle", id }], async () => {
+    await prisma.user.updateMany({ where: { jobTitleId: id }, data: { jobTitleId: null } });
+    await prisma.jobTitle.delete({ where: { id } });
+  });
   return { success: true };
 }
 
@@ -221,7 +232,8 @@ export async function renameDepartment(id: string, name: string): Promise<People
   if (!trimmed) return { error: "Give the department a name." };
   const clash = await prisma.team.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" }, id: { not: id } } });
   if (clash) return { error: `"${clash.name}" already exists.` };
-  await prisma.team.update({ where: { id }, data: { name: trimmed } });
+  const old = await prisma.team.findUnique({ where: { id }, select: { name: true } });
+  await withUndo([{ table: "Team", id }], () => prisma.team.update({ where: { id }, data: { name: trimmed } }), { depth: 0, label: `Renamed "${old?.name}" to "${trimmed}"` });
   return { success: true };
 }
 
@@ -235,7 +247,7 @@ export async function setDepartmentWords(id: string, keywords: string): Promise<
     .map((w) => w.trim().toLowerCase())
     .filter(Boolean)
     .join(", ");
-  await prisma.team.update({ where: { id }, data: { keywords: clean } });
+  await withUndo([{ table: "Team", id }], () => prisma.team.update({ where: { id }, data: { keywords: clean } }), { depth: 0 });
   return { success: true };
 }
 
@@ -246,7 +258,8 @@ export async function renameRole(id: string, name: string): Promise<PeopleFormSt
   if (!trimmed) return { error: "Give the role a name." };
   const clash = await prisma.jobTitle.findFirst({ where: { name: { equals: trimmed, mode: "insensitive" }, id: { not: id } } });
   if (clash) return { error: `"${clash.name}" already exists.` };
-  await prisma.jobTitle.update({ where: { id }, data: { name: trimmed } });
+  const old = await prisma.jobTitle.findUnique({ where: { id }, select: { name: true } });
+  await withUndo([{ table: "JobTitle", id }], () => prisma.jobTitle.update({ where: { id }, data: { name: trimmed } }), { depth: 0, label: `Renamed "${old?.name}" to "${trimmed}"` });
   return { success: true };
 }
 
@@ -263,7 +276,7 @@ export async function createDepartment(name: string): Promise<PeopleFormState & 
   if (clash) return { error: `"${clash.name}" already exists.` };
 
   const last = await prisma.team.findFirst({ orderBy: { sortOrder: "desc" } });
-  const created = await prisma.team.create({ data: { name: trimmed, slug, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  const created = await withUndo((r) => [{ table: "Team", id: r.id }], () => prisma.team.create({ data: { name: trimmed, slug, sortOrder: (last?.sortOrder ?? 0) + 1 } }));
   return { success: true, id: created.id, name: created.name, slug: created.slug };
 }
 
@@ -284,11 +297,18 @@ export async function deleteDepartment(id: string): Promise<PeopleFormState> {
   // its own sections, portals and boards (Sales > Outreach…) must go first
   if (await prisma.space.count({ where: { teamId: id } })) return { error: `${team.name} still has its own pages. Delete its sections first.` };
 
-  await prisma.$transaction([
-    prisma.taskTag.updateMany({ where: { teamId: id }, data: { teamId: null } }),
-    prisma.jobTitle.deleteMany({ where: { teamId: id } }),
-    prisma.team.delete({ where: { id } }),
-  ]);
+  // its roles too, with who held them
+  const roles = await prisma.jobTitle.findMany({ where: { teamId: id }, select: { id: true } });
+  await withUndo(
+    [{ table: "Team", id }, ...roles.map((r) => ({ table: "JobTitle", id: r.id }))],
+    () =>
+      prisma.$transaction([
+        prisma.taskTag.updateMany({ where: { teamId: id }, data: { teamId: null } }),
+        prisma.jobTitle.deleteMany({ where: { teamId: id } }),
+        prisma.team.delete({ where: { id } }),
+      ]),
+    { label: `Deleted department "${team.name}"` }
+  );
   return { success: true };
 }
 
@@ -309,7 +329,10 @@ export async function createWorkTag(name: string, teamId: string, roleId?: strin
   const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
   // it moves as its role's tasks do
   const role = roleId ? await prisma.jobTitle.findUnique({ where: { id: roleId }, select: { workflow: true } }) : null;
-  const created = await prisma.taskTag.create({ data: { name: trimmed, teamId, roleId: role ? roleId : null, workflow: role?.workflow ?? "todo", sortOrder: (last?.sortOrder ?? 0) + 1 } });
+  const created = await withUndo(
+    (r) => [{ table: "TaskTag", id: r.id }],
+    () => prisma.taskTag.create({ data: { name: trimmed, teamId, roleId: role ? roleId : null, workflow: role?.workflow ?? "todo", sortOrder: (last?.sortOrder ?? 0) + 1 } })
+  );
   return { success: true, id: created.id, name: created.name, workflow: created.workflow };
 }
 
@@ -317,7 +340,7 @@ export async function createWorkTag(name: string, teamId: string, roleId?: strin
 export async function deleteWorkTag(id: string): Promise<PeopleFormState> {
   const actor = await requirePeopleAdmin();
   if (!actor) return { error: "Only Level 1 can remove a work tag." };
-  await prisma.taskTag.deleteMany({ where: { id } });
+  await withUndo([{ table: "TaskTag", id }], () => prisma.taskTag.deleteMany({ where: { id } }));
   return { success: true };
 }
 
@@ -336,7 +359,7 @@ export async function createPerson(input: { name: string; email: string; role: s
   const team = input.teamId ? await prisma.team.findUnique({ where: { id: input.teamId }, select: { id: true } }) : null;
   if (input.teamId && !team) return { error: "That department no longer exists." };
   if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) return { error: "Someone already signs in with that email." };
-  const person = await prisma.user.create({
+  const person = await withUndo((r) => [{ table: "User", id: r.id }], () => prisma.user.create({
     data: {
       name,
       email,
@@ -346,7 +369,7 @@ export async function createPerson(input: { name: string; email: string; role: s
       ...(team ? { teamId: team.id, departments: { connect: { id: team.id } } } : {}),
     },
     select: { id: true },
-  });
+  }), { only: ["_UserDepartments", "_UserRoles"] });
   revalidatePath("/team");
   return { id: person.id };
 }

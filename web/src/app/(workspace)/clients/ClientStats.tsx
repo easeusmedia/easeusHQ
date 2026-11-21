@@ -17,7 +17,8 @@ export type StatItem = { id: string; title: string; sub?: string; href: string; 
 // Unpaid tile (21 Nov 2026): what's paid shows on each invoice under Projects.
 export function ClientStats({ activeTasks, inProgress, delivered }: { activeTasks?: StatItem[]; inProgress: StatItem[]; delivered: StatItem[] }) {
   return (
-    <div className={`grid grid-cols-2 gap-3 ${activeTasks === undefined ? "" : "sm:grid-cols-3"}`}>
+    // a phone: one under another, so no label is cut short and none sits alone
+    <div className={`grid gap-3 max-sm:grid-cols-1 ${activeTasks === undefined ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
       {activeTasks !== undefined && <OpeningTile label="Active tasks" Icon={ListChecks} items={activeTasks} />}
       <OpeningTile label="Projects in progress" Icon={Clapperboard} items={inProgress} />
       <OpeningTile label="Projects delivered" Icon={CircleCheck} tone="emerald" items={delivered} />

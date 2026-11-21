@@ -1455,3 +1455,22 @@ dialog[open]::backdrop {
     zoom: var(--card-zoom, clamp(0.6, tan(atan2(100dvh - 80px, 788px)), 1.6));
   }
 }
+
+/* Below lg the sidebar is a drawer over the page (Sidebar.tsx): a solid
+   face, so the page under it doesn't show through its words */
+@media (max-width: 1023px) {
+  .app-root[data-theme="dark"] nav > .panel.sidebar-panel {
+    background:
+      linear-gradient(180deg, #171a1f 0%, #121418 100%) padding-box,
+      linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.04) 100%) border-box;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  /* mist: it floats, so the deeper glass of what floats */
+  [data-theme="mist"] .sidebar-panel {
+    background: var(--mist-float);
+    border-color: rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    backdrop-filter: blur(28px) saturate(1.5);
+  }
+}

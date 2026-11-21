@@ -108,6 +108,8 @@ export function useCloseOnScroll(open: boolean, close: () => void) {
     // designations shut the moment it was scrolled, so it read as cut off).
     const onScroll = (e: Event) => {
       if (e.target instanceof Element && e.target.closest("[popover], .popover")) return;
+      // typing in a menu's own search: a phone's keyboard coming up scrolls the page
+      if (document.activeElement?.matches("input, textarea") && document.activeElement.closest("[popover], .popover")) return;
       close();
     };
     window.addEventListener("scroll", onScroll, true);

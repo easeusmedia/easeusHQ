@@ -181,7 +181,7 @@ export default async function ClientDetailPage({
           </div>
         </ProfileHead>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start max-md:ml-0 max-md:justify-start">
           {/* the client's own page at this address, for the team to switch on */}
           {/* which members (everyone outside the core team) can see it: chosen
               only by Level 1 and Admin & Technical's Level 2 (lib/scope setsUp) */}

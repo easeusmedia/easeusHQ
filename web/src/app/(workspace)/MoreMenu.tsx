@@ -55,7 +55,7 @@ export function MoreMenu({
           place(trigger.current, { width, align: "end" });
           setOpen(true);
         }}
-        className={`grid size-7 place-items-center rounded-lg transition-colors hover:bg-foreground/[0.06] hover:text-foreground ${open ? "bg-foreground/[0.06] text-foreground" : "text-muted"}`}
+        className={`relative grid size-7 place-items-center rounded-lg transition-colors pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 hover:bg-foreground/[0.06] hover:text-foreground ${open ? "bg-foreground/[0.06] text-foreground" : "text-muted"}`}
       >
         <MoreHorizontal size={15} />
       </button>

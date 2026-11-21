@@ -14,6 +14,7 @@ import { isLetter, LETTERS, VIDEO_SCORING_KEY, withVideoScoringDefaults, type Vi
 import { refreshAllVideoScores, refreshVideoScores } from "@/lib/videoScores";
 import { linkDeliverables } from "@/lib/deliverableLink";
 import { aiSortEntries, syncFrameioFeedback } from "@/lib/frameioFeedback";
+import { withUndo } from "@/lib/undo";
 
 type Result = { error?: string };
 
@@ -85,7 +86,9 @@ export async function saveScoring(input: VideoScoring): Promise<Result> {
     .filter(Boolean)
     .join(", ");
   const value = JSON.stringify(s);
-  await prisma.appSetting.upsert({ where: { key: VIDEO_SCORING_KEY }, create: { key: VIDEO_SCORING_KEY, value }, update: { value } });
+  await withUndo([{ table: "AppSetting", id: VIDEO_SCORING_KEY }], () => prisma.appSetting.upsert({ where: { key: VIDEO_SCORING_KEY }, create: { key: VIDEO_SCORING_KEY, value }, update: { value } }), {
+    label: "Changed the scoring",
+  });
   await refreshAllVideoScores();
   done();
   return {};
@@ -98,8 +101,10 @@ export async function setGrade(taskId: string, grade: string | null): Promise<Re
   if (!me) return { error: "Only a Founder can grade videos." };
   if (grade !== null && !isLetter(grade)) return { error: "Pick S, A+, A, B, C or D." };
   // raw, so updatedAt (which History reads as when the work last moved) stays put
-  await prisma.$executeRaw`UPDATE "Task" SET "inspectionGrade" = ${grade}, "inspectedAt" = ${grade ? new Date() : null}, "inspectedById" = ${grade ? me.id : null} WHERE id = ${taskId}`;
-  await refreshVideoScores([taskId]);
+  await withUndo([{ kind: "task", id: taskId }], async () => {
+    await prisma.$executeRaw`UPDATE "Task" SET "inspectionGrade" = ${grade}, "inspectedAt" = ${grade ? new Date() : null}, "inspectedById" = ${grade ? me.id : null} WHERE id = ${taskId}`;
+    await refreshVideoScores([taskId]);
+  });
   done();
   revalidatePath("/board");
   return {};
@@ -129,7 +134,7 @@ export async function addCategory(input: CategoryInput): Promise<Result> {
   if ("error" in c) return c;
   if (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } })) return { error: "There's already a type with that name." };
   const last = await prisma.feedbackCategory.aggregate({ _max: { sortOrder: true } });
-  await prisma.feedbackCategory.create({ data: { ...c.data, sortOrder: (last._max.sortOrder ?? 0) + 1 } });
+  await withUndo((r) => [{ table: "FeedbackCategory", id: r.id }], () => prisma.feedbackCategory.create({ data: { ...c.data, sortOrder: (last._max.sortOrder ?? 0) + 1 } }));
   await refreshAllVideoScores();
   done();
   return {};
@@ -144,10 +149,17 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
   if ("error" in c) return c;
   if (before.name === "Others" && c.data.name !== "Others") return { error: "Others stays: it's where anything unsorted goes." };
   if (c.data.name !== before.name && (await prisma.feedbackCategory.findUnique({ where: { name: c.data.name } }))) return { error: "There's already a type with that name." };
-  await prisma.$transaction([
-    prisma.feedbackCategory.update({ where: { id }, data: c.data }),
-    prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: c.data.name } }),
-  ]);
+  // a new name carries its mistakes along, so they come back with it
+  const filed = c.data.name === before.name ? [] : await prisma.performanceEntry.findMany({ where: { category: before.name, kind: "mistake" }, select: { id: true } });
+  await withUndo(
+    [{ table: "FeedbackCategory", id }, ...filed.map((e) => ({ table: "PerformanceEntry", id: e.id }))],
+    () =>
+      prisma.$transaction([
+        prisma.feedbackCategory.update({ where: { id }, data: c.data }),
+        prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: c.data.name } }),
+      ]),
+    { depth: 0, label: c.data.name === before.name ? `Edited "${before.name}"` : `Renamed "${before.name}" to "${c.data.name}"` }
+  );
   await refreshAllVideoScores();
   done();
   return {};
@@ -159,10 +171,16 @@ export async function deleteCategory(id: string): Promise<Result> {
   const before = await prisma.feedbackCategory.findUnique({ where: { id } });
   if (!before) return {};
   if (before.name === "Others") return { error: "Others stays: it's where anything unsorted goes." };
-  await prisma.$transaction([
-    prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: "Others" } }),
-    prisma.feedbackCategory.delete({ where: { id } }),
-  ]);
+  const filed = await prisma.performanceEntry.findMany({ where: { category: before.name, kind: "mistake" }, select: { id: true } });
+  await withUndo(
+    [{ table: "FeedbackCategory", id }, ...filed.map((e) => ({ table: "PerformanceEntry", id: e.id }))],
+    () =>
+      prisma.$transaction([
+        prisma.performanceEntry.updateMany({ where: { category: before.name, kind: "mistake" }, data: { category: "Others" } }),
+        prisma.feedbackCategory.delete({ where: { id } }),
+      ]),
+    { depth: 0, label: `Deleted "${before.name}"` }
+  );
   await refreshAllVideoScores();
   done();
   return {};
@@ -175,7 +193,7 @@ export async function deleteCategory(id: string): Promise<Result> {
 export async function sortWithAi(ids: string[]): Promise<Result> {
   if (!(await requireFounder())) return { error: "Only a Founder can re-sort feedback." };
   try {
-    await aiSortEntries(ids.slice(0, 200));
+    await withUndo(ids.slice(0, 200).map((id) => ({ table: "PerformanceEntry", id })), () => aiSortEntries(ids.slice(0, 200)), { depth: 0, label: "Sorted feedback with AI" });
     const tasks = await prisma.performanceEntry.findMany({ where: { id: { in: ids } }, select: { taskId: true } });
     await refreshVideoScores(tasks.map((t) => t.taskId), { wide: true });
     done();
@@ -243,7 +261,9 @@ export async function logEntry(input: EntryInput): Promise<Result> {
   if (!me) return { error: "Only a Founder can add feedback." };
   const c = await clean(input);
   if ("error" in c) return c;
-  await prisma.performanceEntry.create({ data: { ...c.data, editorId: input.editorId, source: "manual", by: me.name, loggedById: me.id, reviewed: true } });
+  await withUndo((r) => [{ table: "PerformanceEntry", id: r.id }], () => prisma.performanceEntry.create({ data: { ...c.data, editorId: input.editorId, source: "manual", by: me.name, loggedById: me.id, reviewed: true } }), {
+    label: "Added feedback",
+  });
   await refreshVideoScores([c.data.taskId], { wide: true });
   done();
   return {};
@@ -256,7 +276,7 @@ export async function updateEntry(id: string, input: EntryInput): Promise<Result
   if (!before) return { error: "That feedback is gone." };
   const c = await clean(input, before.source === "frameio");
   if ("error" in c) return c;
-  await prisma.performanceEntry.update({ where: { id }, data: { ...c.data, reviewed: true } });
+  await withUndo([{ table: "PerformanceEntry", id }], () => prisma.performanceEntry.update({ where: { id }, data: { ...c.data, reviewed: true } }), { depth: 0, label: "Edited feedback" });
   // it may have moved from one video to another
   await refreshVideoScores([before.taskId, c.data.taskId], { wide: true });
   done();
@@ -270,7 +290,10 @@ export async function setCreative(id: string, creative: boolean): Promise<Result
   if (!(await requireFounder())) return { error: "Only a Founder can change feedback." };
   const e = await prisma.performanceEntry.findUnique({ where: { id }, select: { category: true, taskId: true } });
   if (!e) return { error: "That's gone." };
-  await prisma.performanceEntry.update({ where: { id }, data: { kind: creative ? "creative" : "mistake", category: e.category ?? "Others", reviewed: true } });
+  await withUndo([{ table: "PerformanceEntry", id }], () => prisma.performanceEntry.update({ where: { id }, data: { kind: creative ? "creative" : "mistake", category: e.category ?? "Others", reviewed: true } }), {
+    depth: 0,
+    label: creative ? "Marked feedback as a creative change" : "Marked feedback as a mistake",
+  });
   await refreshVideoScores([e.taskId], { wide: true });
   done();
   return {};
@@ -278,7 +301,7 @@ export async function setCreative(id: string, creative: boolean): Promise<Result
 
 export async function deleteEntry(id: string): Promise<Result> {
   if (!(await requireFounder())) return { error: "Only a Founder can remove feedback." };
-  const gone = await prisma.performanceEntry.delete({ where: { id }, select: { taskId: true } });
+  const gone = await withUndo([{ table: "PerformanceEntry", id }], () => prisma.performanceEntry.delete({ where: { id }, select: { taskId: true } }), { label: "Deleted feedback" });
   await refreshVideoScores([gone.taskId], { wide: true });
   done();
   return {};
@@ -303,7 +326,7 @@ export async function setTaskExcluded(taskId: string, excluded: boolean): Promis
   if (!(await requireFounder())) return { error: "Only a Founder can change what counts." };
   // raw, so the task's updatedAt stays put: History and these numbers read
   // it as when the work was delivered, where the stage log doesn't say
-  await prisma.$executeRaw`UPDATE "Task" SET "kpiExcluded" = ${excluded} WHERE id = ${taskId}`;
+  await withUndo([{ kind: "task", id: taskId }], () => prisma.$executeRaw`UPDATE "Task" SET "kpiExcluded" = ${excluded} WHERE id = ${taskId}`);
   done();
   return {};
 }
@@ -316,13 +339,15 @@ export async function setTaskType(taskId: string, type: string): Promise<Result>
   if (!tag) return { error: "That type doesn't exist." };
   const before = await prisma.task.findUnique({ where: { id: taskId }, select: { updatedAt: true } });
   if (!before) return { error: "That video is gone." };
-  await prisma.task.update({ where: { id: taskId }, data: { tags: { set: [{ id: tag.id }] } } });
-  // keep updatedAt where it was: History and these numbers read it as when
-  // the work last moved
-  await prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${before.updatedAt} WHERE id = ${taskId}`;
-  await refreshVideoScores([taskId]);
-  // a new kind may mean another placeholder (lib/deliverableLink)
-  await linkDeliverables([taskId]);
+  await withUndo([{ kind: "task", id: taskId }], async () => {
+    await prisma.task.update({ where: { id: taskId }, data: { tags: { set: [{ id: tag.id }] } } });
+    // keep updatedAt where it was: History and these numbers read it as when
+    // the work last moved
+    await prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${before.updatedAt} WHERE id = ${taskId}`;
+    await refreshVideoScores([taskId]);
+    // a new kind may mean another placeholder (lib/deliverableLink)
+    await linkDeliverables([taskId]);
+  });
   done();
   return {};
 }

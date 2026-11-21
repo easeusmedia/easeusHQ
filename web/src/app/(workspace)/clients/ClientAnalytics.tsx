@@ -82,6 +82,12 @@ export function ClientAnalytics({
   // bumped after marking posts, so the numbers are read again (from what's
   // stored — no scrape)
   const [version, setVersion] = useState(0);
+  // and after an undo (a mark put back)
+  useEffect(() => {
+    const again = () => setVersion((v) => v + 1);
+    window.addEventListener("easeus:undo", again);
+    return () => window.removeEventListener("easeus:undo", again);
+  }, []);
   const [poll, setPoll] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -418,7 +424,8 @@ function Board({
                           title="Leave this out of the numbers. It moves to Not ours, where you can restore it."
                           className="btn btn-xs btn-ghost"
                         >
-                          <X size={12} /> Remove
+                          {/* a phone: just the cross, so the title keeps its room */}
+                          <X size={12} /> <span className="max-sm:sr-only">Remove</span>
                         </button>
                       ) : undefined
                     }
@@ -542,9 +549,9 @@ function ContentItem({
   const square = r.kind !== "Video";
   return (
     <li className="group flex items-center transition-colors hover:bg-surface-2/50">
-      <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-4 px-4 py-3">
-        <span className="w-6 shrink-0 pt-1 text-right text-xs tabular-nums text-muted">{rank}</span>
-        <span className={`shrink-0 overflow-hidden rounded-lg bg-surface-2 ${square ? "h-16 w-16" : "aspect-video w-28"}`}>
+      <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-4 px-4 py-3 max-sm:gap-3 max-sm:px-3">
+        <span className="w-6 shrink-0 pt-1 text-right text-xs tabular-nums text-muted max-sm:w-4">{rank}</span>
+        <span className={`shrink-0 overflow-hidden rounded-lg bg-surface-2 ${square ? "h-16 w-16 max-sm:size-12" : "aspect-video w-28 max-sm:w-20"}`}>
           {r.thumbnail && (
             // eslint-disable-next-line @next/next/no-img-element -- the platform's own thumbnail
             <img src={r.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -574,7 +581,7 @@ function ContentItem({
           </span>
         </span>
       </a>
-      {action && <span className="shrink-0 pr-4 opacity-0 transition-opacity group-hover:opacity-100">{action}</span>}
+      {action && <span className="shrink-0 pr-4 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100 max-sm:pr-2">{action}</span>}
     </li>
   );
 }

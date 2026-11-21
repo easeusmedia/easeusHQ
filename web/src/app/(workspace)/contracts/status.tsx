@@ -21,7 +21,8 @@ export function stepOf(status: string) {
 // The road from link to signed copy, and where this contract is on it
 export function Stepper({ at }: { at: number }) {
   return (
-    <ol className="flex items-center gap-2 overflow-x-auto rounded-2xl panel-soft px-4 py-3 [scrollbar-width:none]">
+    // narrow (a phone, a tablet beside the sidebar): only the step it's on keeps its name
+    <ol className="@container flex items-center gap-2 overflow-x-auto rounded-2xl panel-soft px-4 py-3 [scrollbar-width:none]">
       {STEPS.map((label, i) => {
         const done = i < at;
         const current = i === at;
@@ -38,7 +39,7 @@ export function Stepper({ at }: { at: number }) {
             >
               {done ? <Check size={11} strokeWidth={3} /> : current ? <span className="size-1.5 animate-pulse rounded-full bg-accent" /> : null}
             </span>
-            <span className={`whitespace-nowrap text-xs ${done || current ? "text-foreground" : "text-muted"}`}>{label}</span>
+            <span className={`whitespace-nowrap text-xs ${done || current ? "text-foreground" : "text-muted"} ${current || (at >= STEPS.length && i === STEPS.length - 1) ? "" : "@max-[600px]:hidden"}`}>{label}</span>
             {i < STEPS.length - 1 && (
               <span className={`mx-1 h-px min-w-6 flex-1 ${done ? "bg-accent/60" : "bg-white/10"}`} />
             )}

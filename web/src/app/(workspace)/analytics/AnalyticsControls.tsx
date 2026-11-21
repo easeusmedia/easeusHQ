@@ -143,7 +143,7 @@ export function RemoveButton({ clientId, platform, id }: { clientId: string; pla
       }}
       title="Leave this out of the numbers. You can restore it from the client's Analytics tab."
       aria-label="Remove from analytics"
-      className="grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white/80 opacity-0 backdrop-blur transition-opacity duration-150 group-hover:opacity-100 hover:text-white focus-visible:opacity-100 disabled:opacity-60"
+      className="grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white/80 opacity-0 backdrop-blur transition-opacity duration-150 pointer-coarse:opacity-100 group-hover:opacity-100 hover:text-white focus-visible:opacity-100 disabled:opacity-60"
     >
       {busy ? <RefreshCw size={12} className="animate-spin" /> : <X size={14} />}
     </button>

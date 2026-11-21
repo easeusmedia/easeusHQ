@@ -12,6 +12,7 @@ import { moveWorkTask } from "../my-tasks/actions";
 import { updateInvoiceStatus } from "../clients/actions";
 import { findPerson, findTask } from "./tools";
 import { applyAdd, applyEdit, prepareAdd, prepareEdit } from "./edits";
+import { withUndo } from "@/lib/undo";
 
 // A change the assistant wants to make, checked against the database and
 // described as before → after, so the admin confirms exactly what will
@@ -221,7 +222,8 @@ export async function apply(p: Proposal, actorId: string): Promise<string | null
     }
     await prisma.user.update({ where: { id: fresh.targetId }, data });
   } else if (p.action === "feedback") {
-    await prisma.performanceEntry.create({
+    const by = (await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } }))?.name ?? null;
+    await withUndo((e) => [{ table: "PerformanceEntry", id: e.id }], () => prisma.performanceEntry.create({
       data: {
         editorId: fresh.targetId,
         kind: String(v.kind),
@@ -232,9 +234,9 @@ export async function apply(p: Proposal, actorId: string): Promise<string | null
         source: "manual",
         reviewed: true,
         loggedById: actorId,
-        by: (await prisma.user.findUnique({ where: { id: actorId }, select: { name: true } }))?.name ?? null,
+        by,
       },
-    });
+    }), { label: "Added feedback" });
   } else if (p.action === "invoice_status") {
     const res = await updateInvoiceStatus(fresh.targetId, v.status as "draft");
     if (res.error) return res.error;

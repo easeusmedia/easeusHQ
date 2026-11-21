@@ -168,7 +168,8 @@ export function Dropdown({
           {searching && (
             <div className="px-1 pt-1 pb-1.5">
               <input
-                autoFocus
+                // a phone's keyboard would cover the list: there, tap to search
+                autoFocus={!window.matchMedia("(pointer: coarse)").matches}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {

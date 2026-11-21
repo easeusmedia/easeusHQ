@@ -18,8 +18,10 @@ export const metadata: Metadata = {
   description: "The Easeus Media team workspace",
 };
 
-// the installed app's window bar, in the app's own dark
-export const viewport: Viewport = { themeColor: "#0b0d10" };
+// the installed app's window bar, in the app's own dark. maximumScale: an
+// iPhone otherwise zooms the page into any field under 16px when it's tapped
+// (and leaves it zoomed); it still lets you pinch to zoom
+export const viewport: Viewport = { themeColor: "#0b0d10", maximumScale: 1 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

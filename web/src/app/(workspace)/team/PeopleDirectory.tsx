@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Network, Search, Users2 } from "lucide-react";
 import type { EmploymentStatus, Role } from "@prisma/client";
 import type { Letter, Part } from "@/lib/videoScore";
@@ -141,6 +141,12 @@ export function PeopleDirectory({
   }, [people, query, team, groupOf]);
 
   const open = people.find((p) => p.id === openId) ?? null;
+  // stacked (a phone or a tablet upright): the person is below the list, so go to them
+  const detail = useRef<HTMLElement>(null);
+  const openPerson = (id: string) => {
+    setOpenId(id);
+    if (window.matchMedia("(width < 64rem)").matches) detail.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const order = seesLevels ? LEVELS.map((r) => ROLE_LABEL[r]) : [LEADERSHIP, ...teams.map((t) => t.name)];
   const rank = (k: string) => (k === FORMER ? 99 : order.indexOf(k) + 1);
@@ -153,9 +159,9 @@ export function PeopleDirectory({
   const groups = [...byGroup.entries()].sort(([a], [b]) => rank(a) - rank(b));
 
   return (
-    // a phone: the list on top, in its own short scroll, and the person below it
-    <div className="flex h-full gap-4 max-md:h-auto max-md:flex-col">
-      <aside className="flex w-[min(20rem,40vw)] shrink-0 flex-col overflow-hidden panel rounded-2xl max-md:max-h-[45vh] max-md:w-full">
+    // a phone or a tablet upright: the list on top, in its own short scroll, and the person below it
+    <div className="flex h-full gap-4 max-lg:h-auto max-lg:flex-col">
+      <aside className="flex w-[min(20rem,40vw)] shrink-0 flex-col overflow-hidden panel rounded-2xl max-lg:max-h-[45vh] max-lg:w-full">
         <div className="flex flex-col gap-2 border-b border-border p-3">
           <div className="flex gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
@@ -202,7 +208,7 @@ export function PeopleDirectory({
                 {members.map((p) => (
                   <button
                     key={p.id}
-                    onClick={() => setOpenId(p.id)}
+                    onClick={() => openPerson(p.id)}
                     className={`flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition-[background-color,border-color] duration-200 ${
                       p.id === openId ? "selected" : "border-transparent hover:border-white/[0.06] hover:bg-white/[0.04]"
                     }`}
@@ -233,7 +239,7 @@ export function PeopleDirectory({
         </div>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden panel rounded-2xl max-md:min-h-[50vh] max-md:overflow-visible">
+      <section ref={detail} className="flex min-w-0 flex-1 flex-col overflow-hidden panel rounded-2xl max-lg:min-h-[50vh] max-lg:scroll-mt-4 max-lg:overflow-visible">
         {open ? (
           <PersonDetail
             key={open.id}

@@ -351,6 +351,12 @@ export function HomeView({
   const [adding, setAdding] = useState(false);
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [opened, setOpened] = useState<{ key: string; n: number } | null>(null);
+  // an undo (the bar at the top) can bring back what was ticked here
+  useEffect(() => {
+    const reset = () => setGone(new Set());
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   // which work the list shows: everything active, due today, or overdue
   const [show, setShow] = useState<Show>("active");
   // overdue: all, or only what's been late once, twice, or 3 or more times
@@ -940,6 +946,15 @@ export function NoticesSection({
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const [gone, setGone] = useState<Set<string>>(new Set());
   const shown = notices.filter((n) => !gone.has(n.key));
+  // an undo (the bar at the top) can bring back a notice cleared here
+  useEffect(() => {
+    const reset = () => {
+      setGone(new Set());
+      setLeaving(new Set());
+    };
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   // the notice whose remark is being written, or that's being forwarded
   const [remarking, setRemarking] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -1235,8 +1250,8 @@ function MeetingDialog({ ref, people, connected }: { ref: React.Ref<{ open: (day
           Name
           <input value={f.title} onChange={(e) => set({ title: e.target.value })} placeholder="Town hall" className={field} />
         </label>
-        <div className="grid grid-cols-3 gap-3">
-          <div className={label}>
+        <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-2">
+          <div className={`${label} max-sm:col-span-2`}>
             Day
             <DatePicker value={f.day} onChange={(v) => set({ day: v })} clearable={false} />
           </div>

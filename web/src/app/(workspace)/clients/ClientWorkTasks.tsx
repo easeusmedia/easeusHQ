@@ -22,9 +22,10 @@ export function WorkTaskRow({ task }: { task: ClientWorkTask }) {
   return (
     <Link
       href="/home"
-      className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 text-left hover:bg-surface-2"
+      className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-surface-2/40 px-4 py-3 text-left hover:bg-surface-2 max-md:flex-wrap"
     >
-      <span className="min-w-0 flex-1">
+      {/* a phone: the name takes its own line, the rest wraps under it */}
+      <span className="min-w-0 flex-1 max-md:basis-full">
         <span className="block truncate text-sm">{task.title}</span>
         {task.projectName && <span className="block truncate text-xs text-muted">{task.projectName}</span>}
       </span>

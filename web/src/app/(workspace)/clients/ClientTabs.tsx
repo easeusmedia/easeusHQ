@@ -50,7 +50,11 @@ export function ClientTabs({ tabs, width, initialTab }: { tabs: Tab[]; width: st
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => select(t.key)}
+            onClick={(e) => {
+              select(t.key);
+              // a narrow screen: the tab tapped half off the edge comes fully into view
+              e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+            }}
             className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
               active === t.key ? "border-foreground text-foreground" : "border-transparent text-muted hover:text-foreground"
             }`}

@@ -37,7 +37,7 @@ function Change({ now, before, label }: { now: number; before: number; label?: s
   const c = (now - before) / before;
   const Icon = c >= 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-sm font-medium ${c >= 0 ? "text-emerald-300" : "text-rose-300/90"}`}>
+    <span className={`inline-flex items-center gap-0.5 text-sm font-medium max-xl:flex-wrap ${c >= 0 ? "text-emerald-300" : "text-rose-300/90"}`}>
       <Icon size={14} />
       {Math.abs(c) >= 1 ? `${(c + 1).toFixed(1)}×` : `${Math.abs(c * 100).toFixed(0)}%`}
       {label && <span className="ml-1 font-normal text-muted">{label}</span>}
@@ -334,7 +334,7 @@ export default async function AnalyticsPage({
                   <Link
                     key={c.cid}
                     href={`${clientHref(cl)}?tab=analytics`}
-                    className="group grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_6rem_5rem_6rem_1rem] items-center gap-5 rounded-2xl panel-soft panel-hover px-5 py-3 hover:-translate-y-px"
+                    className="group grid grid-cols-[minmax(0,14rem)_minmax(0,1fr)_6rem_5rem_6rem_1rem] items-center gap-5 rounded-2xl panel-soft panel-hover px-5 py-3 hover:-translate-y-px max-sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] max-sm:gap-3 max-sm:px-4"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
                       {logo ? (
@@ -345,7 +345,7 @@ export default async function AnalyticsPage({
                       )}
                       <span className="truncate text-sm font-medium">{cl.name}</span>
                     </span>
-                    <span className="h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+                    <span className="h-1.5 overflow-hidden rounded-full bg-white/[0.05] max-sm:hidden">
                       <span className="block h-full rounded-full bg-accent/70" style={{ width: `${c.views ? Math.max(2, (c.views / top) * 100) : 0}%` }} />
                     </span>
                     <span className="text-right text-xs text-muted">{plural(c.posts, yt ? "video" : "post")}</span>
@@ -353,7 +353,7 @@ export default async function AnalyticsPage({
                     <span className="text-right">
                       <Change now={c.views} before={c.before} />
                     </span>
-                    <ArrowUpRight size={14} className="text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ArrowUpRight size={14} className="text-muted opacity-0 transition-opacity group-hover:opacity-100 max-sm:hidden" />
                   </Link>
                 );
               })}

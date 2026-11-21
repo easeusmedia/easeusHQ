@@ -8,6 +8,7 @@ import { AddInline, EditableName } from "../EditableName";
 import { createDepartment, createJobTitle, createWorkTag, deleteDepartment, deleteJobTitle, deleteWorkTag, renameDepartment, renameRole, setDepartmentWords } from "./actions";
 import type { Department, Position, WorkTag } from "./PeopleDirectory";
 import { closeOnBackdrop } from "../dialog";
+import { useUndoReset } from "../useUndoReset";
 
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
@@ -31,6 +32,16 @@ export function Organisation({
   const [teams, setTeams] = useState(departments);
   const [roles, setRoles] = useState(positions);
   const [tags, setTags] = useState(workTags);
+  useUndoReset(
+    () => {
+      setTeams(departments);
+      setRoles(positions);
+      setTags(workTags);
+    },
+    departments,
+    positions,
+    workTags
+  );
   const [changed, setChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +125,7 @@ export function Organisation({
       <ConfirmButton
         confirm="Remove"
         message={kindMessage(k)}
-        className="text-muted opacity-0 transition-opacity group-hover/k:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+        className="text-muted opacity-0 transition-opacity pointer-coarse:opacity-100 group-hover/k:opacity-100 hover:text-red-400 focus-visible:opacity-100"
         onConfirm={() => removeKind(k.id)}
       >
         <X size={10} />
@@ -190,7 +201,7 @@ export function Organisation({
                           <ConfirmButton
                             confirm="Remove"
                             message={roleMessage(r)}
-                            className="rounded-md p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
+                            className="rounded-md p-1 text-muted opacity-0 transition-opacity pointer-coarse:opacity-100 group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100"
                             onConfirm={() => removeRole(r.id)}
                           >
                             <X size={12} />

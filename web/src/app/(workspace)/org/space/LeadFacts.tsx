@@ -415,7 +415,7 @@ function PinButton({ name, on, onClick }: { name: string; on: boolean; onClick: 
       aria-label={on ? `Unpin ${name} from the cards` : `Pin ${name} to the cards`}
       title={on ? "Unpin from the cards" : "Pin to the cards"}
       className={`grid size-8 shrink-0 place-items-center rounded-lg transition-[opacity,color,background-color] duration-150 hover:bg-white/[0.06] focus-visible:opacity-100 ${
-        on ? "text-accent" : "text-muted opacity-0 group-hover/fact:opacity-100 hover:text-foreground"
+        on ? "text-accent" : "text-muted opacity-0 group-hover/fact:opacity-100 hover:text-foreground pointer-coarse:opacity-100"
       }`}
     >
       <Pin size={14} className={on ? "fill-current" : ""} />

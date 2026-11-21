@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { PrefetchLink } from "./PrefetchLink";
 import { usePathname } from "next/navigation";
-import { createElement, useEffect, useRef, useState } from "react";
+import { createElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Clapperboard, CloudFog, Eye, House, BriefcaseBusiness, ListChecks, Menu, UsersRound, Building2, PanelLeft, LogOut, Plug, ChartColumn, FileSignature, ChevronDown, ChevronUp, Wallet, Gauge, Layers, LayoutGrid, Magnet, Mail, Mic, Send, Stethoscope, TrendingUp, UserCog, type LucideIcon } from "lucide-react";
 import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./TaskCard";
@@ -62,6 +62,15 @@ const ROW = "border border-transparent";
 const IDLE = "text-foreground/90 hover:bg-white/[0.04] hover:text-foreground";
 
 const COOKIE_NAME = "tasks-sidebar-open";
+
+// Phones and tablets (below lg): the sidebar is a drawer over the page,
+// always laid out open, and opened from a round button at the bottom left
+const SMALL = "(max-width: 1023px)";
+const onResize = (cb: () => void) => {
+  const m = window.matchMedia(SMALL);
+  m.addEventListener("change", cb);
+  return () => m.removeEventListener("change", cb);
+};
 
 
 // Collapsed, the rail is icons only; this names each one the moment the
@@ -274,7 +283,11 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   // click-only — no hover peek. Opens/closes only via the toggle button.
-  const [open, setOpen] = useState(initialOpen);
+  const [railOpen, setOpen] = useState(initialOpen);
+  // below lg: the drawer, shut until the menu button opens it; laid out open
+  const small = useSyncExternalStore(onResize, () => window.matchMedia(SMALL).matches, () => false);
+  const [drawer, setDrawer] = useState(false);
+  const open = railOpen || small;
   const [profileOpen, setProfileOpen] = useState(false);
   const [viewAsOpen, setViewAsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -296,15 +309,9 @@ export function Sidebar({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  // A phone has no room for the open sidebar beside the page: there it
-  // starts folded and folds again after each page is picked (nothing saved,
-  // so a desktop keeps its own preference).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the screen's width is only known in the browser
-    if (window.matchMedia("(max-width: 767px)").matches) setOpen(false);
-  }, [pathname]);
-
   function toggle() {
+    // the drawer's logo and close button shut it; the desktop rail keeps its own setting
+    if (small) return setDrawer(false);
     setOpen((v) => {
       const next = !v;
       // a cookie, not localStorage — the server needs to read this on the
@@ -329,6 +336,7 @@ export function Sidebar({
   const [seenPath, setSeenPath] = useState(pathname);
   if (pathname !== seenPath) {
     setSeenPath(pathname);
+    setDrawer(false);
     if (inClients) setClientsOpen(true);
     setUnfolded((u) => Object.fromEntries(Object.entries(u).filter(([href]) => pathname !== href && !pathname.startsWith(`${href}/`))));
   }
@@ -420,6 +428,10 @@ export function Sidebar({
       // logo — the button below stops its own click from bubbling here so
       // it doesn't get toggled twice
       onClick={() => !open && toggle()}
+      // the drawer folds away the moment a page in it is picked
+      onClickCapture={(e) => small && (e.target as Element).closest("a") && setDrawer(false)}
+      // shut, the drawer is off-screen: nothing in it to tab to
+      inert={small && !drawer}
       // items-start: a flex column's children default to *stretching* to
       // the container's full cross-axis width. Every row below has its own
       // explicit w-full while open, so this didn't matter then — but while
@@ -435,16 +447,16 @@ export function Sidebar({
       // would paint over the hover labels that stick out past this rail
       // floats: a stroked panel inset from the window's edges, the page's
       // own background showing round it (after the Hynex reference)
-      className={`sticky top-0 z-30 h-screen shrink-0 py-3 pl-3 transition-[width,transform] duration-200 ease-in-out ${
+      className={`sticky top-0 z-30 h-screen shrink-0 py-3 pl-3 transition-[width,translate] duration-200 ease-in-out max-lg:h-dvh ${
         // collapsed: exactly one row wide inside the panel (its padding
         // and stroke, the row's 36-unit slot and 1px border each side), so
         // every icon sits dead centre. In spacing units rather than px —
         // the root font size is 87.5%, so a unit isn't the usual 4px
         open ? "w-64" : "w-[calc(var(--spacing)*17+4px)]"
       } ${
-        // a phone: a drawer over the page, never a rail beside it (21 Nov
-        // 2026: "other devices screen friendly"), off-screen while closed
-        open ? "max-md:fixed max-md:left-0 max-md:z-50" : "max-md:fixed max-md:left-0 max-md:z-50 max-md:w-64 max-md:-translate-x-[110%]"
+        // a phone or tablet: a drawer over the page, never a rail beside it
+        // (21 Nov 2026: "other devices screen friendly"), off-screen while shut
+        drawer ? "max-lg:fixed max-lg:left-0 max-lg:z-50" : "max-lg:fixed max-lg:left-0 max-lg:z-50 max-lg:w-64 max-lg:-translate-x-[110%]"
       }`}
     >
       <div className="panel sidebar-panel flex h-full flex-col items-start gap-1 rounded-3xl p-2.5">
@@ -743,18 +755,20 @@ export function Sidebar({
       </div>
     </nav>
     {account && <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} account={account} />}
-    {/* a phone: the page dims behind the open drawer, and a tap on it folds
-        the drawer away; folded, a round button at the bottom left opens it */}
+    {/* a phone or tablet: the page dims behind the open drawer (and over
+        Nyra's button), and a tap on it folds the drawer away; folded, a round
+        button at the bottom left opens it */}
     <div
       aria-hidden
-      onClick={() => setOpen(false)}
-      className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 md:hidden ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      onClick={() => setDrawer(false)}
+      className={`fixed inset-0 z-[45] bg-black/50 transition-opacity duration-200 lg:hidden ${drawer ? "opacity-100" : "pointer-events-none opacity-0"}`}
     />
     <button
       type="button"
       aria-label="Open the menu"
-      onClick={() => setOpen(true)}
-      className={`panel fixed bottom-4 left-4 z-40 flex size-11 items-center justify-center rounded-full text-foreground transition-opacity duration-200 md:hidden ${open ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      aria-expanded={drawer}
+      onClick={() => setDrawer(true)}
+      className={`panel float-panel fixed bottom-4 left-4 z-40 flex size-11 items-center justify-center rounded-full text-foreground transition-opacity duration-200 lg:hidden ${drawer ? "pointer-events-none opacity-0" : "opacity-100"}`}
     >
       <Menu size={18} />
     </button>

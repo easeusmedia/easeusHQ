@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 import { markClientFeedbackRead } from "./actions";
+import { topLayer, useCloseOnScroll, usePopover } from "../popover";
 
 type Item = { id: string; name: string | null; message: string; createdAt: string; unread: boolean };
 
@@ -13,7 +14,12 @@ type Item = { id: string; name: string | null; message: string; createdAt: strin
 export function ClientMessages({ clientId, items }: { clientId: string; items: Item[] }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  // drawn where it can't be cut off: on a phone the button can sit anywhere in its row
+  const { position, place } = usePopover(320);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScroll(open, close);
   const [fresh, setFresh] = useState<string[]>([]);
   const [, start] = useTransition();
   const unread = items.filter((i) => i.unread).length;
@@ -29,6 +35,7 @@ export function ClientMessages({ clientId, items }: { clientId: string; items: I
 
   function toggle() {
     if (open) return setOpen(false);
+    place(triggerRef.current, { width: 336, align: "end" });
     setOpen(true);
     const ids = items.filter((i) => i.unread).map((i) => i.id);
     setFresh(ids);
@@ -42,15 +49,19 @@ export function ClientMessages({ clientId, items }: { clientId: string; items: I
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={toggle} aria-expanded={open} className="btn btn-sm btn-glow">
+      <button ref={triggerRef} type="button" onClick={toggle} aria-expanded={open} className="btn btn-sm btn-glow">
         <MessageSquare size={13} />
         Messages
         {unread > 0 && (
           <span className="rounded-full bg-blue-400/20 px-1.5 text-[12px] font-medium leading-4 text-blue-200">{unread}</span>
         )}
       </button>
-      {open && (
-        <div className="pop-in absolute right-0 top-full z-30 mt-1.5 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl popover shadow-xl">
+      {open && position && (
+        <div
+          {...topLayer}
+          style={{ top: position.top, bottom: position.bottom, left: position.left, width: position.width }}
+          className="pop-in fixed z-50 overflow-hidden rounded-xl popover shadow-xl"
+        >
           <p className="border-b border-border px-4 py-2.5 text-xs font-medium text-muted">From the client</p>
           <ul className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto p-2">
             {items.length === 0 ? (

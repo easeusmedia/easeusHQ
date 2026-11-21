@@ -259,7 +259,7 @@ export function ProjectFiles({
               const dim = r.link ? "" : "opacity-80";
               // its tags as chips; a file with none says its type, quietly
               return (
-                <li key={r.id} className="group relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-white/[0.03]">
+                <li key={r.id} className="group relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-white/[0.03] max-md:flex-wrap">
                   <span className={`badge flex size-9 shrink-0 items-center justify-center rounded-xl ${dim}`}>
                     <Icon size={16} />
                   </span>
@@ -287,26 +287,30 @@ export function ProjectFiles({
                       delivery in green. Each on one line in a slot wide enough
                       for it, and the arrow's place kept, so they line up row
                       under row; a column no file shown has stays out */}
-                  {anyDraft && (
-                    <span className="flex shrink-0 justify-end sm:w-[11.5rem]">
-                      {r.draft && (
-                        <span className="flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-amber-300">
-                          <PenLine size={11} className="shrink-0" />
-                          Draft: {formatDate(`${r.draft}T00:00:00Z`)}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {anyDue && (
-                    <span className="flex shrink-0 justify-end sm:w-[12.5rem]">
-                      {r.due && (
-                        <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-emerald-300">
-                          <CalendarCheck size={11} className="shrink-0" />
-                          Delivery: {formatDate(`${r.due}T00:00:00Z`)}
-                        </span>
-                      )}
-                    </span>
-                  )}
+                  {/* a phone: they take their own line under the name, so the
+                      name isn't squeezed away */}
+                  <span className={`contents max-md:order-last max-md:basis-full max-md:gap-1.5 max-md:pl-12 ${r.draft || r.due ? "max-md:flex" : "max-md:hidden"}`}>
+                    {anyDraft && (
+                      <span className="flex shrink-0 justify-end md:w-[11.5rem] max-md:empty:hidden">
+                        {r.draft && (
+                          <span className="flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-amber-300">
+                            <PenLine size={11} className="shrink-0" />
+                            Draft: {formatDate(`${r.draft}T00:00:00Z`)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {anyDue && (
+                      <span className="flex shrink-0 justify-end md:w-[12.5rem] max-md:empty:hidden">
+                        {r.due && (
+                          <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-emerald-300">
+                            <CalendarCheck size={11} className="shrink-0" />
+                            Delivery: {formatDate(`${r.due}T00:00:00Z`)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </span>
                   <span className="flex w-[15px] shrink-0">
                     {r.link && <ArrowUpRight size={15} className="text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100" />}
                   </span>

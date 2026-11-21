@@ -5,6 +5,7 @@ import { setTimeout as wait } from "timers/promises";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
+import { withUndo } from "@/lib/undo";
 import { DEPT, isFounder, worksDepartment } from "@/lib/scope";
 import { callClaude, HAIKU, SONNET, type Block } from "@/lib/ai";
 import { claudeJson } from "@/lib/claude";
@@ -286,7 +287,8 @@ export async function findContacts(boardId: string, leads: LeadIn[]): Promise<Do
 // (lib/linkedPages), then Country from their YouTube channels where still
 // empty (lib/channelCountry), no Claude in either.
 // duplicates: leads whose name is already on the board, added anyway when asked
-export async function importLeads(boardId: string, leads: LeadIn[], duplicates = false, unread: string[] = []): Promise<Done & { created?: number; skipped?: number; ids?: string[]; failed?: { title: string; error: string }[] }> {
+// earlier: the ids this import added in its fifties before, so the whole import is one step to undo
+export async function importLeads(boardId: string, leads: LeadIn[], duplicates = false, unread: string[] = [], earlier: string[] = []): Promise<Done & { created?: number; skipped?: number; ids?: string[]; failed?: { title: string; error: string }[] }> {
   const b = await boardFor(boardId);
   if ("error" in b) return b;
   // the origin only makes the links add_leads sends back, unused here
@@ -295,7 +297,15 @@ export async function importLeads(boardId: string, leads: LeadIn[], duplicates =
   const key = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
   const late = new Set((Array.isArray(unread) ? unread : []).slice(0, 50).map((t) => key(String(t).slice(0, 200))));
   try {
-    const res = (await add.run({ board_id: boardId, leads: await importCountries(boardId, leads), allow_duplicates: duplicates === true })) as { created: { id: string; title: string }[]; skipped?: unknown[]; failed?: { title: string; error: string }[] };
+    // only leads this person added to this board
+    const given = Array.isArray(earlier) ? earlier.slice(0, 5000).map(String) : [];
+    const before = given.length ? (await prisma.lead.findMany({ where: { id: { in: given }, boardId, createdById: b.viewer.id }, select: { id: true } })).map((l) => l.id) : [];
+    type Res = { created: { id: string; title: string }[]; skipped?: unknown[]; failed?: { title: string; error: string }[] };
+    // ponytail: every fifty keeps the import's step again, so a big import snaps its earlier leads each time; fine to a few thousand
+    const res = await withUndo(
+      (r: Res) => [...before, ...r.created.map((c) => c.id)].map((id) => ({ table: "Lead", id })),
+      async () => (await add.run({ board_id: boardId, leads: await importCountries(boardId, leads), allow_duplicates: duplicates === true })) as Res,
+    );
     const ids = res.created.map((c) => c.id);
     const again = res.created.filter((c) => late.has(key(c.title))).map((c) => c.id);
     // ponytail: each fifty fills on its own, so a big import's fills overlap

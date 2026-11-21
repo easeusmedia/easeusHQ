@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 
 // Clicks inside a card or link must not open or follow it
@@ -43,6 +43,12 @@ export function EditableName({
   // the name just saved, shown until the page brings it back
   const [saved, setSaved] = useState<{ from: string; to: string } | null>(null);
   if (saved && saved.from !== name) setSaved(null);
+  // an undo (UndoRedo) hands back to the name the page has
+  useEffect(() => {
+    const reset = () => setSaved(null);
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   const shown = saved?.to ?? name;
   // the field opens on the name as it is now (a rename elsewhere may have landed)
   if (!editing && value !== shown) setValue(shown);
@@ -86,7 +92,7 @@ export function EditableName({
         >
           <span className={wrap ? "line-clamp-2 break-words" : "truncate"}>{shown}</span>
           {pencil !== "none" && (
-            <Pencil size={11} className={`shrink-0 text-muted transition-opacity ${pencil === "always" ? "opacity-45 group-hover/name:opacity-100" : "opacity-0 group-hover/name:opacity-100"}`} />
+            <Pencil size={11} className={`shrink-0 text-muted transition-opacity ${pencil === "always" ? "opacity-45 group-hover/name:opacity-100" : "opacity-0 group-hover/name:opacity-100 pointer-coarse:opacity-45"}`} />
           )}
         </button>
         {error && (

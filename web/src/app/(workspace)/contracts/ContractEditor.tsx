@@ -12,6 +12,7 @@ import { ClientFormPanel, ContractForm, type ClientIntake } from "./ContractForm
 import { Stepper, stepOf } from "./status";
 import type { ChatMessage } from "./assistant";
 import type { TrackedEvent } from "./tracking";
+import { useUndoReset } from "../useUndoReset";
 import {
   approveContract,
   chatContract,
@@ -73,6 +74,17 @@ export function ContractEditor({
   const [clauses, setClauses] = useState(initialClauses);
   const [status, setStatus] = useState(initialStatus);
   const [chat, setChat] = useState(initialChat);
+  useUndoReset(
+    () => {
+      setD(initialDetails);
+      setClauses(initialClauses);
+      setStatus(initialStatus);
+      setChat(initialChat);
+    },
+    initialDetails,
+    initialClauses,
+    initialStatus
+  );
   const [thinking, setThinking] = useState(false);
   const [busyField, setBusyField] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -394,7 +406,7 @@ export function ContractEditor({
   // stepper stay put; the left column shows the form (which scrolls) or
   // Claude, and on the right the action bar stays while the contract scrolls.
   return (
-    <div className="flex flex-col gap-4 lg:-mb-(--page-pad) lg:h-[calc(100dvh-var(--page-pad))] lg:overflow-hidden">
+    <div className="flex flex-col gap-4 xl:-mb-(--page-pad) xl:h-[calc(100dvh-var(--page-pad))] xl:overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start gap-3">
         <Link href="/contracts" aria-label="All contracts" className="mt-0.5 flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground">
           <ArrowLeft size={16} />
@@ -419,9 +431,9 @@ export function ContractEditor({
         <Stepper at={stepOf(status)} />
       </div>
 
-      <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
         {/* the left column: the form or Claude, one at a time, each given the whole height */}
-        <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
+        <div className="flex min-w-0 flex-col gap-3 xl:min-h-0">
           <div className="flex shrink-0 gap-1 rounded-2xl panel-soft p-1">
             {(
               [
@@ -452,7 +464,7 @@ export function ContractEditor({
           </div>
 
           {/* both stay mounted, so nothing typed is lost switching between them */}
-          <div className={`${tab === "form" ? "flex" : "hidden"} flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1 lg:pb-(--page-pad)`}>
+          <div className={`${tab === "form" ? "flex" : "hidden"} flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:pr-1 xl:pb-(--page-pad)`}>
             {/* first what the client told us, then what we decide */}
             {intake && <ClientFormPanel intake={intake} sentOn={submittedOn} currency={d.currency} />}
             <ContractForm d={d} today={today} missing={missing} locked={locked} busy={busyField} onSet={set} onAsk={(field, text, files) => ask(text, field, files)} />
@@ -466,7 +478,7 @@ export function ContractEditor({
             </div>
           </div>
 
-          <div className={`${tab === "chat" ? "block" : "hidden"} h-[560px] lg:mb-(--page-pad) lg:h-auto lg:min-h-0 lg:flex-1`}>
+          <div className={`${tab === "chat" ? "block" : "hidden"} h-[560px] xl:mb-(--page-pad) xl:h-auto xl:min-h-0 xl:flex-1`}>
             <ContractChat
               chat={chat}
               thinking={thinking}
@@ -482,7 +494,7 @@ export function ContractEditor({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05]  bg-surface/30 lg:mb-(--page-pad) lg:min-h-0">
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/[0.05]  bg-surface/30 xl:mb-(--page-pad) xl:min-h-0">
           {/* the one next step, fixed above the contract it's about */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-white/[0.05] px-4 py-3 sm:px-6">
             <div className="flex flex-wrap items-center gap-3">
@@ -511,7 +523,7 @@ export function ContractEditor({
             {error && <p className="fade-in text-sm text-foreground/85">{error}</p>}
           </div>
           {/* the contract — scrolls on its own */}
-          <div className="p-3 sm:p-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+          <div className="p-3 sm:p-6 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain">
             <ContractPaper clauses={clauses} onChange={changeClauses} contract={{ ...composed, details: d }} readOnly={locked} />
           </div>
         </div>

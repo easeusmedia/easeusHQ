@@ -82,11 +82,12 @@ export function BoardTabs({
                       {counts && <span className="ml-2 shrink-0 text-xs font-normal text-muted tabular-nums">{counts[b.id] ?? 0}</span>}
                     </button>
                   )}
-                  {/* rename and delete, sliding out of the open tab on hover */}
+                  {/* rename and delete, sliding out of the open tab on hover
+                      (on a touch screen, always out on the open tab) */}
                   {canBuild && (
                     <span
                       className={`flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity,margin] duration-300 ease-out ${
-                        tools ? "group-focus-within/tab:-mr-1.5 group-focus-within/tab:ml-1.5 group-focus-within/tab:max-w-14 group-focus-within/tab:opacity-100 group-hover/tab:-mr-1.5 group-hover/tab:ml-1.5 group-hover/tab:max-w-14 group-hover/tab:opacity-100" : ""
+                        tools ? "group-focus-within/tab:-mr-1.5 group-focus-within/tab:ml-1.5 group-focus-within/tab:max-w-14 group-focus-within/tab:opacity-100 group-hover/tab:-mr-1.5 group-hover/tab:ml-1.5 group-hover/tab:max-w-14 group-hover/tab:opacity-100 pointer-coarse:-mr-1.5 pointer-coarse:ml-1.5 pointer-coarse:max-w-14 pointer-coarse:opacity-100" : ""
                       }`}
                     >
                       <button type="button" tabIndex={tools ? 0 : -1} onClick={() => setRenaming(true)} aria-label={`Rename ${b.name}`} className="grid size-6 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-foreground">

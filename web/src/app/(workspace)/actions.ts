@@ -9,7 +9,7 @@ import { dayOf } from "@/lib/editorKpi";
 import { assigneeWhere, canAssign, canEditTag, effectiveRole, isFounder, setsUp } from "@/lib/scope";
 import { getViewer } from "@/lib/viewer";
 import { deleteForGood, departmentFromWords, frozenFor, recordDateChange } from "@/lib/taskTrack";
-import { withUndo } from "@/lib/taskUndo";
+import { withUndo } from "@/lib/undo";
 import { kindInTitle } from "@/lib/department";
 import { createInNotion, pushesToNotion, updateInNotion } from "@/lib/notionPush";
 import { matchClient } from "@/lib/notionMapping";
@@ -124,37 +124,49 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   // in nobody's My tasks it was made and never seen (Abhishek, 13 Nov 2026)
   const owner = assignedToId || (workflow === "todo" ? viewer.id : null);
 
-  const task = await prisma.task.create({
-    // sortOrder: Date.now() puts new cards after every existing one (which
-    // default to 0) without needing to query the column's current max
-    data: {
-      projectId,
-      title: title.trim(),
-      // when the assignee has to finish it by, not when it was created
-      dueDate: dueDateInput ? new Date(dueDateInput) : null,
-      // internal work never goes to the client, so it has no delivery day
-      deliveryDate: deliveryDateInput && !internal ? new Date(deliveryDateInput) : null,
-      // nor a day it goes live
-      postDate: postDateInput && !internal ? new Date(postDateInput) : null,
-      // hidden from the assigned editor until this date — see the schema comment
-      scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
-      assignedToId: owner,
-      rawLink,
-      referenceLink,
-      editingNotes,
-      sortOrder: Date.now(),
-      internal,
-      workflow,
-      teamId,
-      createdById: actor.id,
-      tags: { connect: tagIds.map((id) => ({ id })) },
+  // kept as the person's step to undo (lib/undo), with the placeholder made
+  // for it, when there was none of its kind left to fill
+  const had = new Set((await prisma.projectAsset.findMany({ where: { projectId }, select: { id: true } })).map((a) => a.id));
+  let extra: string | null = null;
+  const task = await withUndo(
+    (t) => [{ kind: "task" as const, id: t.id }, ...(extra ? [{ table: "ProjectAsset", id: extra }] : [])],
+    async () => {
+      const t = await prisma.task.create({
+        // sortOrder: Date.now() puts new cards after every existing one (which
+        // default to 0) without needing to query the column's current max
+        data: {
+          projectId,
+          title: title.trim(),
+          // when the assignee has to finish it by, not when it was created
+          dueDate: dueDateInput ? new Date(dueDateInput) : null,
+          // internal work never goes to the client, so it has no delivery day
+          deliveryDate: deliveryDateInput && !internal ? new Date(deliveryDateInput) : null,
+          // nor a day it goes live
+          postDate: postDateInput && !internal ? new Date(postDateInput) : null,
+          // hidden from the assigned editor until this date — see the schema comment
+          scheduledFor: scheduledForInput ? new Date(scheduledForInput) : null,
+          assignedToId: owner,
+          rawLink,
+          referenceLink,
+          editingNotes,
+          sortOrder: Date.now(),
+          internal,
+          workflow,
+          teamId,
+          createdById: actor.id,
+          tags: { connect: tagIds.map((id) => ({ id })) },
+        },
+        // status defaults to "queued"
+      });
+      await prisma.activityLog.create({ data: { actorId: actor.id, action: "created", entity: "Task", entityId: t.id } });
+      // its project's placeholder of its kind (lib/deliverableLink)
+      await linkDeliverables([t.id]);
+      const slot = await prisma.projectAsset.findUnique({ where: { taskId: t.id }, select: { id: true } });
+      if (slot && !had.has(slot.id)) extra = slot.id;
+      return t;
     },
-    // status defaults to "queued"
-  });
-
-  await prisma.activityLog.create({ data: { actorId: actor.id, action: "created", entity: "Task", entityId: task.id } });
-  // its project's placeholder of its kind (lib/deliverableLink)
-  await linkDeliverables([task.id]);
+    { label: `Added "${title.trim()}"` },
+  );
 
   // Mirror it into Notion's Editing Queue, for the people whose work lives
   // there. Deliberately not awaited for correctness: if Notion is slow or
@@ -302,7 +314,7 @@ export async function reorderTask(taskId: string, sortOrder: number): Promise<Ta
 // own task's Frame.io link (everything else — title, assignee, raw footage,
 // editing notes — is ops' input, not theirs to change; they drive status,
 // not task details).
-// kept as the person's step to undo (lib/taskUndo)
+// kept as the person's step to undo (lib/undo)
 export async function updateTask(prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   return withUndo([{ kind: "task", id: String(formData.get("taskId")) }], () => saveTask(prev, formData));
 }
@@ -487,10 +499,14 @@ export async function createTaskTag(name: string): Promise<{ error?: string; tag
   if (existing) return { error: `"${existing.name}" already exists.` };
 
   const last = await prisma.taskTag.findFirst({ orderBy: { sortOrder: "desc" } });
-  const tag = await prisma.taskTag.create({
-    data: { name: trimmed, teamId: user.teamId, sortOrder: (last?.sortOrder ?? 0) + 1 },
-    include: { team: { select: { name: true } } },
-  });
+  const tag = await withUndo(
+    (t) => [{ table: "TaskTag", id: t.id }],
+    () =>
+      prisma.taskTag.create({
+        data: { name: trimmed, teamId: user.teamId, sortOrder: (last?.sortOrder ?? 0) + 1 },
+        include: { team: { select: { name: true } } },
+      }),
+  );
   revalidatePath("/board");
   revalidatePath("/my-tasks");
   return { tag: { id: tag.id, name: tag.name, clientFacing: tag.clientFacing, group: tag.team?.name ?? null } };
@@ -511,7 +527,8 @@ export async function deleteTaskTag(tagId: string): Promise<{ error?: string }> 
     return { error: "That tag belongs to another team." };
   }
 
-  await prisma.taskTag.delete({ where: { id: tagId } });
+  // the tasks and files it was on get it back with an undo
+  await withUndo([{ table: "TaskTag", id: tagId }], () => prisma.taskTag.delete({ where: { id: tagId } }));
   revalidatePath("/board");
   revalidatePath("/my-tasks");
   return {};
@@ -1016,7 +1033,7 @@ async function overdueTask(kind: "task" | "work", id: string) {
 // Any day, with a reason (Abhishek, 5 Nov 2026): an earlier day becomes its
 // due date as it is, counted late for that date only once (overdueFor), and
 // the task is open again (lib/taskTrack overdueToAnswer)
-// kept as the person's step to undo (lib/taskUndo)
+// kept as the person's step to undo (lib/undo)
 export async function answerOverdue(kind: "task" | "work", id: string, day: string, reason: string) {
   return withUndo([{ kind, id }], () => answerOverdueNow(kind, id, day, reason));
 }
@@ -1044,7 +1061,7 @@ async function answerOverdueNow(kind: "task" | "work", id: string, day: string, 
 // (Abhishek, 23 Oct 2026): done, on the day picked (any day up to today),
 // with why it wasn't ticked. History, its delivered day and its deadline
 // read that day as when it was finished.
-// kept as the person's step to undo (lib/taskUndo)
+// kept as the person's step to undo (lib/undo)
 export async function finishOverdue(kind: "task" | "work", id: string, day: string, reason: string) {
   return withUndo([{ kind, id }], () => finishOverdueNow(kind, id, day, reason));
 }

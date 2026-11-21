@@ -23,9 +23,11 @@ export function Info({ label, text }: { label: string; text: string | null | und
         ref={ref}
         type="button"
         aria-label={`What ${label} means`}
-        onMouseEnter={show}
-        onMouseLeave={close}
-        onFocus={show}
+        // a tap is its own click (below): a touch also "enters" and focuses
+        // the button first, which opened it only for the click to shut it
+        onPointerEnter={(e) => e.pointerType === "mouse" && show()}
+        onPointerLeave={(e) => e.pointerType === "mouse" && close()}
+        onFocus={(e) => e.currentTarget.matches(":focus-visible") && show()}
         onBlur={close}
         onClick={(e) => {
           e.preventDefault();

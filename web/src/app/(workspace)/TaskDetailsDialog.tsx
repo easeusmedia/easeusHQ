@@ -218,7 +218,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
 
         {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
             Dock app) gives a 0-based flex item no height at all */}
-        <div className="flex min-h-0 flex-auto">
+        <div className="flex min-h-0 flex-auto max-md:relative">
           {/* Two columns, so the form stops being one tall stack you have
               to scroll end to end. Short fields pair up; anything that
               needs the width (title, tags, notes) spans both. */}
@@ -231,7 +231,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             // clicked into it. The padding is the room the ring needs.
             // w-[34rem] but free to shrink: the dialog is capped at the
             // window's width, and a form that couldn't shrink got cut off
-            className="grid w-[34rem] min-w-0 shrink auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1"
+            className={`grid w-[34rem] min-w-0 shrink auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1 max-md:transition-[opacity,visibility] max-md:duration-300 ${historyOpen ? "max-md:invisible max-md:opacity-0" : ""}`}
           >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />
@@ -475,7 +475,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
                             type="button"
                             onClick={() => setEditingFrameio(true)}
                             title="Edit Frame.io link"
-                            className="shrink-0 text-muted opacity-0 transition-opacity hover:text-foreground group-hover/link:opacity-100"
+                            className="shrink-0 text-muted opacity-0 transition-opacity hover:text-foreground group-hover/link:opacity-100 pointer-coarse:opacity-100"
                           >
                             <Pencil size={12} />
                           </button>
@@ -499,10 +499,10 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
           <div
             inert={!historyOpen}
             className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              historyOpen ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"
-            }`}
+              historyOpen ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0 max-md:pointer-events-none"
+            } max-md:absolute max-md:inset-0 max-md:w-full`}
           >
-            <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4">
+            <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4 max-md:w-full max-md:pl-1">
               <p className="shrink-0 text-xs font-medium text-muted">Every stage this task has been through</p>
               <div className="min-h-0 flex-1 overflow-y-auto rounded-xl panel-soft p-4">
                 <StageTrail logs={logs} />

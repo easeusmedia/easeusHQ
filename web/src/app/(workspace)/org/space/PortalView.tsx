@@ -88,6 +88,12 @@ export function PortalView({
   if (going && (board?.slug === going || !switching)) setGoing(null);
   // Instagram and LinkedIn marks tapped here show at once, ahead of the board's refresh
   const [tracked, setTracked] = useState<Record<string, Marks>>({});
+  // an undo (UndoRedo) puts the board's own marks back
+  useEffect(() => {
+    const reset = () => setTracked({});
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   const [trackError, setTrackError] = useState<string | null>(null);
   async function track(id: string, change: MarkChange) {
     const before = tracked[id];
@@ -215,7 +221,7 @@ export function PortalView({
       {stats && (
         <section className="panel overflow-hidden rounded-2xl">
           <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] p-2.5">
-            <div className={SEG_ROW}>
+            <div className={`${SEG_ROW} max-w-full overflow-x-auto`}>
               {(["all", ...PLATFORMS] as const).map((p) => (
                 <button key={p} type="button" aria-pressed={prefs.platform === p} onClick={() => savePrefs({ platform: p })} className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
                   {PLATFORM_ICON[p]} {p === "all" ? "All" : PLATFORM_NAME[p]}
@@ -228,7 +234,8 @@ export function PortalView({
           </div>
           {/* Instagram and LinkedIn are tapped, Replied only: no open rate to
               show. LinkedIn shows how many took the connection request. */}
-          <div className={`grid grid-cols-1 divide-y divide-white/[0.06] sm:divide-x sm:divide-y-0 ${prefs.platform === "instagram" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
+          {/* a phone: two by two, the label given the width the badge doesn't use */}
+          <div className={`grid grid-cols-2 divide-white/[0.06] max-sm:[&>*]:border-white/[0.06] max-sm:[&>:nth-child(even)]:border-l max-sm:[&>:nth-child(n+3)]:border-t max-sm:[&_p+p]:pr-0 sm:divide-x ${prefs.platform === "instagram" ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
             <StatTile bare label="Unique reach outs" value={reach?.unique ?? 0} Icon={Users} />
             <StatTile bare label="Total reach outs" value={reach?.total ?? 0} Icon={Send} />
             {prefs.platform === "linkedin" && (

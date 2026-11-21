@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useUndoReset } from "../useUndoReset";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -241,6 +242,7 @@ export function VideoGrid({ videos, showScore, empty = "No videos here." }: { vi
 export function GradeControl({ taskId, grade }: { taskId: string; grade: Letter | null }) {
   const { run, error } = useRun();
   const [value, setValue] = useState<string>(grade ?? "");
+  useUndoReset(() => setValue(grade ?? ""), grade);
   const [saving, setSaving] = useState(false);
   return (
     <div className="flex flex-col gap-2">
@@ -586,7 +588,7 @@ function Row({ e, lead, tags, canEdit, onEdit, run, extra }: { e: FeedbackView; 
           {canEdit && <Actions e={e} onEdit={onEdit} run={run} extra={extra} className="-my-1 ml-auto sm:hidden" />}
         </div>
       </div>
-      {canEdit && <Actions e={e} onEdit={onEdit} run={run} extra={extra} className="self-start opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-sm:hidden" />}
+      {canEdit && <Actions e={e} onEdit={onEdit} run={run} extra={extra} className="self-start opacity-0 transition-opacity pointer-coarse:opacity-100 group-hover:opacity-100 focus-within:opacity-100 max-sm:hidden" />}
     </li>
   );
 }

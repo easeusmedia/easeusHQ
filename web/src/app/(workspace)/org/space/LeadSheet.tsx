@@ -18,7 +18,8 @@ const CELL = "overflow-hidden px-4 py-3.5 align-middle whitespace-nowrap transit
 // pinned to the left (the lead) or the right (Restore, Delete): solid, so
 // what scrolls under it doesn't show through, a hairline on its inner edge
 const SOLID = "mist-pin bg-surface group-hover:bg-[linear-gradient(rgb(255_255_255/0.025),rgb(255_255_255/0.025)),linear-gradient(var(--surface),var(--surface))]";
-const PIN_LEFT = `${SOLID} sticky left-0 z-10 shadow-[1px_0_0_var(--border)]`;
+// (a phone: not pinned, as it would leave no room to scroll the rest past it)
+const PIN_LEFT = `${SOLID} sticky left-0 z-10 shadow-[1px_0_0_var(--border)] max-sm:static`;
 const PIN_RIGHT = `${SOLID} sticky right-0 z-10 shadow-[-1px_0_0_var(--border)]`;
 
 // Each column's width, in px, until it's dragged; dragged, kept for that tab

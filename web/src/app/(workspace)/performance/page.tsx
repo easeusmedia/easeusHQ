@@ -56,7 +56,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         <p className="rounded-2xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted">No editors yet.</p>
       ) : (
         <>
-          <ul className="grid gap-4 lg:grid-cols-2">
+          <ul className="grid gap-4 xl:grid-cols-2">
             {cards.map(({ e, now, before }) => (
               <li key={e.id} className="min-w-0">
                 <Link href={`/performance/${e.id}${query ? `?${query}` : ""}`} className="flex h-full flex-col gap-5 rounded-2xl panel-soft panel-hover p-4 sm:p-5">
@@ -81,10 +81,10 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                   </div>
                   <div className="grid grid-cols-3 gap-3 border-t border-border/60 pt-4">
                     {(["quality", "efficiency", "client"] as const).map((p) => (
-                      <span key={p} className="flex min-w-0 items-center gap-2">
+                      <span key={p} className="flex min-w-0 items-center gap-2 max-sm:flex-col max-sm:items-start">
                         <span className={`grid size-8 shrink-0 place-items-center rounded-lg text-sm font-semibold ${now.letter[p] ? GRADE_STYLE[now.letter[p]!] : "bg-foreground/[0.05] text-muted"}`}>{now.letter[p] ?? "–"}</span>
                         <span className="min-w-0">
-                          <span className="block truncate text-sm text-muted">{PART_LABEL[p]}</span>
+                          <span className="block truncate text-sm text-muted max-sm:whitespace-normal">{PART_LABEL[p]}</span>
                           {now[p] !== null && <span className="block text-sm tabular-nums">{now[p]}</span>}
                         </span>
                       </span>

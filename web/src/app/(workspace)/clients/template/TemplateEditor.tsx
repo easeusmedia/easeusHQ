@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, GripVertical, Plus, X } from "lucide-react";
 import { updateClientTemplate, type ClientTemplateData } from "../actions";
@@ -66,6 +66,21 @@ function DocBlock({
 export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
+  // after an undo, the form takes what's saved once the page brings it back
+  const [undone, setUndone] = useState(false);
+  const [base, setBase] = useState(initial);
+  if (base !== initial) {
+    setBase(initial);
+    if (undone) {
+      setUndone(false);
+      setForm(initial);
+    }
+  }
+  useEffect(() => {
+    const on = () => setUndone(true);
+    window.addEventListener("easeus:undo", on);
+    return () => window.removeEventListener("easeus:undo", on);
+  }, []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);

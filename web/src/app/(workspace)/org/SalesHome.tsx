@@ -112,7 +112,7 @@ export async function SalesHome({ teamId, team, notices }: { teamId: string; tea
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <StatTile label="Leads collected" value={collected} Icon={Magnet} />
         <StatTile label="In outreach" value={rows.reduce((n, r) => n + r.inOutreach, 0)} Icon={Users} />
         <StatTile label="Reach outs today" value={reachedToday} Icon={Send} />

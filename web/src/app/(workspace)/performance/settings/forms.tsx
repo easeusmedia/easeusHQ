@@ -8,6 +8,7 @@ import { ConfirmButton } from "../../ConfirmButton";
 import { Reveal } from "../../Reveal";
 import { GradeBadge, Num, PART, useRun, type CategoryView } from "../ui";
 import { addCategory, deleteCategory, saveScoring, updateCategory } from "../actions";
+import { useUndoReset } from "../../useUndoReset";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const card = "flex flex-col gap-4 rounded-2xl border border-border bg-surface-2/30 p-5";
@@ -30,6 +31,12 @@ function Card({ title, icon, children }: { title: string; icon?: React.ReactNode
 export function ScoringForm({ scoring, kinds }: { scoring: VideoScoring; kinds: string[] }) {
   const { run, error } = useRun();
   const [d, setD] = useState(scoring);
+  // after an undo the fields start again from the saved scoring
+  const [round, setRound] = useState(0);
+  useUndoReset(() => {
+    setD(scoring);
+    setRound((r) => r + 1);
+  }, scoring);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const set = (patch: Partial<VideoScoring>) => {
@@ -49,7 +56,7 @@ export function ScoringForm({ scoring, kinds }: { scoring: VideoScoring; kinds: 
   const C = PART.client;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div key={round} className="flex flex-col gap-4">
       <div className="flex min-h-9 items-center justify-end gap-3">
         {error && <span className="mr-auto text-sm text-red-300">{error}</span>}
         {saved && !changed && <span className="text-sm text-muted">Saved. Every video is rescored.</span>}

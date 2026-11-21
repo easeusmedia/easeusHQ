@@ -75,7 +75,7 @@ export function FrozenTasks({ items, children }: { items: ToAnswer[]; children: 
         ref={ref}
         {...closeOnBackdrop}
         onClose={() => setAsking(null)}
-        className="glass fixed top-1/2 left-1/2 m-0 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 text-foreground"
       >
         {asking && (
           <div className="flex flex-col gap-4 p-6">

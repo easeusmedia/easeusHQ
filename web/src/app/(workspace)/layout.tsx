@@ -26,7 +26,7 @@ import { liveLine } from "@/lib/live";
 import { overdueToAnswer } from "@/lib/taskTrack";
 import { FrozenTasks } from "./FrozenTasks";
 import { UndoRedo } from "./UndoRedo";
-import { undoStepFor } from "@/lib/taskUndo";
+import { undoStepFor } from "@/lib/undo";
 
 export default async function TasksLayout({ children }: { children: React.ReactNode }) {
   // read server-side so the very first paint already matches the user's
@@ -135,7 +135,7 @@ export default async function TasksLayout({ children }: { children: React.ReactN
     >
     <FrozenTasks items={frozen}>
     {/* their own look (the profile menu's Theme): dark, or mist (globals.css) */}
-    <div className="app-root flex h-screen bg-background text-foreground" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
+    <div className="app-root flex h-screen bg-background text-foreground max-lg:h-dvh" data-theme={realUser?.theme === "mist" ? "mist" : "dark"}>
       <Pulse live={liveLine()} />
       {viewingAs && <ViewAsBanner name={sessionUser.name} level={LEVEL_LABEL[sessionUser.role]} />}
       <Spotlight />
@@ -162,9 +162,10 @@ export default async function TasksLayout({ children }: { children: React.ReactN
         sides={sidesOf(viewer)}
       />
       {/* the page scrolls; the client bar floats over its foot, and the page
-          makes room for it whenever it's there */}
+          makes room for it whenever it's there (and, on a phone or tablet,
+          for the menu and Nyra's buttons) */}
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <MainScroll className="min-h-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)] [&:has(+[data-dock])]:pb-24">{children}</MainScroll>
+        <MainScroll className="min-h-0 flex-1 overflow-y-auto p-(--page-pad) [--page-pad:--spacing(4)] sm:[--page-pad:--spacing(5)] xl:[--page-pad:--spacing(6)] [&:has(+[data-dock])]:pb-24 max-lg:pb-20">{children}</MainScroll>
         <ClientDock clients={currentClients} />
       </div>
       {sessionUser.role === "employee" && <ApprovalWatcher userId={sessionUser.id} />}

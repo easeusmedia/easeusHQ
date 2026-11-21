@@ -26,8 +26,9 @@ import { PAGE, pageByGroup, usePaging } from "./paging";
 const HEAD = "px-3 py-2.5 text-left text-xs font-medium whitespace-nowrap text-muted";
 const CELL = "px-3 py-2 align-middle whitespace-nowrap";
 // the frozen name column: solid enough that rows scrolled under it don't
-// show through, with a hairline on its right edge
-const FROZEN = "mist-pin sticky left-0 z-10 bg-surface shadow-[1px_0_0_var(--border)]";
+// show through, with a hairline on its right edge (a phone: not frozen, as
+// it would leave no room to scroll the rest past it)
+const FROZEN = "mist-pin sticky left-0 z-10 bg-surface shadow-[1px_0_0_var(--border)] max-sm:static";
 
 // The same leads as a Notion table: one row each, a column per property.
 // Wide boards scroll sideways while the name stays put. Each stage shows ten

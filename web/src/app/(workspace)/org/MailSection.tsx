@@ -36,7 +36,7 @@ export async function MailSection({ base, range }: { base: string; range?: strin
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <StatTile label="Sent" value={s.sent} Icon={Send} />
         <StatTile label="Replies" value={s.replies.replies} tone="emerald" Icon={Reply} />
         <StatTile label="Reply rate" value={pct(s.replies.answered, s.replies.started)} lit={s.replies.answered > 0} tone="emerald" Icon={Percent} note={<p className="text-xs text-muted">{s.replies.answered} of {s.replies.started} conversations</p>} />

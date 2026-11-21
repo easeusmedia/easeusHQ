@@ -265,7 +265,7 @@ export function ClauseForm({
 function Tools({ onEdit, onUp, onDown, onRemove }: { onEdit: () => void; onUp?: () => void; onDown?: () => void; onRemove: () => void }) {
   const b = "flex size-7 items-center justify-center rounded-md text-[#777] transition-colors hover:bg-black/[0.06] hover:text-black";
   return (
-    <div className="absolute -top-1 right-0 flex items-center gap-0.5 rounded-lg bg-white/95 p-0.5 opacity-0 shadow-sm ring-1 ring-black/5 transition-opacity group-hover/clause:opacity-100 group-focus-within/clause:opacity-100">
+    <div className="absolute -top-1 right-0 flex items-center gap-0.5 rounded-lg bg-white/95 p-0.5 opacity-0 shadow-sm ring-1 ring-black/5 transition-opacity pointer-coarse:opacity-100 group-hover/clause:opacity-100 group-focus-within/clause:opacity-100">
       <button type="button" onClick={onEdit} aria-label="Edit clause" className={b}>
         <Pencil size={13} />
       </button>
@@ -293,7 +293,7 @@ function AddHere({ onAdd }: { onAdd: () => void }) {
       <button
         type="button"
         onClick={onAdd}
-        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] text-[#aaa] opacity-0 transition-opacity hover:text-[#1f5595] group-hover/add:opacity-100 focus:opacity-100"
+        className="mx-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] text-[#aaa] opacity-0 transition-opacity pointer-coarse:opacity-100 hover:text-[#1f5595] group-hover/add:opacity-100 focus:opacity-100"
       >
         <Plus size={11} /> Add clause
       </button>
@@ -358,7 +358,7 @@ export function ContractPaper({
     );
 
   return (
-    <article className="mx-auto w-full max-w-[760px] rounded-sm bg-white px-8 py-10 font-[Helvetica,Arial,sans-serif] text-[13.5px] leading-[1.6] text-[#222] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] sm:px-14 sm:py-14">
+    <article className="mx-auto w-full max-w-[760px] rounded-sm bg-white px-5 py-8 font-[Helvetica,Arial,sans-serif] text-[13.5px] leading-[1.6] text-[#222] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] sm:px-14 sm:py-14">
       <header>
         <h2 className="text-[26px] font-bold tracking-tight text-black">SERVICE AGREEMENT</h2>
         <p className="mt-0.5 text-[13.5px] text-[#888]">
@@ -398,7 +398,7 @@ export function ContractPaper({
                     onRemove={() => remove(item.id)}
                   />
                 )}
-                <h3 className="mb-2.5 flex items-baseline border-b-[0.75px] border-black pb-1 text-[15px] font-bold text-black">
+                <h3 className={`mb-2.5 flex items-baseline border-b-[0.75px] border-black pb-1 text-[15px] font-bold text-black ${readOnly ? "" : "pointer-coarse:pr-32"}`}>
                   <span className="w-8 shrink-0">{item.number}.</span>
                   {item.title || "Untitled clause"}
                   {item.when && (

@@ -8,6 +8,7 @@ import { DatePicker } from "../DatePicker";
 import { ConfirmButton } from "../ConfirmButton";
 import { updateInvoiceStatus } from "../clients/actions";
 import { deleteSalaryPayment, recordSalaryPayment, savePayDetails, updateInvoiceDetails } from "./actions";
+import { useUndoReset } from "../useUndoReset";
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground";
 const label = "flex min-w-0 flex-col gap-1 text-xs text-muted";
@@ -42,6 +43,7 @@ const STATUSES = [
 export function InvoiceEditor({ id, status, number, currency, notes }: { id: string; status: string; number: string; currency: string; notes: string }) {
   const router = useRouter();
   const [form, setForm] = useState({ number, currency, notes });
+  useUndoReset(() => setForm({ number, currency, notes }), number, currency, notes);
   const save = useSave(updateInvoiceDetails);
   return (
     <div className="flex flex-col gap-4">
@@ -84,6 +86,7 @@ export function InvoiceEditor({ id, status, number, currency, notes }: { id: str
 // How someone is paid: salary (the same one on their profile), structure, cycle.
 export function PayDetails({ userId, salary, payStructure, payCycle }: { userId: string; salary: string; payStructure: string; payCycle: string }) {
   const [form, setForm] = useState({ salary, payStructure, payCycle });
+  useUndoReset(() => setForm({ salary, payStructure, payCycle }), salary, payStructure, payCycle);
   const save = useSave(savePayDetails);
   return (
     <div className="flex flex-col gap-4">
@@ -97,7 +100,7 @@ export function PayDetails({ userId, salary, payStructure, payCycle }: { userId:
         <div className={label}>
           Pay structure
           <Dropdown
-            defaultValue={form.payStructure}
+            value={form.payStructure}
             placeholder="Not set"
             onChange={(v) => setForm({ ...form, payStructure: v })}
             options={[
@@ -110,7 +113,7 @@ export function PayDetails({ userId, salary, payStructure, payCycle }: { userId:
         <div className={label}>
           Pay cycle
           <Dropdown
-            defaultValue={form.payCycle}
+            value={form.payCycle}
             placeholder="Not set"
             onChange={(v) => setForm({ ...form, payCycle: v })}
             options={[
@@ -151,6 +154,7 @@ export function RecordPayment({
     return { period, amount: String(e?.amount ?? due), paid: String(e?.paid ?? due), paidOn: e?.paidOn || today, note: e?.note ?? "" };
   };
   const [form, setForm] = useState(() => initial(months[0]?.value ?? today.slice(0, 7)));
+  useUndoReset(() => setForm(initial(form.period)), existing);
   const save = useSave(recordSalaryPayment);
   return (
     <div className="flex flex-col gap-4">
@@ -197,7 +201,7 @@ export function DeletePayment({ id, month }: { id: string; month: string }) {
     <ConfirmButton
       confirm="Remove"
       message={`Remove the ${month} payment record?`}
-      className="grid size-7 place-items-center rounded-md text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+      className="grid size-7 place-items-center rounded-md text-muted opacity-0 transition-opacity pointer-coarse:opacity-100 group-hover:opacity-100 hover:text-red-400"
       onConfirm={async () => {
         await deleteSalaryPayment(id);
         router.refresh();

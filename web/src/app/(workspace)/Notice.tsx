@@ -30,7 +30,7 @@ export function Notice({ notice, onClose }: { notice: NoticeData; onClose: () =>
   return (
     <div
       role="status"
-      className={`glass pop-in fixed top-5 right-5 z-50 flex w-[min(24rem,calc(100vw-2rem))] items-start gap-3 rounded-xl px-4 py-3 pr-3 shadow-2xl transition-[opacity,translate] duration-200 ease-out ${
+      className={`glass pop-in fixed top-5 right-5 z-50 flex w-[min(24rem,calc(100vw-2rem))] max-sm:top-4 max-sm:right-4 items-start gap-3 rounded-xl px-4 py-3 pr-3 shadow-2xl transition-[opacity,translate] duration-200 ease-out ${
         leaving ? "-translate-y-1 opacity-0" : ""
       }`}
     >

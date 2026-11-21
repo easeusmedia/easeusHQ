@@ -214,6 +214,18 @@ export function Messages({
   }
   // where each person's emails go out from: set here, ahead of the save (null: back to the tracker's)
   const [fromSet, setFromSet] = useState<Record<string, string | null>>({});
+  // an undo (UndoRedo): back to the lead's own copy of all of these
+  useEffect(() => {
+    const reset = () => {
+      setMine({});
+      setPicked({});
+      setApproved({});
+      setAfter({});
+      setFromSet({});
+    };
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   const fromOf = (c: Contact | null) => {
     const key = idOf(c);
     if (!(key in fromSet)) return lead.sentFrom?.[key] ?? null;
@@ -425,11 +437,12 @@ export function Messages({
   const version = versions.length ? versionOf(chosenFor(byPlatform[0], picks, t.key, person, lead.email.opens > 0, t.messages) ?? byPlatform[0][0]) : null;
 
   return (
-    <div className="@container min-h-0 flex-1">
+    <div className="@container/lead min-h-0 flex-1">
       {/* the lead's profile on the left; on the right its messages, the days along their top */}
-      <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+      {/* stacked on a phone or tablet: one scroll for both, not two cramped ones */}
+      <div className="grid h-full min-h-0 gap-4 @3xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] max-xl:@max-3xl/lead:flex max-xl:@max-3xl/lead:flex-col max-xl:@max-3xl/lead:overflow-y-auto">
         {/* side by side, as tall as the emails beside it (Abhishek: the panels equal); stacked, as tall as what's in it */}
-        <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto @3xl:self-stretch`}>
+        <aside className={`${PANEL} @container max-h-full min-h-0 self-start overflow-y-auto @3xl:self-stretch max-xl:@max-3xl/lead:max-h-none max-xl:@max-3xl/lead:shrink-0 max-xl:@max-3xl/lead:self-stretch`}>
           {aside}
           {/* the form, under the lead's details (Abhishek, 23 Oct 2026): the words that change per lead, typed once, filling every message that uses them */}
           {prepared && used.length > 0 && (
@@ -463,7 +476,7 @@ export function Messages({
             </section>
           )}
         </aside>
-        <section className={`${PANEL} @container flex min-h-0 flex-col overflow-hidden`}>
+        <section className={`${PANEL} @container flex min-h-0 flex-col overflow-hidden max-xl:@max-3xl/lead:shrink-0`}>
           {/* the days as steps along the top: done (approved or replied) with a
               tick, today green, next blue, the open one lit, joined by lines.
               In a narrow window the other days shrink to numbered circles (on a
@@ -780,11 +793,12 @@ export function MessageLibrary({
       ref={ref}
       {...closeOnBackdrop}
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
-      className="glass fixed top-1/2 left-1/2 m-0 h-[min(44rem,88vh)] w-[min(62rem,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-0 text-foreground"
+      className="glass fixed top-1/2 left-1/2 m-0 h-[min(44rem,88vh)] w-[min(62rem,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-0 text-foreground max-md:h-[calc(100dvh-2rem)] max-md:w-[calc(100vw-2rem)]"
     >
-      <div className="flex h-full min-h-0">
-        <aside className="flex w-[17rem] shrink-0 flex-col border-r border-border/60 bg-black/10">
-          <div className="flex items-center gap-2 px-4 pt-4 pb-3">
+      {/* a phone: the list over the message, Close in the corner */}
+      <div className="flex h-full min-h-0 max-md:flex-col">
+        <aside className="flex w-[17rem] shrink-0 flex-col border-r border-border/60 bg-black/10 max-md:max-h-[40%] max-md:w-full max-md:border-r-0 max-md:border-b">
+          <div className="flex items-center gap-2 px-4 pt-4 pb-3 max-md:pr-12">
             <Library size={14} className="text-muted" />
             <p className="text-sm font-medium">All messages</p>
             <span className="text-xs text-muted tabular-nums">{board.messages.length}</span>
@@ -835,12 +849,12 @@ export function MessageLibrary({
           </nav>
         </aside>
         <section className="flex min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center justify-end px-3 pt-3">
+          <div className="flex shrink-0 items-center justify-end px-3 pt-3 max-md:absolute max-md:top-2.5 max-md:right-2 max-md:p-0">
             <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-white/[0.06] hover:text-foreground">
               <X size={16} />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 max-md:pt-4">
             {/* a new message, onto the stage of the one being read */}
             {creating ? (
               <TemplateEditor
@@ -1184,8 +1198,8 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
   const label = message.name.replace(/^day \d+\s*·\s*/i, "");
   return (
     <div className="fade-in flex flex-col gap-4">
-      <div className="flex items-start gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-start gap-3 max-sm:flex-wrap">
+        <div className="flex min-w-0 flex-col gap-1 max-sm:basis-full">
           <p className="text-xs text-muted">{group}</p>
           <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <span className="flex shrink-0">{CHANNEL_ICON[message.channel] ?? CHANNEL_ICON.other}</span>

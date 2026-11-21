@@ -284,7 +284,7 @@ export function Assistant({ name }: { name: string }) {
         >
           <Sparkles size={15} className="shrink-0 text-accent transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
           <span className="hidden sm:inline">Ask Nyra</span>
-          <kbd className="hidden rounded bg-surface px-1 text-[11px] text-muted sm:inline">⌘J</kbd>
+          <kbd className="hidden rounded bg-surface px-1 text-[11px] text-muted sm:pointer-fine:inline">⌘J</kbd>
         </button>
       </span>
 

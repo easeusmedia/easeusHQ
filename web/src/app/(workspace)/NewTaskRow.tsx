@@ -201,7 +201,7 @@ export function NewTaskRow({
         {...closeOnBackdrop}
         // centred like every other dialog here; opening "⋯" eases it taller
         // and it re-centres as it grows, rather than jumping
-        className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-0 text-foreground"
+        className="glass fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 text-foreground"
       >
         <form
           onSubmit={(e) => {

@@ -91,7 +91,7 @@ function DocSection({ clientId, doc, content, readOnly = false }: { clientId: st
             <>
               {!readOnly && (
                 <div className="mb-2 flex justify-end">
-                  <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
+                  <button onClick={() => { setValue(content ?? ""); setEditing(true); }} className="btn btn-xs btn-ghost flex items-center gap-1">
                     <Pencil size={12} /> Edit
                   </button>
                 </div>
@@ -165,7 +165,8 @@ export function ClientInfo({
 
   const [error, setError] = useState<string | null>(null);
   const deleteRef = useRef<HTMLDialogElement>(null);
-  const [form, setForm] = useState<ClientInfoInput>({
+  // opened on what's saved now (an undo may have put it back)
+  const saved = (): ClientInfoInput => ({
     name,
     niche: niche ?? "",
     contact: contact ?? "",
@@ -174,6 +175,7 @@ export function ClientInfo({
     address: address ?? "",
     notes: notes ?? "",
   });
+  const [form, setForm] = useState<ClientInfoInput>(saved);
 
   function field<K extends keyof ClientInfoInput>(key: K, value: ClientInfoInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -249,7 +251,7 @@ export function ClientInfo({
           <>
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-sm font-medium">Details</h2>
-              <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
+              <button onClick={() => { setForm(saved()); setEditing(true); }} className="btn btn-xs btn-ghost flex items-center gap-1">
                 <Pencil size={12} /> Edit
               </button>
             </div>
@@ -432,7 +434,7 @@ function CustomDocSection({ doc }: { doc: CustomDoc }) {
           ) : (
             <>
               <div className="mb-2 flex justify-end">
-                <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
+                <button onClick={() => { setValue(doc.content ?? ""); setTitle(doc.title); setEditing(true); }} className="btn btn-xs btn-ghost flex items-center gap-1">
                   <Pencil size={12} /> Edit
                 </button>
               </div>

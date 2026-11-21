@@ -7,11 +7,13 @@ import type { Clause } from "@/lib/contract";
 import { ConfirmButton } from "../../ConfirmButton";
 import { ContractPaper } from "../ContractPaper";
 import { resetTemplate, saveTemplate } from "../actions";
+import { useUndoReset } from "../../useUndoReset";
 
 // Edit the clauses every new contract starts from. Contracts already made
 // keep their own copy — a change here doesn't reach back into them.
 export function TemplateEditor({ clauses: initial }: { clauses: Clause[] }) {
   const [clauses, setClauses] = useState(initial);
+  useUndoReset(() => setClauses(initial), initial);
   const [note, setNote] = useState<string | null>(null);
 
   async function change(next: Clause[]) {
@@ -26,7 +28,8 @@ export function TemplateEditor({ clauses: initial }: { clauses: Clause[] }) {
         <Link href="/contracts" aria-label="All contracts" className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground">
           <ArrowLeft size={16} />
         </Link>
-        <div className="min-w-0 flex-1">
+        {/* a phone: the reset button goes under, so the words keep the width */}
+        <div className="min-w-0 flex-1 max-sm:min-w-[calc(100%-3rem)]">
           <h1 className="text-lg font-semibold tracking-tight">Master template</h1>
           <p className="text-xs text-muted">
             The clauses every new contract starts from. Blue tags show when a paragraph applies; grey ones fill in from each

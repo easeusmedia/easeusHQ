@@ -137,11 +137,11 @@ export function ClientDeliverables({
                     <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{d.deliveredCount} delivered</span>
                   )}
                   {!readOnly && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                    <button onClick={() => startEdit(d)} className="btn-ghost flex h-6 w-6 items-center justify-center rounded-md">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100">
+                    <button onClick={() => startEdit(d)} className="btn-ghost flex h-6 w-6 items-center justify-center rounded-md pointer-coarse:size-8">
                       <Pencil size={12} />
                     </button>
-                    <button onClick={() => remove(d.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-red-300 hover:bg-red-500/10">
+                    <button onClick={() => remove(d.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-red-300 hover:bg-red-500/10 pointer-coarse:size-8">
                       <X size={13} />
                     </button>
                   </div>

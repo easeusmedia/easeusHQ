@@ -4,12 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Sheet } from "lucide-react";
 import { savePayrollSheet } from "./actions";
+import { useUndoReset } from "../useUndoReset";
 
 // The payroll spreadsheet's link: open it, or paste it in the first time.
 export function PayrollSheet({ url }: { url: string | null }) {
   const router = useRouter();
   const [editing, setEditing] = useState(!url);
   const [value, setValue] = useState(url ?? "");
+  useUndoReset(() => {
+    setValue(url ?? "");
+    setEditing(!url);
+  }, url);
   const [error, setError] = useState<string | null>(null);
 
   async function save(e: React.FormEvent) {

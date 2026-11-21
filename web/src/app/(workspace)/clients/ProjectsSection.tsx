@@ -539,7 +539,7 @@ export function ProjectsSection({
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 max-sm:grid-cols-2">
                   {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
                   {g.items.map((p) => (
                     <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
@@ -570,7 +570,7 @@ export function ProjectsSection({
             arrangeRef.current = el;
           }}
           {...arrangeable}
-          className="relative grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4"
+          className="relative grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 max-sm:grid-cols-2"
         >
           {!projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
           {visible.map((p) => (

@@ -8,6 +8,7 @@ import { seesSalesMail } from "@/lib/scope";
 import { trashFile } from "@/lib/drive";
 import { DOC_ID, docUploadUrl, newDocId } from "@/lib/docTrack";
 import { trackerSeen, type TrackerSeen } from "@/lib/mailTrack";
+import { withUndo } from "@/lib/undo";
 
 const MAX_MB = 25;
 
@@ -35,7 +36,7 @@ export async function finishPdfUpload(id: string, name: string, size: number, dr
   const me = await allowed();
   if (!me) return { error: "Only Sales can add a PDF." };
   if (!DOC_ID.test(id) || !/^[\w-]{10,}$/.test(driveFileId)) return { error: "That upload couldn't be read." };
-  await prisma.trackedDoc.create({ data: { id, name: name.slice(0, 200), size: Math.round(size), driveFileId, createdById: me.id } });
+  await withUndo((r) => [{ table: "TrackedDoc", id: r.id }], () => prisma.trackedDoc.create({ data: { id, name: name.slice(0, 200), size: Math.round(size), driveFileId, createdById: me.id } }));
   revalidatePath("/email");
   return {};
 }
@@ -45,7 +46,7 @@ export async function deletePdf(id: string): Promise<{ error?: string }> {
   if (!(await allowed())) return { error: "Only Sales can delete a PDF." };
   const doc = await prisma.trackedDoc.findUnique({ where: { id }, select: { driveFileId: true } });
   if (!doc) return {};
-  await prisma.trackedDoc.delete({ where: { id } });
+  await withUndo([{ table: "TrackedDoc", id }], () => prisma.trackedDoc.delete({ where: { id } }));
   await trashFile(doc.driveFileId).catch(() => {});
   revalidatePath("/email");
   return {};

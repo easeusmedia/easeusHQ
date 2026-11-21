@@ -50,7 +50,7 @@ export function CoverPicker({
         ) : covers.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">No covers on this client&apos;s projects yet.</p>
         ) : (
-          <div className="fade-in grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+          <div className="fade-in grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 max-sm:grid-cols-2">
             {covers.map((c) => (
               <button
                 key={c.url}

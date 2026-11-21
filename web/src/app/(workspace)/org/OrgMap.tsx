@@ -152,12 +152,13 @@ function Department({ d }: { d: MapDepartment }) {
       className={`@container group relative flex h-full min-w-0 flex-col overflow-hidden panel panel-hover rounded-3xl hover:-translate-y-0.5 ${slim ? "px-5 py-4" : "gap-3 p-5"}`}
     >
       {d.open > 0 && <div className="glass-glow" />}
-      <div className="relative flex items-center gap-3">
+      {/* a narrow card (a phone, a tablet): the numbers drop under the name, so it reads in full */}
+      <div className="relative flex items-center gap-3 @max-[24.5rem]:flex-wrap">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl badge-lit">{createElement(markOf(d.name), { size: 16 })}</span>
         <p className="min-w-0 flex-1 text-base leading-snug font-semibold tracking-tight">
           {d.canRename ? <EditableName name={d.name} onSave={rename} pencil="hover" /> : d.name}
         </p>
-        <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+        <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 @max-[24.5rem]:order-last @max-[24.5rem]:-mt-1 @max-[24.5rem]:basis-full @max-[24.5rem]:justify-start @max-[24.5rem]:pl-12">
           {slim && <span className="text-xs text-muted">No one in it yet</span>}
           {d.leads !== null && <Pill n={d.leads} label={d.leads === 1 ? "lead" : "leads"} tone="plain" />}
           {!slim && <Pill n={d.open} label="open" tone={d.open ? "open" : "plain"} />}

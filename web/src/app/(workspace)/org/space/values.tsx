@@ -573,7 +573,7 @@ export function TagEditor({ field, value, save, trigger }: { field: FieldData; v
                       </button>
                     )}
                     {/* on a phone there's no hover, so they always show there */}
-                    {canBuild && <span className="flex shrink-0 items-center pr-1 transition-opacity group-hover/opt:opacity-100 focus-within:opacity-100 sm:opacity-0">
+                    {canBuild && <span className="flex shrink-0 items-center pr-1 transition-opacity group-hover/opt:opacity-100 focus-within:opacity-100 sm:opacity-0 pointer-coarse:opacity-100">
                       <button
                         type="button"
                         title="Rename"

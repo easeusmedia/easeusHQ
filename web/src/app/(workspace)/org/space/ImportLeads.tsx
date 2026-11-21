@@ -324,17 +324,20 @@ export function ImportLeads({ board }: { board: BoardData }) {
     let stop = batches.length;
     const failed: string[] = [];
     const refused = new Set<string>();
+    // what this import has added so far: one step to undo for all of it
+    const ids: string[] = [];
     for (const [i, b] of batches.entries()) {
       if (!live()) break;
       setBusy({ step: "import", at: sent, of: total });
       const late = b.leads.filter((l) => unread.includes(l.title)).map((l) => l.title);
-      const res: Awaited<ReturnType<typeof importLeads>> = await importLeads(board.id, b.leads, b.twice, late).catch(() => ({ error: OFFLINE }));
+      const res: Awaited<ReturnType<typeof importLeads>> = await importLeads(board.id, b.leads, b.twice, late, ids).catch(() => ({ error: OFFLINE }));
       if (res.error) {
         failed.push(res.error);
         stop = i;
         break;
       }
       sent += b.leads.length;
+      ids.push(...(res.ids ?? []));
       created += res.created ?? 0;
       skipped += res.skipped ?? 0;
       for (const x of res.failed ?? []) {

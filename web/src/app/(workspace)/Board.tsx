@@ -327,7 +327,7 @@ export function Board({
       <div
         className={
           !list
-            ? "flex min-h-24 min-w-0 flex-1 flex-col gap-3"
+            ? "flex min-h-24 min-w-0 flex-1 flex-col gap-3 max-md:min-h-0"
             : empty && !addRow
               ? // still a drop target while empty; it only shows as one mid-drag
                 `rounded-2xl border border-dashed transition-colors ${draggingId ? "border-white/20" : "border-transparent"}`

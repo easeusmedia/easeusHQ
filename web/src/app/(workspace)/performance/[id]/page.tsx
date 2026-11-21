@@ -108,7 +108,7 @@ export default async function EditorPerformancePage({ params, searchParams }: { 
         </div>
       </div>
 
-      <section className={`${card} grid gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:gap-10`}>
+      <section className={`${card} grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)] xl:gap-10`}>
         <div className="flex items-center gap-4">
           <GradeBadge grade={now.letter.overall} size="lg" />
           <div className="flex flex-col gap-1">

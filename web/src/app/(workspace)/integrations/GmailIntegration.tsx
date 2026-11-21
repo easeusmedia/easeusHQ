@@ -31,8 +31,8 @@ export function GmailIntegration({ account, clientId, inbox = "contracts", canSe
   const router = useRouter();
   return (
     <section className="mb-4 flex break-inside-avoid flex-col gap-3 panel rounded-2xl p-5">
-      <div className="flex items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between gap-2.5 max-sm:flex-col max-sm:items-start">
+        <div className="flex items-center gap-2.5 max-sm:flex-wrap">
           <Mail size={18} className="text-muted" />
           <h2 className="text-base font-medium">{copy.title}</h2>
           {account !== null && (

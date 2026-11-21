@@ -75,7 +75,7 @@ export function TaskRow({
             ? `group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors duration-150 ${selected ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`
             : `group flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                 selected ? "border-foreground/30 bg-surface-2" : "border-border/60 bg-surface-2/40 hover:bg-surface-2"
-              }`) + ` ${tierClass(tier, true)}`
+              }`) + ` ${tierClass(tier, true)} max-lg:flex-wrap`
         }
       >
         {flat && (
@@ -127,6 +127,8 @@ export function TaskRow({
           <span className="block truncate text-xs text-muted">{subtitle}</span>
         </span>
 
+        {/* below a laptop: its own line under the title, the stage at its end */}
+        <span className={`contents max-lg:flex max-lg:w-full max-lg:flex-wrap max-lg:items-center max-lg:gap-x-3 max-lg:gap-y-2 max-lg:[&>:last-child]:ml-auto ${flat || onSelect ? "max-lg:pl-[calc(18px+0.75rem)]" : ""}`}>
         {task.tags.length > 0 && (
           <span className="hidden shrink-0 flex-wrap items-center gap-1 sm:flex">
             {task.tags.map((t) => (
@@ -149,7 +151,7 @@ export function TaskRow({
         )}
 
         {/* a fixed slot, so due dates line up down the list */}
-        <span className="flex w-16 shrink-0 justify-end">
+        <span className="flex w-16 shrink-0 justify-end max-lg:w-auto">
           {task.dueDate && <DueDate date={task.dueDate} handedOffAt={task.handedOffAt} />}
         </span>
         {task.assignedTo && <AssigneeLabel name={task.assignedTo.name} />}
@@ -169,6 +171,7 @@ export function TaskRow({
             workflow={task.workflow}
           />
         </StageColumn>
+        </span>
       </div>
 
       <TaskDetailsDialog

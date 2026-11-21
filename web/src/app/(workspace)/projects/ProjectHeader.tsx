@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarCheck,
@@ -76,6 +76,12 @@ export function ProjectHeader({
     coverUrl,
   };
   const [over, setOver] = useState<Partial<typeof base>>({});
+  // an undo hands back to what's saved
+  useEffect(() => {
+    const reset = () => setOver({});
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   const cur = { ...base, ...over };
   async function saveNow(
     patch: Partial<typeof base>,
@@ -139,8 +145,8 @@ export function ProjectHeader({
     // name, its facts as chips, and what's in it — rather than a few loose
     // lines floating next to a picture. Editing happens in the same place,
     // the same shapes turned into controls.
-    <div className="card-surface flex flex-col gap-6 rounded-2xl p-5 shadow-sm sm:flex-row">
-      <div className="w-full shrink-0 sm:w-80">
+    <div className="card-surface flex flex-col gap-6 rounded-2xl p-5 shadow-sm md:flex-row">
+      <div className="w-full shrink-0 md:w-80">
         {/* the cover changes in place: hovering it offers a new picture,
             another of the client's covers, or none */}
         <div className="group/cover relative aspect-video w-full overflow-hidden rounded-xl bg-surface-2">
@@ -158,8 +164,9 @@ export function ProjectHeader({
           )}
           {/* three matching buttons along the foot of the picture, on a soft
               shade (Abhishek, 21 Nov 2026: "improve the buttons"); no blur
-              inside the rounded cover (Safari's Dock app) */}
-          <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/70 via-black/25 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover/cover:opacity-100 focus-within:opacity-100">
+              inside the rounded cover (Safari's Dock app). A touchscreen never
+              hovers: there they're always shown */}
+          <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/70 via-black/25 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover/cover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
             {/* one row, all one height; removing is just its icon (Abhishek, 21 Nov 2026) */}
             <div className="flex items-center gap-1.5">
               <button type="button" onClick={() => fileRef.current?.click()} className={COVER_BUTTON}>

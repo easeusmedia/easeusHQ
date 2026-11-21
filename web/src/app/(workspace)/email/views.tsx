@@ -210,7 +210,7 @@ export function ActivityView({ items, tab, now, query, older }: { items: Activit
 export function HomeView({ items, report, now, query }: { items: Activity[]; report: Performance; now: number; query: Query }) {
   const sent = report.inbox.sent || report.now.sent;
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
       <Panel
         title={<Title text="Latest activity" />}
         footer={
@@ -579,7 +579,7 @@ export function PdfDetail({ doc, origin }: { doc: DocDetail; origin: string }) {
           <DeletePdf id={doc.id} name={doc.name} />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatTile label="Readings" value={doc.views.length} Icon={Eye} />
         <StatTile label="Time spent on the PDF" value={total ? duration(total) : "–"} lit={total > 0} Icon={Clock} />
         <StatTile label="Downloaded" value={downloads ? plural(downloads, "time") : "No"} lit={downloads > 0} Icon={Download} tone="emerald" />
@@ -662,7 +662,7 @@ export function PerformanceView({
         </div>
       )}
 
-      <section className="panel grid items-center gap-5 rounded-2xl p-6 md:grid-cols-2">
+      <section className="panel grid grid-cols-1 items-center gap-5 rounded-2xl p-6 md:grid-cols-2">
         <div className="text-center">
           <p className="text-xs text-muted">Report</p>
           <p className="mt-1 text-2xl font-semibold tracking-tight">{p.label}</p>
@@ -696,7 +696,7 @@ export function PerformanceView({
         <Heatmap cells={p.heatIn} />
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Panel title={<Title text={p.unit === "month" ? "Emails sent by month" : "Emails sent by day"} help={HELP.sentByDay} Icon={Send} />}>
           <Trend points={series.map((d) => ({ label: label(d.d), value: inboxOn ? d.sent : d.tracked }))} />
         </Panel>
@@ -708,7 +708,7 @@ export function PerformanceView({
         </Panel>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {rates.map((r) => (
           <Panel key={r.title} className="flex flex-col items-center gap-3 text-center">
             <Title text={r.title} help={r.help} Icon={r.Icon} />
@@ -734,7 +734,7 @@ export function PerformanceView({
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title={<Title text="Time taken to respond" help={HELP.respond} Icon={Clock} />}>
           <Bars labels={WAIT_BUCKETS} values={p.respond} unit="answers" />
         </Panel>

@@ -11,7 +11,14 @@ import { Avatar } from "../TaskCard";
 // a Level 2 sees every client unless it's unticked here. Each tick saves
 // at once; the menu stays open for the next.
 export function EditorAccess({ clientId, people: editors, given }: { clientId: string; people: { id: string; name: string; position: string | null }[]; given: string[] }) {
-  const [picked, setPicked] = useState(given);
+  // ticks made here, until an undo hands back to what's saved
+  const [own, setPicked] = useState<string[] | null>(null);
+  const picked = own ?? given;
+  useEffect(() => {
+    const reset = () => setPicked(null);
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);

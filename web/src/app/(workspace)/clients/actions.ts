@@ -17,6 +17,7 @@ import { PROJECT_ORDER, placeProject } from "@/lib/projectOrder";
 import { TYPE_TAG, planDeliverables, planFor, planTasks, type PlanItem } from "@/lib/contentPlan";
 import { linkDeliverables } from "@/lib/deliverableLink";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
+import { withUndo } from "@/lib/undo";
 
 // The two On Hold clients ops is still actively tracking, chosen
 // explicitly (everything else On Hold, and every Previous client, stays
@@ -122,14 +123,19 @@ export async function setBillingRule(
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit billing rules." };
 
-  await prisma.client.update({
-    where: { id: clientId },
-    data: {
-      billingCadence: cadence,
-      billingDayOfMonth: cadence === "monthly_date" ? dayOfMonth : null,
-      billingMilestoneCount: cadence === "milestone" ? milestoneCount : null,
-    },
-  });
+  await withUndo(
+    [{ table: "Client", id: clientId }],
+    () =>
+      prisma.client.update({
+        where: { id: clientId },
+        data: {
+          billingCadence: cadence,
+          billingDayOfMonth: cadence === "monthly_date" ? dayOfMonth : null,
+          billingMilestoneCount: cadence === "milestone" ? milestoneCount : null,
+        },
+      }),
+    { depth: 0 }
+  );
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -139,7 +145,14 @@ export async function setBillingRule(
 // here again from what's saved, not taken from the browser.
 export async function moveProjectToInvoice(projectId: string, key: string | null): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can move projects between invoices." };
-  const res = await setInvoice(projectId, key);
+  // every project of the client can be pinned by a move, and the client's invoice names renumbered
+  const p = await prisma.project.findUnique({ where: { id: projectId }, select: { name: true, clientId: true, client: { select: { projects: { select: { id: true } } } } } });
+  const res = await withUndo(
+    p ? [{ table: "Client", id: p.clientId }, ...p.client.projects.map((x) => ({ table: "Project", id: x.id }))] : [],
+    () => setInvoice(projectId, key),
+    // not the number: closing the gaps can renumber it
+    { depth: 0, label: key ? `Moved "${p?.name}" to another batch` : `Took "${p?.name}" out of its batch` }
+  );
   revalidatePath("/clients/[slug]", "page");
   revalidatePath(`/projects/${projectId}`);
   return res;
@@ -246,9 +259,13 @@ export async function renameInvoice(clientId: string, key: string, name: string)
   const { c, batch } = found;
   const names = { ...((c.invoiceNames ?? {}) as Record<string, string>) };
   const trimmed = name.trim().slice(0, 60);
+  const label = `Renamed "${names[key] ?? batch.label}" to "${trimmed || batch.label}"`;
   if (trimmed && trimmed !== batch.label) names[key] = trimmed;
   else delete names[key];
-  await prisma.client.update({ where: { id: clientId }, data: { invoiceNames: names }, select: { id: true } });
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { invoiceNames: names }, select: { id: true } }), {
+    depth: 0,
+    label,
+  });
   revalidatePath("/clients/[slug]", "page");
   revalidatePath("/projects/[id]", "page");
   return {};
@@ -261,7 +278,12 @@ export async function setInvoicePayment(clientId: string, key: string, status: s
   if (status !== "paid" && status !== "unpaid") return { error: "Pick Paid or Unpaid." };
   const found = await invoiceOf(clientId, key);
   if ("error" in found) return found;
-  await prisma.project.updateMany({ where: { clientId, id: { in: found.batch.ids } }, data: { invoiceStatus: status } });
+  const shown = ((found.c.invoiceNames ?? {}) as Record<string, string>)[key] ?? found.batch.label;
+  await withUndo(
+    found.batch.ids.map((id) => ({ table: "Project", id })),
+    () => prisma.project.updateMany({ where: { clientId, id: { in: found.batch.ids } }, data: { invoiceStatus: status } }),
+    { depth: 0, label: `Marked "${shown}" ${status}` }
+  );
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -294,11 +316,18 @@ export async function createInvoice(
   if (!user) return { error: "Only the operations team can create invoices." };
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter a valid amount." };
 
-  await prisma.invoice.create({
-    data: { clientId, amount, dueDate: dueDate ? new Date(dueDate) : null, status: "draft" },
-  });
-  // resets the "delivered since last invoice" counter for milestone clients
-  await prisma.client.update({ where: { id: clientId }, data: { lastInvoicedAt: new Date() } });
+  // the client and what hangs off it: the new invoice is one of those
+  await withUndo(
+    [{ table: "Client", id: clientId }],
+    async () => {
+      await prisma.invoice.create({
+        data: { clientId, amount, dueDate: dueDate ? new Date(dueDate) : null, status: "draft" },
+      });
+      // resets the "delivered since last invoice" counter for milestone clients
+      await prisma.client.update({ where: { id: clientId }, data: { lastInvoicedAt: new Date() } });
+    },
+    { only: ["Invoice"], label: "Added an invoice" }
+  );
   revalidatePath("/clients/[slug]", "page");
   revalidatePath("/finance");
   return {};
@@ -310,10 +339,15 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
 
   // paid keeps the day it was first marked paid; anything else clears it
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { paidAt: true } });
-  await prisma.invoice.update({
-    where: { id: invoiceId },
-    data: { status, paidAt: status === "paid" ? (inv?.paidAt ?? new Date()) : null },
-  });
+  await withUndo(
+    [{ table: "Invoice", id: invoiceId }],
+    () =>
+      prisma.invoice.update({
+        where: { id: invoiceId },
+        data: { status, paidAt: status === "paid" ? (inv?.paidAt ?? new Date()) : null },
+      }),
+    { depth: 0, label: `Marked an invoice as ${status}` }
+  );
   revalidatePath("/clients/[slug]", "page");
   revalidatePath("/finance");
   return {};
@@ -327,7 +361,7 @@ export async function updateClientStatus(clientId: string, status: string): Prom
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can change client status." };
 
-  await prisma.client.update({ where: { id: clientId }, data: { status } });
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { status } }), { depth: 0 });
   revalidatePath("/clients");
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -339,10 +373,13 @@ export async function updateClientStatus(clientId: string, status: string): Prom
 export async function setPostDate(taskId: string, day: string): Promise<{ error?: string }> {
   if (!(await requireFeedbackViewer())) return { error: "Only Operations can plan postings." };
   if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "That isn't a date." };
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true, title: true } });
   if (!task) return { error: "That task no longer exists." };
   if (task.status !== "delivered_and_uploaded") return { error: "A posting date comes once it's delivered." };
-  await prisma.task.update({ where: { id: taskId }, data: { postDate: day ? new Date(day) : null } });
+  await withUndo([{ kind: "task", id: taskId }], () => prisma.task.update({ where: { id: taskId }, data: { postDate: day ? new Date(day) : null } }), {
+    depth: 0,
+    label: `Changed the posting date on "${task.title}"`,
+  });
   return {};
 }
 
@@ -353,11 +390,18 @@ export async function setPostDate(taskId: string, day: string): Promise<{ error?
 export async function setClientAccess(clientId: string, userId: string, on: boolean): Promise<{ error?: string }> {
   const me = await getViewer();
   if (!me || !setsUp(me)) return { error: "Only Level 1 and Admin & Technical's Level 2 can choose who sees a client." };
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, email: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, email: true, name: true } });
   if (!user || isFounder(user)) return { error: "They always see every client." };
   const link = { [on ? "connect" : "disconnect"]: { id: user.id } };
-  if (user.role === "employee") await prisma.client.update({ where: { id: clientId }, data: { editors: link } });
-  else await prisma.client.update({ where: { id: clientId }, data: { hiddenFrom: { [on ? "disconnect" : "connect"]: { id: user.id } } } });
+  // the access rows hang off the client (depth 1)
+  await withUndo(
+    [{ table: "Client", id: clientId }],
+    async () => {
+      if (user.role === "employee") await prisma.client.update({ where: { id: clientId }, data: { editors: link } });
+      else await prisma.client.update({ where: { id: clientId }, data: { hiddenFrom: { [on ? "disconnect" : "connect"]: { id: user.id } } } });
+    },
+    { only: ["_ClientEditors", "_ClientHidden"], label: on ? `Gave ${user.name} access` : `Took away ${user.name}'s access` }
+  );
   return {};
 }
 
@@ -366,7 +410,10 @@ export async function setClientAccess(clientId: string, userId: string, on: bool
 export async function setClientSharing(clientId: string, enabled: boolean): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can share a client's page." };
-  await prisma.client.update({ where: { id: clientId }, data: { shareEnabled: enabled } });
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { shareEnabled: enabled } }), {
+    depth: 0,
+    label: enabled ? "Shared the client's page" : "Stopped sharing the client's page",
+  });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -423,20 +470,26 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
   if (input.name.trim() === "") return { error: "Name can't be empty." };
 
   const empty = (s: string) => s.trim() === "";
-  await prisma.client.update({
-    where: { id: clientId },
-    data: {
-      name: input.name.trim(),
-      // the address follows the name
-      slug: await slugFor(input.name.trim(), clientId),
-      niche: empty(input.niche) ? null : input.niche.trim(),
-      contact: empty(input.contact) ? null : input.contact.trim(),
-      email: empty(input.email) ? null : input.email.trim(),
-      whatsapp: empty(input.whatsapp) ? null : input.whatsapp.trim(),
-      address: empty(input.address) ? null : input.address.trim(),
-      notes: empty(input.notes) ? null : input.notes.trim(),
-    },
-  });
+  const slug = await slugFor(input.name.trim(), clientId);
+  await withUndo(
+    [{ table: "Client", id: clientId }],
+    () =>
+      prisma.client.update({
+        where: { id: clientId },
+        data: {
+          name: input.name.trim(),
+          // the address follows the name
+          slug,
+          niche: empty(input.niche) ? null : input.niche.trim(),
+          contact: empty(input.contact) ? null : input.contact.trim(),
+          email: empty(input.email) ? null : input.email.trim(),
+          whatsapp: empty(input.whatsapp) ? null : input.whatsapp.trim(),
+          address: empty(input.address) ? null : input.address.trim(),
+          notes: empty(input.notes) ? null : input.notes.trim(),
+        },
+      }),
+    { depth: 0 }
+  );
   revalidatePath("/clients");
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -458,7 +511,7 @@ export async function updateClientDoc(clientId: string, doc: ClientDocType, cont
   const user = await requireOps();
   if (!user) return { error: `Only the operations team can edit ${DOC_LABEL[doc]}.` };
 
-  await prisma.client.update({ where: { id: clientId }, data: { [doc]: content.trim() || null } });
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { [doc]: content.trim() || null } }), { depth: 0 });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -475,9 +528,10 @@ export async function addClientDocument(clientId: string, title: string): Promis
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the document a name." };
   const last = await prisma.clientDocument.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
-  const doc = await prisma.clientDocument.create({
-    data: { clientId, title: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 },
-  });
+  const doc = await withUndo(
+    (d) => [{ table: "ClientDocument", id: d.id }],
+    () => prisma.clientDocument.create({ data: { clientId, title: trimmed, sortOrder: (last?.sortOrder ?? 0) + 1 } })
+  );
   revalidatePath("/clients/[slug]", "page");
   return { id: doc.id };
 }
@@ -486,13 +540,18 @@ export async function updateClientDocument(id: string, input: { title?: string; 
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit a document." };
   if (input.title !== undefined && !input.title.trim()) return { error: "A document needs a name." };
-  await prisma.clientDocument.update({
-    where: { id },
-    data: {
-      ...(input.title !== undefined ? { title: input.title.trim() } : {}),
-      ...(input.content !== undefined ? { content: input.content.trim() || null } : {}),
-    },
-  });
+  await withUndo(
+    [{ table: "ClientDocument", id }],
+    () =>
+      prisma.clientDocument.update({
+        where: { id },
+        data: {
+          ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+          ...(input.content !== undefined ? { content: input.content.trim() || null } : {}),
+        },
+      }),
+    { depth: 0 }
+  );
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -500,7 +559,7 @@ export async function updateClientDocument(id: string, input: { title?: string; 
 export async function deleteClientDocument(id: string): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can delete a document." };
-  await prisma.clientDocument.delete({ where: { id } });
+  await withUndo([{ table: "ClientDocument", id }], () => prisma.clientDocument.delete({ where: { id } }));
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -512,7 +571,10 @@ export async function updateClientAvatar(clientId: string, dataUrl: string | nul
   // run (or was bypassed), and it's served back from our own site
   if (dataUrl !== null && !isStorablePicture(dataUrl)) return { error: "That image couldn't be used. Please try a JPEG or PNG." };
 
-  await prisma.client.update({ where: { id: clientId }, data: { avatarUrl: dataUrl } });
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { avatarUrl: dataUrl } }), {
+    depth: 0,
+    label: "Changed the client's photo",
+  });
   revalidatePath("/clients");
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -530,7 +592,7 @@ export async function createTag(name: string, color: string): Promise<{ error?: 
   if (!TAG_PALETTE.includes(color)) return { error: "Choose a colour from the palette." };
 
   try {
-    const tag = await prisma.tag.create({ data: { name: name.trim(), color } });
+    const tag = await withUndo((t) => [{ table: "Tag", id: t.id }], () => prisma.tag.create({ data: { name: name.trim(), color } }));
     revalidatePath("/clients");
     return { id: tag.id };
   } catch {
@@ -542,7 +604,14 @@ export async function setClientTags(clientId: string, tagIds: string[]): Promise
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit tags." };
 
-  await prisma.client.update({ where: { id: clientId }, data: { tags: { set: tagIds.map((id) => ({ id })) } } });
+  // kept by tag (a tag and its links), so the client's own projects and files aren't
+  const had = await prisma.client.findUnique({ where: { id: clientId }, select: { name: true, tags: { select: { id: true } } } });
+  const touched = [...new Set([...(had?.tags.map((t) => t.id) ?? []), ...tagIds])];
+  await withUndo(
+    touched.map((id) => ({ table: "Tag", id })),
+    () => prisma.client.update({ where: { id: clientId }, data: { tags: { set: tagIds.map((id) => ({ id })) } } }),
+    { label: `Changed the tags on "${had?.name}"` }
+  );
   revalidatePath("/clients");
   revalidatePath("/clients/[slug]", "page");
   return {};
@@ -578,26 +647,32 @@ export async function deleteClient(clientId: string): Promise<{ error?: string }
   const projectIds = (await prisma.project.findMany({ where: { clientId }, select: { id: true } })).map((p) => p.id);
   const taskIds = (await prisma.task.findMany({ where: { projectId: { in: projectIds } }, select: { id: true } })).map((t) => t.id);
 
-  await prisma.$transaction([
-    // a task's own trail first — nothing else can reference it afterwards
-    prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
-    prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
-    prisma.notice.deleteMany({ where: { taskId: { in: taskIds } } }),
-    prisma.task.deleteMany({ where: { projectId: { in: projectIds } } }),
-    // the team's own work only loses the link to this client's projects
-    prisma.workTask.updateMany({ where: { projectId: { in: projectIds } }, data: { projectId: null } }),
-    prisma.projectAsset.deleteMany({ where: { projectId: { in: projectIds } } }),
-    prisma.invoice.deleteMany({ where: { clientId } }),
-    prisma.project.deleteMany({ where: { clientId } }),
-    // everything hanging off the client itself
-    prisma.deliverable.deleteMany({ where: { clientId } }),
-    prisma.onboardingStep.deleteMany({ where: { clientId } }),
-    prisma.clientDocument.deleteMany({ where: { clientId } }),
-    prisma.clientFeedback.deleteMany({ where: { clientId } }),
-    prisma.clientInvite.deleteMany({ where: { clientId } }),
-    prisma.client.update({ where: { id: clientId }, data: { tags: { set: [] } } }),
-    prisma.client.delete({ where: { id: clientId } }),
-  ]);
+  // the whole tree, so an undo brings it all back
+  await withUndo(
+    [{ table: "Client", id: clientId }],
+    () =>
+      prisma.$transaction([
+        // a task's own trail first — nothing else can reference it afterwards
+        prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
+        prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
+        prisma.notice.deleteMany({ where: { taskId: { in: taskIds } } }),
+        prisma.task.deleteMany({ where: { projectId: { in: projectIds } } }),
+        // the team's own work only loses the link to this client's projects
+        prisma.workTask.updateMany({ where: { projectId: { in: projectIds } }, data: { projectId: null } }),
+        prisma.projectAsset.deleteMany({ where: { projectId: { in: projectIds } } }),
+        prisma.invoice.deleteMany({ where: { clientId } }),
+        prisma.project.deleteMany({ where: { clientId } }),
+        // everything hanging off the client itself
+        prisma.deliverable.deleteMany({ where: { clientId } }),
+        prisma.onboardingStep.deleteMany({ where: { clientId } }),
+        prisma.clientDocument.deleteMany({ where: { clientId } }),
+        prisma.clientFeedback.deleteMany({ where: { clientId } }),
+        prisma.clientInvite.deleteMany({ where: { clientId } }),
+        prisma.client.update({ where: { id: clientId }, data: { tags: { set: [] } } }),
+        prisma.client.delete({ where: { id: clientId } }),
+      ]),
+    { depth: 9 }
+  );
 
   revalidatePath("/clients");
   revalidatePath("/board");
@@ -630,15 +705,19 @@ export async function addDeliverable(
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
   const last = await prisma.deliverable.findFirst({ where: { clientId }, orderBy: { sortOrder: "desc" } });
-  await prisma.deliverable.create({
-    data: {
-      clientId,
-      name: name.trim(),
-      detail: detail.trim() || null,
-      deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0),
-      sortOrder: (last?.sortOrder ?? 0) + 1,
-    },
-  });
+  await withUndo(
+    (d) => [{ table: "Deliverable", id: d.id }],
+    () =>
+      prisma.deliverable.create({
+        data: {
+          clientId,
+          name: name.trim(),
+          detail: detail.trim() || null,
+          deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0),
+          sortOrder: (last?.sortOrder ?? 0) + 1,
+        },
+      })
+  );
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -653,10 +732,15 @@ export async function updateDeliverable(
   if (!user) return { error: "Only the operations team can edit deliverables." };
   if (name.trim() === "") return { error: "Name a deliverable first." };
 
-  await prisma.deliverable.update({
-    where: { id },
-    data: { name: name.trim(), detail: detail.trim() || null, deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0) },
-  });
+  await withUndo(
+    [{ table: "Deliverable", id }],
+    () =>
+      prisma.deliverable.update({
+        where: { id },
+        data: { name: name.trim(), detail: detail.trim() || null, deliveredCount: Math.max(0, Math.trunc(deliveredCount) || 0) },
+      }),
+    { depth: 0 }
+  );
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -665,7 +749,7 @@ export async function deleteDeliverable(id: string): Promise<{ error?: string }>
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit deliverables." };
 
-  await prisma.deliverable.delete({ where: { id } });
+  await withUndo([{ table: "Deliverable", id }], () => prisma.deliverable.delete({ where: { id } }));
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -722,11 +806,16 @@ export async function updateClientTemplate(data: ClientTemplateData): Promise<{ 
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit the template." };
 
-  await prisma.clientTemplate.upsert({
-    where: { id: "default" },
-    create: { id: "default", ...data },
-    update: data,
-  });
+  await withUndo(
+    [{ table: "ClientTemplate", id: "default" }],
+    () =>
+      prisma.clientTemplate.upsert({
+        where: { id: "default" },
+        create: { id: "default", ...data },
+        update: data,
+      }),
+    { depth: 0, label: "Edited the client template" }
+  );
   revalidatePath("/clients/template");
   return {};
 }
@@ -745,38 +834,36 @@ export async function createClient(name: string, niche = ""): Promise<{ id?: str
 
   const template = await loadClientTemplate();
 
-  const client = await prisma.client.create({
-    data: {
-      name: trimmed,
-      slug: await slugFor(trimmed),
-      status: "current",
-      niche: niche.trim() || null,
-      brandGuidelines: template.brandGuidelines || null,
-      sop: template.sop || null,
-      qualityChecklist: template.qualityChecklist || null,
-      meetingNotes: template.meetingNotes || null,
-      resources: template.resources || null,
-      deliverables: {
-        create: template.deliverables.map((d, i) => ({ name: d.name, detail: d.detail || null, sortOrder: i })),
-      },
-      onboarding: {
-        create: template.onboarding.map((s, i) => ({ title: s.title, detail: s.detail || null, sortOrder: i })),
-      },
-      projects: { create: [{ name: template.projectType, type: template.projectType, status: "in_progress" }] },
-    },
-  });
-
+  const slug = await slugFor(trimmed);
   // tags are shared across clients, so attach the existing rows rather than
   // creating a second "Subscription" with a different colour
-  if (template.tags.length > 0) {
-    const tags = await prisma.tag.findMany({ where: { name: { in: template.tags } } });
-    if (tags.length > 0) {
-      await prisma.client.update({
-        where: { id: client.id },
-        data: { tags: { set: tags.map((t) => ({ id: t.id })) } },
-      });
-    }
-  }
+  const tags = template.tags.length > 0 ? await prisma.tag.findMany({ where: { name: { in: template.tags } } }) : [];
+  // the client and all it starts with (depth 1), as one step
+  const client = await withUndo(
+    (c) => [{ table: "Client", id: c.id }],
+    () =>
+      prisma.client.create({
+        data: {
+          name: trimmed,
+          slug,
+          status: "current",
+          niche: niche.trim() || null,
+          brandGuidelines: template.brandGuidelines || null,
+          sop: template.sop || null,
+          qualityChecklist: template.qualityChecklist || null,
+          meetingNotes: template.meetingNotes || null,
+          resources: template.resources || null,
+          deliverables: {
+            create: template.deliverables.map((d, i) => ({ name: d.name, detail: d.detail || null, sortOrder: i })),
+          },
+          onboarding: {
+            create: template.onboarding.map((s, i) => ({ title: s.title, detail: s.detail || null, sortOrder: i })),
+          },
+          projects: { create: [{ name: template.projectType, type: template.projectType, status: "in_progress" }] },
+          ...(tags.length > 0 ? { tags: { connect: tags.map((t) => ({ id: t.id })) } } : {}),
+        },
+      })
+  );
 
   revalidatePath("/clients");
   return { id: client.id, slug: client.slug };
@@ -786,7 +873,7 @@ export async function toggleOnboardingStep(stepId: string, done: boolean): Promi
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can update onboarding." };
 
-  await prisma.onboardingStep.update({ where: { id: stepId }, data: { done } });
+  await withUndo([{ table: "OnboardingStep", id: stepId }], () => prisma.onboardingStep.update({ where: { id: stepId }, data: { done } }), { depth: 0 });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -847,7 +934,9 @@ export async function applyOnboardingTemplate(clientId: string): Promise<{ added
   const user = await requireOps();
   if (!user) return { added: 0, error: "Only the operations team can do that." };
 
-  const added = await applyTemplateTo(clientId, await loadClientTemplate());
+  const template = await loadClientTemplate();
+  // its steps and deliverables hang off the client (depth 1)
+  const added = await withUndo([{ table: "Client", id: clientId }], () => applyTemplateTo(clientId, template), { only: ["OnboardingStep", "Deliverable"], label: "Applied the client template" });
   revalidatePath("/clients/[slug]", "page");
   return { added };
 }
@@ -968,6 +1057,9 @@ export async function createProject(
   if (invoiceNumber && Number.isInteger(invoiceNumber) && invoiceNumber > 0) {
     await setInvoice(project.id, `batch-${invoiceNumber}`);
   }
+  // everything made above as one step: what a change makes has nothing kept
+  // from before it (lib/undo), so it's kept here, once it's all there
+  await withUndo(() => [{ table: "Project", id: project.id }], async () => null, { depth: 2 });
   revalidatePath("/clients/[slug]", "page");
   return { id: project.id, planned: planned.length };
 }
@@ -975,7 +1067,7 @@ export async function createProject(
 // The client's content blueprint, as edited from the content calendar.
 export async function saveContentPlan(clientId: string, plan: PlanItem[]): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can change the blueprint." };
-  await prisma.client.update({ where: { id: clientId }, data: { contentPlan: planFor(plan) } });
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { contentPlan: planFor(plan) } }), { depth: 0 });
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -1013,17 +1105,22 @@ export async function updateProject(
   }
   if (data.status !== "completed") completedAt = null;
 
-  await prisma.project.update({
-    where: { id: projectId },
-    data: {
-      name: data.name.trim(),
-      status: data.status,
-      driveLink: data.driveLink.trim() || null,
-      ...(data.type !== undefined ? { type: data.type.trim() || existing.type } : {}),
-      ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl } : {}),
-      completedAt,
-    },
-  });
+  await withUndo(
+    [{ table: "Project", id: projectId }],
+    () =>
+      prisma.project.update({
+        where: { id: projectId },
+        data: {
+          name: data.name.trim(),
+          status: data.status,
+          driveLink: data.driveLink.trim() || null,
+          ...(data.type !== undefined ? { type: data.type.trim() || existing.type } : {}),
+          ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl } : {}),
+          completedAt,
+        },
+      }),
+    { depth: 0 }
+  );
   revalidatePath("/clients/[slug]", "page");
   revalidatePath(`/projects/${projectId}`);
   return {};
@@ -1056,18 +1153,22 @@ export async function addProjectAsset(projectId: string, input: ProjectAssetInpu
   }
 
   const last = await prisma.projectAsset.findFirst({ where: { projectId }, orderBy: { sortOrder: "desc" } });
-  await prisma.projectAsset.create({
-    data: {
-      projectId,
-      name: input.name.trim(),
-      contentType: input.contentType.trim() || "Misc.",
-      link,
-      dueDate: dueOf(input.dueDate) ?? null,
-      draftDate: dueOf(input.draftDate) ?? null,
-      sortOrder: (last?.sortOrder ?? 0) + 1,
-      tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
-    },
-  });
+  await withUndo(
+    (a) => [{ table: "ProjectAsset", id: a.id }],
+    () =>
+      prisma.projectAsset.create({
+        data: {
+          projectId,
+          name: input.name.trim(),
+          contentType: input.contentType.trim() || "Misc.",
+          link,
+          dueDate: dueOf(input.dueDate) ?? null,
+          draftDate: dueOf(input.draftDate) ?? null,
+          sortOrder: (last?.sortOrder ?? 0) + 1,
+          tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
+        },
+      })
+  );
   await revalidateProject(projectId);
   return {};
 }
@@ -1093,33 +1194,39 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
       ? await prisma.task.findFirst({ where: { id: input.taskId, projectId: current.projectId }, select: { id: true, status: true, driveLink: true } })
       : null;
   if (input.taskId && input.taskId !== current.taskId && !picked) return { error: "That task isn't in this project." };
-  // the placeholder it leaves gives back the link it brought
-  if (picked) {
-    await prisma.projectAsset.updateMany({ where: { taskId: picked.id, link: picked.driveLink ?? "" }, data: { link: null } });
-    await prisma.projectAsset.updateMany({ where: { taskId: picked.id }, data: { taskId: null } });
-  }
-  // here: the picked task's link once it's delivered; else the one the
-  // task it replaces brought goes, and anything typed by hand stays
-  const leaving = current.task?.driveLink ?? null;
-  if (picked) link = picked.status === "delivered_and_uploaded" && picked.driveLink ? picked.driveLink : link && link === leaving ? null : link;
+  // the file, and the tasks it had and takes: each with the placeholders that
+  // point at it (depth 1), so a placeholder a task leaves or finds is kept too
+  const refs = [assetId, current.taskId, picked?.id].flatMap((id, i) => (id ? [{ table: i ? "Task" : "ProjectAsset", id }] : []));
+  const asset = await withUndo(refs, async () => {
+    // the placeholder it leaves gives back the link it brought
+    if (picked) {
+      await prisma.projectAsset.updateMany({ where: { taskId: picked.id, link: picked.driveLink ?? "" }, data: { link: null } });
+      await prisma.projectAsset.updateMany({ where: { taskId: picked.id }, data: { taskId: null } });
+    }
+    // here: the picked task's link once it's delivered; else the one the
+    // task it replaces brought goes, and anything typed by hand stays
+    const leaving = current.task?.driveLink ?? null;
+    if (picked) link = picked.status === "delivered_and_uploaded" && picked.driveLink ? picked.driveLink : link && link === leaving ? null : link;
 
-  const asset = await prisma.projectAsset.update({
-    where: { id: assetId },
-    data: {
-      name: input.name.trim(),
-      contentType: input.contentType.trim() || "Misc.",
-      link,
-      ...(picked ? { taskId: picked.id } : {}),
-      ...(input.dueDate !== undefined ? { dueDate: dueOf(input.dueDate) } : {}),
-      ...(input.draftDate !== undefined ? { draftDate: dueOf(input.draftDate) } : {}),
-      ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
-    },
-  });
-  // the task it had finds another of its kind, if there's one free
-  if (picked && current.taskId) await linkDeliverables([current.taskId]);
-  // the task that fills it goes by its name (lib/deliverableLink): renamed
-  // here, or newly picked, the task takes the name too
-  if (asset.taskId) await prisma.task.updateMany({ where: { id: asset.taskId, NOT: { title: asset.name } }, data: { title: asset.name } });
+    const asset = await prisma.projectAsset.update({
+      where: { id: assetId },
+      data: {
+        name: input.name.trim(),
+        contentType: input.contentType.trim() || "Misc.",
+        link,
+        ...(picked ? { taskId: picked.id } : {}),
+        ...(input.dueDate !== undefined ? { dueDate: dueOf(input.dueDate) } : {}),
+        ...(input.draftDate !== undefined ? { draftDate: dueOf(input.draftDate) } : {}),
+        ...(input.tagIds ? { tags: { set: input.tagIds.map((id) => ({ id })) } } : {}),
+      },
+    });
+    // the task it had finds another of its kind, if there's one free
+    if (picked && current.taskId) await linkDeliverables([current.taskId]);
+    // the task that fills it goes by its name (lib/deliverableLink): renamed
+    // here, or newly picked, the task takes the name too
+    if (asset.taskId) await prisma.task.updateMany({ where: { id: asset.taskId, NOT: { title: asset.name } }, data: { title: asset.name } });
+    return asset;
+  }, { label: refs.length > 1 ? `Edited file "${input.name.trim()}"` : undefined });
   await revalidateProject(asset.projectId);
   return {};
 }
@@ -1127,7 +1234,7 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
 export async function deleteProjectAsset(assetId: string): Promise<{ error?: string }> {
   const user = await requireOps();
   if (!user) return { error: "Only the operations team can edit a project's files." };
-  const asset = await prisma.projectAsset.delete({ where: { id: assetId } });
+  const asset = await withUndo([{ table: "ProjectAsset", id: assetId }], () => prisma.projectAsset.delete({ where: { id: assetId } }));
   await revalidateProject(asset.projectId);
   return {};
 }
@@ -1146,16 +1253,21 @@ export async function deleteProject(projectId: string): Promise<{ error?: string
 
   // one transaction: a half-deleted project (tasks gone, project still
   // there) would leave the board pointing at nothing
-  await prisma.$transaction([
-    prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
-    prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
-    prisma.notice.deleteMany({ where: { taskId: { in: taskIds } } }),
-    prisma.task.deleteMany({ where: { projectId } }),
-    prisma.workTask.updateMany({ where: { projectId }, data: { projectId: null } }),
-    prisma.projectAsset.deleteMany({ where: { projectId } }),
-    prisma.invoice.deleteMany({ where: { projectId } }),
-    prisma.project.delete({ where: { id: projectId } }),
-  ]);
+  await withUndo(
+    [{ table: "Project", id: projectId }],
+    () =>
+      prisma.$transaction([
+        prisma.feedback.deleteMany({ where: { taskId: { in: taskIds } } }),
+        prisma.activityLog.deleteMany({ where: { entity: "Task", entityId: { in: taskIds } } }),
+        prisma.notice.deleteMany({ where: { taskId: { in: taskIds } } }),
+        prisma.task.deleteMany({ where: { projectId } }),
+        prisma.workTask.updateMany({ where: { projectId }, data: { projectId: null } }),
+        prisma.projectAsset.deleteMany({ where: { projectId } }),
+        prisma.invoice.deleteMany({ where: { projectId } }),
+        prisma.project.delete({ where: { id: projectId } }),
+      ]),
+    { depth: 9 }
+  );
   // the only project in an invoice: the invoices after it close up
   await closeInvoiceGaps(project.clientId);
 
@@ -1178,23 +1290,27 @@ export async function saveAnalyticsAccount(
     return { error: platform === "youtube" ? "That doesn't look like a YouTube channel link or @handle." : "That doesn't look like an Instagram link or @handle." };
   }
   const before = await prisma.client.findUnique({ where: { id: clientId }, select: { youtubeChannel: true, instagramHandle: true } });
-  await prisma.client.update({
-    where: { id: clientId },
-    data: platform === "youtube" ? { youtubeChannel: v || null } : { instagramHandle: v || null },
-  });
   const same =
     platform === "youtube"
       ? JSON.stringify(youtubeRef(before?.youtubeChannel)) === JSON.stringify(youtubeRef(v))
       : instagramUsername(before?.instagramHandle) === instagramUsername(v);
-  if (same) {
-    revalidatePath("/clients/[slug]", "page");
-    return {};
-  }
-  // a different account: what was read from the old one no longer applies
-  await prisma.$transaction([
-    prisma.socialAccount.deleteMany({ where: { clientId, platform } }),
-    prisma.contentItem.deleteMany({ where: { clientId, platform } }),
-  ]);
+  // a different account takes what was read from the old one, which hangs off the client (depth 1)
+  await withUndo(
+    [{ table: "Client", id: clientId }],
+    async () => {
+      await prisma.client.update({
+        where: { id: clientId },
+        data: platform === "youtube" ? { youtubeChannel: v || null } : { instagramHandle: v || null },
+      });
+      if (same) return;
+      // a different account: what was read from the old one no longer applies
+      await prisma.$transaction([
+        prisma.socialAccount.deleteMany({ where: { clientId, platform } }),
+        prisma.contentItem.deleteMany({ where: { clientId, platform } }),
+      ]);
+    },
+    { depth: same ? 0 : 1, only: ["SocialAccount", "ContentItem"], label: `Changed the ${platform === "youtube" ? "YouTube channel" : "Instagram account"}` }
+  );
   revalidatePath("/clients/[slug]", "page");
   return {};
 }
@@ -1208,10 +1324,14 @@ export async function markOurWork(
   ours: boolean | null
 ): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can change this." };
-  await prisma.contentItem.updateMany({
-    where: { clientId, platform, externalId: { in: externalIds } },
-    data: { ours, oursBy: ours === null ? null : "person" },
-  });
+  const where = { clientId, platform, externalId: { in: externalIds } };
+  const items = await prisma.contentItem.findMany({ where, select: { id: true, title: true } });
+  const what = items.length === 1 ? `"${items[0].title}"` : `${items.length} posts`;
+  await withUndo(
+    items.map((i) => ({ table: "ContentItem", id: i.id })),
+    () => prisma.contentItem.updateMany({ where, data: { ours, oursBy: ours === null ? null : "person" } }),
+    { depth: 0, label: ours === null ? `Put ${what} back to review` : `Marked ${what} as ${ours ? "ours" : "not ours"}` }
+  );
   revalidatePath("/analytics");
   return {};
 }
@@ -1220,7 +1340,11 @@ export async function markOurWork(
 // matched to our tasks or marked.
 export async function setAllOurs(clientId: string, platform: "youtube" | "instagram", value: boolean): Promise<{ error?: string }> {
   if (!(await requireOps())) return { error: "Only the operations team can change this." };
-  await prisma.socialAccount.updateMany({ where: { clientId, platform }, data: { allOurs: value } });
+  // a SocialAccount has no id of its own: kept as one of the client's rows (depth 1)
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.socialAccount.updateMany({ where: { clientId, platform }, data: { allOurs: value } }), {
+    only: ["SocialAccount"],
+    label: value ? "Counted every post as ours" : "Counted only matched posts as ours",
+  });
   revalidatePath("/analytics");
   return {};
 }

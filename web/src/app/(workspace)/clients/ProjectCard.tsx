@@ -140,7 +140,8 @@ export function ProjectCard({
           dialogRef.current?.showModal();
         }}
         title="Delete project"
-        className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md text-muted opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+        // a touchscreen never hovers: there it's always shown, a finger's width
+        className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md text-muted opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100 pointer-coarse:bottom-1 pointer-coarse:right-1 pointer-coarse:size-8 pointer-coarse:opacity-100"
       >
         <Trash2 size={13} />
       </button>

@@ -101,7 +101,8 @@ export function ClientsBoard({ clients, canArrange }: { clients: ClientCardData[
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    // below a laptop the last cards scroll clear of the Sync clients button
+    <div className="flex flex-col gap-6 max-xl:pb-14 max-md:pb-24">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl panel-soft p-1">
           {GROUPS.map((g) => (

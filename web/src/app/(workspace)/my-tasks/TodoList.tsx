@@ -327,6 +327,15 @@ export function TodoList({
   // When: finished again after that (ticked again, here or anywhere), it shows.
   const [reopened, setReopened] = useState<Map<string, number>>(new Map());
   const unmark = (key: string) => setReopened((r) => new Map([...r].filter(([k]) => k !== key)));
+  // an undo (the bar at the top) can bring back what was ticked, deleted or reopened here
+  useEffect(() => {
+    const reset = () => {
+      setGone(new Set());
+      setReopened(new Map());
+    };
+    window.addEventListener("easeus:undo", reset);
+    return () => window.removeEventListener("easeus:undo", reset);
+  }, []);
   // what's been finished in the chosen stretch, newest first, by month
   const finished = useMemo(() => {
     const t = env.today;
@@ -434,7 +443,7 @@ export function TodoList({
               placeholder="Search"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none! placeholder:text-muted/60"
             />
-            <kbd className="rounded border border-white/10 px-1 text-[11px] text-muted/70">/</kbd>
+            <kbd className="rounded border border-white/10 px-1 text-[11px] text-muted/70 pointer-coarse:hidden">/</kbd>
           </label>
           <div className="flex rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
             {VIEWS.map((v) => (
@@ -729,7 +738,21 @@ function Row({
           <span className="truncate">{item.title}</span>
           {!wide && item.notes && <FileText size={12} className="shrink-0 text-muted/60" aria-label="Has notes" />}
         </p>
-        {wide ? item.notes && <p className="mt-0.5 truncate text-xs text-muted">{item.notes}</p> : client && <div className="mt-1 sm:hidden">{client}</div>}
+        {wide ? (
+          <>
+            {item.notes && <p className="mt-0.5 truncate text-xs text-muted">{item.notes}</p>}
+            {/* a phone has no room for the columns: what they hold, under the title */}
+            {(client || due || stage) && (
+              <div className="mt-1 flex flex-wrap items-center gap-2 md:hidden">
+                {client}
+                {due && <span className={`${PILL} ${due.tone}`}>{due.text}</span>}
+                {stage}
+              </div>
+            )}
+          </>
+        ) : (
+          client && <div className="mt-1 sm:hidden">{client}</div>
+        )}
       </div>
       {wide ? (
         <>
@@ -886,7 +909,7 @@ export function Composer({
           <Plus size={13} strokeWidth={2.5} />
         </span>
         Add task
-        <kbd className="ml-auto rounded border border-white/10 px-1 text-[11px] text-muted/60">N</kbd>
+        <kbd className="ml-auto rounded border border-white/10 px-1 text-[11px] text-muted/60 pointer-coarse:hidden">N</kbd>
       </button>
     );
   }

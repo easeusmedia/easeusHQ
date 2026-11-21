@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { isFounder, isLead } from "@/lib/scope";
 import { createMeeting, MEETINGS_TAG } from "@/lib/googleCalendar";
+import { withUndo } from "@/lib/undo";
 
 // A town hall or group meeting, made from Home: into easeus.media@gmail.com's
 // calendar with a Meet link, and an invite to each person picked. Only a
@@ -38,7 +39,7 @@ export async function addNotice(body: string): Promise<{ error?: string }> {
   if (!me || !isFounder(me)) return { error: "Only Level 1 can add a notice." };
   const text = body.trim();
   if (!text) return { error: "Write the notice first." };
-  await prisma.notice.create({ data: { body: text.slice(0, 500), by: me.name } });
+  await withUndo((n) => [{ table: "Notice", id: n.id }], () => prisma.notice.create({ data: { body: text.slice(0, 500), by: me.name } }), { label: "Added a notice" });
   revalidatePath("/home");
   return {};
 }
@@ -48,7 +49,7 @@ export async function addNotice(body: string): Promise<{ error?: string }> {
 export async function clearNotice(id: string): Promise<{ error?: string }> {
   const me = await getViewer();
   if (!me) return { error: "Your session has ended. Please sign in again." };
-  await prisma.notice.deleteMany({ where: isFounder(me) ? { id } : { id, forId: me.id } });
+  await withUndo([{ table: "Notice", id }], () => prisma.notice.deleteMany({ where: isFounder(me) ? { id } : { id, forId: me.id } }), { label: "Cleared a notice" });
   revalidatePath("/home");
   return {};
 }
@@ -81,7 +82,7 @@ export async function setNoticeRemark(id: string, text: string): Promise<{ error
   if (!me || !upper(me)) return { error: "Only Level 1 and Level 2 can add a remark." };
   const notice = await prisma.notice.findUnique({ where: { id }, select: { forId: true } });
   if (!notice || !theirs(me, notice)) return { error: "That notice isn't yours." };
-  await prisma.notice.update({ where: { id }, data: { remark: text.trim().slice(0, 1000) || null } });
+  await withUndo([{ table: "Notice", id }], () => prisma.notice.update({ where: { id }, data: { remark: text.trim().slice(0, 1000) || null } }), { label: "Edited the remark on a notice" });
   revalidatePath("/home");
   return {};
 }
@@ -99,17 +100,23 @@ export async function forwardNotice(from: { id?: string; text?: string }, userId
   if (from.id && (!original || !theirs(me, original))) return { error: "That notice isn't yours." };
   const body = original?.body ?? from.text?.trim().slice(0, 500);
   if (!body) return { error: "There's nothing to forward." };
-  await prisma.notice.createMany({
-    data: to.map((p) => ({
-      forId: p.id,
-      body,
-      kind: original?.kind ?? "note",
-      taskId: original?.taskId ?? null,
-      workTaskId: original?.workTaskId ?? null,
-      forwardedBy: me.name,
-      forwardRemark: original?.remark ?? null,
-    })),
-  });
+  await withUndo(
+    (made) => made.map((n) => ({ table: "Notice", id: n.id })),
+    () =>
+      prisma.notice.createManyAndReturn({
+        select: { id: true },
+        data: to.map((p) => ({
+          forId: p.id,
+          body,
+          kind: original?.kind ?? "note",
+          taskId: original?.taskId ?? null,
+          workTaskId: original?.workTaskId ?? null,
+          forwardedBy: me.name,
+          forwardRemark: original?.remark ?? null,
+        })),
+      }),
+    { label: "Forwarded a notice" },
+  );
   revalidatePath("/home");
   return {};
 }

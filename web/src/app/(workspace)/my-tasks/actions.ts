@@ -12,7 +12,7 @@ import { WORK_TASK_INCLUDE, workTaskCard } from "../workData";
 import { revalidatePath } from "next/cache";
 import { deleteForGood, departmentFromWords, recordDateChange } from "@/lib/taskTrack";
 import type { WorkTaskStatus } from "@prisma/client";
-import { withUndo } from "@/lib/taskUndo";
+import { withUndo } from "@/lib/undo";
 
 export type WorkTaskLink = { label: string; url: string };
 export type WorkTaskAttachment = { name: string; dataUrl: string };
@@ -101,21 +101,26 @@ export async function createWorkTask(input: {
 
   const assignedToId = await resolveAssignee(me, input.assignedToId);
 
-  const created = await prisma.workTask.create({
-    data: {
-      title: input.title.trim(),
-      notes: input.notes.trim() || null,
-      dueDate: input.dueDate ? new Date(input.dueDate) : null,
-      projectId: await projectFor(input),
-      links: cleanLinks(input.links),
-      attachments: input.attachments,
-      tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
-      teamId: input.roleId && !input.tagIds?.length ? ((await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { teamId: true } }))?.teamId ?? null) : await departmentOf(input.tagIds ?? [], assignedToId, input.title),
-      createdById: me.id,
-      assignedToId,
-      sortOrder: Date.now(),
-    },
-  });
+  // kept as the person's step to undo (lib/undo)
+  const created = await withUndo(
+    (t) => [{ kind: "work" as const, id: t.id }],
+    async () =>
+      prisma.workTask.create({
+        data: {
+          title: input.title.trim(),
+          notes: input.notes.trim() || null,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          projectId: await projectFor(input),
+          links: cleanLinks(input.links),
+          attachments: input.attachments,
+          tags: { connect: (input.tagIds ?? []).map((id) => ({ id })) },
+          teamId: input.roleId && !input.tagIds?.length ? ((await prisma.jobTitle.findUnique({ where: { id: input.roleId }, select: { teamId: true } }))?.teamId ?? null) : await departmentOf(input.tagIds ?? [], assignedToId, input.title),
+          createdById: me.id,
+          assignedToId,
+          sortOrder: Date.now(),
+        },
+      }),
+  );
 
   // Mirror it into Notion for the people whose work belongs there — same
   // rule the client queue uses. Best-effort on purpose: if Notion is down
@@ -228,7 +233,7 @@ async function assertCanTouch(taskId: string) {
   return task;
 }
 
-// kept as the person's step to undo (lib/taskUndo)
+// kept as the person's step to undo (lib/undo)
 export async function updateWorkTask(input: Parameters<typeof saveWorkTask>[0]): Promise<WorkTaskFormState> {
   return withUndo([{ kind: "work", id: input.id }], () => saveWorkTask(input));
 }
@@ -286,7 +291,7 @@ async function saveWorkTask(input: {
 // drag-and-drop: status change, and/or a new sortOrder within a column —
 // no workflow graph to check against like the client Task board has, any
 // of the four columns is a valid drop target from any other
-// kept as the person's step to undo (lib/taskUndo)
+// kept as the person's step to undo (lib/undo)
 export async function moveWorkTask(taskId: string, status: WorkTaskStatus, sortOrder: number) {
   return withUndo([{ kind: "work", id: taskId }], () => moveWorkTaskNow(taskId, status, sortOrder));
 }

@@ -18,6 +18,7 @@ import { EMPLOYMENT_LABEL, Face, ROLE_LABEL, ROLE_REACH, type Department, type P
 import { EMPLOYMENT_TYPE_LABEL } from "@/lib/teams";
 import { TaskTagChip } from "../TaskTagPicker";
 import { effectiveRole, LEVEL_NOTE } from "@/lib/scope";
+import { useUndoReset } from "../useUndoReset";
 import { indiaDay } from "@/lib/due";
 import { GradeBadge, ScoreTile } from "../performance/ui";
 import { LETTER_LABEL } from "@/lib/videoScore";
@@ -76,6 +77,10 @@ function DepartmentsAndRoles({
 }) {
   const [departmentIds, setDepartmentIds] = useState(person.departmentIds);
   const [roleIds, setRoleIds] = useState(person.roleIds);
+  useUndoReset(() => {
+    setDepartmentIds(person.departmentIds);
+    setRoleIds(person.roleIds);
+  }, person);
   const [error, setError] = useState<string | null>(null);
   const editable = (teamId: string | null) => person.canSetAccess && !!teamId && editableTeamIds.includes(teamId);
   const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -161,7 +166,7 @@ function DepartmentsAndRoles({
 
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface-2/30 p-5">
+    <section className="rounded-2xl border border-border bg-surface-2/30 p-5 max-sm:p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">{title}</h2>
         {aside && <div className="shrink-0 text-xs text-muted">{aside}</div>}
@@ -363,7 +368,7 @@ export function PersonDetail({
   return (
     <div className="fade-in flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* a phone: the buttons wrap under the name, so the name keeps its width */}
-      <header className="flex items-center gap-4 border-b border-border px-6 py-5 max-sm:flex-wrap max-sm:px-4">
+      <header className="flex items-center gap-4 border-b border-border px-6 py-5 max-sm:flex-wrap max-sm:px-4 max-sm:[&>:first-child]:basis-full">
         <ProfileHead
           photo={
             // the admin can change anyone's photo here, and you can change your own
@@ -420,13 +425,20 @@ export function PersonDetail({
         </div>
       </header>
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="flex flex-col gap-4 p-6 max-sm:p-3">
         <Section
           title="Employee information"
           aside={
             canEdit &&
             !editing && (
-              <button onClick={() => setEditing(true)} className="btn btn-xs btn-ghost flex items-center gap-1">
+              <button
+                onClick={() => {
+                  // the record as the page has it now (an undo may have changed it)
+                  setForm(blank);
+                  setEditing(true);
+                }}
+                className="btn btn-xs btn-ghost flex items-center gap-1"
+              >
                 <PenLine size={12} /> Edit
               </button>
             )

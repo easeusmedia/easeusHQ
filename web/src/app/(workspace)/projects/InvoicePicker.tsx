@@ -25,6 +25,12 @@ export function InvoicePicker({
 }) {
   // none is empty: the placeholder, "No invoice"
   const [current, setCurrent] = useState(value === "none" ? "" : value);
+  // the saved one wins once it changes (a move undone, or made elsewhere)
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    setCurrent(value === "none" ? "" : value);
+  }
   const [error, setError] = useState<string | null>(null);
 
   async function pick(picked: string) {

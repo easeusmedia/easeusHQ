@@ -25,7 +25,7 @@ const ICON: Record<SheetColumn, React.ComponentType<{ size?: number; className?:
   youtube: YoutubeIcon,
 };
 const INPUT = "w-full rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-foreground outline-none! transition-colors placeholder:text-muted/50 focus:border-accent/40";
-const REMOVE = "grid size-6 shrink-0 place-items-center rounded-md text-muted opacity-0 transition-[opacity,color] group-hover/row:opacity-100 hover:text-rose-300 focus-visible:opacity-100";
+const REMOVE = "grid size-6 shrink-0 place-items-center rounded-md text-muted opacity-0 transition-[opacity,color] group-hover/row:opacity-100 hover:text-rose-300 focus-visible:opacity-100 pointer-coarse:opacity-100";
 
 // A Leads tab's lead, opened from its row (Sales > Leads, 3 Nov 2026): its
 // name, its people (each with a designation and every link, email and number
@@ -38,14 +38,27 @@ export function SheetLeadWindow({ lead, sheet, targets, roles, onClose }: { lead
   const ref = useRef<HTMLDialogElement>(null);
   // the last lead stays drawn while the window fades out
   const [shown, setShown] = useState(lead);
-  if (lead && lead !== shown) setShown(lead);
-  const open = !!lead;
+  // an undo (UndoRedo) draws it afresh too, once the page's copy has it
+  const [undone, setUndone] = useState(false);
+  useEffect(() => {
+    const on = () => setUndone(true);
+    window.addEventListener("easeus:undo", on);
+    return () => window.removeEventListener("easeus:undo", on);
+  }, []);
   // saves still on their way, and the page's refresh after them
   const [saving, setSaving] = useState(0);
   const [refreshing, startRefresh] = useTransition();
   // each opening draws it afresh, from the latest values; reopened before
   // the page's copy has what was just saved, it stays as it was
   const [opens, setOpens] = useState(0);
+  if (lead && lead !== shown) {
+    setShown(lead);
+    if (undone) {
+      setUndone(false);
+      setOpens((n) => n + 1);
+    }
+  }
+  const open = !!lead;
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);

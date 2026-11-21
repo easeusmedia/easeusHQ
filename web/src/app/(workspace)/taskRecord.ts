@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/viewer";
 import { assigneeWhere, isFounder } from "@/lib/scope";
 import { bringOn, canBringOn, taskRecord, type TaskRef, type TaskRecord } from "@/lib/taskTrack";
-import { withUndo } from "@/lib/taskUndo";
+import { withUndo } from "@/lib/undo";
 
 // whether this person may see the task: it's in their view, theirs, or
 // they've been brought onto it
@@ -39,7 +39,10 @@ export async function getTaskRecord(ref: TaskRef): Promise<(TaskRecord & { canAd
 export async function addPeopleToTask(ref: TaskRef, userIds: string[], reason: string): Promise<{ error?: string }> {
   const viewer = await getViewer();
   if (!viewer || !(await sees(ref, viewer))) return { error: "You can't change this task." };
-  const res = await bringOn(ref, userIds, reason, viewer);
+  // kept as the person's step to undo (lib/undo): the shares and the notices that told them
+  const select = { title: true } as const;
+  const task = ref.kind === "task" ? await prisma.task.findUnique({ where: { id: ref.id }, select }) : await prisma.workTask.findUnique({ where: { id: ref.id }, select });
+  const res = await withUndo([ref], () => bringOn(ref, userIds, reason, viewer), { label: `Added people to "${task?.title ?? ""}"` });
   revalidatePath("/my-tasks");
   revalidatePath("/home");
   return res;

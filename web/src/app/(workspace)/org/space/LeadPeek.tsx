@@ -69,7 +69,7 @@ export function LeadPeek({ lead, board, people, targets = [], onClose, onTrack }
       onClose={(e) => e.target === e.currentTarget && open && onClose()}
       // the width eases open with the History panel, as a task's does, and
       // out to the whole window in full screen
-      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground ${
+      className={`dialog-grow glass fixed top-1/2 left-1/2 m-0 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-5 text-foreground max-sm:p-4 ${
         full ? "max-h-[calc(100dvh-2rem)] min-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none" : `max-h-[88vh] min-h-0 max-w-[94vw] ${history ? "w-[63rem]" : "w-[41rem]"}`
       }`}
     >
@@ -312,6 +312,25 @@ function LeadPage({
   const ready = start >= 0 && order.indexOf(stageId) < start ? board.stages[start] : null;
   // typed in the Fill in form (Messages), ahead of its save: filling the last one and moving goes straight on (the save lands first, server actions run one at a time)
   const [typed, setTyped] = useState<Record<string, string>>({});
+  // an undo (UndoRedo): what's shown ahead of the board's copy goes, and the record, what's sent and its wording are read again
+  useEffect(() => {
+    if (!open) return;
+    const again = () => {
+      setPending({});
+      setPins({});
+      setPagePins({});
+      setTyped({});
+      getLeadDetails(id)
+        .then((r) => {
+          if (r.events) setEvents(r.events);
+          if (r.sent) setSent(r.sent);
+          if (r.prepared) setPrepared(r.prepared);
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("easeus:undo", again);
+    return () => window.removeEventListener("easeus:undo", again);
+  }, [id, open]);
   // what a move there still waits on; null, nothing
   const missingFor = (toId: string) =>
     needsApprovals(board.stages, toId)
@@ -456,9 +475,9 @@ function LeadPage({
       {/* under it, its people, one picked at a time (the profile and the
           messages both follow the one picked); + adds another */}
       {contactField && (
-        <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1">
+        <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 px-1 max-lg:flex-nowrap">
           {(contactList.length > 0 || adding) && (
-            <div role="tablist" aria-label="Contacts" className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07]">
+            <div role="tablist" aria-label="Contacts" className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-white/[0.07] max-lg:min-w-0 max-lg:flex-nowrap max-lg:overflow-x-auto">
               {contactList.map((c, i) => (
                 <button
                   key={c.id}
@@ -469,15 +488,15 @@ function LeadPage({
                     setAdding(false);
                     setWho(c.id);
                   }}
-                  className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+                  className="seg flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium max-lg:shrink-0 max-lg:whitespace-nowrap"
                 >
                   <User size={12} className="shrink-0 text-muted" />
                   {tabNames[i]}
-                  {c.role && <span className="font-normal text-muted">{c.role}</span>}
+                  {c.role && <span className="font-normal text-muted max-md:max-w-36 max-md:truncate">{c.role}</span>}
                 </button>
               ))}
               {adding && (
-                <button type="button" role="tab" aria-selected className="seg fade-in flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+                <button type="button" role="tab" aria-selected className="seg fade-in flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium max-lg:shrink-0 max-lg:whitespace-nowrap">
                   <User size={12} className="shrink-0 text-muted" />
                   New contact
                 </button>
@@ -492,7 +511,7 @@ function LeadPage({
               }}
               aria-label="Add a contact"
               title="Add a contact"
-              className="flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground"
+              className="flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground max-lg:shrink-0"
             >
               <Plus size={14} />
             </button>
@@ -503,7 +522,8 @@ function LeadPage({
       {/* flex-auto, not flex-1: in a dialog with no set height, Safari (the
           Dock app) gives a 0-based flex item no height at all */}
       <div className="flex min-h-0 flex-auto">
-        <div className={`flex min-w-0 shrink flex-col ${full ? "flex-1" : "w-[39rem]"}`}>
+        {/* (on a phone or tablet, History takes its place) */}
+        <div className={`flex min-w-0 shrink flex-col ${full ? "flex-1" : "w-[39rem]"} ${history ? "max-lg:hidden" : ""}`}>
           {/* the messages, with everything known about it beside them */}
           <Messages
             lead={{ ...lead, values }}
@@ -540,9 +560,9 @@ function LeadPage({
         </div>
 
         {/* beside it, the same height: every stage it has been through */}
-        <div inert={!history} className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0"}`}>
+        <div inert={!history} className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${history ? "w-[min(21rem,40vw)] opacity-100 max-lg:w-full" : "w-0 opacity-0"}`}>
           {/* a panel like the two beside it: same top, same corners, its name inside as theirs are */}
-          <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col pl-4">
+          <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col pl-4 max-lg:w-full max-lg:pl-0">
             <div className="panel-soft min-h-0 flex-1 overflow-y-auto rounded-2xl px-5 py-5">
               <p className="mb-3 text-[11px] font-medium tracking-wide text-muted uppercase">History</p>
               {events ? <LeadHistory events={events} flat /> : <p className="text-xs text-muted">Loading the record…</p>}
@@ -552,7 +572,8 @@ function LeadPage({
       </div>
 
       {/* along the bottom: delete, who added it, Close */}
-      <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border pt-3">
+      {/* (a phone: the moves go onto a second row) */}
+      <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border pt-3 max-sm:flex-wrap max-sm:gap-y-1.5">
         <button type="button" onClick={() => setDeleting(true)} aria-label="Delete lead" title="Delete lead" className="shrink-0 rounded-md p-1.5 text-muted hover:text-red-400">
           <Trash2 size={14} />
         </button>
@@ -579,8 +600,9 @@ function LeadPage({
             </>
           )}
         </p>
+        {(ready || targets.length > 0) && <span aria-hidden className="hidden basis-full max-sm:order-1 max-sm:block" />}
         {ready && (
-          <button type="button" onClick={moveToReady} className={`btn fade-in min-w-0 ${blocked ? "btn-ghost" : "btn-glow"}`}>
+          <button type="button" onClick={moveToReady} className={`btn fade-in min-w-0 max-sm:order-2 max-sm:flex-1 ${blocked ? "btn-ghost" : "btn-glow"}`}>
             <span className="truncate">Move to {ready.name}</span>
           </button>
         )}
@@ -592,6 +614,7 @@ function LeadPage({
             width={260}
             align="end"
             popup="menu"
+            className="max-sm:order-2 max-sm:ml-auto"
             buttonClassName="btn btn-ghost shrink-0"
             button={
               <>

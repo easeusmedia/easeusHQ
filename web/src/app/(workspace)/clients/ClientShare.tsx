@@ -32,7 +32,8 @@ export function ClientShare({ clientId, slug, enabled }: { clientId: string; slu
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // a phone: its buttons wrap along with the header's others, not as a block of their own
+    <div className="flex flex-wrap items-center gap-2 max-md:contents">
       <button
         type="button"
         onClick={toggle}

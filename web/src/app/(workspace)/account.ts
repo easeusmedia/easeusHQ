@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getRealViewer, hashPassword, verifyPassword } from "@/lib/auth";
 import { DEVELOPER } from "@/lib/scope";
 import { checkAccount, type AccountInput } from "@/lib/account";
+import { withUndo } from "@/lib/undo";
 
 // Someone changing their own name, sign-in email or password, from the
 // profile menu. Always the person really signed in, never whoever a Level 1
@@ -32,7 +33,11 @@ export async function updateAccount(input: AccountInput): Promise<{ error?: stri
   });
   if (clash) return { error: clash.email === email ? "Someone else already uses that email." : "Someone else already has that name." };
 
-  await prisma.user.update({ where: { id: me.id }, data: { name, email, ...(newPassword ? { passwordHash: hashPassword(newPassword) } : {}) } });
+  // the password is never kept for undo (lib/undo), only the name and email
+  await withUndo([{ table: "User", id: me.id }], () => prisma.user.update({ where: { id: me.id }, data: { name, email, ...(newPassword ? { passwordHash: hashPassword(newPassword) } : {}) } }), {
+    depth: 0,
+    label: "Edited your account",
+  });
   // a name shows on every page
   revalidatePath("/", "layout");
   return {};

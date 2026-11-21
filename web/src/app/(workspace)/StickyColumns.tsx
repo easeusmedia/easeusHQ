@@ -39,17 +39,23 @@ export function StickyColumns({
     `.${scope} [data-strip]{display:${p >= n ? "block" : "none"}}` +
     `.${scope} [data-head]{display:${p >= n ? "none" : "block"}}` +
     `.${scope} [data-body]{row-gap:${p >= n ? 1 : 2}rem}`;
-  let css = layout(perRow(0, n, minColumn, GAP));
-  for (let f = 2, last = perRow(0, n, minColumn, GAP); f <= n; f++) {
-    const width = f * (minColumn + GAP) - GAP; // the narrowest box that fits f
-    const p = perRow(width, n, minColumn, GAP);
-    if (p !== last) css += `@container (min-width:${width}rem){${layout(p)}}`;
-    last = p;
-  }
+  const ladder = (min: number) => {
+    let out = layout(perRow(0, n, min, GAP));
+    for (let f = 2, last = perRow(0, n, min, GAP); f <= n; f++) {
+      const width = f * (min + GAP) - GAP; // the narrowest box that fits f
+      const p = perRow(width, n, min, GAP);
+      if (p !== last) out += `@container (min-width:${width}rem){${layout(p)}}`;
+      last = p;
+    }
+    return out;
+  };
+  // phones and tablets: wider columns that share the width (one to a row
+  // on a phone), so a card isn't squeezed
+  const css = ladder(minColumn) + `@media (max-width:1023.98px){.${scope}{--board-col:1fr}${ladder(Math.max(minColumn, 13))}}`;
 
   // no wider than a comfortable card, scaled a little with the screen
   const grid = {
-    gridTemplateColumns: `repeat(var(--per-row), minmax(0, ${stretch ? "1fr" : "clamp(16rem, 24vw, 22rem)"}))`,
+    gridTemplateColumns: `repeat(var(--per-row), minmax(0, ${stretch ? "1fr" : "var(--board-col, clamp(16rem, 24vw, 22rem))"}))`,
   };
   // A scroller's padding also pads where sticky things stop, so a plain
   // top-0 would pin headers a padding's height down the page with cards

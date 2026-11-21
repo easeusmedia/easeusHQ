@@ -9,6 +9,7 @@ import { DEFAULT_CLAUSES, compose, withDefaults, type Clause, type ContractDetai
 import { TEMPLATE, masterClauses } from "./masterTemplate";
 import { trackContracts } from "./tracking";
 import { askAboutContract, type Attachment, type ChatMessage } from "./assistant";
+import { withUndo } from "@/lib/undo";
 
 // Every step of a contract after the client's form: ops fills in the terms,
 // edits the clauses, approves, sends. Ops only. See lib/contract.ts.
@@ -33,15 +34,20 @@ const done = () => revalidatePath("/contracts", "layout");
 export async function createContract(name: string): Promise<{ id?: string; token?: string; error?: string }> {
   const user = await requireFounder();
   if (!user) return { error: "Only Level 1 can start a contract." };
-  const contract = await prisma.contract.create({
-    data: {
-      token: randomBytes(24).toString("base64url"),
-      name: name.trim().slice(0, 120) || null,
-      details: withDefaults({}),
-      clauses: await masterClauses(),
-      createdById: user.id,
-    },
-  });
+  const clauses = await masterClauses();
+  const contract = await withUndo(
+    (r) => [{ table: "Contract", id: r.id }],
+    () =>
+      prisma.contract.create({
+        data: {
+          token: randomBytes(24).toString("base64url"),
+          name: name.trim().slice(0, 120) || null,
+          details: withDefaults({}),
+          clauses,
+          createdById: user.id,
+        },
+      })
+  );
   done();
   return { id: contract.id, token: contract.token };
 }
@@ -64,7 +70,7 @@ export async function saveContractDetails(id: string, patch: Partial<ContractDet
   const c = await prisma.contract.findUnique({ where: { id }, select: { details: true } });
   const details = withDefaults({ ...withDefaults(c?.details), ...patch });
   if (JSON.stringify(details).length > 50_000) return { error: "That's too long to save." };
-  await prisma.contract.update({ where: { id }, data: { details, status: e.status } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.update({ where: { id }, data: { details, status: e.status } }), { depth: 0 });
   done();
   return { status: e.status, details };
 }
@@ -75,7 +81,7 @@ export async function saveContractClauses(id: string, clauses: Clause[]): Promis
   if (e.error) return e;
   const clean = cleanClauses(clauses);
   if (!clean) return { error: "Those clauses couldn't be saved." };
-  await prisma.contract.update({ where: { id }, data: { clauses: clean, status: e.status } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.update({ where: { id }, data: { clauses: clean, status: e.status } }), { depth: 0 });
   done();
   return { status: e.status };
 }
@@ -86,7 +92,7 @@ export async function resetContractClauses(id: string): Promise<{ error?: string
   const e = await editable(id);
   if (e.error) return e;
   const clauses = await masterClauses();
-  await prisma.contract.update({ where: { id }, data: { clauses, status: e.status } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.update({ where: { id }, data: { clauses, status: e.status } }), { depth: 0 });
   done();
   return { clauses };
 }
@@ -98,7 +104,10 @@ export async function approveContract(id: string): Promise<{ error?: string }> {
   if (c.status === "sent" || c.status === "signed") return { error: "This contract has already been sent." };
   const { missing } = compose(c.clauses as Clause[], withDefaults(c.details), indiaDay(new Date()));
   if (missing.length) return { error: `Still needed: ${missing.map((m) => m.label).join(", ")}.` };
-  await prisma.contract.update({ where: { id }, data: { status: "approved", approvedAt: new Date() } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.update({ where: { id }, data: { status: "approved", approvedAt: new Date() } }), {
+    depth: 0,
+    label: `Approved ${c.name ? `"${c.name}"` : "a contract"}`,
+  });
   done();
   return {};
 }
@@ -112,16 +121,22 @@ export async function markContractSent(id: string): Promise<{ error?: string }> 
   if (c.status !== "approved") return { error: "Please approve the contract first. Only approved contracts can be sent." };
   const details = withDefaults(c.details);
   if (!details.signingDate) details.signingDate = indiaDay(new Date());
-  await prisma.contract.update({ where: { id }, data: { status: "sent", sentAt: new Date(), details } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.update({ where: { id }, data: { status: "sent", sentAt: new Date(), details } }), {
+    depth: 0,
+    label: `Marked ${c.name ? `"${c.name}"` : "a contract"} as sent`,
+  });
   done();
   return {};
 }
 
 export async function markContractSigned(id: string): Promise<{ error?: string }> {
   if (!(await requireFounder())) return { error: "Only Level 1 can do that." };
-  const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
+  const c = await prisma.contract.findUnique({ where: { id }, select: { status: true, name: true } });
   if (c?.status !== "sent") return { error: "This contract hasn't been sent for signature yet." };
-  await prisma.contract.update({ where: { id }, data: { status: "signed", signedAt: new Date() } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.update({ where: { id }, data: { status: "signed", signedAt: new Date() } }), {
+    depth: 0,
+    label: `Marked ${c.name ? `"${c.name}"` : "a contract"} as signed`,
+  });
   done();
   return {};
 }
@@ -142,7 +157,7 @@ export async function deleteContract(id: string): Promise<{ error?: string }> {
   if (!(await requireFounder())) return { error: "Only Level 1 can do that." };
   const c = await prisma.contract.findUnique({ where: { id }, select: { status: true } });
   if (c?.status === "sent" || c?.status === "signed") return { error: "Contracts that have been sent stay on record." };
-  await prisma.contract.deleteMany({ where: { id } });
+  await withUndo([{ table: "Contract", id }], () => prisma.contract.deleteMany({ where: { id } }));
   done();
   return {};
 }
@@ -154,14 +169,16 @@ export async function saveTemplate(clauses: Clause[]): Promise<{ error?: string 
   const clean = cleanClauses(clauses);
   if (!clean) return { error: "Those clauses couldn't be saved." };
   const value = JSON.stringify(clean);
-  await prisma.appSetting.upsert({ where: { key: TEMPLATE }, create: { key: TEMPLATE, value }, update: { value } });
+  await withUndo([{ table: "AppSetting", id: TEMPLATE }], () => prisma.appSetting.upsert({ where: { key: TEMPLATE }, create: { key: TEMPLATE, value }, update: { value } }), {
+    label: "Edited the contract template",
+  });
   done();
   return {};
 }
 
 export async function resetTemplate(): Promise<{ error?: string; clauses?: Clause[] }> {
   if (!(await requireFounder())) return { error: "Only Level 1 can edit the template." };
-  await prisma.appSetting.deleteMany({ where: { key: TEMPLATE } });
+  await withUndo([{ table: "AppSetting", id: TEMPLATE }], () => prisma.appSetting.deleteMany({ where: { key: TEMPLATE } }), { label: "Reset the contract template" });
   done();
   return { clauses: DEFAULT_CLAUSES };
 }

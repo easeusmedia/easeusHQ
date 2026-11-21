@@ -113,7 +113,7 @@ export function StatusDropdown({
         {STATUS_LABEL[status] ?? status}
         <ChevronDown
           size={size === "sm" ? 11 : 13}
-          className={quiet ? "opacity-0 transition-opacity duration-200 group-hover/status:opacity-100" : undefined}
+          className={quiet ? "opacity-0 transition-opacity duration-200 group-hover/status:opacity-100 pointer-coarse:opacity-100" : undefined}
         />
       </button>
       {open && position && (
