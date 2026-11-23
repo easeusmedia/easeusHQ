@@ -292,7 +292,7 @@ async function apply(tx: Tx, plans: Plan[], now: Map<string, Row>, actorId: stri
   for (const k of p.deletes) {
     // a task's link on the placeholder it filled goes with it (lib/taskTrack deleteForGood)
     if (k.t === "Task")
-      await tx.$executeRawUnsafe(`update "ProjectAsset" a set link = null from "Task" t where a."taskId" = t.id and t.id = $1 and a.link = t."driveLink"`, String(k.r.id));
+      await tx.$executeRawUnsafe(`update "ProjectAsset" a set link = null, "deliveredAt" = null from "Task" t where a."taskId" = t.id and t.id = $1 and a.link = t."driveLink"`, String(k.r.id));
     const w = where(k, 1);
     await tx.$executeRawUnsafe(`delete from ${q(k.t)} x where ${w.sql}`, ...w.args);
   }

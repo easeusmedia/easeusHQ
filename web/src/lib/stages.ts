@@ -109,6 +109,18 @@ export function stageChangeAction(from: string, to: string, fromNotion = false):
   return `${from} → ${to}${fromNotion ? FROM_NOTION : ""}`;
 }
 
+// A date on a task's file moved (Abhishek, 23 Nov 2026: "store the history
+// ... even draft date"): kept in its activity log beside the stage moves, as
+// "date:draft|2026-11-04|2026-11-06" (yyyy-mm-dd, empty for none). Never with
+// an arrow, so nothing that reads the log takes it for a stage move.
+export type DateKind = "draft" | "delivery";
+export const dateChangeAction = (kind: DateKind, from: string | null, to: string | null) => `date:${kind}|${from ?? ""}|${to ?? ""}`;
+
+export function parseDateChange(action: string): { kind: DateKind; from: string | null; to: string | null } | null {
+  const m = /^date:(draft|delivery)\|([\d-]*)\|([\d-]*)$/.exec(action);
+  return m ? { kind: m[1] as DateKind, from: m[2] || null, to: m[3] || null } : null;
+}
+
 export function parseStageChange(action: string): { from: string; to: string; fromNotion: boolean } | null {
   const fromNotion = action.endsWith(FROM_NOTION);
   const [from, to] = (fromNotion ? action.slice(0, -FROM_NOTION.length) : action).split(" → ");

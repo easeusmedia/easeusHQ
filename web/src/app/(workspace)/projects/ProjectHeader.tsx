@@ -15,7 +15,6 @@ import { DatePicker } from "../DatePicker";
 import { Dropdown } from "../Dropdown";
 import { chip } from "../chip";
 import { updateProject, deleteProject } from "../clients/actions";
-import { AbstractCover } from "../clients/AbstractCover";
 import { CoverPicker } from "../clients/CoverPicker";
 import { closeOnBackdrop } from "../dialog";
 import { EditableName } from "../EditableName";
@@ -159,7 +158,9 @@ export function ProjectHeader({
               className="h-full w-full object-cover"
             />
           ) : (
-            <AbstractCover seed={projectId} />
+            <div className="flex h-full items-center justify-center text-xs text-muted">
+              No cover
+            </div>
           )}
           {/* three matching buttons along the foot of the picture, on a soft
               shade (Abhishek, 21 Nov 2026: "improve the buttons"); no blur

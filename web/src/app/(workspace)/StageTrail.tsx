@@ -1,13 +1,21 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import type { TaskStatus } from "@/lib/workflow";
-import { STAGE, parseStageChange } from "@/lib/stages";
+import { STAGE, parseDateChange, parseStageChange } from "@/lib/stages";
 import { Avatar } from "./TaskCard";
 
 export type TrailEntry = { createdAt: Date | string; action: string; actorName: string };
 
 const stageName = (s: string) => STAGE[s as TaskStatus]?.label ?? s;
+// a file's draft or delivery date moving (lib/stages dateChangeAction), as a sentence
+const ymdLabel = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+function dateMove(action: string): string | null {
+  const d = parseDateChange(action);
+  if (!d) return null;
+  const what = d.kind === "draft" ? "Draft date" : "Delivery date";
+  return d.to ? `${what} ${d.from ? `moved from ${ymdLabel(d.from)} to` : "set to"} ${ymdLabel(d.to)}` : `${what} removed`;
+}
 
 // India's day and time, which is what everyone here reads
 const dayOf = (d: Date) =>
@@ -52,7 +60,7 @@ export function StageTrail({ logs }: { logs: TrailEntry[] | null }) {
                   stage ? `${stage.pill}` : "border-white/15 bg-white/[0.04] text-muted"
                 }`}
               >
-                {stage ? <span className={`size-1.5 rounded-full ${stage.dot}`} /> : <Plus size={11} />}
+                {stage ? <span className={`size-1.5 rounded-full ${stage.dot}`} /> : parseDateChange(log.action) ? <CalendarDays size={11} /> : <Plus size={11} />}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">
@@ -62,7 +70,7 @@ export function StageTrail({ logs }: { logs: TrailEntry[] | null }) {
                     ) : log.action === "created" ? (
                       "Created"
                     ) : (
-                      log.action
+                      (dateMove(log.action) ?? log.action)
                     )}
                   </p>
                   <span className="shrink-0 pt-0.5 text-[12px] tabular-nums text-muted" title={`${day}, ${timeOf(at)} IST`}>

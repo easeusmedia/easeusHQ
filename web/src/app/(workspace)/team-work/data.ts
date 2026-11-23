@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { IN_PROGRESS, LIVE_TASK, LIVE_WORK_TASK, PART_DONE, workflowOf, type TaskStatus, type Workflow } from "@/lib/workflow";
-import { STAGE, stageLabel } from "@/lib/stages";
+import { STAGE, parseDateChange, stageLabel, type DateKind } from "@/lib/stages";
 import { WORK_TASK_STAGE } from "@/lib/workTaskStages";
 import { pageOfDone, stagePhases, startOf } from "@/lib/history";
 import { taskRecord } from "@/lib/taskTrack";
@@ -201,6 +201,8 @@ export type Overview =
       reviewNotes: string | null;
       createdBy: string | null;
       phases: { stage: string; at: string; by: string | null; ms: number | null }[];
+      // its file's draft and delivery dates, each time they moved (lib/stages dateChangeAction)
+      dates: { kind: DateKind; from: string | null; to: string | null; by: string; at: string }[];
     }
   | {
       kind: "work";
@@ -214,9 +216,10 @@ export type Overview =
 
 export async function overview(ref: { kind: "task" | "work"; id: string }, now = new Date()): Promise<Overview | null> {
   if (ref.kind === "task") {
-    const [t, logs] = await Promise.all([
+    const [t, logs, dateLogs] = await Promise.all([
       prisma.task.findUnique({ where: { id: ref.id }, select: { status: true, workflow: true, createdAt: true, createdById: true, dueDate: true, driveLink: true, editingNotes: true, reviewNotes: true } }),
       prisma.activityLog.findMany({ where: { entity: "Task", entityId: ref.id, action: { contains: " → " } }, select: { action: true, createdAt: true, actor: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
+      prisma.activityLog.findMany({ where: { entity: "Task", entityId: ref.id, action: { startsWith: "date:" } }, select: { action: true, createdAt: true, actor: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
     ]);
     if (!t) return null;
     // who made it, for the first stage (Abhishek, 21 Nov 2026)
@@ -236,6 +239,10 @@ export async function overview(ref: { kind: "task" | "work"; id: string }, now =
       reviewNotes: t.reviewNotes,
       createdBy: creator?.name ?? null,
       phases: phases.map((p) => ({ ...p, at: p.at.toISOString() })),
+      dates: dateLogs.flatMap((l) => {
+        const d = parseDateChange(l.action);
+        return d ? [{ ...d, by: l.actor.name, at: l.createdAt.toISOString() }] : [];
+      }),
     };
   }
   const [t, record] = await Promise.all([

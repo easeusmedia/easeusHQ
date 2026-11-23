@@ -28,6 +28,9 @@ export type ProjectAssetData = {
   dueDate?: string | null;
   // when its first draft goes to the client, for the clients who approve one
   draftDate?: string | null;
+  // there once its final link is in; on: the day that was (yyyy-mm-dd, null
+  // for one delivered before the day was kept)
+  delivered?: { on: string | null } | null;
   // stage: where the task that fills it is now; review: its Frame.io link,
   // which the row opens until the final file is in; original: the name it was
   // made with in production; by: who it's with; deliveredOn: yyyy-mm-dd.
@@ -90,7 +93,7 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null };
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null; delivered?: { on: string | null } | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -158,6 +161,7 @@ export function ProjectFiles({
       sub: source(a.link ?? a.task?.review ?? null),
       due: a.dueDate ?? null,
       draft: a.draftDate ?? null,
+      delivered: a.delivered ?? null,
       asset: a,
       ...kindsOf(a.tags, typeKind(a.contentType)),
     })),
@@ -177,7 +181,7 @@ export function ProjectFiles({
   // a draft column only where some file shown has a draft date
   const anyDraft = visible.some((r) => r.draft);
   // and a delivery column only where some file shown has a delivery date
-  const anyDue = visible.some((r) => r.due);
+  const anyDue = visible.some((r) => r.due || r.delivered);
 
   async function remove(id: string) {
     const res = await deleteProjectAsset(id);
@@ -320,7 +324,7 @@ export function ProjectFiles({
                       under row; a column no file shown has stays out */}
                   {/* a phone: they take their own line under the name, so the
                       name isn't squeezed away */}
-                  <span className={`contents max-md:order-last max-md:basis-full max-md:flex-wrap max-md:gap-1.5 max-md:pl-12 ${r.draft || r.due ? "max-md:flex" : "max-md:hidden"}`}>
+                  <span className={`contents max-md:order-last max-md:basis-full max-md:flex-wrap max-md:gap-1.5 max-md:pl-12 ${r.draft || r.due || r.delivered ? "max-md:flex" : "max-md:hidden"}`}>
                     {anyDraft && (
                       <span className="flex shrink-0 justify-end md:w-[11.5rem] max-md:empty:hidden">
                         {r.draft && (
@@ -333,10 +337,16 @@ export function ProjectFiles({
                     )}
                     {anyDue && (
                       <span className="flex shrink-0 justify-end md:w-[12.5rem] max-md:empty:hidden">
-                        {r.due && (
+                        {/* once its Drive link is in, the day it was delivered
+                            in place of the day it was due (Abhishek, 23 Nov 2026) */}
+                        {(r.delivered || r.due) && (
                           <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[12px] font-medium whitespace-nowrap tabular-nums text-emerald-300">
                             <CalendarCheck size={11} className="shrink-0" />
-                            Delivery: {formatDate(`${r.due}T00:00:00Z`)}
+                            {r.delivered
+                              ? r.delivered.on
+                                ? `Delivered: ${formatDate(`${r.delivered.on}T00:00:00Z`)}`
+                                : "Delivered"
+                              : `Delivery: ${formatDate(`${r.due}T00:00:00Z`)}`}
                           </span>
                         )}
                       </span>

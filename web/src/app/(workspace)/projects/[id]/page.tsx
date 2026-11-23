@@ -16,7 +16,7 @@ import { stageLabel } from "@/lib/stages";
 import { InvoicePicker } from "../InvoicePicker";
 import { ActiveClient } from "../../clients/ActiveClient";
 import { clientBatches, newBatchKey } from "@/lib/invoiceBatches";
-import { fileIn } from "@/lib/delivered";
+import { fileIn, finalLink } from "@/lib/delivered";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +150,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           tags: a.tags,
           dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null,
           draftDate: a.draftDate?.toISOString().slice(0, 10) ?? null,
+          delivered: finalLink(a.link) ? { on: a.deliveredAt ? indiaDay(a.deliveredAt) : null } : null,
           task: a.task ? { id: a.task.id, title: a.task.title, delivered: a.task.status === "delivered_and_uploaded", stage: stageLabel(a.task.status, a.task.workflow), review: a.task.frameioLink, original: a.task.originalTitle, by: a.task.assignedTo?.name ?? null, deliveredOn: delivered.get(a.task.id) ? indiaDay(delivered.get(a.task.id)!) : null } : null,
         }))}
         delivered={deliveredFiles.map((t) => ({

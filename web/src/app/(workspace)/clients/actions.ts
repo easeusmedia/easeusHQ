@@ -18,6 +18,8 @@ import { TYPE_TAG, planDeliverables, planFor, planTasks } from "@/lib/contentPla
 import { linkDeliverables } from "@/lib/deliverableLink";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
 import { withUndo } from "@/lib/undo";
+import { finalLink } from "@/lib/delivered";
+import { dateChangeAction, type DateKind } from "@/lib/stages";
 
 // The two On Hold clients ops is still actively tracking, chosen
 // explicitly (everything else On Hold, and every Previous client, stays
@@ -1114,6 +1116,7 @@ export async function addProjectAsset(projectId: string, input: ProjectAssetInpu
           name: input.name.trim(),
           contentType: input.contentType.trim() || "Misc.",
           link,
+          deliveredAt: finalLink(link) ? new Date() : null,
           dueDate: dueOf(input.dueDate) ?? null,
           draftDate: dueOf(input.draftDate) ?? null,
           sortOrder: (last?.sortOrder ?? 0) + 1,
@@ -1139,7 +1142,10 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
   // a task picked by hand to fill it, in place of the one matched (lib/deliverableLink):
   // from this project; it leaves any placeholder it held, and once it's
   // delivered its Drive link is this one's
-  const current = await prisma.projectAsset.findUnique({ where: { id: assetId }, select: { projectId: true, taskId: true, task: { select: { driveLink: true } } } });
+  const current = await prisma.projectAsset.findUnique({
+    where: { id: assetId },
+    select: { projectId: true, taskId: true, link: true, deliveredAt: true, dueDate: true, draftDate: true, task: { select: { driveLink: true } } },
+  });
   if (!current) return { error: "That file no longer exists." };
   const picked =
     input.taskId && input.taskId !== current.taskId
@@ -1152,7 +1158,7 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
   const asset = await withUndo(refs, async () => {
     // the placeholder it leaves gives back the link it brought
     if (picked) {
-      await prisma.projectAsset.updateMany({ where: { taskId: picked.id, link: picked.driveLink ?? "" }, data: { link: null } });
+      await prisma.projectAsset.updateMany({ where: { taskId: picked.id, link: picked.driveLink ?? "" }, data: { link: null, deliveredAt: null } });
       await prisma.projectAsset.updateMany({ where: { taskId: picked.id }, data: { taskId: null } });
     }
     // here: the picked task's link once it's delivered; else the one the
@@ -1166,6 +1172,9 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
         name: input.name.trim(),
         contentType: input.contentType.trim() || "Misc.",
         link,
+        // delivered the day its final link went in: a corrected link keeps
+        // that day, one taken off clears it
+        deliveredAt: !finalLink(link) ? null : finalLink(current.link) ? current.deliveredAt : new Date(),
         ...(picked ? { taskId: picked.id } : {}),
         ...(input.dueDate !== undefined ? { dueDate: dueOf(input.dueDate) } : {}),
         ...(input.draftDate !== undefined ? { draftDate: dueOf(input.draftDate) } : {}),
@@ -1179,6 +1188,19 @@ export async function updateProjectAsset(assetId: string, input: ProjectAssetInp
     if (asset.taskId) await prisma.task.updateMany({ where: { id: asset.taskId, NOT: { title: asset.name } }, data: { title: asset.name } });
     return asset;
   }, { label: refs.length > 1 ? `Edited file "${input.name.trim()}"` : undefined });
+  // a draft or delivery date moved goes in its task's history (Abhishek, 23
+  // Nov 2026), beside the stages: kept even if the edit is undone, as a move is
+  if (asset.taskId) {
+    const ymd = (d: Date | null) => d?.toISOString().slice(0, 10) ?? null;
+    const moves: [DateKind, Date | null, Date | null][] = [
+      ["draft", current.draftDate, asset.draftDate],
+      ["delivery", current.dueDate, asset.dueDate],
+    ];
+    const data = moves
+      .filter(([, from, to]) => ymd(from) !== ymd(to))
+      .map(([kind, from, to]) => ({ actorId: user.id, action: dateChangeAction(kind, ymd(from), ymd(to)), entity: "Task", entityId: asset.taskId! }));
+    if (data.length) await prisma.activityLog.createMany({ data });
+  }
   await revalidateProject(asset.projectId);
   return {};
 }

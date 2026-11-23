@@ -64,7 +64,8 @@ export async function GET(request: Request) {
       include: { assignedTo: person, tags: { select: { name: true } }, project },
     }),
     prisma.activityLog.findMany({
-      where: { entity: "Task" },
+      // stages only: a file's date moves (lib/stages dateChangeAction) aren't part of the status trail
+      where: { entity: "Task", NOT: { action: { startsWith: "date:" } } },
       orderBy: { createdAt: "asc" },
       select: { entityId: true, action: true, createdAt: true, actor: { select: { name: true } } },
     }),

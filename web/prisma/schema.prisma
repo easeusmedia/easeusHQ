@@ -130,6 +130,9 @@ model ProjectAsset {
   // when its first draft goes to the client to approve before the edit
   // starts: some clients only (Abhishek, 2 Nov 2026)
   draftDate   DateTime?
+  // when its final link went in, which is when it was delivered: set as a
+  // link arrives and cleared as it goes (Abhishek, 23 Nov 2026)
+  deliveredAt DateTime?
 
   notionPageId String? @unique
 

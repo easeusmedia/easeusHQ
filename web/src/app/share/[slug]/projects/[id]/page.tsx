@@ -5,8 +5,8 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
-import { AbstractCover } from "../../../../(workspace)/clients/AbstractCover";
-import { fileIn } from "@/lib/delivered";
+import { fileIn, finalLink } from "@/lib/delivered";
+import { indiaDay } from "@/lib/due";
 import { sharedClient, sharedProject } from "../../shared";
 
 // One project on a client's shared page — the team's project page, read-only:
@@ -85,7 +85,7 @@ export default async function SharedProjectPage({
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
             <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <AbstractCover seed={project.id} />
+            <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -127,7 +127,7 @@ export default async function SharedProjectPage({
         </h2>
         <ProjectFiles
           projectId={project.id}
-          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null, tags: a.tags, dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null, draftDate: a.draftDate?.toISOString().slice(0, 10) ?? null }))}
+          assets={project.assets.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType, link: a.link ? normalizeUrl(a.link) : null, tags: a.tags, dueDate: a.dueDate?.toISOString().slice(0, 10) ?? null, draftDate: a.draftDate?.toISOString().slice(0, 10) ?? null, delivered: finalLink(a.link) ? { on: a.deliveredAt ? indiaDay(a.deliveredAt) : null } : null }))}
           // what's been delivered to them, as the files it produced — their
           // own finished work, never the team's internal tasks
           delivered={delivered.map((t) => ({

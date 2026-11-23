@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { deleteProject } from "./actions";
 import { closeOnBackdrop } from "../dialog";
-import { AbstractCover } from "./AbstractCover";
 
 export type ProjectCardData = {
   id: string;
@@ -120,7 +119,7 @@ export function ProjectCard({
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
-            <AbstractCover seed={project.id} className="transition-transform duration-300 group-hover:scale-[1.03]" />
+            <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
           )}
           {!done && (
             <span className="absolute top-1.5 right-1.5 rounded-full border border-blue-400/30 bg-blue-400/20 px-1.5 py-0.5 text-xs font-medium text-blue-200 backdrop-blur">

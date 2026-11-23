@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { movedByHand, parseStageChange, stageChangeAction } from "./stages.ts";
+import { dateChangeAction, movedByHand, parseDateChange, parseStageChange, stageChangeAction } from "./stages.ts";
 
 test("a stage change survives a round trip, with or without Notion's mark", () => {
   assert.equal(stageChangeAction("queued", "editing"), "queued → editing");
@@ -33,4 +33,13 @@ test("only the team's own moves make the board the owner of a stage", () => {
     movedByHand([stageChangeAction("queued", "editing", true), stageChangeAction("editing", "sent_for_approval")]),
     true
   );
+});
+
+test("a date change survives a round trip and is never read as a stage move", () => {
+  const moved = dateChangeAction("draft", "2026-11-04", "2026-11-06");
+  assert.deepEqual(parseDateChange(moved), { kind: "draft", from: "2026-11-04", to: "2026-11-06" });
+  assert.deepEqual(parseDateChange(dateChangeAction("delivery", null, "2026-11-12")), { kind: "delivery", from: null, to: "2026-11-12" });
+  assert.deepEqual(parseDateChange(dateChangeAction("delivery", "2026-11-12", null)), { kind: "delivery", from: "2026-11-12", to: null });
+  assert.equal(parseStageChange(moved), null);
+  assert.equal(parseDateChange("editing → sent_for_approval"), null);
 });

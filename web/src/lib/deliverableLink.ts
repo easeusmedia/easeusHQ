@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { extraName, pickSlot, typesOf } from "./deliverableMatch";
+import { finalLink } from "./delivered";
 
 // Tasks and their project's placeholders, kept together (Abhishek, 21 Oct
 // 2026): a task takes the placeholder of its kind (and number) in its
@@ -52,7 +53,7 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
   // go, with the link it brought if that's all it has
   const held = task.deliverable;
   if (held && held.id !== slot?.id) {
-    await prisma.projectAsset.update({ where: { id: held.id }, data: { taskId: null, ...(held.link && held.link === task.driveLink ? { link: null } : {}) } });
+    await prisma.projectAsset.update({ where: { id: held.id }, data: { taskId: null, ...(held.link && held.link === task.driveLink ? { link: null, deliveredAt: null } : {}) } });
   }
 
   if (slot) {
@@ -64,7 +65,8 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
     // once can't both take it; the loser looks again
     const { count } = await prisma.projectAsset.updateMany({
       where: { id: slot.id, OR: [{ taskId: null }, { taskId: id }] },
-      data: { taskId: id, ...(fill ? { link: task.driveLink } : clear ? { link: null } : {}) },
+      // delivered the day its first final link went in; a corrected link keeps that day
+      data: { taskId: id, ...(fill ? { link: task.driveLink, ...(finalLink(slot.link) ? {} : { deliveredAt: new Date() }) } : clear ? { link: null, deliveredAt: null } : {}) },
     });
     if (!count && retry) return linkOne(id, delivering, oldLink, false);
     if (count) await takeName(id, task, slot.name);
@@ -80,6 +82,7 @@ async function linkOne(id: string, delivering: boolean, oldLink: string | null, 
         name,
         contentType: types[0],
         link: delivered ? task.driveLink : null,
+        deliveredAt: delivered ? new Date() : null,
         dueDate: task.deliveryDate ?? task.dueDate,
         sortOrder: last + 1,
         taskId: id,
