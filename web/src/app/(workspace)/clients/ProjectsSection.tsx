@@ -524,10 +524,11 @@ export function ProjectsSection({
                   // one slim bar per project the invoice holds, the done ones
                   // filled (Abhishek, 21 Nov 2026), flat: no glow, no edge
                   return open ? (
-                    <span className="flex items-center gap-2 text-xs text-muted tabular-nums">
+                    <span className="flex items-center gap-2 whitespace-nowrap text-xs text-muted tabular-nums">
+                      {/* narrower steps on a phone, so "13 of 16 done" stays on one line */}
                       <span className="flex items-center gap-1" aria-hidden>
                         {Array.from({ length: Math.min(Number(open[2]), 20) }, (_, n) => (
-                          <span key={n} className={`h-1 w-4 rounded-[2px] ${n < Number(open[1]) ? "bg-accent" : "bg-white/15"}`} />
+                          <span key={n} className={`h-1 w-2 rounded-[2px] sm:w-4 ${n < Number(open[1]) ? "bg-accent" : "bg-white/15"}`} />
                         ))}
                       </span>
                       {g.detail}
@@ -957,14 +958,17 @@ function MoreProjectsRow({ count, cover, onClick, className = "" }: { count: num
 // reads as "more of this", not a generic placeholder.
 function MoreProjectsCard({ count, cover, onClick, className = "" }: { count: number; cover: string | null; onClick: () => void; className?: string }) {
   return (
-    <button data-more onClick={onClick} className={`group block w-full text-left ${className}`}>
+    // a flex column, filling its cell from the top: a button centres what's
+    // in it, which left the card lower and shorter than the projects beside
+    // it (Abhishek, 23 Nov 2026)
+    <button data-more onClick={onClick} className={`group flex h-full w-full flex-col text-left ${className}`}>
       {/* The two layers behind trace the card's own box exactly: `inset-0`
           on a wrapper that is only as tall as the card, offset by an even
           6px then 12px. They used to be sized off the grid cell, which
           stretches to the tallest card in the row — so on a shorter card
           they hung past its bottom edge by different amounts, which is what
           read as an uneven stack. */}
-      <span className="relative block">
+      <span className="relative flex flex-1 flex-col">
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 translate-x-3 -translate-y-3 rounded-xl border border-border/40 bg-surface-2/25"
@@ -973,7 +977,7 @@ function MoreProjectsCard({ count, cover, onClick, className = "" }: { count: nu
           aria-hidden
           className="pointer-events-none absolute inset-0 translate-x-1.5 -translate-y-1.5 rounded-xl border border-border/60 bg-surface-2/45"
         />
-      <div className="card-surface card-interactive relative flex flex-col overflow-hidden rounded-xl shadow-sm">
+      <div className="card-surface card-interactive relative flex flex-1 flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
           {cover && (
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled

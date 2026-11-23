@@ -8,7 +8,9 @@
 export function ProfileHead({ photo, children }: { photo: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
-      <div className="flex aspect-square h-full min-h-14 min-w-14 items-center">
+      {/* on a phone or tablet the details wrap onto more lines, and a picture
+          as tall as them grew huge: there it stops at 80px, or 112px */}
+      <div className="flex aspect-square h-full max-w-20 min-h-14 min-w-14 items-center md:max-w-28 lg:max-w-none">
         {/* contain: the picture's own pixel size mustn't widen the column */}
         <div className="aspect-square w-full [contain:size]">{photo}</div>
       </div>
