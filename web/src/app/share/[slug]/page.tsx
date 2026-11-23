@@ -15,6 +15,7 @@ import { TagPill } from "../../(workspace)/clients/TagPill";
 import { ProfileHead } from "../../(workspace)/ProfileHead";
 import { FeedbackForm } from "./FeedbackForm";
 import { sharedClient } from "./shared";
+import { projectSlugs } from "@/lib/slug";
 import { PROJECT_ORDER, billingOrder } from "@/lib/projectOrder";
 
 // A client's own page, shown at /clients/<name> to anyone not signed in
@@ -70,8 +71,10 @@ export default async function SharedClientPage({
     youtube: client.youtubeChannel ?? socialLink(client.socialLinks, "youtube.com"),
     instagram: client.instagramHandle ?? socialLink(client.socialLinks, "instagram.com"),
   };
+  const slugs = projectSlugs(client.projects);
   const projectCards = client.projects.map((p) => ({
     id: p.id,
+    slug: slugs.get(p.id),
     name: p.name || p.type,
     status: p.status,
     coverUrl: p.coverUrl,
@@ -114,7 +117,7 @@ export default async function SharedClientPage({
         <ClientStats
           inProgress={client.projects
             .filter((p) => p.status !== "completed")
-            .map((p) => ({ id: p.id, title: p.name || p.type, cover: p.coverUrl, href: `/share/${client.slug}/projects/${p.id}` }))}
+            .map((p) => ({ id: p.id, title: p.name || p.type, cover: p.coverUrl, href: `/share/${client.slug}/projects/${slugs.get(p.id)}` }))}
           delivered={client.projects
             .filter((p) => p.status === "completed")
             .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
@@ -123,7 +126,7 @@ export default async function SharedClientPage({
               title: p.name || p.type,
               sub: p.completedAt ? `Delivered ${p.completedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : undefined,
               cover: p.coverUrl,
-              href: `/share/${client.slug}/projects/${p.id}`,
+              href: `/share/${client.slug}/projects/${slugs.get(p.id)}`,
             }))}
         />
       </div>

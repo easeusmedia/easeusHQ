@@ -90,7 +90,7 @@ function source(link: string | null) {
 }
 
 // kinds: its tags, or its type when it has none; tagged: which of those are tags
-type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null; review?: string | null };
+type Row = { id: string; name: string; type: string; link: string | null; sub: string; kinds: string[]; tagged: boolean; asset?: ProjectAssetData; due?: string | null; draft?: string | null };
 
 // A project's files as one quiet list: a tab per kind of work (All first),
 // a row per file — what it is, its tags, where it lives, and a click opens
@@ -156,9 +156,6 @@ export function ProjectFiles({
       // where it lives; the task's stage is in its window, not here
       // (Abhishek, 27 Oct 2026); when it's due sits on the right
       sub: source(a.link ?? a.task?.review ?? null),
-      // delivered, the file is on Drive; its Frame.io review stays a click
-      // away beside it (Abhishek, 21 Nov 2026)
-      review: a.link && a.task?.review ? a.task.review : null,
       due: a.dueDate ?? null,
       draft: a.draftDate ?? null,
       asset: a,
@@ -310,12 +307,10 @@ export function ProjectFiles({
                     )}
                     <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                       {r.tagged ? r.kinds.map((k) => <TaskTagChip key={k} name={k} />) : <span className="shrink-0">{r.kinds[0]}</span>}
-                      <span className="truncate">· {r.sub}</span>
-                      {r.review && (
-                        <a href={r.review} target="_blank" rel="noopener noreferrer" className="relative z-[1] flex shrink-0 items-center gap-0.5 hover:text-foreground">
-                          · Frame.io <ArrowUpRight size={11} />
-                        </a>
-                      )}
+                      <span className="flex min-w-0 items-center gap-0.5">
+                        <span className="truncate">· {r.sub}</span>
+                        {r.link && <ArrowUpRight size={11} className="shrink-0" />}
+                      </span>
                     </span>
                   </span>
                   {/* its two dates, each named (Abhishek, 2 Nov 2026): the first

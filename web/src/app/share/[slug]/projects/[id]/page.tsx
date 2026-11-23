@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
 import { fileIn } from "@/lib/delivered";
-import { sharedClient } from "../../shared";
+import { sharedClient, sharedProject } from "../../shared";
 
 // One project on a client's shared page — the team's project page, read-only:
 // its cover and where it stands, then its files: each deliverable, due or
@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; id: string }> }): Promise<Metadata> {
   const { slug, id } = await params;
   const client = await sharedClient(slug);
-  const project = client ? await prisma.project.findFirst({ where: { id, clientId: client.id }, select: { name: true, type: true } }) : null;
+  const found = client ? await sharedProject(client.id, id) : null;
+  const project = found ? await prisma.project.findUnique({ where: { id: found.id }, select: { name: true, type: true } }) : null;
   return {
     title: client && project ? `${project.name || project.type} · ${client.name} · Easeus Media` : "Easeus Media",
     // a private link: keep it out of search engines
@@ -34,9 +35,12 @@ export default async function SharedProjectPage({
 }) {
   const { slug, id } = await params;
   const client = await sharedClient(slug);
-  const project = client
+  const found = client ? await sharedProject(client.id, id) : null;
+  // an old link, by the project's id: to its address by name
+  if (client && found && found.slug !== id) redirect(`/share/${client.slug}/projects/${found.slug}`);
+  const project = found
     ? await prisma.project.findFirst({
-        where: { id, clientId: client.id },
+        where: { id: found.id, clientId: client!.id },
         include: {
           assets: { orderBy: { sortOrder: "asc" }, include: { tags: { where: { clientFacing: true }, select: { id: true, name: true } }, task: { select: { status: true } } } },
         },

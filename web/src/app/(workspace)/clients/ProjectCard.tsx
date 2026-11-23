@@ -9,6 +9,8 @@ import { closeOnBackdrop } from "../dialog";
 
 export type ProjectCardData = {
   id: string;
+  // its address on the client's shared page (lib/slug projectSlugs)
+  slug?: string;
   name: string;
   status: string;
   coverUrl: string | null;

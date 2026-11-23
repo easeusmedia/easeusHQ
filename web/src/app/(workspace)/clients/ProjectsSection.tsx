@@ -554,7 +554,7 @@ export function ProjectsSection({
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 max-sm:grid-cols-2">
                   {i === 0 && !projectBase && <AddProjectCard clientId={clientId} plan={plan} />}
                   {g.items.map((p) => (
-                    <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
+                    <ProjectCard key={p.id} project={p} href={projectBase ? `${projectBase}/${p.slug ?? p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
                   ))}
                   {/* the older invoices, right after the last one shown (Abhishek, 21 Nov 2026) */}
                   {i === shownGroups.length - 1 && groupedHidden > 0 && (
@@ -586,7 +586,7 @@ export function ProjectsSection({
           {visible.map((p) => (
             <Fragment key={p.id}>
               {slotAt >= 0 && rest[slotAt]?.id === p.id && <DropSlot height={dragHeight} />}
-              <ProjectCard project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
+              <ProjectCard project={p} href={projectBase ? `${projectBase}/${p.slug ?? p.id}` : undefined} readOnly={!!projectBase} className={motion(p.id)} />
             </Fragment>
           ))}
           {slotAt >= 0 && slotAt >= rest.length && <DropSlot height={dragHeight} />}
@@ -914,7 +914,7 @@ function ProjectRows({
       {projects.map((p) => (
         <Fragment key={p.id}>
           {at >= 0 && rest[at]?.id === p.id && <DropSlot height={slot!.height} row />}
-          <ProjectRow project={p} href={projectBase ? `${projectBase}/${p.id}` : undefined} className={motion?.(p.id) || undefined} />
+          <ProjectRow project={p} href={projectBase ? `${projectBase}/${p.slug ?? p.id}` : undefined} className={motion?.(p.id) || undefined} />
         </Fragment>
       ))}
       {at >= 0 && at >= rest.length && <DropSlot height={slot!.height} row />}
