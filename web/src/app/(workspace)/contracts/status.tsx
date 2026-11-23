@@ -41,7 +41,7 @@ export function Stepper({ at }: { at: number }) {
             </span>
             <span className={`whitespace-nowrap text-xs ${done || current ? "text-foreground" : "text-muted"} ${current || (at >= STEPS.length && i === STEPS.length - 1) ? "" : "@max-[600px]:hidden"}`}>{label}</span>
             {i < STEPS.length - 1 && (
-              <span className={`mx-1 h-px min-w-6 flex-1 ${done ? "bg-accent/60" : "bg-white/10"}`} />
+              <span className={`mx-1 h-px min-w-6 flex-1 @max-[600px]:mx-0 @max-[600px]:min-w-2 ${done ? "bg-accent/60" : "bg-white/10"}`} />
             )}
           </li>
         );

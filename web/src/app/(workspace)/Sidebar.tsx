@@ -667,6 +667,7 @@ export function Sidebar({
                 type="button"
                 onClick={() => {
                   setProfileOpen(false);
+                  setDrawer(false);
                   setAccountOpen(true);
                 }}
                 className="menu-item px-2.5 py-2 text-sm"

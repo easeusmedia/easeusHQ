@@ -380,7 +380,7 @@ export function MailView({ m, gmail, back, now }: { m: MailDetail; gmail: string
   return (
     <div className="flex flex-col gap-4">
       <div className="flex min-w-0 items-center gap-2 text-sm">
-        <Link href={back} className="text-muted hover:text-foreground">
+        <Link href={back} className="text-muted hover:text-foreground max-lg:shrink-0">
           Email tracking
         </Link>
         <span className="text-muted">/</span>
@@ -476,8 +476,8 @@ export function LinksView({ rows, csv }: { rows: LinkRow[]; csv: string }) {
                       {r.url}
                     </a>
                   </td>
-                  <td className="py-2.5 pr-3 text-muted">{when(r.lastAt)}</td>
-                  <td className="py-2.5 text-right tabular-nums">{r.clicks === 1 ? "Clicked once" : r.clicks === 2 ? "Clicked twice" : `Clicked ${r.clicks} times`}</td>
+                  <td className="py-2.5 pr-3 text-muted max-lg:whitespace-nowrap">{when(r.lastAt)}</td>
+                  <td className="py-2.5 text-right tabular-nums max-lg:whitespace-nowrap">{r.clicks === 1 ? "Clicked once" : r.clicks === 2 ? "Clicked twice" : `Clicked ${r.clicks} times`}</td>
                 </tr>
               ))}
             </tbody>

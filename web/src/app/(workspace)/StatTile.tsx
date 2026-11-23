@@ -36,7 +36,7 @@ export function StatTile({
         <Icon size={14} />
       </span>
       <p className={`relative text-3xl font-semibold tabular-nums tracking-tight ${lit ? "text-foreground" : "text-muted"}`}>{value}</p>
-      <p className="relative mt-1 truncate pr-8 text-xs text-muted">{label}</p>
+      <p className="relative mt-1 overflow-hidden text-ellipsis pr-8 text-xs text-muted sm:whitespace-nowrap">{label}</p>
       {note && <div className="relative mt-2">{note}</div>}
     </div>
   );

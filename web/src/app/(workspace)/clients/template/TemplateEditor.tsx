@@ -126,21 +126,23 @@ export function TemplateEditor({ initial }: { initial: ClientTemplateData }) {
       <Section title="Deliverables" hint="The contracted scope every new client starts with.">
         <div className="flex flex-col gap-2">
           {form.deliverables.map((d, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <GripVertical size={14} className="shrink-0 text-muted/50" />
-              <input
-                value={d.name}
-                onChange={(e) => updateRow("deliverables", i, { name: e.target.value })}
-                placeholder="Deliverable"
-                className={`${field} flex-1`}
-              />
-              <input
-                value={d.detail}
-                onChange={(e) => updateRow("deliverables", i, { detail: e.target.value })}
-                placeholder="Detail (e.g. 2 per month)"
-                className={`${field} flex-1`}
-              />
-              <button onClick={() => removeRow("deliverables", i)} className="shrink-0 rounded-md p-1.5 text-red-300 hover:bg-red-500/10">
+            <div key={i} className="flex items-start gap-2 sm:items-center">
+              <GripVertical size={14} className="mt-2.5 shrink-0 text-muted/50 sm:mt-0" />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-row sm:gap-2">
+                <input
+                  value={d.name}
+                  onChange={(e) => updateRow("deliverables", i, { name: e.target.value })}
+                  placeholder="Deliverable"
+                  className={`${field} sm:flex-1`}
+                />
+                <input
+                  value={d.detail}
+                  onChange={(e) => updateRow("deliverables", i, { detail: e.target.value })}
+                  placeholder="Detail (e.g. 2 per month)"
+                  className={`${field} sm:flex-1`}
+                />
+              </div>
+              <button onClick={() => removeRow("deliverables", i)} className="mt-1.5 shrink-0 rounded-md p-1.5 text-red-300 hover:bg-red-500/10 sm:mt-0">
                 <X size={14} />
               </button>
             </div>

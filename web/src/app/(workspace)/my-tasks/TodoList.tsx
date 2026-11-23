@@ -108,7 +108,7 @@ function Tick({ state, late = false, label, onClick }: { state: "open" | "tickin
         e.stopPropagation();
         onClick?.();
       }}
-      className={`group/tick flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-300 ${
+      className={`group/tick relative flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-300 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 ${
         filled
           ? `border-accent bg-accent text-white ${state === "ticking" ? "ring-4 ring-accent/20" : "enabled:hover:opacity-70"}`
           : `${late ? "border-rose-300/50" : "border-white/25"} text-accent hover:border-accent hover:bg-accent/10`
@@ -453,7 +453,7 @@ export function TodoList({
                 aria-pressed={view === v.key}
                 onClick={() => setView(v.key)}
                 title={v.label}
-                className="seg flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                className="seg relative flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2"
               >
                 <v.Icon size={13} />
                 <span className="hidden sm:inline">{v.label}</span>

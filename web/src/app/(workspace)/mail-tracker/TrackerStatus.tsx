@@ -69,7 +69,7 @@ export function TrackerStatus({ tracked }: { tracked: { from: string; count: num
       {tracked.length > 0 && (
         <div className="panel rounded-2xl px-5 py-3">
           {tracked.map((t) => (
-            <div key={t.from} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+            <div key={t.from} className="flex items-center justify-between gap-3 py-1.5 text-sm max-sm:flex-wrap max-sm:gap-y-0">
               <span className="truncate">{t.from || "Unknown"}</span>
               <span className="shrink-0 text-xs text-muted tabular-nums">
                 {t.count} tracked{t.last ? ` · last ${when(t.last)}` : ""}

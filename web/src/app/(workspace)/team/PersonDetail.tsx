@@ -55,7 +55,7 @@ function canSeeSummary(role: Role): string {
 }
 
 // a department or role, on or off: the app's choice chip (.chip), lit when on
-const chip = (_on: boolean, editable: boolean) => `chip rounded-full px-3 py-1 text-xs ${editable ? "" : "pointer-events-none"}`;
+const chip = (_on: boolean, editable: boolean) => `chip rounded-full px-3 py-1 text-xs max-lg:py-2.5 ${editable ? "" : "pointer-events-none"}`;
 
 // Level, then departments, then the roles inside those departments: each a
 // chip, saved the moment it's switched. Taking a department away takes its
@@ -180,7 +180,7 @@ function Fact({ label, children, wide }: { label: string; children: React.ReactN
   return (
     <div className={`min-w-0 ${wide ? "col-span-full" : ""}`}>
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-0.5 truncate text-sm">{children ?? <span className="text-muted/60">Not set</span>}</dd>
+      <dd className="mt-0.5 overflow-hidden text-ellipsis break-words text-sm sm:whitespace-nowrap">{children ?? <span className="text-muted/60">Not set</span>}</dd>
     </div>
   );
 }

@@ -320,7 +320,7 @@ export function ProjectFiles({
                       under row; a column no file shown has stays out */}
                   {/* a phone: they take their own line under the name, so the
                       name isn't squeezed away */}
-                  <span className={`contents max-md:order-last max-md:basis-full max-md:gap-1.5 max-md:pl-12 ${r.draft || r.due ? "max-md:flex" : "max-md:hidden"}`}>
+                  <span className={`contents max-md:order-last max-md:basis-full max-md:flex-wrap max-md:gap-1.5 max-md:pl-12 ${r.draft || r.due ? "max-md:flex" : "max-md:hidden"}`}>
                     {anyDraft && (
                       <span className="flex shrink-0 justify-end md:w-[11.5rem] max-md:empty:hidden">
                         {r.draft && (

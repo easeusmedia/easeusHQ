@@ -168,7 +168,7 @@ export function ScoreTile({ part, letter, score, fact }: { part: Part; letter: L
           <span className="truncate">{label}</span>
           <Info label={label} text={means} />
         </p>
-        <p className="truncate text-sm">
+        <p className="truncate text-sm max-lg:whitespace-normal">
           {score !== undefined && score !== null && <span className="mr-1.5 font-medium tabular-nums">{score}</span>}
           <span className="text-muted">{fact ?? (letter ? LETTER_LABEL[letter] : "Pending")}</span>
         </p>
@@ -556,13 +556,13 @@ function Actions({ e, onEdit, run, className, extra }: { e: FeedbackView; onEdit
   return (
     <div className={`flex shrink-0 gap-0.5 ${className}`}>
       {extra}
-      <button onClick={onEdit} aria-label="Edit" className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground">
+      <button onClick={onEdit} aria-label="Edit" className="grid size-8 max-sm:size-10 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground">
         <PenLine size={14} />
       </button>
       <ConfirmButton
         confirm="Remove"
         message="Remove this? It stops counting straight away."
-        className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-red-400"
+        className="grid size-8 max-sm:size-10 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-red-400"
         onConfirm={() => run(() => deleteEntry(e.id))}
       >
         <Trash2 size={14} />
@@ -623,7 +623,7 @@ export function MistakeList({ entries, canEdit, initialType = "", ...dialog }: L
         onClick={() => run(() => setCreative(e.id, !creative))}
         aria-label={creative ? "It's a mistake" : "It's a creative change"}
         title={creative ? "It's a mistake: count it" : "It's a creative change: don't count it"}
-        className={`grid size-8 place-items-center rounded-lg hover:bg-surface-2 ${creative ? "text-violet-300 hover:text-foreground" : "text-muted hover:text-violet-300"}`}
+        className={`grid size-8 max-sm:size-10 place-items-center rounded-lg hover:bg-surface-2 ${creative ? "text-violet-300 hover:text-foreground" : "text-muted hover:text-violet-300"}`}
       >
         <Palette size={14} />
       </button>

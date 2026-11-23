@@ -189,7 +189,7 @@ function Section({
           {!!count && <span className="rounded-full bg-accent/15 px-1.5 py-px text-[12px] font-medium text-accent tabular-nums">{count}</span>}
         </h2>
         {!collapsed && aside}
-        <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+        <button type="button" onClick={onCollapse} aria-expanded={!collapsed} aria-label={collapsed ? `Open ${title}` : `Collapse ${title}`} className="relative rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5">
           <ChevronDown size={15} className={`transition-transform duration-300 ${collapsed ? "-rotate-90" : ""}`} />
         </button>
       </header>
@@ -614,7 +614,7 @@ export function HomeView({
         icon={<Layers size={15} />}
         title={showMine ? "Work in progress" : "My work"}
         aside={
-          <button type="button" onClick={() => fullRef.current?.showModal()} aria-label="Full screen" title="Full screen" className="rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+          <button type="button" onClick={() => fullRef.current?.showModal()} aria-label="Full screen" title="Full screen" className="relative rounded-full p-1.5 text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5">
             <Maximize2 size={14} />
           </button>
         }
@@ -661,7 +661,7 @@ export function HomeView({
                       type="button"
                       aria-label="Mark done"
                       onClick={() => tick(i)}
-                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent"
+                      className="relative flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted/50 text-transparent transition-colors hover:border-accent hover:text-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5"
                     >
                       <Check size={11} strokeWidth={3} />
                     </button>
@@ -805,7 +805,7 @@ function CalendarSection({
 }) {
   const days = Array.from({ length: 7 }, (_, n) => addDays(monday, n));
   const onDay = meetings.filter((m) => istDay(m.start) === day);
-  const arrow = "flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground";
+  const arrow = "relative flex size-7 items-center justify-center rounded-full text-muted ring-1 ring-white/[0.08] transition-colors hover:bg-white/[0.06] hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5";
   return (
     <Section
       id="calendar"
@@ -1226,7 +1226,7 @@ function MeetingDialog({ ref, people, connected }: { ref: React.Ref<{ open: (day
     <dialog
       ref={dialogRef}
       {...closeOnBackdrop}
-      className="glass fixed top-1/2 left-1/2 m-0 max-h-[min(40rem,calc(100vh-2rem))] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
+      className="glass fixed top-1/2 left-1/2 m-0 max-h-[calc(100dvh-2rem)] lg:max-h-[min(40rem,calc(100vh-2rem))] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl p-0 text-foreground"
     >
       <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
         <div>

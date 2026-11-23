@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/links";
 import { ProjectFiles } from "../../../../(workspace)/projects/ProjectFiles";
+import { AbstractCover } from "../../../../(workspace)/clients/AbstractCover";
 import { fileIn } from "@/lib/delivered";
 import { sharedClient, sharedProject } from "../../shared";
 
@@ -84,7 +85,7 @@ export default async function SharedProjectPage({
             // eslint-disable-next-line @next/next/no-img-element -- a local file under public/, already downscaled
             <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-muted">No cover</div>
+            <AbstractCover seed={project.id} />
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">

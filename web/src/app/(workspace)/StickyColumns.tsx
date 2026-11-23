@@ -85,7 +85,7 @@ export function StickyColumns({
         <div data-body className="grid items-stretch gap-x-3 pb-4" style={grid}>
           {columns.map((c) => (
             <div key={c.key} className="flex min-w-0 flex-col">
-              <div data-head className={`${pinned} z-10`}>
+              <div data-head className={`${pinned} z-10 max-lg:z-20`}>
                 {c.header}
               </div>
               {/* a little air under the header, so the first card's top edge

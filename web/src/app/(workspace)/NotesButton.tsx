@@ -44,7 +44,7 @@ export function NotesButton({ notes }: { notes: string }) {
 
   return (
     <>
-      <button type="button" onClick={() => ref.current?.showModal()} title="Editing notes">
+      <button type="button" onClick={() => ref.current?.showModal()} title="Editing notes" className="relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5">
         <NotesGlyph />
       </button>
       <dialog

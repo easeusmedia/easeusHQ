@@ -76,7 +76,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     })),
   ];
 
-  const CLIENT_ROW = "grid grid-cols-[minmax(0,1fr)_7rem_1rem] items-center gap-4 px-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_1rem]";
+  const CLIENT_ROW = "grid grid-cols-[minmax(0,1fr)_5.5rem_1rem] items-center gap-4 px-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_1rem]";
   const INVOICE_ROW = "grid grid-cols-[minmax(0,1fr)_6.5rem_6.5rem] items-center gap-4 px-5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_7rem_7rem_6rem_6rem]";
   const TEAM_ROW = "grid grid-cols-[minmax(0,1fr)_6rem_4rem] items-center gap-4 px-5 max-md:gap-3 max-md:px-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem]";
   const empty = (text: string) => <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">{text}</p>;

@@ -95,7 +95,7 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
     <PrefetchLink
       href={clientHref(client)}
       draggable={false}
-      className="group flex items-center gap-4 rounded-2xl panel-soft panel-hover px-4 py-3 hover:-translate-y-px"
+      className="group flex items-center gap-3 sm:gap-4 rounded-2xl panel-soft panel-hover px-4 py-3 hover:-translate-y-px"
     >
       <Face client={client} size={32} />
       <div className="min-w-0 flex-1">
@@ -107,7 +107,7 @@ export function ClientRow({ client, onStatusChange }: { client: ClientCardData; 
           <TagPill key={t.id} name={t.name} color={t.color} size="xs" />
         ))}
       </div>
-      <span className="flex w-16 shrink-0 items-center justify-end gap-1.5 text-xs" title={`${client.activeProjects} active project${client.activeProjects === 1 ? "" : "s"}`}>
+      <span className="flex w-auto sm:w-16 shrink-0 items-center justify-end gap-1.5 text-xs" title={`${client.activeProjects} active project${client.activeProjects === 1 ? "" : "s"}`}>
         <Clapperboard size={13} className={client.activeProjects > 0 ? "text-accent" : "text-muted"} />
         <span className={`tabular-nums ${client.activeProjects > 0 ? "text-foreground" : "text-muted"}`}>{client.activeProjects}</span>
       </span>

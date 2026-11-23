@@ -231,7 +231,7 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
             // clicked into it. The padding is the room the ring needs.
             // w-[34rem] but free to shrink: the dialog is capped at the
             // window's width, and a form that couldn't shrink got cut off
-            className={`grid w-[34rem] min-w-0 shrink auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1 max-md:transition-[opacity,visibility] max-md:duration-300 ${historyOpen ? "max-md:invisible max-md:opacity-0" : ""}`}
+            className={`grid w-[34rem] min-w-0 shrink auto-rows-min grid-cols-2 gap-x-3 gap-y-2.5 overflow-y-auto px-1 max-md:transition-[opacity,visibility] max-md:duration-150 ${historyOpen ? "max-md:invisible max-md:opacity-0" : "max-md:delay-150"}`}
           >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="actingRole" value={actingRole} />
@@ -498,8 +498,8 @@ export const TaskDetailsDialog = forwardRef<{ open: () => void }, {
               long trail scrolls inside it instead. */}
           <div
             inert={!historyOpen}
-            className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              historyOpen ? "w-[min(21rem,40vw)] opacity-100" : "w-0 opacity-0 max-md:pointer-events-none"
+            className={`relative shrink-0 overflow-hidden transition-[width,opacity] duration-300 max-md:duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              historyOpen ? "w-[min(21rem,40vw)] opacity-100 max-md:delay-150" : "w-0 opacity-0 max-md:pointer-events-none"
             } max-md:absolute max-md:inset-0 max-md:w-full`}
           >
             <div className="absolute inset-y-0 left-0 flex w-[min(21rem,40vw)] flex-col gap-2 pl-4 max-md:w-full max-md:pl-1">

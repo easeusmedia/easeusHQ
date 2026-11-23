@@ -498,7 +498,7 @@ export function ContractEditor({
           {/* the one next step, fixed above the contract it's about */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-white/[0.05] px-4 py-3 sm:px-6">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 max-sm:basis-full">
                 <p className="text-sm font-medium">{next.title}</p>
                 {!locked && <p className="text-xs text-muted">Live preview · Hover over a clause to edit it by hand</p>}
               </div>
