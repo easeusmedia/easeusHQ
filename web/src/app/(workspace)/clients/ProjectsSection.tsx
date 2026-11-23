@@ -967,15 +967,18 @@ function MoreProjectsCard({ count, cover, onClick, className = "" }: { count: nu
           6px then 12px. They used to be sized off the grid cell, which
           stretches to the tallest card in the row — so on a shorter card
           they hung past its bottom edge by different amounts, which is what
-          read as an uneven stack. */}
+          read as an uneven stack. Each layer draws only the 6px strip that
+          sticks out past the one in front: cards are see-through in the dark
+          theme, so the rest showed through the card as extra lines
+          (Abhishek, 23 Nov 2026). */}
       <span className="relative flex flex-1 flex-col">
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 translate-x-3 -translate-y-3 rounded-xl border border-border/40 bg-surface-2/25"
+          className="pointer-events-none absolute inset-0 translate-x-3 -translate-y-3 rounded-xl [clip-path:polygon(0_0,100%_0,100%_100%,calc(100%_-_6px)_100%,calc(100%_-_6px)_6px,0_6px)] border border-border/40 bg-surface-2/25"
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 translate-x-1.5 -translate-y-1.5 rounded-xl border border-border/60 bg-surface-2/45"
+          className="pointer-events-none absolute inset-0 translate-x-1.5 -translate-y-1.5 rounded-xl [clip-path:polygon(0_0,100%_0,100%_100%,calc(100%_-_6px)_100%,calc(100%_-_6px)_6px,0_6px)] border border-border/60 bg-surface-2/45"
         />
       <div className="card-surface card-interactive relative flex flex-1 flex-col overflow-hidden rounded-xl shadow-sm">
         <div className="relative aspect-video w-full overflow-hidden bg-surface-2">
