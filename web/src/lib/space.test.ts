@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, stageVersions, dueReminders, isParts, roleOf, replyCount, replyKeys, REPLY_KEY } from "./space.ts";
+import { emailStarts, stampEmails, facetLabel, leadingFacet, cleanValue, DREAM_156, fillParts, fillText, readEdit, isFilled, leadVars, messageGroups, messagePhases, optionLabel, dayOf, dayPlatform, defaultMessage, markedOn, moveNeedsReason, outreachStats, reachedByDay, reachOutCounts, reachOutDays, readMarks, requestDay, draftKey, keepDay, handleOf, linkName, openerIndex, preparedFor, sequenceTabs, shownDraftKey, stageSections, tracksOutreach, withMark, type Contact, type Marks, type Platform, uniqueSlug, variablesIn, facets, parseAmount, passesFacets, approvalIn, approvalKey, approvalKeys, approvalsMissing, dayLeft, pinnedPages, togglePagePin, needsApprovals, personOpeners, openerOwn, unapprovedLines, unapprovedText, varsFor, dayOff, chosenFor, misfitsOpens, stageVersions, dueReminders, isParts, roleOf, replyCount, replyKeys, REPLY_KEY } from "./space.ts";
 
 const order = ["shortlist", "day1", "day2", "day3", "dead"].map((id) => ({ id, name: id }));
 
@@ -231,6 +231,9 @@ test("a day's message before one is picked follows whether the email was opened"
   const day2 = [{ name: "DAY 2 · INSTAGRAM 1 · DIDN'T OPEN EMAIL 1" }, { name: "DAY 2 · INSTAGRAM 1 · ALREADY OPENED EMAIL 1" }];
   assert.equal(defaultMessage(day2, false)?.name, day2[0].name);
   assert.equal(defaultMessage(day2, true)?.name, day2[1].name);
+  // the other version is held back: "Didn't open" once opened, "Already opened" while not
+  assert.deepEqual(day2.map((m) => misfitsOpens(m, true)), [true, false]);
+  assert.deepEqual(day2.map((m) => misfitsOpens(m, false)), [false, true]);
   assert.equal(defaultMessage([{ name: "Email" }, { name: "LinkedIn" }], true)?.name, "Email");
 });
 

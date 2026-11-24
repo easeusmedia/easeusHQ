@@ -1,9 +1,32 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { DEPT, DEVELOPER, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
+import { DEPT, DEVELOPER, isFounder, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
 import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, personOpeners, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
-import { addOption, assignLead, moveLead, renameLead, setLeadDraft, setLeadNotes, setLeadValue, setLeadVar } from "@/app/(workspace)/org/space/actions";
+import {
+  addOption,
+  assignLead,
+  createMessage,
+  createStage,
+  deleteLead,
+  deleteMessage,
+  deleteOption,
+  deleteSpace,
+  deleteStage,
+  moveLead,
+  orderStages,
+  renameField,
+  renameLead,
+  renameOption,
+  renameSpace,
+  renameStage,
+  setFieldFlags,
+  setLeadDraft,
+  setLeadNotes,
+  setLeadValue,
+  setLeadVar,
+  updateMessage,
+} from "@/app/(workspace)/org/space/actions";
 import type { ChannelStats } from "@/lib/channelStats";
 import { channelsIn } from "@/lib/leadSheet";
 import { withTabTag } from "@/lib/leadTags";
@@ -14,7 +37,9 @@ import { ToolError, type ServerInfo, type Tool } from "./protocol";
 // leads in bulk, and change or move one. Every write goes through the same
 // actions the app uses, as the person the key belongs to, so the rules
 // (stage moves need a reason, tags come from the list) and the records hold.
-// Sales only for now (Abhishek, 17 Oct 2026). Nothing here deletes.
+// Sales only for now (Abhishek, 17 Oct 2026). Templates and the boards
+// themselves can be changed too, by whoever may in the app; only Level 1
+// deletes, into the board's bin (Abhishek, 24 Nov 2026).
 
 type Acting = Viewer & { name: string };
 
@@ -26,7 +51,9 @@ export const INFO: ServerInfo = {
     "Two kinds of board (list_boards says which): lead databases (Leads › Podcast, Leads › Doctors...), where the leads the team finds are collected, each with its people (name, designation, their links, emails and numbers), its own links and notes; and outreach boards (Outreach › Podcast › Amplifier...), where leads are reached out to day by day. New leads found go into a lead database with add_leads; the team moves them on to outreach from there.",
     "Start with list_boards: each board's id, stages, fields with their tags, message templates (by id) and the people leads can be assigned to. Then find_leads and get_lead to read, add_leads to put prepared leads on a board (up to 50 a call; they land in the first stage, Dream list, and the team moves them on; none can start in Ready to reach out or later, only before it or in Dead, since a lead goes into Ready to reach out once every message is approved), update_lead to change one, move_lead to move one.",
     "Values go by field name (or id). Tags by name. People as { name, role, email, linkedin, instagram, facebook, youtube, x, website, phone }, or any of their links and handles in links (each filed by what it is). role is their designation (CEO, Founder, Host...). A lead's opener emails as [{ label, drafts: { <message id or name>: { subject, body } } }], the main opener first, backups after.",
-    "Nothing here deletes, and a lead is never moved unless asked.",
+    "update_templates changes a board's message templates (the wording every lead starts from) or adds one; update_board renames the board, its stages, fields and tags, adds stages or puts them in order. Both are for whoever sets the boards up in the app (Level 1, Admin & Technical's Level 2).",
+    "Only Level 1 can delete (delete): a lead, a message template, a stage, a tag or an empty board. It goes to the board's bin with the reason given, and can be put back from the app.",
+    "A lead is never moved or deleted unless asked.",
   ].join("\n"),
 };
 
@@ -887,6 +914,151 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
         const r = await addOption(f.id, a.name);
         if (r.error || !r.option) throw new ToolError(r.error ?? "That tag couldn't be added.");
         return { field: f.name, tag: r.option.name, id: r.option.id };
+      },
+    ),
+    tool(
+      "update_templates",
+      "Change a board's message templates, the wording every lead on it starts from: any message's name, channel, subject, wording ({{Name}}-style variables) or sending rule, or add a new message to a stage. Many in one call. A lead's own rewrite of a message stays its own, and what was sent keeps what went out.",
+      z.object({
+        board_id: z.string(),
+        messages: z
+          .array(
+            z.object({
+              message: z.string().optional().describe("The message's id or name, to change it; leave out to add a new one"),
+              stage: z.string().optional().describe("For a new message: its stage's id or name"),
+              name: z.string().max(120).optional(),
+              channel: z.enum(["email", "instagram", "linkedin", "other"]).optional(),
+              subject: z.string().max(300).optional(),
+              body: z.string().max(20_000).optional(),
+              note: z.string().max(500).optional().describe("When or whether to send it"),
+            }),
+          )
+          .min(1)
+          .max(50),
+      }),
+      async (a) => {
+        const board = await boardOf(acting, origin, a.board_id);
+        const done: string[] = [];
+        try {
+          for (const m of a.messages) {
+            if (m.message) {
+              const was = messageOf(board, m.message);
+              const r = await updateMessage(was.id, { name: m.name, channel: m.channel, subject: m.subject, body: m.body, note: m.note });
+              if (r.error) throw new ToolError(`${was.name}: ${r.error}`);
+              done.push(`${was.name} changed`);
+            } else {
+              if (!m.stage) throw new ToolError("A new message needs its stage.");
+              const st = stageOf(board, m.stage);
+              const r = await createMessage(st.id, m.name ?? "", m.channel ?? "email", m.subject ?? "", m.body ?? "", m.note ?? "");
+              if (r.error || !r.message) throw new ToolError(`A new message on ${st.name}: ${r.error ?? "it couldn't be added."}`);
+              done.push(`${r.message.name} added to ${st.name} (${r.message.id})`);
+            }
+          }
+        } catch (err) {
+          const why = err instanceof ToolError ? err.message : "It couldn't be saved.";
+          if (!(err instanceof ToolError)) console.error(err);
+          throw new ToolError(`${why}${done.length ? ` (Already done: ${done.join(", ")}.)` : " Nothing was changed."}`);
+        }
+        return { board: board.name, done };
+      },
+    ),
+
+    tool(
+      "update_board",
+      "Change a board itself: its name, its stages' names, new stages (after a given one, or last), the stages' order, its fields' names and whether each is required or shown on the cards, and its tags' names.",
+      z.object({
+        board_id: z.string(),
+        name: z.string().max(120).optional().describe("The board's new name"),
+        stages: z.array(z.object({ stage: z.string().describe("Its id or name"), name: z.string().max(120) })).max(50).optional().describe("Stages to rename"),
+        add_stages: z.array(z.object({ name: z.string().max(120), after: z.string().optional().describe("The stage it follows (id or name); last if left out") })).max(20).optional(),
+        stage_order: z.array(z.string()).max(100).optional().describe("Every stage, by id or name, in the new order"),
+        fields: z.array(z.object({ field: z.string().describe("Its id or name"), name: z.string().max(120).optional(), required: z.boolean().optional(), on_card: z.boolean().optional() })).max(50).optional(),
+        tags: z.array(z.object({ field: z.string(), tag: z.string().describe("The tag's id or name"), name: z.string().max(120) })).max(50).optional().describe("Tags to rename"),
+      }),
+      async (a) => {
+        const board = await boardOf(acting, origin, a.board_id);
+        const done: string[] = [];
+        const check = (r: { error?: string }, what: string) => {
+          if (r.error) throw new ToolError(`${what}: ${r.error}`);
+          done.push(what);
+        };
+        try {
+          if (a.name !== undefined) check(await renameSpace(board.id, a.name), `board renamed to ${a.name}`);
+          for (const x of a.stages ?? []) {
+            const st = stageOf(board, x.stage);
+            check(await renameStage(st.id, x.name), `${st.name} renamed`);
+          }
+          for (const x of a.add_stages ?? []) {
+            const r = await createStage(board.id, x.name, undefined, x.after ? stageOf(board, x.after).id : null);
+            check(r, `${x.name} added${r.stage ? ` (${r.stage.id})` : ""}`);
+          }
+          if (a.stage_order) {
+            // stages added in this same call are in the order where they were put
+            const now = await prisma.boardStage.findMany({ where: { boardId: board.id }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
+            const pick = (k: string) => now.find((x) => x.id === k) ?? now.find((x) => same(x.name, k));
+            const ids = a.stage_order.map((k) => pick(k)?.id ?? k);
+            check(await orderStages(board.id, ids), "stages put in order");
+          }
+          for (const x of a.fields ?? []) {
+            const f = fieldOf(board, x.field);
+            if (x.name !== undefined) check(await renameField(f.id, x.name), `${f.name} renamed`);
+            if (x.required !== undefined || x.on_card !== undefined) check(await setFieldFlags(f.id, { required: x.required, onCard: x.on_card }), `${f.name} updated`);
+          }
+          for (const x of a.tags ?? []) {
+            const f = fieldOf(board, x.field);
+            const o = f.options.find((t) => t.id === x.tag) ?? f.options.find((t) => same(t.name, x.tag));
+            if (!o) throw new ToolError(`${f.name} has no tag called ${x.tag}.`);
+            check(await renameOption(o.id, x.name), `${o.name} renamed`);
+          }
+        } catch (err) {
+          const why = err instanceof ToolError ? err.message : "It couldn't be saved.";
+          if (!(err instanceof ToolError)) console.error(err);
+          throw new ToolError(`${why}${done.length ? ` (Already done: ${done.join(", ")}.)` : " Nothing was changed."}`);
+        }
+        return { board: board.name, done };
+      },
+    ),
+
+    tool(
+      "delete",
+      "Delete a lead, a message template, a stage, a tag or an empty board. Level 1 only. It goes to the board's bin with the reason, and can be put back from the app.",
+      z.object({
+        kind: z.enum(["lead", "message", "stage", "tag", "board"]),
+        board_id: z.string().describe("The board it's on (for a board, the board itself)"),
+        item: z.string().optional().describe("Its id or name: a lead's id; leave out for the board"),
+        field: z.string().optional().describe("For a tag: the field it belongs to"),
+        reason: z.string().min(1).max(2000),
+      }),
+      async (a) => {
+        if (!isFounder(acting)) throw new ToolError("Only Level 1 can delete.");
+        const board = await boardOf(acting, origin, a.board_id);
+        const need = () => {
+          if (!a.item) throw new ToolError(`Say which ${a.kind}.`);
+          return a.item;
+        };
+        let what: string;
+        let r: { error?: string };
+        if (a.kind === "lead") {
+          const { row, board: on } = await leadOf(acting, origin, need());
+          if (on.id !== board.id) throw new ToolError(`${row.title} isn't on ${board.name}.`);
+          [what, r] = [row.title, await deleteLead(row.id, a.reason)];
+        } else if (a.kind === "message") {
+          const m = messageOf(board, need());
+          [what, r] = [m.name, await deleteMessage(m.id, a.reason)];
+        } else if (a.kind === "stage") {
+          const st = stageOf(board, need());
+          [what, r] = [st.name, await deleteStage(st.id, a.reason)];
+        } else if (a.kind === "tag") {
+          if (!a.field) throw new ToolError("Say which field the tag is in.");
+          const f = fieldOf(board, a.field);
+          const o = f.options.find((t) => t.id === need()) ?? f.options.find((t) => same(t.name, need()));
+          if (!o) throw new ToolError(`${f.name} has no tag called ${a.item}.`);
+          [what, r] = [o.name, await deleteOption(o.id, a.reason)];
+        } else {
+          [what, r] = [board.name, await deleteSpace(board.id, a.reason)];
+        }
+        if (r.error) throw new ToolError(r.error);
+        return { deleted: what, kind: a.kind, board: board.name };
       },
     ),
   ];

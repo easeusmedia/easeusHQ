@@ -632,6 +632,11 @@ export function markedOn(board: Pick<BoardData, "stages" | "messages">, day: num
 // A day's message before one is picked: the one for whether its email was
 // opened ("Already opened Email 1" or "Didn't open Email 1"), else the first
 // (Email on Day 1)
+// A version that doesn't fit whether Email 1 was opened ("Didn't open Email
+// 1" once it was, "Already opened Email 1" while it wasn't): held back behind
+// a warning, and still usable (Abhishek, 24 Nov 2026)
+export const misfitsOpens = (m: Pick<MessageData, "name">, opened: boolean) => (opened ? /didn.?t open/i : /already opened/i).test(m.name);
+
 export function defaultMessage<T extends Pick<MessageData, "name">>(options: T[], opened: boolean): T | undefined {
   return options.find((m) => (opened ? /already opened/i : /didn.?t open/i).test(m.name)) ?? options[0];
 }

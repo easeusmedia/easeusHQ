@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Braces, Check, ChevronRight, Copy, LayoutTemplate, Library, Mail, MessageSquare, Pencil, Plus, Reply, RotateCcw, Search, Trash2, UserCheck, X } from "lucide-react";
-import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions, isParts, isReplied, isParked, AFTER, replyKeys, replyCount } from "@/lib/space";
+import { chosenFor, dayOf, fillParts, fillText, readEdit, forContact, hasChannel, leadPeople, leadVars, LINKEDIN_LIMIT, MARKED, MESSAGE_CHANNELS, messageGroups, NO_CONTACT, draftKey, openerIndex, openerOf, optionLabel, shownDraftKey, PLATFORM_NAME, preparedFor, requestDay, sequenceTabs, toneOf, variablesIn, type BoardData, type Contact, type Draft, type LeadData, type Marked, type MarkChange, type Approval, type MessageData, type Prepared, type SentData, type SequenceTab, type StageData, approvalIn, approvalKey, approvalKeys, openerOwn, dayLeft, emptyFills, listed, nameKey, varsFor, wordingOf, dayOff, sendKey, sendsOn, versionOf, stageVersions, misfitsOpens, isParts, isReplied, isParked, AFTER, replyKeys, replyCount } from "@/lib/space";
 import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, pickOpener, renameStage, setLeadDraft, setLeadValue, setLeadVar, setLeadAfter, setSentFrom, updateMessage } from "./actions";
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
@@ -16,6 +16,7 @@ import { DatePicker } from "../../DatePicker";
 import { InstagramIcon, LinkedinIcon } from "../../PlatformIcon";
 import { formatDateTime } from "../../TaskCard";
 import { closeOnBackdrop } from "../../dialog";
+import { ConfirmButton } from "../../ConfirmButton";
 
 const OFFLINE = "That couldn't be saved. Check your connection and try again.";
 const CHANNEL_ICON: Record<string, React.ReactNode> = {
@@ -378,12 +379,33 @@ export function Messages({
           !oneSwitch &&
           (options.length <= 4 ? (
             <div className="flex flex-wrap gap-1.5">
-              {options.map((o) => (
-                <button key={o.id} type="button" aria-pressed={chosen.id === o.id} onClick={() => chosen.id !== o.id && pick(key, o.id)} className={chip}>
-                  <span className="flex shrink-0">{CHANNEL_ICON[o.channel] ?? CHANNEL_ICON.other}</span>
-                  {optionLabel(options, o)}
-                </button>
-              ))}
+              {options.map((o) => {
+                const label = (
+                  <>
+                    <span className="flex shrink-0">{CHANNEL_ICON[o.channel] ?? CHANNEL_ICON.other}</span>
+                    {optionLabel(options, o)}
+                  </>
+                );
+                // Day 2: the version that doesn't fit whether Email 1 was
+                // opened looks off, and asks before it's used (Abhishek, 24 Nov 2026)
+                const opened = lead.email.opens > 0;
+                return chosen.id !== o.id && misfitsOpens(o, opened) ? (
+                  <ConfirmButton
+                    key={o.id}
+                    confirm="Use it"
+                    danger={false}
+                    message={opened ? "Email 1 was opened, so this message doesn't fit. Use it anyway?" : "Email 1 hasn't been opened, so this message doesn't fit. Use it anyway?"}
+                    onConfirm={() => pick(key, o.id)}
+                    className={`${chip} opacity-50`}
+                  >
+                    {label}
+                  </ConfirmButton>
+                ) : (
+                  <button key={o.id} type="button" aria-pressed={chosen.id === o.id} onClick={() => chosen.id !== o.id && pick(key, o.id)} className={chip}>
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <Dropdown size="sm" value={chosen.id} placeholder="Pick a message" options={options.map((o) => ({ value: o.id, label: o.name }))} onChange={(v) => v && pick(key, v)} />
