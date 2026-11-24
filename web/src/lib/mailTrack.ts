@@ -117,22 +117,25 @@ export async function recordSelfView(id: string) {
   await refresh(id);
 }
 
-// Loads that aren't a person reading: within 20 seconds of sending, or from
+// Loads that aren't a person reading: within a minute of sending, or from
 // a scanner. Tested on Gmail 8 Oct 2026: an email nobody opened was fetched
 // 14 to 18 seconds after delivery as "Chrome/42 ... Edge/12.246", every time.
+// Company mail scanners come a little later: on live (24 Nov 2026) a burst
+// 20 to 60 seconds after sending, most as Windows "Chrome/109", read as opens
+// (Abhishek: an open straight after sending is a glitch, never a person).
 // They're kept, with what loaded them, but not counted.
 const SCANNER = "(Edge/12\\.246|bot|crawl|spider|scan|preview|python|wget|curl)";
 
 // its counts from its events (every one is kept; which count is decided
 // here and marked on each, so every report agrees)
 export async function refresh(id: string) {
-  // every click counts; an open counts unless a scanner's, within 20 seconds
+  // every click counts; an open counts unless a scanner's, within a minute
   // of sending, next to one of our own looks, or on an email that bounced
   // (a bounce notice carries the email, image and all, and whoever reads it
   // in the sales inbox loads it: seen 8 Oct 2026)
   await prisma.$executeRaw`
     update "MailEvent" e set counted = e.kind = 'click' or (e.kind = 'open' and m."bouncedAt" is null and not (
-        e.at < m."sentAt" + interval '20 seconds'
+        e.at < m."sentAt" + interval '60 seconds'
         or coalesce(e.agent, '') ~* ${SCANNER}
         or exists (
           select 1 from "MailEvent" s where s."mailId" = e."mailId" and s.kind = 'self'
