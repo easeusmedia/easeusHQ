@@ -10,7 +10,7 @@ import { LeadTable } from "./LeadTable";
 import { LeadPeek } from "./LeadPeek";
 import type { OutreachBoard } from "@/lib/leadSheet";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { CanBuild, Menu } from "./values";
+import { CanBuild, EditsTemplates, Menu } from "./values";
 import { setLeadMark } from "./actions";
 import { BoardTabs, SEG_ROW } from "./BoardTabs";
 import { StatTile } from "../../StatTile";
@@ -54,6 +54,7 @@ export function PortalView({
   canBuild,
   canAdd = canBuild,
   canAddStage = canBuild,
+  canEditTemplates = canBuild,
   initialLeadId,
   boardTemplates,
   targets = [],
@@ -68,6 +69,8 @@ export function PortalView({
   canAdd?: boolean;
   // may add a stage (everyone in Sales: lib/scope addsStages)
   canAddStage?: boolean;
+  // may write and change message templates (Sales' Level 2 too: lib/scope editsTemplates)
+  canEditTemplates?: boolean;
   initialLeadId: string | null;
   // every board in the department, for "Start from a copy of"
   boardTemplates?: { id: string; name: string }[];
@@ -198,6 +201,7 @@ export function PortalView({
     // who may rename and delete the board's tags and message templates, for
     // the views deep inside (values.tsx, Messages.tsx)
     <CanBuild.Provider value={canBuild}>
+    <EditsTemplates.Provider value={canEditTemplates}>
     <div className="flex min-w-0 flex-col gap-4">
       {/* the boards: pick which; the open one is renamed or deleted where
           it sits, and a new one starts from the + */}
@@ -364,6 +368,7 @@ export function PortalView({
 
       <LeadPeek lead={lead} board={board} people={people} canBuild={canBuild} targets={targets.filter((t) => t.id !== board.id)} onClose={() => open(null)} onTrack={track} />
     </div>
+    </EditsTemplates.Provider>
     </CanBuild.Provider>
   );
 }

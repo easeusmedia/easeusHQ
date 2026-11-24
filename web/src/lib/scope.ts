@@ -122,6 +122,12 @@ export function addsPages(user: Pick<Viewer, "role" | "email" | "departments">, 
 export function addsStages(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return buildsDepartment(user, teamId) || user.departments.some((d) => d.id === teamId && d.slug === DEPT.sales);
 }
+// Writing and changing a board's message templates: whoever builds the
+// department, and in Sales its Level 2 too (Abhishek, 24 Nov 2026).
+// Deleting one stays with whoever builds.
+export function editsTemplates(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
+  return buildsDepartment(user, teamId) || (isLead(user) && user.departments.some((d) => d.id === teamId && d.slug === DEPT.sales));
+}
 export function buildsDepartment(user: Pick<Viewer, "role" | "email" | "departments">, teamId: string): boolean {
   return worksDepartment(user, teamId) && setsUp(user);
 }

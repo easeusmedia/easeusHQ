@@ -8,7 +8,7 @@ import { getViewer } from "@/lib/viewer";
 import { withUndo } from "@/lib/undo";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
 import { withTabTag } from "@/lib/leadTags";
-import { addsPages, addsStages, buildsDepartment, isFounder, setsUp, worksDepartment } from "@/lib/scope";
+import { addsPages, addsStages, buildsDepartment, editsTemplates, isFounder, setsUp, worksDepartment } from "@/lib/scope";
 import {
   AFTER,
   REPLY_KEY,
@@ -62,6 +62,14 @@ type Who = { id: string; name: string; canBuild: boolean };
 const SESSION_ENDED = "Your session has ended. Please sign in again.";
 const NO_ACCESS = "You don't have access to this department.";
 const BUILDERS_ONLY = "Only Level 1 and Admin & Technical's Level 2 can rename, add or delete these.";
+const TEMPLATE_EDITORS_ONLY = "Only Level 1, Sales' Level 2 and Admin & Technical's Level 2 can change the templates.";
+// who may write and change a board's templates (lib/scope editsTemplates)
+async function templateEditor(teamId: string): Promise<{ error: string } | null> {
+  const who = await whoFor(teamId);
+  if ("error" in who) return who;
+  const viewer = await getViewer();
+  return viewer && editsTemplates(viewer, teamId) ? null : { error: TEMPLATE_EDITORS_ONLY };
+}
 
 // The asker, if they may work in (or, with build, change) this department
 async function whoFor(teamId: string, build = false): Promise<Who | { error: string }> {
@@ -1051,8 +1059,8 @@ async function messageWithBoard(id: string) {
 export async function createMessage(stageId: string, name: string, channel: string, subject = "", body = "", note = ""): Promise<Done & { message?: MessageData }> {
   const stage = await boardOfStage(stageId);
   if (!stage) return { error: "That stage no longer exists." };
-  const who = await whoFor(stage.board.teamId, true);
-  if ("error" in who) return who;
+  const denied = await templateEditor(stage.board.teamId);
+  if (denied) return denied;
   if (!isChannel(channel)) return { error: "Pick where it's sent." };
   if (!String(body ?? "").trim()) return { error: "Write the message first." };
   const label = MESSAGE_CHANNELS.find((c) => c.kind === channel)!.label;
@@ -1080,8 +1088,8 @@ export async function createMessage(stageId: string, name: string, channel: stri
 export async function updateMessage(id: string, patch: { name?: string; channel?: string; subject?: string; body?: string; note?: string }): Promise<Done> {
   const m = await messageWithBoard(id);
   if (!m) return { error: "That message no longer exists." };
-  const who = await whoFor(m.stage.board.teamId, true);
-  if ("error" in who) return who;
+  const denied = await templateEditor(m.stage.board.teamId);
+  if (denied) return denied;
   const data: { name?: string; channel?: string; subject?: string; body?: string; note?: string } = {};
   if (patch.name != null) {
     const n = cleanName(patch.name, "the message a name");

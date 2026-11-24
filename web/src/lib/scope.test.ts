@@ -14,6 +14,7 @@ import {
   sidesOf,
   addsPages,
   addsStages,
+  editsTemplates,
   seesEveryTeam,
   seesTeamWork,
   visibleClientWhere,
@@ -139,6 +140,14 @@ test("adding a stage: builders, and everyone in Sales at any level", () => {
   assert.equal(addsStages({ ...pankaj, role: "employee" }, SALES.id), true);
   assert.equal(addsStages({ ...pankaj, role: "employee" }, PROD.id), false);
   assert.equal(addsStages(jyotsna, SALES.id), false);
+});
+
+test("writing message templates: builders, and Sales' Level 2 in Sales only", () => {
+  assert.equal(editsTemplates(ashmit, SALES.id), true);
+  assert.equal(editsTemplates(pankaj, SALES.id), true);
+  assert.equal(editsTemplates({ ...pankaj, role: "employee" }, SALES.id), false);
+  assert.equal(editsTemplates(pankaj, PROD.id), false);
+  assert.equal(editsTemplates(jyotsna, SALES.id), false);
 });
 
 test("Team work: Level 1 and anyone in Admin & Technical", () => {

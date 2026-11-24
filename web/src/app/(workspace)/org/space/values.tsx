@@ -313,6 +313,9 @@ export function ValueView({ field, value, compact = false }: { field: FieldData;
 // Whether the person can rename and delete the board's own pieces (tags, message
 // templates): lib/scope setsUp. Set by PortalView.
 export const CanBuild = createContext(false);
+// Whether they can write and change message templates (lib/scope
+// editsTemplates: Sales' Level 2 too). Set by PortalView.
+export const EditsTemplates = createContext(false);
 
 // Tags (one, or any number): the chosen ones, and a Notion-style list to
 // search, pick and create them; whoever sets the app up also renames and

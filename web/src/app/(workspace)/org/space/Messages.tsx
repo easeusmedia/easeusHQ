@@ -8,7 +8,7 @@ import { setSendOn, approveMessage, createMessage, deleteMessage, pickMessage, p
 import { EditableName } from "../../EditableName";
 import { ReasonDialog } from "./ReasonDialog";
 import { EmailStatus } from "./LeadCard";
-import { CanBuild } from "./values";
+import { CanBuild, EditsTemplates } from "./values";
 import { copyMessage, emailHtml, marked, marks, plainText } from "@/lib/emailCopy";
 import { Reveal } from "../../Reveal";
 import { Dropdown } from "../../Dropdown";
@@ -789,7 +789,7 @@ export function MessageLibrary({
   sentIds?: Set<string>;
   highlight?: string[];
 }) {
-  const canBuild = useContext(CanBuild);
+  const editsTemplates = useContext(EditsTemplates);
   const ref = useRef<HTMLDialogElement>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -824,7 +824,7 @@ export function MessageLibrary({
             <Library size={14} className="text-muted" />
             <p className="text-sm font-medium">All messages</p>
             <span className="text-xs text-muted tabular-nums">{board.messages.length}</span>
-            {canBuild && (
+            {editsTemplates && (
               <button type="button" onClick={() => setCreating(true)} aria-pressed={creating} className="btn btn-xs btn-glow ml-auto flex items-center gap-1 px-2">
                 <Plus size={12} /> New
               </button>
@@ -975,7 +975,7 @@ function MessageForm({
   onMine: (draft: Draft | null) => Promise<string | undefined>;
   onVar: (name: string, value: string) => Promise<string | undefined>;
 }) {
-  const canBuild = useContext(CanBuild);
+  const editsTemplates = useContext(EditsTemplates);
   const isEmail = message.channel === "email";
   // an email as it goes out: the lead's copy (else the template) with the
   // house's links and bold and the template's own (lib/emailCopy marked), so a
@@ -1104,7 +1104,7 @@ function MessageForm({
                 <Pencil size={14} />
               </button>
             )}
-            {canBuild && !sent && (
+            {editsTemplates && !sent && (
               <button type="button" onClick={() => setTemplate(true)} title="Edit the template, for every lead" aria-label="Edit the template" className={ICON}>
                 <LayoutTemplate size={14} />
               </button>
@@ -1213,7 +1213,7 @@ function MessageForm({
 // A template as the library shows it: its day and platform, its rule, and
 // its words with the variables lit; copy it, or (setting up) change it
 function TemplateView({ message, group, stages, names }: { message: MessageData; group: string; stages: StageData[]; names: string[] }) {
-  const canBuild = useContext(CanBuild);
+  const editsTemplates = useContext(EditsTemplates);
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   if (editing) return <TemplateEditor message={message} stages={stages} names={names} onDone={() => setEditing(false)} />;
@@ -1240,7 +1240,7 @@ function TemplateView({ message, group, stages, names }: { message: MessageData;
           >
             {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
           </button>
-          {canBuild && (
+          {editsTemplates && (
             <button type="button" onClick={() => setEditing(true)} className="btn btn-sm btn-glow flex items-center gap-1.5">
               <Pencil size={13} /> Edit template
             </button>
@@ -1369,6 +1369,7 @@ function TemplateEditor({
   leadId?: string;
   onDone: (madeId?: string) => void;
 }) {
+  const canBuild = useContext(CanBuild);
   const router = useRouter();
   const [stageId, setStageId] = useState(message?.stageId ?? startStage ?? stages[0]?.id ?? "");
   const [name, setName] = useState(message?.name ?? "");
@@ -1554,7 +1555,7 @@ function TemplateEditor({
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-2.5">
-        {message ? (
+        {message && canBuild ? (
           <button type="button" onClick={() => setDeleting(true)} className={`${SMALL_BTN} hover:text-red-400`}>
             <Trash2 size={12} /> Delete template
           </button>
