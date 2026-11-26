@@ -457,6 +457,21 @@ export async function updateClientInfo(clientId: string, input: ClientInfoInput)
   return {};
 }
 
+// A client renamed from its page, to whatever it should be (Abhishek, 26
+// Nov 2026); its address follows the name, as Client info's does
+export async function renameClient(clientId: string, name: string): Promise<{ error?: string; slug?: string }> {
+  const user = await requireOps();
+  if (!user) return { error: "Only the operations team can rename a client." };
+  const n = name.trim().replace(/\s+/g, " ");
+  if (!n) return { error: "Give the client a name." };
+  if (n.length > 120) return { error: "That name is too long." };
+  const slug = await slugFor(n, clientId);
+  await withUndo([{ table: "Client", id: clientId }], () => prisma.client.update({ where: { id: clientId }, data: { name: n, slug } }), { depth: 0, label: `Renamed client to "${n}"` });
+  revalidatePath("/clients");
+  revalidatePath("/clients/[slug]", "page");
+  return { slug };
+}
+
 export type ClientDocType = "brandGuidelines" | "sop" | "qualityChecklist" | "meetingNotes" | "resources";
 const DOC_LABEL: Record<ClientDocType, string> = {
   brandGuidelines: "Client information",

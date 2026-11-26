@@ -30,6 +30,7 @@ import { ClientShare } from "../ClientShare";
 import { ClientMessages } from "../ClientMessages";
 import { ClientTabs } from "../ClientTabs";
 import { ProfileHead } from "../../ProfileHead";
+import { ClientName } from "../ClientName";
 import { PhotoEdit } from "../../PhotoEdit";
 import { ClientTags } from "../ClientTags";
 import { listTags, updateClientAvatar } from "../actions";
@@ -173,7 +174,9 @@ export default async function ClientDetailPage({
         <ProfileHead photo={<PhotoEdit name={client.name} src={logoSrcAt(client.slug, (await logoVersions()).get(client.id))} size="fill" save={updateClientAvatar.bind(null, client.id)} />}>
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+              <h1 className="min-w-0 text-2xl font-semibold tracking-tight">
+                <ClientName id={client.id} name={client.name} />
+              </h1>
               <StatusDropdown clientId={client.id} status={client.status} size="md" />
             </div>
             {client.niche && <p className="text-sm text-muted">{client.niche}</p>}
