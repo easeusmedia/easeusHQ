@@ -238,6 +238,13 @@ export async function subfolders(parentId: string): Promise<{ id: string; name: 
 // The folder of that name under `parentId`, reusing one that's already
 // there under a differently-punctuated name ("Dr. Tego" for Dr Tego)
 // rather than creating a second one beside it.
+// The names of the files in a folder (not its folders)
+export async function fileNames(folderId: string): Promise<string[]> {
+  const query = `'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`;
+  const found = await driveFetch(`drive/v3/files?q=${encodeURIComponent(query)}&fields=files(name)&pageSize=1000&${SHARED}`, { method: "GET" });
+  return ((found.files ?? []) as { name: string }[]).map((f) => f.name);
+}
+
 // A folder renamed, or moved from one folder to another
 export async function updateFolder(id: string, change: { name?: string; move?: { from: string; to: string } }): Promise<void> {
   const move = change.move ? `&addParents=${change.move.to}&removeParents=${change.move.from}` : "";

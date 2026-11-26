@@ -18,7 +18,8 @@ import { frameioConnected, shareFiles, shareIdFrom } from "@/lib/frameio";
 import { handedOffStamp } from "@/lib/due";
 import { isLetter, needsGrade } from "@/lib/videoScore";
 import { refreshVideoScores } from "@/lib/videoScores";
-import { exportFolder, uploadFromUrl } from "@/lib/drive";
+import { exportFolder, fileNames, uploadFromUrl } from "@/lib/drive";
+import { deliveryFileName } from "@/lib/driveNames";
 import { typesOf } from "@/lib/deliverableMatch";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
@@ -964,9 +965,10 @@ export async function frameioFileForTask(
     const files = await shareFiles(shareId);
     if (files.length === 0) return { error: "That Frame.io share has no files in it." };
 
-    // the folder it would go in, found or to be made, without making anything
-    const destination = (await deliveryFolder(taskId, true).catch(() => null))?.path ?? `${task.project.client.name} / ${task.project.name || task.project.type}`;
-    return { files: files.map((f) => ({ id: f.id, name: f.name, size: f.size, ready: f.ready, destination })) };
+    // where each would go and what it would be called, found or to be made, without making anything
+    const where = await deliveryFolder(taskId, true).catch(() => null);
+    const destination = (name: string) => (where ? `${where.path} / ${where.nameFor(name)}` : `Creative Exports / ${task.project.client.name} / ${task.project.name || task.project.type}`);
+    return { files: files.map((f) => ({ id: f.id, name: f.name, size: f.size, ready: f.ready, destination: destination(f.name) })) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't reach Frame.io." };
   }
@@ -991,7 +993,13 @@ async function deliveryFolder(taskId: string, preview: boolean) {
   const others = project.client.projects.filter((p) => p.id !== project.id).map((p) => p.name || p.type);
   // a new project's folder goes in the year it was made
   const year = project.createdAt.toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }).slice(0, 4);
-  return exportFolder(project.client.name, project.name || project.type, { type, others, year, preview });
+  const folder = await exportFolder(project.client.name, project.name || project.type, { type, others, year, preview });
+  // what a file is saved as there ("Reel 6 - Libido.mp4", lib/driveNames),
+  // past the names already in it; a kind we don't name keeps its own
+  const taken = folder.id ? await fileNames(folder.id) : [];
+  const nameFor = (fileName: string) =>
+    deliveryFileName({ type, title: task.title, originalTitle: task.originalTitle, client: project.client.name, project: project.name || project.type, fileName }, taken) ?? fileName;
+  return { ...folder, nameFor };
 }
 
 // Copies it, and hands back the Drive link so the delivery can carry it.
@@ -1020,12 +1028,9 @@ export async function copyFrameioFileToDrive(
 
     const folder = await deliveryFolder(taskId, false);
     if (!folder) return { error: "This task no longer exists." };
-    const uploaded = await uploadFromUrl(
-      file.downloadUrl,
-      { name: file.name, type: file.mediaType ?? "video/mp4", size: file.size ?? 0 },
-      folder.id
-    );
-    return { url: uploaded.url, path: `${folder.path} / ${file.name}` };
+    const name = folder.nameFor(file.name);
+    const uploaded = await uploadFromUrl(file.downloadUrl, { name, type: file.mediaType ?? "video/mp4", size: file.size ?? 0 }, folder.id);
+    return { url: uploaded.url, path: `${folder.path} / ${name}` };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't copy that file." };
   }

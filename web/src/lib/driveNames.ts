@@ -101,3 +101,79 @@ export function typeFolder<T extends { name: string }>(type: string | null, exis
 
 // A folder that holds a kind of work ("Reels", "Full Length"), never a project
 export const isTypeFolder = (name: string) => TYPE_FOLDERS.some(([, names]) => names.some((n) => normalizeFolderName(n) === normalizeFolderName(name)));
+
+// ---- a delivered file's name in Drive (Abhishek, 26 Nov 2026) ----
+//
+// The folders already say whose it is and which project, so the file says
+// which piece: "Reel 6 - Libido.mp4", "Trailer.mp4", "Full Length.mp4". A
+// reel always has its number (the next free one if its name has none) and
+// its topic wherever one can be found: what follows the number in the
+// file's name ("Reel 115 - Skin Barrier"), else a [bracket] at its end
+// ("Liberty Mills Reel 6 [Libido]"), else what the task was first called,
+// else the file's own name, each without the client, the project and words
+// like Edit ("CL - Mentors" is Mentors). Thumbnails are numbered in the
+// folder, 1, 2, 3, as each test one goes in (Abhishek, 26 Nov 2026).
+const KIND_LABEL: [RegExp, string][] = [
+  [/trailer/i, "Trailer"],
+  [/bonus/i, "Bonus Reel"],
+  [/long[- ]?form|full|episode|podcast edit/i, "Full Length"],
+  [/thumbnail/i, "Thumbnail"],
+  [/audio/i, "Audio"],
+  [/carousel/i, "Carousel"],
+  [/reel/i, "Reel"],
+];
+// words that say what a file is or how it was made, never its topic (an editor's export is often "Sequence 01" or "export final v2")
+const GENERIC = /\b(reels?|trailers?|thumbnails?|long[- ]?form|full[- ]?length|podcast|episodes?|edits?|edited|final|design|rectification|correction|conversion|vertical|horizontal|format|flow|exports?|exported|sequence|render(ed)?|untitled|comp|master|draft|cut|copy|new|updated?|revised?|fixed|h\.?26[45]|hd|uhd|4k|\d{3,4}p|mp4|mov|v\d+|\d+)\b/gi;
+
+function topicOf(title: string, original: string | null, names: string[], fileName = ""): string | null {
+  const tidy = (t: string) => t.replace(/\s+/g, " ").replace(/^[\s\-–—:·|,.]+|[\s\-–—:·|,.]+$/g, "").trim();
+  const afterNumber = title.match(/\b(?:reel|trailer|thumbnail|long[- ]?form|audio)\s*#?\s*\d+\s*[-–—:·|]\s*(.+)$/i)?.[1];
+  if (afterNumber && tidy(afterNumber.replace(/\[[^\]]*\]|\([^)]*\)/g, " "))) return tidy(afterNumber.replace(/\[[^\]]*\]|\([^)]*\)/g, " "));
+  const bracket = title.match(/\[([^\]]+)\]\s*$/)?.[1];
+  if (bracket && tidy(bracket)) return tidy(bracket);
+  // what it was first called, then the file's own name ("Reel-2[Libido].mp4")
+  for (const from of [original, fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "")]) {
+    const found = from ? cleaned(from, names, tidy) : null;
+    if (found) return found;
+  }
+  return null;
+}
+
+function cleaned(original: string, names: string[], tidy: (t: string) => string): string | null {
+  const marked = original.match(/\[([^\]]+)\]\s*$/)?.[1] ?? original.match(/\(([^)]+)\)\s*$/)?.[1];
+  const inner = marked ? cleaned(original.replace(/\[[^\]]*\]\s*$|\([^)]*\)\s*$/, " "), names, tidy) : null;
+  // a [bracket] or (note) at its end is the topic as written, unless it only names the client or project
+  if (marked) return cleaned(marked, names, tidy) ? tidy(marked) : inner;
+  // the client, the project and their initials ("CL"), and the generic words, taken out
+  let rest = ` ${original} `;
+  for (const n of names.filter(Boolean)) {
+    const initials = n.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).map((w) => w[0]).join("");
+    for (const w of [n, ...n.split(/\s+/), initials.length >= 2 ? initials : ""].filter((w) => w.length >= 2)) {
+      rest = rest.replace(new RegExp(`(^|[^\\p{L}])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^\\p{L}])`, "giu"), "$1 ");
+    }
+  }
+  const topic = tidy(rest.replace(GENERIC, " ").replace(/[[\]()]/g, " "));
+  return topic.length >= 3 ? topic : null;
+}
+
+// The name it's saved under: "Reel 6 - Libido.mp4". Null for a kind of work
+// we don't name (it keeps the name it came with). taken: names already in
+// the folder, so a second copy is "Reel 6 - Libido v2.mp4", never over one.
+export function deliveryFileName(
+  a: { type: string | null; title: string; originalTitle: string | null; client: string; project: string; fileName: string },
+  taken: string[] = [],
+): string | null {
+  const label = a.type ? KIND_LABEL.find(([re]) => re.test(a.type!))?.[1] : null;
+  if (!label) return null;
+  const ext = a.fileName.match(/\.[A-Za-z0-9]{2,5}$/)?.[0]?.toLowerCase() ?? ".mp4";
+  // the next number free in the folder for this kind ("Thumbnail 3" after 1 and 2)
+  const next = () => 1 + Math.max(0, ...taken.map((t) => Number(t.match(new RegExp(`^${label}\\s+(\\d+)\\b`, "i"))?.[1] ?? 0)));
+  const own = a.title.match(/\b(?:reel|trailer|thumbnail|long[- ]?form|audio)\s*#?\s*(\d+)\b/i)?.[1];
+  const n = label === "Thumbnail" ? next() : own ? Number(own) : /reel/i.test(label) ? next() : null;
+  const topic = label === "Thumbnail" ? null : topicOf(a.title, a.originalTitle, [a.client, a.project], a.fileName);
+  const base = `${label}${n ? ` ${n}` : ""}${topic ? ` - ${topic}` : ""}`.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+  const have = new Set(taken.map((t) => t.toLowerCase()));
+  let name = `${base}${ext}`;
+  for (let v = 2; have.has(name.toLowerCase()); v++) name = `${base} v${v}${ext}`;
+  return name;
+}

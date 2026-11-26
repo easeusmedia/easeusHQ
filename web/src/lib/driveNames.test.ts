@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isTypeFolder, matchFolder, normalizeFolderName, projectFolderScore, typeFolder } from "./driveNames.ts";
+import { deliveryFileName, isTypeFolder, matchFolder, normalizeFolderName, projectFolderScore, typeFolder } from "./driveNames.ts";
 
 // the real contents of Creative Exports, which is what this has to survive
 const EXISTING = [
@@ -126,4 +126,33 @@ test("each kind of work goes in its own folder in the project", () => {
   assert.equal(at(null), null);
   assert.equal(isTypeFolder("Reels"), true);
   assert.equal(isTypeFolder("Liberty Mills"), false);
+});
+
+test("a delivered file is named for the piece it is: Reel 6 - Libido.mp4", () => {
+  const name = (title: string, originalTitle: string | null, type: string | null, extra: Partial<{ client: string; project: string; fileName: string }> = {}, taken: string[] = []) =>
+    deliveryFileName({ type, title, originalTitle, client: "Courageous Leaders", project: "Angela Duckworth", fileName: "export.mp4", ...extra }, taken);
+  assert.equal(name("Liberty Mills Reel 6 [Libido]", "Liberty Mills Reel 7 [Libido]", "Reel", { client: "Elle Sera", project: "Liberty Mills", fileName: "Reel-2[Libido].mp4" }), "Reel 6 - Libido.mp4");
+  assert.equal(name("Angela Duckworth Reel 4", "Burnout", "Reel"), "Reel 4 - Burnout.mp4");
+  assert.equal(name("Angela Duckworth Reel 1", "CL - Mentors", "Reel"), "Reel 1 - Mentors.mp4");
+  assert.equal(name("Angela Duckworth Reel 2", "CL - Nobody does anything alone", "Reel"), "Reel 2 - Nobody does anything alone.mp4");
+  assert.equal(name("Sarah Jayne Dunn Reel 2", null, "Reel", { client: "Elle Sera", project: "Sarah Jayne Dunn" }), "Reel 2.mp4");
+  assert.equal(name("Sarah Jayne Dunn Reel 1", "Reel 1 (25 Vs Now)", "Reel", { client: "Elle Sera", project: "Sarah Jayne Dunn" }), "Reel 1 - 25 Vs Now.mp4");
+  assert.equal(name("Reel 115 - Skin Barrier", "Dr Tego Reel-1", "Reel", { client: "Dr Tego", project: "Reel 115 - Skin Barrier" }), "Reel 115 - Skin Barrier.mp4");
+  assert.equal(name("[Home] Reel 116 - Skin Treatments That Transformed My Skin", null, "Reel", { client: "Dr Tego", project: "[Home] Reel 116 - Skin Treatments That Transformed My Skin" }), "Reel 116 - Skin Treatments That Transformed My Skin.mp4");
+  assert.equal(name("Reel 117 - CO2 Laser", "Dr Tego -2", "Reel", { client: "Dr Tego", project: "Reel 117 - CO2 Laser" }), "Reel 117 - CO2 Laser.mp4");
+  assert.equal(name("Sarah Jayne Dunn Trailer", "Sarah Jayne Dunn Trailer Edit", "Reel Trailer", { client: "Elle Sera", project: "Sarah Jayne Dunn" }), "Trailer.mp4");
+  assert.equal(name("Joanna's Solo (End of Year) Long-form", "Jo Solo Edit", "YouTube Long-Form", { project: "Joanna's Solo (End of Year)" }), "Full Length.mp4");
+  assert.equal(name("Sarah Jayne Dunn Thumbnail", "Elle Sera Thumbnail Edit", "Thumbnails", { client: "Elle Sera", project: "Sarah Jayne Dunn", fileName: "thumb.PNG" }), "Thumbnail 1.png");
+  assert.equal(name("Angela Duckworth Reel 4", "Burnout", "Reel", {}, ["Reel 4 - Burnout.mp4"]), "Reel 4 - Burnout v2.mp4");
+  assert.equal(name("Angela Duckworth Reel 4", "Burnout", "Reel", {}, ["reel 4 - burnout.mp4", "Reel 4 - Burnout v2.mp4"]), "Reel 4 - Burnout v3.mp4");
+  assert.equal(name("Leadership Room 101 Trailer", "CL Trailer Edit [Room 101]", "Reel Trailer", { project: "Leadership Room 101" }), "Trailer.mp4");
+  // test thumbnails go in 1, 2, 3; a reel with no number takes the next free one
+  assert.equal(name("Sarah Jayne Dunn Thumbnail", null, "Thumbnails", { fileName: "b.png" }, ["Thumbnail 1.png"]), "Thumbnail 2.png");
+  assert.equal(name("Sarah Jayne Dunn Thumbnail", null, "Thumbnails", { fileName: "c.jpg" }, ["Thumbnail 1.png", "Thumbnail 2.png"]), "Thumbnail 3.jpg");
+  assert.equal(name("Elle Sera Reel", null, "Reel", { client: "Elle Sera", project: "Short-form (Extra Reels)" }, ["Reel 1.mp4", "Reel 2 - Glow.mp4"]), "Reel 3.mp4");
+  // the file's own name gives the topic when nothing else does
+  assert.equal(name("Sarah Jayne Dunn Reel 3", null, "Reel", { client: "Elle Sera", project: "Sarah Jayne Dunn", fileName: "Reel-3 [Morning Routine].mp4" }), "Reel 3 - Morning Routine.mp4");
+  assert.equal(name("Reel 115 - Skin Barrier", null, "Reel", { client: "Dr Tego", project: "Reel 115 - Skin Barrier", fileName: "Dr Tego Reel-1.mp4" }), "Reel 115 - Skin Barrier.mp4");
+  assert.equal(name("Sarah Jayne Dunn Reel 2", null, "Reel", { client: "Elle Sera", project: "Sarah Jayne Dunn", fileName: "Sarah Jayne Dunn Reel 2 Final.mp4" }), "Reel 2.mp4");
+  assert.equal(name("Some task", null, null), null);
 });
