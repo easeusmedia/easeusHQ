@@ -19,6 +19,7 @@ import { handedOffStamp } from "@/lib/due";
 import { isLetter, needsGrade } from "@/lib/videoScore";
 import { refreshVideoScores } from "@/lib/videoScores";
 import { exportFolder, uploadFromUrl } from "@/lib/drive";
+import { typesOf } from "@/lib/deliverableMatch";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
 import { isAbhishekOrAdmin } from "@/lib/actingUser";
@@ -963,11 +964,32 @@ export async function frameioFileForTask(
     const files = await shareFiles(shareId);
     if (files.length === 0) return { error: "That Frame.io share has no files in it." };
 
-    const destination = `${task.project.client.name} / ${task.project.name || task.project.type}`;
+    // the folder it would go in, found or to be made, without making anything
+    const destination = (await deliveryFolder(taskId, true).catch(() => null))?.path ?? `${task.project.client.name} / ${task.project.name || task.project.type}`;
     return { files: files.map((f) => ({ id: f.id, name: f.name, size: f.size, ready: f.ready, destination })) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Couldn't reach Frame.io." };
   }
+}
+
+// Where a task's finished file goes in Drive (lib/drive exportFolder): its
+// client and project, its kind of work, and the client's other projects so a
+// folder is matched to the right one. preview: the path, making nothing.
+async function deliveryFolder(taskId: string, preview: boolean) {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      title: true,
+      originalTitle: true,
+      tags: { select: { name: true } },
+      project: { select: { id: true, name: true, type: true, client: { select: { name: true, projects: { select: { id: true, name: true, type: true } } } } } },
+    },
+  });
+  if (!task) return null;
+  const { project } = task;
+  const type = typesOf(task.tags.map((t) => t.name), task.originalTitle ?? task.title)[0] ?? null;
+  const others = project.client.projects.filter((p) => p.id !== project.id).map((p) => p.name || p.type);
+  return exportFolder(project.client.name, project.name || project.type, { type, others, preview });
 }
 
 // Copies it, and hands back the Drive link so the delivery can carry it.
@@ -994,7 +1016,8 @@ export async function copyFrameioFileToDrive(
     if (!file) return { error: "That file is no longer in the share." };
     if (!file.downloadUrl || !file.ready) return { error: "Frame.io hasn't finished processing that file yet." };
 
-    const folder = await exportFolder(task.project.client.name, task.project.name || task.project.type);
+    const folder = await deliveryFolder(taskId, false);
+    if (!folder) return { error: "This task no longer exists." };
     const uploaded = await uploadFromUrl(
       file.downloadUrl,
       { name: file.name, type: file.mediaType ?? "video/mp4", size: file.size ?? 0 },

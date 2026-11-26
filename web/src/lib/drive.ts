@@ -1,6 +1,6 @@
 import { createSign } from "crypto";
 import { prisma } from "./prisma";
-import { matchFolder } from "./driveNames";
+import { NEW_PROJECT_FOLDERS, isTypeFolder, matchFolder, projectFolderScore, typeFolder } from "./driveNames";
 
 // Uploading to the company's Google Drive.
 //
@@ -247,17 +247,64 @@ export async function folderLike(name: string, parentId: string): Promise<{ id: 
 // Where a finished file belongs: Creative Exports / <client> / <project>.
 // Both levels are matched against what's there before anything is made —
 // that folder has been organised by hand for years.
-export async function exportFolder(clientName: string, projectName: string): Promise<{ id: string; url: string; path: string }> {
+// Where a finished file goes (Abhishek, 26 Nov 2026): the client's folder
+// in Creative Exports; in it, the project's folder, wherever the client keeps
+// it (straight inside, or in a year or month: "2026 / 28. Liberty Mills");
+// in that, the folder for its kind of work (Reels, Full Length, Trailer...),
+// unless the project's folder has no folders in it (then straight in).
+// A project with no folder yet gets one under the client, with Reels, Full
+// Length, Thumbnails and Copy in it. A folder counts for the project only if
+// none of the client's other projects fits it better ("Room 101" is Room
+// 101's, not Leadership Room 101's). preview: the path it would take, making
+// nothing.
+export async function exportFolder(
+  clientName: string,
+  projectName: string,
+  { type = null, others = [], preview = false }: { type?: string | null; others?: string[]; preview?: boolean } = {}
+): Promise<{ id: string; url: string; path: string }> {
   const s = await driveSettings();
   const root = s[DRIVE_SETTINGS.exportsFolderId];
   if (!root) throw new Error("No Drive folder is set for finished work.");
-  const client = await folderLike(clientName, root);
-  const project = await folderLike(projectName, client.id);
-  return {
-    id: project.id,
-    url: project.url,
-    path: `${s[DRIVE_SETTINGS.exportsFolderName] ?? "Creative Exports"} / ${clientName} / ${projectName}`,
-  };
+  const base = s[DRIVE_SETTINGS.exportsFolderName] ?? "Creative Exports";
+  const url = (id: string) => `https://drive.google.com/drive/folders/${id}`;
+  const make = async (name: string, parentId: string) => (preview ? { id: "", url: "" } : folder(name, parentId));
+
+  const clientMatch = matchFolder(clientName, await subfolders(root));
+  const client = clientMatch ? { id: clientMatch.id, url: url(clientMatch.id), name: clientMatch.name } : { ...(await make(clientName, root)), name: clientName };
+
+  // the project: in the client's folder, then one level in (years, months)
+  let project: { id: string; url: string; path: string } | null = null;
+  if (client.id) {
+    const fits = (f: { name: string }) => {
+      const score = projectFolderScore(projectName, f.name);
+      return score > 0 && !isTypeFolder(f.name) && !others.some((o) => projectFolderScore(o, f.name) > score) ? score : 0;
+    };
+    const top = await subfolders(client.id);
+    const best = (list: { id: string; name: string; path: string }[]) =>
+      list.map((f) => ({ f, score: fits(f) })).filter((x) => x.score).sort((a, b) => b.score - a.score)[0]?.f ?? null;
+    let hit = best(top.map((f) => ({ ...f, path: f.name })));
+    if (!hit || fits(hit) < 3) {
+      const inner = (await Promise.all(top.filter((g) => !isTypeFolder(g.name)).map(async (g) => (await subfolders(g.id)).map((f) => ({ ...f, path: `${g.name.trim()} / ${f.name.trim()}` }))))).flat();
+      const deeper = best(inner);
+      if (deeper && (!hit || fits(deeper) > fits(hit))) hit = deeper;
+    }
+    if (hit) project = { id: hit.id, url: url(hit.id), path: hit.path.trim() };
+  }
+  if (!project) {
+    const made = await make(projectName, client.id);
+    if (!preview) for (const name of NEW_PROJECT_FOLDERS) await folder(name, made.id);
+    project = { ...made, path: projectName };
+  }
+
+  // its kind of work's folder in the project; a project folder with no
+  // folders in it holds its files itself (Dr Tego's, one per reel)
+  const existing = project.id ? await subfolders(project.id) : NEW_PROJECT_FOLDERS.map((name) => ({ id: "", name }));
+  const kind = existing.length ? typeFolder(type, existing) : null;
+  const here = { id: project.id, url: project.url, path: `${base} / ${client.name.trim()} / ${project.path}` };
+  if (!kind) return here;
+  if ("found" in kind) return { id: kind.found.id, url: url(kind.found.id), path: `${here.path} / ${kind.found.name.trim()}` };
+  const made = project.id ? await make(kind.make, project.id) : { id: "", url: "" };
+  return { ...made, path: `${here.path} / ${kind.make}` };
 }
 
 // Sends a file straight from wherever it is into Drive, without holding it

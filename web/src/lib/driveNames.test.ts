@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchFolder, normalizeFolderName } from "./driveNames.ts";
+import { isTypeFolder, matchFolder, normalizeFolderName, projectFolderScore, typeFolder } from "./driveNames.ts";
 
 // the real contents of Creative Exports, which is what this has to survive
 const EXISTING = [
@@ -86,4 +86,44 @@ test("the same date written two ways is the same folder", () => {
   assert.equal(matchFolder("31st March-1st May", drive)?.name, "31st March- 1st May");
   // still not a different date
   assert.equal(matchFolder("2nd May - 26th June", drive), null);
+});
+
+test("a project's folder is found by its words, wherever the client keeps it", () => {
+  assert.equal(projectFolderScore("Liberty Mills", "28. Liberty Mills "), 3);
+  assert.equal(projectFolderScore("Room 101", "Room 101"), 3);
+  assert.equal(projectFolderScore("Charlotte Pearce", "Charlotte Pearce  (Podcast 3)"), 3);
+  assert.equal(projectFolderScore("[Home] Reel 116 - Skin Treatments That Transformed My Skin", "Reel 116 - Skin Treatments That Transformed My Skin"), 3);
+  assert.equal(projectFolderScore("Sergio Lopez", "Sergio Lopez Solo"), 3); // "solo" is set aside
+  assert.equal(projectFolderScore("It's Okay To Upset People", "Jo solo - It's Okay to Upset People"), 3);
+  assert.equal(projectFolderScore("Podcast 28 Elle Sera X Paige Chohan", "1. Paige Chohan"), 2);
+  assert.equal(projectFolderScore("Katie Jackson", "Katie "), 1);
+});
+
+test("a project's folder is never one that only looks alike", () => {
+  assert.equal(projectFolderScore("Podcast 1", "Podcast 10 (Leanne)"), 0);
+  assert.equal(projectFolderScore("Video 1", "Video 2"), 0);
+  assert.equal(projectFolderScore("Celebrity Reels", "Reels"), 0);
+  assert.equal(projectFolderScore("Leadership Room 101", "Room 101"), 2); // its words are all there: the closest there is
+  assert.equal(projectFolderScore("Melissa Levison", "29. Charlie Thomas"), 0);
+  assert.equal(projectFolderScore("Reel 115 - Skin Barrier", "2025"), 0);
+});
+
+test("each kind of work goes in its own folder in the project", () => {
+  const cl = ["Thumbnails", "Audio", "Full Length", "Trailer", "YT Copy", "Reels"].map((name) => ({ name }));
+  const at = (type: string | null, list = cl) => {
+    const r = typeFolder(type, list);
+    return r === null ? null : "found" in r ? r.found.name : `make ${r.make}`;
+  };
+  assert.equal(at("Reel"), "Reels");
+  assert.equal(at("Reel Trailer"), "Trailer");
+  assert.equal(at("YouTube Long-Form"), "Full Length");
+  assert.equal(at("Thumbnails"), "Thumbnails");
+  assert.equal(at("Audio"), "Audio");
+  assert.equal(at("Bonus Reel"), "make Bonus Reel");
+  assert.equal(at("YouTube Long-Form", [{ name: "Full Length Epidose" }]), "Full Length Epidose");
+  assert.equal(at("Reel", [{ name: "Instagram Reels " }, { name: "Youtube Reels" }]), "Instagram Reels ");
+  assert.equal(at("Reel", []), "make Reels");
+  assert.equal(at(null), null);
+  assert.equal(isTypeFolder("Reels"), true);
+  assert.equal(isTypeFolder("Liberty Mills"), false);
 });

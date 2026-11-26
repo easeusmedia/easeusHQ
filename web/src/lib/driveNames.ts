@@ -40,3 +40,68 @@ export function matchFolder<T extends { name: string }>(wanted: string, existing
   if (!target) return null;
   return existing.find((f) => normalizeFolderName(f.name) === target) ?? null;
 }
+
+// ---- a project's folder, wherever the client keeps it (Abhishek, 26 Nov 2026) ----
+//
+// Each client's folder is laid out its own way: Courageous Leaders keeps its
+// projects straight inside ("Room 101"), Elle Sera by year ("2026 / 28.
+// Liberty Mills"), Dr Ifeoma by month. A project is found by its words: the
+// same name ("Room 101"), one inside the other ("Sergio Lopez Solo" for Sergio
+// Lopez, "Paige Chohan" for "Podcast 28 Elle Sera X Paige Chohan"), with
+// bracketed notes ("[Home]", "(Podcast 3)") and position numbers set aside.
+// A number has to agree: Podcast 1 is never Podcast 10.
+
+const FILLER = new Set(["x", "and", "with", "solo", "jo", "podcast", "episode", "ep"]);
+const words = (name: string) =>
+  normalizeFolderName(name.replace(/\[[^\]]*\]|\([^)]*\)/g, " "))
+    .split(" ")
+    .filter((w) => w && !FILLER.has(w));
+
+// How well a folder's name fits the project's: 3 the same, 2 one's words all
+// in the other's (two words or more), 1 a single word that starts the other
+// ("Katie" for Katie Jackson), 0 not this project
+export function projectFolderScore(project: string, folder: string): number {
+  const p = words(project);
+  const f = words(folder);
+  if (!p.length || !f.length) return 0;
+  if (p.join(" ") === f.join(" ")) return 3;
+  const [small, big] = f.length <= p.length ? [f, p] : [p, f];
+  if (!small.every((w) => big.includes(w))) return 0;
+  if (small.length >= 2) return 2;
+  return big[0] === small[0] && !/^\d+$/.test(small[0]) ? 1 : 0;
+}
+
+// The folders a kind of work goes in, by the names people use for them; the
+// first is the one made when a project has none. The order matters: a reel's
+// trailer is a trailer, a bonus reel isn't one of the reels.
+const TYPE_FOLDERS: [RegExp, string[]][] = [
+  [/trailer/i, ["Trailer", "Trailers"]],
+  [/bonus/i, ["Bonus Reel", "Bonus Reels"]],
+  [/long[- ]?form|full|episode|podcast edit/i, ["Full Length", "Full Length Episode", "Youtube Video", "Youtube Long Forms", "Long Form", "Episode", "Episodes"]],
+  [/thumbnail/i, ["Thumbnails", "Thumbnail", "Thumbnails & Covers"]],
+  [/audio/i, ["Audio", "Audio File"]],
+  [/carousel/i, ["Carousels", "Carousel"]],
+  [/copy|caption|description/i, ["Copy", "YT Copy", "YouTube Copy"]],
+  [/reel/i, ["Reels", "Instagram Reels", "Reel"]],
+];
+// what a new project's folder starts with (Abhishek: reels, the episode,
+// thumbnails and copy)
+export const NEW_PROJECT_FOLDERS = ["Reels", "Full Length", "Thumbnails", "Copy"];
+
+const typeNames = (type: string) => TYPE_FOLDERS.find(([re]) => re.test(type))?.[1] ?? null;
+
+// Where in a project a kind of work goes: the folder it has for it (by any of
+// its names, then one that starts with one: "Full Length Epidose"), else the
+// name to make. Null for work of no kind we know: the project folder itself.
+export function typeFolder<T extends { name: string }>(type: string | null, existing: T[]): { found: T } | { make: string } | null {
+  const names = type ? typeNames(type) : null;
+  if (!names) return null;
+  const wanted = names.map(normalizeFolderName);
+  const found =
+    existing.find((f) => wanted.includes(normalizeFolderName(f.name))) ??
+    existing.find((f) => wanted.some((w) => normalizeFolderName(f.name).startsWith(`${w} `)));
+  return found ? { found } : { make: names[0] };
+}
+
+// A folder that holds a kind of work ("Reels", "Full Length"), never a project
+export const isTypeFolder = (name: string) => TYPE_FOLDERS.some(([, names]) => names.some((n) => normalizeFolderName(n) === normalizeFolderName(name)));
