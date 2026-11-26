@@ -951,14 +951,14 @@ export async function createProject(
   });
   if (!client) return { error: "Client not found." };
 
-  // its deliverables, one placeholder each ("Pip Jamison Reel 1"), due by
-  // the client's blueprint from the day it starts (today, unless picked)
+  // its deliverables, one placeholder each ("Pip Jamison Reel 1"), with no
+  // delivery or draft date: the team sets those by hand (Abhishek, 26 Nov 2026)
   const plan = planFor(client.contentPlan);
   const types = deliverableTypes ?? plan.filter((p) => p.count > 0).map((p) => p.type);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(planFrom ?? "") ? planFrom! : new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const until = planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > day ? planUntil : undefined;
   const deliverables = planDeliverables(plan, types, trimmed, day, until);
-  const placeholders = deliverables.map((d) => ({ name: d.name, contentType: d.type, dueDate: new Date(d.due) }));
+  const placeholders = deliverables.map((d) => ({ name: d.name, contentType: d.type }));
 
   const project = await prisma.project.create({
     data: {

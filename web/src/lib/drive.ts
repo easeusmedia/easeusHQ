@@ -238,6 +238,16 @@ export async function subfolders(parentId: string): Promise<{ id: string; name: 
 // The folder of that name under `parentId`, reusing one that's already
 // there under a differently-punctuated name ("Dr. Tego" for Dr Tego)
 // rather than creating a second one beside it.
+// A folder renamed, or moved from one folder to another
+export async function updateFolder(id: string, change: { name?: string; move?: { from: string; to: string } }): Promise<void> {
+  const move = change.move ? `&addParents=${change.move.to}&removeParents=${change.move.from}` : "";
+  await driveFetch(`drive/v3/files/${id}?fields=id${move}&${SHARED}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(change.name ? { name: change.name } : {}),
+  });
+}
+
 export async function folderLike(name: string, parentId: string): Promise<{ id: string; url: string }> {
   const existing = matchFolder(name, await subfolders(parentId));
   if (existing) return { id: existing.id, url: `https://drive.google.com/drive/folders/${existing.id}` };
@@ -249,18 +259,23 @@ export async function folderLike(name: string, parentId: string): Promise<{ id: 
 // that folder has been organised by hand for years.
 // Where a finished file goes (Abhishek, 26 Nov 2026): the client's folder
 // in Creative Exports; in it, the project's folder, wherever the client keeps
-// it (straight inside, or in a year or month: "2026 / 28. Liberty Mills");
+// it (straight inside, or in a year or month: "2026 / Liberty Mills");
 // in that, the folder for its kind of work (Reels, Full Length, Trailer...),
 // unless the project's folder has no folders in it (then straight in).
-// A project with no folder yet gets one under the client, with Reels, Full
-// Length, Thumbnails and Copy in it. A folder counts for the project only if
+// A project with no folder yet gets one in the client's folder for the year
+// it was made ("2026"), with Reels, Full Length, Thumbnails and Copy in it. A folder counts for the project only if
 // none of the client's other projects fits it better ("Room 101" is Room
 // 101's, not Leadership Room 101's). preview: the path it would take, making
 // nothing.
 export async function exportFolder(
   clientName: string,
   projectName: string,
-  { type = null, others = [], preview = false }: { type?: string | null; others?: string[]; preview?: boolean } = {}
+  {
+    type = null,
+    others = [],
+    year = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }).slice(0, 4),
+    preview = false,
+  }: { type?: string | null; others?: string[]; year?: string; preview?: boolean } = {}
 ): Promise<{ id: string; url: string; path: string }> {
   const s = await driveSettings();
   const root = s[DRIVE_SETTINGS.exportsFolderId];
@@ -291,9 +306,13 @@ export async function exportFolder(
     if (hit) project = { id: hit.id, url: url(hit.id), path: hit.path.trim() };
   }
   if (!project) {
-    const made = await make(projectName, client.id);
+    // a new one goes in its year's folder, made if the client has none yet:
+    // one layout for every client (Abhishek, 26 Nov 2026)
+    const inYear = client.id ? matchFolder(year, await subfolders(client.id)) : null;
+    const yearId = inYear?.id ?? (await make(year, client.id)).id;
+    const made = await make(projectName, yearId);
     if (!preview) for (const name of NEW_PROJECT_FOLDERS) await folder(name, made.id);
-    project = { ...made, path: projectName };
+    project = { ...made, path: `${(inYear?.name ?? year).trim()} / ${projectName}` };
   }
 
   // its kind of work's folder in the project; a project folder with no

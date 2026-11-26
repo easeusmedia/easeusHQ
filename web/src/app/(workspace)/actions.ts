@@ -982,14 +982,16 @@ async function deliveryFolder(taskId: string, preview: boolean) {
       title: true,
       originalTitle: true,
       tags: { select: { name: true } },
-      project: { select: { id: true, name: true, type: true, client: { select: { name: true, projects: { select: { id: true, name: true, type: true } } } } } },
+      project: { select: { id: true, name: true, type: true, createdAt: true, client: { select: { name: true, projects: { select: { id: true, name: true, type: true } } } } } },
     },
   });
   if (!task) return null;
   const { project } = task;
   const type = typesOf(task.tags.map((t) => t.name), task.originalTitle ?? task.title)[0] ?? null;
   const others = project.client.projects.filter((p) => p.id !== project.id).map((p) => p.name || p.type);
-  return exportFolder(project.client.name, project.name || project.type, { type, others, preview });
+  // a new project's folder goes in the year it was made
+  const year = project.createdAt.toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }).slice(0, 4);
+  return exportFolder(project.client.name, project.name || project.type, { type, others, year, preview });
 }
 
 // Copies it, and hands back the Drive link so the delivery can carry it.
