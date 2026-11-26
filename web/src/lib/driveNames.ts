@@ -84,10 +84,6 @@ const TYPE_FOLDERS: [RegExp, string[]][] = [
   [/copy|caption|description/i, ["Copy", "YT Copy", "YouTube Copy"]],
   [/reel/i, ["Reels", "Instagram Reels", "Reel"]],
 ];
-// what a new project's folder starts with (Abhishek: reels, the episode,
-// thumbnails and copy)
-export const NEW_PROJECT_FOLDERS = ["Reels", "Full Length", "Thumbnails", "Copy"];
-
 const typeNames = (type: string) => TYPE_FOLDERS.find(([re]) => re.test(type))?.[1] ?? null;
 
 // Where in a project a kind of work goes: the folder it has for it (by any of

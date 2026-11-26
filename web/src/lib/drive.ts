@@ -1,6 +1,6 @@
 import { createSign } from "crypto";
 import { prisma } from "./prisma";
-import { NEW_PROJECT_FOLDERS, isTypeFolder, matchFolder, projectFolderScore, typeFolder } from "./driveNames";
+import { isTypeFolder, matchFolder, projectFolderScore, typeFolder } from "./driveNames";
 
 // Uploading to the company's Google Drive.
 //
@@ -263,7 +263,9 @@ export async function folderLike(name: string, parentId: string): Promise<{ id: 
 // in that, the folder for its kind of work (Reels, Full Length, Trailer...),
 // unless the project's folder has no folders in it (then straight in).
 // A project with no folder yet gets one in the client's folder for the year
-// it was made ("2026"), with Reels, Full Length, Thumbnails and Copy in it. A folder counts for the project only if
+// it was made ("2026"), holding only what's put in it: a reel makes Reels, a
+// full length makes Full Length (Abhishek, 26 Nov 2026: many clients get no
+// full length or copy). A folder counts for the project only if
 // none of the client's other projects fits it better ("Room 101" is Room
 // 101's, not Leadership Room 101's). preview: the path it would take, making
 // nothing.
@@ -289,6 +291,7 @@ export async function exportFolder(
 
   // the project: in the client's folder, then one level in (years, months)
   let project: { id: string; url: string; path: string } | null = null;
+  let fresh = false;
   if (client.id) {
     const fits = (f: { name: string }) => {
       const score = projectFolderScore(projectName, f.name);
@@ -311,14 +314,15 @@ export async function exportFolder(
     const inYear = client.id ? matchFolder(year, await subfolders(client.id)) : null;
     const yearId = inYear?.id ?? (await make(year, client.id)).id;
     const made = await make(projectName, yearId);
-    if (!preview) for (const name of NEW_PROJECT_FOLDERS) await folder(name, made.id);
     project = { ...made, path: `${(inYear?.name ?? year).trim()} / ${projectName}` };
+    fresh = true;
   }
 
-  // its kind of work's folder in the project; a project folder with no
-  // folders in it holds its files itself (Dr Tego's, one per reel)
-  const existing = project.id ? await subfolders(project.id) : NEW_PROJECT_FOLDERS.map((name) => ({ id: "", name }));
-  const kind = existing.length ? typeFolder(type, existing) : null;
+  // its kind of work's folder in the project, made the first time it's
+  // needed; an older project folder with no folders in it holds its files
+  // itself (Dr Tego's, one per reel)
+  const existing = project.id && !fresh ? await subfolders(project.id) : [];
+  const kind = existing.length || fresh ? typeFolder(type, existing) : null;
   const here = { id: project.id, url: project.url, path: `${base} / ${client.name.trim()} / ${project.path}` };
   if (!kind) return here;
   if ("found" in kind) return { id: kind.found.id, url: url(kind.found.id), path: `${here.path} / ${kind.found.name.trim()}` };
