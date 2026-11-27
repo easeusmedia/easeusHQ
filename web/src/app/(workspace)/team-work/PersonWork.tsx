@@ -106,7 +106,7 @@ export function PeopleWork({ people, today }: { people: { id: string; name: stri
                       key={c.kind + c.id}
                       type="button"
                       onClick={() => show(c)}
-                      className="relative z-[1] flex min-w-0 items-center gap-3 px-2 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+                      className="relative z-[1] flex min-w-0 items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
                     >
                       <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${isLate(c) ? "bg-rose-400/10 text-rose-300" : "bg-accent/10 text-accent"}`}>
                         <Icon size={15} aria-hidden />
@@ -332,20 +332,26 @@ export function PersonWork({
                   className="min-w-0 flex-1 bg-transparent outline-none! placeholder:text-muted/70"
                 />
               </label>
-              <Dropdown
-                pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
-                value={filters.client}
-                placeholder="Client"
-                options={choices.clients.map((c) => ({ value: c, label: c }))}
-                onChange={(client) => narrow({ client })}
-              />
-              <Dropdown
-                pill={{ icon: <Clapperboard size={12} className="text-violet-400" /> }}
-                value={filters.kind}
-                placeholder="Type"
-                options={choices.kinds.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
-                onChange={(kind) => narrow({ kind })}
-              />
+              {/* a filter shows only when it has something to choose between: someone
+                  with only general to-dos gets no Client or Type (Abhishek, 27 Nov 2026) */}
+              {choices.clients.length > 1 && (
+                <Dropdown
+                  pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
+                  value={filters.client}
+                  placeholder="Client"
+                  options={choices.clients.map((c) => ({ value: c, label: c }))}
+                  onChange={(client) => narrow({ client })}
+                />
+              )}
+              {choices.kinds.length > 1 && (
+                <Dropdown
+                  pill={{ icon: <Clapperboard size={12} className="text-violet-400" /> }}
+                  value={filters.kind}
+                  placeholder="Type"
+                  options={choices.kinds.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
+                  onChange={(kind) => narrow({ kind })}
+                />
+              )}
               <Dropdown
                 pill={{ icon: <Clock size={12} className="text-amber-400" /> }}
                 value={filters.timing}
