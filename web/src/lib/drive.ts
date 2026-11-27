@@ -394,6 +394,31 @@ export async function driveFileName(id: string): Promise<string> {
   return file.name as string;
 }
 
+// Where a Drive link's file sits: its folders from Creative Exports (or the
+// top of the Drive) down, "Creative Exports / Elle Sera / 2026 / November /
+// Sarah Jayne Dunn / Reels". A folder link ends with that folder. A folder
+// shared from someone else's Drive shows no parents and is where it starts.
+// Null when it isn't a Drive link or Drive won't say (Abhishek, 27 Nov 2026).
+export async function driveLocation(link: string): Promise<string | null> {
+  const id = /(drive|docs)\.google\.com/.test(link) ? link.match(/[-\w]{25,}/)?.[0] : undefined;
+  if (!id) return null;
+  type Item = { id: string; name: string; mimeType: string; parents?: string[] };
+  const get = (fid?: string): Promise<Item | null> =>
+    fid ? driveFetch(`drive/v3/files/${fid}?fields=id,name,mimeType,parents&${SHARED}`, { method: "GET" }).catch(() => null) : Promise.resolve(null);
+  // "root" is the account's own My Drive, which isn't a folder anyone files into
+  const [top, root, item] = await Promise.all([driveSettings().then((s) => s[DRIVE_SETTINGS.exportsFolderId]), get("root"), get(id)]);
+  if (!item) return null;
+  const names: string[] = [];
+  let at = item.mimeType === "application/vnd.google-apps.folder" ? item : await get(item.parents?.[0]);
+  // ten folders up at most; a folder Drive won't show ends the path there
+  for (let i = 0; at && at.id !== root?.id && i < 10; i++) {
+    names.unshift(at.name);
+    if (at.id === top || !at.parents?.length) break;
+    at = await get(at.parents[0]);
+  }
+  return names.length ? names.join(" / ") : null;
+}
+
 // A file's bytes as Drive streams them (a tracked PDF to its viewer)
 export async function downloadFile(id: string): Promise<Response> {
   return fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&${SHARED}`, { headers: { Authorization: `Bearer ${await accessToken()}` } });

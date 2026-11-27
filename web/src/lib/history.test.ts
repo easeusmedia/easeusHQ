@@ -114,13 +114,19 @@ test("Team work: work starts at its first move into Editing, else its first move
   assert.equal(startOf([{ action: "queued → delivered_and_uploaded", at: h(70) }], h(-1)).getTime(), h(-1).getTime());
 });
 
-test("Team work: turnaround reads in days, or hours under a day", () => {
+test("Team work: a span reads exactly, in minutes, hours and minutes, or days and hours", () => {
   const H = 3_600_000;
-  assert.equal(spanLabel(20 * 60_000), "Under 1 h");
+  const M = 60_000;
+  assert.equal(spanLabel(20_000), "Under 1 min");
+  assert.equal(spanLabel(41 * M), "41 min");
+  assert.equal(spanLabel(59.6 * M), "1 h");
   assert.equal(spanLabel(5 * H), "5 h");
-  assert.equal(spanLabel(23.6 * H), "1 day");
-  assert.equal(spanLabel(3 * 24 * H + 2 * H), "3 days");
-  assert.equal(spanLabel(-H), "Under 1 h");
+  assert.equal(spanLabel(5 * H + 29 * M), "5 h 29 min");
+  assert.equal(spanLabel(21 * H + 42 * M), "21 h 42 min");
+  assert.equal(spanLabel(23 * H + 59.7 * M), "1 day");
+  assert.equal(spanLabel(27.9 * H), "1 day 4 h");
+  assert.equal(spanLabel(3 * 24 * H + 2 * H), "3 days 2 h");
+  assert.equal(spanLabel(-H), "Under 1 min");
 });
 
 test("Team work: finished work pages newest first and counts what a range of days holds", () => {

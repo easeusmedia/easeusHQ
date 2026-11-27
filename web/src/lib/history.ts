@@ -223,13 +223,16 @@ export function startOf(trail: { action: string; at: Date }[], createdAt: Date):
   return (moves.find((m) => m.to === "editing") ?? moves[0])?.at ?? createdAt;
 }
 
-// How long something took: "3 days", or "5 h" under a day
+// How long something took, exactly: "41 min", "5 h 29 min", "2 days 3 h"
+// (Abhishek, 27 Nov 2026: "Under 1 h" said nothing about the gap)
 export function spanLabel(ms: number): string {
-  const hours = Math.max(0, ms) / HOUR;
-  if (hours < 1) return "Under 1 h";
-  if (Math.round(hours) < 24) return `${Math.round(hours)} h`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"}`;
+  const mins = Math.round(Math.max(0, ms) / 60_000);
+  if (mins < 1) return "Under 1 min";
+  if (mins < 60) return `${mins} min`;
+  if (mins < 24 * 60) return `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}`;
+  const hours = Math.round(mins / 60);
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}${hours % 24 ? ` ${hours % 24} h` : ""}`;
 }
 
 // One finished task, as the list of someone's finished work is paged

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Clapperboard, ExternalLink, ListTodo, Palette } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clapperboard, ExternalLink, ListTodo, Palette } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
 import { Avatar } from "../TaskCard";
 import { DatePicker } from "../DatePicker";
@@ -30,7 +30,16 @@ const THIS_YEAR = dayOf(new Date()).slice(0, 4);
 const dayLabel = (ymd: string) => (ymd.startsWith(THIS_YEAR) ? shortDay(ymd) : `${shortDay(ymd)} ${ymd.slice(0, 4)}`);
 const day = (iso: string) => dayLabel(dayOf(new Date(iso)));
 // "3 Oct, 11:30 AM", in India
-const when = (iso: string) => `${day(iso)}, ${new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).toUpperCase()}`;
+const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).toUpperCase();
+const when = (iso: string) => `${day(iso)}, ${clock(iso)}`;
+// A stage's stay, "20 Nov, 1:48 PM to 4:56 PM", "to 27 Nov, 3:00 PM" on
+// another day, "to now" for the stage it's in; one moment when it moved on
+// within the minute (Abhishek, 27 Nov 2026: the bare duration read as nothing)
+function stay(from: string, to: string | null): string {
+  if (to === null) return `${when(from)} to now`;
+  if (when(to) === when(from)) return when(from);
+  return `${when(from)} to ${day(to) === day(from) ? clock(to) : when(to)}`;
+}
 
 // Turnaround: start to finish, for finished work only (Abhishek, 26 Oct
 // 2026: a running count on open work read as a meaningless number)
@@ -465,16 +474,73 @@ function Note({ label, text }: { label: string; text: string }) {
   return (
     <div className="mt-5">
       <p className="mb-1 text-xs font-medium text-muted">{label}</p>
-      <p className="whitespace-pre-wrap rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm">{text}</p>
+      <p className="whitespace-pre-wrap rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm [overflow-wrap:anywhere]">{text}</p>
     </div>
   );
 }
 
 function LinkButton({ label, url }: { label: string; url: string }) {
   return (
-    <a href={url} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost flex items-center gap-1.5">
+    // solid, so it doesn't blend into the window (Abhishek, 27 Nov 2026)
+    <a href={url} target="_blank" rel="noreferrer" className="btn btn-sm btn-glow flex items-center gap-1.5">
       {label} <ExternalLink size={11} />
     </a>
+  );
+}
+
+// Each time a date moved, as a trail like the stages: the old day struck
+// through and the new one, why, who moved it and when (Abhishek, 27 Nov 2026)
+type Change = { what?: string; from: string | null; to: string | null; reason?: string; by: string; at: string };
+function Changes({ title, changes, date }: { title: string; changes: Change[]; date: (v: string) => string }) {
+  if (!changes.length) return null;
+  return (
+    <div className="mt-5">
+      <p className="mb-2 text-xs font-medium text-muted">{title}</p>
+      <ol className="panel-soft flex flex-col rounded-xl p-4">
+        {changes.map((d, i) => {
+          const last = i === changes.length - 1;
+          return (
+            <li key={i} className={`relative flex gap-3 ${last ? "" : "pb-4"}`}>
+              {!last && <span className="absolute bottom-0 left-[9px] top-6 w-px bg-gradient-to-b from-white/15 to-white/[0.04]" />}
+              <span className="relative mt-0.5 flex size-[19px] shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.04]">
+                <span className="size-1.5 rounded-full bg-white/40" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm tabular-nums">
+                    {d.what && <span className="text-muted">{d.what}</span>}
+                    {/* the same date both sides: done already, ticked off late (FrozenTasks) */}
+                    {d.from && d.from === d.to ? (
+                      <span>Ticked off late</span>
+                    ) : d.to ? (
+                      <>
+                        {d.from ? (
+                          <>
+                            <span className="text-muted line-through decoration-white/30">{date(d.from)}</span>
+                            <ArrowRight size={12} className="text-muted" />
+                          </>
+                        ) : (
+                          <span className="text-muted">{d.what ? "set to" : "Set to"}</span>
+                        )}
+                        <span>{date(d.to)}</span>
+                      </>
+                    ) : (
+                      <span>{d.what ? "removed" : "Removed"}</span>
+                    )}
+                  </p>
+                  <span className="shrink-0 pt-0.5 text-xs tabular-nums text-muted">{when(d.at)}</span>
+                </div>
+                {d.reason && <p className="mt-1 text-sm text-foreground/85 [overflow-wrap:anywhere]">{d.reason}</p>}
+                <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <Avatar name={d.by} size={16} presence={false} />
+                  <span className="truncate">{d.by}</span>
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -495,6 +561,19 @@ function TaskOverview({ card, canDelete, close, onDeleted, preloaded }: { card: 
       live = false;
     };
   }, [kind, id, preloaded]);
+  // where its Final Drive file sits, asked of Drive once it's open (Abhishek, 27 Nov 2026)
+  // undefined while Drive is being asked
+  const [where, setWhere] = useState<string | null | undefined>(undefined);
+  const hasDrive = data?.kind === "task" && !!data.drive;
+  useEffect(() => {
+    if (!hasDrive) return;
+    const stop = new AbortController();
+    fetch(`/api/drive-where?task=${encodeURIComponent(id)}`, { signal: stop.signal })
+      .then((r) => r.json())
+      .then((r: { where: string | null }) => setWhere(r.where))
+      .catch((e) => e?.name !== "AbortError" && setWhere(null));
+    return () => stop.abort();
+  }, [id, hasDrive]);
 
   const facts =
     data?.kind === "task"
@@ -543,8 +622,19 @@ function TaskOverview({ card, canDelete, close, onDeleted, preloaded }: { card: 
             {data.kind === "task" ? (
               <>
                 {data.drive && (
-                  <div className="mt-5 flex">
+                  <div className="mt-5 flex flex-col items-start">
                     <LinkButton label="Final Drive" url={data.drive} />
+                    {where === undefined ? (
+                      <Bone className="mx-3.5 mt-2.5 h-3 w-72 max-w-[calc(100%_-_1.75rem)]" />
+                    ) : (
+                      where && (
+                        <div className="open-down w-full">
+                          <div className="min-h-0 overflow-hidden">
+                            <p className="px-3.5 pt-1.5 text-xs break-words text-muted">{where}</p>
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
                 <div className="mt-5">
@@ -565,7 +655,8 @@ function TaskOverview({ card, canDelete, close, onDeleted, preloaded }: { card: 
                               <span className={`inline-flex rounded-full border px-2 py-px text-xs font-medium ${stage?.pill ?? "border-border"}`}>
                                 {stage ? stageLabel(p.stage as TaskStatus, data.workflow) : p.stage}
                               </span>
-                              {p.ms !== null && (
+                              {/* how long it stayed; nothing when it moved on within the minute */}
+                              {p.ms !== null && p.ms >= 60_000 && (
                                 <span className="shrink-0 pt-0.5 text-xs tabular-nums text-muted">
                                   {spanLabel(p.ms)}
                                   {last && " so far"}
@@ -573,7 +664,7 @@ function TaskOverview({ card, canDelete, close, onDeleted, preloaded }: { card: 
                               )}
                             </div>
                             <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                              <span className="shrink-0 tabular-nums">{when(p.at)}</span>
+                              <span className="shrink-0 tabular-nums">{p.ms === null ? when(p.at) : stay(p.at, last ? null : data.phases[i + 1].at)}</span>
                               {p.by ? (
                                 <>
                                   <span>·</span>
@@ -596,55 +687,16 @@ function TaskOverview({ card, canDelete, close, onDeleted, preloaded }: { card: 
                     })}
                   </ol>
                 </div>
+                {/* its due date, each time it moved and why (Abhishek, 27 Nov 2026) */}
+                <Changes title="Due date changes" changes={data.dueChanges} date={day} />
                 {/* its file's draft and delivery dates, each time they moved (Abhishek, 23 Nov 2026) */}
-                {data.dates.length > 0 && (
-                  <div className="mt-5">
-                    <p className="mb-2 text-xs font-medium text-muted">Date changes</p>
-                    <ul className="flex flex-col gap-2">
-                      {data.dates.map((d, i) => {
-                        const what = d.kind === "draft" ? "Draft date" : "Delivery date";
-                        return (
-                          <li key={i} className="rounded-xl border border-border/70 bg-white/[0.02] px-3 py-2.5">
-                            <p className="text-sm">
-                              {d.to ? `${what} ${d.from ? `moved from ${dayLabel(d.from)} to` : "set to"} ${dayLabel(d.to)}` : `${what} removed`}
-                            </p>
-                            <p className="mt-1 text-xs text-muted">
-                              {d.by}, {when(d.at)}
-                            </p>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
+                <Changes title="Date changes" changes={data.dates.map((d) => ({ ...d, what: d.kind === "draft" ? "Draft date" : "Delivery date" }))} date={dayLabel} />
                 {data.notes && <Note label="Brief" text={data.notes} />}
                 {data.reviewNotes && <Note label="Last revision note" text={data.reviewNotes} />}
               </>
             ) : (
               <>
-                {data.dates.length > 0 && (
-                  <div className="mt-5">
-                    <p className="mb-2 text-xs font-medium text-muted">Due date changes</p>
-                    <ul className="flex flex-col gap-2">
-                      {data.dates.map((d, i) => (
-                        <li key={i} className="rounded-xl border border-border/70 bg-white/[0.02] px-3 py-2.5">
-                          <p className="text-sm">
-                            {/* the same date both sides: done already, ticked off late (FrozenTasks) */}
-                            {d.from && d.from === d.to
-                              ? "Ticked off late"
-                              : d.to
-                                ? `${d.from ? `Moved from ${day(d.from)} to` : "Set to"} ${day(d.to)}`
-                                : "Due date removed"}
-                          </p>
-                          {d.reason && <p className="mt-0.5 text-sm text-muted">{d.reason}</p>}
-                          <p className="mt-1 text-xs text-muted">
-                            {d.by}, {when(d.at)}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <Changes title="Due date changes" changes={data.dates} date={day} />
                 {data.notes && <Note label="Notes" text={data.notes} />}
                 {data.links.length > 0 && (
                   <div className="mt-5">

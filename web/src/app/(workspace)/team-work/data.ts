@@ -203,6 +203,8 @@ export type Overview =
       phases: { stage: string; at: string; by: string | null; ms: number | null }[];
       // its file's draft and delivery dates, each time they moved (lib/stages dateChangeAction)
       dates: { kind: DateKind; from: string | null; to: string | null; by: string; at: string }[];
+      // its due date, each time it moved and why (TaskDateChange)
+      dueChanges: { from: string | null; to: string | null; reason: string; by: string; at: string }[];
     }
   | {
       kind: "work";
@@ -216,10 +218,11 @@ export type Overview =
 
 export async function overview(ref: { kind: "task" | "work"; id: string }, now = new Date()): Promise<Overview | null> {
   if (ref.kind === "task") {
-    const [t, logs, dateLogs] = await Promise.all([
+    const [t, logs, dateLogs, record] = await Promise.all([
       prisma.task.findUnique({ where: { id: ref.id }, select: { status: true, workflow: true, createdAt: true, createdById: true, dueDate: true, driveLink: true, editingNotes: true, reviewNotes: true } }),
       prisma.activityLog.findMany({ where: { entity: "Task", entityId: ref.id, action: { contains: " → " } }, select: { action: true, createdAt: true, actor: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
       prisma.activityLog.findMany({ where: { entity: "Task", entityId: ref.id, action: { startsWith: "date:" } }, select: { action: true, createdAt: true, actor: { select: { name: true } } }, orderBy: { createdAt: "asc" } }),
+      taskRecord({ kind: "task", id: ref.id }),
     ]);
     if (!t) return null;
     // who made it, for the first stage (Abhishek, 21 Nov 2026)
@@ -243,6 +246,7 @@ export async function overview(ref: { kind: "task" | "work"; id: string }, now =
         const d = parseDateChange(l.action);
         return d ? [{ ...d, by: l.actor.name, at: l.createdAt.toISOString() }] : [];
       }),
+      dueChanges: record.dates.map(({ from, to, reason, by, at }) => ({ from, to, reason, by, at })),
     };
   }
   const [t, record] = await Promise.all([
