@@ -123,6 +123,11 @@ test("each kind of work goes in its own folder in the project", () => {
   assert.equal(at("YouTube Long-Form", [{ name: "Full Length Epidose" }]), "Full Length Epidose");
   assert.equal(at("Reel", [{ name: "Instagram Reels " }, { name: "Youtube Reels" }]), "Instagram Reels ");
   assert.equal(at("Reel", []), "make Reels");
+  // a reel's thumbnail folder is never its reels' folder (Dr Tego's "Reel 37 - Thumbnail")
+  assert.equal(at("Reel", [{ name: "Reel 37 - Thumbnail" }]), "make Reels");
+  assert.equal(at("Thumbnails", [{ name: "Reel 37 - Thumbnail" }]), "Reel 37 - Thumbnail");
+  assert.equal(at("Reel", [{ name: "Reels W/ Cover" }]), "Reels W/ Cover");
+  assert.equal(at("Reel Trailer", [{ name: "Trailer (Reel Format)" }]), "Trailer (Reel Format)");
   assert.equal(at(null), null);
   assert.equal(isTypeFolder("Reels"), true);
   assert.equal(isTypeFolder("Liberty Mills"), false);

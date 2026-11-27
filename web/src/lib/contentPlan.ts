@@ -31,6 +31,8 @@ export const DEFAULT_PLAN: PlanItem[] = [
   { type: "Bonus Reel", count: 0, startDay: 7, endDay: 8 },
   { type: "Thumbnails", count: 1, startDay: 0, endDay: 7 },
   { type: "Audio", count: 1, startDay: 0, endDay: 7 },
+  // only for a client who lists it in their Deliverables (planFromDeliverables)
+  { type: "YouTube Copy", count: 0, startDay: 0, endDay: 7 },
 ];
 
 const int = (v: unknown, min: number, max: number, fallback: number) =>
@@ -116,6 +118,7 @@ export const DELIVERABLE_LABEL: Record<string, string> = {
   "Bonus Reel": "Bonus reel",
   Thumbnails: "Thumbnail",
   Audio: "Audio",
+  "YouTube Copy": "YouTube copy",
 };
 
 // A new project's deliverables, one placeholder each, named after the
@@ -138,4 +141,31 @@ export function planDeliverables(
     const label = DELIVERABLE_LABEL[t.type] ?? t.type;
     return { name: `${projectName} ${label}${counts[t.type] > 1 ? ` ${n}` : ""}`, type: t.type, due: t.due };
   });
+}
+
+// What a new project gets follows the client's own Deliverables list
+// (Abhishek, 27 Nov 2026: whatever is in their deliverables is always on a
+// new project): a kind of file listed there gets its blueprint's number
+// (else the number in its detail, "6 per podcast episode", else one); a kind
+// not listed gets none. Services (SEO, channel management, analytics) make
+// no file. A client with no list, or none of its kinds in it, keeps the plan.
+const LISTED: [RegExp, string][] = [
+  [/trailer/i, "Reel Trailer"],
+  [/bonus/i, "Bonus Reel"],
+  [/long[- ]?form|full[- ]?length|episode/i, "YouTube Long-Form"],
+  [/thumbnail/i, "Thumbnails"],
+  [/\baudio\b|spotify/i, "Audio"],
+  [/\bcopy\b|description/i, "YouTube Copy"],
+  [/\breels?\b|short[- ]?form|clips?\b/i, "Reel"],
+];
+export function planFromDeliverables(plan: PlanItem[], listed: { name: string; detail: string | null }[]): PlanItem[] {
+  const found = new Map<string, number | null>();
+  for (const d of listed) {
+    const type = LISTED.find(([re]) => re.test(d.name))?.[1];
+    if (!type || found.has(type)) continue;
+    const n = Number(d.detail?.match(/\b(\d{1,2})\b/)?.[1] ?? NaN);
+    found.set(type, n > 0 ? n : null);
+  }
+  if (!found.size) return plan;
+  return plan.map((p) => (found.has(p.type) ? { ...p, count: p.count > 0 ? p.count : (found.get(p.type) ?? 1) } : { ...p, count: 0 }));
 }

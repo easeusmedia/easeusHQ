@@ -14,7 +14,7 @@ import { DEFAULT_DELIVERABLES, DEFAULT_DOCS, DEFAULT_ONBOARDING, DEFAULT_TAGS, t
 import { Prisma, type BillingCadence, type InvoiceStatus } from "@prisma/client";
 import { clientBatches, closeGaps, pinsAfterMove, sizesAfterChange } from "@/lib/invoiceBatches";
 import { PROJECT_ORDER, placeProject } from "@/lib/projectOrder";
-import { TYPE_TAG, planDeliverables, planFor, planTasks } from "@/lib/contentPlan";
+import { TYPE_TAG, planDeliverables, planFor, planFromDeliverables, planTasks } from "@/lib/contentPlan";
 import { linkDeliverables } from "@/lib/deliverableLink";
 import { instagramUsername, youtubeRef } from "@/lib/analytics";
 import { withUndo } from "@/lib/undo";
@@ -962,13 +962,13 @@ export async function createProject(
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: { projects: { take: 1, orderBy: { createdAt: "asc" } } },
+    include: { projects: { take: 1, orderBy: { createdAt: "asc" } }, deliverables: { select: { name: true, detail: true } } },
   });
   if (!client) return { error: "Client not found." };
 
   // its deliverables, one placeholder each ("Pip Jamison Reel 1"), with no
   // delivery or draft date: the team sets those by hand (Abhishek, 26 Nov 2026)
-  const plan = planFor(client.contentPlan);
+  const plan = planFromDeliverables(planFor(client.contentPlan), client.deliverables);
   const types = deliverableTypes ?? plan.filter((p) => p.count > 0).map((p) => p.type);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(planFrom ?? "") ? planFrom! : new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
   const until = planUntil && /^\d{4}-\d{2}-\d{2}$/.test(planUntil) && planUntil > day ? planUntil : undefined;

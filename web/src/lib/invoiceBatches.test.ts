@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { batchPayment, clientBatches, closeGaps, invoiceBatches, newBatchKey, pinsAfterMove, sizesAfterChange } from "./invoiceBatches.ts";
+import { batchPayment, clientBatches, closeGaps, invoiceBatches, newBatchKey, pinsAfterMove, sizesAfterChange, driveBatchOf } from "./invoiceBatches.ts";
 
 const p = (id: string, date: string) => ({ id, date });
 
@@ -151,4 +151,24 @@ test("a new number per batch: earlier batches keep their size, the open one and 
   assert.equal(after[0].detail, "2 of 6 done");
   // lowered again later: what was made stays, only the open batch on changes
   assert.deepEqual(sizesAfterChange(six, after, 3), [[1, 4], [3, 6], [4, 3]]);
+});
+
+test("a project's place in Drive: Year / Batch, by month or by number, or just its year", () => {
+  const made = (iso: string) => new Date(`${iso}T06:00:00Z`);
+  const projects = [
+    { id: "a", status: "completed", completedAt: made("2026-11-10"), createdAt: made("2026-10-20"), invoiceBatch: null },
+    { id: "b", status: "completed", completedAt: made("2026-11-12"), createdAt: made("2026-11-01"), invoiceBatch: null },
+    { id: "c", status: "in_progress", completedAt: null, createdAt: made("2026-11-20"), invoiceBatch: null },
+  ];
+  const today = "2026-11-26";
+  // by month: the month it's billed in, in that month's year
+  const monthly = { rule: { cadence: "monthly_date" as const, dayOfMonth: 30, every: null }, names: null, projects };
+  assert.deepEqual(driveBatchOf("a", monthly, today), { year: "2026", batch: "November" });
+  // by number: its batch's name, or the name it was given
+  const numbered = { rule: { cadence: "milestone" as const, dayOfMonth: null, every: 2 }, names: null, projects };
+  assert.deepEqual(driveBatchOf("a", numbered, today), { year: "2026", batch: "Batch 1" });
+  assert.deepEqual(driveBatchOf("c", numbered, today), { year: "2026", batch: "Batch 2" });
+  assert.deepEqual(driveBatchOf("a", { ...numbered, names: { "batch-1": "26th September - 19th November" } }, today), { year: "2026", batch: "26th September - 19th November" });
+  // no batching: just its year
+  assert.deepEqual(driveBatchOf("a", { rule: { cadence: null, dayOfMonth: null, every: null }, names: null, projects }, today), { year: "2026", batch: null });
 });

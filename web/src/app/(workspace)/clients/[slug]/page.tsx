@@ -22,7 +22,7 @@ import { ProjectsSection } from "../ProjectsSection";
 import { ClientAnalytics } from "../ClientAnalytics";
 import { apifyTokens } from "@/lib/apify";
 import { socialLink } from "@/lib/analytics";
-import { planFor } from "@/lib/contentPlan";
+import { planFor, planFromDeliverables } from "@/lib/contentPlan";
 import { PROJECT_ORDER, billingOrder } from "@/lib/projectOrder";
 
 import { StatusDropdown } from "../StatusDropdown";
@@ -142,7 +142,8 @@ export default async function ClientDetailPage({
   const completed = client.projects.filter((p) => p.status === "completed");
   const live = client.projects.filter((p) => p.status !== "completed");
   const tasksPerProject = new Map(taskCounts.map((r) => [r.projectId, r._count._all]));
-  const plan = planFor(client.contentPlan);
+  // what a new project gets: the client's own Deliverables list (lib/contentPlan planFromDeliverables)
+  const plan = planFromDeliverables(planFor(client.contentPlan), client.deliverables);
   const scraping = tokens.length > 0;
 
   const projectCards = client.projects.map((p) => ({

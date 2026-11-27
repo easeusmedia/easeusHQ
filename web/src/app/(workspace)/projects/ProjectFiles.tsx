@@ -61,6 +61,7 @@ function typeKind(type: string) {
   if (t.includes("thumb")) return "Thumbnail";
   if (t.includes("carousel")) return "Carousel";
   if (t.includes("audio")) return "Audio";
+  if (t.includes("copy")) return "Copy";
   if (t === "misc.") return "Other";
   return type;
 }
@@ -69,6 +70,7 @@ function typeKind(type: string) {
 function iconFor(type: string, name: string) {
   if (/thumb/i.test(type) || /thumb/i.test(name)) return ImageIcon;
   if (/audio/i.test(type)) return AudioLines;
+  if (/copy/i.test(type)) return FileText;
   if (type === "Misc.") {
     if (/audio|\.(mp3|wav|m4a)$/i.test(name)) return AudioLines;
     if (/copy|script|caption|doc|brief/i.test(name)) return FileText;

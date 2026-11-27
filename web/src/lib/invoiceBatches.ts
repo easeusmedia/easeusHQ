@@ -261,3 +261,28 @@ export function pinsAfterMove(
     rule.cadence === "milestone" ? Object.fromEntries(batches.flatMap((b) => b.ids.map((id) => [id, b.key]))) : {};
   return { ...frozen, [projectId]: key };
 }
+
+// Where a project sits in Drive between its client and its own folder
+// (Abhishek, 26 Nov 2026): Client / Year / Batch / Project. A client batched
+// by month has its month ("November", in that month's year); one batched by
+// number has its batch's name ("Batch 3", or the name it was given, Dr
+// Tego's "26th September - 19th November"), in the year the project was
+// made. No batching, or a project in no batch: just its year.
+export function driveBatchOf(
+  projectId: string,
+  client: {
+    rule: BillingRule;
+    names: Record<string, string> | null;
+    projects: { id: string; status: string; completedAt: Date | null; createdAt: Date; invoiceBatch: string | null }[];
+  },
+  today: string,
+): { year: string; batch: string | null } {
+  const project = client.projects.find((p) => p.id === projectId);
+  const made = (project?.createdAt ?? new Date(`${today}T00:00:00Z`)).toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }).slice(0, 4);
+  if (!client.rule.cadence || !project) return { year: made, batch: null };
+  const b = clientBatches(client.projects, client.rule, today).find((x) => x.ids.includes(projectId));
+  if (!b) return { year: made, batch: null };
+  const named = client.names?.[b.key]?.trim();
+  if (MONTH_KEY.test(b.key)) return { year: b.key.slice(0, 4), batch: named || MONTH_NAMES[Number(b.key.slice(5, 7)) - 1] };
+  return { year: made, batch: named || b.label };
+}

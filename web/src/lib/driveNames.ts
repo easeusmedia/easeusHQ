@@ -84,18 +84,27 @@ const TYPE_FOLDERS: [RegExp, string[]][] = [
   [/copy|caption|description/i, ["Copy", "YT Copy", "YouTube Copy"]],
   [/reel/i, ["Reels", "Instagram Reels", "Reel"]],
 ];
-const typeNames = (type: string) => TYPE_FOLDERS.find(([re]) => re.test(type))?.[1] ?? null;
+const kindOf = (text: string) => TYPE_FOLDERS.findIndex(([re]) => re.test(text));
+// the kind of work a folder holds: by its names, else by the first kind its
+// name says ("Reel 37 - Thumbnail" holds a thumbnail, "Full Length Epidose"
+// the full length, "Reels W/ Cover" reels)
+const folderKind = (name: string) => {
+  const n = normalizeFolderName(name);
+  const exact = TYPE_FOLDERS.findIndex(([, names]) => names.some((x) => normalizeFolderName(x) === n));
+  return exact >= 0 ? exact : kindOf(name);
+};
 
 // Where in a project a kind of work goes: the folder it has for it (by any of
-// its names, then one that starts with one: "Full Length Epidose"), else the
-// name to make. Null for work of no kind we know: the project folder itself.
+// its names first), else the name to make. Null for work of no kind we know:
+// the project folder itself.
 export function typeFolder<T extends { name: string }>(type: string | null, existing: T[]): { found: T } | { make: string } | null {
-  const names = type ? typeNames(type) : null;
-  if (!names) return null;
+  const k = type ? kindOf(type) : -1;
+  if (k < 0) return null;
+  const names = TYPE_FOLDERS[k][1];
   const wanted = names.map(normalizeFolderName);
   const found =
     existing.find((f) => wanted.includes(normalizeFolderName(f.name))) ??
-    existing.find((f) => wanted.some((w) => normalizeFolderName(f.name).startsWith(`${w} `)));
+    existing.find((f) => folderKind(f.name) === k);
   return found ? { found } : { make: names[0] };
 }
 
@@ -120,6 +129,7 @@ const KIND_LABEL: [RegExp, string][] = [
   [/thumbnail/i, "Thumbnail"],
   [/audio/i, "Audio"],
   [/carousel/i, "Carousel"],
+  [/copy|description/i, "Copy"],
   [/reel/i, "Reel"],
 ];
 // words that say what a file is or how it was made, never its topic (an editor's export is often "Sequence 01" or "export final v2")

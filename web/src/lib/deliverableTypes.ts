@@ -3,7 +3,8 @@
 // per-client, so creating a project applies the identical structure
 // regardless of which client or who's setting it up.
 // Audio: the episode's processed audio, for Spotify and the other podcast apps
-export const DELIVERABLE_TYPES = ["YouTube Long-Form", "Reel Trailer", "Reel", "Bonus Reel", "Thumbnails", "Audio"] as const;
+// YouTube Copy: the title, description and tags written for the episode (Abhishek, 27 Nov 2026)
+export const DELIVERABLE_TYPES = ["YouTube Long-Form", "Reel Trailer", "Reel", "Bonus Reel", "Thumbnails", "Audio", "YouTube Copy"] as const;
 
 // Sort order for a project's Files section — "Misc." is the catch-all
 // bucket for anything that doesn't fit one of the real deliverable types

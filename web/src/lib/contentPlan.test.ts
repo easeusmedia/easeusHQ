@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PLAN, planDeliverables, planFor, planTasks } from "./contentPlan.ts";
+import { DEFAULT_PLAN, planDeliverables, planFor, planFromDeliverables, planTasks } from "./contentPlan.ts";
 
 test("delivered a week on: made on the 1st, the trailer the 7th, the long-form the 8th, the reels the 8th and 9th", () => {
   const tasks = planTasks(DEFAULT_PLAN, ["YouTube Long-Form", "Reel Trailer", "Reel"], "Podcast 30", "2026-10-01");
@@ -35,7 +35,7 @@ test("a type the project doesn't have, or the client doesn't get, plans nothing"
 
 test("a saved plan is cleaned up, and an older one read as ranges", () => {
   const plan = planFor([{ type: "Reel", count: 99, startDay: -4, endDay: -9 }, { type: "Nonsense", count: 3 }, null]);
-  assert.equal(plan.length, 6);
+  assert.equal(plan.length, 7); // one row per type, YouTube Copy included
   assert.deepEqual(plan.find((p) => p.type === "Reel"), { type: "Reel", count: 30, startDay: 0, endDay: 0 });
   assert.deepEqual(planFor(undefined), DEFAULT_PLAN);
   // "6 reels, first on day 5, then every 2 days" was days 5 to 15
@@ -57,4 +57,24 @@ test("every picked deliverable is a placeholder: the audio with the long-form, a
       ["Pip Jamison Bonus reel", "2026-10-09"],
     ]
   );
+});
+
+test("a new project gets what the client's Deliverables list has, and nothing it doesn't", () => {
+  const listed = [
+    { name: "Trailers", detail: "1 per episode" },
+    { name: "Short-form clips", detail: "6 per podcast episode" },
+    { name: "SEO optimisation", detail: "For all episodes" },
+    { name: "Thumbnails", detail: "Custom thumbnails for all content" },
+    { name: "Channel management & distribution", detail: "YouTube, TikTok, Instagram" },
+    { name: "Podcast episodes", detail: "2 long-form episodes per cycle" },
+    { name: "YouTube Copy", detail: null },
+  ];
+  const plan = planFromDeliverables(DEFAULT_PLAN, listed);
+  const counts = Object.fromEntries(plan.map((p) => [p.type, p.count]));
+  assert.deepEqual(counts, { "YouTube Long-Form": 1, "Reel Trailer": 1, Reel: 6, "Bonus Reel": 0, Thumbnails: 1, Audio: 0, "YouTube Copy": 1 });
+  const names = planDeliverables(plan, plan.filter((p) => p.count > 0).map((p) => p.type), "abcd", "2026-11-27").map((d) => d.name);
+  assert.ok(names.includes("abcd YouTube copy"));
+  assert.ok(!names.some((n) => /audio/i.test(n)));
+  // no list: the plan as it was
+  assert.deepEqual(planFromDeliverables(DEFAULT_PLAN, []), DEFAULT_PLAN);
 });

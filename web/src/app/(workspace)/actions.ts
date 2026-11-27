@@ -20,6 +20,7 @@ import { isLetter, needsGrade } from "@/lib/videoScore";
 import { refreshVideoScores } from "@/lib/videoScores";
 import { exportFolder, fileNames, uploadFromUrl } from "@/lib/drive";
 import { deliveryFileName } from "@/lib/driveNames";
+import { driveBatchOf } from "@/lib/invoiceBatches";
 import { typesOf } from "@/lib/deliverableMatch";
 import { redirect } from "next/navigation";
 import { normalizeUrl } from "@/lib/links";
@@ -984,16 +985,39 @@ async function deliveryFolder(taskId: string, preview: boolean) {
       title: true,
       originalTitle: true,
       tags: { select: { name: true } },
-      project: { select: { id: true, name: true, type: true, createdAt: true, client: { select: { name: true, projects: { select: { id: true, name: true, type: true } } } } } },
+      project: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          createdAt: true,
+          client: {
+            select: {
+              name: true,
+              billingCadence: true,
+              billingDayOfMonth: true,
+              billingMilestoneCount: true,
+              billingSizes: true,
+              invoiceNames: true,
+              projects: { select: { id: true, name: true, type: true, status: true, completedAt: true, createdAt: true, invoiceBatch: true } },
+            },
+          },
+        },
+      },
     },
   });
   if (!task) return null;
   const { project } = task;
   const type = typesOf(task.tags.map((t) => t.name), task.originalTitle ?? task.title)[0] ?? null;
   const others = project.client.projects.filter((p) => p.id !== project.id).map((p) => p.name || p.type);
-  // a new project's folder goes in the year it was made
-  const year = project.createdAt.toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }).slice(0, 4);
-  const folder = await exportFolder(project.client.name, project.name || project.type, { type, others, year, preview });
+  // a new project's folder goes in its year, then its batch if the client batches (by month or by number)
+  const c = project.client;
+  const { year, batch } = driveBatchOf(
+    project.id,
+    { rule: { cadence: c.billingCadence, dayOfMonth: c.billingDayOfMonth, every: c.billingMilestoneCount, sizes: c.billingSizes }, names: (c.invoiceNames ?? null) as Record<string, string> | null, projects: c.projects },
+    new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }),
+  );
+  const folder = await exportFolder(project.client.name, project.name || project.type, { type, others, year, batch, preview });
   // what a file is saved as there ("Reel 6 - Libido.mp4", lib/driveNames),
   // past the names already in it; a kind we don't name keeps its own
   const taken = folder.id ? await fileNames(folder.id) : [];

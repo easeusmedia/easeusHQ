@@ -238,11 +238,24 @@ export async function subfolders(parentId: string): Promise<{ id: string; name: 
 // The folder of that name under `parentId`, reusing one that's already
 // there under a differently-punctuated name ("Dr. Tego" for Dr Tego)
 // rather than creating a second one beside it.
+// What's directly in a folder: files and folders, with when each went into Drive
+// (a video's length too, in seconds, where Drive knows it)
+export async function children(folderId: string): Promise<{ id: string; name: string; folder: boolean; createdTime: string; seconds?: number }[]> {
+  const query = `'${folderId}' in parents and trashed=false`;
+  const out: { id: string; name: string; folder: boolean; createdTime: string; seconds?: number }[] = [];
+  let page = "";
+  do {
+    const found = await driveFetch(`drive/v3/files?q=${encodeURIComponent(query)}&fields=nextPageToken,files(id,name,mimeType,createdTime,videoMediaMetadata(durationMillis))&pageSize=1000${page ? `&pageToken=${page}` : ""}&${SHARED}`, { method: "GET" });
+    for (const f of (found.files ?? []) as { id: string; name: string; mimeType: string; createdTime: string; videoMediaMetadata?: { durationMillis?: string } }[])
+      out.push({ id: f.id, name: f.name, folder: f.mimeType === "application/vnd.google-apps.folder", createdTime: f.createdTime, ...(f.videoMediaMetadata?.durationMillis ? { seconds: Number(f.videoMediaMetadata.durationMillis) / 1000 } : {}) });
+    page = found.nextPageToken ?? "";
+  } while (page);
+  return out;
+}
+
 // The names of the files in a folder (not its folders)
 export async function fileNames(folderId: string): Promise<string[]> {
-  const query = `'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`;
-  const found = await driveFetch(`drive/v3/files?q=${encodeURIComponent(query)}&fields=files(name)&pageSize=1000&${SHARED}`, { method: "GET" });
-  return ((found.files ?? []) as { name: string }[]).map((f) => f.name);
+  return (await children(folderId)).filter((f) => !f.folder).map((f) => f.name);
 }
 
 // A folder renamed, or moved from one folder to another
@@ -266,11 +279,12 @@ export async function folderLike(name: string, parentId: string): Promise<{ id: 
 // that folder has been organised by hand for years.
 // Where a finished file goes (Abhishek, 26 Nov 2026): the client's folder
 // in Creative Exports; in it, the project's folder, wherever the client keeps
-// it (straight inside, or in a year or month: "2026 / Liberty Mills");
-// in that, the folder for its kind of work (Reels, Full Length, Trailer...),
-// unless the project's folder has no folders in it (then straight in).
-// A project with no folder yet gets one in the client's folder for the year
-// it was made ("2026"), holding only what's put in it: a reel makes Reels, a
+// it (straight inside, or up to three levels in: "2026 / Liberty Mills",
+// "2026 / 26th September - 5 October / Reel 115 - Skin Barrier");
+// in that, the folder for its kind of work (Reels, Full Length, Trailer...).
+// A project with no folder yet gets one in Client / Year / Batch (the batch
+// only for a client that batches its work: its month, or its batch's name),
+// holding only what's put in it: a reel makes Reels, a
 // full length makes Full Length (Abhishek, 26 Nov 2026: many clients get no
 // full length or copy). A folder counts for the project only if
 // none of the client's other projects fits it better ("Room 101" is Room
@@ -283,8 +297,9 @@ export async function exportFolder(
     type = null,
     others = [],
     year = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" }).slice(0, 4),
+    batch = null,
     preview = false,
-  }: { type?: string | null; others?: string[]; year?: string; preview?: boolean } = {}
+  }: { type?: string | null; others?: string[]; year?: string; batch?: string | null; preview?: boolean } = {}
 ): Promise<{ id: string; url: string; path: string }> {
   const s = await driveSettings();
   const root = s[DRIVE_SETTINGS.exportsFolderId];
@@ -307,10 +322,13 @@ export async function exportFolder(
     const top = await subfolders(client.id);
     const best = (list: { id: string; name: string; path: string }[]) =>
       list.map((f) => ({ f, score: fits(f) })).filter((x) => x.score).sort((a, b) => b.score - a.score)[0]?.f ?? null;
-    let hit = best(top.map((f) => ({ ...f, path: f.name })));
-    if (!hit || fits(hit) < 3) {
-      const inner = (await Promise.all(top.filter((g) => !isTypeFolder(g.name)).map(async (g) => (await subfolders(g.id)).map((f) => ({ ...f, path: `${g.name.trim()} / ${f.name.trim()}` }))))).flat();
-      const deeper = best(inner);
+    // three levels in at most: client / year / batch or month / project
+    // ("Dr Tego / 2026 / 26th September - 5 October / Reel 115 - Skin Barrier")
+    let level = top.map((f) => ({ ...f, path: f.name.trim() }));
+    let hit = best(level);
+    for (let depth = 2; depth <= 3 && (!hit || fits(hit) < 3); depth++) {
+      level = (await Promise.all(level.filter((g) => !isTypeFolder(g.name)).map(async (g) => (await subfolders(g.id)).map((f) => ({ ...f, path: `${g.path} / ${f.name.trim()}` }))))).flat();
+      const deeper = best(level);
       if (deeper && (!hit || fits(deeper) > fits(hit))) hit = deeper;
     }
     if (hit) project = { id: hit.id, url: url(hit.id), path: hit.path.trim() };
@@ -320,16 +338,23 @@ export async function exportFolder(
     // one layout for every client (Abhishek, 26 Nov 2026)
     const inYear = client.id ? matchFolder(year, await subfolders(client.id)) : null;
     const yearId = inYear?.id ?? (await make(year, client.id)).id;
-    const made = await make(projectName, yearId);
-    project = { ...made, path: `${(inYear?.name ?? year).trim()} / ${projectName}` };
+    let parent = { id: yearId, path: (inYear?.name ?? year).trim() };
+    // then its batch, for a client that batches its work (lib/invoiceBatches driveBatchOf)
+    if (batch) {
+      const inBatch = yearId ? matchFolder(batch, await subfolders(yearId)) : null;
+      parent = { id: inBatch?.id ?? (await make(batch, yearId)).id, path: `${parent.path} / ${(inBatch?.name ?? batch).trim()}` };
+    }
+    const made = await make(projectName, parent.id);
+    project = { ...made, path: `${parent.path} / ${projectName}` };
     fresh = true;
   }
 
   // its kind of work's folder in the project, made the first time it's
   // needed; an older project folder with no folders in it holds its files
   // itself (Dr Tego's, one per reel)
+  // always its kind's folder, the same for every client (Abhishek, 26 Nov 2026)
   const existing = project.id && !fresh ? await subfolders(project.id) : [];
-  const kind = existing.length || fresh ? typeFolder(type, existing) : null;
+  const kind = typeFolder(type, existing);
   const here = { id: project.id, url: project.url, path: `${base} / ${client.name.trim()} / ${project.path}` };
   if (!kind) return here;
   if ("found" in kind) return { id: kind.found.id, url: url(kind.found.id), path: `${here.path} / ${kind.found.name.trim()}` };
