@@ -59,9 +59,13 @@ async function trails(ids: string[]) {
 type TaskRow = { id: string; title: string; status: TaskStatus; workflow: string; createdAt: Date; updatedAt: Date; dueDate: Date | null; handedOffAt: Date | null; project: NonNullable<Project> };
 type TodoRow = { id: string; title: string; status: keyof typeof WORK_TASK_STAGE; createdAt: Date; completedAt: Date | null; updatedAt: Date; dueDate: Date | null; project: Project };
 
-// A client task is finished at `end`, when it was delivered (null while it's
-// open); its completion date is met once it first reaches the client, and a
-// Notion import that arrived with the client already isn't scored
+// A client task's completion date is met once it first reaches the client,
+// and a Notion import that arrived with the client already isn't scored
+const taskLate = (t: { dueDate: Date | null; handedOffAt: Date | null; createdAt: Date }, end: Date) =>
+  !!t.dueDate && !handoffUnknown(t.createdAt, t.handedOffAt) && finishedLate(t.dueDate, t.handedOffAt ?? end, t.createdAt);
+const todoLate = (t: { dueDate: Date | null; completedAt: Date | null; updatedAt: Date; createdAt: Date }) => !!t.dueDate && finishedLate(t.dueDate, t.completedAt ?? t.updatedAt, t.createdAt);
+
+// A client task is finished at `end`, when it was delivered (null while it's open)
 const taskCard = (t: TaskRow, trail: { action: string; at: Date }[], end: Date | null): WorkCard => ({
   kind: "task",
   id: t.id,
@@ -73,7 +77,7 @@ const taskCard = (t: TaskRow, trail: { action: string; at: Date }[], end: Date |
   start: startOf(trail, t.createdAt).toISOString(),
   end: end ? end.toISOString() : null,
   due: !end && t.dueDate && !t.handedOffAt ? dayOf(t.dueDate) : null,
-  late: !!end && !!t.dueDate && !handoffUnknown(t.createdAt, t.handedOffAt) && finishedLate(t.dueDate, t.handedOffAt ?? end, t.createdAt),
+  late: !!end && taskLate(t, end),
 });
 
 const todoCard = (t: TodoRow, done: boolean): WorkCard => ({
@@ -87,7 +91,7 @@ const todoCard = (t: TodoRow, done: boolean): WorkCard => ({
   start: t.createdAt.toISOString(),
   end: done ? (t.completedAt ?? t.updatedAt).toISOString() : null,
   due: !done && t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
-  late: done && !!t.dueDate && finishedLate(t.dueDate, t.completedAt ?? t.updatedAt, t.createdAt),
+  late: done && todoLate(t),
 });
 
 // An editor's part (Abhishek, 21 Nov 2026): for a Member in Production, work
@@ -151,18 +155,36 @@ export async function completedCount(personId: string) {
 // A page of what they've finished, newest first, within a range of days if
 // one is set, and how many the range holds. The list itself is ids and
 // dates; only the page's tasks are read whole.
-export async function completedPage(personId: string, range: { from?: string; to?: string }, offset: number, limit: number) {
+// Narrowing someone's finished work (Abhishek, 27 Nov 2026): words in its
+// title, client or project; a client ("Admin tasks" for their own work); a
+// kind of work; finished on time or late
+export type DoneFilter = { q?: string; client?: string; kind?: Workflow; timing?: "on_time" | "late" };
+export async function completedPage(personId: string, range: { from?: string; to?: string }, offset: number, limit: number, filter: DoneFilter = {}) {
   const editor = (await editorsOf([personId])).has(personId);
   const [tasks, todos] = await Promise.all([
-    prisma.task.findMany({ where: doneTasks(personId, editor), select: { id: true, updatedAt: true } }),
-    prisma.workTask.findMany({ where: doneTodos(personId), select: { id: true, completedAt: true, updatedAt: true } }),
+    prisma.task.findMany({ where: doneTasks(personId, editor), select: { id: true, updatedAt: true, title: true, workflow: true, createdAt: true, dueDate: true, handedOffAt: true, project: PROJECT } }),
+    prisma.workTask.findMany({ where: doneTodos(personId), select: { id: true, completedAt: true, updatedAt: true, title: true, createdAt: true, dueDate: true, project: PROJECT } }),
   ]);
   // finished when it was last moved to Final export ready (else Delivered),
   // not at its last edit (a Drive link added a week later); its last edit
   // only where no move was logged
   const delivered = await finishedAt(tasks.map((t) => t.id), editor);
+  const all = [
+    ...tasks.map((t) => {
+      const at = delivered.get(t.id) ?? t.updatedAt;
+      return { kind: "task" as const, id: t.id, at, title: t.title, client: t.project.client.name, project: t.project.name || t.project.type, workflow: workflowOf(t.workflow), late: taskLate(t, at) };
+    }),
+    ...todos.map((t) => ({ kind: "work" as const, id: t.id, at: t.completedAt ?? t.updatedAt, title: t.title, client: t.project?.client.name ?? "Admin tasks", project: t.project ? t.project.name || t.project.type : "", workflow: "todo" as Workflow, late: todoLate(t) })),
+  ];
+  const words = (filter.q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const { total, page } = pageOfDone(
-    [...tasks.map((t) => ({ kind: "task" as const, id: t.id, at: delivered.get(t.id) ?? t.updatedAt })), ...todos.map((t) => ({ kind: "work" as const, id: t.id, at: t.completedAt ?? t.updatedAt }))],
+    all.filter(
+      (d) =>
+        (!filter.client || d.client === filter.client) &&
+        (!filter.kind || d.workflow === filter.kind) &&
+        (!filter.timing || d.late === (filter.timing === "late")) &&
+        words.every((w) => `${d.title} ${d.client} ${d.project}`.toLowerCase().includes(w))
+    ),
     { ...range, offset, limit }
   );
   const end = new Map(page.map((p) => [p.id, p.at]));
@@ -174,7 +196,10 @@ export async function completedPage(personId: string, range: { from?: string; to
     trails(taskIds),
   ]);
   const cards = new Map([...taskRows.map((t) => [t.id, taskCard(t, trail.get(t.id) ?? [], end.get(t.id) ?? t.updatedAt)] as const), ...todoRows.map((t) => [t.id, todoCard(t, true)] as const)]);
-  return { total, cards: page.flatMap((p) => cards.get(p.id) ?? []) };
+  // what the filters offer: only the clients and kinds of work they've finished
+  const clients = [...new Set(all.map((d) => d.client))].sort((a, b) => (a === "Admin tasks" ? 1 : b === "Admin tasks" ? -1 : a.localeCompare(b)));
+  const kinds = (["video", "design", "todo"] as const).filter((k) => all.some((d) => d.workflow === k));
+  return { total, cards: page.flatMap((p) => cards.get(p.id) ?? []), clients, kinds };
 }
 
 // A client task opened from its file on a project page (Abhishek, 21 Nov

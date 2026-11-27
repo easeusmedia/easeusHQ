@@ -2,10 +2,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Clapperboard, ExternalLink, ListTodo, Palette } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, Clapperboard, Clock, ExternalLink, ListTodo, Palette, Search } from "lucide-react";
 import { PrefetchLink } from "../PrefetchLink";
 import { Avatar } from "../TaskCard";
 import { DatePicker } from "../DatePicker";
+import { Dropdown } from "../Dropdown";
 import { ConfirmButton } from "../ConfirmButton";
 import { Bone } from "../Skeleton";
 import { closeOnBackdrop } from "../dialog";
@@ -15,12 +16,12 @@ import { spanLabel, windowful } from "@/lib/history";
 import { dayOf, daysBetween, shortDay } from "@/lib/editorKpi";
 import type { TaskStatus } from "@/lib/workflow";
 import { moreCompleted, openTask } from "./actions";
-import type { Overview, WorkCard } from "./data";
+import type { DoneFilter, Overview, WorkCard } from "./data";
 
 // arrives with a short fade and lift; still, for anyone who's asked for less motion
 const ARRIVE = "motion-safe:animate-[fade-in_0.24s_cubic-bezier(0.22,1,0.36,1)]";
 // a row's height: a window's worth of rows is counted in these
-const ROW_PX = 36;
+const ROW_PX = 53;
 // while more remain, the table's last three rows or so fade out into the
 // page, with Show more under it (Abhishek, 26 Oct 2026)
 const FADE = "[mask-image:linear-gradient(to_bottom,#000_calc(100%_-_7.5rem),transparent)]";
@@ -53,6 +54,7 @@ const turnaround = (card: WorkCard) => (card.end ? spanLabel(Date.parse(card.end
 // its overview right here; the rest of the card opens their page.
 const SHOWN_TASKS = 4;
 const KIND_ICON = { video: Clapperboard, design: Palette, todo: ListTodo } as const;
+const KIND_LABEL = { video: "Video", design: "Design", todo: "To-do" } as const;
 function DueTag({ due, today }: { due: string | null; today: string }) {
   if (!due) return null;
   const late = due < today ? daysBetween(due, today) : 0;
@@ -153,6 +155,12 @@ export function PersonWork({
   const params = useSearchParams();
   const tab: Tab = params.get("tab") === "completed" ? "completed" : "current";
   const [range, setRange] = useState({ from: "", to: "" });
+  // what the finished list is narrowed to (Abhishek, 27 Nov 2026): search
+  // words, settled a moment after typing stops, and the filters
+  const [query, setQuery] = useState("");
+  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<{ client: string; kind: string; timing: string }>({ client: "", kind: "", timing: "" });
+  const [choices, setChoices] = useState<{ clients: string[]; kinds: (keyof typeof KIND_LABEL)[] }>({ clients: [], kinds: [] });
   const [done, setDone] = useState<WorkCard[] | null>(null);
   const [total, setTotal] = useState(completed);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -183,35 +191,53 @@ export function PersonWork({
   // page is the rows that fit under the list's top; again whenever the range
   // changes
   const wanted = tab === "completed" || done !== null;
+  // counts each list asked for: a Show more for an older one is dropped when it lands
+  const asked = useRef(0);
+  const filter: DoneFilter = { q, client: filters.client, kind: (filters.kind || undefined) as DoneFilter["kind"], timing: (filters.timing || undefined) as DoneFilter["timing"] };
+  const filterKey = JSON.stringify(filter);
+  useEffect(() => {
+    const t = setTimeout(() => setQ(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
   useEffect(() => {
     if (!wanted) return;
     const top = list.current?.getBoundingClientRect().top ?? 0;
+    // a Show more still on its way for the list before is dropped when it lands
+    asked.current++;
     let live = true;
-    moreCompleted(person.id, range, 0, windowful(window.innerHeight - top, ROW_PX)).then((r) => {
+    moreCompleted(person.id, range, 0, windowful(window.innerHeight - top, ROW_PX), JSON.parse(filterKey)).then((r) => {
       if (!live || !r) return;
       setDone(r.cards);
       setTotal(r.total);
+      setChoices({ clients: r.clients, kinds: r.kinds });
     });
     return () => {
       live = false;
     };
-  }, [person.id, range, wanted]);
+  }, [person.id, range, wanted, filterKey]);
 
   // A new range starts the list again: cleared to its skeleton, so Show more
   // can't page the old list against the new range, and a Show more still on
   // its way for the old range is dropped when it lands
-  const asked = useRef(0);
   const pick = (next: typeof range) => {
     asked.current++;
     setDone(null);
     setRange(next);
   };
+  // a filter picked starts it again the same way (search words don't: the
+  // rows stay until the matches arrive, rather than flashing as you type)
+  const narrow = (next: Partial<typeof filters>) => {
+    asked.current++;
+    setDone(null);
+    setFilters((f) => ({ ...f, ...next }));
+  };
+  const narrowed = !!(q || filters.client || filters.kind || filters.timing);
 
   async function showMore() {
     if (!done) return;
     const at = asked.current;
     setLoadingMore(true);
-    const r = await moreCompleted(person.id, range, done.length, windowful(window.innerHeight, ROW_PX));
+    const r = await moreCompleted(person.id, range, done.length, windowful(window.innerHeight, ROW_PX), filter);
     setLoadingMore(false);
     if (!r || at !== asked.current) return;
     setDone((d) => [...(d ?? []), ...r.cards.filter((c) => !d?.some((x) => x.id === c.id))]);
@@ -294,21 +320,52 @@ export function PersonWork({
           </section>
         ) : (
           <section key="completed" role="tabpanel" className={`flex flex-col gap-3 ${ARRIVE}`}>
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              {/* how many in the range, or in all; held at its height until it's known */}
-              <p className="text-sm tabular-nums text-muted">{done ? `${total} completed` : " "}</p>
-              <div className="flex items-center gap-2">
-                <div className="w-36">
-                  <DatePicker size="sm" value={range.from} onChange={(from) => pick({ ...range, from })} placeholder="From" />
-                </div>
+            {/* search, then filters as chips, the dates last (Abhishek, 27 Nov 2026) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex h-[30px] w-full items-center gap-2 rounded-full border border-white/[0.06] bg-white/[0.02] px-3 text-xs transition-colors focus-within:border-white/[0.16] sm:w-60">
+                <Search size={13} className="shrink-0 text-muted" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+                  placeholder="Search tasks, clients or projects"
+                  className="min-w-0 flex-1 bg-transparent outline-none! placeholder:text-muted/70"
+                />
+              </label>
+              <Dropdown
+                pill={{ icon: <Building2 size={12} className="text-sky-400" /> }}
+                value={filters.client}
+                placeholder="Client"
+                options={choices.clients.map((c) => ({ value: c, label: c }))}
+                onChange={(client) => narrow({ client })}
+              />
+              <Dropdown
+                pill={{ icon: <Clapperboard size={12} className="text-violet-400" /> }}
+                value={filters.kind}
+                placeholder="Type"
+                options={choices.kinds.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
+                onChange={(kind) => narrow({ kind })}
+              />
+              <Dropdown
+                pill={{ icon: <Clock size={12} className="text-amber-400" /> }}
+                value={filters.timing}
+                placeholder="On time or late"
+                options={[
+                  { value: "on_time", label: "On time" },
+                  { value: "late", label: "Late" },
+                ]}
+                onChange={(timing) => narrow({ timing })}
+              />
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <DatePicker value={range.from} onChange={(from) => pick({ ...range, from })} placeholder="From" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
                 <span className="text-xs text-muted">to</span>
-                <div className="w-36">
-                  <DatePicker size="sm" value={range.to} onChange={(to) => pick({ ...range, to })} placeholder="To" />
-                </div>
+                <DatePicker value={range.to} onChange={(to) => pick({ ...range, to })} placeholder="To" pill={{ icon: <CalendarDays size={12} className="text-emerald-400" /> }} />
               </div>
             </div>
+            {/* how many match, or in all; held at its height until it's known */}
+            <p className="text-sm tabular-nums text-muted">{done ? `${total} completed` : " "}</p>
             {done?.length === 0 ? (
-              <Empty text={range.from || range.to ? "Nothing completed in these dates" : "No completed tasks"} />
+              <Empty text={narrowed ? "No tasks match" : range.from || range.to ? "Nothing completed in these dates" : "No completed tasks"} />
             ) : (
               <div ref={list}>
                 {done ? (
@@ -421,17 +478,26 @@ function Table({ heads, fade = false, children }: { heads: string[]; fade?: bool
   );
 }
 
-// One task: its title, and the client it's for (if it's for one) after it, as
-// History had it; then its dates. The whole row opens it; the title is a
-// button so a keyboard can too.
-function Row({ card, onOpen, className = "", children }: { card: WorkCard; onOpen: () => void; className?: string; children: React.ReactNode }) {
+// One task: its kind of work's icon (rose when it ran late), its title and,
+// under it, the client and project, as the people list shows them; then its
+// dates. The whole row opens it; the title is a button so a keyboard can too.
+function Row({ card, late = card.late, onOpen, className = "", children }: { card: WorkCard; late?: boolean; onOpen: () => void; className?: string; children: React.ReactNode }) {
+  const Icon = KIND_ICON[card.workflow] ?? ListTodo;
   return (
     <tr onClick={onOpen} className={`cursor-pointer border-t border-border transition-colors hover:bg-white/[0.04] ${className}`}>
-      <td className="px-3 py-2">
-        <button type="button" className="text-left">
-          {card.title}
-        </button>
-        {card.client && <span className="ml-2 text-xs text-muted">{card.client}</span>}
+      <td className="px-3 py-2.5">
+        <div className="flex items-center gap-3">
+          <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${late ? "bg-rose-400/10 text-rose-300" : "bg-accent/10 text-accent"}`}>
+            <Icon size={15} aria-hidden />
+          </span>
+          <span className="min-w-0">
+            <button type="button" className="block text-left">
+              {card.title}
+            </button>
+            {/* the client alone where the project is named as the task (Dr Tego's reels) */}
+            <span className="block text-xs text-muted">{card.client && card.where === `${card.client} · ${card.title}` ? card.client : card.where}</span>
+          </span>
+        </div>
       </td>
       {children}
     </tr>
@@ -441,7 +507,7 @@ function Row({ card, onOpen, className = "", children }: { card: WorkCard; onOpe
 // A task still open: when it started, and its due day, rose once that's passed
 function CurrentRow({ card, today, onOpen }: { card: WorkCard; today: string; onOpen: () => void }) {
   return (
-    <Row card={card} onOpen={onOpen}>
+    <Row card={card} late={!!card.due && card.due < today} onOpen={onOpen}>
       <Cell>{day(card.start)}</Cell>
       <Cell tone={card.due && card.due < today ? "text-red-300" : undefined}>{card.due ? dayLabel(card.due) : "–"}</Cell>
     </Row>
@@ -460,9 +526,13 @@ export function ListBones({ n = 6 }: { n?: number }) {
         <Bone className="h-3 w-20" />
       </div>
       {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="flex h-9 items-center gap-6 border-t border-border px-3">
-          <Bone className={`h-3.5 ${i % 3 === 0 ? "w-1/2" : i % 3 === 1 ? "w-2/5" : "w-1/3"}`} />
-          <Bone className="ml-auto h-3 w-14 shrink-0" />
+        <div key={i} className="flex h-[53px] items-center gap-3 border-t border-border px-3">
+          <Bone className="size-8 shrink-0 rounded-lg" />
+          <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Bone className={`h-3.5 ${i % 3 === 0 ? "w-1/2" : i % 3 === 1 ? "w-2/5" : "w-1/3"}`} />
+            <Bone className="h-2.5 w-24" />
+          </span>
+          <Bone className="ml-3 h-3 w-14 shrink-0" />
           <Bone className="h-3 w-14 shrink-0" />
         </div>
       ))}
