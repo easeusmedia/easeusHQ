@@ -33,10 +33,32 @@ test("a stored lead's channels and pages, whatever its properties are called", (
   assert.deepEqual(channelsOfValues(null), []);
 });
 
+test("site pages, placeholders and other hosts aren't anyone's channel or page", () => {
+  const none = [
+    "https://www.instagram.com/accounts/login/?next=%2Frevone%2F", "instagram.com/tv/abc", "instagram.com/s/aGlnaGxpZ2h0", "instagram.com/_u/abc", "instagram.com/direct/inbox",
+    "help.instagram.com/123", "about.instagram.com/x", "youtube.com/clip/Ugkxabc", "youtube.com/v/abc", "music.youtube.com/browse/VLPL1", "youtube.com/podcasts", "consent.youtube.com/m?continue=x",
+  ];
+  for (const url of none) assert.deepEqual(channelsIn([{ url }], []), [], url);
+  for (const v of ["none", "N/A", "-", "TBA", "yes", "youtube", "---", "."]) {
+    assert.deepEqual(channelsIn([], [person(["instagram", v], ["youtube", v])]), [], v);
+  }
+});
+
+test("one channel however it's addressed, and an Instagram link with an @", () => {
+  for (const url of ["youtube.com/c/TheDiaryOfACEO", "youtube.com/user/TheDiaryOfACEO", "https://www.youtube.com/TheDiaryOfACEO", "youtube.com/@TheDiaryOfACEO"]) {
+    assert.deepEqual(channelsIn([{ url }], []), ["yt:@thediaryofaceo"], url);
+  }
+  assert.deepEqual(channelsIn([{ url: "https://www.instagram.com/@dr.pearce" }], []), ["ig:dr.pearce"]);
+  // a bare @handle in the lead's own links isn't guessed at
+  assert.deepEqual(channelsIn([{ url: "@abc" }], []), []);
+});
+
 test("a contact is a person with an email, phone or handle", () => {
   assert.equal(reachable([person(["email", "a@b.co"])]), true);
   assert.equal(reachable([person(["instagram", "@abc"])]), true);
   assert.equal(reachable([person(["youtube", "@abc"])]), false);
   assert.equal(reachable([person(["email", "  "])]), false);
   assert.equal(reachable([]), false);
+  for (const v of ["N/A", "-", "none", "tba"]) assert.equal(reachable([person(["instagram", v], ["email", v])]), false, v);
+  assert.equal(reachable([person(["phone", "123"])]), false);
 });

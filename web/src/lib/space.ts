@@ -87,9 +87,17 @@ export const CONTACT_ROLES = ["Host", "Co-host", "Founder", "Co-founder", "CEO",
 
 // A Sales lead needs a way to reach someone (Abhishek, 28 Nov 2026): a
 // person with an email, a phone number or a handle (lib/leadDupes)
-const REACHES = new Set<string>(["email", "phone", "instagram", "linkedin", "x"]);
+// A value written in for nothing: "N/A", "-", "none", "TBA", the platform's own name
+export const isPlaceholder = (v: string) => /^(?:[-–—._/\\?]+|n\.?\s*\/?\s*a\.?|none|nil|null|nothing|tba|tbc|tbd|unknown|not found|no|yes|x|email|phone|instagram|linkedin|twitter|youtube)$/i.test(v.trim());
+// a real way to reach them: an address, a number, or a handle
+function reaches(kind: string, value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim() || isPlaceholder(value)) return false;
+  if (kind === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  if (kind === "phone") return value.replace(/\D/g, "").length >= 7;
+  return (kind === "instagram" || kind === "linkedin" || kind === "x") && /[a-z0-9]{2}/i.test(value);
+}
 export function reachable(contacts: { channels?: { kind: string; value: string }[] }[] | null | undefined): boolean {
-  return (contacts ?? []).some((c) => (c?.channels ?? []).some((ch) => REACHES.has(ch?.kind) && typeof ch.value === "string" && ch.value.trim() !== ""));
+  return (contacts ?? []).some((c) => (c?.channels ?? []).some((ch) => reaches(ch?.kind, ch?.value)));
 }
 export const NEEDS_CONTACT = "Add at least one contact: a person with an email, phone number or handle.";
 

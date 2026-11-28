@@ -9,7 +9,7 @@ import { withUndo } from "@/lib/undo";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
 import { withTabTag } from "@/lib/leadTags";
 import { addsPages, addsStages, buildsDepartment, DEPT, editsTemplates, isFounder, setsUp, worksDepartment } from "@/lib/scope";
-import { channelsIn, NEEDS_CONTACT, reachable, sameChannel, sameLine, type SameLead } from "@/lib/leadDupes";
+import { AlreadyThere, channelsIn, channelsOfValues, linkKind, NEEDS_CONTACT, reachable, sameChannel, sameLine, takeTurns, type SameLead } from "@/lib/leadDupes";
 import {
   AFTER,
   REPLY_KEY,
@@ -81,6 +81,8 @@ async function whoFor(teamId: string, build = false): Promise<Who | { error: str
   if (build && !canBuild) return { error: BUILDERS_ONLY };
   return { id: viewer.id, name: viewer.name, canBuild };
 }
+
+const isSales = async (teamId: string) => (await prisma.team.findUnique({ where: { id: teamId }, select: { slug: true } }))?.slug === DEPT.sales;
 
 const failed = (err: unknown, fallback: string): Done => {
   console.error(err);
@@ -543,16 +545,24 @@ export async function createLead(boardId: string, title: string, links: { label:
   if (!n) return { error: "Give the lead a name." };
   if (n.length > 200) return { error: "That name is too long." };
   // a Sales lead (lib/leadDupes): someone to reach, and a YouTube channel or Instagram page no other lead has
-  if ((await prisma.team.findUnique({ where: { id: board.teamId }, select: { slug: true } }))?.slug === DEPT.sales) {
+  const sales = await isSales(board.teamId);
+  const channels = sales ? channelsIn(Array.isArray(links) ? links : [], more.contacts ?? []) : [];
+  const already = (same: SameLead[]) => ({ error: `This lead is already in Easeus HQ: ${sameLine(same[0])}.`, same });
+  if (sales) {
     if (!reachable(more.contacts)) return { error: NEEDS_CONTACT };
-    const same = await sameChannel(channelsIn(Array.isArray(links) ? links : [], more.contacts ?? []));
-    if (same.length) return { error: `This lead is already in Easeus HQ: ${sameLine(same[0])}.`, same };
+    const same = await sameChannel(channels);
+    if (same.length) return already(same);
   }
   try {
     const stage = await prisma.boardStage.findFirst({ where: { boardId }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
     if (!stage) return { error: "This board has no stages yet." };
     const stageId = stage.id;
     const id = await withUndo((made: string) => [{ table: "Lead", id: made }], () => prisma.$transaction(async (tx) => {
+      if (channels.length) {
+        await takeTurns(tx);
+        const same = await sameChannel(channels);
+        if (same.length) throw new AlreadyThere(same);
+      }
       const values: Record<string, unknown> = {};
       for (const [kind, v] of [["links", links], ["contacts", more.contacts ?? []]] as const) {
         if (!v.length) continue;
@@ -576,6 +586,7 @@ export async function createLead(boardId: string, title: string, links: { label:
     }));
     return { id };
   } catch (err) {
+    if (err instanceof AlreadyThere) return already(err.same);
     return failed(err, "That lead couldn't be added.");
   }
 }
@@ -622,6 +633,13 @@ export async function setLeadValue(id: string, fieldId: string, value: unknown):
     if ("error" in clean) return clean;
     // a contact's email is stamped with when its address was put on the lead (lib/space stampEmails)
     const v = field.kind === "contacts" && Array.isArray(clean.value) ? stampEmails(clean.value as Contact[], lead.values, new Date().toISOString()) : clean.value;
+    // a YouTube channel or Instagram page newly put on a Sales lead mustn't be another lead's (lib/leadDupes)
+    if ((field.kind === "links" || field.kind === "contacts") && (await isSales(lead.board.teamId))) {
+      const had = new Set(channelsOfValues(lead.values));
+      const fresh = channelsOfValues({ ...(lead.values as Record<string, unknown>), [fieldId]: v }).filter((k) => !had.has(k));
+      const same = fresh.length ? await sameChannel(fresh, id) : [];
+      if (same.length) return { error: `That ${fresh.length === 1 ? linkKind(fresh[0]) : "YouTube channel or Instagram page"} is already on another lead: ${sameLine(same[0])}.` };
+    }
     await withUndo(
       [{ table: "Lead", id }],
       () =>

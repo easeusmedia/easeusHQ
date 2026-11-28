@@ -1,7 +1,7 @@
 import { prisma } from "./prisma.ts";
 import { channelPath } from "./channelCountry.ts";
-import { instagramUsername } from "./analytics.ts";
 import type { Contact } from "./space.ts";
+import { isPlaceholder } from "./space.ts";
 export { NEEDS_CONTACT, reachable } from "./space.ts";
 
 // Duplicate leads (Abhishek, 28 Nov 2026: people adding leads for an
@@ -16,8 +16,55 @@ export { NEEDS_CONTACT, reachable } from "./space.ts";
 // needs a way to reach someone: a person with an email, phone or handle.
 
 // "yt:@handle" or "ig:username", so a YouTube @abc and an Instagram abc stay apart
-const youtube = (raw: unknown, bare: boolean) => (typeof raw === "string" ? channelPath(raw, bare)?.toLowerCase() : null);
-const instagram = (raw: unknown, bare: boolean) => (typeof raw === "string" && (bare || /instagram\.com\//i.test(raw)) ? instagramUsername(raw) : null);
+const decoded = (v: string) => {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+};
+const urlOf = (v: string) => {
+  try {
+    return new URL(/^[a-z][\w+.-]*:\/\//i.test(v) ? v : `https://${v}`);
+  } catch {
+    return null;
+  }
+};
+const hostOf = (u: URL) => u.hostname.toLowerCase().replace(/^(?:www|m)\./, "");
+// first parts of a path that are the site's own pages, not someone's
+const NOT_A_CHANNEL = new Set(["clip", "v", "browse", "podcasts", "premium", "t", "source", "m", "feed", "gaming", "account", "signin", "logout", "upload", "about", "trending", "results", "watch", "shorts", "playlist", "embed", "live", "hashtag", "redirect", "post", "channels", "kids", "music", "creators", "ads", "jobs", "s"]);
+const NOT_A_PAGE = new Set(["p", "reel", "reels", "stories", "explore", "accounts", "tv", "s", "_u", "direct", "popular", "legal", "about", "developer", "web", "emails", "challenge", "privacy", "help", "api", "oauth", "login", "signup", "ar"]);
+
+// a YouTube channel: as a link (only on youtube.com itself), or as a person's
+// YouTube (bare: just a handle or name); a /c/ or /user/ name or an old
+// youtube.com/name is taken as the same channel as its @handle
+function youtube(raw: unknown, bare: boolean): string | null {
+  if (typeof raw !== "string" || !raw.trim() || isPlaceholder(raw)) return null;
+  const v = decoded(raw.trim());
+  if (/youtube\.com/i.test(v)) {
+    const u = urlOf(v);
+    if (!u || hostOf(u) !== "youtube.com") return null;
+  } else if (!bare && !/^UC[\w-]{22}$/.test(v)) return null;
+  let path = channelPath(v, bare)?.toLowerCase();
+  if (!path) return null;
+  path = path.replace(/^(?:c|user)\//, "@");
+  if (!path.startsWith("@") && !path.startsWith("channel/")) path = `@${path}`;
+  const name = path.replace(/^@|^channel\//, "");
+  return name && !NOT_A_CHANNEL.has(name) && !isPlaceholder(name) ? path : null;
+}
+// an Instagram page: as a link (only on instagram.com itself, @ or not), or as a person's handle
+function instagram(raw: unknown, bare: boolean): string | null {
+  if (typeof raw !== "string" || !raw.trim() || isPlaceholder(raw)) return null;
+  const v = decoded(raw.trim());
+  let name: string | undefined;
+  if (/instagram\.com/i.test(v)) {
+    const u = urlOf(v);
+    if (!u || hostOf(u) !== "instagram.com") return null;
+    name = u.pathname.split("/").filter(Boolean)[0];
+  } else if (bare) name = v.match(/^@?([\w.]+)$/)?.[1];
+  name = name?.replace(/^@/, "").toLowerCase();
+  return name && /^[\w.]{1,30}$/.test(name) && !NOT_A_PAGE.has(name) && !isPlaceholder(name) ? name : null;
+}
 const keyed = (pairs: [string, string | null | undefined][]) => [...new Set(pairs.flatMap(([kind, v]) => (v ? [`${kind}:${v}`] : [])))];
 
 // the YouTube channels and Instagram pages a lead names: in its links, or as a person's
@@ -62,13 +109,15 @@ const likeSafe = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 // The Sales leads already holding any of these channels (but `except`)
 export async function sameChannel(channels: string[], except?: string): Promise<SameLead[]> {
-  const keys = new Set(channels.map((c) => c.toLowerCase()));
+  // ponytail: a one- or two-letter name isn't looked up (it would read every Sales lead); a rare Instagram name that short goes unchecked
+  const bare = (k: string) => k.replace(/^(?:yt|ig):/, "").replace(/^@|^channel\//, "");
+  const keys = new Set(channels.map((c) => c.toLowerCase()).filter((k) => bare(k).length >= 3));
   if (!keys.size) return [];
   const team = await prisma.team.findUnique({ where: { slug: "sales" }, select: { id: true, slug: true } });
   if (!team) return [];
   // a cheap pass on the text first (the channel's name somewhere in the
   // lead), then each one read properly
-  const names = [...keys].map((k) => `%${likeSafe(k.replace(/^(?:yt|ig):/, "").replace(/^@|^(?:channel|c|user)\//, ""))}%`);
+  const names = [...keys].map((k) => `%${likeSafe(bare(k))}%`);
   const rows = await prisma.$queryRaw<{ id: string; values: unknown }[]>`
     SELECT l.id, l.values FROM "Lead" l JOIN "Space" s ON s.id = l."boardId"
     WHERE s."teamId" = ${team.id} AND lower(l.values::text) LIKE ANY(${names}::text[])`;
@@ -108,4 +157,15 @@ export async function sameChannel(channels: string[], except?: string): Promise<
 export function sameLine(s: SameLead): string {
   const on = new Date(s.addedOn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
   return `"${s.title}" in ${s.where} (${s.stage}), added by ${s.addedBy} on ${on}${s.assignedTo ? `, with ${s.assignedTo}` : ""}`;
+}
+
+// Two adds at once with the same channel take turns: whoever adds a Sales
+// lead holds this lock in its transaction and checks again inside it
+export const takeTurns = (tx: { $executeRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('sales-lead-channels'))`;
+export class AlreadyThere extends Error {
+  same: SameLead[];
+  constructor(same: SameLead[]) {
+    super("already in Easeus HQ");
+    this.same = same;
+  }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { ArrowRightLeft, Trash2 } from "lucide-react";
 import { closeOnBackdrop } from "../../dialog";
 
@@ -33,6 +34,14 @@ export function ReasonDialog({
   onConfirm: (reason: string) => Promise<string | undefined | void>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // drawn at the app's root, not where it's asked from: inside another form
+  // (Add lead's tags) a form in a form is broken HTML, and its submit would
+  // be that form's too
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [why, setWhy] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +55,7 @@ export function ReasonDialog({
       setBusy(false);
       d.showModal();
     } else if (!open && d.open) d.close();
-  }, [open]);
+  }, [open, mounted]);
 
   async function submit() {
     if (!why.trim() || busy) return;
@@ -63,7 +72,8 @@ export function ReasonDialog({
   }
 
   const Icon = danger ? Trash2 : ArrowRightLeft;
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <dialog
       ref={ref}
       {...closeOnBackdrop}
@@ -80,6 +90,7 @@ export function ReasonDialog({
         className="flex flex-col gap-4 p-5"
         onSubmit={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           submit();
         }}
       >
@@ -129,6 +140,7 @@ export function ReasonDialog({
           </button>
         </div>
       </form>
-    </dialog>
+    </dialog>,
+    document.querySelector(".app-root") ?? document.body,
   );
 }

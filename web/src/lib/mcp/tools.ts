@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEPT, DEVELOPER, isFounder, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
 import { cleanValue, dayOf, isDead, isFieldKind, NEEDS_CONTACT, outreachStart, personOpeners, reachable, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
-import { channelsOfValues, linkKind, sameChannel, sameLine } from "@/lib/leadDupes";
+import { AlreadyThere, channelsOfValues, linkKind, sameChannel, sameLine, takeTurns, type SameLead } from "@/lib/leadDupes";
 import {
   addOption,
   assignLead,
@@ -487,7 +487,9 @@ const leadIn = z.object({
 // goes in without the properties the board requires, left empty, as a file
 // can't always give them (Abhishek, 24 Oct 2026); a connection's calls still
 // need them, and the schema never offers the choice
-export function salesTools(acting: Acting, origin: string, { imported = false } = {}): Tool[] {
+// contactLater: an import's leads whose pages are still being read, added
+// without a contact as their contacts are filled in from those pages after
+export function salesTools(acting: Acting, origin: string, { imported = false, contactLater }: { imported?: boolean; contactLater?: (title: string) => boolean } = {}): Tool[] {
   const tool = <S extends z.ZodType>(name: string, description: string, schema: S, run: (args: z.infer<S>) => Promise<unknown>): Tool => ({
     name,
     description,
@@ -704,6 +706,18 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
         const added: string[] = [];
         const created: { id: string; title: string; url: string }[] = [];
         const skipped: { title: string; reason: string; already?: { title: string; where: string; added_by: string; added_on: string; with?: string; url: string }[] }[] = [];
+        const alreadyThere = (title: string, same: SameLead[]) => ({
+          title,
+          reason: `Already in Easeus HQ: ${sameLine(same[0])}.`,
+          already: same.map((x) => ({
+            title: x.title,
+            where: `${x.where} (${x.stage})`,
+            added_by: x.addedBy,
+            added_on: new Date(x.addedOn).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }),
+            with: x.assignedTo ?? undefined,
+            url: `${origin}${x.href}`,
+          })),
+        });
         // the YouTube channels and Instagram pages added in this call so far, and which lead has each
         const channelsAdded = new Map<string, string>();
         const failed: { title: string; error: string }[] = [];
@@ -728,7 +742,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
               if (v != null) values[f.id] = v;
             }
             // someone to reach, and a YouTube channel or Instagram page no Sales lead has yet (lib/leadDupes)
-            if (!reachable(peopleIn(board, values))) {
+            if (!reachable(peopleIn(board, values)) && !contactLater?.(title)) {
               skipped.push({ title, reason: NEEDS_CONTACT });
               continue;
             }
@@ -740,11 +754,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
             }
             const same = await sameChannel(channels);
             if (same.length) {
-              skipped.push({
-                title,
-                reason: `Already in Easeus HQ: ${sameLine(same[0])}.`,
-                already: same.map((x) => ({ title: x.title, where: `${x.where} (${x.stage})`, added_by: x.addedBy, added_on: x.addedOn.slice(0, 10), with: x.assignedTo ?? undefined, url: `${origin}${x.href}` })),
-              });
+              skipped.push(alreadyThere(title, same));
               continue;
             }
             const missing = board.fields.filter((f) => f.required && values[f.id] == null);
@@ -759,6 +769,12 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
             );
             const to = lead.assigned_to ? await personOf(board.teamId, lead.assigned_to) : { id: acting.id, name: acting.name };
             const id = await prisma.$transaction(async (tx) => {
+              // two adds at once with the same channel take turns, and the second is told (lib/leadDupes)
+              if (channels.length) {
+                await takeTurns(tx);
+                const again = await sameChannel(channels);
+                if (again.length) throw new AlreadyThere(again);
+              }
               if (!a.allow_duplicates) {
                 // two imports at once (two tabs, two people) take turns on the board, so the
                 // second sees what the first just added; the set above stays the fast path
@@ -805,6 +821,10 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
             created.push({ id, title, url: `${board.url}&lead=${id}` });
             for (const c of channels) channelsAdded.set(c, title);
           } catch (err) {
+            if (err instanceof AlreadyThere) {
+              skipped.push(alreadyThere(title, err.same));
+              continue;
+            }
             failed.push({
               title,
               error: err instanceof ToolError ? err.message : "It couldn't be saved.",

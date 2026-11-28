@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Copy, Filter, Plus, Search, Table2, Trash2, Undo2, X } from "lucide-react";
 import { ADDED, NO_FILTER, passesSheetFilter, REACH, hasReach, sheetText, shownAs, type OutreachBoard, type SheetData, type SheetFilter, type SheetLead } from "@/lib/leadSheet";
@@ -51,8 +50,10 @@ export function LeadsView({
   const pathname = usePathname();
   const [switching, startSwitch] = useTransition();
   const [openId, setOpenId] = useState<string | null>(initialLeadId);
-  const [query, setQuery] = useState("");
-  const [dead, setDead] = useState(false);
+  // a lead asked for that's in Dead leads (Open lead on a duplicate) shows there, found by its name
+  const asked = initialLeadId ? sheet?.leads.find((l) => l.id === initialLeadId && l.dead) : undefined;
+  const [query, setQuery] = useState(asked?.title ?? "");
+  const [dead, setDead] = useState(!!asked);
   // the Filter menu's picks (lib/leadSheet passesSheetFilter)
   const [filter, setFilter] = useState<SheetFilter>(NO_FILTER);
   // a restore or a delete that didn't go through
@@ -410,13 +411,11 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
         ref={ref}
         onMouseDown={closeOnBackdrop.onMouseDown}
         onClick={(e) => {
-          // only when this click closed it (Open lead closes it first, and keeps what's typed)
+          // only when this click closed it
           const was = e.currentTarget.open;
           closeOnBackdrop.onClick(e);
           if (was && !e.currentTarget.open) clear();
         }}
-        // Escape
-        onCancel={clear}
         className="dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground">
         <form
           key={opens}
@@ -450,25 +449,21 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
               </p>
               <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto">
                 {same.map((l) => (
-                  <li key={l.id} className="flex min-w-0 items-start justify-between gap-3">
+                  <li key={l.id} className="flex min-w-0 items-start justify-between gap-3 max-sm:flex-col max-sm:gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm text-foreground">{l.title}</p>
-                      <p className="truncate text-xs text-muted">
+                      <p className="text-sm break-words text-foreground">{l.title}</p>
+                      <p className="text-xs text-muted">
                         {l.where} · {l.stage}
                       </p>
-                      <p className="truncate text-xs text-muted">
+                      <p className="text-xs text-muted">
                         Added by {l.addedBy} on {new Date(l.addedOn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
                         {l.assignedTo && ` · With ${l.assignedTo}`}
                       </p>
                     </div>
-                    <Link
-                      href={l.href}
-                      // a look at it keeps what's typed here
-                      onClick={() => ref.current?.close()}
-                      className="btn btn-xs btn-ghost shrink-0"
-                    >
+                    {/* in a new tab, so this window and what's typed in it stay as they are */}
+                    <a href={l.href} target="_blank" rel="noopener noreferrer" className="btn btn-xs btn-ghost shrink-0">
                       Open lead
-                    </Link>
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -535,7 +530,8 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
 
           <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
             <p role="alert" className="min-w-0 truncate text-xs text-red-300">
-              {error}
+              {/* the contact warning goes once a contact is in */}
+              {error === NEEDS_CONTACT && reachable(people) ? null : error}
             </p>
             <div className="flex shrink-0 gap-2">
               <button type="button" onClick={cancel} className="btn btn-ghost">

@@ -293,9 +293,10 @@ export async function importLeads(boardId: string, leads: LeadIn[], duplicates =
   if ("error" in b) return b;
   // the origin only makes the links add_leads sends back, unused here
   // a property the board requires but the file doesn't give goes in empty
-  const add = salesTools(b.viewer, "", { imported: true }).find((t) => t.name === "add_leads")!;
   const key = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
   const late = new Set((Array.isArray(unread) ? unread : []).slice(0, 50).map((t) => key(String(t).slice(0, 200))));
+  // a lead whose pages weren't read in time goes in and gets its contacts from them after (below)
+  const add = salesTools(b.viewer, "", { imported: true, contactLater: (t) => late.has(key(t)) }).find((t) => t.name === "add_leads")!;
   try {
     // only leads this person added to this board
     const given = Array.isArray(earlier) ? earlier.slice(0, 5000).map(String) : [];

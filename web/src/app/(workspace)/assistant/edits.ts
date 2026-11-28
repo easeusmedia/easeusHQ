@@ -374,6 +374,9 @@ export async function prepareAdd(ref: string, c: Changes): Promise<Proposal | st
     case "stage": {
       const board = pick(await boards(), sent(c, "board") ?? "", "board");
       if (typeof board === "string") return sent(c, "board") ? board : `Say which board. ${board.replace(/^Which board\? /, "Boards: ")}`;
+      // a Sales lead needs a contact and is checked for duplicates, which a proposal can't carry (lib/leadDupes)
+      if (kind === "lead" && (await prisma.space.findUnique({ where: { id: board.id }, select: { team: { select: { slug: true } } } }))?.team?.slug === "sales")
+        return "Sales leads need a contact, so add them in Leadwell with Add lead, or through the Easeus HQ connector.";
       const color = sent(c, "color", "colour")?.toLowerCase() ?? "";
       if (kind === "stage" && color && !isColor(color)) return `Colours are: ${COLOR_NAMES.join(", ")}.`;
       return made(kind === "lead" ? "New lead" : "New stage", [{ field: "Name", from: "", to: name }, { field: "Board", from: "", to: board.where ? `${board.where} · ${board.name}` : board.name }, ...(kind === "stage" && color ? [{ field: "Colour", from: "", to: color }] : [])], {
