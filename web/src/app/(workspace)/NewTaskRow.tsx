@@ -179,7 +179,7 @@ export function NewTaskRow({
         : problem === "type"
           ? "Pick the type of work (Reel, Trailer, Thumbnail…)."
         : newProject.error ?? state.error ?? null;
-  const hidden = [f.rawLink, f.scheduledFor, f.internal].filter(Boolean).length;
+  const hidden = [f.scheduledFor, f.internal].filter(Boolean).length;
 
   return (
     <>
@@ -316,6 +316,18 @@ export function NewTaskRow({
                 />
               </span>
             )}
+            {/* in view, not under "⋯": most tasks start from raw files on
+                Drive (Abhishek, 28 Nov 2026) */}
+            <label className={`${pill(!!f.rawLink)} min-w-0 cursor-text`}>
+              <Link2 size={12} className="shrink-0 text-blue-400" />
+              <input
+                value={f.rawLink}
+                onChange={(e) => set({ rawLink: e.target.value })}
+                placeholder="Raw footage Drive link"
+                aria-label="Raw footage Drive link"
+                className="w-40 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
+              />
+            </label>
             <button
               type="button"
               onClick={() => setMore((m) => !m)}
@@ -331,16 +343,6 @@ export function NewTaskRow({
 
           <Reveal open={more}>
             <div className="flex flex-wrap items-center gap-1.5 px-5 pb-4">
-              <label className={`${pill(!!f.rawLink)} min-w-0 cursor-text`}>
-                <Link2 size={12} className="shrink-0 text-blue-400" />
-                <input
-                  value={f.rawLink}
-                  onChange={(e) => set({ rawLink: e.target.value })}
-                  placeholder="Raw footage link"
-                  aria-label="Raw footage link"
-                  className="w-40 bg-transparent text-xs text-foreground outline-none! placeholder:text-muted"
-                />
-              </label>
               <DatePicker
                 pill={{ icon: <CalendarClock size={12} className="text-orange-400" /> }}
                 value={f.scheduledFor}
