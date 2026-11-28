@@ -417,6 +417,33 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
             )}
           </div>
 
+          {same.length > 0 && (
+            <section role="alert" className="fade-in mx-5 mb-4 shrink-0 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] px-4 py-3">
+              <p className="flex items-center gap-2 text-sm text-foreground">
+                <Copy size={14} className="shrink-0 text-amber-300" />
+                This lead is already in Easeus HQ
+              </p>
+              <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto">
+                {same.map((l) => (
+                  <li key={l.id} className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">{l.title}</p>
+                      <p className="truncate text-xs text-muted">
+                        {l.where} · {l.stage}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        Added by {l.addedBy} on {new Date(l.addedOn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
+                        {l.assignedTo && ` · With ${l.assignedTo}`}
+                      </p>
+                    </div>
+                    <Link href={l.href} onClick={() => ref.current?.close()} className="btn btn-xs btn-ghost shrink-0">
+                      Open lead
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="flex min-h-0 flex-auto flex-col gap-3 overflow-y-auto px-5 pb-5">
             <section className={SECTION}>
               <div className={SECTION_HEAD}>
@@ -476,33 +503,6 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
             </section>
           </div>
 
-          {same.length > 0 && (
-            <section role="alert" className="fade-in mx-5 mb-3 shrink-0 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] px-4 py-3">
-              <p className="flex items-center gap-2 text-sm text-foreground">
-                <Copy size={14} className="shrink-0 text-amber-300" />
-                This lead is already in Easeus HQ
-              </p>
-              <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto">
-                {same.map((l) => (
-                  <li key={l.id} className="flex min-w-0 items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm text-foreground">{l.title}</p>
-                      <p className="truncate text-xs text-muted">
-                        {l.where} · {l.stage}
-                      </p>
-                      <p className="truncate text-xs text-muted">
-                        Added by {l.addedBy} on {new Date(l.addedOn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
-                        {l.assignedTo && ` · With ${l.assignedTo}`}
-                      </p>
-                    </div>
-                    <Link href={l.href} onClick={() => ref.current?.close()} className="btn btn-xs btn-ghost shrink-0">
-                      Open lead
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
           <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
             <p role="alert" className="min-w-0 truncate text-xs text-red-300">
               {error}
@@ -511,7 +511,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
               <button type="button" onClick={() => ref.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button disabled={busy || same.length > 0} className="btn btn-glow disabled:opacity-60">
+              <button disabled={busy || same.length > 0} className="btn btn-glow transition-opacity disabled:pointer-events-none disabled:opacity-35">
                 {busy ? "Adding…" : "Add lead"}
               </button>
             </div>
