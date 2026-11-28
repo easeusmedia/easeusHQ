@@ -33,7 +33,7 @@ import { ADD_BUTTON, PlusBadge } from "../AddButton";
 import { Dropdown } from "../Dropdown";
 import { DatePicker } from "../DatePicker";
 import { closeOnBackdrop } from "../dialog";
-import { tickTask } from "../actions";
+import { tickTask, type TaskFormState } from "../actions";
 import { moveWorkTask } from "../my-tasks/actions";
 import { Composer, type TodoKind } from "../my-tasks/TodoList";
 import { WorkTaskDialog, type Project } from "../my-tasks/WorkTaskDialog";
@@ -46,6 +46,7 @@ import type { Role } from "@/lib/workflow";
 import type { Meeting } from "@/lib/googleCalendar";
 import { addNotice, clearNotice, forwardNotice, hideNotice, scheduleMeeting, setNoticeRemark } from "./actions";
 import { warmTask } from "../taskWarm";
+import { useDriveLinkPrompt } from "../DriveLinkPrompt";
 import { useFrozen } from "../FrozenTasks";
 import { MENU_ITEM, MoreMenu } from "../MoreMenu";
 
@@ -503,6 +504,7 @@ export function HomeView({
   const frozen = useFrozen();
   // why a tick didn't go through, under your list (it used to just come back)
   const [tickError, setTickError] = useState<string | null>(null);
+  const { prompt: linkPrompt, ask: askLink } = useDriveLinkPrompt();
   async function tick(item: HomeItem) {
     setTickError(null);
     setGone((g) => new Set(g).add(item.key));
@@ -510,7 +512,11 @@ export function HomeView({
     const res = await (item.source === "work" ? moveWorkTask(item.id, "done", item.todo?.sortOrder ?? 0) : tickTask(item.id)).catch(() => ({ error: "That didn't go through. Check your connection and try again." }));
     if (res.error) {
       setGone((g) => new Set([...g].filter((k) => k !== item.key)));
-      setTickError(res.error);
+      // a production task with no final Drive link: asked for here, or it
+      // goes to the client for approval and stays on the list
+      const offer = (res as TaskFormState).needsDriveLink;
+      if (!offer) setTickError(res.error);
+      else if ((await askLink(item.id, offer)) === "delivered") setGone((g) => new Set(g).add(item.key));
     }
     router.refresh();
   }
@@ -679,6 +685,7 @@ export function HomeView({
           </div>
         )}
         {tickError && <p className="fade-in mt-2 px-1 text-sm text-red-300">{tickError}</p>}
+        {linkPrompt}
       </Section>
     ),
     calendar: (

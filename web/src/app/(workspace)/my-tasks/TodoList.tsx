@@ -10,7 +10,7 @@ import { DatePicker } from "../DatePicker";
 import { StatusSelect } from "../StatusSelect";
 import { TaskDetailsDialog } from "../TaskDetailsDialog";
 import { WorkTaskDialog, type Project } from "./WorkTaskDialog";
-import { createTask, deleteTask, moveTask, tickTask } from "../actions";
+import { createTask, deleteTask, moveTask, tickTask, type TaskFormState } from "../actions";
 import { createWorkTask, deleteWorkTask, getFinished, moveWorkTask } from "./actions";
 import { ConfirmButton } from "../ConfirmButton";
 import { addDays, dayOf, daysBetween, mondayOf, shortDay, weekday } from "@/lib/editorKpi";
@@ -19,6 +19,7 @@ import type { TaskCardData } from "../TaskCard";
 import type { TaskTagOption } from "../TaskTagPicker";
 import type { WorkTaskCardData } from "./WorkTaskCard";
 import { useFrozen } from "../FrozenTasks";
+import { useDriveLinkPrompt } from "../DriveLinkPrompt";
 import { warmTask } from "../taskWarm";
 
 export type TodoKind = { id: string; name: string; workflow: string; clientFacing: boolean; department: string | null };
@@ -213,6 +214,7 @@ export function TodoList({
   const [period, setPeriod] = useState<Period>("week");
   const [range, setRange] = useState({ from: "", to: "" });
   const [error, setError] = useState<string | null>(null);
+  const { prompt: linkPrompt, ask: askLink } = useDriveLinkPrompt();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [folded, setFolded] = useState<Set<string>>(new Set());
@@ -298,7 +300,13 @@ export function TodoList({
         next.delete(item.key);
         return next;
       });
-      return setError(res.error);
+      // a production task with no final Drive link: asked for here, or it
+      // goes to the client for approval and stays on the list
+      const offer = (res as TaskFormState).needsDriveLink;
+      if (!offer) return setError(res.error);
+      const where = await askLink(item.id, offer);
+      if (where !== "delivered") return void (where && router.refresh());
+      setGone((g) => new Set(g).add(item.key));
     }
     setUndo(item);
     router.refresh();
@@ -482,6 +490,7 @@ export function TodoList({
       </div>
       <Composer key={composing} startOpen={composing > 0} kinds={kinds} {...env} />
       {error && <p className="fade-in -mt-3 text-sm text-red-300">{error}</p>}
+      {linkPrompt}
 
       {sections.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/[0.1] px-4 py-14 text-center">

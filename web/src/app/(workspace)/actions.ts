@@ -58,7 +58,10 @@ export async function logout() {
 // message inline instead of throwing all the way up to the nearest
 // error.tsx — which is correct-but-jarring for something the user can
 // just fix and resubmit.
-export type TaskFormState = { error?: string; success?: boolean };
+// needsDriveLink: a tick refused for want of the final Drive link, so the
+// tick can ask for it there and then; toClient: whether it can go to the
+// client for approval instead (it hasn't yet), with the Frame.io link it has
+export type TaskFormState = { error?: string; success?: boolean; needsDriveLink?: { toClient: boolean; frameioLink: string | null } };
 
 // A Member in Production (an editor, a designer): their work is measured by
 // type (a reel, a trailer, a thumbnail), on the Performance page.
@@ -229,18 +232,22 @@ async function changeStatus(taskId: string, to: TaskStatus, extras: StatusChange
     if (!canTransition(task.status, to, { role: actingRole, isAssignee }, task.workflow)) {
       return { error: "You can't move this task to that stage." };
     }
-    // Level 1 and 2 ticking off their own task (Home, My tasks): it's done,
-    // no Drive link or grade asked for (Abhishek, 21 Oct 2026). Editors'
-    // work still needs both, on the Board.
+    // Level 1 and 2 ticking off their own task (Home, My tasks): no grade
+    // asked for (Abhishek, 21 Oct 2026). Editors' work still needs one, on the Board.
     const ownTick = ticked && actingRole !== "employee" && isAssignee;
 
     // hard rule, not just a UI nicety: a task can't be marked delivered
     // without a Drive link on record — enforced here so it holds regardless
-    // of which UI path (button, dropdown, or a future API caller) triggers it.
-    // Internal work isn't delivered to anyone, so it's done without one.
+    // of which UI path (button, dropdown, tick, or a future API caller)
+    // triggers it. A tick too (Abhishek, 28 Nov 2026): ticked without one,
+    // its project's file showed as delivered with nothing in it. Internal
+    // work isn't delivered to anyone, so it's done without one.
     const video = workflowOf(task.workflow) === "video";
-    if (video && !task.internal && to === "delivered_and_uploaded" && !driveLink && !task.driveLink && !ownTick) {
-      return { error: "Add a Drive link before marking this delivered." };
+    if (video && !task.internal && to === "delivered_and_uploaded" && !driveLink && !task.driveLink) {
+      return {
+        error: "Add a Drive link before marking this delivered.",
+        ...(ticked ? { needsDriveLink: { toClient: !["sent_for_client_approval", "final_export_ready"].includes(task.status), frameioLink: task.frameioLink } } : {}),
+      };
     }
     // same rule for review: nobody, internal or client, can review a cut
     // there's no link to
@@ -290,8 +297,16 @@ export async function moveTask(taskId: string, to: TaskStatus, extras: StatusCha
 }
 
 // the tick on Home and My tasks: done (Delivered) in one tap
-export async function tickTask(taskId: string): Promise<TaskFormState> {
-  return withUndo([{ kind: "task", id: taskId }], () => changeStatus(taskId, "delivered_and_uploaded", {}, true));
+// (with the final Drive link, when the tick had to ask for it)
+export async function tickTask(taskId: string, driveLink?: string): Promise<TaskFormState> {
+  return withUndo([{ kind: "task", id: taskId }], () => changeStatus(taskId, "delivered_and_uploaded", driveLink ? { driveLink } : {}, true));
+}
+
+// the tick on one only sent to the client so far (Abhishek, 28 Nov 2026):
+// Sent for client approval with its Frame.io link, left on their list to be
+// ticked again, with the Drive link, once it's delivered
+export async function tickToClient(taskId: string, frameioLink: string): Promise<TaskFormState> {
+  return withUndo([{ kind: "task", id: taskId }], () => changeStatus(taskId, "sent_for_client_approval", { frameioLink }, true));
 }
 
 // pure manual reordering within a column — no status change, no workflow
