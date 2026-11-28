@@ -779,10 +779,15 @@ export function dayLeft<M extends Pick<MessageData, "id" | "name" | "channel" | 
 // changes the messages), with the first day and person it's missing for.
 // message null (and no fill): the person can't be reached at all (no
 // contact, or none of the channels the sequence writes on)
-export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name"> | null; contact: Contact | null; fill?: string };
+// stage: a Replied row step's name, for its messages (day 0)
+export type Unapproved = { day: number; message: Pick<MessageData, "id" | "name"> | null; contact: Contact | null; fill?: string; stage?: string };
 // needsContact: the board keeps people on its leads (a contacts property), so a
 // lead with nobody on it, or someone with no handle the messages go to, can't
 // go on to Ready to reach out: approving nothing would pass (Abhishek, 23 Oct 2026)
+// toId: the stage it's going to. Into the Replied row (Abhishek, 28 Nov 2026:
+// once they've replied, the days don't matter), only that step's own
+// messages (Audit sent's, a follow-up's), as the lead window keys them by
+// stage; a step with none (Replied, Call booked) waits on nothing.
 export function approvalsMissing(
   board: { stages: Pick<StageData, "id" | "name">[]; messages: Pick<MessageData, "id" | "stageId" | "name" | "channel" | "subject" | "body">[] },
   lead: LeadState,
@@ -790,19 +795,25 @@ export function approvalsMissing(
   contacts: Contact[],
   opened = false,
   needsContact = false,
+  toId: string | null = null,
 ): Unapproved[] {
+  const at = toId ? board.stages.findIndex((s) => s.id === toId) : -1;
+  const step = at >= 0 && stageSections(board.stages)?.[at] === "replied" ? board.stages[at] : null;
   const days = [...new Set(board.stages.map((s) => dayOf(s.name)).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const groups = step
+    ? [{ day: 0, key: step.id, stage: step.name, messages: board.messages.filter((m) => m.stageId === step.id) }].filter((g) => g.messages.length)
+    : days.map((day) => ({ day, key: `day-${day}`, stage: undefined, messages: messagesOnDay(board, day) }));
   const fills: Unapproved[] = [];
   const missing: Unapproved[] = [];
-  if (needsContact && !contacts.length && days.length) return [{ day: 0, message: null, contact: null }];
-  const sent = board.messages.filter((m) => dayOf(board.stages.find((s) => s.id === m.stageId)?.name ?? "") != null);
+  if (needsContact && !contacts.length && groups.length) return [{ day: 0, message: null, contact: null }];
+  const sent = groups.flatMap((g) => g.messages);
   for (const contact of contacts.length ? contacts : [null]) {
     // nobody to send to yet: said first, and the messages are still listed
     if (needsContact && contact && sent.length && !sent.some((m) => hasChannel(contact, m.channel))) missing.push({ day: 0, message: null, contact });
-    for (const day of days) {
-      const left = dayLeft(messagesOnDay(board, day), `day-${day}`, lead, prepared, contact, opened);
-      for (const fill of left.fill) if (!fills.some((f) => f.fill === fill)) fills.push({ day, message: null, contact, fill });
-      for (const m of left.approve) missing.push({ day, message: m, contact });
+    for (const g of groups) {
+      const left = dayLeft(g.messages, g.key, lead, prepared, contact, opened);
+      for (const fill of left.fill) if (!fills.some((f) => f.fill === fill)) fills.push({ day: g.day, message: null, contact, fill, stage: g.stage });
+      for (const m of left.approve) missing.push({ day: g.day, message: m, contact, stage: g.stage });
     }
   }
   return [...fills, ...missing];
@@ -819,11 +830,11 @@ export function needsApprovals(stages: Pick<StageData, "id" | "name">[], toId: s
 // Everything it still needs before Ready to reach out, one line each, in day
 // order (the lead window's warning lists them all, so nothing is guessed)
 export function unapprovedLines(missing: Unapproved[], most = 10): string[] {
-  const lines = missing.map(({ day, message, contact, fill }) => {
+  const lines = missing.map(({ day, message, contact, fill, stage }) => {
     const who = contact?.name.trim();
     if (fill) return `Fill in ${fill}`;
     if (!message) return contact ? `Add an email, LinkedIn or Instagram${who ? ` for ${who}` : ""}` : "Add a contact";
-    return `Approve Day ${day} · ${message.name.replace(/^day \d+\s*·\s*/i, "")}${who ? ` for ${who}` : ""}`;
+    return `Approve ${stepName(day, message.name, stage)}${who ? ` for ${who}` : ""}`;
   });
   return lines.length > most ? [...lines.slice(0, most), `And ${lines.length - most} more`] : lines;
 }
@@ -840,11 +851,13 @@ export function unapprovedText(missing: Unapproved[]): string {
     const who = unreachable.contact?.name.trim();
     return unreachable.contact ? `Add an email, LinkedIn or Instagram${who ? ` for ${who}` : ""} first.` : "Add a contact first.";
   }
-  const [{ day, message, contact }] = missing;
+  const [{ day, message, contact, stage }] = missing;
   const name = contact?.name.trim();
   const more = missing.length - 1;
-  return `Approve every message first: Day ${day} · ${message!.name.replace(/^day \d+\s*·\s*/i, "")}${name ? ` for ${name}` : ""}${more ? ` and ${more} more` : ""}.`;
+  return `Approve every message first: ${stepName(day, message!.name, stage)}${name ? ` for ${name}` : ""}${more ? ` and ${more} more` : ""}.`;
 }
+// "Day 3 · Email 2", or a Replied row step's "Audit sent · Loom · Email"
+const stepName = (day: number, message: string, stage?: string) => (stage ? `${stage} · ${message}` : `Day ${day} · ${message.replace(/^day \d+\s*·\s*/i, "")}`);
 
 // The day the LinkedIn connection request goes out: the sequence's first
 // LinkedIn message. Its marks are Accepted, then Reply.

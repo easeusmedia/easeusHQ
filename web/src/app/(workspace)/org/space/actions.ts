@@ -881,7 +881,8 @@ export async function assignLead(id: string, userId: string | null): Promise<Don
 // one, the answer says so ({ needsReason }) and nothing moves. Into Ready to
 // reach out or any stage after it (Abhishek, 9 Nov 2026), only once every
 // message is approved and its fill-ins filled (lib/space needsApprovals,
-// approvalsMissing), reason or not.
+// approvalsMissing), reason or not; into a Replied row step, only that
+// step's own messages (28 Nov 2026).
 export async function moveLead(id: string, toStageId: string, sortOrder: number, reason?: string): Promise<Done & { needsReason?: boolean }> {
   const lead = await leadWithBoard(id);
   if (!lead) return { error: "That lead no longer exists." };
@@ -919,6 +920,7 @@ export async function moveLead(id: string, toStageId: string, sortOrder: number,
         leadPeople(values, contactFields),
         opened,
         fields.length > 0,
+        toStageId,
       );
       if (missing.length) return { error: unapprovedText(missing) };
     }

@@ -166,6 +166,12 @@ export function Messages({
   const repliedOn = (key: string) => lead.email.replied?.day === key || people.some((c) => MARKED.some((p) => lead.marks[idOf(c)]?.[p]?.replied?.day === key));
   const stage = board.stages.find((s) => s.id === stageId);
   const today = dayOf(stage?.name ?? "");
+  // before Day 1 nobody knows yet whether Email 1 will be opened, so both of
+  // Day 2's versions are there to read and approve, one shown at a time,
+  // without picking it to send (Abhishek, 28 Nov 2026)
+  const firstDay = board.stages.findIndex((s) => dayOf(s.name) != null);
+  const early = firstDay >= 0 && board.stages.findIndex((s) => s.id === stageId) < firstDay;
+  const [viewing, setViewing] = useState<Record<string, string>>({});
 
   async function saveVar(name: string, value: string): Promise<string | undefined> {
     if ((lead.vars[name] ?? "") === value.trim()) return;
@@ -362,7 +368,8 @@ export function Messages({
   // oneSwitch: the stage switches its versions for every platform at once, above
   const platformRow = (t: SequenceTab, options: MessageData[], c: Contact | null, oneSwitch = false) => {
     const key = forContact(t.key, c);
-    const chosen = chosenFor(options, picks, t.key, c, lead.email.opens > 0, t.messages) ?? options[0];
+    const byOpens = early && options.some((o) => misfitsOpens(o, true) || misfitsOpens(o, false));
+    const chosen = (byOpens ? options.find((o) => o.id === viewing[key]) : undefined) ?? chosenFor(options, picks, t.key, c, lead.email.opens > 0, t.messages) ?? options[0];
     const can = hasChannel(c, chosen.channel);
     // the day has come, or gone (a lead past the days, in Replied, can still untap)
     const reached = t.when === "done" || (t.day != null && today != null && t.day <= today);
@@ -389,7 +396,11 @@ export function Messages({
                 // Day 2: the version that doesn't fit whether Email 1 was
                 // opened looks off, and asks before it's used (Abhishek, 24 Nov 2026)
                 const opened = lead.email.opens > 0;
-                return chosen.id !== o.id && misfitsOpens(o, opened) ? (
+                return byOpens ? (
+                  <button key={o.id} type="button" aria-pressed={chosen.id === o.id} onClick={() => setViewing((v) => ({ ...v, [key]: o.id }))} className={chip}>
+                    {label}
+                  </button>
+                ) : chosen.id !== o.id && misfitsOpens(o, opened) ? (
                   <ConfirmButton
                     key={o.id}
                     confirm="Use it"

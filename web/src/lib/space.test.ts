@@ -560,6 +560,27 @@ test("an opener's own messages are approved per opener; an older approval still 
   assert.deepEqual(approvalKeys("e2"), ["e2", "e2#0"]);
 });
 
+test("into the Replied row, only that step's own messages wait on approval, never the days", () => {
+  const at = { by: "A", at: "2026-11-28" };
+  const none = { drafts: {}, openers: [] };
+  const board = {
+    stages: [...days.stages, { id: "r1", name: "Audit sent", color: "blue" }, { id: "r2", name: "Call booked", color: "blue" }],
+    messages: [...days.messages, { id: "loom", stageId: "r1", channel: "email", name: "Loom · Email", subject: "", body: "", note: "" }],
+  };
+  const ann = person("ann", "email");
+  const nothing = { vars: {}, picks: {}, approvals: {} };
+  // to a day stage: every day, as before
+  assert.deepEqual(approvalsMissing(board, nothing, none, [ann], false, true, "d1").map((m) => m.message?.id), ["e1", "e2"]);
+  // to Replied or Call booked (no messages of their own): nothing, the days unapproved
+  assert.deepEqual(approvalsMissing(board, nothing, none, [ann], false, true, "d4"), []);
+  assert.deepEqual(approvalsMissing(board, nothing, none, [ann], false, true, "r2"), []);
+  // to Audit sent: its own message, named by its step
+  const left = approvalsMissing(board, nothing, none, [ann], false, true, "r1");
+  assert.deepEqual(left.map((m) => m.message?.id), ["loom"]);
+  assert.equal(unapprovedText(left), "Approve every message first: Audit sent · Loom · Email for ann.");
+  assert.deepEqual(approvalsMissing(board, { ...nothing, approvals: { "loom@ann": at } }, none, [ann], false, true, "r1"), []);
+});
+
 test("a lead goes into Ready to reach out only once every message it can be sent is approved", () => {
   const at = { by: "A", at: "2026-10-23" };
   const openers = [

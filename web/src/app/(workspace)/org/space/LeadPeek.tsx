@@ -334,7 +334,7 @@ function LeadPage({
   // what a move there still waits on; null, nothing
   const missingFor = (toId: string) =>
     needsApprovals(board.stages, toId)
-      ? approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts"))
+      ? approvalsMissing(board, { ...lead, vars: leadVars({ ...lead, values, vars: { ...lead.vars, ...typed } }, board.fields) }, prepared ?? { drafts: {}, openers: [] }, contactList, lead.email.opens > 0, board.fields.some((f) => f.kind === "contacts"), toId)
       : null;
   // (until its openers and record load, what's approved for each can't be read)
   const left = ready ? (missingFor(ready.id) ?? []) : [];
