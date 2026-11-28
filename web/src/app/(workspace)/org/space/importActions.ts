@@ -300,7 +300,7 @@ export async function importLeads(boardId: string, leads: LeadIn[], duplicates =
     // only leads this person added to this board
     const given = Array.isArray(earlier) ? earlier.slice(0, 5000).map(String) : [];
     const before = given.length ? (await prisma.lead.findMany({ where: { id: { in: given }, boardId, createdById: b.viewer.id }, select: { id: true } })).map((l) => l.id) : [];
-    type Res = { created: { id: string; title: string }[]; skipped?: unknown[]; failed?: { title: string; error: string }[] };
+    type Res = { created: { id: string; title: string }[]; skipped?: { title: string; reason: string }[]; failed?: { title: string; error: string }[] };
     // ponytail: every fifty keeps the import's step again, so a big import snaps its earlier leads each time; fine to a few thousand
     const res = await withUndo(
       (r: Res) => [...before, ...r.created.map((c) => c.id)].map((id) => ({ table: "Lead", id })),
@@ -316,7 +316,10 @@ export async function importLeads(boardId: string, leads: LeadIn[], duplicates =
         if (first && (first.failed.length || first.left.length)) await enrichFromLinkedPages(boardId, again).catch(console.error);
         await fillCountries(boardId, again).catch(console.error);
       });
-    return { created: ids.length, skipped: res.skipped?.length ?? 0, ids, failed: res.failed ?? [] };
+    // not added for a reason of its own (no contact, its YouTube channel on
+    // another lead: lib/leadDupes): said, not just counted
+    const refused = (res.skipped ?? []).filter((x) => x.reason !== "already on the board").map((x) => ({ title: x.title, error: x.reason }));
+    return { created: ids.length, skipped: (res.skipped?.length ?? 0) - refused.length, ids, failed: [...(res.failed ?? []), ...refused] };
   } catch (err) {
     if (err instanceof ToolError) return { error: err.message };
     console.error(err);

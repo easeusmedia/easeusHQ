@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEPT, DEVELOPER, isFounder, setsUp, worksDepartment, type Viewer } from "@/lib/scope";
-import { cleanValue, dayOf, isDead, isFieldKind, outreachStart, personOpeners, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
+import { cleanValue, dayOf, isDead, isFieldKind, NEEDS_CONTACT, outreachStart, personOpeners, reachable, type Contact, type FieldKind, type LinkValue, type Opener } from "@/lib/space";
+import { channelsOfValues, sameChannel, sameLine } from "@/lib/leadDupes";
 import {
   addOption,
   assignLead,
@@ -682,7 +683,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
 
     tool(
       "add_leads",
-      "Put prepared leads on a board, up to 50 a call: a lead database (Leads › Podcast...) to collect them, or an outreach board, each with its fields, people (with their designation and links), its own links, notes, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is filled in and approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates.",
+      "Put prepared leads on a board, up to 50 a call: a lead database (Leads › Podcast...) to collect them, or an outreach board, each with its fields, people (with their designation and links), its own links, notes, variables and opener emails. They land in the first stage (Dream list) unless a stage is given: one before Ready to reach out, or Dead, since a lead goes into Ready to reach out only once every message is filled in and approved. They go to whoever's key this is unless assigned_to says who. A lead whose name is already on the board is skipped, not doubled, unless allow_duplicates. Never added, whatever allow_duplicates says: a lead without a contact (a person with an email, phone number or handle), and a lead whose YouTube channel is already on any Sales lead (anywhere in Leads or Outreach, Dead leads too). Every lead not added comes back in skipped with its reason, and for a duplicate, the lead already there (where, who added it and when, who has it, its link): tell the person each one.",
       z.object({
         board_id: z.string().describe("The board's id or name"),
         leads: z.array(leadIn).min(1).max(50),
@@ -702,7 +703,9 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
         );
         const added: string[] = [];
         const created: { id: string; title: string; url: string }[] = [];
-        const skipped: { title: string; reason: string }[] = [];
+        const skipped: { title: string; reason: string; already?: { title: string; where: string; added_by: string; added_on: string; with?: string; url: string }[] }[] = [];
+        // the YouTube channels added in this call so far, and which lead has each
+        const channelsAdded = new Map<string, string>();
         const failed: { title: string; error: string }[] = [];
         for (const lead of a.leads) {
           const title = lead.title.trim().replace(/\s+/g, " ");
@@ -723,6 +726,26 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
               const f = fieldOf(board, key);
               const v = await storedValue(acting, board, f, raw, [], added);
               if (v != null) values[f.id] = v;
+            }
+            // someone to reach, and a YouTube channel no Sales lead has yet (lib/leadDupes)
+            if (!reachable(peopleIn(board, values))) {
+              skipped.push({ title, reason: NEEDS_CONTACT });
+              continue;
+            }
+            const channels = channelsOfValues(values);
+            const twin = channels.find((c) => channelsAdded.has(c));
+            if (twin) {
+              skipped.push({ title, reason: `Its YouTube channel is the same as "${channelsAdded.get(twin)}", added earlier in this call.` });
+              continue;
+            }
+            const same = await sameChannel(channels);
+            if (same.length) {
+              skipped.push({
+                title,
+                reason: `Already in Easeus HQ: ${sameLine(same[0])}.`,
+                already: same.map((x) => ({ title: x.title, where: `${x.where} (${x.stage})`, added_by: x.addedBy, added_on: x.addedOn.slice(0, 10), with: x.assignedTo ?? undefined, url: `${origin}${x.href}` })),
+              });
+              continue;
             }
             const missing = board.fields.filter((f) => f.required && values[f.id] == null);
             if (missing.length && !imported) throw new ToolError(`${missing.map((f) => f.name).join(", ")} ${missing.length === 1 ? "is" : "are"} required on ${board.name}.`);
@@ -780,6 +803,7 @@ export function salesTools(acting: Acting, origin: string, { imported = false } 
               continue;
             }
             created.push({ id, title, url: `${board.url}&lead=${id}` });
+            for (const c of channels) channelsAdded.set(c, title);
           } catch (err) {
             failed.push({
               title,

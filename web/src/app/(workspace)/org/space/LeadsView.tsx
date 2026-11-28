@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, Filter, Plus, Search, Table2, Trash2, Undo2, X } from "lucide-react";
+import { Check, Copy, Filter, Plus, Search, Table2, Trash2, Undo2, X } from "lucide-react";
 import { ADDED, NO_FILTER, passesSheetFilter, REACH, hasReach, sheetText, shownAs, type OutreachBoard, type SheetData, type SheetFilter, type SheetLead } from "@/lib/leadSheet";
-import { CONTACT_ROLES, hexOf, type Contact, type LinkValue, type OptionData } from "@/lib/space";
+import { CONTACT_ROLES, hexOf, NEEDS_CONTACT, reachable, type Contact, type LinkValue, type OptionData } from "@/lib/space";
+import type { SameLead } from "@/lib/leadDupes";
 import { BoardTabs, SEG_ROW } from "./BoardTabs";
 import { LeadSheet } from "./LeadSheet";
 import { LeadTags, Paste, Person, SheetLeadWindow } from "./SheetLead";
@@ -13,7 +15,7 @@ import { chip } from "../../chip";
 import { Avatar } from "../../TaskCard";
 import { PlatformMark } from "../../PlatformIcon";
 import { NewSpaceDialog } from "./NewSpaceDialog";
-import { createLead, deleteLeadForever, setLeadDead } from "./actions";
+import { createLead, deleteLeadForever, leadsWithChannel, setLeadDead } from "./actions";
 import { ConfirmButton } from "../../ConfirmButton";
 import { setParam } from "../../urlState";
 import { closeOnBackdrop } from "../../dialog";
@@ -331,6 +333,26 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
   const [opens, setOpens] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a lead already holding its YouTube channel (lib/leadDupes): named, and it can't be added
+  const [same, setSame] = useState<SameLead[]>([]);
+  const tubes = JSON.stringify({ urls: links.map((l) => l.url).filter((u) => /youtube\.com/i.test(u)), people: people.flatMap((p) => p.channels.filter((c) => c.kind === "youtube" && c.value.trim()).map((c) => c.value)) });
+  useEffect(() => {
+    const { urls, people: theirs } = JSON.parse(tubes) as { urls: string[]; people: string[] };
+    const none = !urls.length && !theirs.length;
+    let live = true;
+    // checked as soon as a channel is in, a moment after the typing stops
+    const t = setTimeout(
+      async () => {
+        const res = none ? { same: [] } : await leadsWithChannel(boardId, urls.map((url) => ({ url })), [{ id: "p", name: "", role: "", channels: theirs.map((value) => ({ kind: "youtube", value })) }]).catch(() => ({ same: [] }));
+        if (live) setSame(res.same);
+      },
+      none ? 0 : 300,
+    );
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [tubes, boardId]);
   const allRoles = [...new Set([...CONTACT_ROLES, "CTO", ...roles, ...people.map((p) => p.role).filter(Boolean)])];
 
   function open() {
@@ -342,6 +364,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
     setNotes("");
     setTags([]);
     setError(null);
+    setSame([]);
     setOpens((n) => n + 1);
     ref.current?.showModal();
   }
@@ -350,11 +373,13 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
     if (!title.trim()) return setError("Give the lead a name.");
     // nothing left behind in a paste box (an email in the lead's links, say)
     if ([...form.querySelectorAll<HTMLInputElement>("input[data-paste]")].some((i) => i.value.trim())) return setError("Add or clear the pasted text first.");
-    if (!links.length && !kept.some((p) => p.channels.some((c) => c.value.trim()))) return setError("Add at least one link, email or phone number.");
+    if (!reachable(kept)) return setError(NEEDS_CONTACT);
+    if (same.length) return setError("This lead is already in Easeus HQ.");
     setBusy(true);
     setError(null);
     const res = await createLead(boardId, title, links, { contacts: kept.map((p) => ({ ...p, name: p.name.trim() })), notes, tags }).catch(() => ({ error: "That couldn't be saved. Check your connection and try again.", id: undefined }));
     setBusy(false);
+    if ("same" in res && res.same?.length) setSame(res.same);
     if (res.error || !res.id) return setError(res.error ?? "That couldn't be saved.");
     ref.current?.close();
     onAdded();
@@ -451,6 +476,33 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
             </section>
           </div>
 
+          {same.length > 0 && (
+            <section role="alert" className="fade-in mx-5 mb-3 shrink-0 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] px-4 py-3">
+              <p className="flex items-center gap-2 text-sm text-foreground">
+                <Copy size={14} className="shrink-0 text-amber-300" />
+                This lead is already in Easeus HQ
+              </p>
+              <ul className="mt-2 flex max-h-40 flex-col gap-2 overflow-y-auto">
+                {same.map((l) => (
+                  <li key={l.id} className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">{l.title}</p>
+                      <p className="truncate text-xs text-muted">
+                        {l.where} · {l.stage}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        Added by {l.addedBy} on {new Date(l.addedOn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
+                        {l.assignedTo && ` · With ${l.assignedTo}`}
+                      </p>
+                    </div>
+                    <Link href={l.href} onClick={() => ref.current?.close()} className="btn btn-xs btn-ghost shrink-0">
+                      Open lead
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
             <p role="alert" className="min-w-0 truncate text-xs text-red-300">
               {error}
@@ -459,7 +511,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
               <button type="button" onClick={() => ref.current?.close()} className="btn btn-ghost">
                 Cancel
               </button>
-              <button disabled={busy} className="btn btn-glow disabled:opacity-60">
+              <button disabled={busy || same.length > 0} className="btn btn-glow disabled:opacity-60">
                 {busy ? "Adding…" : "Add lead"}
               </button>
             </div>

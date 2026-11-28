@@ -85,6 +85,14 @@ const isChannel = (k: unknown): k is ChannelKind => CHANNELS.some((c) => c.kind 
 // The roles a contact can have; typing a new one adds it
 export const CONTACT_ROLES = ["Host", "Co-host", "Founder", "Co-founder", "CEO", "Marketer", "Producer", "Assistant"];
 
+// A Sales lead needs a way to reach someone (Abhishek, 28 Nov 2026): a
+// person with an email, a phone number or a handle (lib/leadDupes)
+const REACHES = new Set<string>(["email", "phone", "instagram", "linkedin", "x"]);
+export function reachable(contacts: { channels?: { kind: string; value: string }[] }[] | null | undefined): boolean {
+  return (contacts ?? []).some((c) => (c?.channels ?? []).some((ch) => REACHES.has(ch?.kind) && typeof ch.value === "string" && ch.value.trim() !== ""));
+}
+export const NEEDS_CONTACT = "Add at least one contact: a person with an email, phone number or handle.";
+
 // How each kind is stored in Lead.values[fieldId]
 // since (an email's): when that address was put on the lead (stampEmails)
 export type Contact = { id: string; name: string; role: string; channels: { kind: ChannelKind; value: string; since?: string }[] };

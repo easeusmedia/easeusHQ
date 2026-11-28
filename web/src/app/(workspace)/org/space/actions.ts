@@ -8,7 +8,8 @@ import { getViewer } from "@/lib/viewer";
 import { withUndo } from "@/lib/undo";
 import { moveToReplied, undoReplied } from "@/lib/leadMoves";
 import { withTabTag } from "@/lib/leadTags";
-import { addsPages, addsStages, buildsDepartment, editsTemplates, isFounder, setsUp, worksDepartment } from "@/lib/scope";
+import { addsPages, addsStages, buildsDepartment, DEPT, editsTemplates, isFounder, setsUp, worksDepartment } from "@/lib/scope";
+import { channelsIn, NEEDS_CONTACT, reachable, sameChannel, sameLine, type SameLead } from "@/lib/leadDupes";
 import {
   AFTER,
   REPLY_KEY,
@@ -533,7 +534,7 @@ export async function deleteOption(id: string, reason: string): Promise<Done> {
 // (with the podcast's links, when given, on the board's links property, and
 // a Leads tab's people and notes: Abhishek, 3 Nov 2026), given to whoever
 // added it until someone hands it on
-export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = [], more: { contacts?: Contact[]; notes?: string; tags?: string[] } = {}): Promise<Done & { id?: string }> {
+export async function createLead(boardId: string, title: string, links: { label: string; url: string }[] = [], more: { contacts?: Contact[]; notes?: string; tags?: string[] } = {}): Promise<Done & { id?: string; same?: SameLead[] }> {
   const board = await spaceOf(boardId);
   if (!board || board.kind !== "board") return { error: "That board no longer exists." };
   const who = await whoFor(board.teamId);
@@ -541,6 +542,12 @@ export async function createLead(boardId: string, title: string, links: { label:
   const n = (title ?? "").trim().replace(/\s+/g, " ");
   if (!n) return { error: "Give the lead a name." };
   if (n.length > 200) return { error: "That name is too long." };
+  // a Sales lead (lib/leadDupes): someone to reach, and a YouTube channel no other lead has
+  if ((await prisma.team.findUnique({ where: { id: board.teamId }, select: { slug: true } }))?.slug === DEPT.sales) {
+    if (!reachable(more.contacts)) return { error: NEEDS_CONTACT };
+    const same = await sameChannel(channelsIn(Array.isArray(links) ? links : [], more.contacts ?? []));
+    if (same.length) return { error: `This lead is already in Easeus HQ: ${sameLine(same[0])}.`, same };
+  }
   try {
     const stage = await prisma.boardStage.findFirst({ where: { boardId }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
     if (!stage) return { error: "This board has no stages yet." };
@@ -571,6 +578,17 @@ export async function createLead(boardId: string, title: string, links: { label:
   } catch (err) {
     return failed(err, "That lead couldn't be added.");
   }
+}
+
+// The leads already holding a new lead's YouTube channel, checked while its
+// links are typed (lib/leadDupes)
+export async function leadsWithChannel(boardId: string, links: { url: string }[], contacts: Contact[]): Promise<{ same: SameLead[] }> {
+  const board = await spaceOf(boardId);
+  if (!board) return { same: [] };
+  const who = await whoFor(board.teamId);
+  if ("error" in who) return { same: [] };
+  const channels = channelsIn(Array.isArray(links) ? links.slice(0, 50) : [], Array.isArray(contacts) ? contacts.slice(0, 50) : []);
+  return { same: await sameChannel(channels) };
 }
 
 export async function renameLead(id: string, title: string): Promise<Done> {
