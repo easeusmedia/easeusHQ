@@ -542,7 +542,7 @@ export async function createLead(boardId: string, title: string, links: { label:
   const n = (title ?? "").trim().replace(/\s+/g, " ");
   if (!n) return { error: "Give the lead a name." };
   if (n.length > 200) return { error: "That name is too long." };
-  // a Sales lead (lib/leadDupes): someone to reach, and a YouTube channel no other lead has
+  // a Sales lead (lib/leadDupes): someone to reach, and a YouTube channel or Instagram page no other lead has
   if ((await prisma.team.findUnique({ where: { id: board.teamId }, select: { slug: true } }))?.slug === DEPT.sales) {
     if (!reachable(more.contacts)) return { error: NEEDS_CONTACT };
     const same = await sameChannel(channelsIn(Array.isArray(links) ? links : [], more.contacts ?? []));
@@ -580,7 +580,7 @@ export async function createLead(boardId: string, title: string, links: { label:
   }
 }
 
-// The leads already holding a new lead's YouTube channel, checked while its
+// The leads already holding a new lead's YouTube channel or Instagram page, checked while its
 // links are typed (lib/leadDupes)
 export async function leadsWithChannel(boardId: string, links: { url: string }[], contacts: Contact[]): Promise<{ same: SameLead[] }> {
   const board = await spaceOf(boardId);

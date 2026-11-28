@@ -316,7 +316,7 @@ export async function importLeads(boardId: string, leads: LeadIn[], duplicates =
         if (first && (first.failed.length || first.left.length)) await enrichFromLinkedPages(boardId, again).catch(console.error);
         await fillCountries(boardId, again).catch(console.error);
       });
-    // not added for a reason of its own (no contact, its YouTube channel on
+    // not added for a reason of its own (no contact, its YouTube channel or Instagram page on
     // another lead: lib/leadDupes): said, not just counted
     const refused = (res.skipped ?? []).filter((x) => x.reason !== "already on the board").map((x) => ({ title: x.title, error: x.reason }));
     return { created: ids.length, skipped: (res.skipped?.length ?? 0) - refused.length, ids, failed: [...(res.failed ?? []), ...refused] };

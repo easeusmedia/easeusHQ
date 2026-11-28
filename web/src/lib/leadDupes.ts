@@ -1,24 +1,36 @@
 import { prisma } from "./prisma.ts";
 import { channelPath } from "./channelCountry.ts";
+import { instagramUsername } from "./analytics.ts";
 import type { Contact } from "./space.ts";
 export { NEEDS_CONTACT, reachable } from "./space.ts";
 
 // Duplicate leads (Abhishek, 28 Nov 2026: people adding leads for an
-// incentive could add one that's already there): a lead's YouTube channel is
-// its own, so a lead whose channel is already on another lead anywhere in
-// Sales (Leadwell's tabs, every outreach board, Dead leads) isn't added again,
-// by hand, by an import or through the MCP; the lead already there is named
-// instead. Matched on the channel's address (@handle, /channel/ id, /c/ or
-// /user/ name), however the link around it is written. And a lead needs a way
-// to reach someone: at least one person with an email, phone or handle.
+// incentive could add one that's already there): a lead's YouTube channel,
+// or its Instagram page for a personal brand, is its own, so a lead whose
+// channel or page is already on another lead anywhere in Sales (Leadwell's
+// tabs, every outreach board, Dead leads) isn't added again, by hand, by an
+// import or through the MCP; the lead already there is named instead.
+// Matched on the address (a channel's @handle, /channel/ id, /c/ or /user/
+// name; an Instagram username), however the link around it is written, and
+// as a link of the lead's or a person's own YouTube or Instagram. And a lead
+// needs a way to reach someone: a person with an email, phone or handle.
 
-const key = (raw: unknown, isYoutube: boolean) => (typeof raw === "string" ? (channelPath(raw, isYoutube)?.toLowerCase() ?? null) : null);
+// "yt:@handle" or "ig:username", so a YouTube @abc and an Instagram abc stay apart
+const youtube = (raw: unknown, bare: boolean) => (typeof raw === "string" ? channelPath(raw, bare)?.toLowerCase() : null);
+const instagram = (raw: unknown, bare: boolean) => (typeof raw === "string" && (bare || /instagram\.com\//i.test(raw)) ? instagramUsername(raw) : null);
+const keyed = (pairs: [string, string | null | undefined][]) => [...new Set(pairs.flatMap(([kind, v]) => (v ? [`${kind}:${v}`] : [])))];
 
-// the YouTube channels a lead names: in its links, or as a person's YouTube
+// the YouTube channels and Instagram pages a lead names: in its links, or as a person's
 export function channelsIn(links: { url?: unknown }[], contacts: Contact[]): string[] {
-  const keys = [...links.map((l) => key(l?.url, false)), ...contacts.flatMap((c) => (c?.channels ?? []).filter((ch) => ch?.kind === "youtube").map((ch) => key(ch.value, true)))];
-  return [...new Set(keys.filter((k): k is string => !!k))];
+  const theirs = contacts.flatMap((c) => c?.channels ?? []);
+  return keyed([
+    ...links.flatMap((l): [string, string | null | undefined][] => [["yt", youtube(l?.url, false)], ["ig", instagram(l?.url, false)]]),
+    ...theirs.filter((ch) => ch?.kind === "youtube").map((ch): [string, string | null | undefined] => ["yt", youtube(ch.value, true)]),
+    ...theirs.filter((ch) => ch?.kind === "instagram").map((ch): [string, string | null | undefined] => ["ig", instagram(ch.value, true)]),
+  ]);
 }
+// what a key is, in words
+export const linkKind = (key: string) => (key.startsWith("ig:") ? "Instagram page" : "YouTube channel");
 
 // the same, from a stored lead's values, whatever its properties are called:
 // a list of links ({ url }) or of people ({ channels })
@@ -56,7 +68,7 @@ export async function sameChannel(channels: string[], except?: string): Promise<
   if (!team) return [];
   // a cheap pass on the text first (the channel's name somewhere in the
   // lead), then each one read properly
-  const names = [...keys].map((k) => `%${likeSafe(k.replace(/^@|^(?:channel|c|user)\//, ""))}%`);
+  const names = [...keys].map((k) => `%${likeSafe(k.replace(/^(?:yt|ig):/, "").replace(/^@|^(?:channel|c|user)\//, ""))}%`);
   const rows = await prisma.$queryRaw<{ id: string; values: unknown }[]>`
     SELECT l.id, l.values FROM "Lead" l JOIN "Space" s ON s.id = l."boardId"
     WHERE s."teamId" = ${team.id} AND lower(l.values::text) LIKE ANY(${names}::text[])`;

@@ -333,17 +333,20 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
   const [opens, setOpens] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // a lead already holding its YouTube channel (lib/leadDupes): named, and it can't be added
+  // a lead already holding its YouTube channel or Instagram page (lib/leadDupes): named, and it can't be added
   const [same, setSame] = useState<SameLead[]>([]);
-  const tubes = JSON.stringify({ urls: links.map((l) => l.url).filter((u) => /youtube\.com/i.test(u)), people: people.flatMap((p) => p.channels.filter((c) => c.kind === "youtube" && c.value.trim()).map((c) => c.value)) });
+  const tubes = JSON.stringify({
+    urls: links.map((l) => l.url).filter((u) => /youtube\.com|instagram\.com/i.test(u)),
+    people: people.flatMap((p) => p.channels.filter((c) => (c.kind === "youtube" || c.kind === "instagram") && c.value.trim())),
+  });
   useEffect(() => {
-    const { urls, people: theirs } = JSON.parse(tubes) as { urls: string[]; people: string[] };
+    const { urls, people: theirs } = JSON.parse(tubes) as { urls: string[]; people: Contact["channels"] };
     const none = !urls.length && !theirs.length;
     let live = true;
     // checked as soon as a channel is in, a moment after the typing stops
     const t = setTimeout(
       async () => {
-        const res = none ? { same: [] } : await leadsWithChannel(boardId, urls.map((url) => ({ url })), [{ id: "p", name: "", role: "", channels: theirs.map((value) => ({ kind: "youtube", value })) }]).catch(() => ({ same: [] }));
+        const res = none ? { same: [] } : await leadsWithChannel(boardId, urls.map((url) => ({ url })), [{ id: "p", name: "", role: "", channels: theirs }]).catch(() => ({ same: [] }));
         if (live) setSame(res.same);
       },
       none ? 0 : 300,
@@ -355,7 +358,11 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
   }, [tubes, boardId]);
   const allRoles = [...new Set([...CONTACT_ROLES, "CTO", ...roles, ...people.map((p) => p.role).filter(Boolean)])];
 
-  function open() {
+  // what's typed stays until Cancel, the close button, a click outside or
+  // the lead being added (Abhishek, 28 Nov 2026: a warning or a look at the
+  // lead already there must never mean filling it all in again)
+  const started = !!title.trim() || links.length > 0 || !!notes.trim() || tags.length > 0 || people.some((p) => p.name.trim() || p.role.trim() || p.channels.length);
+  function clear() {
     const first = blankPerson();
     setTitle("");
     setFirstId(first.id);
@@ -366,7 +373,14 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
     setError(null);
     setSame([]);
     setOpens((n) => n + 1);
+  }
+  function open() {
+    if (!started) clear();
     ref.current?.showModal();
+  }
+  function cancel() {
+    clear();
+    ref.current?.close();
   }
   async function submit(form: HTMLFormElement) {
     const kept = people.filter((p) => p.name.trim() || p.role.trim() || p.channels.some((c) => c.value.trim()));
@@ -381,7 +395,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
     setBusy(false);
     if ("same" in res && res.same?.length) setSame(res.same);
     if (res.error || !res.id) return setError(res.error ?? "That couldn't be saved.");
-    ref.current?.close();
+    cancel();
     onAdded();
     router.refresh();
   }
@@ -392,7 +406,18 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
       <button type="button" onClick={open} className="btn btn-sm btn-glow ml-auto">
         <Plus size={14} /> Add lead
       </button>
-      <dialog ref={ref} {...closeOnBackdrop} className="dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground">
+      <dialog
+        ref={ref}
+        onMouseDown={closeOnBackdrop.onMouseDown}
+        onClick={(e) => {
+          // only when this click closed it (Open lead closes it first, and keeps what's typed)
+          const was = e.currentTarget.open;
+          closeOnBackdrop.onClick(e);
+          if (was && !e.currentTarget.open) clear();
+        }}
+        // Escape
+        onCancel={clear}
+        className="dialog-grow glass fixed top-1/2 left-1/2 m-0 max-h-[88vh] w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-0 text-foreground">
         <form
           key={opens}
           onSubmit={(e) => {
@@ -403,7 +428,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
         >
           <div className="flex shrink-0 items-center justify-between px-5 pt-4">
             <p className="text-xs font-medium text-muted">New lead</p>
-            <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="-mr-1.5 flex size-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
+            <button type="button" onClick={cancel} aria-label="Close" className="-mr-1.5 flex size-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground">
               <X size={15} />
             </button>
           </div>
@@ -436,7 +461,12 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
                         {l.assignedTo && ` · With ${l.assignedTo}`}
                       </p>
                     </div>
-                    <Link href={l.href} onClick={() => ref.current?.close()} className="btn btn-xs btn-ghost shrink-0">
+                    <Link
+                      href={l.href}
+                      // a look at it keeps what's typed here
+                      onClick={() => ref.current?.close()}
+                      className="btn btn-xs btn-ghost shrink-0"
+                    >
                       Open lead
                     </Link>
                   </li>
@@ -508,7 +538,7 @@ function AddLead({ boardId, roles, tagsField, onAdded }: { boardId: string; role
               {error}
             </p>
             <div className="flex shrink-0 gap-2">
-              <button type="button" onClick={() => ref.current?.close()} className="btn btn-ghost">
+              <button type="button" onClick={cancel} className="btn btn-ghost">
                 Cancel
               </button>
               <button disabled={busy || same.length > 0} className="btn btn-glow transition-opacity disabled:pointer-events-none disabled:opacity-35">
